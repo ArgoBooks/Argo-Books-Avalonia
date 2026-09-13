@@ -114,8 +114,7 @@ public partial class InsightsPageViewModel : ViewModelBase, ICleanupViewModel
         service ??= new InsightsService();
 
         const string insightsPeriod = "Last 3 Months";
-        var (start, end) = DatePresetNames.GetDateRange(insightsPeriod, companyData.GetEarliestDate());
-        var insights = await service.GenerateInsightsAsync(companyData, AnalysisDateRange.Custom(start, end));
+        var insights = await service.GenerateInsightsAsync(companyData, AnalysisDateRange.FromPreset(insightsPeriod, companyData.GetEarliestDate()));
 
         var (forecastStart, forecastEnd) = DatePresetNames.GetDateRange(DatePresetNames.NextMonth);
         var forecast = await service.GenerateForecastAsync(companyData, AnalysisDateRange.Custom(forecastStart, forecastEnd));
@@ -863,8 +862,7 @@ public partial class InsightsPageViewModel : ViewModelBase, ICleanupViewModel
             await RunBacktestIfNeededAsync(companyData, companySettings);
 
             // Use the selected historical date range for insights
-            var (insightsStartDate, insightsEndDate) = DatePresetNames.GetDateRange(SelectedInsightsDateRange, companyData.GetEarliestDate());
-            var insightsDateRange = AnalysisDateRange.Custom(insightsStartDate, insightsEndDate);
+            var insightsDateRange = AnalysisDateRange.FromPreset(SelectedInsightsDateRange, companyData.GetEarliestDate());
 
             // Update the analysis period description
             InsightsAnalysisPeriod = SelectedInsightsDateRange == DateRangePreset.AllTime.GetDisplayName()

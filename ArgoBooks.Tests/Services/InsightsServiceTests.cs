@@ -3,6 +3,7 @@ using System.Net;
 using System.Reflection;
 using System.Text;
 using ArgoBooks.Core.Data;
+using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Insights;
 using ArgoBooks.Core.Models.Transactions;
 using ArgoBooks.Core.Platform;
@@ -65,23 +66,6 @@ public class InsightsServiceTests
 
     #endregion
 
-    #region Previous period
-
-    // Transactions carry a time of day, so the previous period has to run to the last tick before
-    // the range, not midnight of the day before, or that day's later entries are dropped.
-    [Fact]
-    public void GetPreviousPeriod_EndsJustBeforeTheRangeStarts()
-    {
-        var range = AnalysisDateRange.Custom(new DateTime(2026, 3, 1), new DateTime(2026, 3, 30, 23, 59, 59));
-
-        var previous = range.GetPreviousPeriod();
-
-        Assert.Equal(new DateTime(2026, 1, 30), previous.StartDate);
-        Assert.Equal(new DateTime(2026, 3, 1).AddTicks(-1), previous.EndDate);
-    }
-
-    #endregion
-
     #region Trends for a future range
 
     // "Next Month" on Sep 11 analyses this month so far against the same days of last month. It
@@ -122,13 +106,79 @@ public class InsightsServiceTests
         return AnalysisDateRange.Custom(start, start.AddMonths(1).AddSeconds(-1));
     }
 
-    private static CompanyData DailyRevenue(DateTime from, DateTime through, decimal amount)
+    private static CompanyData DailyRevenue(DateTime from, DateTime through, decimal amount) =>
+        AddDailyRevenue(new CompanyData(), from, through, amount);
+
+    private static CompanyData AddDailyRevenue(CompanyData data, DateTime from, DateTime through, decimal amount)
     {
-        var data = new CompanyData();
         for (var day = from; day <= through; day = day.AddDays(1))
             data.Revenues.Add(UsdRevenue($"R{day:yyyyMMdd}", day.AddHours(12), amount));
         return data;
     }
+
+    #endregion
+
+    #region Trends for a past range
+
+    // Insights has to compare a period with the same one the dashboard does for that preset.
+
+    [Fact]
+    public async Task AnalyzeTrendsAsync_LastMonth_ComparesAgainstTheWholeMonthBefore()
+    {
+        var today = new DateTime(2026, 4, 15);
+        var data = DailyRevenue(new DateTime(2026, 1, 29), new DateTime(2026, 1, 31), 100m);
+        AddDailyRevenue(data, new DateTime(2026, 2, 1), new DateTime(2026, 2, 28), 50m);
+        AddDailyRevenue(data, new DateTime(2026, 3, 1), new DateTime(2026, 3, 31), 100m);
+        var lastMonth = Preset(DateRangePreset.LastMonth, new DateTime(2026, 3, 1), new DateTime(2026, 3, 31, 23, 59, 59));
+
+        var trends = await ServiceOn(today).AnalyzeTrendsAsync(data, lastMonth);
+
+        // March is 31 x 100; February is 28 x 50. The 31 days before March would reach back to Jan 29.
+        var growth = Assert.Single(trends, t => t.Title == "Revenue Growth Detected");
+        Assert.Equal(3100m, growth.MetricValue);
+        Assert.Equal(121.4m, Math.Round(growth.PercentageChange!.Value, 1));
+    }
+
+    [Fact]
+    public async Task AnalyzeTrendsAsync_ThisMonth_ComparesAgainstTheSameDaysOfLastMonth()
+    {
+        var today = new DateTime(2026, 9, 11);
+        var data = DailyRevenue(new DateTime(2026, 8, 1), new DateTime(2026, 8, 11), 100m);
+        AddDailyRevenue(data, new DateTime(2026, 8, 12), new DateTime(2026, 8, 31), 50m);
+        AddDailyRevenue(data, new DateTime(2026, 9, 1), today, 200m);
+        var thisMonth = Preset(DateRangePreset.ThisMonth, new DateTime(2026, 9, 1), today.AddDays(1).AddTicks(-1));
+
+        var trends = await ServiceOn(today).AnalyzeTrendsAsync(data, thisMonth);
+
+        // Sep 1-11 is 11 x 200; Aug 1-11 is 11 x 100. The 11 days just before are Aug 21-31 at 50.
+        var growth = Assert.Single(trends, t => t.Title == "Revenue Growth Detected");
+        Assert.Equal(2200m, growth.MetricValue);
+        Assert.Equal(100m, Math.Round(growth.PercentageChange!.Value, 1));
+    }
+
+    [Fact]
+    public async Task AnalyzeTrendsAsync_Last3Months_ComparesAgainstTheSameNumberOfDaysBefore()
+    {
+        var today = new DateTime(2026, 9, 11);
+        var data = DailyRevenue(new DateTime(2026, 3, 1), new DateTime(2026, 6, 10), 100m);
+        AddDailyRevenue(data, new DateTime(2026, 6, 11), today, 200m);
+        var last3Months = new AnalysisDateRange
+        {
+            StartDate = new DateTime(2026, 6, 11),
+            EndDate = today.AddDays(1).AddSeconds(-1),
+            PresetName = "Last 3 Months"
+        };
+
+        var trends = await ServiceOn(today).AnalyzeTrendsAsync(data, last3Months);
+
+        // Jun 11 - Sep 11 is 93 x 200; the 93 days before, Mar 10 - Jun 10, are 93 x 100.
+        var growth = Assert.Single(trends, t => t.Title == "Revenue Growth Detected");
+        Assert.Equal(18600m, growth.MetricValue);
+        Assert.Equal(100m, Math.Round(growth.PercentageChange!.Value, 1));
+    }
+
+    private static AnalysisDateRange Preset(DateRangePreset preset, DateTime start, DateTime end) =>
+        new() { StartDate = start, EndDate = end, PresetName = preset.GetDisplayName() };
 
     #endregion
 

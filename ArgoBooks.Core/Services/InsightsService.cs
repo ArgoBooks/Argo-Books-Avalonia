@@ -1425,19 +1425,19 @@ public class InsightsService(
     }
 
     /// <summary>
-    /// The current and previous periods a trend compares. A future range ("Next Month") maps to
-    /// this month, quarter or year so far, against the same days of the one before, so a
-    /// part-period is never measured against a whole one.
+    /// The current and previous periods a trend compares, by the same rule as the dashboard, read
+    /// from the range's preset name. A future range ("Next Month") maps to this month, quarter or
+    /// year so far first, so a part-period is never measured against a whole one.
     /// </summary>
     private (AnalysisDateRange Current, AnalysisDateRange Previous) GetHistoricalAnalysisPeriods(AnalysisDateRange dateRange)
     {
         var today = _today();
-        if (dateRange.StartDate <= today)
-            return (dateRange, dateRange.GetPreviousPeriod());
+        (DateRangePreset? Preset, AnalysisDateRange Range) current = dateRange.StartDate > today
+            ? GetPeriodSoFar(dateRange, today)
+            : (DateRangePresetExtensions.ParseDateRange(dateRange.PresetName), dateRange);
 
-        var (preset, current) = GetPeriodSoFar(dateRange, today);
-        var (previousStart, previousEnd) = ComparisonPeriod.For(preset, current.StartDate, current.EndDate);
-        return (current, AnalysisDateRange.Custom(previousStart, previousEnd));
+        var (previousStart, previousEnd) = ComparisonPeriod.For(current.Preset, current.Range.StartDate, current.Range.EndDate);
+        return (current.Range, AnalysisDateRange.Custom(previousStart, previousEnd));
     }
 
     /// <summary>
