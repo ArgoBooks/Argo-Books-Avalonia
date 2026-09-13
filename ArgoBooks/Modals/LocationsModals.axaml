@@ -78,42 +78,42 @@
                             <!-- Address Section -->
                             <TextBlock Text="{loc:Loc Address}" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,8,0,0" />
 
-                            <!-- Country -->
+                            <!-- Street Address -->
                             <StackPanel Spacing="6">
-                                <TextBlock Text="{loc:Loc Country}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                <controls:CountryInput SelectedCountryName="{Binding ModalCountry, Mode=TwoWay}" />
+                                <TextBlock Text="{loc:Loc 'Street address'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                <TextBox Text="{Binding ModalStreetAddress, Mode=TwoWay}"
+                                         Classes="form-input"
+                                         PlaceholderText="{loc:Loc 'Enter street address'}"
+                                         MaxLength="200" />
                             </StackPanel>
 
-                            <!-- State/Province and City -->
+                            <!-- Country and State/Province -->
                             <Grid ColumnDefinitions="*,16,*">
                                 <StackPanel Grid.Column="0" Spacing="6">
+                                    <TextBlock Text="{loc:Loc Country}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                    <controls:CountryInput SelectedCountryName="{Binding ModalCountry, Mode=TwoWay}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Spacing="6">
                                     <TextBlock Text="{Binding ModalCountry, Converter={x:Static controls:RegionInput.LabelConverter}}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
                                     <controls:RegionInput Country="{Binding ModalCountry}" Value="{Binding ModalStateProvince, Mode=TwoWay}" />
                                 </StackPanel>
-                                <StackPanel Grid.Column="2" Spacing="6">
+                            </Grid>
+
+                            <!-- City and Postal Code -->
+                            <Grid ColumnDefinitions="*,16,*">
+                                <StackPanel Grid.Column="0" Spacing="6">
                                     <TextBlock Text="{loc:Loc City}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
                                     <TextBox Text="{Binding ModalCity, Mode=TwoWay}"
                                              Classes="form-input"
                                              PlaceholderText="{loc:Loc 'Enter city'}"
                                              MaxLength="100" />
                                 </StackPanel>
-                            </Grid>
-
-                            <!-- Postal Code and Street Address -->
-                            <Grid ColumnDefinitions="Auto,16,*">
-                                <StackPanel Grid.Column="0" Spacing="6" Width="150">
+                                <StackPanel Grid.Column="2" Spacing="6">
                                     <TextBlock Text="{loc:Loc 'Postal code'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
                                     <TextBox Text="{Binding ModalPostalCode, Mode=TwoWay}"
                                              Classes="form-input"
                                              PlaceholderText="{loc:Loc 'Enter postal code'}"
                                              MaxLength="20" />
-                                </StackPanel>
-                                <StackPanel Grid.Column="2" Spacing="6">
-                                    <TextBlock Text="{loc:Loc 'Street address'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                    <TextBox Text="{Binding ModalStreetAddress, Mode=TwoWay}"
-                                             Classes="form-input"
-                                             PlaceholderText="{loc:Loc 'Enter street address'}"
-                                             MaxLength="200" />
                                 </StackPanel>
                             </Grid>
 
@@ -218,42 +218,42 @@
                             <!-- Address Section -->
                             <TextBlock Text="{loc:Loc Address}" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,8,0,0" />
 
-                            <!-- Country -->
+                            <!-- Street Address -->
                             <StackPanel Spacing="6">
-                                <TextBlock Text="{loc:Loc Country}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                <controls:CountryInput SelectedCountryName="{Binding ModalCountry, Mode=TwoWay}" />
+                                <TextBlock Text="{loc:Loc 'Street address'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                <TextBox Text="{Binding ModalStreetAddress, Mode=TwoWay}"
+                                         Classes="form-input"
+                                         PlaceholderText="{loc:Loc 'Enter street address'}"
+                                         MaxLength="200" />
                             </StackPanel>
 
-                            <!-- State/Province and City -->
+                            <!-- Country and State/Province -->
                             <Grid ColumnDefinitions="*,16,*">
                                 <StackPanel Grid.Column="0" Spacing="6">
+                                    <TextBlock Text="{loc:Loc Country}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                    <controls:CountryInput SelectedCountryName="{Binding ModalCountry, Mode=TwoWay}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Spacing="6">
                                     <TextBlock Text="{Binding ModalCountry, Converter={x:Static controls:RegionInput.LabelConverter}}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
                                     <controls:RegionInput Country="{Binding ModalCountry}" Value="{Binding ModalStateProvince, Mode=TwoWay}" />
                                 </StackPanel>
-                                <StackPanel Grid.Column="2" Spacing="6">
+                            </Grid>
+
+                            <!-- City and Postal Code -->
+                            <Grid ColumnDefinitions="*,16,*">
+                                <StackPanel Grid.Column="0" Spacing="6">
                                     <TextBlock Text="{loc:Loc City}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
                                     <TextBox Text="{Binding ModalCity, Mode=TwoWay}"
                                              Classes="form-input"
                                              PlaceholderText="{loc:Loc 'Enter city'}"
                                              MaxLength="100" />
                                 </StackPanel>
-                            </Grid>
-
-                            <!-- Postal Code and Street Address -->
-                            <Grid ColumnDefinitions="Auto,16,*">
-                                <StackPanel Grid.Column="0" Spacing="6" Width="150">
+                                <StackPanel Grid.Column="2" Spacing="6">
                                     <TextBlock Text="{loc:Loc 'Postal code'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
                                     <TextBox Text="{Binding ModalPostalCode, Mode=TwoWay}"
                                              Classes="form-input"
                                              PlaceholderText="{loc:Loc 'Enter postal code'}"
                                              MaxLength="20" />
-                                </StackPanel>
-                                <StackPanel Grid.Column="2" Spacing="6">
-                                    <TextBlock Text="{loc:Loc 'Street address'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                    <TextBox Text="{Binding ModalStreetAddress, Mode=TwoWay}"
-                                             Classes="form-input"
-                                             PlaceholderText="{loc:Loc 'Enter street address'}"
-                                             MaxLength="200" />
                                 </StackPanel>
                             </Grid>
 
