@@ -4397,8 +4397,8 @@ Respond with ONLY a JSON array, one entry per product in the same order:
     /// </summary>
     private Product AutoCreateProduct(CompanyData data, string name, decimal unitPrice, CategoryType type, string? categoryName = null)
     {
-        data.IdCounters.Product++;
-        var newId = $"PRD-IMP-{data.IdCounters.Product:D3}";
+        var newId = MintId(() => ++data.IdCounters.Product, n => $"PRD-IMP-{n:D3}",
+            TakenIds(data.Products.Select(p => p.Id), [], []));
         var product = new Product
         {
             Id = newId,

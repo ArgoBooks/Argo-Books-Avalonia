@@ -130,6 +130,22 @@ public class ImportBlankIdCollisionTests
     }
 
     [Theory]
+    [InlineData(SpreadsheetSheetType.Revenue)]
+    [InlineData(SpreadsheetSheetType.Expenses)]
+    public async Task AProductMadeForAnUnknownName_DoesNotTakeAnIdTheCompanyAlreadyHas(SpreadsheetSheetType type)
+    {
+        // Brought in by an earlier import, which does not move the product counter.
+        var data = new CompanyData();
+        data.Products.Add(new Product { Id = "PRD-IMP-001", Name = "Widget" });
+
+        await ImportAsync(data, "ID,Date,Product,Total\n,2026-01-05,Gadget,40\n", type, skipExisting: false);
+
+        Assert.Equal(2, data.Products.Count);
+        Assert.Equal("Widget", Assert.Single(data.Products, p => p.Id == "PRD-IMP-001").Name);
+        Assert.NotEqual("PRD-IMP-001", Assert.Single(data.Products, p => p.Name == "Gadget").Id);
+    }
+
+    [Theory]
     [InlineData(true)]
     [InlineData(false)]
     public async Task Employees_BlankIdBeforeAnExplicitId_ImportsBothUntouched(bool skipExisting)
