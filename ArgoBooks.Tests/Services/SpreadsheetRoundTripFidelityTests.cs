@@ -386,6 +386,34 @@ public class SpreadsheetRoundTripFidelityTests : IDisposable
         Assert.Equal(widget.Id, Assert.Single(revenue.LineItems).ProductId);
     }
 
+    [Fact]
+    public async Task ThePaidInvoicesRevenueMadeOnImport_TakesTheInvoicesLines()
+    {
+        // With no Revenue sheet the importer makes the paid invoice's revenue itself. Made with no
+        // lines, it counted in Total Revenue but Sales by Product skipped it.
+        CompanyData source = PaidInvoiceSource(withLinkedRevenue: false);
+        source.Revenues.Clear();
+        source.Products.Add(new Product { Id = "PRD-001", Name = "Widget" });
+        source.Products.Add(new Product { Id = "PRD-002", Name = "Gadget" });
+        source.Invoices.Single().LineItems =
+        [
+            new() { ProductId = "PRD-001", Description = "Widget", Quantity = 2m, UnitPrice = 100m, TaxRate = 0.05m },
+            new() { ProductId = "PRD-002", Description = "Gadget", Quantity = 1m, UnitPrice = 100m, TaxRate = 0.05m },
+        ];
+
+        CompanyData target = await RoundTripAsync(source, ["Customers", "Products", "Invoices", "Invoice Line Items"]);
+
+        Revenue revenue = Assert.Single(target.Revenues);
+        Assert.Equal("INV-2025-00001", revenue.InvoiceId);
+        Assert.Equal(["PRD-001", "PRD-002"], revenue.LineItems.Select(li => li.ProductId ?? "").ToArray());
+        Assert.Equal([2m, 1m], revenue.LineItems.Select(li => li.Quantity).ToArray());
+
+        List<ArgoBooks.Core.Models.Reports.ProductSalesData> sales = ProductSalesService.GetProductSales(
+            target, new DateTime(2025, 1, 1), new DateTime(2025, 12, 31), cashBasis: true);
+        Assert.Equal(315m, sales.Sum(s => s.RevenueUSD));
+        Assert.Equal(3m, sales.Sum(s => s.UnitsSold));
+    }
+
     #endregion
 
     #region Quantities

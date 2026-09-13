@@ -1444,17 +1444,7 @@ public class SpreadsheetImportService
             // Its description only summarises the invoice's lines ("Widget (+2 more)"), so the
             // lines come from the invoice. A kept deposit has none, as when the app records one.
             if (!revenue.IsKeptDeposit && invoice.LineItems.Count > 0)
-            {
-                revenue.LineItems = invoice.LineItems.Select(li => new LineItem
-                {
-                    ProductId = li.ProductId,
-                    Description = li.Description,
-                    Quantity = li.Quantity,
-                    UnitPrice = li.UnitPrice,
-                    TaxRate = li.TaxRate,
-                    Discount = li.Discount
-                }).ToList();
-            }
+                revenue.LineItems = CopyLines(invoice);
         }
         _revenuesNamingAnInvoice.Clear();
 
@@ -1488,6 +1478,8 @@ public class SpreadsheetImportService
             Date = invoice.IssueDate,
             CustomerId = invoice.CustomerId,
             Description = $"Invoice {invoice.InvoiceNumber}",
+            // Sales by Product counts revenue only through its lines, as when the app makes one.
+            LineItems = CopyLines(invoice),
             Quantity = 1,
             UnitPrice = invoice.Subtotal,
             Subtotal = invoice.Subtotal,
@@ -1510,6 +1502,17 @@ public class SpreadsheetImportService
         if (invoice.IsPendingConversion)
             EnqueueImportPending(data, revenue);
     }
+
+    private static List<LineItem> CopyLines(Invoice invoice) =>
+        invoice.LineItems.Select(li => new LineItem
+        {
+            ProductId = li.ProductId,
+            Description = li.Description,
+            Quantity = li.Quantity,
+            UnitPrice = li.UnitPrice,
+            TaxRate = li.TaxRate,
+            Discount = li.Discount
+        }).ToList();
 
     #region Task 2C: natural-key identity for id-less rows
 
