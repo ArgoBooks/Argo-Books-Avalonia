@@ -1,6 +1,8 @@
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Models.Common;
+using ArgoBooks.Core.Models.Entities;
 using ArgoBooks.Core.Models.Transactions;
+using ArgoBooks.Core.Services;
 using ArgoBooks.Core.Services.InvoiceTemplates;
 using Xunit;
 
@@ -112,5 +114,60 @@ public class InvoiceNegativeTotalRenderTests
         Assert.Contains("TOTAL: $0.00", text, StringComparison.Ordinal);
         // The line itself is quantity x price less its discount here too, as it is in the HTML.
         Assert.Contains("= $0.00", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// An older save took tax on a taxable base the oversized discount had pushed below zero, so it
+    /// stored a negative tax. The Total under it prints 0.00, and the tax line above it must too.
+    /// </summary>
+    private static Invoice StoredWithANegativeTax() => new()
+    {
+        Id = "INV-2026-00014",
+        InvoiceNumber = "INV-2026-00014",
+        CustomerId = "CUS-001",
+        IssueDate = new DateTime(2026, 8, 14),
+        LineItems = { new LineItem { Description = "Consulting", Quantity = 1m, UnitPrice = 100m } },
+        Subtotal = 100m,
+        DiscountAmount = 150m,
+        DiscountIsPercent = false,
+        TaxRate = 10m,
+        TaxAmount = -5m,
+        Total = 0m,
+    };
+
+    [Fact]
+    public void AnInvoiceStoredWithANegativeTax_PrintsZeroTax()
+    {
+        string html = Html(StoredWithANegativeTax());
+
+        Assert.DoesNotContain("-5.00", html, StringComparison.Ordinal);
+        Assert.Matches("data-total=\"tax\"[^>]*>\\$0\\.00<", html);
+    }
+
+    [Fact]
+    public void ThePlainTextCopy_DoesNotPrintANegativeTax()
+    {
+        string text = _renderer.RenderPlainText(
+            StoredWithANegativeTax(), InvoiceTemplateFactory.CreateProfessionalTemplate(), new CompanyData());
+
+        Assert.DoesNotContain("-5.00", text, StringComparison.Ordinal);
+        Assert.Contains("Tax (10%): $0.00", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>The payment portal shows the customer the figures it is sent, so they can't go negative either.</summary>
+    [Fact]
+    public void ThePortalCopy_DoesNotCarryANegativeFigure()
+    {
+        var invoice = StoredWithANegativeTax();
+        invoice.Subtotal = -50m;
+        invoice.Total = -55m;
+        invoice.Balance = -55m;
+        var data = new CompanyData();
+
+        var published = PaymentPortalService.BuildPublishRequest(invoice, data, new Customer { Id = "CUS-001", Name = "Bob" });
+        var synced = PaymentPortalService.BuildBalanceSyncItem(invoice, data);
+
+        Assert.Equal((0m, 0m, 0m, 0m), (published.Subtotal, published.TaxAmount, published.Total, published.Balance));
+        Assert.Equal(0m, synced.TotalAmount);
     }
 }

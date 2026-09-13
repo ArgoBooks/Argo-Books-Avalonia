@@ -197,7 +197,7 @@ public partial class InvoiceHtmlRenderer
             var taxLabel = GetTaxLabel(companySettings.Company.Country);
             // A fixed tax stores a dollar amount in TaxRate, so only a percent tax gets a "(x%)" suffix.
             var taxRateSuffix = invoice.TaxIsFixed ? "" : $" ({invoice.TaxRate}%)";
-            sb.AppendLine($"{taxLabel}{taxRateSuffix}: {currencySymbol}{Money(invoice.TaxAmount, decimals)}");
+            sb.AppendLine($"{taxLabel}{taxRateSuffix}: {currencySymbol}{Money(NonNegative(invoice.TaxAmount), decimals)}");
         }
         // Shipping is part of the stored Total, so the breakdown must list it or it won't sum to TOTAL.
         if (invoice.ShippingAmount > 0)
@@ -358,7 +358,7 @@ public partial class InvoiceHtmlRenderer
             ["TaxLabel"] = GetTaxLabel(companySettings.Company.Country),
             // The "(13%)" suffix on the tax label only makes sense in percent mode.
             ["TaxRateLabel"] = invoice.TaxIsFixed ? "" : $" ({Raw(invoice.TaxRate)}%)",
-            ["TaxAmount"] = $"{currencySymbol}{Money(invoice.TaxAmount, decimals)}",
+            ["TaxAmount"] = $"{currencySymbol}{Money(NonNegative(invoice.TaxAmount), decimals)}",
             // The tax row is always shown in the editor so it can be edited, even if the template
             // normally hides the breakdown.
             ["ShowTaxRow"] = template.ShowTaxBreakdown || editable,

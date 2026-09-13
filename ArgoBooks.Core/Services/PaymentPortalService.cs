@@ -103,6 +103,45 @@ public class PaymentPortalService : IDisposable
     #region Publish Invoice
 
     /// <summary>
+    /// The invoice's figures as the portal shows them to the customer. An invoice saved by an older
+    /// build can store a negative subtotal, tax or total, which the invoice itself prints as zero.
+    /// </summary>
+    public static PortalPublishRequest BuildPublishRequest(Invoice invoice, CompanyData companyData, Models.Entities.Customer customer) => new()
+    {
+        InvoiceId = invoice.Id,
+        InvoiceNumber = invoice.InvoiceNumber,
+        CustomerId = invoice.CustomerId,
+        CustomerName = customer.Name,
+        CustomerEmail = customer.Email,
+        CompanyName = companyData.Settings.Company.Name,
+        IssueDate = invoice.IssueDate,
+        DueDate = invoice.DueDate,
+        Subtotal = Math.Max(0m, invoice.Subtotal),
+        TaxRate = invoice.TaxRate,
+        TaxAmount = Math.Max(0m, invoice.TaxAmount),
+        SecurityDeposit = invoice.SecurityDeposit,
+        Total = Math.Max(0m, invoice.Total),
+        AmountPaid = invoice.AmountPaid,
+        Balance = Math.Max(0m, invoice.Balance),
+        Currency = invoice.OriginalCurrency,
+        Notes = invoice.Notes,
+        Status = invoice.Status.ToString().ToLowerInvariant(),
+        SendEmail = !string.IsNullOrWhiteSpace(customer.Email),
+        // Per-invoice override wins over the template's setting.
+        // Per-invoice setting (default on).
+        PassProcessingFee = invoice.PassProcessingFee ?? true,
+        LineItems = invoice.LineItems.Select(li => new PortalLineItem
+        {
+            Description = li.Description,
+            Quantity = li.Quantity,
+            UnitPrice = li.UnitPrice,
+            // Less the line's own discount, the same figure the invoice prints, or the
+            // portal's line amounts wouldn't add up to the Subtotal sent alongside them.
+            Amount = li.Subtotal
+        }).ToList()
+    };
+
+    /// <summary>
     /// Publishes an invoice to the payment portal so customers can view and pay it online.
     /// </summary>
     public async Task<PortalPublishResponse> PublishInvoiceAsync(
@@ -135,40 +174,7 @@ public class PaymentPortalService : IDisposable
 
         try
         {
-            var publishRequest = new PortalPublishRequest
-            {
-                InvoiceId = invoice.Id,
-                InvoiceNumber = invoice.InvoiceNumber,
-                CustomerId = invoice.CustomerId,
-                CustomerName = customer.Name,
-                CustomerEmail = customer.Email,
-                CompanyName = companyData.Settings.Company.Name,
-                IssueDate = invoice.IssueDate,
-                DueDate = invoice.DueDate,
-                Subtotal = invoice.Subtotal,
-                TaxRate = invoice.TaxRate,
-                TaxAmount = invoice.TaxAmount,
-                SecurityDeposit = invoice.SecurityDeposit,
-                Total = invoice.Total,
-                AmountPaid = invoice.AmountPaid,
-                Balance = invoice.Balance,
-                Currency = invoice.OriginalCurrency,
-                Notes = invoice.Notes,
-                Status = invoice.Status.ToString().ToLowerInvariant(),
-                SendEmail = !string.IsNullOrWhiteSpace(customer.Email),
-                // Per-invoice override wins over the template's setting.
-                // Per-invoice setting (default on).
-                PassProcessingFee = invoice.PassProcessingFee ?? true,
-                LineItems = invoice.LineItems.Select(li => new PortalLineItem
-                {
-                    Description = li.Description,
-                    Quantity = li.Quantity,
-                    UnitPrice = li.UnitPrice,
-                    // Less the line's own discount, the same figure the invoice prints, or the
-                    // portal's line amounts wouldn't add up to the Subtotal sent alongside them.
-                    Amount = li.Subtotal
-                }).ToList()
-            };
+            var publishRequest = BuildPublishRequest(invoice, companyData, customer);
 
             // Render the invoice HTML so the portal displays the exact desktop template
             if (template != null)
@@ -968,7 +974,7 @@ public class PaymentPortalService : IDisposable
         return new PortalBalanceSyncItem
         {
             InvoiceId = invoice.Id,
-            TotalAmount = invoice.Total,
+            TotalAmount = Math.Max(0m, invoice.Total),
             ExternalPaid = externalPaid,
             Currency = invoiceCurrency,
             DueDate = invoice.DueDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
