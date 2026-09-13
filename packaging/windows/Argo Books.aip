@@ -18,10 +18,10 @@
     <ROW Property="AppLogoIconDark" Value="applogodark.png" MultiBuildValue="DefaultBuild:ArgoBooksiconwhitebackground.png" Type="1" MsiKey="AppLogoIconDark"/>
     <ROW Property="CTRLS" Value="2"/>
     <ROW Property="Manufacturer" Value="Argo Books"/>
-    <ROW Property="ProductCode" Value="1033:{36B46C93-72DB-47E8-AB1C-EF32F55B98E4} " Type="16"/>
+    <ROW Property="ProductCode" Value="1033:{A1E38ED4-8F32-4B7A-AE49-63F4C80493F9} " Type="16"/>
     <ROW Property="ProductLanguage" Value="1033"/>
     <ROW Property="ProductName" Value="Argo Books"/>
-    <ROW Property="ProductVersion" Value="2.0.14" Options="32"/>
+    <ROW Property="ProductVersion" Value="2.0.15" Options="32"/>
     <ROW Property="RUNAPPLICATION" Value="1" Type="4"/>
     <ROW Property="SecureCustomProperties" Value="OLDPRODUCTS;AI_NEWERPRODUCTFOUND;AI_SETUPEXEPATH;SETUPEXEDIR"/>
     <ROW Property="UpgradeCode" Value="{56B4BFD1-ED8C-4FBE-9562-14EB8B82623C}"/>

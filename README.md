@@ -31,7 +31,13 @@ Version 2.0 is a complete rewrite on [Avalonia UI](https://avaloniaui.net/). Ver
 ## Installation
 
 1. Clone the repository to your local machine.
-2. Build the project by pressing `Ctrl + Shift + B`.
+2. Run the `ArgoBooks.Desktop` project. From the repository folder:
+
+   ```
+   dotnet run --project ArgoBooks.Desktop
+   ```
+
+Don't build the whole solution unless you have the .NET Android workload installed. It includes `ArgoBooks.Mobile`, which only builds for Android.
 
 ## Publishing
 
