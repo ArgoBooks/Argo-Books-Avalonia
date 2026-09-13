@@ -167,13 +167,15 @@
                                                             </ComboBox.ItemTemplate>
                                                         </ComboBox>
                                                     </StackPanel>
-                                                    <!-- Shows a picked product's category, and takes the category for a typed one.
+                                                    <!-- Takes the category for a typed item. A picked product shows its category as text instead,
+                                                         since moving a product between categories belongs on the Products page.
                                                          Neither box sets an empty-state link: it replaces the text box, and a
                                                          new company has no products or categories, so nothing could be typed.
                                                          Creating one stays available at the bottom of each list. -->
                                                     <Panel Grid.Column="1" Margin="0,0,8,0">
                                                         <controls:SearchableDropdown Classes="compact"
                                                                  ItemsSource="{Binding $parent[ItemsControl].((vm:ExpenseModalsViewModel)DataContext).CategoryOptions}"
+                                                                 IsVisible="{Binding !IsExistingProductLine}"
                                                                  SelectedItem="{Binding SelectedCategory, Mode=TwoWay}"
                                                                  SearchText="{Binding CategoryText, Mode=TwoWay}"
                                                                  DisplayMemberPath="Name"
@@ -184,6 +186,17 @@
                                                                  AddNewCommandParameter="{Binding}"
                                                                  HasError="{Binding HasCategoryError}"
                                                                  ErrorMessage="{loc:Loc 'Pick a category'}" />
+                                                        <Border IsVisible="{Binding IsExistingProductLine}"
+                                                                MinHeight="{StaticResource FormControlHeightCompact}"
+                                                                VerticalAlignment="Top"
+                                                                Padding="8,0">
+                                                            <TextBlock Text="{Binding PickedCategoryName}"
+                                                                       FontSize="13"
+                                                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                                                       VerticalAlignment="Center"
+                                                                       TextTrimming="CharacterEllipsis"
+                                                                       ToolTip.Tip="{Binding PickedCategoryName}" />
+                                                        </Border>
                                                     </Panel>
                                                     <NumericUpDown Grid.Column="2"
                                                                    Value="{Binding Quantity, Mode=TwoWay, TargetNullValue=1}"

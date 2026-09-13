@@ -406,7 +406,10 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
             lineItem.SelectedCategory = CategoryOptionFor(product);
 
         if (e.PropertyName == nameof(TransactionLineItemBase.SelectedProduct) && sender is TLineItem changedLine)
+        {
             RefreshLocationOptions(changedLine);
+            RefreshPickedCategoryName(changedLine);
+        }
 
         UpdateTotals();
     }
@@ -681,6 +684,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
                 lineItem.ItemText = selectedProduct?.Name ?? li.Description;
                 lineItem.CategoryText = lineItem.SelectedCategory?.Name;
                 RefreshLocationOptions(lineItem, li.LocationId);
+                RefreshPickedCategoryName(lineItem);
                 lineItem.PropertyChanged += OnLineItemPropertyChanged;
                 LineItems.Add(lineItem);
             }
@@ -1669,6 +1673,19 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     }
 
     /// <summary>
+    /// Sets the category a picked product shows in place of the category box, whichever side of the
+    /// books that category is on.
+    /// </summary>
+    private static void RefreshPickedCategoryName(TransactionLineItemBase lineItem)
+    {
+        var companyData = App.CompanyManager?.CompanyData;
+        var productId = lineItem.SelectedProduct?.Id;
+        var categoryId = string.IsNullOrEmpty(productId) ? null : companyData?.GetProduct(productId)?.CategoryId;
+        var categoryName = string.IsNullOrEmpty(categoryId) ? null : companyData?.GetCategory(categoryId)?.Name;
+        lineItem.PickedCategoryName = categoryName ?? "No category".Translate();
+    }
+
+    /// <summary>
     /// Applies a newly saved transaction's lines to stock and alerts on any that ran low.
     /// </summary>
     protected static List<StockChange> AdjustInventoryForLineItems(
@@ -1822,6 +1839,19 @@ public abstract partial class TransactionLineItemBase : ObservableObject
     [ObservableProperty]
     private bool _showLocationPicker;
 
+    /// <summary>
+    /// True while the line holds a product picked from the list. Its category then shows as text
+    /// rather than a box, because changing a product's category from a sale or purchase would quietly
+    /// move it for every other transaction too. Typing over the name makes the line a new item again.
+    /// </summary>
+    public bool IsExistingProductLine =>
+        SelectedProduct != null &&
+        (string.IsNullOrWhiteSpace(ItemText) ||
+         string.Equals(ItemText.Trim(), SelectedProduct.Name, StringComparison.OrdinalIgnoreCase));
+
+    [ObservableProperty]
+    private string _pickedCategoryName = string.Empty;
+
     public decimal Amount => (Quantity ?? 0) * (UnitPrice ?? 0);
     public string AmountFormatted => CurrencyCode == null
         ? CurrencyService.Format(Amount)
@@ -1829,6 +1859,7 @@ public abstract partial class TransactionLineItemBase : ObservableObject
 
     partial void OnSelectedProductChanged(ProductOption? value)
     {
+        OnPropertyChanged(nameof(IsExistingProductLine));
         if (value != null)
         {
             Description = value.Name;
@@ -1853,6 +1884,7 @@ public abstract partial class TransactionLineItemBase : ObservableObject
 
     partial void OnItemTextChanged(string? value)
     {
+        OnPropertyChanged(nameof(IsExistingProductLine));
         if (SelectedProduct != null) return;
         Description = value?.Trim() ?? string.Empty;
         if (Description.Length > 0)
