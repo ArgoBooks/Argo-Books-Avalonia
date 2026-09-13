@@ -1170,9 +1170,9 @@ public class SpreadsheetImportService
         return ExchangeRates is { } rates && rates.GetExchangeRate(code, "USD", date) > 0;
     }
 
-    /// <summary>Per-row currency for a Payment (or company currency when none detected).</summary>
-    private void ApplyPaymentCurrency(Payment payment, int rowIndex, CompanyData data)
-        => ApplyPaymentCurrencyCode(payment, Tier1RowCurrency(rowIndex) ?? CompanyCurrency(data), data);
+    /// <summary>Per-row currency for a Payment, else <paramref name="currentCurrency"/> (an updated record's own), else the company currency.</summary>
+    private void ApplyPaymentCurrency(Payment payment, int rowIndex, CompanyData data, string? currentCurrency = null)
+        => ApplyPaymentCurrencyCode(payment, Tier1RowCurrency(rowIndex) ?? currentCurrency ?? CompanyCurrency(data), data);
 
     /// <summary>
     /// Converts a Payment's amount to USD at its exact date for <paramref name="code"/>; on an
@@ -1197,9 +1197,9 @@ public class SpreadsheetImportService
         }
     }
 
-    /// <summary>Per-row currency for an Invoice (or company currency when none detected).</summary>
-    private void ApplyInvoiceCurrency(Invoice invoice, int rowIndex, CompanyData data)
-        => ApplyInvoiceCurrencyCode(invoice, Tier1RowCurrency(rowIndex) ?? CompanyCurrency(data), data);
+    /// <summary>Per-row currency for an Invoice, else <paramref name="currentCurrency"/> (an updated record's own), else the company currency.</summary>
+    private void ApplyInvoiceCurrency(Invoice invoice, int rowIndex, CompanyData data, string? currentCurrency = null)
+        => ApplyInvoiceCurrencyCode(invoice, Tier1RowCurrency(rowIndex) ?? currentCurrency ?? CompanyCurrency(data), data);
 
     /// <summary>
     /// Converts an Invoice's Total and Balance to USD at its exact issue date; on an unpriceable row,
@@ -1226,9 +1226,9 @@ public class SpreadsheetImportService
         }
     }
 
-    /// <summary>Per-row currency for a PurchaseOrder (or company currency when none detected).</summary>
-    private void ApplyPurchaseOrderCurrency(PurchaseOrder po, int rowIndex, CompanyData data)
-        => ApplyPurchaseOrderCurrencyCode(po, Tier1RowCurrency(rowIndex) ?? CompanyCurrency(data), data);
+    /// <summary>Per-row currency for a PurchaseOrder, else <paramref name="currentCurrency"/> (an updated record's own), else the company currency.</summary>
+    private void ApplyPurchaseOrderCurrency(PurchaseOrder po, int rowIndex, CompanyData data, string? currentCurrency = null)
+        => ApplyPurchaseOrderCurrencyCode(po, Tier1RowCurrency(rowIndex) ?? currentCurrency ?? CompanyCurrency(data), data);
 
     /// <summary>
     /// Converts a PurchaseOrder's Total to USD at its exact order date; on an unpriceable row, defers
@@ -1354,8 +1354,8 @@ public class SpreadsheetImportService
     /// </summary>
     private static void EnqueueImportPendingPayment(CompanyData data, Payment payment)
     {
-        if (data.PendingConversions.Any(p => p.TransactionId == payment.Id))
-            return;
+        // Replaced rather than kept, for the reason in EnqueueImportPending.
+        data.PendingConversions.RemoveAll(p => p.TransactionId == payment.Id);
         data.PendingConversions.Add(new PendingConversion
         {
             TransactionId = payment.Id,
@@ -1372,8 +1372,8 @@ public class SpreadsheetImportService
     /// </summary>
     private static void EnqueueImportPendingPurchaseOrder(CompanyData data, PurchaseOrder po)
     {
-        if (data.PendingConversions.Any(p => p.TransactionId == po.Id))
-            return;
+        // Replaced rather than kept, for the reason in EnqueueImportPending.
+        data.PendingConversions.RemoveAll(p => p.TransactionId == po.Id);
         data.PendingConversions.Add(new PendingConversion
         {
             TransactionId = po.Id,
@@ -1391,8 +1391,8 @@ public class SpreadsheetImportService
     /// </summary>
     private static void EnqueueImportPendingInvoice(CompanyData data, Invoice invoice)
     {
-        if (data.PendingConversions.Any(p => p.TransactionId == invoice.Id))
-            return;
+        // Replaced rather than kept, for the reason in EnqueueImportPending.
+        data.PendingConversions.RemoveAll(p => p.TransactionId == invoice.Id);
         data.PendingConversions.Add(new PendingConversion
         {
             TransactionId = invoice.Id,
@@ -3126,6 +3126,9 @@ public class SpreadsheetImportService
     private static readonly string[] TransactionPriceColumns = ["Date", "Quantity", "Unit Price", "Tax", "Total", "Shipping", "Currency"];
     private static readonly string[] TransactionLineColumns = ["Product", "Description", "Quantity", "Unit Price", "Tax"];
 
+    private static readonly string[] InvoicePriceColumns = ["Issue Date", "Subtotal", "Tax", "Total", "Paid", "Balance", "Currency"];
+    private static readonly string[] RentalLineColumns = ["Rental Item ID", "Quantity", "Rate Type", "Rate Amount", "Security Deposit"];
+
     private static string? GetNullableString(List<object?> row, List<string> headers, string columnName) => SpreadsheetRowReader.GetNullableString(row, headers, columnName);
 
     /// <summary>
@@ -3560,29 +3563,46 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             if (options?.SkipExistingRecords == true && existing != null) { options.SkippedCount++; continue; }
 
             var invoice = existing ?? new Invoice();
+
+            // Updating an invoice changes only what the sheet has columns for; a new one takes every field.
+            bool Set(params string[] columns) => existing == null || columns.Any(headers.Contains);
+
             invoice.Id = invoiceId;
-            invoice.InvoiceNumber = invoiceNumber;
-            invoice.CustomerId = customerId;
-            invoice.IssueDate = issueDate;
-            invoice.DueDate = GetDateTime(row, headers, "Due Date");
-            invoice.Subtotal = GetDecimal(row, headers, "Subtotal");
-            invoice.TaxAmount = GetDecimal(row, headers, "Tax");
-            invoice.Total = total;
+            if (Set("Invoice #"))
+                invoice.InvoiceNumber = invoiceNumber;
+            if (Set("Customer ID"))
+                invoice.CustomerId = customerId;
+            if (Set("Issue Date"))
+                invoice.IssueDate = issueDate;
+            if (Set("Due Date"))
+                invoice.DueDate = GetDateTime(row, headers, "Due Date");
+            if (Set("Subtotal"))
+                invoice.Subtotal = GetDecimal(row, headers, "Subtotal");
+            if (Set("Tax"))
+                invoice.TaxAmount = GetDecimal(row, headers, "Tax");
+            if (Set("Total"))
+                invoice.Total = total;
             // Detect whether a "Paid" amount was actually supplied (GetNullableDecimal returns null for
             // an absent column, vs 0 for a genuine zero). When it is, derive the balance from it;
-            // otherwise trust the imported "Balance" column. The old guard "AmountPaid >= 0" is always
-            // true for a decimal, so it discarded the Balance column and assumed nothing was paid.
-            // Clamp so an over-payment (Paid > Total) can never persist a negative balance.
+            // otherwise trust the imported "Balance" column, and with neither, a new total keeps
+            // what was already paid. Clamp so an over-payment (Paid > Total) can never persist a
+            // negative balance.
             var paid = SpreadsheetRowReader.GetNullableDecimal(row, headers, "Paid");
-            invoice.AmountPaid = paid ?? 0m;
+            if (Set("Paid"))
+                invoice.AmountPaid = paid ?? 0m;
             if (paid.HasValue)
                 invoice.Balance = Math.Max(0m, invoice.Total - paid.Value);
-            else
+            else if (Set("Balance"))
                 invoice.Balance = Math.Max(0m, GetDecimal(row, headers, "Balance"));
-            invoice.Status = ParseEnum(GetString(row, headers, "Status"), InvoiceStatus.Draft);
+            else if (Set("Paid", "Total"))
+                invoice.Balance = Math.Max(0m, invoice.Total - invoice.AmountPaid);
+            if (Set("Status"))
+                invoice.Status = ParseEnum(GetString(row, headers, "Status"), InvoiceStatus.Draft);
 
-            // Per-row currency detected from the amount cells, else the company currency.
-            ApplyInvoiceCurrency(invoice, rowIndex, data);
+            // Per-row currency detected from the amount cells, else the record's own when updating,
+            // else the company currency. Left as it is when nothing it is priced from changed.
+            if (Set(InvoicePriceColumns))
+                ApplyInvoiceCurrency(invoice, rowIndex, data, existing?.OriginalCurrency);
 
             if (existing == null)
                 data.Invoices.Add(invoice);
@@ -3857,17 +3877,29 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             if (options?.SkipExistingRecords == true && existing != null) { options.SkippedCount++; continue; }
 
             var item = existing ?? new InventoryItem();
-            item.Id = id;
-            item.ProductId = productId;
-            item.LocationId = locationId;
-            item.InStock = GetInt(row, headers, "In Stock");
-            item.Reserved = GetInt(row, headers, "Reserved");
-            item.ReorderPoint = GetInt(row, headers, "Reorder Point");
-            item.UnitCost = GetDecimal(row, headers, "Unit Cost");
-            item.LastUpdated = GetDateTime(row, headers, "Last Updated");
 
-            if (item.LastUpdated == DateTime.MinValue)
-                item.LastUpdated = DateTime.UtcNow;
+            // Updating a stock level changes only what the sheet has columns for; a new one takes every field.
+            bool Set(params string[] columns) => existing == null || columns.Any(headers.Contains);
+
+            item.Id = id;
+            if (Set("Product ID"))
+                item.ProductId = productId;
+            if (Set("Location ID"))
+                item.LocationId = locationId;
+            if (Set("In Stock"))
+                item.InStock = GetInt(row, headers, "In Stock");
+            if (Set("Reserved"))
+                item.Reserved = GetInt(row, headers, "Reserved");
+            if (Set("Reorder Point"))
+                item.ReorderPoint = GetInt(row, headers, "Reorder Point");
+            if (Set("Unit Cost"))
+                item.UnitCost = GetDecimal(row, headers, "Unit Cost");
+            if (Set("Last Updated"))
+            {
+                item.LastUpdated = GetDateTime(row, headers, "Last Updated");
+                if (item.LastUpdated == DateTime.MinValue)
+                    item.LastUpdated = DateTime.UtcNow;
+            }
 
             if (existing == null)
                 data.Inventory.Add(item);
@@ -3905,18 +3937,31 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             if (options?.SkipExistingRecords == true && existing != null) { options.SkippedCount++; continue; }
 
             var payment = existing ?? new Payment();
-            payment.Id = id;
-            payment.InvoiceId = !string.IsNullOrEmpty(invoiceId) && data.Invoices.Any(inv => inv.Id == invoiceId)
-                ? invoiceId : "";
-            payment.CustomerId = customerId;
-            payment.Date = date;
-            payment.Amount = amount;
-            payment.PaymentMethod = ParseEnum(GetString(row, headers, "Payment Method"), PaymentMethod.Cash);
-            payment.ReferenceNumber = GetNullableString(row, headers, "Reference");
-            payment.Notes = GetString(row, headers, "Notes");
 
-            // Per-row currency detected from the amount cells, else the company currency.
-            ApplyPaymentCurrency(payment, rowIndex, data);
+            // Updating a payment changes only what the sheet has columns for; a new one takes every field.
+            bool Set(params string[] columns) => existing == null || columns.Any(headers.Contains);
+
+            payment.Id = id;
+            if (Set("Invoice ID"))
+                payment.InvoiceId = !string.IsNullOrEmpty(invoiceId) && data.Invoices.Any(inv => inv.Id == invoiceId)
+                    ? invoiceId : "";
+            if (Set("Customer ID"))
+                payment.CustomerId = customerId;
+            if (Set("Date"))
+                payment.Date = date;
+            if (Set("Amount"))
+                payment.Amount = amount;
+            if (Set("Payment Method"))
+                payment.PaymentMethod = ParseEnum(GetString(row, headers, "Payment Method"), PaymentMethod.Cash);
+            if (Set("Reference"))
+                payment.ReferenceNumber = GetNullableString(row, headers, "Reference");
+            if (Set("Notes"))
+                payment.Notes = GetString(row, headers, "Notes");
+
+            // Per-row currency detected from the amount cells, else the record's own when updating,
+            // else the company currency. Left as it is when nothing it is priced from changed.
+            if (Set("Date", "Amount", "Currency"))
+                ApplyPaymentCurrency(payment, rowIndex, data, existing?.OriginalCurrency);
 
             if (existing == null)
                 data.Payments.Add(payment);
@@ -4029,7 +4074,8 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             bool Has(params string[] columns) => columns.Any(headers.Contains);
 
             employee.Id = id;
-            employee.Name = name;
+            if (Has("Name", "First Name", "Last Name"))
+                employee.Name = name;
 
             if (Has("Employee #"))
                 employee.EmployeeNumber = GetString(row, headers, "Employee #");
@@ -4131,9 +4177,11 @@ Respond with ONLY a JSON array, one entry per product in the same order:
                 };
             }
 
-            employee.IsArchived = GetString(row, headers, "Status")
-                .Trim().Equals("Archived", StringComparison.OrdinalIgnoreCase);
-            employee.Notes = GetString(row, headers, "Notes");
+            if (Has("Status"))
+                employee.IsArchived = GetString(row, headers, "Status")
+                    .Trim().Equals("Archived", StringComparison.OrdinalIgnoreCase);
+            if (Has("Notes"))
+                employee.Notes = GetString(row, headers, "Notes");
 
             if (existing == null)
                 data.Employees.Add(employee);
@@ -4440,44 +4488,56 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             if (options?.SkipExistingRecords == true && existing != null) { options.SkippedCount++; continue; }
 
             var item = existing ?? new RentalItem();
+
+            // Updating a rental item changes only what the sheet has columns for; a new one takes every field.
+            bool Set(params string[] columns) => existing == null || columns.Any(headers.Contains);
+
             item.Id = id;
 
             // Prefer explicit "Inventory Item ID"; otherwise resolve from "Product ID" so
             // sheets that link rental items to products directly still chain through to a name.
-            var inventoryItemId = GetString(row, headers, "Inventory Item ID");
-            if (string.IsNullOrEmpty(inventoryItemId))
+            if (Set("Inventory Item ID", "Product ID"))
             {
-                var productId = GetString(row, headers, "Product ID");
-                if (!string.IsNullOrEmpty(productId))
+                var inventoryItemId = GetString(row, headers, "Inventory Item ID");
+                if (string.IsNullOrEmpty(inventoryItemId))
                 {
-                    var existingInv = data.Inventory.FirstOrDefault(inv => inv.ProductId == productId);
-                    if (existingInv != null)
+                    var productId = GetString(row, headers, "Product ID");
+                    if (!string.IsNullOrEmpty(productId))
                     {
-                        inventoryItemId = existingInv.Id;
-                    }
-                    else if (options?.AutoCreateMissingReferences == true)
-                    {
-                        // UpdateIdCounters runs after all sheets, so derive the next ID from
-                        // the current inventory state to avoid colliding with existing IDs.
-                        var nextNum = GetMaxIdNumber(data.Inventory.Select(i => i.Id), "INV-ITM-") + 1;
-                        var newInv = new InventoryItem
+                        var existingInv = data.Inventory.FirstOrDefault(inv => inv.ProductId == productId);
+                        if (existingInv != null)
                         {
-                            Id = $"INV-ITM-{nextNum:D3}",
-                            ProductId = productId,
-                            InStock = GetInt(row, headers, "Total Qty")
-                        };
-                        data.Inventory.Add(newInv);
-                        inventoryItemId = newInv.Id;
+                            inventoryItemId = existingInv.Id;
+                        }
+                        else if (options?.AutoCreateMissingReferences == true)
+                        {
+                            // UpdateIdCounters runs after all sheets, so derive the next ID from
+                            // the current inventory state to avoid colliding with existing IDs.
+                            var nextNum = GetMaxIdNumber(data.Inventory.Select(i => i.Id), "INV-ITM-") + 1;
+                            var newInv = new InventoryItem
+                            {
+                                Id = $"INV-ITM-{nextNum:D3}",
+                                ProductId = productId,
+                                InStock = GetInt(row, headers, "Total Qty")
+                            };
+                            data.Inventory.Add(newInv);
+                            inventoryItemId = newInv.Id;
+                        }
                     }
                 }
+                item.InventoryItemId = inventoryItemId;
             }
-            item.InventoryItemId = inventoryItemId;
 
-            item.DailyRate = GetDecimal(row, headers, "Daily Rate");
-            item.WeeklyRate = GetDecimal(row, headers, "Weekly Rate");
-            item.MonthlyRate = GetDecimal(row, headers, "Monthly Rate");
-            item.SecurityDeposit = GetDecimal(row, headers, "Deposit");
-            item.Status = ParseEnum(GetString(row, headers, "Status"), EntityStatus.Active);
+            if (Set("Daily Rate"))
+                item.DailyRate = GetDecimal(row, headers, "Daily Rate");
+            if (Set("Weekly Rate"))
+                item.WeeklyRate = GetDecimal(row, headers, "Weekly Rate");
+            if (Set("Monthly Rate"))
+                item.MonthlyRate = GetDecimal(row, headers, "Monthly Rate");
+            if (Set("Deposit"))
+                item.SecurityDeposit = GetDecimal(row, headers, "Deposit");
+            if (Set("Status"))
+                item.Status = ParseEnum(GetString(row, headers, "Status"), EntityStatus.Active);
 
             if (existing == null)
                 data.RentalInventory.Add(item);
@@ -4504,44 +4564,69 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             var existing = data.Rentals.FirstOrDefault(r => r.Id == id);
             if (options?.SkipExistingRecords == true && existing != null) { options.SkippedCount++; continue; }
             var record = existing ?? new RentalRecord();
+
+            // Updating a rental changes only what the sheet has columns for; a new one takes every field.
+            bool Set(params string[] columns) => existing == null || columns.Any(headers.Contains);
+
             record.Id = id;
 
             // Use first row for shared record fields
             var firstRow = idRows[0];
-            record.CustomerId = GetString(firstRow, headers, "Customer ID");
-            record.StartDate = GetDateTime(firstRow, headers, "Start Date");
-            record.DueDate = GetDateTime(firstRow, headers, "Due Date");
-            record.ReturnDate = GetNullableDateTime(firstRow, headers, "Return Date");
-            record.TotalCost = GetDecimal(firstRow, headers, "Total Cost");
-            record.Status = ParseEnum(GetString(firstRow, headers, "Status"), RentalStatus.Active);
-            var paidStr = GetString(firstRow, headers, "Paid");
-            record.Paid = paidStr.Equals("Yes", StringComparison.OrdinalIgnoreCase) || paidStr.Equals("True", StringComparison.OrdinalIgnoreCase);
-
-            if (record.TotalCost == 0)
-                record.TotalCost = null;
-
-            // Build line items from all rows with this ID
-            record.LineItems.Clear();
-            foreach (var row in idRows)
+            if (Set("Customer ID"))
+                record.CustomerId = GetString(firstRow, headers, "Customer ID");
+            if (Set("Start Date"))
+                record.StartDate = GetDateTime(firstRow, headers, "Start Date");
+            if (Set("Due Date"))
+                record.DueDate = GetDateTime(firstRow, headers, "Due Date");
+            if (Set("Return Date"))
+                record.ReturnDate = GetNullableDateTime(firstRow, headers, "Return Date");
+            if (Set("Total Cost"))
             {
-                var lineItem = new RentalLineItem
-                {
-                    RentalItemId = GetString(row, headers, "Rental Item ID"),
-                    Quantity = GetInt(row, headers, "Quantity"),
-                    RateType = ParseEnum(GetString(row, headers, "Rate Type"), RateType.Daily),
-                    RateAmount = GetDecimal(row, headers, "Rate Amount"),
-                    SecurityDeposit = GetDecimal(row, headers, "Security Deposit")
-                };
-                record.LineItems.Add(lineItem);
+                var totalCost = GetDecimal(firstRow, headers, "Total Cost");
+                record.TotalCost = totalCost == 0 ? null : totalCost;
+            }
+            if (Set("Status"))
+                record.Status = ParseEnum(GetString(firstRow, headers, "Status"), RentalStatus.Active);
+            if (Set("Paid"))
+            {
+                var paidStr = GetString(firstRow, headers, "Paid");
+                record.Paid = paidStr.Equals("Yes", StringComparison.OrdinalIgnoreCase) || paidStr.Equals("True", StringComparison.OrdinalIgnoreCase);
             }
 
-            // Set top-level backward-compat fields from first line item
-            var firstLi = record.LineItems[0];
-            record.RentalItemId = firstLi.RentalItemId;
-            record.Quantity = record.LineItems.Sum(li => li.Quantity);
-            record.RateType = firstLi.RateType;
-            record.RateAmount = firstLi.RateAmount;
-            record.SecurityDeposit = record.LineItems.Sum(li => li.SecurityDeposit * li.Quantity);
+            // Build line items from all rows with this ID. Each row updates the stored line in the
+            // same position, so a line keeps whatever the sheet has no column for.
+            if (Set(RentalLineColumns))
+            {
+                var lines = new List<RentalLineItem>();
+                for (int i = 0; i < idRows.Count; i++)
+                {
+                    var row = idRows[i];
+                    var stored = i < record.LineItems.Count ? record.LineItems[i] : null;
+                    bool SetLine(string column) => stored == null || headers.Contains(column);
+
+                    var lineItem = stored ?? new RentalLineItem();
+                    if (SetLine("Rental Item ID"))
+                        lineItem.RentalItemId = GetString(row, headers, "Rental Item ID");
+                    if (SetLine("Quantity"))
+                        lineItem.Quantity = GetInt(row, headers, "Quantity");
+                    if (SetLine("Rate Type"))
+                        lineItem.RateType = ParseEnum(GetString(row, headers, "Rate Type"), RateType.Daily);
+                    if (SetLine("Rate Amount"))
+                        lineItem.RateAmount = GetDecimal(row, headers, "Rate Amount");
+                    if (SetLine("Security Deposit"))
+                        lineItem.SecurityDeposit = GetDecimal(row, headers, "Security Deposit");
+                    lines.Add(lineItem);
+                }
+                record.LineItems = lines;
+
+                // Set top-level backward-compat fields from first line item
+                var firstLi = record.LineItems[0];
+                record.RentalItemId = firstLi.RentalItemId;
+                record.Quantity = record.LineItems.Sum(li => li.Quantity);
+                record.RateType = firstLi.RateType;
+                record.RateAmount = firstLi.RateAmount;
+                record.SecurityDeposit = record.LineItems.Sum(li => li.SecurityDeposit * li.Quantity);
+            }
 
             if (existing == null)
                 data.Rentals.Add(record);
@@ -4580,14 +4665,25 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             };
 
             var category = existing ?? new Category();
+
+            // Updating a category changes only what the sheet has columns for; a new one takes every field.
+            bool Set(params string[] columns) => existing == null || columns.Any(headers.Contains);
+
             category.Id = id;
-            category.Name = GetString(row, headers, "Name");
-            category.Type = categoryType;
-            category.ParentId = GetNullableString(row, headers, "Parent ID");
-            category.Description = GetNullableString(row, headers, "Description");
-            category.Icon = GetString(row, headers, "Icon");
-            if (string.IsNullOrEmpty(category.Icon))
-                category.Icon = "📦";
+            if (Set("Name"))
+                category.Name = name;
+            if (Set("Type"))
+                category.Type = categoryType;
+            if (Set("Parent ID"))
+                category.ParentId = GetNullableString(row, headers, "Parent ID");
+            if (Set("Description"))
+                category.Description = GetNullableString(row, headers, "Description");
+            if (Set("Icon"))
+            {
+                category.Icon = GetString(row, headers, "Icon");
+                if (string.IsNullOrEmpty(category.Icon))
+                    category.Icon = "📦";
+            }
 
             if (existing == null)
                 data.Categories.Add(category);
@@ -4675,13 +4771,23 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             if (options?.SkipExistingRecords == true && existing != null) { options.SkippedCount++; continue; }
 
             var recurring = existing ?? new RecurringInvoice();
+
+            // Updating a recurring invoice changes only what the sheet has columns for; a new one takes every field.
+            bool Set(params string[] columns) => existing == null || columns.Any(headers.Contains);
+
             recurring.Id = id;
-            recurring.CustomerId = customerId;
-            recurring.Amount = amount;
-            recurring.Description = description;
-            recurring.Frequency = ParseEnum(GetString(row, headers, "Frequency"), Frequency.Monthly);
-            recurring.NextInvoiceDate = GetDateTime(row, headers, "Next Date");
-            recurring.Status = ParseEnum(GetString(row, headers, "Status"), RecurringInvoiceStatus.Active);
+            if (Set("Customer ID"))
+                recurring.CustomerId = customerId;
+            if (Set("Amount"))
+                recurring.Amount = amount;
+            if (Set("Description"))
+                recurring.Description = description;
+            if (Set("Frequency"))
+                recurring.Frequency = ParseEnum(GetString(row, headers, "Frequency"), Frequency.Monthly);
+            if (Set("Next Date"))
+                recurring.NextInvoiceDate = GetDateTime(row, headers, "Next Date");
+            if (Set("Status"))
+                recurring.Status = ParseEnum(GetString(row, headers, "Status"), RecurringInvoiceStatus.Active);
 
             if (recurring.Status == default)
                 recurring.Status = RecurringInvoiceStatus.Active;
@@ -4714,24 +4820,42 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             if (options?.SkipExistingRecords == true && existing != null) { options.SkippedCount++; continue; }
 
             var adjustment = existing ?? new StockAdjustment();
+
+            // Updating an adjustment changes only what the sheet has columns for; a new one takes every field.
+            bool Set(params string[] columns) => existing == null || columns.Any(headers.Contains);
+
             adjustment.Id = id;
-            adjustment.InventoryItemId = inventoryItemId;
-            adjustment.AdjustmentType = ParseEnum(GetString(row, headers, "Type"), AdjustmentType.Set);
-            adjustment.Quantity = GetInt(row, headers, "Quantity");
-            adjustment.PreviousStock = GetInt(row, headers, "Previous Stock");
-            adjustment.NewStock = GetInt(row, headers, "New Stock");
-            adjustment.Reason = GetString(row, headers, "Reason");
-            var refNum = GetString(row, headers, "Reference Number");
-            adjustment.ReferenceNumber = string.IsNullOrEmpty(refNum) ? null : refNum;
-            var userId = GetString(row, headers, "User ID");
-            adjustment.UserId = string.IsNullOrEmpty(userId) ? null : userId;
-            adjustment.Timestamp = GetDateTime(row, headers, "Timestamp");
+            if (Set("Inventory Item ID"))
+                adjustment.InventoryItemId = inventoryItemId;
+            if (Set("Type"))
+                adjustment.AdjustmentType = ParseEnum(GetString(row, headers, "Type"), AdjustmentType.Set);
+            if (Set("Quantity"))
+                adjustment.Quantity = GetInt(row, headers, "Quantity");
+            if (Set("Previous Stock"))
+                adjustment.PreviousStock = GetInt(row, headers, "Previous Stock");
+            if (Set("New Stock"))
+                adjustment.NewStock = GetInt(row, headers, "New Stock");
+            if (Set("Reason"))
+                adjustment.Reason = GetString(row, headers, "Reason");
+            if (Set("Reference Number"))
+            {
+                var refNum = GetString(row, headers, "Reference Number");
+                adjustment.ReferenceNumber = string.IsNullOrEmpty(refNum) ? null : refNum;
+            }
+            if (Set("User ID"))
+            {
+                var userId = GetString(row, headers, "User ID");
+                adjustment.UserId = string.IsNullOrEmpty(userId) ? null : userId;
+            }
+            if (Set("Timestamp"))
+            {
+                adjustment.Timestamp = GetDateTime(row, headers, "Timestamp");
+                if (adjustment.Timestamp == DateTime.MinValue)
+                    adjustment.Timestamp = DateTime.UtcNow;
+            }
             var autoGenStr = GetString(row, headers, "Auto Generated");
             if (!string.IsNullOrEmpty(autoGenStr))
                 adjustment.IsAutoGenerated = bool.TryParse(autoGenStr, out var ag) && ag;
-
-            if (adjustment.Timestamp == DateTime.MinValue)
-                adjustment.Timestamp = DateTime.UtcNow;
 
             if (existing == null)
                 data.StockAdjustments.Add(adjustment);
@@ -4765,15 +4889,26 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             if (options?.SkipExistingRecords == true && existing != null) { options.SkippedCount++; continue; }
 
             var po = existing ?? new PurchaseOrder();
-            po.Id = id;
-            po.SupplierId = supplierId;
-            po.OrderDate = orderDate;
-            po.ExpectedDeliveryDate = GetDateTime(row, headers, "Expected Date");
-            po.Total = total;
-            po.Status = ParseEnum(GetString(row, headers, "Status"), PurchaseOrderStatus.Draft);
 
-            // Per-row currency detected from the amount cells, else the company currency.
-            ApplyPurchaseOrderCurrency(po, rowIndex, data);
+            // Updating an order changes only what the sheet has columns for; a new one takes every field.
+            bool Set(params string[] columns) => existing == null || columns.Any(headers.Contains);
+
+            po.Id = id;
+            if (Set("Supplier ID"))
+                po.SupplierId = supplierId;
+            if (Set("Order Date"))
+                po.OrderDate = orderDate;
+            if (Set("Expected Date"))
+                po.ExpectedDeliveryDate = GetDateTime(row, headers, "Expected Date");
+            if (Set("Total"))
+                po.Total = total;
+            if (Set("Status"))
+                po.Status = ParseEnum(GetString(row, headers, "Status"), PurchaseOrderStatus.Draft);
+
+            // Per-row currency detected from the amount cells, else the record's own when updating,
+            // else the company currency. Left as it is when nothing it is priced from changed.
+            if (Set("Order Date", "Total", "Currency"))
+                ApplyPurchaseOrderCurrency(po, rowIndex, data, existing?.OriginalCurrency);
 
             if (existing == null)
                 data.PurchaseOrders.Add(po);
@@ -4926,19 +5061,35 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             if (options?.SkipExistingRecords == true && existing != null) { options.SkippedCount++; continue; }
 
             var returnRecord = existing ?? new Return();
+
+            // Updating a return changes only what the sheet has columns for; a new one takes every field.
+            bool Set(params string[] columns) => existing == null || columns.Any(headers.Contains);
+
             returnRecord.Id = id;
-            returnRecord.OriginalTransactionId = originalTransactionId;
-            returnRecord.ReturnType = GetString(row, headers, "Return Type");
-            if (string.IsNullOrEmpty(returnRecord.ReturnType))
-                returnRecord.ReturnType = "Customer";
-            returnRecord.CustomerId = GetString(row, headers, "Customer ID");
-            returnRecord.SupplierId = GetString(row, headers, "Supplier ID");
-            returnRecord.ReturnDate = GetDateTime(row, headers, "Return Date");
-            returnRecord.RefundAmount = refundAmount;
-            returnRecord.RestockingFee = GetDecimal(row, headers, "Restocking Fee");
-            returnRecord.Status = ParseEnum(GetString(row, headers, "Status"), ReturnStatus.Pending);
-            returnRecord.Notes = GetString(row, headers, "Notes");
-            returnRecord.ProcessedBy = GetNullableString(row, headers, "Processed By");
+            if (Set("Original Transaction ID"))
+                returnRecord.OriginalTransactionId = originalTransactionId;
+            if (Set("Return Type"))
+            {
+                returnRecord.ReturnType = GetString(row, headers, "Return Type");
+                if (string.IsNullOrEmpty(returnRecord.ReturnType))
+                    returnRecord.ReturnType = "Customer";
+            }
+            if (Set("Customer ID"))
+                returnRecord.CustomerId = GetString(row, headers, "Customer ID");
+            if (Set("Supplier ID"))
+                returnRecord.SupplierId = GetString(row, headers, "Supplier ID");
+            if (Set("Return Date"))
+                returnRecord.ReturnDate = GetDateTime(row, headers, "Return Date");
+            if (Set("Refund Amount"))
+                returnRecord.RefundAmount = refundAmount;
+            if (Set("Restocking Fee"))
+                returnRecord.RestockingFee = GetDecimal(row, headers, "Restocking Fee");
+            if (Set("Status"))
+                returnRecord.Status = ParseEnum(GetString(row, headers, "Status"), ReturnStatus.Pending);
+            if (Set("Notes"))
+                returnRecord.Notes = GetString(row, headers, "Notes");
+            if (Set("Processed By"))
+                returnRecord.ProcessedBy = GetNullableString(row, headers, "Processed By");
 
             // Handle items - simple single product per return row
             var productId = GetNullableString(row, headers, "Product ID");
@@ -4997,36 +5148,55 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             if (options?.SkipExistingRecords == true && existing != null) { options.SkippedCount++; continue; }
 
             var lostDamaged = existing ?? new LostDamaged();
+
+            // Updating a loss changes only what the sheet has columns for; a new one takes every field.
+            bool Set(params string[] columns) => existing == null || columns.Any(headers.Contains);
+
             lostDamaged.Id = id;
 
             // Handle product - prefer ID, fall back to name lookup
-            var productId = GetNullableString(row, headers, "Product ID");
-            if (string.IsNullOrEmpty(productId))
+            if (Set("Product ID", "Product"))
             {
-                var productName = GetNullableString(row, headers, "Product");
-                if (!string.IsNullOrEmpty(productName))
+                var productId = GetNullableString(row, headers, "Product ID");
+                if (string.IsNullOrEmpty(productId))
                 {
-                    var product = data.Products.FirstOrDefault(p =>
-                        string.Equals(p.Name, productName, StringComparison.OrdinalIgnoreCase));
-                    productId = product?.Id;
+                    var productName = GetNullableString(row, headers, "Product");
+                    if (!string.IsNullOrEmpty(productName))
+                    {
+                        var product = data.Products.FirstOrDefault(p =>
+                            string.Equals(p.Name, productName, StringComparison.OrdinalIgnoreCase));
+                        productId = product?.Id;
+                    }
                 }
+                lostDamaged.ProductId = productId ?? "";
             }
-            lostDamaged.ProductId = productId ?? "";
 
-            lostDamaged.InventoryItemId = GetNullableString(row, headers, "Inventory Item ID");
-            lostDamaged.Quantity = GetInt(row, headers, "Quantity");
-            if (lostDamaged.Quantity == 0)
-                lostDamaged.Quantity = 1;
-            lostDamaged.Reason = ParseEnum(GetString(row, headers, "Reason"), LostDamagedReason.Damaged);
-            lostDamaged.DateDiscovered = GetDateTime(row, headers, "Date Discovered");
-            if (lostDamaged.DateDiscovered == DateTime.MinValue)
-                lostDamaged.DateDiscovered = GetDateTime(row, headers, "Date");
-            lostDamaged.ValueLost = GetDecimal(row, headers, "Value Lost");
-            lostDamaged.Notes = GetString(row, headers, "Notes");
-
-            var insuranceClaim = GetString(row, headers, "Insurance Claim");
-            lostDamaged.InsuranceClaim = insuranceClaim.Equals("Yes", StringComparison.OrdinalIgnoreCase) ||
-                                          insuranceClaim.Equals("True", StringComparison.OrdinalIgnoreCase);
+            if (Set("Inventory Item ID"))
+                lostDamaged.InventoryItemId = GetNullableString(row, headers, "Inventory Item ID");
+            if (Set("Quantity"))
+            {
+                lostDamaged.Quantity = GetInt(row, headers, "Quantity");
+                if (lostDamaged.Quantity == 0)
+                    lostDamaged.Quantity = 1;
+            }
+            if (Set("Reason"))
+                lostDamaged.Reason = ParseEnum(GetString(row, headers, "Reason"), LostDamagedReason.Damaged);
+            if (Set("Date Discovered", "Date"))
+            {
+                lostDamaged.DateDiscovered = GetDateTime(row, headers, "Date Discovered");
+                if (lostDamaged.DateDiscovered == DateTime.MinValue)
+                    lostDamaged.DateDiscovered = GetDateTime(row, headers, "Date");
+            }
+            if (Set("Value Lost"))
+                lostDamaged.ValueLost = GetDecimal(row, headers, "Value Lost");
+            if (Set("Notes"))
+                lostDamaged.Notes = GetString(row, headers, "Notes");
+            if (Set("Insurance Claim"))
+            {
+                var insuranceClaim = GetString(row, headers, "Insurance Claim");
+                lostDamaged.InsuranceClaim = insuranceClaim.Equals("Yes", StringComparison.OrdinalIgnoreCase) ||
+                                              insuranceClaim.Equals("True", StringComparison.OrdinalIgnoreCase);
+            }
 
             if (existing == null)
                 data.LostDamaged.Add(lostDamaged);
