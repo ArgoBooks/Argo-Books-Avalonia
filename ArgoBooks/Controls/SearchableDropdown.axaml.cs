@@ -54,6 +54,9 @@ public partial class SearchableDropdown : UserControl, INotifyPropertyChanged
     public static readonly StyledProperty<string?> DisplayMemberPathProperty =
         AvaloniaProperty.Register<SearchableDropdown, string?>(nameof(DisplayMemberPath));
 
+    public static readonly StyledProperty<string?> SearchMemberPathProperty =
+        AvaloniaProperty.Register<SearchableDropdown, string?>(nameof(SearchMemberPath));
+
     public static readonly StyledProperty<string?> LabelProperty =
         AvaloniaProperty.Register<SearchableDropdown, string?>(nameof(Label));
 
@@ -134,6 +137,15 @@ public partial class SearchableDropdown : UserControl, INotifyPropertyChanged
     {
         get => GetValue(DisplayMemberPathProperty);
         set => SetValue(DisplayMemberPathProperty, value);
+    }
+
+    /// <summary>
+    /// Gets or sets a second property that search also matches, such as an ID that is not displayed.
+    /// </summary>
+    public string? SearchMemberPath
+    {
+        get => GetValue(SearchMemberPathProperty);
+        set => SetValue(SearchMemberPathProperty, value);
     }
 
     /// <summary>
@@ -732,7 +744,7 @@ public partial class SearchableDropdown : UserControl, INotifyPropertyChanged
         {
             var priorityMatches = (PriorityItems ?? Enumerable.Empty<object>())
                 .OfType<object>()
-                .RankBySearch(searchText, i => [GetDisplayText(i)]);
+                .RankBySearch(searchText, i => [GetDisplayText(i), GetMemberText(i, SearchMemberPath)]);
             foreach (var item in priorityMatches)
             {
                 FilteredPriorityItems.Add(item);
@@ -741,7 +753,7 @@ public partial class SearchableDropdown : UserControl, INotifyPropertyChanged
             var matches = ItemsSource
                 .OfType<object>()
                 .Where(i => !prioritySet.Contains(i))
-                .RankBySearch(searchText, i => [GetDisplayText(i)]);
+                .RankBySearch(searchText, i => [GetDisplayText(i), GetMemberText(i, SearchMemberPath)]);
             foreach (var item in matches)
             {
                 FilteredItems.Add(item);
@@ -762,9 +774,17 @@ public partial class SearchableDropdown : UserControl, INotifyPropertyChanged
         if (string.IsNullOrEmpty(DisplayMemberPath))
             return item.ToString() ?? string.Empty;
 
+        return GetMemberText(item, DisplayMemberPath) ?? item.ToString() ?? string.Empty;
+    }
+
+    private static string? GetMemberText(object item, string? path)
+    {
+        if (string.IsNullOrEmpty(path))
+            return null;
+
         var property = DisplayPropertyCache.GetOrAdd(
-            (item.GetType(), DisplayMemberPath!),
+            (item.GetType(), path),
             static key => key.Item1.GetProperty(key.Item2));
-        return property?.GetValue(item)?.ToString() ?? item.ToString() ?? string.Empty;
+        return property?.GetValue(item)?.ToString();
     }
 }

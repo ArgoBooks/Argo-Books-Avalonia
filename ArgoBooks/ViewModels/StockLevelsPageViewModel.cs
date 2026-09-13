@@ -417,7 +417,7 @@ public partial class StockLevelsPageViewModel : SortablePageViewModelBase
         if (!string.IsNullOrWhiteSpace(SearchQuery))
         {
             filtered = filtered
-                .RankBySearch(SearchQuery, i => companyData.GetProduct(i.ProductId) is { } product ? [product.Name, i.Sku] : [])
+                .RankBySearch(SearchQuery, i => companyData.GetProduct(i.ProductId) is { } product ? [product.Name, product.Id, i.Sku] : [])
                 .ToList();
         }
 

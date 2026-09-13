@@ -100,6 +100,7 @@
                                     <controls:SearchableDropdown ItemsSource="{Binding AvailableSuppliers}"
                                                                 SelectedItem="{Binding ModalSupplier}"
                                                                 DisplayMemberPath="Name"
+                                                                SearchMemberPath="Id"
                                                                 Placeholder="{loc:Loc 'Search suppliers...'}"
                                                                 ShowAddNew="True"
                                                                 AddNewText="{loc:Loc 'Create new supplier'}"
@@ -252,6 +253,7 @@
                                     <controls:SearchableDropdown ItemsSource="{Binding AvailableSuppliers}"
                                                                 SelectedItem="{Binding ModalSupplier}"
                                                                 DisplayMemberPath="Name"
+                                                                SearchMemberPath="Id"
                                                                 Placeholder="{loc:Loc 'Search suppliers...'}"
                                                                 ShowAddNew="True"
                                                                 AddNewText="{loc:Loc 'Create new supplier'}"
@@ -361,6 +363,7 @@
                             <controls:SearchableDropdown ItemsSource="{Binding AvailableSuppliers}"
                                                          SelectedItem="{Binding FilterSupplier}"
                                                          DisplayMemberPath="Name"
+                                                         SearchMemberPath="Id"
                                                          Placeholder="{loc:Loc 'Search suppliers...'}" />
                         </StackPanel>
                     </StackPanel>

@@ -92,6 +92,7 @@
                                 <controls:SearchableDropdown ItemsSource="{Binding CustomerOptions}"
                                                             SelectedItem="{Binding SelectedCustomer}"
                                                             DisplayMemberPath="Name"
+                                                            SearchMemberPath="Id"
                                                             Placeholder="{loc:Loc 'Search for a customer...'}"
                                                             HasError="{Binding HasCustomerError}"
                                                             ErrorMessage="{loc:Loc 'Please select a customer.'}"
@@ -165,6 +166,7 @@
                                                              SelectedItem="{Binding SelectedProduct, Mode=TwoWay}"
                                                              SearchText="{Binding ItemText, Mode=TwoWay}"
                                                              DisplayMemberPath="Name"
+                                                             SearchMemberPath="Id"
                                                              Placeholder="{loc:Loc 'Type a new product, or pick one'}"
                                                              ShowAddNew="True"
                                                              AddNewText="{loc:Loc 'Create new product'}"
@@ -526,6 +528,7 @@
                                 <controls:SearchableDropdown ItemsSource="{Binding CustomerOptions}"
                                                             SelectedItem="{Binding FilterSelectedCustomer}"
                                                             DisplayMemberPath="Name"
+                                                            SearchMemberPath="Id"
                                                             Placeholder="{loc:Loc 'Select customer...'}"
                                                             ShowAddNew="False" />
                             </StackPanel>

@@ -447,7 +447,7 @@ public partial class SuppliersPageViewModel : SortablePageViewModelBase
         if (!string.IsNullOrWhiteSpace(SearchQuery))
         {
             filtered = filtered
-                .RankBySearch(SearchQuery, s => [s.Name, s.Email, s.ContactPerson]);
+                .RankBySearch(SearchQuery, s => [s.Name, s.Id, s.Email, s.ContactPerson]);
         }
 
         if (!string.IsNullOrWhiteSpace(FilterCountry) && FilterCountry != "All Countries")

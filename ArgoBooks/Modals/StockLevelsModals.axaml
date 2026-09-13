@@ -273,6 +273,7 @@
                                 <controls:SearchableDropdown ItemsSource="{Binding AvailableProducts}"
                                                             SelectedItem="{Binding SelectedProduct}"
                                                             DisplayMemberPath="Name"
+                                                            SearchMemberPath="Id"
                                                             Placeholder="{loc:Loc 'Search products...'}"
                                                             ShowAddNew="False"
                                                             EmptyMessage="{loc:Loc 'No products available.'}"

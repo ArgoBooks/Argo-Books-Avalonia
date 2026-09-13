@@ -147,6 +147,7 @@
                                                              SelectedItem="{Binding SelectedProduct, Mode=TwoWay}"
                                                              SearchText="{Binding ItemText, Mode=TwoWay}"
                                                              DisplayMemberPath="Name"
+                                                             SearchMemberPath="Id"
                                                              Placeholder="{loc:Loc 'Type a new product, or pick one'}"
                                                              ShowAddNew="True"
                                                              AddNewText="{loc:Loc 'Create new product'}"

@@ -491,7 +491,7 @@ public partial class QuickActionsViewModel : ViewModelBase
         // Customers
         foreach (var c in companyData.Customers)
         {
-            var score = LevenshteinDistance.BestScore(query, c.Name, c.CompanyName ?? "", c.Email, c.Phone);
+            var score = LevenshteinDistance.BestScore(query, c.Name, c.Id, c.CompanyName ?? "", c.Email, c.Phone);
             if (score > 0)
                 results.Add((new QuickActionItem(c.Name, string.IsNullOrWhiteSpace(c.CompanyName) ? c.Email : c.CompanyName, Icons.Customers, QuickActionType.SearchResult, "Customers", entityId: c.Id), score));
         }
@@ -499,7 +499,7 @@ public partial class QuickActionsViewModel : ViewModelBase
         // Products
         foreach (var p in companyData.Products)
         {
-            var score = LevenshteinDistance.BestScore(query, p.Name, p.Sku, p.Description);
+            var score = LevenshteinDistance.BestScore(query, p.Name, p.Id, p.Sku, p.Description);
             if (score > 0)
                 results.Add((new QuickActionItem(p.Name, string.IsNullOrWhiteSpace(p.Sku) ? p.Description : $"SKU: {p.Sku}", Icons.Products, QuickActionType.SearchResult, "Products", entityId: p.Id), score));
         }
@@ -540,7 +540,7 @@ public partial class QuickActionsViewModel : ViewModelBase
         // Suppliers
         foreach (var s in companyData.Suppliers)
         {
-            var score = LevenshteinDistance.BestScore(query, s.Name, s.ContactPerson, s.Email);
+            var score = LevenshteinDistance.BestScore(query, s.Name, s.Id, s.ContactPerson, s.Email);
             if (score > 0)
                 results.Add((new QuickActionItem(s.Name, string.IsNullOrWhiteSpace(s.ContactPerson) ? s.Email : s.ContactPerson, Icons.Suppliers, QuickActionType.SearchResult, "Suppliers", entityId: s.Id), score));
         }

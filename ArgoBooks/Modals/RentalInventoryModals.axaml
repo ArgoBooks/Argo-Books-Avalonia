@@ -339,6 +339,7 @@
                                 <controls:SearchableDropdown ItemsSource="{Binding AvailableCustomers}"
                                                             SelectedItem="{Binding RentOutCustomer}"
                                                             DisplayMemberPath="Name"
+                                                            SearchMemberPath="Id"
                                                             Placeholder="{loc:Loc 'Search customers...'}"
                                                             ShowAddNew="True"
                                                             AddNewText="{loc:Loc 'Create new customer'}"

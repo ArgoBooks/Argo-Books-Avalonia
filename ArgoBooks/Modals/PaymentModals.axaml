@@ -319,6 +319,7 @@
                                 <controls:SearchableDropdown ItemsSource="{Binding CustomerOptions}"
                                                             SelectedItem="{Binding SelectedCustomerFilter}"
                                                             DisplayMemberPath="Name"
+                                                            SearchMemberPath="Id"
                                                             Placeholder="{loc:Loc 'All customers'}"
                                                             ShowAddNew="False" />
                             </StackPanel>

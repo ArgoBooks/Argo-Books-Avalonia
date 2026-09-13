@@ -569,7 +569,7 @@ public partial class ProductsPageViewModel : SortablePageViewModelBase
         if (!string.IsNullOrWhiteSpace(SearchQuery))
         {
             filtered = filtered
-                .RankBySearch(SearchQuery, p => [p.Name, p.Sku, p.Description])
+                .RankBySearch(SearchQuery, p => [p.Name, p.Id, p.Sku, p.Description])
                 .ToList();
         }
 
