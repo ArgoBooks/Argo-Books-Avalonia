@@ -337,6 +337,7 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
             var before = Capture(existing);
             var statusBefore = existing.Status;
             var dateBefore = existing.NextDate;
+            var lastGeneratedBefore = existing.LastGeneratedAt;
             var startChanged = existing.StartDate.Date != start;
             var oldAmount = existing.Template?.Total ?? 0m;
             var amountChanged = existing.Template != null && oldAmount != amount;
@@ -346,15 +347,15 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
             existing.EndDate = end;
             await ApplyTemplateAsync(existing, amount, start);
 
-            // The next date came from the old start. Until something is generated it is simply the
-            // start. After that, everything before the next date is already booked, so the new
-            // start's dates pick up from there and a moved start cannot book a period twice.
+            // The next date came from the old start. Until the schedule has run it is simply the
+            // start. After that, everything before the next date is already dealt with, so the new
+            // start's dates pick up from there and a moved start cannot book a period twice. Whether
+            // it has run is read from the schedule, not from its entries, since those can be deleted,
+            // and a skipped or paused-through date moves the next date without leaving an entry.
             if (startChanged)
             {
-                var hasGenerated = existing.Type == CategoryType.Revenue
-                    ? data.Revenues.Any(r => r.RecurringScheduleId == existing.Id)
-                    : data.Expenses.Any(e => e.RecurringScheduleId == existing.Id);
-                existing.NextDate = hasGenerated
+                var hasRun = existing.LastGeneratedAt != null || dateBefore.Date > before.Start.Date;
+                existing.NextDate = hasRun
                     ? RecurrenceSchedule.FirstOnOrAfter(start, existing.Frequency, start.Day, dateBefore)
                     : start;
             }
@@ -370,6 +371,7 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
             var generated = OwnEntries(GenerateDueNow(data), existing);
             var queued = QueueGenerated(data, generated);
             var dateAfter = existing.NextDate;
+            var lastGeneratedAfter = existing.LastGeneratedAt;
             var statusAfter = existing.Status;
 
             App.UndoRedoManager.RecordAction(new DelegateAction(
@@ -379,6 +381,7 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
                     RemoveGenerated(data, generated);
                     Restore(existing, before);
                     existing.NextDate = dateBefore;
+                    existing.LastGeneratedAt = lastGeneratedBefore;
                     existing.Status = statusBefore;
                     Saved?.Invoke();
                 },
@@ -387,6 +390,7 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
                     Restore(existing, after);
                     RestoreGenerated(data, generated, queued);
                     existing.NextDate = dateAfter;
+                    existing.LastGeneratedAt = lastGeneratedAfter;
                     existing.Status = statusAfter;
                     Saved?.Invoke();
                 }));

@@ -209,6 +209,70 @@ public class RecurringScheduleEditorViewModelTests : ModalViewModelTestBase
         Assert.Equal((start, nextBefore), (schedule.StartDate, schedule.NextDate));
     }
 
+    /// <summary>
+    /// Months of rent were booked and then deleted to tidy up. Those months were still booked once,
+    /// so nudging the start must not bring every one of them back as a back-dated entry.
+    /// </summary>
+    [Fact]
+    public async Task Save_StartDateMovedAfterGeneratedEntriesWereDeleted_DoesNotRebookThePast()
+    {
+        var start = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1).AddMonths(-3);
+        var schedule = Rent(start);
+        RecurringTransactionService.GenerateDue(Company, DateTime.Today);
+        var nextBefore = schedule.NextDate;
+        Company.Expenses.Clear();
+        var vm = new RecurringScheduleEditorViewModel();
+        vm.ShowEdit(schedule);
+        vm.StartDate = new DateTimeOffset(start.AddDays(14));
+
+        await vm.SaveCommand.ExecuteAsync(null);
+
+        Assert.Empty(Company.Expenses);
+        Assert.Equal(nextBefore.AddDays(14), schedule.NextDate);
+    }
+
+    /// <summary>
+    /// Paused before its first date and resumed months later, so it never generated anything but
+    /// the paused months are behind it. Nudging the start must not book them.
+    /// </summary>
+    [Fact]
+    public async Task Save_StartDateMovedAfterResumingPastPausedMonths_DoesNotBookThem()
+    {
+        var start = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1).AddMonths(-3);
+        var schedule = Rent(start);
+        schedule.NextDate = RecurrenceSchedule.FirstOnOrAfter(start, Frequency.Monthly, start.Day, DateTime.Today);
+        var vm = new RecurringScheduleEditorViewModel();
+        vm.ShowEdit(schedule);
+        vm.StartDate = new DateTimeOffset(start.AddDays(14));
+
+        await vm.SaveCommand.ExecuteAsync(null);
+
+        Assert.DoesNotContain(Company.Expenses, e => e.OccurrenceDate < DateTime.Today);
+    }
+
+    /// <summary>
+    /// The only generation was undone, so the schedule is new again and an earlier start should
+    /// book from that start.
+    /// </summary>
+    [Fact]
+    public async Task Save_StartDateMovedEarlierAfterUndoingItsOnlyGeneration_BooksFromTheNewStart()
+    {
+        var schedule = Rent(DateTime.Today.AddDays(35));
+        var first = new RecurringScheduleEditorViewModel();
+        first.ShowEdit(schedule);
+        first.StartDate = new DateTimeOffset(DateTime.Today);
+        await first.SaveCommand.ExecuteAsync(null);
+        Undo();
+        var newStart = DateTime.Today.AddMonths(-2);
+        var second = new RecurringScheduleEditorViewModel();
+        second.ShowEdit(schedule);
+        second.StartDate = new DateTimeOffset(newStart);
+
+        await second.SaveCommand.ExecuteAsync(null);
+
+        Assert.Contains(Company.Expenses, e => e.OccurrenceDate == newStart);
+    }
+
     private sealed class NoDiskPlatform : IPlatformService
     {
         public PlatformType Platform => PlatformType.Linux;
