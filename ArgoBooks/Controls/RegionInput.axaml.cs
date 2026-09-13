@@ -11,8 +11,8 @@ using Avalonia.Data.Converters;
 namespace ArgoBooks.Controls;
 
 /// <summary>
-/// The state, province or region of an address. Canada and the United States pick from a list and
-/// store the two-letter code, which payroll filings need; any other country takes free text.
+/// The state, province or county of an address. Countries in <see cref="Regions"/> pick from a list;
+/// any other country takes free text.
 /// </summary>
 public partial class RegionInput : UserControl, INotifyPropertyChanged
 {
@@ -39,7 +39,7 @@ public partial class RegionInput : UserControl, INotifyPropertyChanged
         set => SetValue(ValueProperty, value);
     }
 
-    /// <summary>The field's label for a country: Province for Canada, State for the United States.</summary>
+    /// <summary>The field's label for a country, such as Province for Canada or County for Ireland.</summary>
     public static readonly IValueConverter LabelConverter =
         new FuncValueConverter<string?, string>(country => Regions.LabelFor(country).Translate());
 
