@@ -370,21 +370,12 @@ public partial class RentalRecordsPageViewModel : SortablePageViewModelBase
         if (!string.IsNullOrWhiteSpace(SearchQuery))
         {
             filtered = filtered
-                .Select(r =>
+                .RankBySearch(SearchQuery, r =>
                 {
                     var itemName = RentalRecordsModalsViewModel.GetItemDisplayName(r, companyData);
                     var customer = companyData?.Customers.FirstOrDefault(c => c.Id == r.CustomerId);
-                    return new
-                    {
-                        Record = r,
-                        IdScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, r.Id),
-                        ItemScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, itemName),
-                        CustomerScore = customer != null ? LevenshteinDistance.ComputeSearchScore(SearchQuery, customer.Name) : -1
-                    };
+                    return [r.Id, itemName, customer?.Name];
                 })
-                .Where(x => x.IdScore >= 0 || x.ItemScore >= 0 || x.CustomerScore >= 0)
-                .OrderByDescending(x => Math.Max(Math.Max(x.IdScore, x.ItemScore), x.CustomerScore))
-                .Select(x => x.Record)
                 .ToList();
         }
 

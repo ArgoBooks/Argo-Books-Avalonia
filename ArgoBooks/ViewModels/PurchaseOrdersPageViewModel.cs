@@ -412,22 +412,7 @@ public partial class PurchaseOrdersPageViewModel : SortablePageViewModelBase
         if (!string.IsNullOrWhiteSpace(SearchQuery))
         {
             filtered = filtered
-                .Select(o =>
-                {
-                    var supplier = suppliers.FirstOrDefault(s => s.Id == o.SupplierId);
-
-                    return new
-                    {
-                        Order = o,
-                        IdScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, o.Id),
-                        PoScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, o.PoNumber),
-                        SupplierScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, supplier?.Name ?? ""),
-                        NotesScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, o.Notes)
-                    };
-                })
-                .Where(x => x.IdScore >= 0 || x.PoScore >= 0 || x.SupplierScore >= 0 || x.NotesScore >= 0)
-                .OrderByDescending(x => Math.Max(Math.Max(x.IdScore, x.PoScore), Math.Max(x.SupplierScore, x.NotesScore)))
-                .Select(x => x.Order)
+                .RankBySearch(SearchQuery, o => [o.Id, o.PoNumber, suppliers.FirstOrDefault(s => s.Id == o.SupplierId)?.Name, o.Notes])
                 .ToList();
         }
 

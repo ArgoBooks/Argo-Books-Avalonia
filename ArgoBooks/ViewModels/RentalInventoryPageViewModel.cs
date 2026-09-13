@@ -322,15 +322,7 @@ public partial class RentalInventoryPageViewModel : SortablePageViewModelBase
         if (!string.IsNullOrWhiteSpace(SearchQuery))
         {
             filtered = filtered
-                .Select(i => new
-                {
-                    Item = i,
-                    NameScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, ResolveName(i)),
-                    IdScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, i.Id)
-                })
-                .Where(x => x.NameScore >= 0 || x.IdScore >= 0)
-                .OrderByDescending(x => Math.Max(x.NameScore, x.IdScore))
-                .Select(x => x.Item)
+                .RankBySearch(SearchQuery, i => [ResolveName(i), i.Id])
                 .ToList();
         }
 

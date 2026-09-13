@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using ArgoBooks.Data;
 using ArgoBooks.Helpers;
+using ArgoBooks.Utilities;
 using ArgoBooks.Core.Models;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -291,8 +292,7 @@ public partial class EmojiPickerViewModel : ObservableObject
         {
             var search = SearchText.Trim();
             emojis = EmojiData.AllEmojis
-                .Where(e => e.Name.Contains(search, StringComparison.OrdinalIgnoreCase) ||
-                            e.Emoji.Contains(search, StringComparison.Ordinal))
+                .RankBySearch(search, e => [e.Name, e.Emoji])
                 .Take(MaxSearchResults);
         }
         else if (SelectedTab == null)

@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
+using ArgoBooks.Utilities;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Data;
@@ -401,8 +402,7 @@ public partial class CategoryInput : UserControl, INotifyPropertyChanged
         }
         else
         {
-            filtered = Categories.Where(c =>
-                c.Name.Contains(searchText, StringComparison.OrdinalIgnoreCase));
+            filtered = Categories.RankBySearch(searchText, c => [c.Name]);
         }
 
         foreach (var item in filtered.Take(50))

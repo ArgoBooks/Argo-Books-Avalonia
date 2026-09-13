@@ -321,12 +321,7 @@ public partial class LostDamagedPageViewModel : ViewModelBase, ICleanupViewModel
         // Apply search filter
         if (!string.IsNullOrWhiteSpace(SearchQuery))
         {
-            var query = SearchQuery.ToLowerInvariant();
-            filtered = filtered.Where(item =>
-                item.Id.ToLowerInvariant().Contains(query) ||
-                GetProductName(item.ProductId).ToLowerInvariant().Contains(query) ||
-                item.Notes.ToLowerInvariant().Contains(query)
-            );
+            filtered = filtered.RankBySearch(SearchQuery, item => [item.Id, GetProductName(item.ProductId), item.Notes]);
         }
 
         if (filterType != "All")

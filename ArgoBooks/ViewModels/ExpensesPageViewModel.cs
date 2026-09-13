@@ -512,17 +512,7 @@ public ExpensesPageViewModel()
         if (!string.IsNullOrWhiteSpace(SearchQuery))
         {
             filtered = filtered
-                .Select(p => new
-                {
-                    Expense = p,
-                    IdScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, p.Id),
-                    DescScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, p.Description),
-                    SupplierScore = LevenshteinDistance.ComputeSearchScore(SearchQuery,
-                        companyData?.GetSupplier(p.SupplierId ?? "")?.Name ?? "")
-                })
-                .Where(x => x.IdScore >= 0 || x.DescScore >= 0 || x.SupplierScore >= 0)
-                .OrderByDescending(x => Math.Max(Math.Max(x.IdScore, x.DescScore), x.SupplierScore))
-                .Select(x => x.Expense)
+                .RankBySearch(SearchQuery, p => [p.Id, p.Description, companyData?.GetSupplier(p.SupplierId ?? "")?.Name])
                 .ToList();
         }
 

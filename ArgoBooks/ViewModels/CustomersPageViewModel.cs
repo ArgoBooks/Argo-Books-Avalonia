@@ -394,17 +394,7 @@ public partial class CustomersPageViewModel : SortablePageViewModelBase
         if (!string.IsNullOrWhiteSpace(SearchQuery))
         {
             filtered = filtered
-                .Select(c => new
-                {
-                    Customer = c,
-                    NameScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, c.Name),
-                    EmailScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, c.Email),
-                    PhoneScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, c.Phone),
-                    IdScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, c.Id)
-                })
-                .Where(x => x.NameScore >= 0 || x.EmailScore >= 0 || x.PhoneScore >= 0 || x.IdScore >= 0)
-                .OrderByDescending(x => Math.Max(Math.Max(x.NameScore, x.EmailScore), Math.Max(x.PhoneScore, x.IdScore)))
-                .Select(x => x.Customer)
+                .RankBySearch(SearchQuery, c => [c.Name, c.Email, c.Phone, c.Id])
                 .ToList();
         }
 

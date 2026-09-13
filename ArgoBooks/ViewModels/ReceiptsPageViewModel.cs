@@ -560,13 +560,7 @@ public partial class ReceiptsPageViewModel : ViewModelBase, ICleanupViewModel
         // Apply search filter
         if (!string.IsNullOrWhiteSpace(SearchQuery))
         {
-            var query = SearchQuery.ToLowerInvariant();
-            filtered = filtered.Where(r =>
-                r.Id.ToLowerInvariant().Contains(query) ||
-                r.Supplier.ToLowerInvariant().Contains(query) ||
-                r.FileName.ToLowerInvariant().Contains(query) ||
-                r.TransactionId.ToLowerInvariant().Contains(query)
-            );
+            filtered = filtered.RankBySearch(SearchQuery, r => [r.Id, r.Supplier, r.FileName, r.TransactionId]);
         }
 
         if (filterType != "All")

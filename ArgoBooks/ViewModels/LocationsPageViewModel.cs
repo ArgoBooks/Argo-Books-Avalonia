@@ -304,17 +304,7 @@ public partial class LocationsPageViewModel : SortablePageViewModelBase
         if (!string.IsNullOrWhiteSpace(SearchQuery))
         {
             filtered = filtered
-                .Select(l => new
-                {
-                    Location = l,
-                    NameScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, l.Name),
-                    AddressScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, l.Address.City),
-                    ContactScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, l.ContactPerson),
-                    IdScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, l.Id)
-                })
-                .Where(x => x.NameScore >= 0 || x.AddressScore >= 0 || x.ContactScore >= 0 || x.IdScore >= 0)
-                .OrderByDescending(x => Math.Max(Math.Max(x.NameScore, x.AddressScore), Math.Max(x.ContactScore, x.IdScore)))
-                .Select(x => x.Location)
+                .RankBySearch(SearchQuery, l => [l.Name, l.Address.City, l.ContactPerson, l.Id])
                 .ToList();
         }
 

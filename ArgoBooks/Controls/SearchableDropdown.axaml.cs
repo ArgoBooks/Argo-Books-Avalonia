@@ -730,47 +730,19 @@ public partial class SearchableDropdown : UserControl, INotifyPropertyChanged
         }
         else
         {
-            // Use Levenshtein distance for fuzzy matching
-            var scoredPriorityItems = new List<(object Item, double Score)>();
-            var scoredItems = new List<(object Item, double Score)>();
-
-            // Score priority items
-            foreach (var item in PriorityItems ?? Enumerable.Empty<object>())
-            {
-                if (item == null)
-                    continue;
-
-                var displayText = GetDisplayText(item);
-                var score = LevenshteinDistance.ComputeSearchScore(searchText, displayText);
-
-                if (score >= 0)
-                {
-                    scoredPriorityItems.Add((item, score));
-                }
-            }
-
-            // Score regular items (excluding priority items)
-            foreach (var item in ItemsSource)
-            {
-                if (item == null || prioritySet.Contains(item))
-                    continue;
-
-                var displayText = GetDisplayText(item);
-                var score = LevenshteinDistance.ComputeSearchScore(searchText, displayText);
-
-                if (score >= 0)
-                {
-                    scoredItems.Add((item, score));
-                }
-            }
-
-            // Sort by score descending and add to filtered items
-            foreach (var (item, _) in scoredPriorityItems.OrderByDescending(x => x.Score))
+            var priorityMatches = (PriorityItems ?? Enumerable.Empty<object>())
+                .OfType<object>()
+                .RankBySearch(searchText, i => [GetDisplayText(i)]);
+            foreach (var item in priorityMatches)
             {
                 FilteredPriorityItems.Add(item);
             }
 
-            foreach (var (item, _) in scoredItems.OrderByDescending(x => x.Score))
+            var matches = ItemsSource
+                .OfType<object>()
+                .Where(i => !prioritySet.Contains(i))
+                .RankBySearch(searchText, i => [GetDisplayText(i)]);
+            foreach (var item in matches)
             {
                 FilteredItems.Add(item);
             }

@@ -334,9 +334,7 @@ public partial class CountryInput : UserControl, INotifyPropertyChanged
         }
         else
         {
-            filtered = PhoneInput.AllDialCodes.Where(c =>
-                c.Name.Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
-                c.Code.Equals(searchText, StringComparison.OrdinalIgnoreCase));
+            filtered = PhoneInput.SearchCountries(searchText, matchDialCode: false);
         }
 
         // Get the last priority country code (Canada = "CA")

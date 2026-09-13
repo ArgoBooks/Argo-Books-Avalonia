@@ -534,17 +534,7 @@ public RevenuePageViewModel()
         if (!string.IsNullOrWhiteSpace(SearchQuery))
         {
             filtered = filtered
-                .Select(s => new
-                {
-                    Revenue = s,
-                    IdScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, s.Id),
-                    DescScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, s.Description),
-                    CustomerScore = LevenshteinDistance.ComputeSearchScore(SearchQuery,
-                        companyData?.GetCustomer(s.CustomerId ?? "")?.Name ?? "")
-                })
-                .Where(x => x.IdScore >= 0 || x.DescScore >= 0 || x.CustomerScore >= 0)
-                .OrderByDescending(x => Math.Max(Math.Max(x.IdScore, x.DescScore), x.CustomerScore))
-                .Select(x => x.Revenue)
+                .RankBySearch(SearchQuery, s => [s.Id, s.Description, companyData?.GetCustomer(s.CustomerId ?? "")?.Name])
                 .ToList();
         }
 

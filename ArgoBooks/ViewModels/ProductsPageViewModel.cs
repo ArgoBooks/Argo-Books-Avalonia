@@ -569,16 +569,7 @@ public partial class ProductsPageViewModel : SortablePageViewModelBase
         if (!string.IsNullOrWhiteSpace(SearchQuery))
         {
             filtered = filtered
-                .Select(p => new
-                {
-                    Product = p,
-                    NameScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, p.Name),
-                    SkuScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, p.Sku),
-                    DescScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, p.Description)
-                })
-                .Where(x => x.NameScore >= 0 || x.SkuScore >= 0 || x.DescScore >= 0)
-                .OrderByDescending(x => Math.Max(Math.Max(x.NameScore, x.SkuScore), x.DescScore))
-                .Select(x => x.Product)
+                .RankBySearch(SearchQuery, p => [p.Name, p.Sku, p.Description])
                 .ToList();
         }
 

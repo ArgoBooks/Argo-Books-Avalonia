@@ -447,16 +447,7 @@ public partial class SuppliersPageViewModel : SortablePageViewModelBase
         if (!string.IsNullOrWhiteSpace(SearchQuery))
         {
             filtered = filtered
-                .Select(s => new
-                {
-                    Supplier = s,
-                    NameScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, s.Name),
-                    EmailScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, s.Email),
-                    ContactScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, s.ContactPerson)
-                })
-                .Where(x => x.NameScore >= 0 || x.EmailScore >= 0 || x.ContactScore >= 0)
-                .OrderByDescending(x => Math.Max(Math.Max(x.NameScore, x.EmailScore), x.ContactScore))
-                .Select(x => x.Supplier);
+                .RankBySearch(SearchQuery, s => [s.Name, s.Email, s.ContactPerson]);
         }
 
         if (!string.IsNullOrWhiteSpace(FilterCountry) && FilterCountry != "All Countries")

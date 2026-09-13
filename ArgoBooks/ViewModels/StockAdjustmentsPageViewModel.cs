@@ -447,25 +447,13 @@ public partial class StockAdjustmentsPageViewModel : SortablePageViewModelBase
         if (!string.IsNullOrWhiteSpace(SearchQuery))
         {
             filtered = filtered
-                .Select(a =>
+                .RankBySearch(SearchQuery, a =>
                 {
                     var invItem = inventory.FirstOrDefault(i => i.Id == a.InventoryItemId);
                     var product = invItem != null ? products.FirstOrDefault(p => p.Id == invItem.ProductId) : null;
                     var location = invItem != null ? locations.FirstOrDefault(l => l.Id == invItem.LocationId) : null;
-
-                    return new
-                    {
-                        Adjustment = a,
-                        IdScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, a.Id),
-                        ProductScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, product?.Name ?? ""),
-                        LocationScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, location?.Name ?? ""),
-                        ReasonScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, a.Reason),
-                        RefScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, a.ReferenceNumber ?? "")
-                    };
+                    return [a.Id, product?.Name, location?.Name, a.Reason, a.ReferenceNumber];
                 })
-                .Where(x => x.IdScore >= 0 || x.ProductScore >= 0 || x.LocationScore >= 0 || x.ReasonScore >= 0 || x.RefScore >= 0)
-                .OrderByDescending(x => Math.Max(Math.Max(x.IdScore, x.ProductScore), Math.Max(Math.Max(x.LocationScore, x.ReasonScore), x.RefScore)))
-                .Select(x => x.Adjustment)
                 .ToList();
         }
 

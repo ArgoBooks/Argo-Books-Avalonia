@@ -392,15 +392,7 @@ public partial class CategoriesPageViewModel : SortablePageViewModelBase
         if (!string.IsNullOrWhiteSpace(SearchQuery))
         {
             categories = categories
-                .Select(c => new
-                {
-                    Category = c,
-                    NameScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, c.Name),
-                    DescScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, c.Description ?? string.Empty)
-                })
-                .Where(x => x.NameScore >= 0 || x.DescScore >= 0)
-                .OrderByDescending(x => Math.Max(x.NameScore, x.DescScore))
-                .Select(x => x.Category)
+                .RankBySearch(SearchQuery, c => [c.Name, c.Description])
                 .ToList();
         }
 

@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Windows.Input;
 using ArgoBooks.Data;
+using ArgoBooks.Utilities;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Data;
@@ -588,11 +589,7 @@ public partial class PhoneInput : UserControl, INotifyPropertyChanged
         }
         else
         {
-            // Search by dial code, country name, or country code
-            filtered = AllDialCodes.Where(c =>
-                c.DialCode.Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
-                c.Name.Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
-                c.Code.Equals(searchText, StringComparison.OrdinalIgnoreCase));
+            filtered = SearchCountries(searchText, matchDialCode: true);
         }
 
         // Get the last priority country code (Canada = "CA")
@@ -607,6 +604,17 @@ public partial class PhoneInput : UserControl, INotifyPropertyChanged
 
         HasFilteredCountries = FilteredDialCodes.Count > 0;
     }
+
+    public static IEnumerable<CountryDialCode> SearchCountries(string searchText, bool matchDialCode) =>
+        AllDialCodes
+            // The full list repeats the priority countries above the alphabetical list.
+            .DistinctBy(c => c.Code)
+            .RankBySearch(searchText, c =>
+            [
+                c.Name,
+                c.Code.Equals(searchText, StringComparison.OrdinalIgnoreCase) ? c.Code : null,
+                matchDialCode ? c.DialCode : null
+            ]);
 
     private void UpdateFullPhoneNumber()
     {

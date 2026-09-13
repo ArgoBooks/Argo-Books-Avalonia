@@ -417,23 +417,7 @@ public partial class StockLevelsPageViewModel : SortablePageViewModelBase
         if (!string.IsNullOrWhiteSpace(SearchQuery))
         {
             filtered = filtered
-                .Select(i => new
-                {
-                    Item = i,
-                    Product = companyData.GetProduct(i.ProductId),
-                    SkuScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, i.Sku)
-                })
-                .Where(x => x.Product != null)
-                .Select(x => new
-                {
-                    x.Item,
-                    x.Product,
-                    x.SkuScore,
-                    NameScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, x.Product!.Name)
-                })
-                .Where(x => x.NameScore >= 0 || x.SkuScore >= 0)
-                .OrderByDescending(x => Math.Max(x.NameScore, x.SkuScore))
-                .Select(x => x.Item)
+                .RankBySearch(SearchQuery, i => companyData.GetProduct(i.ProductId) is { } product ? [product.Name, i.Sku] : [])
                 .ToList();
         }
 

@@ -335,13 +335,7 @@ public partial class ReturnsPageViewModel : ViewModelBase, ICleanupViewModel
         // Apply search filter
         if (!string.IsNullOrWhiteSpace(SearchQuery))
         {
-            var query = SearchQuery.ToLowerInvariant();
-            filtered = filtered.Where(r =>
-                r.Id.ToLowerInvariant().Contains(query) ||
-                r.OriginalTransactionId.ToLowerInvariant().Contains(query) ||
-                GetProductNames(r).ToLowerInvariant().Contains(query) ||
-                GetSupplierOrCustomerName(r).ToLowerInvariant().Contains(query)
-            );
+            filtered = filtered.RankBySearch(SearchQuery, r => [r.Id, r.OriginalTransactionId, GetProductNames(r), GetSupplierOrCustomerName(r)]);
         }
 
         if (filterReason != "All")

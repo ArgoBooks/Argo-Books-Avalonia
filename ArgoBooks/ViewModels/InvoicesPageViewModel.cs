@@ -780,17 +780,7 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
         if (!string.IsNullOrWhiteSpace(SearchQuery))
         {
             filtered = filtered
-                .Select(i => new
-                {
-                    Invoice = i,
-                    IdScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, i.Id),
-                    CustomerScore = LevenshteinDistance.ComputeSearchScore(SearchQuery,
-                        companyData?.GetCustomer(i.CustomerId)?.Name ?? ""),
-                    NumberScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, i.InvoiceNumber)
-                })
-                .Where(x => x.IdScore >= 0 || x.CustomerScore >= 0 || x.NumberScore >= 0)
-                .OrderByDescending(x => Math.Max(Math.Max(x.IdScore, x.CustomerScore), x.NumberScore))
-                .Select(x => x.Invoice)
+                .RankBySearch(SearchQuery, i => [i.Id, companyData?.GetCustomer(i.CustomerId)?.Name, i.InvoiceNumber])
                 .ToList();
         }
 
