@@ -338,7 +338,7 @@ public class ReportFilters
         {
             var start = StartDate?.Date ?? DateTime.MinValue;
             // Normalize end date to include the entire day (end of day)
-            var end = EndDate?.Date.AddDays(1).AddSeconds(-1) ?? DateTime.MaxValue;
+            var end = EndDate?.Date.AddDays(1).AddTicks(-1) ?? DateTime.MaxValue;
             return (start, end);
         }
 
@@ -491,23 +491,23 @@ public static class DatePresetNames
 
         return presetLower switch
         {
-            "today" => (today, today.AddDays(1).AddSeconds(-1)),
-            "yesterday" => (today.AddDays(-1), today.AddSeconds(-1)),
-            "last 7 days" => (today.AddDays(-6), today.AddDays(1).AddSeconds(-1)),
-            "last 30 days" => (today.AddDays(-29), today.AddDays(1).AddSeconds(-1)),
-            "last 100 days" => (today.AddDays(-99), today.AddDays(1).AddSeconds(-1)),
-            "last 365 days" => (today.AddDays(-364), today.AddDays(1).AddSeconds(-1)),
-            "this week" => (today.AddDays(-(int)today.DayOfWeek), today.AddDays(7 - (int)today.DayOfWeek).AddSeconds(-1)),
-            "last week" => (today.AddDays(-(int)today.DayOfWeek - 7), today.AddDays(-(int)today.DayOfWeek).AddSeconds(-1)),
-            "this month" => (new DateTime(now.Year, now.Month, 1), new DateTime(now.Year, now.Month, 1).AddMonths(1).AddSeconds(-1)),
-            "last month" => (new DateTime(now.Year, now.Month, 1).AddMonths(-1), new DateTime(now.Year, now.Month, 1).AddSeconds(-1)),
-            "last 3 months" => (today.AddMonths(-3), today.AddDays(1).AddSeconds(-1)),
-            "last 6 months" => (today.AddMonths(-6), today.AddDays(1).AddSeconds(-1)),
+            "today" => (today, today.AddDays(1).AddTicks(-1)),
+            "yesterday" => (today.AddDays(-1), today.AddTicks(-1)),
+            "last 7 days" => (today.AddDays(-6), today.AddDays(1).AddTicks(-1)),
+            "last 30 days" => (today.AddDays(-29), today.AddDays(1).AddTicks(-1)),
+            "last 100 days" => (today.AddDays(-99), today.AddDays(1).AddTicks(-1)),
+            "last 365 days" => (today.AddDays(-364), today.AddDays(1).AddTicks(-1)),
+            "this week" => (today.AddDays(-(int)today.DayOfWeek), today.AddDays(7 - (int)today.DayOfWeek).AddTicks(-1)),
+            "last week" => (today.AddDays(-(int)today.DayOfWeek - 7), today.AddDays(-(int)today.DayOfWeek).AddTicks(-1)),
+            "this month" => (new DateTime(now.Year, now.Month, 1), new DateTime(now.Year, now.Month, 1).AddMonths(1).AddTicks(-1)),
+            "last month" => (new DateTime(now.Year, now.Month, 1).AddMonths(-1), new DateTime(now.Year, now.Month, 1).AddTicks(-1)),
+            "last 3 months" => (today.AddMonths(-3), today.AddDays(1).AddTicks(-1)),
+            "last 6 months" => (today.AddMonths(-6), today.AddDays(1).AddTicks(-1)),
             "this quarter" => GetThisQuarterRange(now),
             "last quarter" => GetLastQuarterRange(now),
-            "this year" => (new DateTime(now.Year, 1, 1), today.AddDays(1).AddSeconds(-1)),
-            "last year" => (new DateTime(now.Year - 1, 1, 1), new DateTime(now.Year, 1, 1).AddSeconds(-1)),
-            "all time" => (earliestDate ?? today, today.AddDays(1).AddSeconds(-1)),
+            "this year" => (new DateTime(now.Year, 1, 1), today.AddDays(1).AddTicks(-1)),
+            "last year" => (new DateTime(now.Year - 1, 1, 1), new DateTime(now.Year, 1, 1).AddTicks(-1)),
+            "all time" => (earliestDate ?? today, today.AddDays(1).AddTicks(-1)),
 
             // Future date presets for forecasting
             "next month" => GetNextMonthRange(now),
@@ -521,7 +521,7 @@ public static class DatePresetNames
             "next quarter to date" => GetNextQuarterToDateRange(now),
             "next year to date" => GetNextYearToDateRange(now),
 
-            _ => (today.AddDays(-29), today.AddDays(1).AddSeconds(-1)) // Default to last 30 days
+            _ => (today.AddDays(-29), today.AddDays(1).AddTicks(-1)) // Default to last 30 days
         };
     }
 
@@ -529,7 +529,7 @@ public static class DatePresetNames
     {
         int quarter = (now.Month - 1) / 3;
         var start = new DateTime(now.Year, quarter * 3 + 1, 1);
-        var end = start.AddMonths(3).AddSeconds(-1);
+        var end = start.AddMonths(3).AddTicks(-1);
         return (start, end);
     }
 
@@ -538,7 +538,7 @@ public static class DatePresetNames
         int quarter = (now.Month - 1) / 3;
         var thisQuarterStart = new DateTime(now.Year, quarter * 3 + 1, 1);
         var start = thisQuarterStart.AddMonths(-3);
-        var end = thisQuarterStart.AddSeconds(-1);
+        var end = thisQuarterStart.AddTicks(-1);
         return (start, end);
     }
 
@@ -546,7 +546,7 @@ public static class DatePresetNames
     {
         var nextMonth = now.AddMonths(1);
         var start = new DateTime(nextMonth.Year, nextMonth.Month, 1);
-        var end = start.AddMonths(1).AddSeconds(-1);
+        var end = start.AddMonths(1).AddTicks(-1);
         return (start, end);
     }
 
@@ -555,14 +555,14 @@ public static class DatePresetNames
         int quarter = (now.Month - 1) / 3;
         var thisQuarterStart = new DateTime(now.Year, quarter * 3 + 1, 1);
         var nextQuarterStart = thisQuarterStart.AddMonths(3);
-        var end = nextQuarterStart.AddMonths(3).AddSeconds(-1);
+        var end = nextQuarterStart.AddMonths(3).AddTicks(-1);
         return (nextQuarterStart, end);
     }
 
     private static (DateTime Start, DateTime End) GetNextYearRange(DateTime now)
     {
         var start = new DateTime(now.Year + 1, 1, 1);
-        var end = new DateTime(now.Year + 1, 12, 31, 23, 59, 59);
+        var end = new DateTime(now.Year + 2, 1, 1).AddTicks(-1);
         return (start, end);
     }
 
@@ -570,7 +570,7 @@ public static class DatePresetNames
     {
         // From tomorrow to 30 days from now
         var start = now.Date.AddDays(1);
-        var end = now.Date.AddDays(30).AddDays(1).AddSeconds(-1);
+        var end = now.Date.AddDays(30).AddDays(1).AddTicks(-1);
         return (start, end);
     }
 
@@ -578,7 +578,7 @@ public static class DatePresetNames
     {
         // From tomorrow to 90 days from now
         var start = now.Date.AddDays(1);
-        var end = now.Date.AddDays(90).AddDays(1).AddSeconds(-1);
+        var end = now.Date.AddDays(90).AddDays(1).AddTicks(-1);
         return (start, end);
     }
 
@@ -586,7 +586,7 @@ public static class DatePresetNames
     {
         // From tomorrow to 365 days from now
         var start = now.Date.AddDays(1);
-        var end = now.Date.AddDays(365).AddDays(1).AddSeconds(-1);
+        var end = now.Date.AddDays(365).AddDays(1).AddTicks(-1);
         return (start, end);
     }
 

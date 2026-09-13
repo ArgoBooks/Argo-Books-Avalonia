@@ -252,6 +252,27 @@ public class ReportChartDataServiceTests
         Assert.Equal(8d, SumOf(service.GetTaxCollectedVsPaid(), "Tax Collected"));
     }
 
+    // Accounting reports count the whole end day, so a sale in its final second has to reach the
+    // charts beside them too.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void DateRange_IncludesTheFinalSecondOfTheEndDay(bool usePreset)
+    {
+        var lastDay = new DateTime(DateTime.Today.Year - 1, 12, 31);
+        var data = new CompanyData();
+        data.Revenues.Add(new Revenue
+        {
+            Id = "R1", Date = lastDay.AddDays(1).AddMilliseconds(-500), OriginalCurrency = "USD",
+            Subtotal = 100m, Total = 100m, TotalUSD = 100m
+        });
+        var filters = usePreset
+            ? new ReportFilters { DatePresetName = DatePresetNames.LastYear }
+            : new ReportFilters { DatePresetName = DatePresetNames.Custom, StartDate = lastDay.AddMonths(-1), EndDate = lastDay };
+
+        Assert.Equal(100m, new ReportChartDataService(data, filters).GetTotalRevenue());
+    }
+
     // A range that starts partway through a month counts only that month's tax from inside the range,
     // as the other month-bucketed charts do.
     [Fact]

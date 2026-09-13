@@ -4254,7 +4254,7 @@ public class ReportRenderer : IDisposable
         if (periodLength <= 0) return 0;
 
         var previousStart = startDate.Value.AddDays(-periodLength);
-        var previousEnd = startDate.Value.AddSeconds(-1);
+        var previousEnd = startDate.Value.AddTicks(-1);
 
         decimal currentPeriod, previousPeriod;
 
@@ -4311,7 +4311,7 @@ public class ReportRenderer : IDisposable
 
         // A custom end date is midnight; run it to the end of that day as tables and charts do
         // (ReportFilters.GetDateRange), or the last day's transactions are left out.
-        return (_config.Filters.StartDate?.Date, _config.Filters.EndDate?.Date.AddDays(1).AddSeconds(-1));
+        return (_config.Filters.StartDate?.Date, _config.Filters.EndDate?.Date.AddDays(1).AddTicks(-1));
     }
 
     /// <summary>
