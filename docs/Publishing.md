@@ -137,19 +137,18 @@ Requires an **Apple Developer Program membership** ($99 USD per year). Without i
 
 `packaging/macos/build-app.sh` does the whole thing: publishes, assembles the `.app`, generates the `.icns` from `ArgoBooks/Assets/argo-logo.png`, signs, notarizes, staples and zips.
 
-From the repo root:
+Both Apple Silicon and Intel ship, so there are two builds. The script builds Apple Silicon by default, and setting `RID=osx-x64` makes it build Intel instead. From the repo root:
 
 ```bash
 export APPLE_SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)"
 export APPLE_NOTARY_PROFILE="argo-notary"
 ./packaging/macos/build-app.sh
+RID=osx-x64 ./packaging/macos/build-app.sh
 ```
 
-Output is `publish/ArgoBooks-<version>-osx-arm64.zip`. Notarization normally takes a few minutes and the script waits for it.
+Output is `publish/ArgoBooks-<version>-osx-arm64.zip` and `publish/ArgoBooks-<version>-osx-x64.zip`. Notarization normally takes a few minutes per build and the script waits for it.
 
 With neither environment variable set the script still produces a bundle. That is fine for testing on the build Mac itself, but a downloaded copy is blocked on every other machine, so never ship one.
-
-Only arm64 is built. Intel would need a second run with `-r osx-x64` plus a matching filename in three other places (see below), so it is not worth adding until there is real demand for it.
 
 ### What the .app bundle is
 
@@ -169,7 +168,7 @@ It is the macOS counterpart of the AppDir the Linux script builds. `Info.plist` 
 
 ### Why a .zip and not a .dmg
 
-Three places already expect the exact name `ArgoBooks-{version}-osx-arm64.zip`: `GetInstallerFileName()` and `LaunchMacInstaller()` in `NetSparkleUpdateService.cs`, and `$platformPatterns` in the website's `get_avalonia_installer.php`. The updater unzips the archive, finds the `.app` inside and swaps it into place. A `.dmg` would mean rewriting that path for no benefit, since the bundle is self-contained and there is nothing to install.
+The exact names `ArgoBooks-{version}-osx-arm64.zip` and `ArgoBooks-{version}-osx-x64.zip` are already expected by `GetInstallerFileName()` in `NetSparkleUpdateService.cs`, which picks by the Mac's processor, and by `$platformPatterns` in the website's `get_avalonia_installer.php`. The updater unzips the archive, finds the `.app` inside and swaps it into place. A `.dmg` would mean rewriting that path for no benefit, since the bundle is self-contained and there is nothing to install.
 
 ### Gotchas
 
@@ -190,21 +189,21 @@ The app verifies an Ed25519 signature on every update it downloads, and refuses 
 
 ### Each release
 
-1. After producing the **final** `.exe`, `.AppImage` and `.zip`, generate a signature for each file:
+1. After producing the **final** `.exe`, `.AppImage` and both `.zip` files, generate a signature for each file:
 
    ```powershell
    netsparkle-generate-appcast --generate-signature "C:\path\to\Argo Books Installer V.2.0.8.exe"
    netsparkle-generate-appcast --generate-signature "C:\path\to\ArgoBooks-2.0.8-linux-x64.AppImage"
    netsparkle-generate-appcast --generate-signature "C:\path\to\ArgoBooks-2.0.8-osx-arm64.zip"
+   netsparkle-generate-appcast --generate-signature "C:\path\to\ArgoBooks-2.0.8-osx-x64.zip"
    ```
 
    Each command prints a base64 signature string.
 
-   For the macOS zip this must be the stapled archive that `build-app.sh` produced last. Re-zipping the bundle afterwards changes its bytes and invalidates the signature.
+   For the macOS zips these must be the stapled archives that `build-app.sh` produced last. Re-zipping a bundle afterwards changes its bytes and invalidates the signature.
 
 2. In the website repo, update `avalonia-update.xml`
-   - On each `<enclosure>`, update `sparkle:edSignature`. The signature is the long base64 string printed in step 1. The `.exe`'s signature goes on the `sparkle:os="windows"` enclosure, the `.AppImage`'s on the `sparkle:os="linux"` one, and the `.zip`'s on `sparkle:os="macos"`.
-   - The `macos` enclosure currently ships with an empty `url`. The first macOS release has to fill it in, following the same pattern as the other two.
+   - On each `<enclosure>`, update `sparkle:edSignature`. The signature is the long base64 string printed in step 1. The `.exe`'s signature goes on the `sparkle:os="windows"` enclosure, the `.AppImage`'s on the `sparkle:os="linux"` one, the `osx-arm64.zip`'s on `sparkle:os="macos-arm64"`, and the `osx-x64.zip`'s on `sparkle:os="macos-x64"`. Don't swap the two Mac signatures: each Mac would reject its own download.
    - All the version numbers in the file. For example, do a replace all for `2.0.11` and update it to `2.0.12`, or whatever the version is.
 
 3. Regenerate the translations for the new version's strings (see `tools/ArgoBooks.Translations/README.md`):
@@ -229,6 +228,7 @@ The app verifies an Ed25519 signature on every update it downloads, and refuses 
    - `Argo Books Installer V.<version>.exe`
    - `ArgoBooks-<version>-linux-x64.AppImage`
    - `ArgoBooks-<version>-osx-arm64.zip`
+   - `ArgoBooks-<version>-osx-x64.zip`
    - a `languages/` subfolder holding the JSON files from step 3
 
    The filenames matter: `get_avalonia_installer.php` builds the download links from those exact patterns, and the app fetches translations from `/resources/downloads/{version}/languages/{iso}.json` (`LanguageService.DownloadUrlTemplate`).
