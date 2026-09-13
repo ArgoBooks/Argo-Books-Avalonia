@@ -151,8 +151,8 @@
                                     <controls:CountryInput SelectedCountryName="{Binding ModalCountry, Mode=TwoWay}" />
                                 </StackPanel>
                                 <StackPanel Grid.Column="2" Spacing="6">
-                                    <TextBlock Text="{loc:Loc 'State/Province'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                    <TextBox Text="{Binding ModalStateProvince, Mode=TwoWay}" Classes="form-input" PlaceholderText="{loc:Loc 'Enter state'}" MaxLength="100" />
+                                    <TextBlock Text="{Binding ModalCountry, Converter={x:Static controls:RegionInput.LabelConverter}}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                    <controls:RegionInput Country="{Binding ModalCountry}" Value="{Binding ModalStateProvince, Mode=TwoWay}" />
                                 </StackPanel>
                             </Grid>
 
@@ -324,8 +324,8 @@
                                     <controls:CountryInput SelectedCountryName="{Binding ModalCountry, Mode=TwoWay}" />
                                 </StackPanel>
                                 <StackPanel Grid.Column="2" Spacing="6">
-                                    <TextBlock Text="{loc:Loc 'State/Province'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                    <TextBox Text="{Binding ModalStateProvince, Mode=TwoWay}" Classes="form-input" PlaceholderText="{loc:Loc 'Enter state'}" MaxLength="100" />
+                                    <TextBlock Text="{Binding ModalCountry, Converter={x:Static controls:RegionInput.LabelConverter}}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                    <controls:RegionInput Country="{Binding ModalCountry}" Value="{Binding ModalStateProvince, Mode=TwoWay}" />
                                 </StackPanel>
                             </Grid>
 

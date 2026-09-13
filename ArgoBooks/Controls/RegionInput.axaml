@@ -1,0 +1,27 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="using:ArgoBooks.Controls"
+             xmlns:loc="using:ArgoBooks.Localization"
+             mc:Ignorable="d" d:DesignWidth="300" d:DesignHeight="40"
+             x:Class="ArgoBooks.Controls.RegionInput"
+             x:DataType="controls:RegionInput"
+             x:Name="Root">
+
+    <Panel>
+        <controls:SearchableDropdown IsVisible="{Binding #Root.HasList}"
+                                     ItemsSource="{Binding #Root.Options}"
+                                     SelectedItem="{Binding #Root.SelectedOption, Mode=TwoWay}"
+                                     DisplayMemberPath="Name"
+                                     Placeholder="{Binding #Root.ListPlaceholder}"
+                                     ShowAddNew="False" />
+
+        <TextBox IsVisible="{Binding #Root.HasList, Converter={x:Static BoolConverters.Not}}"
+                 Text="{Binding #Root.Value, Mode=TwoWay}"
+                 Classes="form-input"
+                 PlaceholderText="{loc:Loc 'Enter state or province'}"
+                 MaxLength="100" />
+    </Panel>
+
+</UserControl>

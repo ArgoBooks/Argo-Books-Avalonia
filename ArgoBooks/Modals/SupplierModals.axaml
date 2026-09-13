@@ -102,8 +102,8 @@
                                    <TextBox Text="{Binding ModalCity, Mode=TwoWay}" Classes="form-input" PlaceholderText="{loc:Loc 'City'}" MaxLength="100" />
                                </StackPanel>
                                <StackPanel Grid.Column="2" Spacing="6">
-                                   <TextBlock Text="{loc:Loc 'State/Province'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                   <TextBox Text="{Binding ModalStateProvince, Mode=TwoWay}" Classes="form-input" PlaceholderText="{loc:Loc 'State'}" MaxLength="100" />
+                                   <TextBlock Text="{Binding ModalCountry, Converter={x:Static controls:RegionInput.LabelConverter}}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                   <controls:RegionInput Country="{Binding ModalCountry}" Value="{Binding ModalStateProvince, Mode=TwoWay}" />
                                </StackPanel>
                            </Grid>
                            <Grid ColumnDefinitions="*,16,*">
@@ -236,8 +236,8 @@
                                    <TextBox Text="{Binding ModalCity, Mode=TwoWay}" Classes="form-input" PlaceholderText="{loc:Loc 'City'}" MaxLength="100" />
                                </StackPanel>
                                <StackPanel Grid.Column="2" Spacing="6">
-                                   <TextBlock Text="{loc:Loc 'State/Province'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                   <TextBox Text="{Binding ModalStateProvince, Mode=TwoWay}" Classes="form-input" PlaceholderText="{loc:Loc 'State'}" MaxLength="100" />
+                                   <TextBlock Text="{Binding ModalCountry, Converter={x:Static controls:RegionInput.LabelConverter}}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                   <controls:RegionInput Country="{Binding ModalCountry}" Value="{Binding ModalStateProvince, Mode=TwoWay}" />
                                </StackPanel>
                            </Grid>
                            <Grid ColumnDefinitions="*,16,*">

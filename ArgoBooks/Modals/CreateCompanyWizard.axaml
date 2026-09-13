@@ -263,14 +263,11 @@
 
                                 <!-- Province / State -->
                                 <StackPanel Grid.Row="4" Grid.Column="2" Spacing="6">
-                                    <TextBlock Text="{loc:Loc 'Province / State'}"
+                                    <TextBlock Text="{Binding Country, Converter={x:Static controls:RegionInput.LabelConverter}}"
                                                FontSize="13"
                                                FontWeight="Medium"
                                                Foreground="{DynamicResource TextSecondaryBrush}" />
-                                    <TextBox Classes="form-input"
-                                             Text="{Binding ProvinceState, Mode=TwoWay}"
-                                             PlaceholderText="{loc:Loc 'Enter province or state'}"
-                                             MaxLength="100" />
+                                    <controls:RegionInput Country="{Binding Country}" Value="{Binding ProvinceState, Mode=TwoWay}" />
                                 </StackPanel>
 
                                 <!-- City -->
