@@ -17,15 +17,17 @@ public class ForecastAccuracyService : IForecastAccuracyService
     /// <inheritdoc />
     public void SaveForecast(CompanyData companyData, ForecastData forecast, AnalysisDateRange forecastPeriod)
     {
-        // Check if we already have a forecast for this exact period
+        // Matched on days: a period saved by an older build ends at 23:59:59, not the day's last tick.
         var existingRecord = companyData.ForecastRecords.FirstOrDefault(r =>
-            r.PeriodStartDate == forecastPeriod.StartDate &&
-            r.PeriodEndDate == forecastPeriod.EndDate &&
+            r.PeriodStartDate.Date == forecastPeriod.StartDate.Date &&
+            r.PeriodEndDate.Date == forecastPeriod.EndDate.Date &&
             !r.IsValidated);
 
         if (existingRecord != null)
         {
             // Update existing unvalidated record
+            existingRecord.PeriodStartDate = forecastPeriod.StartDate;
+            existingRecord.PeriodEndDate = forecastPeriod.EndDate;
             existingRecord.ForecastedRevenue = forecast.ForecastedRevenue;
             existingRecord.ForecastedExpenses = forecast.ForecastedExpenses;
             existingRecord.ForecastedProfit = forecast.ForecastedProfit;

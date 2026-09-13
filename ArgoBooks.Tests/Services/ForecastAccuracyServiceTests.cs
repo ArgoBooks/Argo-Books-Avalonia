@@ -81,6 +81,25 @@ public class ForecastAccuracyServiceTests
         Assert.Equal(80.0, companyData.ForecastRecords[0].ConfidenceScore);
     }
 
+    /// <summary>
+    /// A forecast saved by an older build ends at 23:59:59, and the same month now ends at the day's
+    /// last tick. It is still the same period, so saving must update it rather than add a second
+    /// record that Past Predictions and the accuracy average would count twice.
+    /// </summary>
+    [Fact]
+    public void SaveForecast_SamePeriodEndingAtADifferentTimeOfDay_UpdatesExistingRecord()
+    {
+        var companyData = new CompanyData();
+        _service.SaveForecast(companyData, new ForecastData { ForecastedRevenue = 10000m },
+            new AnalysisDateRange { StartDate = new DateTime(2025, 1, 1), EndDate = new DateTime(2025, 1, 31, 23, 59, 59) });
+
+        _service.SaveForecast(companyData, new ForecastData { ForecastedRevenue = 12000m },
+            new AnalysisDateRange { StartDate = new DateTime(2025, 1, 1), EndDate = new DateTime(2025, 2, 1).AddTicks(-1) });
+
+        Assert.Single(companyData.ForecastRecords);
+        Assert.Equal(12000m, companyData.ForecastRecords[0].ForecastedRevenue);
+    }
+
     [Fact]
     public void SaveForecast_MultiplePeriods_StoresMultipleRecords()
     {
