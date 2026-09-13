@@ -129,6 +129,7 @@ public class StripeSyncService(StripeApiClient client)
         // Capture what was created (the tail of each collection) for undo/redo.
         creation.Revenues.AddRange(data.Revenues.Skip(revBefore));
         creation.Expenses.AddRange(data.Expenses.Skip(expBefore));
+        creation.ApplyStock(data);
         creation.Entities.AddRange(data.Customers.Skip(custBefore));
         creation.Entities.AddRange(data.Products.Skip(prodBefore));
         creation.Entities.AddRange(data.Categories.Skip(catBefore));

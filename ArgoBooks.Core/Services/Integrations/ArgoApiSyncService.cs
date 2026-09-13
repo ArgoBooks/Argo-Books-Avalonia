@@ -272,6 +272,7 @@ public class ArgoApiSyncService
         try
         {
             new ArgoApiImporter().Import(data, preview, creation);
+            creation.ApplyStock(data);
         }
         catch
         {

@@ -21,6 +21,7 @@ public class ArgoApiImportCreation
     public List<Expense> Expenses { get; } = [];
     public List<object> Entities { get; } = []; // Customer / Supplier / Product / Category
     public List<Return> Returns { get; } = [];
+    public List<StockChange> StockChanges { get; private set; } = [];
 
     /// <summary>The server-side batch this import claimed, once the claim succeeded.</summary>
     public string? BatchId { get; set; }
@@ -44,8 +45,22 @@ public class ArgoApiImportCreation
     public bool AnyCreated =>
         Revenues.Count > 0 || Expenses.Count > 0 || Entities.Count > 0 || Returns.Count > 0;
 
+    /// <summary>
+    /// Moves stock for the imported purchases and sales and records what sold stock cost, as saving
+    /// them in the app would. Purchases go first, so a sale pushed with the stock it sold finds it.
+    /// </summary>
+    public void ApplyStock(CompanyData data)
+    {
+        StockChanges = [];
+        foreach (var e in Expenses)
+            StockChanges.AddRange(InventoryStockService.Apply(data, e.LineItems, e, isPurchase: true));
+        foreach (var r in Revenues)
+            StockChanges.AddRange(InventoryStockService.Apply(data, r.LineItems, r, isPurchase: false));
+    }
+
     public void Undo(CompanyData data)
     {
+        InventoryStockService.Revert(data, StockChanges);
         foreach (var r in Revenues) data.Revenues.Remove(r);
         foreach (var e in Expenses) data.Expenses.Remove(e);
         foreach (var ent in Entities)
@@ -83,6 +98,7 @@ public class ArgoApiImportCreation
         }
         foreach (var r in Revenues) if (!data.Revenues.Contains(r)) data.Revenues.Add(r);
         foreach (var e in Expenses) if (!data.Expenses.Contains(e)) data.Expenses.Add(e);
+        ApplyStock(data);
         foreach (var ret in Returns) if (!data.Returns.Contains(ret)) data.Returns.Add(ret);
 
         var api = data.Settings.Integrations.ArgoApi;

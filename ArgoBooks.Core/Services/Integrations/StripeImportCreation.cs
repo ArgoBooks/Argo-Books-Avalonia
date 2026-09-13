@@ -19,6 +19,7 @@ public class StripeImportCreation
     public List<Expense> Expenses { get; } = [];
     public List<object> Entities { get; } = []; // Customer / Product / Category
     public List<Return> Returns { get; } = [];
+    public List<StockChange> StockChanges { get; private set; } = [];
     public List<StripePayoutRecord> Payouts { get; } = [];
 
     public string? PreviousCursor { get; set; }
@@ -36,8 +37,20 @@ public class StripeImportCreation
     public bool AnyCreated =>
         Revenues.Count > 0 || Expenses.Count > 0 || Entities.Count > 0 || Returns.Count > 0 || Payouts.Count > 0;
 
+    /// <summary>
+    /// Moves stock for the imported sales and records their cost, as saving them in the app would.
+    /// Stripe's fee and refund expenses carry no products, so only sales take part.
+    /// </summary>
+    public void ApplyStock(CompanyData data)
+    {
+        StockChanges = [];
+        foreach (var r in Revenues)
+            StockChanges.AddRange(InventoryStockService.Apply(data, r.LineItems, r, isPurchase: false));
+    }
+
     public void Undo(CompanyData data)
     {
+        InventoryStockService.Revert(data, StockChanges);
         foreach (var r in Revenues) data.Revenues.Remove(r);
         foreach (var e in Expenses) data.Expenses.Remove(e);
         foreach (var ent in Entities)
@@ -73,6 +86,7 @@ public class StripeImportCreation
         }
         foreach (var r in Revenues) if (!data.Revenues.Contains(r)) data.Revenues.Add(r);
         foreach (var e in Expenses) if (!data.Expenses.Contains(e)) data.Expenses.Add(e);
+        ApplyStock(data);
         foreach (var ret in Returns) if (!data.Returns.Contains(ret)) data.Returns.Add(ret);
 
         var stripe = data.Settings.Integrations.Stripe;
