@@ -1,4 +1,5 @@
 ﻿using ArgoBooks.Localization;
+using ArgoBooks.Core.Models.Inventory;
 using ArgoBooks.Services;
 using System.Collections.ObjectModel;
 using ArgoBooks.Controls;
@@ -88,6 +89,12 @@ public partial class ProductModalsViewModel : ViewModelBase
     private bool _modalTrackInventory;
 
     [ObservableProperty]
+    private string _modalUnitOfMeasure = StockUnits.Each;
+
+    /// <summary>Units a tracked product can be stocked in.</summary>
+    public IReadOnlyList<string> UnitOptions => StockUnits.All;
+
+    [ObservableProperty]
     private string _modalReorderPoint = string.Empty;
 
     [ObservableProperty]
@@ -156,6 +163,7 @@ public partial class ProductModalsViewModel : ViewModelBase
     private string? _originalSupplierId;
     private bool _originalTrackInventory;
     private string _originalReorderPoint = string.Empty;
+    private string _originalUnitOfMeasure = StockUnits.Each;
     private string _originalOverstockThreshold = string.Empty;
     private string _originalUnitPrice = string.Empty;
     private string _originalCostPrice = string.Empty;
@@ -186,6 +194,7 @@ public partial class ProductModalsViewModel : ViewModelBase
         ModalCategory?.Id != _originalCategoryId ||
         ModalSupplier?.Id != _originalSupplierId ||
         ModalTrackInventory != _originalTrackInventory ||
+        ModalUnitOfMeasure != _originalUnitOfMeasure ||
         ModalReorderPoint != _originalReorderPoint ||
         ModalOverstockThreshold != _originalOverstockThreshold ||
         ModalUnitPrice != _originalUnitPrice ||
@@ -370,8 +379,8 @@ public partial class ProductModalsViewModel : ViewModelBase
             newId = new Core.Data.IdGenerator(companyData).NextProductId();
         }
 
-        var reorderPoint = int.TryParse(ModalReorderPoint, out var rp) ? rp : 0;
-        var overstockThreshold = int.TryParse(ModalOverstockThreshold, out var ot) ? ot : 0;
+        var reorderPoint = decimal.TryParse(ModalReorderPoint, out var rp) ? rp : 0;
+        var overstockThreshold = decimal.TryParse(ModalOverstockThreshold, out var ot) ? ot : 0;
 
         var newProduct = new Product
         {
@@ -385,6 +394,7 @@ public partial class ProductModalsViewModel : ViewModelBase
             UnitPrice = decimal.TryParse(ModalUnitPrice, out var unitPrice) ? unitPrice : 0,
             CostPrice = decimal.TryParse(ModalCostPrice, out var costPrice) ? costPrice : 0,
             TrackInventory = ModalTrackInventory,
+            UnitOfMeasure = ModalUnitOfMeasure,
             ReorderPoint = reorderPoint,
             OverstockThreshold = overstockThreshold,
             Status = EntityStatus.Active,
@@ -460,6 +470,7 @@ public partial class ProductModalsViewModel : ViewModelBase
         }
 
         ModalTrackInventory = product.TrackInventory;
+        ModalUnitOfMeasure = string.IsNullOrEmpty(product.UnitOfMeasure) ? StockUnits.Each : product.UnitOfMeasure;
         ModalReorderPoint = product.ReorderPoint > 0 ? product.ReorderPoint.ToString() : string.Empty;
         ModalOverstockThreshold = product.OverstockThreshold > 0 ? product.OverstockThreshold.ToString() : string.Empty;
 
@@ -470,6 +481,7 @@ public partial class ProductModalsViewModel : ViewModelBase
         _originalCategoryId = ModalCategory?.Id;
         _originalSupplierId = ModalSupplier?.Id;
         _originalTrackInventory = ModalTrackInventory;
+        _originalUnitOfMeasure = ModalUnitOfMeasure;
         _originalReorderPoint = ModalReorderPoint;
         _originalOverstockThreshold = ModalOverstockThreshold;
         _originalUnitPrice = ModalUnitPrice;
@@ -529,6 +541,7 @@ public partial class ProductModalsViewModel : ViewModelBase
         var oldUnitPrice = _editingProduct.UnitPrice;
         var oldCostPrice = _editingProduct.CostPrice;
         var oldTrackInventory = _editingProduct.TrackInventory;
+        var oldUnitOfMeasure = _editingProduct.UnitOfMeasure;
         var oldReorderPoint = _editingProduct.ReorderPoint;
         var oldOverstockThreshold = _editingProduct.OverstockThreshold;
 
@@ -542,9 +555,10 @@ public partial class ProductModalsViewModel : ViewModelBase
         var newSupplierId = ModalSupplier?.Id;
         var newUnitPrice = decimal.TryParse(ModalUnitPrice, out var unitPrice) ? unitPrice : 0;
         var newCostPrice = decimal.TryParse(ModalCostPrice, out var costPrice) ? costPrice : 0;
-        var newReorderPoint = int.TryParse(ModalReorderPoint, out var rp) ? rp : 0;
-        var newOverstockThreshold = int.TryParse(ModalOverstockThreshold, out var ot) ? ot : 0;
+        var newReorderPoint = decimal.TryParse(ModalReorderPoint, out var rp) ? rp : 0;
+        var newOverstockThreshold = decimal.TryParse(ModalOverstockThreshold, out var ot) ? ot : 0;
         var newTrackInventory = ModalTrackInventory;
+        var newUnitOfMeasure = ModalUnitOfMeasure;
 
         // Check if anything actually changed
         var hasIdChange = oldId != newId;
@@ -578,6 +592,7 @@ public partial class ProductModalsViewModel : ViewModelBase
         if (oldUnitPrice != newUnitPrice) changes["Unit Price"] = new FieldChange { OldValue = oldUnitPrice.ToString("F2"), NewValue = newUnitPrice.ToString("F2") };
         if (oldCostPrice != newCostPrice) changes["Cost Price"] = new FieldChange { OldValue = oldCostPrice.ToString("F2"), NewValue = newCostPrice.ToString("F2") };
         if (oldTrackInventory != newTrackInventory) changes["Track Inventory"] = new FieldChange { OldValue = oldTrackInventory.ToString(), NewValue = newTrackInventory.ToString() };
+        if (oldUnitOfMeasure != newUnitOfMeasure) changes["Unit"] = new FieldChange { OldValue = oldUnitOfMeasure, NewValue = newUnitOfMeasure };
         if (oldReorderPoint != newReorderPoint) changes["Reorder Point"] = new FieldChange { OldValue = oldReorderPoint.ToString(), NewValue = newReorderPoint.ToString() };
         if (oldOverstockThreshold != newOverstockThreshold) changes["Overstock Threshold"] = new FieldChange { OldValue = oldOverstockThreshold.ToString(), NewValue = newOverstockThreshold.ToString() };
         if (changes.Count > 0) App.EventLogService?.SetPendingChanges(changes);
@@ -608,6 +623,7 @@ public partial class ProductModalsViewModel : ViewModelBase
         productToEdit.UnitPrice = newUnitPrice;
         productToEdit.CostPrice = newCostPrice;
         productToEdit.TrackInventory = newTrackInventory;
+        productToEdit.UnitOfMeasure = newUnitOfMeasure;
         productToEdit.ReorderPoint = newReorderPoint;
         productToEdit.OverstockThreshold = newOverstockThreshold;
         productToEdit.UpdatedAt = DateTime.UtcNow;
@@ -628,6 +644,7 @@ public partial class ProductModalsViewModel : ViewModelBase
                 productToEdit.UnitPrice = oldUnitPrice;
                 productToEdit.CostPrice = oldCostPrice;
                 productToEdit.TrackInventory = oldTrackInventory;
+                productToEdit.UnitOfMeasure = oldUnitOfMeasure;
                 productToEdit.ReorderPoint = oldReorderPoint;
                 productToEdit.OverstockThreshold = oldOverstockThreshold;
                 companyData.MarkAsModified();
@@ -645,6 +662,7 @@ public partial class ProductModalsViewModel : ViewModelBase
                 productToEdit.UnitPrice = newUnitPrice;
                 productToEdit.CostPrice = newCostPrice;
                 productToEdit.TrackInventory = newTrackInventory;
+                productToEdit.UnitOfMeasure = newUnitOfMeasure;
                 productToEdit.ReorderPoint = newReorderPoint;
                 productToEdit.OverstockThreshold = newOverstockThreshold;
                 companyData.MarkAsModified();
@@ -865,6 +883,7 @@ public partial class ProductModalsViewModel : ViewModelBase
         ModalCategoryId = null;
         ModalSupplier = null;
         ModalTrackInventory = false;
+        ModalUnitOfMeasure = StockUnits.Each;
         ModalReorderPoint = string.Empty;
         ModalOverstockThreshold = string.Empty;
         ModalUnitPrice = string.Empty;

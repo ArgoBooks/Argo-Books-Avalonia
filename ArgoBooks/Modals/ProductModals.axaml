@@ -123,6 +123,20 @@
                                      IsVisible="{Binding IsProductSelected}"
                                      FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" />
 
+                            <StackPanel Spacing="6" IsVisible="{Binding ModalTrackInventory}">
+                                <TextBlock Text="{loc:Loc Unit}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                <ComboBox ItemsSource="{Binding UnitOptions}"
+                                          SelectedItem="{Binding ModalUnitOfMeasure, Mode=TwoWay}"
+                                          Classes="form-combobox"
+                                          HorizontalAlignment="Stretch">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Converter={StaticResource TranslateConverter}}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </StackPanel>
+
                             <Grid ColumnDefinitions="*,16,*" IsVisible="{Binding ModalTrackInventory}">
                                 <StackPanel Grid.Column="0" Spacing="6">
                                     <TextBlock Text="{loc:Loc 'Reorder Point'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
@@ -260,6 +274,20 @@
                                      Content="{loc:Loc 'Track Inventory'}"
                                      IsVisible="{Binding IsProductSelected}"
                                      FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" />
+
+                            <StackPanel Spacing="6" IsVisible="{Binding ModalTrackInventory}">
+                                <TextBlock Text="{loc:Loc Unit}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                <ComboBox ItemsSource="{Binding UnitOptions}"
+                                          SelectedItem="{Binding ModalUnitOfMeasure, Mode=TwoWay}"
+                                          Classes="form-combobox"
+                                          HorizontalAlignment="Stretch">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Converter={StaticResource TranslateConverter}}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </StackPanel>
 
                             <Grid ColumnDefinitions="*,16,*" IsVisible="{Binding ModalTrackInventory}">
                                 <StackPanel Grid.Column="0" Spacing="6">

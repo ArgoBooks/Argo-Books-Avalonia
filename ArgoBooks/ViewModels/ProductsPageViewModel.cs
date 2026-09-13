@@ -726,8 +726,8 @@ public partial class ProductsPageViewModel : SortablePageViewModelBase
         companyData.IdCounters.Product++;
         var newId = $"PRD-{companyData.IdCounters.Product:D3}";
 
-        var reorderPoint = int.TryParse(ModalReorderPoint, out var rp) ? rp : 0;
-        var overstockThreshold = int.TryParse(ModalOverstockThreshold, out var ot) ? ot : 0;
+        var reorderPoint = decimal.TryParse(ModalReorderPoint, out var rp) ? rp : 0;
+        var overstockThreshold = decimal.TryParse(ModalOverstockThreshold, out var ot) ? ot : 0;
 
         var newProduct = new Product
         {
@@ -830,8 +830,8 @@ public partial class ProductsPageViewModel : SortablePageViewModelBase
         var newSupplierId = ModalSupplier?.Id;
         var newUnitPrice = decimal.TryParse(ModalUnitPrice, out var unitPrice) ? unitPrice : 0;
         var newCostPrice = decimal.TryParse(ModalCostPrice, out var costPrice) ? costPrice : 0;
-        var newReorderPoint = int.TryParse(ModalReorderPoint, out var rp) ? rp : 0;
-        var newOverstockThreshold = int.TryParse(ModalOverstockThreshold, out var ot) ? ot : 0;
+        var newReorderPoint = decimal.TryParse(ModalReorderPoint, out var rp) ? rp : 0;
+        var newOverstockThreshold = decimal.TryParse(ModalOverstockThreshold, out var ot) ? ot : 0;
         var newTrackInventory = ModalTrackInventory;
 
         // Update the product
