@@ -86,8 +86,9 @@
                                     GoToNextPageCommand="{Binding GoToNextPageCommand}"
                                     ToggleColumnMenuCommand="{Binding ToggleColumnMenuCommand}"
                                     EmptyIcon="{x:Static icons:Icons.StockLevels}"
-                                    EmptyTitle="{loc:Loc 'No inventory items found'}"
-                                    EmptyMessage="{loc:Loc 'Add products with inventory tracking to see stock levels here.'}"
+                                    EmptyTitle="{Binding EmptyStateTitle}"
+                                    EmptyMessage="{Binding EmptyStateMessage}"
+                                    ShowEmptyAddButton="{Binding IsAllItemsTabSelected}"
                                     BorderSizeChanged="OnHeaderSizeChanged"
                                     TableGridSizeChanged="OnTableSizeChanged">
 

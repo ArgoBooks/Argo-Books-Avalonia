@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using ArgoBooks.Localization;
 using ArgoBooks.Controls;
 using ArgoBooks.Controls.ColumnWidths;
 using ArgoBooks.Core;
@@ -112,12 +113,34 @@ public partial class StockLevelsPageViewModel : SortablePageViewModelBase
 
     public bool IsOverstockTabSelected => SelectedTabIndex == 3;
 
+    /// <summary>
+    /// The empty state's title. Only All Items being empty means nothing has been added; the other tabs
+    /// being empty is good news about stock.
+    /// </summary>
+    public string EmptyStateTitle => SelectedTabIndex switch
+    {
+        1 => "Nothing is running low".Translate(),
+        2 => "Nothing is out of stock".Translate(),
+        3 => "Nothing is overstocked".Translate(),
+        _ => "No inventory items found".Translate()
+    };
+
+    public string EmptyStateMessage => SelectedTabIndex switch
+    {
+        1 => "Items at or below their reorder point will appear here.".Translate(),
+        2 => "Items with no stock left will appear here.".Translate(),
+        3 => "Items above their overstock threshold will appear here.".Translate(),
+        _ => "Add products with inventory tracking to see stock levels here.".Translate()
+    };
+
     partial void OnSelectedTabIndexChanged(int value)
     {
         OnPropertyChanged(nameof(IsAllItemsTabSelected));
         OnPropertyChanged(nameof(IsLowStockTabSelected));
         OnPropertyChanged(nameof(IsOutOfStockTabSelected));
         OnPropertyChanged(nameof(IsOverstockTabSelected));
+        OnPropertyChanged(nameof(EmptyStateTitle));
+        OnPropertyChanged(nameof(EmptyStateMessage));
         CurrentPage = 1;
         FilterItems();
     }

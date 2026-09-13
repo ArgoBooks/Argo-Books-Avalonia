@@ -108,6 +108,9 @@ public partial class ArgoTable : UserControl, INotifyPropertyChanged
     public static readonly StyledProperty<bool> ShowAddButtonProperty =
         AvaloniaProperty.Register<ArgoTable, bool>(nameof(ShowAddButton), true);
 
+    public static readonly StyledProperty<bool> ShowEmptyAddButtonProperty =
+        AvaloniaProperty.Register<ArgoTable, bool>(nameof(ShowEmptyAddButton), true);
+
     public static readonly StyledProperty<bool> IsAddButtonEnabledProperty =
         AvaloniaProperty.Register<ArgoTable, bool>(nameof(IsAddButtonEnabled), true);
 
@@ -333,6 +336,16 @@ public partial class ArgoTable : UserControl, INotifyPropertyChanged
     {
         get => GetValue(ShowAddButtonProperty);
         set => SetValue(ShowAddButtonProperty, value);
+    }
+
+    /// <summary>
+    /// Whether the empty state offers the add button as well. Turn it off where an empty table means a
+    /// filter matched nothing rather than that nothing has been added yet.
+    /// </summary>
+    public bool ShowEmptyAddButton
+    {
+        get => GetValue(ShowEmptyAddButtonProperty);
+        set => SetValue(ShowEmptyAddButtonProperty, value);
     }
 
     public bool IsAddButtonEnabled
