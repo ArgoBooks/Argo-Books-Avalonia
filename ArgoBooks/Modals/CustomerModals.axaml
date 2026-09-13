@@ -116,16 +116,12 @@
                                 </StackPanel>
                                 <StackPanel Grid.Column="4" Spacing="6">
                                     <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}">
-                                        <Run Text="{loc:Loc 'Last Name'}" /><Run Text=" *" Foreground="{DynamicResource ErrorBrush}" />
+                                        <Run Text="{loc:Loc 'Last Name'}" />
                                     </TextBlock>
                                     <TextBox Text="{Binding ModalLastName, Mode=TwoWay}"
                                              Classes="form-input"
                                              PlaceholderText="{loc:Loc 'Enter last name'}"
                                              MaxLength="50" />
-                                    <TextBlock TextWrapping="Wrap" Text="{Binding ModalLastNameError}"
-                                               FontSize="12"
-                                               Foreground="{DynamicResource ErrorBrush}"
-                                               IsVisible="{Binding ModalLastNameError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                 </StackPanel>
                             </Grid>
 
@@ -296,11 +292,9 @@
                                 </StackPanel>
                                 <StackPanel Grid.Column="4" Spacing="6">
                                     <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}">
-                                        <Run Text="{loc:Loc 'Last Name'}" /><Run Text=" *" Foreground="{DynamicResource ErrorBrush}" />
+                                        <Run Text="{loc:Loc 'Last Name'}" />
                                     </TextBlock>
                                     <TextBox Text="{Binding ModalLastName, Mode=TwoWay}" Classes="form-input" PlaceholderText="{loc:Loc 'Enter last name'}" MaxLength="50" />
-                                    <TextBlock TextWrapping="Wrap" Text="{Binding ModalLastNameError}" FontSize="12" Foreground="{DynamicResource ErrorBrush}"
-                                               IsVisible="{Binding ModalLastNameError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                 </StackPanel>
                             </Grid>
 

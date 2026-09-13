@@ -36,18 +36,9 @@ namespace ArgoBooks.Core.Services.Layout;
 /// itself into the import flow.
 /// </para>
 /// </summary>
-public sealed class LayoutNormalizationService
+public sealed class LayoutNormalizationService(IGeminiService geminiService, IErrorLogger? errorLogger = null)
 {
-    private readonly IGeminiService _geminiService;
-    private readonly IErrorLogger? _errorLogger;
-    private readonly SpreadsheetLayoutService _layoutService;
-
-    public LayoutNormalizationService(IGeminiService geminiService, IErrorLogger? errorLogger = null)
-    {
-        _geminiService = geminiService;
-        _errorLogger = errorLogger;
-        _layoutService = new SpreadsheetLayoutService(geminiService, errorLogger);
-    }
+    private readonly SpreadsheetLayoutService _layoutService = new(geminiService, errorLogger);
 
     /// <summary>
     /// Examines every worksheet in the workbook at <paramref name="xlsxPath"/> and, if
@@ -93,7 +84,7 @@ public sealed class LayoutNormalizationService
                     {
                         // A bad sheet must never abort the run; treat it as "clean" so it
                         // is copied through faithfully later.
-                        _errorLogger?.LogError(ex, ErrorCategory.Import,
+                        errorLogger?.LogError(ex, ErrorCategory.Import,
                             $"Layout gate failed for sheet '{ws.Name}'; treating as clean");
                         grid = SheetGrid.FromWorksheet(ws);
                         needs = false;
@@ -153,7 +144,7 @@ public sealed class LayoutNormalizationService
         {
             // Whole-operation failure: degrade to "return original path" so the existing
             // pipeline still runs on the unmodified file. Never lose the import.
-            _errorLogger?.LogError(ex, ErrorCategory.Import,
+            errorLogger?.LogError(ex, ErrorCategory.Import,
                 "Layout normalization failed; returning original path unchanged");
             return xlsxPath;
         }
@@ -194,7 +185,7 @@ public sealed class LayoutNormalizationService
             if (descriptor is null || descriptor.Tables.Count == 0)
             {
                 // AI failed or found no table -> fall back, do NOT lose the sheet.
-                _errorLogger?.LogWarning(
+                errorLogger?.LogWarning(
                     $"No usable layout descriptor for sheet '{srcSheet.Name}'; copying as-is",
                     nameof(LayoutNormalizationService));
                 CopySheetFaithfully(srcSheet, output);
@@ -210,7 +201,7 @@ public sealed class LayoutNormalizationService
                 // whose key columns were missing so every row was skipped). A header-only table is
                 // useless for import, so fall back to a faithful copy rather than emit a blank sheet
                 // and silently lose the data.
-                _errorLogger?.LogWarning(
+                errorLogger?.LogWarning(
                     $"Layout extraction produced an empty table for sheet '{srcSheet.Name}'; copying as-is",
                     nameof(LayoutNormalizationService));
                 CopySheetFaithfully(srcSheet, output);
@@ -239,7 +230,7 @@ public sealed class LayoutNormalizationService
         catch (Exception ex)
         {
             // Any per-sheet error must fall back to a faithful copy, never drop the sheet.
-            _errorLogger?.LogError(ex, ErrorCategory.Import,
+            errorLogger?.LogError(ex, ErrorCategory.Import,
                 $"Interpreting sheet '{srcSheet.Name}' failed; copying as-is");
             try
             {
@@ -247,7 +238,7 @@ public sealed class LayoutNormalizationService
             }
             catch (Exception copyEx)
             {
-                _errorLogger?.LogError(copyEx, ErrorCategory.Import,
+                errorLogger?.LogError(copyEx, ErrorCategory.Import,
                     $"Fallback copy of sheet '{srcSheet.Name}' also failed; sheet skipped");
             }
         }
@@ -268,7 +259,7 @@ public sealed class LayoutNormalizationService
         }
         catch (Exception ex)
         {
-            _errorLogger?.LogWarning(
+            errorLogger?.LogWarning(
                 $"CopyTo failed for sheet '{srcSheet.Name}' ({ex.Message}); using manual value copy",
                 nameof(LayoutNormalizationService));
             CopySheetValuesManually(srcSheet, output, name);

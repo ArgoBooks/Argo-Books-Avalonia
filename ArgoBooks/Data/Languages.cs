@@ -245,4 +245,56 @@ public static class Languages
     {
         return !string.IsNullOrEmpty(isoCode) && FromIsoCode.ContainsKey(isoCode);
     }
+
+    /// <summary>
+    /// The language a machine set to <paramref name="cultureName"/> should start in, or null when
+    /// none of ours matches. Windows reports tags like "fil-PH", "zh-Hant-TW" and "nb-NO", so the
+    /// whole primary subtag is looked up before its first two letters: "fil" shortened to "fi"
+    /// would offer a Filipino speaker the app in Finnish.
+    /// </summary>
+    public static string? MatchSystemLanguage(string? cultureName)
+    {
+        if (string.IsNullOrWhiteSpace(cultureName))
+            return null;
+
+        var parts = cultureName.Trim().Replace('_', '-').Split('-', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0)
+            return null;
+
+        var language = parts[0].ToLowerInvariant();
+
+        if (language == "zh")
+            return ChineseFor(parts);
+
+        // Bokmal and Nynorsk are both written Norwegian, and we have the one translation.
+        if (language is "nb" or "nn")
+            return "Norwegian";
+
+        if (FromIsoCode.TryGetValue(language, out var exact))
+            return exact;
+
+        return language.Length > 2 && FromIsoCode.TryGetValue(language[..2], out var shortened)
+            ? shortened
+            : null;
+    }
+
+    /// <summary>
+    /// Simplified or Traditional: the script when the tag names one, else the script the region writes.
+    /// </summary>
+    private static string ChineseFor(string[] parts)
+    {
+        foreach (var part in parts.Skip(1))
+        {
+            if (part.Equals("Hant", StringComparison.OrdinalIgnoreCase))
+                return "Chinese (Traditional)";
+            if (part.Equals("Hans", StringComparison.OrdinalIgnoreCase))
+                return "Chinese (Simplified)";
+            if (part.Equals("TW", StringComparison.OrdinalIgnoreCase)
+                || part.Equals("HK", StringComparison.OrdinalIgnoreCase)
+                || part.Equals("MO", StringComparison.OrdinalIgnoreCase))
+                return "Chinese (Traditional)";
+        }
+
+        return "Chinese (Simplified)";
+    }
 }

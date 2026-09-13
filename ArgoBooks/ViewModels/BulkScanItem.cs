@@ -1,4 +1,3 @@
-// ArgoBooks/ViewModels/BulkScanItem.cs
 using ArgoBooks.Core.Services;
 using ArgoBooks.Localization;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -106,6 +105,11 @@ public partial class BulkScanItem : ObservableObject
     /// Per-item notes entered by the user during review.
     /// </summary>
     public string Notes { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Per-item currency left in the review (null until the item is first reviewed).
+    /// </summary>
+    public string? CurrencyCode { get; set; }
 
     /// <summary>
     /// Per-item transaction type override (user may change from the AI-detected value).

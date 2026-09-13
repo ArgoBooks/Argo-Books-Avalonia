@@ -32,4 +32,11 @@ public class Revenue : Transaction
     /// </summary>
     [JsonPropertyName("invoiceId")]
     public string? InvoiceId { get; set; }
+
+    /// <summary>
+    /// A security deposit the business kept when a rental came back, which makes it revenue
+    /// (docs/Calculations.md §4). Linked to the invoice that collected it.
+    /// </summary>
+    [JsonPropertyName("isKeptDeposit")]
+    public bool IsKeptDeposit { get; set; }
 }

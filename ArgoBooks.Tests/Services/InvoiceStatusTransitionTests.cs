@@ -93,6 +93,46 @@ public class InvoiceStatusTransitionTests
         Assert.Equal(InvoiceStatus.Draft, StatusAfter(invoice));
     }
 
+    /// <summary>
+    /// Deleting, undoing or moving an invoice's only payment leaves nothing paid, so it is owed again.
+    /// Left as Paid it dropped out of Outstanding and could never go overdue.
+    /// </summary>
+    [Theory]
+    [InlineData(InvoiceStatus.Sent)]
+    [InlineData(InvoiceStatus.Pending)]
+    [InlineData(InvoiceStatus.Viewed)]
+    [InlineData(InvoiceStatus.Draft)]
+    public void RemovingEveryPayment_ReturnsToTheStatusBeforeTheFirst(InvoiceStatus before)
+    {
+        var invoice = Invoice(100m, before);
+        StatusAfter(invoice, Pay(40m));
+        StatusAfter(invoice, Pay(100m));
+
+        Assert.Equal(before, StatusAfter(invoice));
+        Assert.Equal(100m, invoice.Balance);
+    }
+
+    [Fact]
+    public void RemovingEveryPaymentAfterARefund_ReturnsToTheStatusBeforeTheFirst()
+    {
+        var invoice = Invoice(100m);
+        StatusAfter(invoice, Pay(100m), Pay(-100m, refund: true));
+
+        Assert.Equal(InvoiceStatus.Sent, StatusAfter(invoice));
+    }
+
+    /// <summary>
+    /// An imported invoice can arrive Paid with no payment rows. No payment moved it there, so there
+    /// is nothing to go back to and its status stays as imported.
+    /// </summary>
+    [Fact]
+    public void PaidWithoutEverHavingAPayment_KeepsItsStatus()
+    {
+        var invoice = Invoice(100m, InvoiceStatus.Paid);
+
+        Assert.Equal(InvoiceStatus.Paid, StatusAfter(invoice));
+    }
+
     [Fact]
     public void PaymentInDifferentCurrency_IsNotCounted()
     {

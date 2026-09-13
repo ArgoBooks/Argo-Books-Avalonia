@@ -129,7 +129,7 @@
                     </StackPanel>
                 </Grid>
 
-                <!-- Source Survey Banner (shown to users who skipped the tutorial).
+                <!-- Source Survey Banner (shown once the setup checklist is off screen).
                      No dismiss button: the user must answer. IsVisible is bound so the
                      banner only takes up layout space while shown, letting the content
                      below return to its normal position once it goes away. -->

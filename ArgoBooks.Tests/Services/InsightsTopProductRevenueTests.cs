@@ -1,6 +1,5 @@
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
-using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Models.Entities;
 using ArgoBooks.Core.Models.Insights;
 using ArgoBooks.Core.Models.Transactions;
@@ -31,7 +30,7 @@ public class InsightsTopProductRevenueTests
             TaxAmount = 10m,
             TaxAmountUSD = 10m,
             PaymentStatus = RevenuePaymentStatus.Paid,
-            LineItems = new List<LineItem> { new() { ProductId = "P1", Quantity = 1, UnitPrice = 100m } }
+            LineItems = [new() { ProductId = "P1", Quantity = 1, UnitPrice = 100m }]
         });
 
         var service = new InsightsService();

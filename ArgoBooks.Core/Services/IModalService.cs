@@ -103,9 +103,4 @@ public interface IModalService
     /// Event raised when a modal is opened.
     /// </summary>
     event EventHandler<object>? ModalOpened;
-
-    /// <summary>
-    /// Event raised when a modal is closed.
-    /// </summary>
-    event EventHandler<ModalResult>? ModalClosed;
 }

@@ -23,6 +23,12 @@ public class SpreadsheetAnalysisService(
     private const int Tier2ChunkSize = 100;
     private const int MaxConcurrentChunks = 10;
 
+    // A chunk whose call got no reply is tried this many times in all, pausing ChunkRetryDelay,
+    // then twice that, between tries.
+    private const int MaxChunkAttempts = 3;
+
+    internal TimeSpan ChunkRetryDelay { get; set; } = TimeSpan.FromSeconds(3);
+
     /// <summary>
     /// Minimum confidence score for a sheet to be considered a supported entity type.
     /// Sheets below this threshold are marked unsupported and excluded from import.
@@ -322,24 +328,66 @@ public class SpreadsheetAnalysisService(
         List<List<string>> rows,
         SpreadsheetSheetType entityType,
         CancellationToken cancellationToken = default)
+        => (await TryProcessChunkAsync(headers, rows, entityType, cancellationToken)).Result;
+
+    /// <summary>
+    /// Runs <see cref="TryProcessChunkAsync"/>, retrying with a growing pause when no reply came
+    /// back at all (the server's rate limit, a timeout, a dropped connection).
+    /// </summary>
+    private async Task<LlmProcessedData?> ProcessChunkWithRetryAsync(
+        List<string> headers,
+        List<List<string>> rows,
+        SpreadsheetSheetType entityType,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            var (result, answered) = await TryProcessChunkAsync(headers, rows, entityType, cancellationToken);
+
+            // An unreadable reply isn't retried: the same rows at temperature 0 would most likely
+            // come back the same, and every answered call counts against the server's rate limit.
+            if (result != null || answered || attempt >= MaxChunkAttempts)
+                return result;
+
+            await Task.Delay(ChunkRetryDelay * attempt, cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// One LLM call for a chunk. <c>Answered</c> is false when no reply came back, the transient
+    /// case worth retrying.
+    /// </summary>
+    private async Task<(LlmProcessedData? Result, bool Answered)> TryProcessChunkAsync(
+        List<string> headers,
+        List<List<string>> rows,
+        SpreadsheetSheetType entityType,
+        CancellationToken cancellationToken)
     {
         var schema = ImportSchemaDefinition.GetSchemaForType(entityType, country);
         if (schema == null)
-            return null;
+            return (null, true);
 
         var systemPrompt = BuildTier2SystemPrompt(entityType, schema);
         var userPrompt = BuildTier2UserPrompt(headers, rows);
 
-        var response = await geminiService.SendChatAsync(
-            systemPrompt, userPrompt, maxTokens: 16000, temperature: 0.0, cancellationToken,
-            operation: OperationKind.SpreadsheetProcess, sizeFeature: rows.Count);
-
-        if (string.IsNullOrEmpty(response))
+        string? response;
+        try
         {
-            return null;
+            response = await geminiService.SendChatAsync(
+                systemPrompt, userPrompt, maxTokens: 16000, temperature: 0.0, cancellationToken,
+                operation: OperationKind.SpreadsheetProcess, sizeFeature: rows.Count);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            // HttpClient reports its own timeout as a cancellation. Left to propagate, one slow
+            // chunk ended the whole import as though the user had pressed Cancel.
+            response = null;
         }
 
-        return ParseTier2Response(response, entityType, rows.Count);
+        if (string.IsNullOrEmpty(response))
+            return (null, false);
+
+        return (ParseTier2Response(response, entityType, rows.Count), true);
     }
 
     /// <summary>
@@ -438,7 +486,7 @@ public class SpreadsheetAnalysisService(
             try
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                chunkResults[idx] = await ProcessChunkAsync(headers, chunk.Rows, sheetAnalysis.DetectedType, cancellationToken);
+                chunkResults[idx] = await ProcessChunkWithRetryAsync(headers, chunk.Rows, sheetAnalysis.DetectedType, cancellationToken);
             }
             finally
             {
@@ -455,9 +503,17 @@ public class SpreadsheetAnalysisService(
         for (int i = 0; i < chunkResults.Length; i++)
         {
             if (chunkResults[i] != null)
+            {
                 results.Add(chunkResults[i]!);
-            else
-                failedRows += chunks[i].Rows.Count;
+                continue;
+            }
+
+            failedRows += chunks[i].Rows.Count;
+            results.Add(new LlmProcessedData
+            {
+                EntityType = sheetAnalysis.DetectedType,
+                FailedRows = chunks[i].Rows.Select(row => string.Join(" | ", row)).ToList()
+            });
         }
 
         if (failedRows > 0)
@@ -1311,7 +1367,8 @@ Choose EXTRACT only when you are confident real per-row records are present. Whe
                 var withCategory = new LlmProcessedData
                 {
                     EntityType = chunk.EntityType,
-                    SourceRowsProcessed = chunk.SourceRowsProcessed
+                    SourceRowsProcessed = chunk.SourceRowsProcessed,
+                    FailedRows = chunk.FailedRows
                 };
                 foreach (var entity in chunk.Entities)
                     withCategory.Entities.Add(InjectCategoryName(entity, category));

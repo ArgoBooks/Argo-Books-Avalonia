@@ -53,11 +53,12 @@ public static class InventoryValuationService
     {
         var transactionDates = BuildTransactionDateLookup(data);
 
+        // Timestamps are stamped in UTC, but the as-of date is a local day.
         DateTime EffectiveDate(StockAdjustment a) =>
             !string.IsNullOrEmpty(a.ReferenceNumber)
             && transactionDates.TryGetValue(a.ReferenceNumber, out var date)
                 ? date
-                : a.Timestamp;
+                : a.Timestamp.Kind == DateTimeKind.Utc ? a.Timestamp.ToLocalTime() : a.Timestamp;
 
         var adjustmentsByItem = data.StockAdjustments
             .GroupBy(a => a.InventoryItemId)

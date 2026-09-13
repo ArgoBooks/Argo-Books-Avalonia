@@ -43,6 +43,11 @@ public class PaymentPortalService : IDisposable
         };
     }
 
+    internal PaymentPortalService(HttpClient httpClient)
+    {
+        _httpClient = httpClient;
+    }
+
     #region Portal Status
 
     /// <summary>
@@ -98,6 +103,45 @@ public class PaymentPortalService : IDisposable
     #region Publish Invoice
 
     /// <summary>
+    /// The invoice's figures as the portal shows them to the customer. An invoice saved by an older
+    /// build can store a negative subtotal, tax or total, which the invoice itself prints as zero.
+    /// </summary>
+    public static PortalPublishRequest BuildPublishRequest(Invoice invoice, CompanyData companyData, Models.Entities.Customer customer) => new()
+    {
+        InvoiceId = invoice.Id,
+        InvoiceNumber = invoice.InvoiceNumber,
+        CustomerId = invoice.CustomerId,
+        CustomerName = customer.Name,
+        CustomerEmail = customer.Email,
+        CompanyName = companyData.Settings.Company.Name,
+        IssueDate = invoice.IssueDate,
+        DueDate = invoice.DueDate,
+        Subtotal = Math.Max(0m, invoice.Subtotal),
+        TaxRate = invoice.TaxRate,
+        TaxAmount = Math.Max(0m, invoice.TaxAmount),
+        SecurityDeposit = invoice.SecurityDeposit,
+        Total = Math.Max(0m, invoice.Total),
+        AmountPaid = invoice.AmountPaid,
+        Balance = Math.Max(0m, invoice.Balance),
+        Currency = invoice.OriginalCurrency,
+        Notes = invoice.Notes,
+        Status = invoice.Status.ToString().ToLowerInvariant(),
+        SendEmail = !string.IsNullOrWhiteSpace(customer.Email),
+        // Per-invoice override wins over the template's setting.
+        // Per-invoice setting (default on).
+        PassProcessingFee = invoice.PassProcessingFee ?? true,
+        LineItems = invoice.LineItems.Select(li => new PortalLineItem
+        {
+            Description = li.Description,
+            Quantity = li.Quantity,
+            UnitPrice = li.UnitPrice,
+            // Less the line's own discount, the same figure the invoice prints, or the
+            // portal's line amounts wouldn't add up to the Subtotal sent alongside them.
+            Amount = li.Subtotal
+        }).ToList()
+    };
+
+    /// <summary>
     /// Publishes an invoice to the payment portal so customers can view and pay it online.
     /// </summary>
     public async Task<PortalPublishResponse> PublishInvoiceAsync(
@@ -130,38 +174,7 @@ public class PaymentPortalService : IDisposable
 
         try
         {
-            var publishRequest = new PortalPublishRequest
-            {
-                InvoiceId = invoice.Id,
-                InvoiceNumber = invoice.InvoiceNumber,
-                CustomerId = invoice.CustomerId,
-                CustomerName = customer.Name,
-                CustomerEmail = customer.Email,
-                CompanyName = companyData.Settings.Company.Name,
-                IssueDate = invoice.IssueDate,
-                DueDate = invoice.DueDate,
-                Subtotal = invoice.Subtotal,
-                TaxRate = invoice.TaxRate,
-                TaxAmount = invoice.TaxAmount,
-                SecurityDeposit = invoice.SecurityDeposit,
-                Total = invoice.Total,
-                AmountPaid = invoice.AmountPaid,
-                Balance = invoice.Balance,
-                Currency = invoice.OriginalCurrency,
-                Notes = invoice.Notes,
-                Status = invoice.Status.ToString().ToLowerInvariant(),
-                SendEmail = !string.IsNullOrWhiteSpace(customer.Email),
-                // Per-invoice override wins over the template's setting.
-                // Per-invoice setting (default on).
-                PassProcessingFee = invoice.PassProcessingFee ?? true,
-                LineItems = invoice.LineItems.Select(li => new PortalLineItem
-                {
-                    Description = li.Description,
-                    Quantity = li.Quantity,
-                    UnitPrice = li.UnitPrice,
-                    Amount = li.Quantity * li.UnitPrice
-                }).ToList()
-            };
+            var publishRequest = BuildPublishRequest(invoice, companyData, customer);
 
             // Render the invoice HTML so the portal displays the exact desktop template
             if (template != null)
@@ -188,25 +201,35 @@ public class PaymentPortalService : IDisposable
                 };
             }
 
-            var errorResponse = DeserializeResponse<PortalPublishResponse>(content);
-            return errorResponse ?? new PortalPublishResponse
+            var errorResponse = DeserializeResponse<PortalPublishResponse>(content) ?? new PortalPublishResponse
             {
                 Success = false,
                 Message = $"Portal returned status {(int)response.StatusCode}",
                 ErrorCode = ((int)response.StatusCode).ToString()
             };
+            // A rejection comes before anything is saved; a server fault can come after the save and email.
+            errorResponse.MayHavePublished = (int)response.StatusCode >= 500;
+            return errorResponse;
         }
         catch (TaskCanceledException)
         {
-            return new PortalPublishResponse { Success = false, Message = "Request timed out.", ErrorCode = "TIMEOUT" };
+            return new PortalPublishResponse { Success = false, Message = "Request timed out.", ErrorCode = "TIMEOUT", MayHavePublished = true };
         }
-        catch (HttpRequestException)
+        catch (HttpRequestException ex)
         {
-            return new PortalPublishResponse { Success = false, Message = await ConnectivityMessage.ResolveAsync(), ErrorCode = "NETWORK_ERROR" };
+            return new PortalPublishResponse
+            {
+                Success = false,
+                Message = await ConnectivityMessage.ResolveAsync(),
+                ErrorCode = "NETWORK_ERROR",
+                // Only failing to connect at all means the portal never received the invoice.
+                MayHavePublished = ex.HttpRequestError is not (HttpRequestError.NameResolutionError
+                    or HttpRequestError.ConnectionError or HttpRequestError.SecureConnectionError)
+            };
         }
         catch (Exception)
         {
-            return new PortalPublishResponse { Success = false, Message = "An unexpected error occurred. Please try again.", ErrorCode = "UNKNOWN_ERROR" };
+            return new PortalPublishResponse { Success = false, Message = "An unexpected error occurred. Please try again.", ErrorCode = "UNKNOWN_ERROR", MayHavePublished = true };
         }
     }
 
@@ -322,6 +345,7 @@ public class PaymentPortalService : IDisposable
     {
         var newPayments = new List<Payment>();
         var backfilledRows = 0;
+        var queued = new List<string>();
 
         foreach (var portalPayment in portalPayments)
         {
@@ -399,6 +423,7 @@ public class PaymentPortalService : IDisposable
                         ?.Id;
                 }
 
+                var (refundUSD, refundPending) = PortalAmountUSD(portalPayment.Amount, portalPayment.Currency, invoice);
                 payment = new Payment
                 {
                     Id = paymentId,
@@ -413,40 +438,33 @@ public class PaymentPortalService : IDisposable
                         : $"Refund issued via {providerName}, {portalPayment.RefundReason}",
                     CreatedAt = DateTime.UtcNow,
                     OriginalCurrency = portalPayment.Currency,
-                    AmountUSD = portalPayment.Currency.Equals("USD", StringComparison.OrdinalIgnoreCase)
-                        ? portalPayment.Amount
-                        // USD base stored full-precision (no 2dp round), matching the payment path
-                        // above; display rounds at the boundary. See docs/Calculations.md Rule 3.
-                        : (invoice.TotalUSD > 0 && invoice.Total > 0
-                            ? portalPayment.Amount * (invoice.TotalUSD / invoice.Total)
-                            : 0m),
+                    AmountUSD = refundUSD,
+                    IsPendingConversion = refundPending,
                     Source = PaymentSource.Online,
                     PortalPaymentId = portalPayment.Id.ToString(),
                     IsRefund = true,
                     RefundedFromPaymentId = refundedFromLocalId,
                     RefundRequestId = portalPayment.RefundRequestId?.ToString(),
                     RefundReason = portalPayment.RefundReason,
+                    DepositAmount = SecurityDeposits.RefundPortion(
+                        Math.Abs(portalPayment.Amount),
+                        portalPayment.DepositAmount,
+                        SecurityDeposits.StillHeld(invoice, companyData.Payments, companyData.Revenues)),
                 };
 
                 companyData.Payments.Add(payment);
                 newPayments.Add(payment);
+                if (refundPending)
+                    QueueConversion(companyData, payment, invoice, queued);
 
                 // Recalc invoice totals + status from the full Payments list.
                 // Status only flips to Refunded / PartiallyRefunded when
                 // AmountPaid is also > 0, see InvoiceTotalsService.
                 InvoiceTotalsService.Recalculate(invoice, companyData.Payments);
 
-                // Mirror the linked-Revenue update the regular-payment path
-                // does, so a fully-refunded invoice doesn't keep showing as
-                // collected revenue in cash-basis aggregations.
-                var refundLinkedRevenues = companyData.Revenues
-                    .Where(r => r.InvoiceId == invoice.Id);
-                foreach (var revenue in refundLinkedRevenues)
-                {
-                    revenue.PaymentStatus = invoice.Status == InvoiceStatus.Paid
-                        ? RevenuePaymentStatus.Paid
-                        : RevenuePaymentStatus.Unpaid;
-                }
+                // The refund is subtracted from revenue on its own date (Calculations.md §8), so the
+                // revenue it refunds stays counted rather than dropping out as well.
+                InvoiceTotalsService.SyncLinkedRevenueStatus(invoice, companyData.Revenues);
 
                 invoice.History.Add(new InvoiceHistoryEntry
                 {
@@ -469,23 +487,7 @@ public class PaymentPortalService : IDisposable
             // up with what the merchant sees in their provider dashboard.
             var invoiceAmount = Math.Max(0m, portalPayment.Amount);
 
-            // Convert non-USD payment amount to USD using the invoice's conversion ratio
-            decimal amountUSD;
-            if (portalPayment.Currency.Equals("USD", StringComparison.OrdinalIgnoreCase))
-            {
-                amountUSD = invoiceAmount;
-            }
-            else if (invoice.TotalUSD > 0 && invoice.Total > 0)
-            {
-                // Use invoice's known USD conversion ratio. The USD base is stored full-precision (no
-                // 2dp round); display rounds at the boundary. See docs/Calculations.md Rule 3.
-                amountUSD = invoiceAmount * (invoice.TotalUSD / invoice.Total);
-            }
-            else
-            {
-                // No conversion ratio available, defer by setting AmountUSD to 0
-                amountUSD = 0m;
-            }
+            var (amountUSD, isPending) = PortalAmountUSD(invoiceAmount, portalPayment.Currency, invoice);
 
             // Build payment notes with fee info if applicable
             var notes = portalPayment.ProcessingFee > 0
@@ -505,6 +507,7 @@ public class PaymentPortalService : IDisposable
                 CreatedAt = DateTime.UtcNow,
                 OriginalCurrency = portalPayment.Currency,
                 AmountUSD = amountUSD,
+                IsPendingConversion = isPending,
                 Source = PaymentSource.Online,
                 PortalPaymentId = portalPayment.Id.ToString(),
                 ProviderPaymentId = portalPayment.ProviderPaymentId,
@@ -513,24 +516,59 @@ public class PaymentPortalService : IDisposable
 
             companyData.Payments.Add(payment);
             newPayments.Add(payment);
+            if (isPending)
+                QueueConversion(companyData, payment, invoice, queued);
 
             // Recalc invoice totals + status from the full Payments list.
             InvoiceTotalsService.Recalculate(invoice, companyData.Payments);
 
-            // Update linked revenue records
-            var linkedRevenues = companyData.Revenues
-                .Where(r => r.InvoiceId == invoice.Id);
-            foreach (var revenue in linkedRevenues)
-            {
-                revenue.PaymentStatus = invoice.Status == InvoiceStatus.Paid
-                    ? RevenuePaymentStatus.Paid
-                    : RevenuePaymentStatus.Unpaid;
-            }
+            InvoiceTotalsService.SyncLinkedRevenueStatus(invoice, companyData.Revenues);
 
             invoice.UpdatedAt = DateTime.UtcNow;
         }
 
+        // The conversion service converts from its own copy of the queue.
+        if (queued.Count > 0)
+            _ = PendingConversionService.Instance?.MirrorAsync(companyData, queued);
+
         return new PortalPaymentSyncResult(newPayments, backfilledRows);
+    }
+
+    /// <summary>
+    /// An online payment's USD amount, at its invoice's rate like the invoice's refunds. An invoice
+    /// still waiting for its rate has no ratio to take yet, so the payment is priced at the
+    /// invoice's date, the rate that ratio will come from, or waits with the invoice
+    /// (docs/Calculations.md Rule 3a).
+    /// </summary>
+    private static (decimal AmountUSD, bool IsPending) PortalAmountUSD(decimal amount, string currency, Invoice invoice)
+    {
+        if (currency.Equals("USD", StringComparison.OrdinalIgnoreCase))
+            return (amount, false);
+
+        // The USD base is stored full-precision (no 2dp round); display rounds at the boundary.
+        // See docs/Calculations.md Rule 3.
+        if (invoice.TotalUSD > 0 && invoice.Total > 0)
+            return (amount * (invoice.TotalUSD / invoice.Total), false);
+
+        if (ExchangeRateService.Instance is { } rates
+            && rates.TryConvertToUsdBase(amount, currency, invoice.IssueDate, out var usd))
+            return (usd, false);
+
+        return (0m, true);
+    }
+
+    private static void QueueConversion(CompanyData companyData, Payment payment, Invoice invoice, List<string> queued)
+    {
+        companyData.PendingConversions.RemoveAll(p => p.TransactionId == payment.Id);
+        companyData.PendingConversions.Add(new PendingConversion
+        {
+            TransactionId = payment.Id,
+            TransactionType = "Payment",
+            OriginalCurrency = payment.OriginalCurrency,
+            TransactionDate = invoice.IssueDate,
+            Total = payment.Amount
+        });
+        queued.Add(payment.Id);
     }
 
     #endregion
@@ -936,7 +974,7 @@ public class PaymentPortalService : IDisposable
         return new PortalBalanceSyncItem
         {
             InvoiceId = invoice.Id,
-            TotalAmount = invoice.Total,
+            TotalAmount = Math.Max(0m, invoice.Total),
             ExternalPaid = externalPaid,
             Currency = invoiceCurrency,
             DueDate = invoice.DueDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),

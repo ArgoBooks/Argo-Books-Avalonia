@@ -31,8 +31,9 @@
                                    Value="{Binding YearToDateGross}"
                                    Icon="{x:Static icons:Icons.Dollar}"
                                    IconColor="Success" />
-                <!-- What is owed to CRA for the year so far, employee and employer sides
-                     together. The Payroll Remittance report breaks it down by period. -->
+                <!-- What was owed for the year so far, employee and employer sides together, to
+                     CRA and Revenu Quebec combined. The Payroll Remittance report breaks it down
+                     by period and by agency. -->
                 <controls:StatCard Label="{loc:Loc 'Remittance this year'}"
                                    Value="{Binding YearToDateRemittance}"
                                    Icon="{x:Static icons:Icons.BarChart}"
@@ -42,6 +43,7 @@
                      paid, so it shows the deadline rather than pretending to be a to-do. -->
                 <controls:StatCard Label="{Binding RemittanceDueLabel}"
                                    Value="{Binding RemittanceDue}"
+                                   SecondaryText="{Binding RemittanceDueQuebec}"
                                    Icon="{x:Static icons:Icons.Calendar}"
                                    IconColor="Danger"
                                    ToolTip.Tip="{Binding RemittanceScheduleHint}" />
@@ -61,6 +63,7 @@
                              IsMediumMode="{Binding ResponsiveHeader.IsMediumMode}"
                              ShowButtonText="{Binding ResponsiveHeader.ShowButtonText}"
                              ShowFilterButton="False"
+                             ShowAddButton="{Binding HasPremium}"
                              AddCommand="{Binding RunPayrollCommand}"
                              AddButtonText="{loc:Loc 'Run payroll'}"
                              AddButtonTooltip="{loc:Loc 'Run payroll'}"
@@ -265,7 +268,7 @@
                               Foreground="{DynamicResource PrimaryBrush}" />
                 </Border>
 
-                <TextBlock Text="{loc:Loc 'Unlock Payroll'}"
+                <TextBlock Text="{loc:Loc 'Unlock Canadian Payroll'}"
                            FontSize="22"
                            FontWeight="Bold"
                            Foreground="{DynamicResource TextPrimaryBrush}"

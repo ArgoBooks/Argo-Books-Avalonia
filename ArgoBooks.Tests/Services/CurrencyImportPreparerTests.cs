@@ -1,7 +1,10 @@
+using System.Net;
+using System.Text;
 using System.Text.Json;
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.AI;
+using ArgoBooks.Core.Platform;
 using ArgoBooks.Core.Services;
 using ClosedXML.Excel;
 using Xunit;
@@ -173,30 +176,156 @@ public class CurrencyImportPreparerTests : IDisposable
         Assert.Equal(50m, data.Revenues.Single(r => r.Id == "R2").Total);
     }
 
-    [Fact]
-    public async Task Tier1Import_NoDetectedCurrency_KeepsCompanyCurrency()
+    private static readonly DateTime PlainDate = new(2026, 1, 1);
+
+    private string BuildPlainNumberRevenueSheet()
     {
-        // A plain-number sheet leaves rows on the company-currency path.
         var path = NewTempXlsx();
-        using (var wb = new XLWorkbook())
-        {
-            var ws = wb.AddWorksheet("Revenue");
-            ws.Cell(1, 1).Value = "ID"; ws.Cell(1, 2).Value = "Date"; ws.Cell(1, 3).Value = "Total";
-            ws.Cell(2, 1).Value = "R1"; ws.Cell(2, 2).Value = "2026-01-01"; ws.Cell(2, 3).Value = 100;
-            wb.SaveAs(path);
-        }
+        using var wb = new XLWorkbook();
+        var ws = wb.AddWorksheet("Revenue");
+        ws.Cell(1, 1).Value = "ID"; ws.Cell(1, 2).Value = "Date"; ws.Cell(1, 3).Value = "Total";
+        ws.Cell(2, 1).Value = "R1"; ws.Cell(2, 2).Value = PlainDate.ToString("yyyy-MM-dd"); ws.Cell(2, 3).Value = 100;
+        wb.SaveAs(path);
+        return path;
+    }
+
+    [Fact]
+    public async Task Tier1Import_NoDetectedCurrency_ConvertsFromCompanyCurrencyAtTheRowDate()
+    {
+        // A plain number in a CAD company is 100 CAD, so its USD base is 100 at that day's rate,
+        // not 100 as though it were already dollars.
+        var path = BuildPlainNumberRevenueSheet();
         var analysis = RevenueAnalysis();
         var scan = CurrencyImportPreparer.ScanWorkbook(path, analysis);
         Assert.Empty(scan.Ambiguities);
 
         var data = new CompanyData();
         data.Settings.Localization.Currency = "CAD";
-        var svc = new SpreadsheetImportService();
+        var svc = new SpreadsheetImportService(exchangeRateService: await CadRatesAsync(1.25m, PlainDate));
         await svc.ImportWithMappingsAsync(path, data, analysis, new ImportOptions { RowCurrencyBySheet = scan.Resolved });
 
         var rev = data.Revenues.Single(r => r.Id == "R1");
         Assert.Equal("CAD", rev.OriginalCurrency);
-        Assert.Equal(rev.Total, rev.TotalUSD);
+        Assert.False(rev.IsPendingConversion);
+        Assert.Equal(100m * (1m / 1.25m), rev.TotalUSD);
+    }
+
+    [Fact]
+    public async Task Tier1Import_NoDetectedCurrency_NoRateForTheDate_ImportsPendingAndQueued()
+    {
+        var path = BuildPlainNumberRevenueSheet();
+        var analysis = RevenueAnalysis();
+        var scan = CurrencyImportPreparer.ScanWorkbook(path, analysis);
+
+        var data = new CompanyData();
+        data.Settings.Localization.Currency = "CAD";
+        var noRates = new ExchangeRateService(new MockPlatformService(), new HttpClient(new CadRatesHandler(1.25m)));
+        var svc = new SpreadsheetImportService(exchangeRateService: noRates);
+        await svc.ImportWithMappingsAsync(path, data, analysis, new ImportOptions { RowCurrencyBySheet = scan.Resolved });
+
+        var rev = data.Revenues.Single(r => r.Id == "R1");
+        Assert.Equal("CAD", rev.OriginalCurrency);
+        Assert.True(rev.IsPendingConversion);
+        Assert.Equal(0m, rev.TotalUSD);
+        var entry = Assert.Single(data.PendingConversions);
+        Assert.Equal("R1", entry.TransactionId);
+        Assert.Equal("CAD", entry.OriginalCurrency);
+        Assert.Equal(100m, entry.Total);
+    }
+
+    [Fact]
+    public async Task Tier1Import_NoDetectedCurrency_InvoicesPaymentsAndOrdersConvertFromCompanyCurrency()
+    {
+        var path = NewTempXlsx();
+        using (var wb = new XLWorkbook())
+        {
+            var inv = wb.AddWorksheet("Invoices");
+            inv.Cell(1, 1).Value = "Invoice #"; inv.Cell(1, 2).Value = "Issue Date"; inv.Cell(1, 3).Value = "Total"; inv.Cell(1, 4).Value = "Paid";
+            inv.Cell(2, 1).Value = "INV-1"; inv.Cell(2, 2).Value = "2026-01-01"; inv.Cell(2, 3).Value = 200; inv.Cell(2, 4).Value = 200;
+
+            var pay = wb.AddWorksheet("Payments");
+            pay.Cell(1, 1).Value = "ID"; pay.Cell(1, 2).Value = "Date"; pay.Cell(1, 3).Value = "Amount";
+            pay.Cell(2, 1).Value = "PAY-1"; pay.Cell(2, 2).Value = "2026-01-01"; pay.Cell(2, 3).Value = 50;
+
+            var po = wb.AddWorksheet("Purchase Orders");
+            po.Cell(1, 1).Value = "ID"; po.Cell(1, 2).Value = "Order Date"; po.Cell(1, 3).Value = "Total";
+            po.Cell(2, 1).Value = "PO-1"; po.Cell(2, 2).Value = "2026-01-01"; po.Cell(2, 3).Value = 400;
+            wb.SaveAs(path);
+        }
+
+        SheetAnalysis Sheet(string name, SpreadsheetSheetType type) => new()
+        {
+            SourceSheetName = name, DetectedType = type, Tier = ProcessingTier.Tier1_Mapping, IsIncluded = true
+        };
+        var analysis = new SpreadsheetAnalysisResult
+        {
+            Sheets =
+            [
+                Sheet("Invoices", SpreadsheetSheetType.Invoices),
+                Sheet("Payments", SpreadsheetSheetType.Payments),
+                Sheet("Purchase Orders", SpreadsheetSheetType.PurchaseOrders),
+            ]
+        };
+
+        var data = new CompanyData();
+        data.Settings.Localization.Currency = "CAD";
+        var svc = new SpreadsheetImportService(exchangeRateService: await CadRatesAsync(1.25m, PlainDate));
+        await svc.ImportWithMappingsAsync(path, data, analysis, new ImportOptions());
+
+        const decimal cadToUsd = 1m / 1.25m;
+        var invoice = data.Invoices.Single(i => i.Id == "INV-1");
+        Assert.Equal("CAD", invoice.OriginalCurrency);
+        Assert.Equal(200m * cadToUsd, invoice.TotalUSD);
+        Assert.Equal(200m * cadToUsd, data.Revenues.Single(r => r.InvoiceId == "INV-1").TotalUSD);
+        Assert.Equal(50m * cadToUsd, data.Payments.Single(p => p.Id == "PAY-1").AmountUSD);
+        Assert.Equal(400m * cadToUsd, data.PurchaseOrders.Single(p => p.Id == "PO-1").TotalUSD);
+    }
+
+    /// <summary>An exchange-rate service holding USD-&gt;CAD for <paramref name="date"/> only.</summary>
+    private static async Task<ExchangeRateService> CadRatesAsync(decimal usdToCad, DateTime date)
+    {
+        var service = new ExchangeRateService(new MockPlatformService(), new HttpClient(new CadRatesHandler(usdToCad)));
+        await service.GetExchangeRateAsync("USD", "CAD", date);
+        return service;
+    }
+
+    private sealed class CadRatesHandler(decimal usdToCad) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var payload = $$"""{ "success": true, "base": "USD", "rates": { "CAD": {{usdToCad}} } }""";
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(payload, Encoding.UTF8, "application/json")
+            });
+        }
+    }
+
+    private sealed class MockPlatformService : IPlatformService
+    {
+        public PlatformType Platform => PlatformType.Linux;
+        public string GetAppDataPath() => Path.GetTempPath();
+        public string GetTempPath() => Path.GetTempPath();
+        public string GetDefaultDocumentsPath() => Path.GetTempPath();
+        public string GetLogsPath() => Path.GetTempPath();
+        public string GetCachePath() => Path.GetTempPath();
+        public void EnsureDirectoryExists(string path) { }
+        public bool SupportsFileSystem => false;
+        public bool SupportsNativeDialogs => false;
+        public bool SupportsBiometrics => false;
+        public Task<bool> IsBiometricAvailableAsync() => Task.FromResult(false);
+        public Task<string> GetBiometricAvailabilityDetailsAsync() => Task.FromResult("Not supported");
+        public Task<bool> AuthenticateWithBiometricAsync(string reason) => Task.FromResult(false);
+        public void StorePasswordForBiometric(string fileId, string password) { }
+        public string? GetPasswordForBiometric(string fileId) => null;
+        public void ClearPasswordForBiometric(string fileId) { }
+        public bool SupportsAutoUpdate => false;
+        public int MaxRecentCompanies => 10;
+        public string NormalizePath(string path) => path;
+        public string CombinePaths(params string[] paths) => Path.Combine(paths);
+        public string GetMachineId() => "test-machine-id";
+        public void RegisterFileTypeAssociations(string iconPath) { }
+        public StringComparer PathComparer => StringComparer.Ordinal;
     }
 
     // ─── The shipped sample file imports correctly via Tier 1 ────────────────

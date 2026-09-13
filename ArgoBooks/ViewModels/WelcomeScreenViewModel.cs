@@ -28,8 +28,6 @@ public partial class WelcomeScreenViewModel : ViewModelBase
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowRecentCompanies))]
-    [NotifyPropertyChangedFor(nameof(ShowOpenCompany))]
-    [NotifyPropertyChangedFor(nameof(ShowSampleCompany))]
     private bool _isTutorialMode;
 
     /// <summary>
@@ -37,16 +35,6 @@ public partial class WelcomeScreenViewModel : ViewModelBase
     /// This prevents layout shift/flicker on startup.
     /// </summary>
     public bool ShowRecentCompanies => IsRecentCompaniesLoaded && HasRecentCompanies && !IsTutorialMode;
-
-    /// <summary>
-    /// Gets whether to show the Open Company option (hidden in tutorial mode).
-    /// </summary>
-    public bool ShowOpenCompany => !IsTutorialMode;
-
-    /// <summary>
-    /// Gets whether to show the Sample Company option (hidden in tutorial mode).
-    /// </summary>
-    public bool ShowSampleCompany => !IsTutorialMode;
 
     [ObservableProperty]
     private string _appVersion = AppInfo.Version;
@@ -170,21 +158,6 @@ public partial class WelcomeScreenViewModel : ViewModelBase
         OpenWhatsNewRequested?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>
-    /// Skips the tutorial and exits tutorial mode.
-    /// </summary>
-    [RelayCommand]
-    private void SkipTutorial()
-    {
-        TutorialService.Instance.CompleteWelcomeTutorial();
-        TutorialService.Instance.CompleteAppTour();
-        TutorialService.Instance.SkipTutorial();
-        TutorialService.Instance.HideSetupChecklist();
-        TutorialService.Instance.DisableFirstVisitHints();
-        IsTutorialMode = false;
-        SkipTutorialRequested?.Invoke(this, EventArgs.Empty);
-    }
-
     #endregion
 
     #region Events
@@ -197,21 +170,20 @@ public partial class WelcomeScreenViewModel : ViewModelBase
     public event EventHandler? OpenSampleCompanyRequested;
     public event EventHandler? OpenHelpRequested;
     public event EventHandler? OpenWhatsNewRequested;
-    public event EventHandler? SkipTutorialRequested;
 
     #endregion
 
     #region Public Methods
 
     /// <summary>
-    /// Initializes the tutorial mode state based on whether this is a first-time user.
-    /// Don't show tutorial card if a tutorial is already in progress on a specific company.
+    /// Re-evaluated each time the welcome screen is shown, so the first-run layout gives way to
+    /// the normal one once the user has created or opened a company of their own, and comes back
+    /// after Restart Tutorial, which clears both of these.
     /// </summary>
     public void InitializeTutorialMode()
     {
-        if (IsTutorialMode) return;
         var tutorialService = TutorialService.Instance;
-        IsTutorialMode = tutorialService.IsFirstTimeUser && !tutorialService.IsTutorialInProgressOnCompany;
+        IsTutorialMode = !tutorialService.HasCompletedWelcomeTutorial && !tutorialService.IsTutorialInProgressOnCompany;
     }
 
     /// <summary>

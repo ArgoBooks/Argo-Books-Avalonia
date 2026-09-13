@@ -22,6 +22,10 @@ public static class ArgoMoney
     /// <summary>Convert minor units to the amount a person would write down.</summary>
     public static decimal ToDecimal(long minorUnits, string? currency)
         => ZeroDecimal.Contains(currency ?? "USD") ? minorUnits : minorUnits / 100m;
+
+    /// <summary>Convert an amount to the currency's smallest unit, the form Stripe states amounts in.</summary>
+    public static long ToMinorUnits(decimal amount, string? currency)
+        => (long)Math.Round(ZeroDecimal.Contains(currency ?? "USD") ? amount : amount * 100m);
 }
 
 /// <summary>Import lifecycle reported alongside every object.</summary>
@@ -125,7 +129,7 @@ public record ArgoAccount(
     [property: JsonPropertyName("id")] string Id,
     [property: JsonPropertyName("display_name")] string? DisplayName,
     [property: JsonPropertyName("company_uid")] string? CompanyUid,
-    [property: JsonPropertyName("pending")] Dictionary<string, int> Pending);
+    [property: JsonPropertyName("pending")] Dictionary<string, int>? Pending);
 
 public record ArgoBatch(
     [property: JsonPropertyName("id")] string Id,
@@ -141,9 +145,7 @@ public record ArgoApiError(
 public record ArgoErrorEnvelope([property: JsonPropertyName("error")] ArgoApiError Error);
 
 /// <summary>Thrown when /v1 returns a structured error, so callers can show its message.</summary>
-public class ArgoApiException : Exception
+public class ArgoApiException(string code, string message) : Exception(message)
 {
-    public string Code { get; }
-
-    public ArgoApiException(string code, string message) : base(message) => Code = code;
+    public string Code { get; } = code;
 }

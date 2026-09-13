@@ -107,7 +107,7 @@ public static class InvoiceHtmlTemplates
                                     </td>
                                     <td style="padding: 15px; font-size: 14px; color: #6b7280; text-align: center; border-bottom: 1px solid {{SecondaryColor}};"><span data-field="quantity" data-line-index="{{Index}}">{{Quantity}}</span></td>
                                     <td style="padding: 15px; font-size: 14px; color: #6b7280; text-align: right; border-bottom: 1px solid {{SecondaryColor}};"><span data-field="rate" data-line-index="{{Index}}">{{UnitPrice}}</span></td>
-                                    <td style="padding: 15px; font-size: 14px; font-weight: 500; color: {{TextColor}}; text-align: right; border-bottom: 1px solid {{SecondaryColor}};"><span data-out="lineAmount" data-line-index="{{Index}}">{{Amount}}</span></td>
+                                    <td style="padding: 15px; font-size: 14px; font-weight: 500; color: {{TextColor}}; text-align: right; border-bottom: 1px solid {{SecondaryColor}};"><span data-out="lineAmount" data-line-index="{{Index}}" data-line-discount="{{LineDiscountRaw}}">{{Amount}}</span></td>
                                 </tr>
                                 {{/LineItems}}
                             </table>
@@ -176,24 +176,6 @@ public static class InvoiceHtmlTemplates
                             </table>
                         </td>
                     </tr>
-
-                    {{#ShowNotes}}
-                    {{#ShowNotesBody}}
-                    <!-- Notes -->
-                    <tr>
-                        <td style="padding: 0 40px 20px 40px;">
-                            <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f9fafb; border-radius: 6px;">
-                                <tr>
-                                    <td style="padding: 15px 20px;">
-                                        <p style="margin: 0 0 5px 0; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;">Notes</p>
-                                        <p style="margin: 0; font-size: 14px; color: {{TextColor}}; line-height: 1.5;"><span data-field="notes">{{Notes}}</span></p>
-                                    </td>
-                                </tr>
-                            </table>
-                        </td>
-                    </tr>
-                    {{/ShowNotesBody}}
-                    {{/ShowNotes}}
 
                     {{#ShowPaymentInstructions}}
                     {{#PaymentInstructions}}
@@ -337,7 +319,7 @@ public static class InvoiceHtmlTemplates
                                     </td>
                                     <td style="padding: 16px 10px; font-size: 14px; color: #6b7280; text-align: center; border-bottom: 1px solid {{SecondaryColor}};"><span data-field="quantity" data-line-index="{{Index}}">{{Quantity}}</span></td>
                                     <td style="padding: 16px 10px; font-size: 14px; color: #6b7280; text-align: right; border-bottom: 1px solid {{SecondaryColor}};"><span data-field="rate" data-line-index="{{Index}}">{{UnitPrice}}</span></td>
-                                    <td style="padding: 16px 15px; font-size: 14px; font-weight: 600; color: {{TextColor}}; text-align: right; border-bottom: 1px solid {{SecondaryColor}};"><span data-out="lineAmount" data-line-index="{{Index}}">{{Amount}}</span></td>
+                                    <td style="padding: 16px 15px; font-size: 14px; font-weight: 600; color: {{TextColor}}; text-align: right; border-bottom: 1px solid {{SecondaryColor}};"><span data-out="lineAmount" data-line-index="{{Index}}" data-line-discount="{{LineDiscountRaw}}">{{Amount}}</span></td>
                                 </tr>
                                 {{/LineItems}}
                             </table>
@@ -350,12 +332,6 @@ public static class InvoiceHtmlTemplates
                             <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
                                 <tr>
                                     <td style="width: 55%; vertical-align: top; padding-right: 30px;">
-                                        {{#ShowNotes}}
-                                        {{#ShowNotesBody}}
-                                        <p style="margin: 0 0 8px 0; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: {{HeaderColor}}; font-weight: 600;">Notes</p>
-                                        <p style="margin: 0; font-size: 13px; color: {{TextColor}}; line-height: 1.6;"><span data-field="notes">{{Notes}}</span></p>
-                                        {{/ShowNotesBody}}
-                                        {{/ShowNotes}}
                                     </td>
                                     <td style="width: 45%;">
                                         <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
@@ -541,7 +517,7 @@ public static class InvoiceHtmlTemplates
                                     </td>
                                     <td style="padding: 12px 10px; font-size: 13px; color: {{TextColor}}; text-align: center; border: 1px solid {{SecondaryColor}};"><span data-field="quantity" data-line-index="{{Index}}">{{Quantity}}</span></td>
                                     <td style="padding: 12px 10px; font-size: 13px; color: {{TextColor}}; text-align: right; border: 1px solid {{SecondaryColor}};"><span data-field="rate" data-line-index="{{Index}}">{{UnitPrice}}</span></td>
-                                    <td style="padding: 12px 15px; font-size: 13px; font-weight: bold; color: {{TextColor}}; text-align: right; border: 1px solid {{SecondaryColor}};"><span data-out="lineAmount" data-line-index="{{Index}}">{{Amount}}</span></td>
+                                    <td style="padding: 12px 15px; font-size: 13px; font-weight: bold; color: {{TextColor}}; text-align: right; border: 1px solid {{SecondaryColor}};"><span data-out="lineAmount" data-line-index="{{Index}}" data-line-discount="{{LineDiscountRaw}}">{{Amount}}</span></td>
                                 </tr>
                                 {{/LineItems}}
                             </table>
@@ -554,12 +530,6 @@ public static class InvoiceHtmlTemplates
                             <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
                                 <tr>
                                     <td style="width: 60%; padding: 15px; vertical-align: top;">
-                                        {{#ShowNotes}}
-                                        {{#ShowNotesBody}}
-                                        <p style="margin: 0 0 5px 0; font-size: 12px; font-weight: bold; color: {{HeaderColor}};">NOTES:</p>
-                                        <p style="margin: 0; font-size: 12px; color: {{TextColor}}; line-height: 1.5;"><span data-field="notes">{{Notes}}</span></p>
-                                        {{/ShowNotesBody}}
-                                        {{/ShowNotes}}
                                     </td>
                                     <td style="width: 40%; border-left: 1px solid {{SecondaryColor}};">
                                         <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
@@ -746,7 +716,7 @@ public static class InvoiceHtmlTemplates
                                     </td>
                                     <td style="padding: 16px 0; font-size: 14px; color: #6b7280; text-align: center; border-bottom: 1px solid {{SecondaryColor}};"><span data-field="quantity" data-line-index="{{Index}}">{{Quantity}}</span></td>
                                     <td style="padding: 16px 0; font-size: 14px; color: #6b7280; text-align: right; border-bottom: 1px solid {{SecondaryColor}};"><span data-field="rate" data-line-index="{{Index}}">{{UnitPrice}}</span></td>
-                                    <td style="padding: 16px 0; font-size: 14px; font-weight: 500; color: {{TextColor}}; text-align: right; border-bottom: 1px solid {{SecondaryColor}};"><span data-out="lineAmount" data-line-index="{{Index}}">{{Amount}}</span></td>
+                                    <td style="padding: 16px 0; font-size: 14px; font-weight: 500; color: {{TextColor}}; text-align: right; border-bottom: 1px solid {{SecondaryColor}};"><span data-out="lineAmount" data-line-index="{{Index}}" data-line-discount="{{LineDiscountRaw}}">{{Amount}}</span></td>
                                 </tr>
                                 {{/LineItems}}
                             </table>
@@ -759,12 +729,6 @@ public static class InvoiceHtmlTemplates
                             <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
                                 <tr>
                                     <td style="width: 55%; vertical-align: top; padding-right: 30px;">
-                                        {{#ShowNotes}}
-                                        {{#ShowNotesBody}}
-                                        <p style="margin: 0 0 8px 0; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af; font-weight: 500;">Notes</p>
-                                        <p style="margin: 0; font-size: 13px; color: {{TextColor}}; line-height: 1.6;"><span data-field="notes">{{Notes}}</span></p>
-                                        {{/ShowNotesBody}}
-                                        {{/ShowNotes}}
                                     </td>
                                     <td style="width: 45%;">
                                         <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
@@ -1000,7 +964,7 @@ public static class InvoiceHtmlTemplates
                             {{#ShowItemDescriptions}}{{#ItemDescription}}<br><span style="font-size: 12px; color: #888;">{{ItemDescription}}</span>{{/ItemDescription}}{{/ShowItemDescriptions}}
                         </td>
                         <td style="padding: 16px 15px; border-bottom: 1px solid #e8e8e8; font-size: 14px; color: {{TextColor}}; text-align: right;"><span data-field="rate" data-line-index="{{Index}}">{{UnitPrice}}</span></td>
-                        <td style="padding: 16px 15px; border-bottom: 1px solid #e8e8e8; font-size: 14px; color: {{TextColor}}; text-align: right;"><span data-out="lineAmount" data-line-index="{{Index}}">{{Amount}}</span></td>
+                        <td style="padding: 16px 15px; border-bottom: 1px solid #e8e8e8; font-size: 14px; color: {{TextColor}}; text-align: right;"><span data-out="lineAmount" data-line-index="{{Index}}" data-line-discount="{{LineDiscountRaw}}">{{Amount}}</span></td>
                     </tr>
                     {{/LineItems}}
                 </tbody>
@@ -1063,16 +1027,6 @@ public static class InvoiceHtmlTemplates
                     {{/ShowAmountToPay}}
                 </div>
             </div>
-
-            {{#ShowNotes}}
-            {{#ShowNotesBody}}
-            <!-- Notes -->
-            <div style="margin-bottom: 30px; padding: 15px 20px; background-color: #f9fafb; border-radius: 6px;">
-                <div style="font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase; margin-bottom: 5px;">Notes</div>
-                <div style="font-size: 14px; color: {{TextColor}}; line-height: 1.5;"><span data-field="notes">{{Notes}}</span></div>
-            </div>
-            {{/ShowNotesBody}}
-            {{/ShowNotes}}
 
             {{#ShowPaymentInstructions}}
             {{#PaymentInstructions}}

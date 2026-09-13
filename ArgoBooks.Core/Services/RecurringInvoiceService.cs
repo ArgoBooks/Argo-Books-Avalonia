@@ -91,16 +91,17 @@ public static class RecurringInvoiceService
 
     /// <summary>
     /// Generates every occurrence that has come due (NextInvoiceDate on or before
-    /// <paramref name="asOfUtc"/>), appending them to <see cref="CompanyData.Invoices"/> and
-    /// advancing each schedule. Completes a schedule once it passes its end date. Idempotent.
-    /// Returns the invoices generated across all schedules (possibly empty).
+    /// <paramref name="today"/>, the local calendar date), appending them to
+    /// <see cref="CompanyData.Invoices"/> and advancing each schedule. Schedule dates are calendar
+    /// dates, so the UTC date ran a day early or late depending on the time zone. Completes a
+    /// schedule once it passes its end date. Idempotent. Returns the invoices generated across all
+    /// schedules (possibly empty).
     /// </summary>
-    public static IReadOnlyList<Invoice> GenerateDueInvoices(CompanyData data, DateTime asOfUtc)
+    public static IReadOnlyList<Invoice> GenerateDueInvoices(CompanyData data, DateTime today)
     {
         var generated = new List<Invoice>();
-        if (data == null) return generated;
 
-        var asOfDate = asOfUtc.Date;
+        var asOfDate = today.Date;
         var idGenerator = new IdGenerator(data);
 
         foreach (var schedule in data.RecurringInvoices)
@@ -124,7 +125,7 @@ public static class RecurringInvoiceService
                 data.Invoices.Add(invoice);
                 generated.Add(invoice);
 
-                schedule.LastGeneratedAt = asOfUtc;
+                schedule.LastGeneratedAt = DateTime.UtcNow;
                 // Anchor on the schedule's original billing day-of-month so end-of-month schedules
                 // don't drift earlier after passing a shorter month (Jan 31 -> Feb 28 -> Mar 31, ...).
                 schedule.NextInvoiceDate = AdvanceDate(

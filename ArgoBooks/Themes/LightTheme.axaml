@@ -76,8 +76,7 @@
     <Color x:Key="WarningIconBgColor">#FEF3C7</Color>
     <Color x:Key="InfoIconBgColor">#CFFAFE</Color>
 
-    <!-- Warning notice pill. Unchanged from the old cream fill; only the dark
-         variant needed fixing. Amber-900 text rather than black so the pill reads
+    <!-- Warning notice pill. Amber-900 text rather than black so the pill reads
          as one amber object instead of black-on-cream. -->
     <Color x:Key="WarningNoticeBgColor">#FEF3C7</Color>
     <Color x:Key="WarningNoticeTextColor">#78350F</Color>

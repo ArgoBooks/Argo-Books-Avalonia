@@ -8,8 +8,8 @@ using ArgoBooks.Localization;
 using ArgoBooks.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-
 using ArgoBooks.Core.Models.Telemetry;
+using ArgoBooks.Shared.Telemetry;
 
 namespace ArgoBooks.ViewModels;
 
@@ -533,6 +533,17 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
             return;
         }
 
+        // Return, edit and delete find a rental's stock through this link when they run, so moving it
+        // while units are out would put them back on the wrong item.
+        var rentalItemId = _editingItem.Id;
+        if (oldInventoryItemId != newInventoryItemId && companyData.Rentals.Any(r =>
+                (r.Status == RentalStatus.Active || r.Status == RentalStatus.Overdue) &&
+                RentalRecordsModalsViewModel.GetEffectiveLineItems(r).Any(li => li.RentalItemId == rentalItemId)))
+        {
+            ModalInventoryItemError = "This item is rented out. Link it to another inventory item once every rental of it is returned.".Translate();
+            return;
+        }
+
         var itemToEdit = _editingItem;
         var itemName = ResolveRentalItemName(companyData, itemToEdit);
         var changes = new Dictionary<string, FieldChange>();
@@ -810,6 +821,7 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
         inventoryItem.InStock -= rentQty;
         inventoryItem.Status = inventoryItem.CalculateStatus();
         inventoryItem.LastUpdated = DateTime.UtcNow;
+        App.CheckAndNotifyStockStatus(inventoryItem, oldInStock);
 
         // Create stock adjustment audit record
         companyData.IdCounters.StockAdjustment++;
@@ -850,8 +862,10 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
             () =>
             {
                 companyData.Rentals.Add(rentalToUndo);
+                var stockBeforeRedo = invItemToUpdate.InStock;
                 invItemToUpdate.InStock -= rentQty;
                 invItemToUpdate.Status = invItemToUpdate.CalculateStatus();
+                App.CheckAndNotifyStockStatus(invItemToUpdate, stockBeforeRedo);
                 companyData.StockAdjustments.Add(adjToUndo);
                 companyData.MarkAsModified();
                 RentalCreated?.Invoke(this, EventArgs.Empty);

@@ -80,8 +80,7 @@ public class HoltWintersForecasting
         {
             // The seasonal estimate for horizon h lives at smoothedSeasonals[n + (h - 1) % seasonLength]
             // (the current season block occupies indices [n, n + seasonLength), same as finalSeasonals
-            // below). The previous form, n + (n + h - 1) % seasonLength, only matched this when n was an
-            // exact multiple of seasonLength and otherwise borrowed the wrong season's factor.
+            // below).
             int seasonIndex = (h - 1) % seasonLength;
             double seasonalFactor = smoothedSeasonals[n + seasonIndex];
             // Damped trend: phi + phi^2 + ... + phi^h

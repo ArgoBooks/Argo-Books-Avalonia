@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using ArgoBooks.Core.Models.Tracking;
+using ArgoBooks.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -283,6 +284,20 @@ public partial class LostDamagedModalsViewModel : ViewModelBase
         if (lostDamagedRecord != null)
         {
             companyData.LostDamaged.Remove(lostDamagedRecord);
+            App.UndoRedoManager.RecordAction(new DelegateAction(
+                $"Undo lost/damaged '{lostDamagedRecord.Id}'",
+                () =>
+                {
+                    companyData.LostDamaged.Add(lostDamagedRecord);
+                    companyData.MarkAsModified();
+                    ItemUndone?.Invoke(this, EventArgs.Empty);
+                },
+                () =>
+                {
+                    companyData.LostDamaged.Remove(lostDamagedRecord);
+                    companyData.MarkAsModified();
+                    ItemUndone?.Invoke(this, EventArgs.Empty);
+                }));
             App.CompanyManager?.MarkAsChanged();
         }
 

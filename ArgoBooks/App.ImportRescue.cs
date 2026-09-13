@@ -1,9 +1,9 @@
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Models.AI;
-using ArgoBooks.Core.Models.Telemetry;
 using ArgoBooks.Core.Services;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
+using ArgoBooks.Shared.Telemetry;
 
 namespace ArgoBooks;
 
@@ -73,6 +73,7 @@ public partial class App
         // Commit extracted entities, mirroring the Tier-2 commit path.
         var importStopwatch = System.Diagnostics.Stopwatch.StartNew();
         var snapshot = CreateCompanyDataSnapshot(companyData);
+        var queuedBeforeImport = companyData.PendingConversions.ToHashSet();
         var importOptions = new ImportOptions();
 
         using var importCts = new CancellationTokenSource();
@@ -89,6 +90,9 @@ public partial class App
         await importService.AiCategorizeMissingProductsAsync(companyData, importCts.Token);
         await Task.Yield();
         _mainWindowViewModel?.HideLoading();
+
+        MirrorQueuedConversions(companyData, companyData.PendingConversions
+            .Where(p => !queuedBeforeImport.Contains(p)).Select(p => p.TransactionId));
 
         var importedSnapshot = CreateCompanyDataSnapshot(companyData);
         void RestoreImportSnapshotAndRefresh(string snapshotJson)
@@ -129,7 +133,9 @@ public partial class App
             isCsv ? "ai-csv-rescue" : "ai-xlsx-rescue",
             importStopwatch.ElapsedMilliseconds);
 
-        await usageService.IncrementUsageAsync();
+        // Only a run that brought something in uses up an import.
+        if (totalProcessed > 0 || totalBankRouted > 0)
+            await usageService.IncrementUsageAsync();
 
         var resultDialog = _appShellViewModel?.ImportResultDialogViewModel;
         if (resultDialog != null)

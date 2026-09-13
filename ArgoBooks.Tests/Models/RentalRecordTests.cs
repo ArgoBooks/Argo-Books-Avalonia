@@ -151,7 +151,7 @@ public class RentalRecordTests
     public void EffectiveDaysOverdue_OverdueStatusPastDue_CountsDays()
     {
         // The page flags a late rental Overdue before the badge is read; DaysOverdue (Active-only)
-        // would report 0 here, so the "N days overdue" badge never showed. EffectiveDaysOverdue fixes it.
+        // would report 0 here.
         var rental = new RentalRecord
         {
             Status = RentalStatus.Overdue,

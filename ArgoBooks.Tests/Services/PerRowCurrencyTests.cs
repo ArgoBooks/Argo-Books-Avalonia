@@ -11,7 +11,7 @@ using Xunit;
 namespace ArgoBooks.Tests.Services;
 
 /// <summary>
-/// Phase 4, Task 4B-1: a spreadsheet with a per-row currency column converts each row at its
+/// A spreadsheet with a per-row currency column converts each row at its
 /// transaction-date rate (the same mechanism manual entry uses), instead of assuming every
 /// amount is already in the company currency. When no currency column is mapped, behavior is
 /// unchanged: OriginalCurrency = company currency and the USD-equivalent = the raw amount.
@@ -128,12 +128,14 @@ public class PerRowCurrencyTests
     }
 
     [Fact]
-    public void ExpenseRow_NoCurrencyColumn_KeepsCompanyCurrencyAndRawUsd()
+    public async Task ExpenseRow_NoCurrencyColumn_ConvertsFromCompanyCurrencyAtTheRowDate()
     {
+        // Amounts with no currency of their own are in the company currency, which here is not
+        // USD, so they convert at the row's date like any other foreign amount.
+        var service = await SeededServiceAsync(0.90m);
         var data = new CompanyData();
-        data.Settings.Localization.Currency = "CAD"; // non-USD company currency
-        // No exchange service needed: the no-currency-column path must not convert.
-        var svc = new SpreadsheetImportService();
+        data.Settings.Localization.Currency = "EUR";
+        var svc = new SpreadsheetImportService(exchangeRateService: service);
 
         var row = Json($$"""
             { "id": "EXP-1", "date": "{{TxnDate:yyyy-MM-dd}}", "total": 250.00, "taxAmount": 10.00,
@@ -144,12 +146,31 @@ public class PerRowCurrencyTests
 
         var exp = data.Expenses.Single(e => e.Id == "EXP-1");
 
-        // Existing behavior preserved exactly: company currency, USD-equivalent = raw amounts.
-        Assert.Equal("CAD", exp.OriginalCurrency);
-        Assert.Equal(exp.Total, exp.TotalUSD);
-        Assert.Equal(exp.TaxAmount, exp.TaxAmountUSD);
-        Assert.Equal(exp.ShippingCost, exp.ShippingCostUSD);
-        Assert.Equal("CAD", data.Settings.Localization.Currency);
+        Assert.Equal("EUR", exp.OriginalCurrency);
+        Assert.False(exp.IsPendingConversion);
+        Assert.Equal(250.00m * (1m / 0.90m), exp.TotalUSD);
+        Assert.Equal(10.00m * (1m / 0.90m), exp.TaxAmountUSD);
+        Assert.Equal(5.00m * (1m / 0.90m), exp.ShippingCostUSD);
+    }
+
+    [Fact]
+    public async Task RevenueRow_NoCurrencyColumn_NoRateForTheDate_IsPendingInsteadOfCountedAsUsd()
+    {
+        var service = await SeededServiceAsync(0.90m); // caches TxnDate only
+        var data = new CompanyData();
+        data.Settings.Localization.Currency = "EUR";
+        var svc = new SpreadsheetImportService(exchangeRateService: service);
+
+        var row = Json("""
+            { "id": "REV-1", "date": "2025-02-03", "total": 80.00, "description": "Plain sale" }
+            """);
+
+        svc.ImportProcessedEntities(data, [Chunk(SpreadsheetSheetType.Revenue, row)], "Revenue");
+
+        var rev = data.Revenues.Single(r => r.Id == "REV-1");
+        Assert.True(rev.IsPendingConversion);
+        Assert.Equal(0m, rev.TotalUSD);
+        Assert.Contains(data.PendingConversions, p => p.TransactionId == "REV-1" && p.OriginalCurrency == "EUR");
     }
 
     [Fact]

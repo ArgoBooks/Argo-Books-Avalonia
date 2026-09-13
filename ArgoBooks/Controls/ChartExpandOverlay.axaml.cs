@@ -33,6 +33,7 @@ public partial class ChartExpandOverlay : UserControl
     private readonly List<Control> _movedChildren = new();
     private readonly List<(GeoMap original, GeoMap copy)> _geoMapCopies = new();
     private ContentControl? _pageContentControl;
+    private Control? _decoratedPageContent;
     private readonly List<(object element, double originalSize)> _originalTitleSizes = new();
     private readonly List<(PieChartLegend legend, double origFontSize, double origIndicatorSize, CornerRadius origCornerRadius, double origMaxHeight, double origWidth, Thickness origMargin)> _originalLegendSizes = new();
     private readonly List<(PieChart chart, Thickness origMargin)> _originalPieChartMargins = new();
@@ -71,11 +72,22 @@ public partial class ChartExpandOverlay : UserControl
         if (_pageContentControl != null)
             _pageContentControl.PropertyChanged -= OnPageContentPropertyChanged;
 
+        ReleasePageSubscriptions();
+
+        base.OnDetachedFromVisualTree(e);
+    }
+
+    /// <summary>
+    /// Drops everything this overlay holds on the page it last decorated. The overlay lives
+    /// for the whole session while every navigation builds a new page, so holding on would
+    /// keep each visited page and its view models alive.
+    /// </summary>
+    private void ReleasePageSubscriptions()
+    {
         foreach (var (emptyState, handler) in _emptyStateSubscriptions)
             emptyState.PropertyChanged -= handler;
         _emptyStateSubscriptions.Clear();
-
-        base.OnDetachedFromVisualTree(e);
+        _decoratedPageContent = null;
     }
 
     /// <summary>
@@ -134,7 +146,18 @@ public partial class ChartExpandOverlay : UserControl
     /// </summary>
     private void DecorateCurrentPage()
     {
-        if (_pageContentControl?.Content is not Control pageContent) return;
+        var pageContent = _pageContentControl?.Content as Control;
+
+        // Navigation builds a new page instance every time, so let go of the old one first.
+        // Same instance means this is a repeat call: keep the subscriptions it already has,
+        // since AddExpandButton skips panels that are already decorated.
+        if (!ReferenceEquals(pageContent, _decoratedPageContent))
+        {
+            ReleasePageSubscriptions();
+            _decoratedPageContent = pageContent;
+        }
+
+        if (pageContent == null) return;
 
         var chartPanels = new List<Panel>();
         FindChartPanels(pageContent, chartPanels);
@@ -681,8 +704,11 @@ public partial class ChartExpandOverlay : UserControl
     /// </summary>
     private static ChartLoaderService? GetChartLoaderService(object? dataContext)
     {
+        // Dashboard charts are widgets, each loading through its own service, so the widget is what
+        // the expanded chart's panel carries, not the dashboard page.
         return dataContext switch
         {
+            ViewModels.Dashboard.UnifiedChartWidgetViewModel widget => widget.ChartLoaderService,
             DashboardPageViewModel dashboard => dashboard.ChartLoaderService,
             AnalyticsPageViewModel analytics => analytics.ChartLoaderService,
             _ => null

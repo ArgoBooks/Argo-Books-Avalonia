@@ -42,9 +42,10 @@ public class MainViewModelTests
     [Fact]
     public void CurrentCompanyName_Set_UpdatesTitle()
     {
-        var vm = new MainViewModel();
-
-        vm.CurrentCompanyName = "Test Company";
+        var vm = new MainViewModel
+        {
+            CurrentCompanyName = "Test Company"
+        };
 
         Assert.Equal("Test Company - Argo Books", vm.Title);
     }
@@ -52,8 +53,10 @@ public class MainViewModelTests
     [Fact]
     public void CurrentCompanyName_SetNull_ResetsTitle()
     {
-        var vm = new MainViewModel();
-        vm.CurrentCompanyName = "Test Company";
+        var vm = new MainViewModel
+        {
+            CurrentCompanyName = "Test Company"
+        };
 
         vm.CurrentCompanyName = null;
 
@@ -63,8 +66,10 @@ public class MainViewModelTests
     [Fact]
     public void CurrentCompanyName_SetEmpty_ResetsTitle()
     {
-        var vm = new MainViewModel();
-        vm.CurrentCompanyName = "Test Company";
+        var vm = new MainViewModel
+        {
+            CurrentCompanyName = "Test Company"
+        };
 
         vm.CurrentCompanyName = "";
 
@@ -89,8 +94,10 @@ public class MainViewModelTests
     [Fact]
     public void ToggleSidebarCommand_WhenCollapsed_ExpandSidebar()
     {
-        var vm = new MainViewModel();
-        vm.IsSidebarCollapsed = true;
+        var vm = new MainViewModel
+        {
+            IsSidebarCollapsed = true
+        };
 
         vm.ToggleSidebarCommand.Execute(null);
 

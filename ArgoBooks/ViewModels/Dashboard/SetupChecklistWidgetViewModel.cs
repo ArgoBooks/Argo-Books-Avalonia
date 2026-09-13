@@ -1,8 +1,9 @@
+using System.ComponentModel;
 using ArgoBooks.Core.Models.Dashboard;
 
 namespace ArgoBooks.ViewModels.Dashboard;
 
-public partial class SetupChecklistWidgetViewModel : WidgetViewModelBase
+public class SetupChecklistWidgetViewModel : WidgetViewModelBase
 {
     public override WidgetType WidgetType => WidgetType.SetupChecklist;
 
@@ -31,7 +32,7 @@ public partial class SetupChecklistWidgetViewModel : WidgetViewModelBase
         Checklist.PropertyChanged -= OnChecklistPropertyChanged;
     }
 
-    private void OnChecklistPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    private void OnChecklistPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(SetupChecklistViewModel.IsVisible))
             IsWidgetVisible = Checklist.IsVisible;

@@ -89,7 +89,9 @@ public partial class UpcomingInvoicesWidgetViewModel : WidgetViewModelBase
                 var daysUntilDue = (inv.DueDate.Date - today).Days;
                 var customer = data.GetCustomer(inv.CustomerId);
                 var customerName = customer?.Name ?? "Unknown";
-                var amount = CurrencyService.FormatFromUSD(inv.EffectiveBalanceUSD, inv.DueDate);
+                // At the issue date, as invoices convert everywhere else: a due date still to come has no rate.
+                var amount = CurrencyService.FormatWithOriginal(
+                    inv.Balance, inv.OriginalCurrency, inv.EffectiveBalanceUSD, inv.IssueDate);
                 var dueDateStr = DateFormatService.Format(inv.DueDate);
 
                 return new UpcomingInvoiceItem(

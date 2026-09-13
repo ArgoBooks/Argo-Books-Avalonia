@@ -113,15 +113,17 @@ public class InvoiceTotalsCalculationTests
     }
 
     [Fact]
-    public void ALineWithNoDiscount_IsExactlyWhatItAlwaysWas()
+    public void ALineWithNoDiscount_IsStillQuantityTimesPrice()
     {
         // Every line this app creates has Discount = 0, so honouring the field must be a no-op
-        // for existing invoices rather than a repricing of them.
+        // for existing invoices rather than a repricing of them. To the cent, as LineItem.Subtotal
+        // has always been: the invoice prints a rounded amount per line, and the Subtotal beneath
+        // them is their sum, so the form has to round where the paper does.
         var vm = new InvoiceModalsViewModel();
         vm.LineItems.Add(new LineItemDisplayModel { Quantity = 3, UnitPrice = 0.333m });
 
-        Assert.Equal(0.999m, vm.Subtotal);
-        Assert.Equal(0.999m, vm.LineItems[0].Amount);
+        Assert.Equal(1.00m, vm.Subtotal);
+        Assert.Equal(1.00m, vm.LineItems[0].Amount);
     }
 
     #endregion

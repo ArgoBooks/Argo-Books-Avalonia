@@ -57,8 +57,18 @@ public class PayRun
     /// <summary>What leaves the bank: the sum of every employee's net pay.</summary>
     public decimal TotalNetPay => Lines.Sum(l => l.NetPay);
 
-    /// <summary>What is owed to CRA: everything withheld, plus the employer's share.</summary>
+    /// <summary>
+    /// What is owed for the run: everything withheld, plus the employer's share. For a Quebec
+    /// employee that is two payments, split by <see cref="CraRemittance"/> and
+    /// <see cref="QuebecRemittance"/>.
+    /// </summary>
     public decimal TotalRemittance => Lines.Sum(l => l.TotalRemittance);
+
+    [JsonIgnore]
+    public decimal CraRemittance => Lines.Sum(l => l.CraRemittance);
+
+    [JsonIgnore]
+    public decimal QuebecRemittance => Lines.Sum(l => l.QuebecRemittance);
 
     /// <summary>What the payroll actually costs: gross plus employer contributions.</summary>
     public decimal TotalCost => Lines.Sum(l => l.TotalCost);
@@ -161,6 +171,22 @@ public class PayRunLine
     public decimal TotalRemittance =>
         CppEmployee + CppEmployer + Cpp2Employee + Cpp2Employer
         + EiEmployee + EiEmployer + QpipEmployee + QpipEmployer + FederalTax + ProvincialTax;
+
+    /// <summary>
+    /// The part of <see cref="TotalRemittance"/> paid to Revenu Quebec rather than CRA: Quebec
+    /// income tax and QPP from a Quebec line, and QPIP from any line. The same split the Payroll
+    /// Remittance report makes, read off the line's own province so it survives a transfer.
+    /// </summary>
+    [JsonIgnore]
+    public decimal QuebecRemittance =>
+        (string.Equals(Province, "QC", StringComparison.OrdinalIgnoreCase)
+            ? ProvincialTax + CppEmployee + CppEmployer + Cpp2Employee + Cpp2Employer
+            : 0m)
+        + QpipEmployee + QpipEmployer;
+
+    /// <summary>Everything else: federal tax and EI, and provincial tax and CPP outside Quebec.</summary>
+    [JsonIgnore]
+    public decimal CraRemittance => TotalRemittance - QuebecRemittance;
 
     public decimal TotalCost => GrossPay + CppEmployer + Cpp2Employer + EiEmployer + QpipEmployer;
 }

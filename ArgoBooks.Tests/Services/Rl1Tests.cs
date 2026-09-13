@@ -113,6 +113,39 @@ public class Rl1Tests
     }
 
     [Fact]
+    public void AnEmployeeWhoMovedIntoQuebec_ReportsOnlyTheirQuebecPay()
+    {
+        // Their Ontario tax went to CRA. Putting it in box E has them claim a Quebec credit for
+        // money Revenu Quebec never received.
+        CompanyData data = Data(Person());
+        data.PayRuns.Add(Run("PR-0001", new DateTime(2026, 3, 6), "EMP-001", 2000m,
+            prov: 90m, qpip: 0m, province: "ON"));
+        data.PayRuns.Add(Run("PR-0002", new DateTime(2026, 9, 4), "EMP-001", 3000m,
+            prov: 140m, province: "QC"));
+
+        Rl1Slip slip = Built(data).Slips.Single();
+
+        Assert.Equal(3000m, slip.EmploymentIncome);
+        Assert.Equal(140m, slip.QuebecIncomeTax);
+    }
+
+    [Fact]
+    public void AnEmployeeWhoLeftQuebec_StillGetsAnRl1ForTheirQuebecPay()
+    {
+        CompanyData data = Data(Person(province: "ON"));
+        data.PayRuns.Add(Run("PR-0001", new DateTime(2026, 3, 6), "EMP-001", 2000m,
+            prov: 140m, province: "QC"));
+        data.PayRuns.Add(Run("PR-0002", new DateTime(2026, 9, 4), "EMP-001", 3000m,
+            prov: 90m, qpip: 0m, province: "ON"));
+
+        Assert.True(Rl1Service.HasQuebecEmployees(data, 2026));
+
+        Rl1Slip slip = Built(data).Slips.Single();
+        Assert.Equal(2000m, slip.EmploymentIncome);
+        Assert.Equal(140m, slip.QuebecIncomeTax);
+    }
+
+    [Fact]
     public void DraftRuns_AreExcluded()
     {
         CompanyData data = Data(Person());

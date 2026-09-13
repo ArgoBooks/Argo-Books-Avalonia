@@ -240,7 +240,7 @@ public partial class EmailChangeModalViewModel : ObservableObject
         IsBusy = true; ErrorMessage = null;
         try
         {
-            var ok = false;
+            bool ok;
             try { ok = _verifyFilePassword(FilePassword); }
             catch { ok = false; }
             if (!ok)

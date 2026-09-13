@@ -48,7 +48,7 @@ public static class ColumnVisibilityHelper
     /// </summary>
     public static bool Load(string pageName, string columnName, bool defaultValue)
     {
-        var settings = App.SettingsService?.GlobalSettings?.Ui;
+        var settings = App.SettingsService?.GlobalSettings.Ui;
         if (settings == null)
             return defaultValue;
 
@@ -66,7 +66,7 @@ public static class ColumnVisibilityHelper
     /// </summary>
     public static void Save(string pageName, string columnName, bool isVisible)
     {
-        var settings = App.SettingsService?.GlobalSettings?.Ui;
+        var settings = App.SettingsService?.GlobalSettings.Ui;
         if (settings == null)
             return;
 
@@ -89,7 +89,7 @@ public static class ColumnVisibilityHelper
     /// </summary>
     public static void ResetPage(string pageName)
     {
-        var settings = App.SettingsService?.GlobalSettings?.Ui;
+        var settings = App.SettingsService?.GlobalSettings.Ui;
         if (settings == null)
             return;
 

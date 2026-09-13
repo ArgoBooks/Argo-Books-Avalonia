@@ -133,10 +133,9 @@ public class ArgoApiImporter
             return;
         }
 
-        data.IdCounters.Customer++;
         var customer = new Customer
         {
-            Id = $"CUS-{data.IdCounters.Customer:D3}",
+            Id = new IdGenerator(data).NextCustomerId(),
             Name = api.Name,
             Email = api.Email ?? string.Empty,
             Phone = api.Phone ?? string.Empty
@@ -160,10 +159,9 @@ public class ArgoApiImporter
             return;
         }
 
-        data.IdCounters.Supplier++;
         var supplier = new Supplier
         {
-            Id = $"SUP-{data.IdCounters.Supplier:D3}",
+            Id = new IdGenerator(data).NextSupplierId(),
             Name = api.Name,
             Email = api.Email ?? string.Empty,
             Phone = api.Phone ?? string.Empty,
@@ -195,10 +193,9 @@ public class ArgoApiImporter
         // buy, and typing it as revenue would file it on the wrong side.
         var productType = data.Categories.FirstOrDefault(c => c.Id == categoryId)?.Type ?? CategoryType.Revenue;
 
-        data.IdCounters.Product++;
         var product = new Product
         {
-            Id = $"PRD-{data.IdCounters.Product:D3}",
+            Id = new IdGenerator(data).NextProductId(),
             Name = api.Name,
             CategoryId = categoryId,
             Type = productType,
@@ -322,7 +319,11 @@ public class ArgoApiImporter
         var localRevenueId = ResolveRef(data, _revenues, api.Revenue, MatchRevenue)
             ?? data.Revenues.FirstOrDefault(r => r.ReferenceNumber == api.Revenue)?.Id;
 
-        if (localRevenueId == null)
+        // The id the server remembers for an earlier import can name a sale the merchant has
+        // since deleted, which is as good as having no sale.
+        var revenue = localRevenueId == null ? null : data.Revenues.FirstOrDefault(r => r.Id == localRevenueId);
+
+        if (revenue == null)
         {
             // No sale to return against: book it as a standalone expense rather
             // than dropping it, so the money movement is still in the books.
@@ -347,8 +348,6 @@ public class ArgoApiImporter
             Claim(creation, api.Id, expense.Id);
             return;
         }
-
-        var revenue = data.Revenues.First(r => r.Id == localRevenueId);
 
         data.IdCounters.Return++;
         var ret = new Return

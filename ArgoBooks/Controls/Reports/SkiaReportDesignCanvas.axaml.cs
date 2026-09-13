@@ -304,6 +304,7 @@ public partial class SkiaReportDesignCanvas : UserControl
             _canvasImage.PointerPressed += OnCanvasPointerPressed;
             _canvasImage.PointerMoved += OnCanvasPointerMoved;
             _canvasImage.PointerReleased += OnCanvasPointerReleased;
+            _canvasImage.PointerCaptureLost += OnCanvasPointerCaptureLost;
         }
 
         // Wire up pointer wheel for Ctrl+scroll zoom-to-cursor (only fires when not already handled by parent)
@@ -338,6 +339,7 @@ public partial class SkiaReportDesignCanvas : UserControl
         if (change.Property == ConfigurationProperty)
         {
             _selectedElements.Clear();
+            ClearInteractionState();
             InvalidateCanvas();
         }
         else if (change.Property == ZoomLevelProperty)
@@ -479,7 +481,9 @@ public partial class SkiaReportDesignCanvas : UserControl
         }
 
         // Draw hover highlight and selection visuals (need page offset translation)
-        if (_hoveredElement != null && !_selectedElements.Contains(_hoveredElement))
+        if (_hoveredElement != null &&
+            Configuration.Elements.Contains(_hoveredElement) &&
+            !_selectedElements.Contains(_hoveredElement))
         {
             var pageOffset = GetPageYOffset(_hoveredElement.PageNumber);
             canvas.Save();
@@ -1257,12 +1261,15 @@ public partial class SkiaReportDesignCanvas : UserControl
 
         if (props.IsLeftButtonPressed)
         {
+            // Capture up front so the release always comes back here, even when the
+            // pointer ends up over the ruler, a scrollbar or the properties panel.
+            e.Pointer.Capture(_canvasImage);
+
             // Check if clicking on a column border in an accounting table header
             var columnBorder = GetColumnBorderAtPoint(point);
             if (columnBorder != null)
             {
                 StartColumnResize(columnBorder.Value.Element, columnBorder.Value.BorderIndex, point);
-                e.Pointer.Capture(_canvasImage);
                 e.Handled = true;
                 return;
             }
@@ -1363,6 +1370,15 @@ public partial class SkiaReportDesignCanvas : UserControl
             }
         }
 
+        // The button came up somewhere this handler never saw it. Finish here rather than
+        // keep moving the element on a button-less pointer with recording suppressed.
+        if (!props.IsLeftButtonPressed && _interactionMode is InteractionMode.Dragging
+                or InteractionMode.Resizing or InteractionMode.ColumnResizing or InteractionMode.Selecting)
+        {
+            FinishActiveInteraction();
+            return;
+        }
+
         switch (_interactionMode)
         {
             case InteractionMode.Dragging:
@@ -1417,33 +1433,44 @@ public partial class SkiaReportDesignCanvas : UserControl
         // Handle right-click release - show context menu if we didn't pan
         if (e.InitialPressMouseButton == MouseButton.Right)
         {
+            var wasPanning = _interactionMode == InteractionMode.Panning;
+            var rightClickedElement = _rightClickedElement;
+
             e.Pointer.Capture(null);
+            FinishActiveInteraction();
 
-            if (_interactionMode == InteractionMode.Panning)
+            if (!wasPanning && rightClickedElement != null)
             {
-                // We were panning, reset cursor and animate overscroll snap-back
-                Cursor = Cursor.Default;
-
-                // Animate overscroll back to zero (rubberband snap-back)
-                if (_overscrollHelper?.HasOverscroll == true)
-                {
-                    _ = _overscrollHelper.AnimateSnapBackAsync();
-                }
-            }
-            else if (_rightClickedElement != null)
-            {
-                // No panning occurred, show context menu
                 var screenPoint = e.GetPosition(this);
-                ContextMenuRequested?.Invoke(this, new ContextMenuRequestedEventArgs(screenPoint.X, screenPoint.Y, _rightClickedElement));
+                ContextMenuRequested?.Invoke(this, new ContextMenuRequestedEventArgs(screenPoint.X, screenPoint.Y, rightClickedElement));
             }
 
-            _interactionMode = InteractionMode.None;
-            _rightClickedElement = null;
             e.Handled = true;
             return;
         }
 
-        switch (_interactionMode)
+        FinishActiveInteraction();
+        InvalidateCanvas();
+    }
+
+    private void OnCanvasPointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
+    {
+        // The release may never reach this control (dropped over the ruler, a scrollbar or
+        // another panel), so this is the last chance to finish whatever was in progress.
+        FinishActiveInteraction();
+    }
+
+    /// <summary>
+    /// Ends the interaction in progress, if any, and leaves the canvas idle.
+    /// Safe to call repeatedly: a second call finds nothing to do.
+    /// </summary>
+    private void FinishActiveInteraction()
+    {
+        var mode = _interactionMode;
+        _interactionMode = InteractionMode.None;
+        _rightClickedElement = null;
+
+        switch (mode)
         {
             case InteractionMode.Dragging:
                 EndDrag();
@@ -1462,12 +1489,40 @@ public partial class SkiaReportDesignCanvas : UserControl
                 break;
 
             case InteractionMode.Panning:
-                // Already handled above for right-click
+                Cursor = Cursor.Default;
+                if (_overscrollHelper?.HasOverscroll == true)
+                {
+                    _ = _overscrollHelper.AnimateSnapBackAsync();
+                }
                 break;
         }
 
+        // Suppression must never outlive the interaction that set it: left on, every later
+        // property edit goes unrecorded and undo looks dead for the rest of the session.
+        if (UndoRedoManager != null)
+            UndoRedoManager.SuppressRecording = false;
+
+        if (mode != InteractionMode.None)
+            InvalidateCanvas();
+    }
+
+    /// <summary>
+    /// Drops hover and in-progress drag state that belongs to the elements previously shown.
+    /// </summary>
+    private void ClearInteractionState()
+    {
         _interactionMode = InteractionMode.None;
-        InvalidateCanvas();
+        _hoveredElement = null;
+        _hoveredColumnElement = null;
+        _hoveredColumnBorderIndex = -1;
+        _columnResizeElement = null;
+        _columnResizeOriginalRatios = null;
+        _rightClickedElement = null;
+        _activeResizeHandle = ResizeHandle.None;
+        _multiDragStartBounds.Clear();
+        _dragOriginalBounds.Clear();
+        if (_selectionRectangle != null)
+            _selectionRectangle.IsVisible = false;
     }
 
     #endregion
@@ -2069,12 +2124,11 @@ public partial class SkiaReportDesignCanvas : UserControl
     {
         if (Configuration == null) return;
 
-        foreach (var element in _selectedElements.ToList())
-        {
-            UndoRedoManager?.RecordAction(new RemoveElementAction(Configuration, element));
-            Configuration.RemoveElement(element.Id);
+        var removed = _selectedElements.ToList();
+        RemoveElementsAction.RemoveAndRecord(Configuration, removed, UndoRedoManager);
+
+        foreach (var element in removed)
             ElementRemoved?.Invoke(this, element);
-        }
 
         _selectedElements.Clear();
         _hoveredElement = null;

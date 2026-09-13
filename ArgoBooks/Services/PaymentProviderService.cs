@@ -26,7 +26,7 @@ public static class PaymentProviderService
     /// </summary>
     public static void UpdateFromPaymentMethods(List<string> paymentMethods)
     {
-        var settings = App.CompanyManager?.CompanyData?.Settings?.PaymentPortal;
+        var settings = App.CompanyManager?.CompanyData?.Settings.PaymentPortal;
         if (settings == null) return;
 
         var methods = new HashSet<string>(paymentMethods.Select(m => m.ToLowerInvariant()));
@@ -71,7 +71,7 @@ public static class PaymentProviderService
     /// </summary>
     public static List<string> GetConnectedMethods()
     {
-        var settings = App.CompanyManager?.CompanyData?.Settings?.PaymentPortal;
+        var settings = App.CompanyManager?.CompanyData?.Settings.PaymentPortal;
         if (settings == null) return [];
 
         var methods = new List<string>();

@@ -170,6 +170,23 @@ public class Payment
     [JsonPropertyName("refundReason")]
     public string? RefundReason { get; set; }
 
+    /// <summary>
+    /// For a refund, the part that gave back the invoice's security deposit, in the refund's
+    /// currency. A deposit isn't revenue, so only the rest of the refund comes off revenue
+    /// (docs/Calculations.md §8).
+    /// </summary>
+    [JsonPropertyName("depositAmount")]
+    public decimal DepositAmount { get; set; }
+
+    /// <summary>
+    /// The share of a refund that came off revenue: all of it, less any security deposit it gave
+    /// back (<see cref="DepositAmount"/>), which was never revenue.
+    /// </summary>
+    [JsonIgnore]
+    public decimal RevenueShare => IsRefund && Amount != 0
+        ? Math.Clamp(1m - DepositAmount / Math.Abs(Amount), 0m, 1m)
+        : 1m;
+
     #endregion
 
     #region Bank Matching

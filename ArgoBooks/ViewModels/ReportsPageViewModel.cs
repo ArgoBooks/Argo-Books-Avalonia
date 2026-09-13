@@ -11,8 +11,8 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using SkiaSharp;
-
 using ArgoBooks.Core.Models.Telemetry;
+using ArgoBooks.Shared.Telemetry;
 
 namespace ArgoBooks.ViewModels;
 
@@ -357,6 +357,27 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
     {
         IsCustomDateRange = value == DatePresetNames.Custom;
         OnPropertyChanged(nameof(SelectedDatePresetOption));
+
+        // Step 1 hands the range over on Next; in the designer the report already exists, so the
+        // range has to reach it now. Going through PageSettingsDatePreset records it for undo.
+        if (CurrentStep == 2)
+        {
+            ApplyDateRangeToConfiguration();
+            PageSettingsDatePreset = value;
+        }
+    }
+
+    partial void OnCustomStartDateChanged(DateTimeOffset? value) => ApplyDesignerCustomDates();
+
+    partial void OnCustomEndDateChanged(DateTimeOffset? value) => ApplyDesignerCustomDates();
+
+    private void ApplyDesignerCustomDates()
+    {
+        if (CurrentStep != 2 || !IsCustomDateRange)
+            return;
+
+        ApplyDateRangeToConfiguration();
+        PageSettingsRefreshRequested?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>
@@ -2268,10 +2289,18 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
 
     #region Constructor & Initialization
 
-    private readonly ReportTemplateStorage _templateStorage = new();
+    private readonly ReportTemplateStorage _templateStorage;
 
-    public ReportsPageViewModel()
+    public ReportsPageViewModel() : this(new ReportTemplateStorage())
     {
+    }
+
+    /// <summary>
+    /// Takes the template store, so tests can keep it away from the user's saved templates.
+    /// </summary>
+    internal ReportsPageViewModel(ReportTemplateStorage templateStorage)
+    {
+        _templateStorage = templateStorage;
         UndoRedoViewModel = new UndoRedoButtonGroupViewModel(UndoRedoManager);
         UndoRedoViewModel.ActionPerformed += (_, _) => OnPropertyChanged(nameof(Configuration));
 
@@ -2681,21 +2710,9 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
         TemplateLoaded?.Invoke(this, EventArgs.Empty);
     }
 
-    private void ApplyFiltersToConfiguration()
+    private void ApplyDateRangeToConfiguration()
     {
-        // Custom (charts) tab always uses landscape orientation
-        if (IsChartsTabSelected)
-        {
-            PageOrientation = PageOrientation.Landscape;
-            Configuration.PageOrientation = PageOrientation.Landscape;
-        }
-
-        Configuration.Title = ReportName;
-        Configuration.Filters.TransactionType = SelectedTransactionType;
         Configuration.Filters.DatePresetName = SelectedDatePreset;
-
-        // Set date format from DateFormatService for consistent X-axis labeling
-        Configuration.Filters.DateFormat = DateFormatService.GetCurrentDotNetFormat();
 
         if (IsCustomDateRange)
         {
@@ -2708,6 +2725,30 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
             Configuration.Filters.StartDate = start;
             Configuration.Filters.EndDate = end;
         }
+    }
+
+    private void ApplyFiltersToConfiguration()
+    {
+        // Custom (charts) tab always uses landscape orientation
+        if (IsChartsTabSelected)
+        {
+            PageOrientation = PageOrientation.Landscape;
+            Configuration.PageOrientation = PageOrientation.Landscape;
+        }
+
+        Configuration.Title = ReportName;
+        Configuration.Filters.TransactionType = SelectedTransactionType;
+
+        // Set date format from DateFormatService for consistent X-axis labeling
+        Configuration.Filters.DateFormat = DateFormatService.GetCurrentDotNetFormat();
+
+        ApplyDateRangeToConfiguration();
+
+        // Page-settings undo snapshots carry the preset. Left at the template's, undoing any page
+        // setting in the designer would switch the report back to that range.
+        UndoRedoManager.SuppressRecording = true;
+        try { PageSettingsDatePreset = SelectedDatePreset; }
+        finally { UndoRedoManager.SuppressRecording = false; }
 
         Configuration.Filters.SelectedChartTypes.Clear();
         foreach (var chart in AvailableCharts.Where(c => c.IsSelected))

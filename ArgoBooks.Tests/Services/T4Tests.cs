@@ -50,7 +50,8 @@ public class T4Tests
     };
 
     private static PayRun Run(string id, DateTime payDate, string employeeId, decimal gross,
-                              decimal cpp = 100m, decimal ei = 30m, decimal fed = 200m, decimal prov = 90m) => new()
+                              decimal cpp = 100m, decimal ei = 30m, decimal fed = 200m, decimal prov = 90m,
+                              string province = "AB") => new()
     {
         Id = id,
         PayDate = payDate,
@@ -61,7 +62,7 @@ public class T4Tests
             {
                 EmployeeId = employeeId,
                 EmployeeName = "Dana Smith",
-                Province = "AB",
+                Province = province,
                 GrossPay = gross,
                 CppEmployee = cpp,
                 CppEmployer = cpp,
@@ -116,9 +117,77 @@ public class T4Tests
         // entirely reasonable either way, which is why it needs pinning.
         CompanyData data = Data(Person());
         data.Employees[0].Province = "QC";
-        data.PayRuns.Add(Run("PR-0001", new DateTime(2026, 7, 3), "EMP-001", 2000m, fed: 200m, prov: 90m));
+        data.PayRuns.Add(Run("PR-0001", new DateTime(2026, 7, 3), "EMP-001", 2000m, fed: 200m, prov: 90m, province: "QC"));
 
         Assert.Equal(200m, BuiltReturn(data).Slips.Single().IncomeTaxDeducted);
+    }
+
+    [Fact]
+    public void AnEmployeeWhoMovedProvinces_GetsASeparateSlipForEach()
+    {
+        // CRA wants one T4 per province of employment. Reading the employee's current province
+        // put a year of Ontario pay on a single Quebec slip: Ontario CPP in the QPP box, and the
+        // Ontario tax dropped from box 22 as though it had been paid to Revenu Quebec.
+        CompanyData data = Data(Person());
+        data.Employees[0].Province = "QC";
+        data.PayRuns.Add(Run("PR-0001", new DateTime(2026, 3, 6), "EMP-001", 2000m,
+            cpp: 100m, fed: 200m, prov: 90m, province: "ON"));
+        data.PayRuns.Add(Run("PR-0002", new DateTime(2026, 9, 4), "EMP-001", 3000m,
+            cpp: 150m, fed: 250m, prov: 160m, province: "QC"));
+
+        List<T4Slip> slips = BuiltReturn(data).Slips;
+        T4Slip ontario = slips.Single(s => s.ProvinceOfEmployment == "ON");
+        T4Slip quebec = slips.Single(s => s.ProvinceOfEmployment == "QC");
+
+        Assert.Equal(2, slips.Count);
+        Assert.False(ontario.IsQuebec);
+        Assert.Equal(2000m, ontario.EmploymentIncome);
+        Assert.Equal(100m, ontario.CppContributions);
+        Assert.Equal(290m, ontario.IncomeTaxDeducted);
+        Assert.True(quebec.IsQuebec);
+        Assert.Equal(3000m, quebec.EmploymentIncome);
+        Assert.Equal(150m, quebec.CppContributions);
+        Assert.Equal(250m, quebec.IncomeTaxDeducted);
+        Assert.Equal(100m, BuiltReturn(data).TotalEmployeeCpp);
+    }
+
+    [Fact]
+    public void ASlipFollowsTheProvinceThePayWasEarnedIn_NotWhereTheEmployeeWorksNow()
+    {
+        CompanyData data = Data(Person());
+        data.Employees[0].Province = "ON";
+        data.PayRuns.Add(Run("PR-0001", new DateTime(2026, 3, 6), "EMP-001", 2000m,
+            fed: 200m, prov: 90m, province: "QC"));
+
+        T4Slip slip = BuiltReturn(data).Slips.Single();
+
+        Assert.True(slip.IsQuebec);
+        Assert.Equal("QC", slip.ProvinceOfEmployment);
+        Assert.Equal(200m, slip.IncomeTaxDeducted);
+    }
+
+    [Fact]
+    public void TwoSlipsForOnePerson_ShareOneYearsCeilings()
+    {
+        // Contributions stop at the year's maximum across both provinces, so the earnings behind
+        // them stop there too. Capping each slip on its own would report more pensionable and
+        // insurable earnings than the year allows, against contributions that never reached them.
+        EarningsCeilings ceilings = EarningsCeilings.For(new PayrollRateService(), 2026);
+        decimal pensionableMax = ceilings.CapPensionable(decimal.MaxValue);
+        decimal insurableMax = ceilings.CapEi(decimal.MaxValue);
+
+        CompanyData data = Data(Person());
+        data.Employees[0].Province = "ON";
+        data.PayRuns.Add(Run("PR-0001", new DateTime(2026, 3, 6), "EMP-001", 60_000m, province: "AB"));
+        data.PayRuns.Add(Run("PR-0002", new DateTime(2026, 9, 4), "EMP-001", 60_000m, province: "ON"));
+
+        List<T4Slip> slips = BuiltReturn(data).Slips;
+        T4Slip first = slips.Single(s => s.ProvinceOfEmployment == "AB");
+
+        Assert.True(60_000m < insurableMax && insurableMax < 120_000m, "the fixture must straddle the ceilings");
+        Assert.Equal(60_000m, first.PensionableEarnings);
+        Assert.Equal(pensionableMax, slips.Sum(s => s.PensionableEarnings));
+        Assert.Equal(insurableMax, slips.Sum(s => s.InsurableEarnings));
     }
 
     [Fact]
@@ -152,7 +221,7 @@ public class T4Tests
         // the one combination that cannot be true, and box 28's PPIP tick says the opposite.
         CompanyData data = Data(Person());
         data.Employees[0].Province = "QC";
-        data.PayRuns.Add(Run("PR-0001", new DateTime(2026, 7, 3), "EMP-001", 2000m));
+        data.PayRuns.Add(Run("PR-0001", new DateTime(2026, 7, 3), "EMP-001", 2000m, province: "QC"));
 
         T4Slip slip = BuiltReturn(data).Slips.Single();
 
@@ -299,7 +368,7 @@ public class T4Tests
     {
         // CRA: the totals are those reported from the slips filed with this summary. An
         // amendment for one employee must not total the other three.
-        CompanyData data = Data(Person("EMP-001", "Dana Smith"), Person("EMP-002", "Alex Jones"));
+        CompanyData data = Data(Person(), Person("EMP-002", "Alex Jones"));
         data.PayRuns.Add(Run("PR-0001", new DateTime(2026, 7, 3), "EMP-001", 2000m));
         data.PayRuns.Add(Run("PR-0002", new DateTime(2026, 7, 3), "EMP-002", 5000m));
 
@@ -466,7 +535,7 @@ public class T4Tests
     {
         // One T4 return carries one summary however many people are on it. Sending the slip
         // count here would tell CRA to expect several returns inside one submission.
-        CompanyData data = Data(Person(), Person("EMP-002", "Alex Jones", "046454286"));
+        CompanyData data = Data(Person(), Person("EMP-002", "Alex Jones"));
         data.PayRuns.Add(Run("PR-0001", new DateTime(2026, 7, 3), "EMP-001", 2000m));
 
         PayRun second = Run("PR-0002", new DateTime(2026, 7, 3), "EMP-002", 2000m);
@@ -602,7 +671,7 @@ public class T4Tests
     [Fact]
     public void TheSummaryCountsItsSlips()
     {
-        CompanyData data = Data(Person(), Person("EMP-002", "Alex Jones", "046454286"));
+        CompanyData data = Data(Person(), Person("EMP-002", "Alex Jones"));
         data.PayRuns.Add(Run("PR-0001", new DateTime(2026, 7, 3), "EMP-001", 2000m));
 
         PayRun second = Run("PR-0002", new DateTime(2026, 7, 3), "EMP-002", 1500m);
@@ -642,7 +711,7 @@ public class T4Tests
         // slip." So the CPP elements are absent entirely, not zeroed.
         CompanyData data = Data(Person());
         data.Employees[0].Province = "QC";
-        data.PayRuns.Add(Run("PR-0001", new DateTime(2026, 7, 3), "EMP-001", 2000m));
+        data.PayRuns.Add(Run("PR-0001", new DateTime(2026, 7, 3), "EMP-001", 2000m, province: "QC"));
         data.PayRuns[0].Lines[0].QpipEmployee = 8.60m;
         data.PayRuns[0].Lines[0].QpipEmployer = 12.04m;
 
@@ -658,7 +727,7 @@ public class T4Tests
     {
         CompanyData data = Data(Person());
         data.Employees[0].Province = "QC";
-        data.PayRuns.Add(Run("PR-0001", new DateTime(2026, 7, 3), "EMP-001", 2000m));
+        data.PayRuns.Add(Run("PR-0001", new DateTime(2026, 7, 3), "EMP-001", 2000m, province: "QC"));
         data.PayRuns[0].Lines[0].QpipEmployee = 8.60m;
 
         XElement amounts = Slip(BuiltReturn(data)).Element("T4_AMT")!;
@@ -687,12 +756,12 @@ public class T4Tests
         // CRA states QPP must not be included in the CPP totals, and there is no QPP total on
         // the T4 Summary at all: it goes to Revenu Quebec on the RL-1 Summary instead. So a
         // mixed employer totals less here than the sum of their slips, correctly.
-        CompanyData data = Data(Person(), Person("EMP-002", "Alex Jones", "046454286"));
+        CompanyData data = Data(Person(), Person("EMP-002", "Alex Jones"));
         data.Employees[1].Province = "QC";
 
         data.PayRuns.Add(Run("PR-0001", new DateTime(2026, 7, 3), "EMP-001", 2000m, cpp: 100m));
 
-        PayRun quebec = Run("PR-0002", new DateTime(2026, 7, 3), "EMP-002", 2000m, cpp: 120m);
+        PayRun quebec = Run("PR-0002", new DateTime(2026, 7, 3), "EMP-002", 2000m, cpp: 120m, province: "QC");
         quebec.Lines[0].EmployeeId = "EMP-002";
         data.PayRuns.Add(quebec);
 

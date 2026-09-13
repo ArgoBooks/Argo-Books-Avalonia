@@ -249,11 +249,7 @@ public class PayrollCalculatorTests
     /// provincial) unless a case says otherwise.
     ///
     /// These are the only tests here that prove agreement with CRA rather than internal
-    /// consistency, and they are where every real defect in this engine has been found: the
-    /// CPP enhancement being deducted from income rather than credited, EI capping on
-    /// insurable earnings rather than on the premium, and the K2 credit's annualisation, which
-    /// took two attempts because the first fix repaired the at-the-ceiling case and broke
-    /// every ordinary one.
+    /// consistency.
     ///
     /// The at-cap rows were paid 2026-08-14 and the rest 2026-10-09. Both dates select the
     /// same edition, so the rates are identical and the two sets are directly comparable.
@@ -284,7 +280,7 @@ public class PayrollCalculatorTests
         // CPP2. The first row is the one that matters: year-to-date pensionable earnings sit
         // below the first ceiling and this single cheque carries them over it, so only the
         // 1,900 above 74,600 attracts CPP2. That partial crossing is the fiddliest arithmetic
-        // in the engine and had no fixture at all before this.
+        // in the engine.
         ["crossing into cpp2",   3500m, 26, 73000m,   4100m,   0m, 68900m, 1123.07m,  429.45m, 208.79m, 130.45m,  76m,  0.00m, 2655.31m],
         ["inside cpp2 band",     3500m, 26, 78000m, 4230.45m, 136m, 68900m, 1123.07m,  420.82m, 204.58m,   0.00m, 140m,  0.00m, 2734.60m],
 

@@ -28,8 +28,8 @@
             <Border Grid.Row="0"
                     Padding="20,16"
                     BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="{Binding IsExpanded, Converter={x:Static conv:BoolConverters.ToHeaderBorderThickness}}">
-                <Grid ColumnDefinitions="*,Auto,Auto">
+                    BorderThickness="0,0,0,1">
+                <Grid ColumnDefinitions="*,Auto">
                     <!-- Title and Progress -->
                     <StackPanel Grid.Column="0" Spacing="4">
                         <TextBlock Text="Getting Started"
@@ -41,22 +41,8 @@
                                    Foreground="{DynamicResource TextSecondaryBrush}" />
                     </StackPanel>
 
-                    <!-- Expand/Collapse Button -->
-                    <Button Grid.Column="1"
-                            Classes="icon-button-small"
-                            Command="{Binding ToggleExpandedCommand}"
-                            ToolTip.Tip="Expand/Collapse"
-                            Margin="0,0,8,0">
-                        <controls:ToggleArrow IconSize="16"
-                                              Foreground="{DynamicResource TextSecondaryBrush}"
-                                              IsCollapsed="{Binding !IsExpanded}"
-                                              Orientation="Vertical"
-                                              HorizontalAlignment="Center"
-                                              VerticalAlignment="Center" />
-                    </Button>
-
                     <!-- Dismiss Button -->
-                    <Button Grid.Column="2"
+                    <Button Grid.Column="1"
                             Classes="icon-button-small"
                             Command="{Binding DismissChecklistCommand}"
                             ToolTip.Tip="Dismiss checklist">
@@ -66,16 +52,8 @@
                 </Grid>
             </Border>
 
-            <!-- Expandable Content Container with Animation -->
-            <Border Grid.Row="1"
-                    ClipToBounds="True"
-                    MaxHeight="{Binding IsExpanded, Converter={x:Static conv:BoolConverters.ToExpandedMaxHeight}}">
-                <Border.Transitions>
-                    <Transitions>
-                        <DoubleTransition Property="MaxHeight" Duration="0:0:0.2" Easing="CubicEaseOut" />
-                    </Transitions>
-                </Border.Transitions>
-
+            <!-- Content -->
+            <Border Grid.Row="1">
                 <StackPanel>
                     <!-- Checklist Items -->
                     <ItemsControl ItemsSource="{Binding Items}"
@@ -176,12 +154,12 @@
                                               Foreground="{DynamicResource SuccessBrush}" />
                                 </Border>
                                 <TextBlock Text="{loc:Loc 'Tutorial Complete!'}"
-                                           FontSize="16"
+                                           FontSize="18"
                                            FontWeight="SemiBold"
                                            Foreground="{DynamicResource TextPrimaryBrush}"
                                            HorizontalAlignment="Center" />
                                 <TextBlock Text="{loc:Loc 'You’re ready to start tracking your business finances.'}"
-                                           FontSize="13"
+                                           FontSize="14"
                                            Foreground="{DynamicResource TextSecondaryBrush}"
                                            HorizontalAlignment="Center"
                                            TextAlignment="Center" />
@@ -191,13 +169,13 @@
                             <StackPanel Spacing="8" HorizontalAlignment="Center"
                                         IsVisible="{Binding !HasPremium}">
                                 <TextBlock Text="{Binding FreeTierSummary}"
-                                           FontSize="12"
+                                           FontSize="14"
                                            Foreground="{DynamicResource TextSecondaryBrush}"
                                            TextWrapping="Wrap"
                                            TextAlignment="Center"
                                            HorizontalAlignment="Center" />
                                 <TextBlock Text="{loc:Loc 'Upgrade for unlimited invoices, more AI receipt scans, and predictive analytics.'}"
-                                           FontSize="12"
+                                           FontSize="14"
                                            Foreground="{DynamicResource TextSecondaryBrush}"
                                            TextWrapping="Wrap"
                                            TextAlignment="Center"
@@ -209,7 +187,7 @@
                                         Padding="0"
                                         Margin="0,8,0,0">
                                     <TextBlock Text="{loc:Loc 'View upgrade options →'}"
-                                               FontSize="12"
+                                               FontSize="14"
                                                Foreground="{DynamicResource PrimaryBrush}" />
                                 </Button>
                             </StackPanel>

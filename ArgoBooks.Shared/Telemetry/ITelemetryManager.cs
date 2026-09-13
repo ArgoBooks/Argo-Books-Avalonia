@@ -1,4 +1,5 @@
 using ArgoBooks.Core.Models.Telemetry;
+using ArgoBooks.Shared.Telemetry;
 
 namespace ArgoBooks.Core.Services;
 

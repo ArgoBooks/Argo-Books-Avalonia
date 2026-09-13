@@ -79,7 +79,7 @@ public static class ProfitCalculator
                 - expensesByDay.GetValueOrDefault(day, 0m));
     }
 
-    private static Dictionary<string, Invoice> BuildInvoiceLookup(IEnumerable<Invoice> invoices)
+    internal static Dictionary<string, Invoice> BuildInvoiceLookup(IEnumerable<Invoice> invoices)
     {
         var dict = new Dictionary<string, Invoice>();
         foreach (var inv in invoices)
@@ -100,13 +100,13 @@ public static class ProfitCalculator
 
         foreach (var p in data.Payments.Where(x => x.IsRefund && x.Date >= start && x.Date <= end))
         {
-            var refundTotalUSD = Math.Abs(p.EffectiveAmountUSD);
+            var refundTotalUSD = Math.Abs(p.EffectiveAmountUSD) * p.RevenueShare;
             decimal preTax;
             if (!string.IsNullOrEmpty(p.InvoiceId)
                 && invoicesById.TryGetValue(p.InvoiceId, out var invoice)
                 && invoice.Total > 0)
             {
-                preTax = refundTotalUSD * (invoice.Subtotal / invoice.Total);
+                preTax = refundTotalUSD * RefundAggregator.PreTaxShare(invoice);
             }
             else
             {

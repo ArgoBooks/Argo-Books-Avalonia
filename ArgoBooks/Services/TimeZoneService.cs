@@ -23,7 +23,7 @@ public static class TimeZoneService
     /// </summary>
     public static string GetUserTimeZone()
     {
-        return App.SettingsService?.GlobalSettings?.Ui.TimeZone ?? "UTC";
+        return App.SettingsService?.GlobalSettings.Ui.TimeZone ?? "UTC";
     }
 
     /// <summary>
@@ -32,7 +32,7 @@ public static class TimeZoneService
     /// <returns>"12h" for 12-hour format, "24h" for 24-hour format.</returns>
     public static string GetUserTimeFormat()
     {
-        return App.SettingsService?.GlobalSettings?.Ui.TimeFormat ?? "12h";
+        return App.SettingsService?.GlobalSettings.Ui.TimeFormat ?? "12h";
     }
 
     /// <summary>

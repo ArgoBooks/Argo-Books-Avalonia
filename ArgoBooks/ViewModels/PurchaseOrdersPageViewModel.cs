@@ -327,7 +327,7 @@ public partial class PurchaseOrdersPageViewModel : SortablePageViewModelBase
         OnOrderCount = _allOrders.Count(o => o.Status == PurchaseOrderStatus.OnOrder || o.Status == PurchaseOrderStatus.Sent);
         // Sum in USD (the normalized base) so mixed-currency POs aren't added as if same-currency,
         // then render in the display currency at today's rate. Pending POs contribute 0 until they
-        // heal (Calculations.md §3). The old "$" + raw Total sum added EUR/GBP/USD numerals together.
+        // heal (Calculations.md §3).
         // Convert each PO at its OWN order date before summing (Calculations.md §3a Phase 2).
         TotalValue = CurrencyService.TrySumDisplayFromUSD(
             _allOrders, o => o.Total, o => o.OriginalCurrency, o => o.TotalUSD, o => o.OrderDate, out var poTotalDisplay)
@@ -449,9 +449,7 @@ public partial class PurchaseOrdersPageViewModel : SortablePageViewModelBase
                 Total = order.Total,
                 // Currency-aware like the Payments list: convert the order's original-currency total
                 // to the display currency at its order date, and show "Pending" when that exact-date
-                // rate is unavailable (a future-dated PO whose conversion hasn't healed yet). Using
-                // the currency-blind Format(Total) here stamped the display symbol on the raw native
-                // number, so a foreign PO showed an unconverted amount and never showed pending.
+                // rate is unavailable (a future-dated PO whose conversion hasn't healed yet).
                 TotalDisplay = CurrencyService.FormatWithOriginal(
                     order.Total, order.OriginalCurrency, order.EffectiveTotalUSD, order.OrderDate),
                 OriginalCurrency = order.OriginalCurrency,
@@ -790,7 +788,8 @@ public partial class PurchaseOrderDisplayItem : ObservableObject
     /// <summary>
     /// Whether the order can be received.
     /// </summary>
-    public bool CanReceive => Status == PurchaseOrderStatus.OnOrder || Status == PurchaseOrderStatus.Sent || Status == PurchaseOrderStatus.Approved;
+    public bool CanReceive => Status == PurchaseOrderStatus.OnOrder || Status == PurchaseOrderStatus.Sent
+        || Status == PurchaseOrderStatus.Approved || Status == PurchaseOrderStatus.PartiallyReceived;
 
     /// <summary>
     /// Whether the order can be edited.

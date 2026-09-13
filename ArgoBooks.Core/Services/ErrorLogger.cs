@@ -57,7 +57,13 @@ public partial class ErrorLogger : IErrorLogger
     }
 
     /// <inheritdoc />
-    public void LogError(Exception exception, ErrorCategory category, string? context = null)
+    public void LogError(
+        Exception exception,
+        ErrorCategory category,
+        string? context = null,
+        [CallerFilePath] string callerFile = "",
+        [CallerLineNumber] int callerLine = 0,
+        [CallerMemberName] string callerMember = "")
     {
         // A cancellation isn't a failure: a request cancelled on app close / navigation, or one that
         // timed out, is expected. Don't record it as an error (TaskCanceledException/OperationCanceled
@@ -65,19 +71,19 @@ public partial class ErrorLogger : IErrorLogger
         if (exception is OperationCanceledException)
             return;
 
-        var entry = CreateLogEntry(LogLevel.Error, category, context);
+        var entry = CreateLogEntry(LogLevel.Error, category, context, callerFile, callerLine, callerMember);
         entry.ErrorCode = exception.GetType().Name;
         entry.Message = SanitizeMessage(exception.Message);
 
-        // Extract location from stack trace
+        // Frame 0 of an async failure is the compiler's state machine, which knows nothing.
         var stackTrace = new StackTrace(exception, true);
-        var frame = stackTrace.GetFrame(0);
+        var frame = FirstLocatableFrame(stackTrace);
         if (frame != null)
         {
             var fileName = frame.GetFileName();
             entry.SourceFile = fileName != null ? Path.GetFileName(fileName) : null;
             entry.LineNumber = frame.GetFileLineNumber();
-            entry.MethodName = frame.GetMethod()?.Name;
+            entry.MethodName = DescribeMethod(frame);
         }
 
         // Sanitize and truncate stack trace
@@ -95,9 +101,15 @@ public partial class ErrorLogger : IErrorLogger
     }
 
     /// <inheritdoc />
-    public void LogError(string message, ErrorCategory category, string? context = null)
+    public void LogError(
+        string message,
+        ErrorCategory category,
+        string? context = null,
+        [CallerFilePath] string callerFile = "",
+        [CallerLineNumber] int callerLine = 0,
+        [CallerMemberName] string callerMember = "")
     {
-        var entry = CreateLogEntry(LogLevel.Error, category, context);
+        var entry = CreateLogEntry(LogLevel.Error, category, context, callerFile, callerLine, callerMember);
         entry.Message = SanitizeMessage(message);
 
         AddEntry(entry);
@@ -105,9 +117,16 @@ public partial class ErrorLogger : IErrorLogger
     }
 
     /// <inheritdoc />
-    public void LogWarning(string message, string? context = null, ErrorCategory category = ErrorCategory.Unknown, string? code = null)
+    public void LogWarning(
+        string message,
+        string? context = null,
+        ErrorCategory category = ErrorCategory.Unknown,
+        string? code = null,
+        [CallerFilePath] string callerFile = "",
+        [CallerLineNumber] int callerLine = 0,
+        [CallerMemberName] string callerMember = "")
     {
-        var entry = CreateLogEntry(LogLevel.Warning, category, context);
+        var entry = CreateLogEntry(LogLevel.Warning, category, context, callerFile, callerLine, callerMember);
         entry.Message = SanitizeMessage(message);
         entry.ErrorCode = code;
 
@@ -221,6 +240,53 @@ public partial class ErrorLogger : IErrorLogger
         {
             _ = TelemetryManager.TrackErrorAsync(entry);
         }
+    }
+
+    /// <summary>
+    /// First frame that knows its file and line, or frame 0 when none do, which is the
+    /// usual case: released builds ship without PDBs.
+    /// </summary>
+    private static StackFrame? FirstLocatableFrame(StackTrace stackTrace)
+    {
+        for (int i = 0; i < stackTrace.FrameCount; i++)
+        {
+            StackFrame? candidate = stackTrace.GetFrame(i);
+            if (candidate?.GetFileName() != null && candidate.GetFileLineNumber() > 0)
+            {
+                return candidate;
+            }
+        }
+
+        return stackTrace.FrameCount > 0 ? stackTrace.GetFrame(0) : null;
+    }
+
+    /// <summary>
+    /// Names a frame's method, unwrapping the generated &lt;SendInvoiceAsync&gt;d__12 type
+    /// an async method compiles to. Without this every async failure reports "MoveNext".
+    /// </summary>
+    private static string? DescribeMethod(StackFrame frame)
+    {
+        var method = frame.GetMethod();
+        if (method == null)
+        {
+            return null;
+        }
+
+        var declaring = method.DeclaringType;
+        if (declaring == null)
+        {
+            return method.Name;
+        }
+
+        if (declaring.Name.StartsWith('<'))
+        {
+            int close = declaring.Name.IndexOf('>');
+            string inner = close > 1 ? declaring.Name[1..close] : declaring.Name;
+            string? owner = declaring.DeclaringType?.Name;
+            return owner != null ? $"{owner}.{inner}" : inner;
+        }
+
+        return $"{declaring.Name}.{method.Name}";
     }
 
     private static string SanitizeMessage(string? message)

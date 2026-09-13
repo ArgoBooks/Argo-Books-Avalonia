@@ -216,7 +216,10 @@ public class TelemetryUploadService : ITelemetryUploadService
     /// Same shape for both free and premium tiers. Fields not present here cannot
     /// leak to the wire by construction.
     /// Forbidden fields: userAgent, geoLocation.city, geoLocation.hashedIp,
-    /// FeatureUsageEvent.context, ApiUsageEvent.model, ApiUsageEvent.tokensUsed.
+    /// ApiUsageEvent.model, ApiUsageEvent.tokensUsed.
+    /// FeatureUsageEvent.context is sent: every value is a literal we wrote ("mapping",
+    /// "timeout") or a page name, never anything read out of a company file, and it is
+    /// what makes an event say which step failed rather than only that one did.
     /// ErrorEvent.message is sent scrubbed rather than withheld, since a warning's code
     /// alone rarely says what happened; see the note at the field itself for what that
     /// scrubbing does and does not cover.
@@ -258,6 +261,11 @@ public class TelemetryUploadService : ITelemetryUploadService
             dataType = "Session",
             action = s.Action.ToString(),
             durationSeconds = s.DurationSeconds,
+            activeSeconds = s.ActiveSeconds,
+            lastPage = s.LastPage,
+            // Without this a recovered unclean end is indistinguishable from the clean one
+            // for the same run, and the pair reads as a duplicate.
+            clean = s.Clean,
         },
         FeatureUsageEvent f => new
         {
@@ -266,6 +274,33 @@ public class TelemetryUploadService : ITelemetryUploadService
             dataType = "FeatureUsage",
             featureName = f.FeatureName.ToString(),
             durationMs = f.DurationMs,
+            context = f.Context,
+        },
+        PageViewEvent page => new
+        {
+            dataId = page.DataId,
+            timestamp = page.Timestamp,
+            dataType = "PageView",
+            pageName = page.PageName,
+            activeSeconds = page.ActiveSeconds,
+            durationSeconds = page.DurationSeconds,
+        },
+        CompanyScaleEvent scale => new
+        {
+            dataId = scale.DataId,
+            timestamp = scale.Timestamp,
+            dataType = "CompanyScale",
+            expenses = scale.Expenses,
+            revenues = scale.Revenues,
+            invoices = scale.Invoices,
+            payments = scale.Payments,
+            customers = scale.Customers,
+            suppliers = scale.Suppliers,
+            products = scale.Products,
+            categories = scale.Categories,
+            receipts = scale.Receipts,
+            employees = scale.Employees,
+            bankLines = scale.BankLines,
         },
         ErrorEvent err => new
         {
@@ -282,12 +317,13 @@ public class TelemetryUploadService : ITelemetryUploadService
             // It does not strip file names: a message naming D:\Books\Acme.argo, or
             // C:\Users\<user>\Books\Acme.argo, arrives with Acme.argo intact, and
             // customers name company files after the business. Every uploaded Error
-            // carries a message, not just the warnings this was added for.
+            // carries a message.
             // Warnings need it: their code alone rarely says what actually happened.
             message = err.Message,
             sourceFile = err.SourceFile,
             lineNumber = err.LineNumber,
             methodName = err.MethodName,
+            context = err.Context,
         },
         ExportEvent ex => new
         {
@@ -325,6 +361,8 @@ public class TelemetryUploadService : ITelemetryUploadService
             timestamp = startup.Timestamp,
             dataType = "Startup",
             toFirstPaintMs = startup.ToFirstPaintMs,
+            toServicesReadyMs = startup.ToServicesReadyMs,
+            toViewModelsReadyMs = startup.ToViewModelsReadyMs,
             toReadyMs = startup.ToReadyMs,
             coldStart = startup.ColdStart,
         },

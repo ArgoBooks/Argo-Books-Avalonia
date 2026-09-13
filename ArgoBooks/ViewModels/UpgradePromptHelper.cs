@@ -1,6 +1,6 @@
 using ArgoBooks.Core.Enums;
-using ArgoBooks.Core.Models.Telemetry;
 using ArgoBooks.Localization;
+using ArgoBooks.Shared.Telemetry;
 
 namespace ArgoBooks.ViewModels;
 

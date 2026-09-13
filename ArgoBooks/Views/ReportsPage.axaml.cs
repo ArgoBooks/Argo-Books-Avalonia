@@ -33,7 +33,7 @@ public partial class ReportsPage : UserControl
     // Element panel collapse animation
     private Border? _elementToolbox;
 
-    // Preview zoom level (managed here since we're not using binding anymore)
+    // Preview zoom level
     private double _previewZoomLevel = 1.0;
 
     // Rubberband overscroll effect for preview
@@ -829,7 +829,9 @@ public partial class ReportsPage : UserControl
                 e.Handled = true;
                 break;
 
-            case Key.S when e.KeyModifiers.HasCommand():
+            // Shift is left to the app-wide Save As, which runs only if this page has not
+            // already taken the key.
+            case Key.S when e.KeyModifiers.HasCommand() && !e.KeyModifiers.HasFlag(KeyModifiers.Shift):
                 vm.OpenSaveTemplateCommand.Execute(null);
                 e.Handled = true;
                 break;

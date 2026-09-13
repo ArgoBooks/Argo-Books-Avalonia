@@ -1,6 +1,5 @@
 using System.Net.Http.Json;
 using System.Runtime.InteropServices;
-using ArgoBooks.Core.Models.Telemetry;
 using ArgoBooks.Core.Platform;
 
 namespace ArgoBooks.Core.Services;

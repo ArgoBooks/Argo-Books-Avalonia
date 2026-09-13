@@ -1,12 +1,6 @@
-using System;
-using System.Collections.ObjectModel;
-using System.Globalization;
-using System.Threading.Tasks;
 using ArgoBooks.Core.Services;
 using ArgoBooks.Core.Services.Sync;
 using ArgoBooks.Shared.Mobile;
-using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
 
 namespace ArgoBooks.Mobile.ViewModels;
 
@@ -16,9 +10,8 @@ namespace ArgoBooks.Mobile.ViewModels;
 /// per-line-item products already auto-suggested from the active company's snapshot - and lets the
 /// user edit the Expense/Revenue toggle, supplier/customer, date, total/tax, and each line item's
 /// product (via a picker sheet). Line-item rows themselves (description/qty/price) are read-only;
-/// only the product chip is editable, per the brief. "Add to my books" builds the final
-/// <see cref="CapturedTransaction"/> and hands it to <see cref="_onConfirm"/> - a placeholder until
-/// Task 5 wires up encrypt+push to the sync queue.
+/// only the product chip is editable. "Add to my books" builds the final
+/// <see cref="CapturedTransaction"/> and hands it to <see cref="_onConfirm"/>.
 /// </summary>
 public partial class ReviewViewModel : ViewModelBase
 {

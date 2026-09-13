@@ -1074,7 +1074,7 @@ public class SummaryReportElement : ReportElementBase
 }
 
 /// <summary>
-/// Accounting table element for structured financial reports (Balance Sheet, P&L, etc.).
+/// Accounting table element for structured financial reports (Balance Sheet, P&amp;L, etc.).
 /// </summary>
 public class AccountingTableReportElement : ReportElementBase
 {

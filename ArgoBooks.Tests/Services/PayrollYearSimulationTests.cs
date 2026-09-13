@@ -1,6 +1,5 @@
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Models.Payroll;
-using ArgoBooks.Core.Models.Transactions;
 using ArgoBooks.Core.Services;
 using Xunit;
 

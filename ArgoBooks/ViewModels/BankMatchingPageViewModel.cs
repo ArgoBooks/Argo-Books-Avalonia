@@ -4,11 +4,11 @@ using ArgoBooks.Core;
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.BankMatching;
-using ArgoBooks.Core.Models.Telemetry;
 using ArgoBooks.Core.Services;
 using ArgoBooks.Helpers;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
+using ArgoBooks.Shared.Telemetry;
 using ArgoBooks.Utilities;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -681,17 +681,98 @@ public partial class BankMatchingPageViewModel : SortablePageViewModelBase
         var line = row.Line;
 
         var before = CaptureMatchState(line);
-        _matcher.ConfirmMatch(line, candidate, data);
+        if (!_matcher.ConfirmMatch(line, candidate, data))
+        {
+            DropRecordFromCandidates(candidate.RecordType, candidate.RecordId);
+            RefreshAfterMatchChange(line);
+            _ = App.ShowInfoMessageBoxAsync(
+                "Bank Matching".Translate(),
+                "That record is already matched to another bank line.".Translate());
+            return;
+        }
+
         _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.BankMatchConfirmed);
         _candidatesByLineId.Remove(line.Id);
+        var othersBefore = CaptureLinesOffering(candidate.RecordType, candidate.RecordId);
+        DropRecordFromCandidates(candidate.RecordType, candidate.RecordId);
         var after = CaptureMatchState(line);
 
         App.UndoRedoManager.RecordAction(new DelegateAction(
             "Match bank line".Translate(),
-            () => { RestoreMatchState(line, before, data); RefreshAfterMatchChange(line); },
-            () => { RestoreMatchState(line, after, data); RefreshAfterMatchChange(line); }));
+            () =>
+            {
+                RestoreMatchState(line, before, data);
+                RestoreLinesOffering(othersBefore);
+                RefreshAfterMatchChange(line);
+            },
+            () =>
+            {
+                RestoreMatchState(line, after, data);
+                DropRecordFromCandidates(candidate.RecordType, candidate.RecordId);
+                RefreshAfterMatchChange(line);
+            }));
 
         RefreshAfterMatchChange(line);
+    }
+
+    /// <summary>The unmatched lines suggesting a record, captured so undoing its match can give it back to them.</summary>
+    private List<OfferingLine> CaptureLinesOffering(BookRecordType type, string id)
+    {
+        var captured = new List<OfferingLine>();
+        foreach (var (lineId, list) in _candidatesByLineId)
+        {
+            if (!list.Any(c => c.RecordType == type && c.RecordId == id)) continue;
+            var row = _allRows.FirstOrDefault(r => r.Line.Id == lineId);
+            if (row != null && row.Line.MatchStatus != BankLineMatchStatus.Matched)
+                captured.Add(new OfferingLine(row, row.Line.MatchStatus, new List<BankMatchCandidate>(list)));
+        }
+        return captured;
+    }
+
+    private void RestoreLinesOffering(List<OfferingLine> captured)
+    {
+        foreach (var (row, status, candidates) in captured)
+        {
+            if (row.Line.MatchStatus == BankLineMatchStatus.Matched) continue;
+            _candidatesByLineId[row.Line.Id] = candidates;
+            row.Line.MatchStatus = status;
+            row.TopCandidate = candidates.FirstOrDefault();
+            row.Refresh(null);
+        }
+    }
+
+    private sealed record OfferingLine(BankLineRow Row, BankLineMatchStatus Status, List<BankMatchCandidate> Candidates);
+
+    /// <summary>
+    /// Takes a record out of every line's suggestions once it is matched, so no other line can offer
+    /// it. A line left with no suggestions drops back to Unmatched.
+    /// </summary>
+    private void DropRecordFromCandidates(BookRecordType type, string id)
+    {
+        foreach (var (lineId, list) in _candidatesByLineId.ToList())
+        {
+            if (!list.Any(c => c.RecordType == type && c.RecordId == id)) continue;
+
+            // Replaced rather than edited in place: a restored undo snapshot's list is the live one.
+            var kept = list.Where(c => c.RecordType != type || c.RecordId != id).ToList();
+            var row = _allRows.FirstOrDefault(r => r.Line.Id == lineId);
+            if (kept.Count > 0)
+            {
+                _candidatesByLineId[lineId] = kept;
+            }
+            else
+            {
+                _candidatesByLineId.Remove(lineId);
+                if (row?.Line.MatchStatus == BankLineMatchStatus.Suggested)
+                    row.Line.MatchStatus = BankLineMatchStatus.Unmatched;
+            }
+
+            if (row != null && row.Line.MatchStatus != BankLineMatchStatus.Matched)
+            {
+                row.TopCandidate = kept.FirstOrDefault();
+                row.Refresh(null);
+            }
+        }
     }
 
     /// <summary>Captures a line's match state (and any suggestions) so it can be restored by undo/redo.</summary>
@@ -715,13 +796,21 @@ public partial class BankMatchingPageViewModel : SortablePageViewModelBase
         // Re-establish the previously matched record's flag and the line's match fields.
         if (s.MatchedType is { } type && s.MatchedId is { } id)
         {
-            _matcher.ConfirmMatch(line, new BankMatchCandidate
+            var relinked = _matcher.ConfirmMatch(line, new BankMatchCandidate
             {
                 LineId = line.Id,
                 RecordType = type,
                 RecordId = id,
                 Confidence = s.Confidence
             }, data);
+
+            // Another line took the record in the meantime, so this one stays unmatched.
+            if (!relinked)
+            {
+                _candidatesByLineId.Remove(line.Id);
+                return;
+            }
+
             line.MatchedDate = s.MatchedDate; // keep the original timestamp, not "now"
         }
 

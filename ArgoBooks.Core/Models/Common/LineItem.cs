@@ -58,7 +58,15 @@ public class LineItem
     /// Calculated subtotal (quantity * unitPrice - discount).
     /// </summary>
     [JsonIgnore]
-    public decimal Subtotal => Math.Round(Math.Max(0, (Quantity * UnitPrice) - Discount), 2);
+    public decimal Subtotal => SubtotalOf(Quantity, UnitPrice, Discount);
+
+    /// <summary>
+    /// The line-subtotal formula on its own, for the invoice form's line rows, which hold the same
+    /// three numbers in nullable fields. A discount bigger than the line zeroes it rather than
+    /// turning the line, and everything summed from it, negative.
+    /// </summary>
+    public static decimal SubtotalOf(decimal quantity, decimal unitPrice, decimal discount) =>
+        Math.Round(Math.Max(0, (quantity * unitPrice) - discount), 2);
 
     /// <summary>
     /// Calculated tax amount.

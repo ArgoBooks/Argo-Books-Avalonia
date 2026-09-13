@@ -298,8 +298,6 @@ public partial class Header : UserControl
         set => SetValue(OpenSettingsCommandProperty, value);
     }
 
-    /// <summary>
-    /// Gets or sets the open user menu command.
     #endregion
 
     private TextBlock? _asterisk;

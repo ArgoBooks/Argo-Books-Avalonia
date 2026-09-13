@@ -97,6 +97,59 @@ public class PendingConversionServiceTests
         Assert.Equal(0m, invoice.BalanceUSD);
     }
 
+    /// <summary>
+    /// The service keeps its own queue, and processing converts whatever amount that queue holds.
+    /// A row corrected in the company file has to replace the service's copy, or the old amount
+    /// is what gets converted.
+    /// </summary>
+    [Fact]
+    public async Task MirrorAsync_StaleQueuedAmount_IsReplacedBeforeItConverts()
+    {
+        var date = DateTime.Today.AddMonths(-2);
+        var ex = new ExchangeRateService(new MockPlatform(), new HttpClient(new AlwaysEurHandler(0.9m)));
+        var data = new CompanyData();
+        var expense = new Expense { Id = "E1", Total = 2200m, OriginalCurrency = "EUR", Date = date, IsPendingConversion = true };
+        data.Expenses.Add(expense);
+
+        var svc = new PendingConversionService(new MockPlatform(), exchangeRateService: ex);
+        await svc.AddPendingConversionAsync(Row("E1", 2000m, date));
+        data.PendingConversions.Add(Row("E1", 2200m, date));
+
+        await svc.MirrorAsync(data, ["E1"]);
+        await svc.ProcessPendingConversionsAsync(data);
+
+        var rate = await ex.GetExchangeRateAsync("EUR", "USD", date);
+        Assert.Equal(2200m * rate, expense.TotalUSD);
+    }
+
+    /// <summary>Processing does not check the row is still wanted, so one left behind overwrites.</summary>
+    [Fact]
+    public async Task MirrorAsync_RowTheCompanyNoLongerQueues_IsForgotten()
+    {
+        var date = DateTime.Today.AddMonths(-2);
+        var ex = new ExchangeRateService(new MockPlatform(), new HttpClient(new AlwaysEurHandler(0.9m)));
+        var data = new CompanyData();
+        var expense = new Expense { Id = "E1", Total = 2200m, OriginalCurrency = "EUR", Date = date, TotalUSD = 1980m };
+        data.Expenses.Add(expense);
+
+        var svc = new PendingConversionService(new MockPlatform(), exchangeRateService: ex);
+        await svc.AddPendingConversionAsync(Row("E1", 2000m, date));
+
+        await svc.MirrorAsync(data, ["E1"]);
+        await svc.ProcessPendingConversionsAsync(data);
+
+        Assert.Equal(1980m, expense.TotalUSD);
+    }
+
+    private static PendingConversion Row(string id, decimal total, DateTime date) => new()
+    {
+        TransactionId = id,
+        TransactionType = "Expense",
+        OriginalCurrency = "EUR",
+        TransactionDate = date,
+        Total = total
+    };
+
     private sealed class AlwaysEurHandler(decimal usdToEur) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)

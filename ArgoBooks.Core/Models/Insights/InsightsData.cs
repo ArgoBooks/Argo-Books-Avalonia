@@ -1,4 +1,5 @@
 using ArgoBooks.Core.Enums;
+using ArgoBooks.Core.Models.Reports;
 
 namespace ArgoBooks.Core.Models.Insights;
 
@@ -399,21 +400,22 @@ public class AnalysisDateRange
     }
 
     /// <summary>
+    /// The range a date preset covers, keeping the preset's name so trends compare it against the
+    /// same period the dashboard does.
+    /// </summary>
+    public static AnalysisDateRange FromPreset(string presetName, DateTime? earliestDate = null)
+    {
+        var (start, end) = DatePresetNames.GetDateRange(presetName, earliestDate);
+        return new AnalysisDateRange
+        {
+            StartDate = start,
+            EndDate = end,
+            PresetName = presetName
+        };
+    }
+
+    /// <summary>
     /// Gets the number of days in this range.
     /// </summary>
     public int DayCount => (EndDate - StartDate).Days + 1;
-
-    /// <summary>
-    /// Gets the previous period of the same length for comparison.
-    /// </summary>
-    public AnalysisDateRange GetPreviousPeriod()
-    {
-        var days = DayCount;
-        return new AnalysisDateRange
-        {
-            StartDate = StartDate.AddDays(-days),
-            EndDate = StartDate.AddDays(-1),
-            PresetName = "Previous Period"
-        };
-    }
 }

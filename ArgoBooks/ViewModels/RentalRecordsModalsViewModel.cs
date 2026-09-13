@@ -3,12 +3,15 @@ using ArgoBooks.Services;
 using System.Collections.ObjectModel;
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
+using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Models.Inventory;
 using ArgoBooks.Core.Models.Rentals;
+using ArgoBooks.Core.Models.Transactions;
+using ArgoBooks.Core.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-
 using ArgoBooks.Core.Models.Telemetry;
+using ArgoBooks.Shared.Telemetry;
 
 namespace ArgoBooks.ViewModels;
 
@@ -441,6 +444,7 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
         var inventoryChanges = new List<(InventoryItem InvItem, int OldInStock, int QtyChange)>();
 
         var hasAvailabilityIssue = false;
+        var requestedByInvItem = new Dictionary<string, int>();
         foreach (var li in RentalLineItems)
         {
             if (li.SelectedItem == null)
@@ -455,12 +459,14 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
             var inventoryItem = rentalItem != null
                 ? companyData.Inventory.FirstOrDefault(inv => inv.Id == rentalItem.InventoryItemId)
                 : null;
-            if (rentalItem == null || inventoryItem == null || inventoryItem.InStock < rentQty)
+            var alreadyRequested = inventoryItem != null ? requestedByInvItem.GetValueOrDefault(inventoryItem.Id) : 0;
+            if (rentalItem == null || inventoryItem == null || inventoryItem.InStock - alreadyRequested < rentQty)
             {
-                li.QuantityError = inventoryItem == null ? "Item not found." : $"Only {inventoryItem.InStock} available.";
+                li.QuantityError = inventoryItem == null ? "Item not found." : $"Only {Math.Max(0, inventoryItem.InStock - alreadyRequested)} available.";
                 hasAvailabilityIssue = true;
                 continue;
             }
+            requestedByInvItem[inventoryItem.Id] = alreadyRequested + rentQty;
 
             lineItems.Add(new RentalLineItem
             {
@@ -517,6 +523,7 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
             invItem.InStock -= qtyChange;
             invItem.Status = invItem.CalculateStatus();
             invItem.LastUpdated = DateTime.UtcNow;
+            App.CheckAndNotifyStockStatus(invItem, previousStock);
 
             companyData.IdCounters.StockAdjustment++;
             var adj = new StockAdjustment
@@ -564,9 +571,11 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
                 companyData.Rentals.Add(recordToUndo);
                 foreach (var (invItem, _, qtyChange) in invChanges)
                 {
+                    var stockBeforeRedo = invItem.InStock;
                     invItem.InStock -= qtyChange;
                     invItem.Status = invItem.CalculateStatus();
                     invItem.LastUpdated = DateTime.UtcNow;
+                    App.CheckAndNotifyStockStatus(invItem, stockBeforeRedo);
                 }
                 foreach (var adj in savedAdjustments)
                     companyData.StockAdjustments.Add(adj);
@@ -717,8 +726,9 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
             });
         }
 
-        // Calculate inventory changes via InventoryItem.InStock
-        var effectiveOldLineItems = oldLineItems.Count > 0 ? oldLineItems : _editingRecord.LineItems;
+        // Calculate inventory changes via InventoryItem.InStock. A "Rent Out" record has no line
+        // items, so the units it has out come from its top-level fields.
+        var effectiveOldLineItems = GetEffectiveLineItems(_editingRecord);
 
         // Compute net quantity diff per InventoryItem
         var oldQtyByInvItem = new Dictionary<string, int>();
@@ -775,6 +785,7 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
             invItem.InStock -= netDiff;
             invItem.Status = invItem.CalculateStatus();
             invItem.LastUpdated = DateTime.UtcNow;
+            App.CheckAndNotifyStockStatus(invItem, previousStock);
 
             companyData.IdCounters.StockAdjustment++;
             var adj = new StockAdjustment
@@ -844,9 +855,11 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
                     var invItem = companyData.Inventory.FirstOrDefault(i => i.Id == id);
                     if (invItem != null)
                     {
+                        var stockBeforeUndo = invItem.InStock;
                         invItem.InStock = oldStock;
                         invItem.Status = invItem.CalculateStatus();
                         invItem.LastUpdated = DateTime.UtcNow;
+                        App.CheckAndNotifyStockStatus(invItem, stockBeforeUndo);
                     }
                 }
                 foreach (var adj in savedEditAdjustments)
@@ -878,9 +891,11 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
                     var newQ = newQtyByInvItem.GetValueOrDefault(invItemId);
                     var netDiff = newQ - oldQ;
                     if (netDiff == 0) continue;
+                    var stockBeforeRedo = invItem.InStock;
                     invItem.InStock -= netDiff;
                     invItem.Status = invItem.CalculateStatus();
                     invItem.LastUpdated = DateTime.UtcNow;
+                    App.CheckAndNotifyStockStatus(invItem, stockBeforeRedo);
                 }
                 foreach (var adj in savedEditAdjustments)
                     companyData.StockAdjustments.Add(adj);
@@ -988,9 +1003,11 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
                                 var invItem = companyData.Inventory.FirstOrDefault(i => i.Id == id);
                                 if (invItem != null)
                                 {
+                                    var stockBeforeUndo = invItem.InStock;
                                     invItem.InStock = oldStock;
                                     invItem.Status = invItem.CalculateStatus();
                                     invItem.LastUpdated = DateTime.UtcNow;
+                                    App.CheckAndNotifyStockStatus(invItem, stockBeforeUndo);
                                 }
                             }
                             foreach (var adj in savedDeleteAdjustments)
@@ -1060,24 +1077,36 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
         ReturnMarkAsPaid = false;
         ReturnNotes = string.Empty;
 
-        // Calculate total cost from all line items
-        var days = ((ReturnDate?.DateTime ?? DateTime.Today) - rentalRecord.StartDate).Days;
-        if (days < 1) days = 1;
-
-        var effectiveItems = GetEffectiveLineItems(rentalRecord);
-        ReturnTotalCost = effectiveItems.Sum(li => li.RateType switch
-        {
-            RateType.Daily => li.RateAmount * days * li.Quantity,
-            RateType.Weekly => li.RateAmount * (decimal)Math.Ceiling(days / 7.0) * li.Quantity,
-            RateType.Monthly => li.RateAmount * (decimal)Math.Ceiling(days / 30.0) * li.Quantity,
-            _ => 0
-        });
+        ReturnTotalCost = CalculateReturnCost(rentalRecord, ReturnDate?.DateTime ?? DateTime.Today);
 
         OnPropertyChanged(nameof(ReturnRateFormatted));
         OnPropertyChanged(nameof(ReturnTotalCostFormatted));
         OnPropertyChanged(nameof(ReturnDepositFormatted));
         OnPropertyChanged(nameof(HasDeposit));
         IsReturnModalOpen = true;
+    }
+
+    partial void OnReturnDateChanged(DateTimeOffset? value)
+    {
+        if (_returningRecord == null)
+            return;
+
+        ReturnTotalCost = CalculateReturnCost(_returningRecord, value?.DateTime ?? DateTime.Today);
+        OnPropertyChanged(nameof(ReturnTotalCostFormatted));
+    }
+
+    private static decimal CalculateReturnCost(RentalRecord record, DateTime returnDate)
+    {
+        var days = (returnDate - record.StartDate).Days;
+        if (days < 1) days = 1;
+
+        return GetEffectiveLineItems(record).Sum(li => li.RateType switch
+        {
+            RateType.Daily => li.RateAmount * days * li.Quantity,
+            RateType.Weekly => li.RateAmount * (decimal)Math.Ceiling(days / 7.0) * li.Quantity,
+            RateType.Monthly => li.RateAmount * (decimal)Math.Ceiling(days / 30.0) * li.Quantity,
+            _ => 0
+        });
     }
 
     [RelayCommand]
@@ -1117,6 +1146,12 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
                 : $"{_returningRecord.Notes}\n\nReturn notes: {ReturnNotes.Trim()}";
         }
         _returningRecord.UpdatedAt = DateTime.UtcNow;
+
+        var keptDeposit = ReturnRefundDeposit
+            ? null
+            : CreateKeptDepositRevenue(_returningRecord, companyData, _returningRecord.ReturnDate ?? DateTime.Now);
+        if (keptDeposit != null)
+            AddKeptDeposit(companyData, keptDeposit);
 
         // Update inventory for all line items via InventoryItem.InStock
         var returnInvSnapshot = new Dictionary<string, int>();
@@ -1178,14 +1213,18 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
                 recordToReturn.DepositRefunded = oldDepositRefunded;
                 recordToReturn.Paid = oldPaid;
                 recordToReturn.Notes = oldNotes;
+                if (keptDeposit != null)
+                    RemoveKeptDeposit(companyData, keptDeposit);
                 foreach (var (id, oldStock) in savedReturnInvSnapshot)
                 {
                     var invItem = companyData.Inventory.FirstOrDefault(i => i.Id == id);
                     if (invItem != null)
                     {
+                        var stockBeforeUndo = invItem.InStock;
                         invItem.InStock = oldStock;
                         invItem.Status = invItem.CalculateStatus();
                         invItem.LastUpdated = DateTime.UtcNow;
+                        App.CheckAndNotifyStockStatus(invItem, stockBeforeUndo);
                     }
                 }
                 foreach (var adj in savedReturnAdjustments)
@@ -1201,6 +1240,8 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
                 recordToReturn.DepositRefunded = newDepositRefunded;
                 recordToReturn.Paid = newPaid;
                 recordToReturn.Notes = newNotes;
+                if (keptDeposit != null)
+                    AddKeptDeposit(companyData, keptDeposit);
                 var returnItems = GetEffectiveLineItems(recordToReturn);
                 foreach (var li in returnItems)
                 {
@@ -1221,6 +1262,80 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
 
         RecordReturned?.Invoke(this, EventArgs.Empty);
         CloseReturnModal();
+    }
+
+    /// <summary>
+    /// A deposit the business keeps is earned, so it becomes revenue on the day the rental comes back
+    /// (docs/Calculations.md §4). Only a deposit billed on an invoice is in the books, so a rental with
+    /// no invoice has nothing to move. Priced at the invoice's rate, as the invoice's refunds are.
+    /// </summary>
+    private static Revenue? CreateKeptDepositRevenue(RentalRecord rental, CompanyData companyData, DateTime date)
+    {
+        var invoice = rental.InvoiceIds
+            .Select(companyData.GetInvoice)
+            .OfType<Invoice>()
+            .Where(i => i.SecurityDeposit > 0)
+            .OrderBy(i => i.IssueDate)
+            .FirstOrDefault();
+        if (invoice == null)
+            return null;
+
+        var amount = Math.Min(rental.SecurityDeposit,
+            SecurityDeposits.StillHeld(invoice, companyData.Payments, companyData.Revenues));
+        if (amount <= 0)
+            return null;
+
+        companyData.IdCounters.Revenue++;
+        return new Revenue
+        {
+            Id = $"REV-{DateTime.Now:yyyy}-{companyData.IdCounters.Revenue:D5}",
+            Date = date,
+            CustomerId = invoice.CustomerId,
+            Description = $"Kept security deposit, rental {rental.Id}",
+            Quantity = 1,
+            UnitPrice = amount,
+            Subtotal = amount,
+            Amount = amount,
+            Total = amount,
+            PaymentMethod = PaymentMethod.Other,
+            PaymentStatus = InvoiceTotalsService.IsPaidInFull(invoice) ? RevenuePaymentStatus.Paid : RevenuePaymentStatus.Unpaid,
+            InvoiceId = invoice.Id,
+            ReferenceNumber = invoice.InvoiceNumber,
+            IsKeptDeposit = true,
+            OriginalCurrency = invoice.OriginalCurrency,
+            TotalUSD = invoice.Total > 0 ? invoice.EffectiveTotalUSD * amount / invoice.Total : 0,
+            IsPendingConversion = invoice.IsPendingConversion,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+    }
+
+    private static void AddKeptDeposit(CompanyData companyData, Revenue revenue)
+    {
+        companyData.Revenues.Add(revenue);
+        if (!revenue.IsPendingConversion)
+            return;
+
+        // Dated on the return, but the money came in with the invoice, so it waits for the invoice's rate.
+        var entry = new PendingConversion
+        {
+            TransactionId = revenue.Id,
+            TransactionType = "Revenue",
+            OriginalCurrency = revenue.OriginalCurrency,
+            TransactionDate = companyData.GetInvoice(revenue.InvoiceId ?? "")?.IssueDate ?? revenue.Date,
+            Total = revenue.Total,
+            UnitPrice = revenue.UnitPrice
+        };
+        companyData.PendingConversions.RemoveAll(p => p.TransactionId == revenue.Id);
+        companyData.PendingConversions.Add(entry);
+        _ = PendingConversionService.Instance?.AddPendingConversionAsync(entry);
+    }
+
+    private static void RemoveKeptDeposit(CompanyData companyData, Revenue revenue)
+    {
+        companyData.Revenues.Remove(revenue);
+        if (companyData.PendingConversions.RemoveAll(p => p.TransactionId == revenue.Id) > 0)
+            _ = PendingConversionService.Instance?.ForgetAsync([revenue.Id]);
     }
 
     #endregion
@@ -1490,6 +1605,7 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
         }
 
         var companyData = App.CompanyManager?.CompanyData;
+        var requestedByInvItem = new Dictionary<string, int>();
 
         foreach (var li in RentalLineItems)
         {
@@ -1516,10 +1632,18 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
                     li.QuantityError = "Item not found in inventory.".Translate();
                     isValid = false;
                 }
-                else if (qty > inventoryItem.InStock)
+                else
                 {
-                    li.QuantityError = $"Only {inventoryItem.InStock} available.";
-                    isValid = false;
+                    // Lines renting the same item share one stock count, so each line can only take
+                    // what the lines above it left.
+                    var alreadyRequested = requestedByInvItem.GetValueOrDefault(inventoryItem.Id);
+                    requestedByInvItem[inventoryItem.Id] = alreadyRequested + qty;
+                    var available = Math.Max(0, inventoryItem.InStock - alreadyRequested);
+                    if (qty > available)
+                    {
+                        li.QuantityError = $"Only {available} available.";
+                        isValid = false;
+                    }
                 }
             }
         }

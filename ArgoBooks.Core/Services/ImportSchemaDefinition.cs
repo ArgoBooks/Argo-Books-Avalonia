@@ -168,7 +168,7 @@ public static class ImportSchemaDefinition
                 // Two different values. ID is what payments and line items point at; Invoice # is
                 // what the customer sees on the paperwork, and in this app it is the id with a
                 // hash in front. A sheet that only has Invoice # still works: the importer falls
-                // back to it for the id, which is what it always used to do.
+                // back to it for the id.
                 new("ID", "string", "Unique identifier (e.g., INV-2024-00001)", JsonName: "id"),
                 new("Invoice #", "string", "Invoice number shown on the invoice (e.g., #INV-2024-00001). Used as the identifier when there is no ID column", Required: true, JsonName: "invoiceNumber"),
                 new("Customer ID", "string", "Customer identifier", Required: true, JsonName: "customerId"),
@@ -205,6 +205,7 @@ public static class ImportSchemaDefinition
                 new("ID", "string", "Unique identifier (e.g., SAL-001)", Required: true, JsonName: "id"),
                 new("Date", "datetime", "Transaction date", Required: true, JsonName: "date"),
                 new("Customer ID", "string", "Customer identifier", JsonName: "customerId"),
+                new("Invoice ID", "string", "Invoice this revenue was collected on, if any", JsonName: "invoiceId"),
                 new("Product", "string", "Product or description of sale", JsonName: "description"),
                 new("Description", "string", "Description (alternative to Product)", JsonName: "description"),
                 new("Quantity", "decimal", "Number of units. Map a separate quantity/qty column when present; leave unmapped (defaults to 1) when each row is a single line amount", JsonName: "quantity"),
@@ -214,6 +215,7 @@ public static class ImportSchemaDefinition
                 new("Reference", "string", "External reference number", JsonName: "referenceNumber"),
                 new("Payment Status", "enum:Paid,Unpaid,Partial,Pending,Overdue", "Status of the payment", JsonName: "paymentStatus"),
                 new("Shipping", "decimal", "Cost of shipping", JsonName: "shippingCost"),
+                new("Kept Deposit", "bool", "True when the row is a rental security deposit the business kept", JsonName: "isKeptDeposit"),
                 new("Currency", "string", "ISO currency code the amounts are in (e.g., USD, EUR, GBP). Map when the sheet has a per-row currency column, OR when an amount cell itself contains a currency symbol or code (e.g. '£100', '$10 CAD'): output the ISO code, or the raw symbol if the code is unclear. Leave unmapped if all amounts are plainly in the company currency", JsonName: "originalCurrency"),
             ],
 
@@ -355,6 +357,8 @@ public static class ImportSchemaDefinition
                 new("Standard Hours Per Week", "decimal", "Contract hours in a normal week, for salaried staff only. Leave blank when unknown rather than entering zero", JsonName: "standardHoursPerWeek"),
                 new("Federal Claim Amount", "decimal", "Total claim amount from the federal TD1. Zero means none was filed", JsonName: "federalClaimAmount"),
                 new("Provincial Claim Amount", "decimal", "Total claim amount from the provincial or territorial TD1", JsonName: "provincialClaimAmount"),
+                new("Federal Claims Zero", "bool", "The federal TD1 claims nothing, as for a second job. Not the same as no TD1 on file", JsonName: "federalClaimIsZero"),
+                new("Provincial Claims Zero", "bool", "The provincial or territorial TD1 claims nothing. Not the same as no TD1 on file", JsonName: "provincialClaimIsZero"),
                 new("CPP Exempt", "bool", "Under 18, over 70, or already drawing a CPP retirement pension", JsonName: "isCppExempt"),
                 new("EI Exempt", "bool", "Typically an owner controlling more than 40% of the voting shares", JsonName: "isEiExempt"),
                 new("Dental Benefit", "enum:NotEligible,PayeeOnly,PayeeAndSpouse,PayeeAndChildren,PayeeSpouseAndChildren", "Box 45 on the T4: what dental coverage the employer offered", JsonName: "dentalBenefit"),

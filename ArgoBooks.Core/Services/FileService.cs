@@ -25,7 +25,7 @@ public class FileService(
     string? recoveryPublicKeyPem = null)
     : IFileService
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
+    internal static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -287,7 +287,7 @@ public class FileService(
         var cachedSettings = ReadSettingsFromDirectory(tempDirectory);
         var footer = new FileFooter
         {
-            Version = GetAppVersionFromDirectory(tempDirectory, cachedSettings),
+            Version = GetAppVersionFromDirectory(cachedSettings),
             FormatVersion = FileFormatConstants.FormatVersion,
             IsEncrypted = !string.IsNullOrEmpty(password),
             Salt = salt,
@@ -684,7 +684,7 @@ public class FileService(
         return settings?.Security.BiometricEnabled ?? false;
     }
 
-    private static string GetAppVersionFromDirectory(string tempDirectory, CompanySettings? settings = null)
+    private static string GetAppVersionFromDirectory(CompanySettings? settings = null)
     {
         if (!string.IsNullOrEmpty(settings?.AppVersion))
             return settings.AppVersion;

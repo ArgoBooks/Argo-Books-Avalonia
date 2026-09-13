@@ -23,8 +23,7 @@ public static class FilePickerTypes
     ///
     /// <para>
     /// The one place this is written down. The picker filters, the drag and drop validation,
-    /// the content type sent with a scan and the wording on screen are all derived from it,
-    /// because they were four separate lists and HEIC reached three of them.
+    /// the content type sent with a scan and the wording on screen are all derived from it.
     /// </para>
     /// </summary>
     private static readonly ReceiptFormat[] ReceiptFormats =
@@ -32,7 +31,6 @@ public static class FilePickerTypes
         new(".jpg", "image/jpeg", "JPEG", IsImage: true),
         new(".jpeg", "image/jpeg", "JPEG", IsImage: true),
         new(".png", "image/png", "PNG", IsImage: true),
-        // iPhones shoot HEIC by default, which is why it sits this high in the list.
         new(".heic", "image/heic", "HEIC", IsImage: true),
         new(".heif", "image/heif", "HEIC", IsImage: true),
         new(".webp", "image/webp", "WebP", IsImage: true),

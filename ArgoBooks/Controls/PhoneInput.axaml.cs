@@ -300,7 +300,9 @@ public partial class PhoneInput : UserControl, INotifyPropertyChanged
         else if (change.Property == PhoneNumberProperty && !_isUpdatingText)
         {
             _isUpdatingText = true;
-            _formattedPhoneNumber = FormatPhoneNumber(PhoneNumber);
+            // A bound value can arrive as typed, brackets and dashes included. Only the digits
+            // count toward the format's length; counted as they stood, they cut the number short.
+            _formattedPhoneNumber = FormatPhoneNumber(ExtractDigits(PhoneNumber));
             if (_phoneNumberBox != null)
                 _phoneNumberBox.Text = _formattedPhoneNumber;
             RaisePropertyChanged(nameof(FormattedPhoneNumber));

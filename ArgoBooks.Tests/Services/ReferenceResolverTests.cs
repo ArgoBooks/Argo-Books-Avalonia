@@ -8,7 +8,7 @@ public class ReferenceResolverTests
     [Fact]
     public void Resolve_NormalizedExactMatch_ReturnsId()
     {
-        var index = ReferenceResolver.BuildIndex(new[] { ("CUS-1", "Acme Ltd."), ("CUS-2", "Globex") });
+        var index = ReferenceResolver.BuildIndex([("CUS-1", "Acme Ltd."), ("CUS-2", "Globex")]);
         Assert.Equal("CUS-1", ReferenceResolver.Resolve("  acme  ltd ", index).MatchedId);
     }
 
@@ -18,7 +18,7 @@ public class ReferenceResolverTests
     [Fact]
     public void Resolve_ShortQueryAgainstMultipleLongerNames_ReturnsNoMatch()
     {
-        var index = ReferenceResolver.BuildIndex(new[] { ("S-1", "Smith Plumbing"), ("S-2", "Smith Electrical") });
+        var index = ReferenceResolver.BuildIndex([("S-1", "Smith Plumbing"), ("S-2", "Smith Electrical")]);
         var r = ReferenceResolver.Resolve("Smith", index);
         Assert.Null(r.MatchedId);
         Assert.False(r.IsAmbiguous);
@@ -30,7 +30,7 @@ public class ReferenceResolverTests
     public void Resolve_LongNameOneCharTypo_ReturnsId()
     {
         // "Acme Corporaton" (15 chars) vs "Acme Corporation" (16 chars): distance=1, ratio=15/16=0.9375
-        var index = ReferenceResolver.BuildIndex(new[] { ("CUS-1", "Acme Corporation"), ("CUS-2", "Globex") });
+        var index = ReferenceResolver.BuildIndex([("CUS-1", "Acme Corporation"), ("CUS-2", "Globex")]);
         var r = ReferenceResolver.Resolve("Acme Corporaton", index);
         Assert.Equal("CUS-1", r.MatchedId);
         Assert.False(r.IsAmbiguous);
@@ -41,7 +41,7 @@ public class ReferenceResolverTests
     [Fact]
     public void Resolve_SmallTypoInShortName_DoesNotMatch()
     {
-        var index = ReferenceResolver.BuildIndex(new[] { ("P-1", "janes") });
+        var index = ReferenceResolver.BuildIndex([("P-1", "janes")]);
         var r = ReferenceResolver.Resolve("jones", index);
         Assert.Null(r.MatchedId);
         Assert.False(r.IsAmbiguous);
@@ -52,7 +52,7 @@ public class ReferenceResolverTests
     [Fact]
     public void Resolve_PartialQueryAgainstLongerName_DoesNotMatch()
     {
-        var index = ReferenceResolver.BuildIndex(new[] { ("V-1", "Office Depot") });
+        var index = ReferenceResolver.BuildIndex([("V-1", "Office Depot")]);
         var r = ReferenceResolver.Resolve("office", index);
         Assert.Null(r.MatchedId);
         Assert.False(r.IsAmbiguous);
@@ -67,7 +67,7 @@ public class ReferenceResolverTests
     [Fact]
     public void Resolve_TwoNearlyEqualHighScoreCandidates_ReturnsAmbiguous()
     {
-        var index = ReferenceResolver.BuildIndex(new[] { ("C-1", "Acme Corp East"), ("C-2", "Acme Corp Wast") });
+        var index = ReferenceResolver.BuildIndex([("C-1", "Acme Corp East"), ("C-2", "Acme Corp Wast")]);
         var r = ReferenceResolver.Resolve("Acme Corp Xast", index);
         Assert.Null(r.MatchedId);
         Assert.True(r.IsAmbiguous);
@@ -76,7 +76,7 @@ public class ReferenceResolverTests
     [Fact]
     public void Resolve_NoMatch_ReturnsNullNotAmbiguous()
     {
-        var index = ReferenceResolver.BuildIndex(new[] { ("CUS-1", "Acme Ltd."), ("CUS-2", "Globex") });
+        var index = ReferenceResolver.BuildIndex([("CUS-1", "Acme Ltd."), ("CUS-2", "Globex")]);
         var r = ReferenceResolver.Resolve("Totally Different", index);
         Assert.Null(r.MatchedId);
         Assert.False(r.IsAmbiguous);
@@ -86,7 +86,7 @@ public class ReferenceResolverTests
     public void BuildIndex_NormalizesDuplicateNames_KeepsFirst()
     {
         // Two entities with names that normalize to the same key: only the first survives
-        var index = ReferenceResolver.BuildIndex(new[] { ("A-1", "Alpha Corp."), ("A-2", "Alpha Corp") });
+        var index = ReferenceResolver.BuildIndex([("A-1", "Alpha Corp."), ("A-2", "Alpha Corp")]);
         Assert.Single(index);
         Assert.True(index.ContainsKey("alpha corp"));
         Assert.Equal("A-1", index["alpha corp"]);
@@ -96,7 +96,7 @@ public class ReferenceResolverTests
     public void Resolve_ExactMatchWithTrailingPunctuation_ReturnsId()
     {
         // The name "Globex" is stored; query "Globex," (trailing comma) normalizes to "globex"
-        var index = ReferenceResolver.BuildIndex(new[] { ("CUS-2", "Globex") });
+        var index = ReferenceResolver.BuildIndex([("CUS-2", "Globex")]);
         Assert.Equal("CUS-2", ReferenceResolver.Resolve("Globex,", index).MatchedId);
     }
 }

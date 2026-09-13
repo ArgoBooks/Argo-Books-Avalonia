@@ -312,11 +312,23 @@ public class UndoRedoManager : ObservableObject, IUndoRedoManager
     }
 
     /// <summary>
+    /// The state a save starting now writes: the newest action, or null when there is none.
+    /// Pass it to <see cref="MarkSaved(IUndoableAction?)"/> once that save has finished.
+    /// </summary>
+    public IUndoableAction? SavePoint => _undoStack.Count > 0 ? _undoStack.Peek() : null;
+
+    /// <summary>
     /// Marks the current state as saved.
     /// </summary>
-    public void MarkSaved()
+    public void MarkSaved() => MarkSaved(SavePoint);
+
+    /// <summary>
+    /// Marks the state captured by <see cref="SavePoint"/> as saved, so an action recorded
+    /// while the save was writing still counts as unsaved.
+    /// </summary>
+    public void MarkSaved(IUndoableAction? savePoint)
     {
-        _savedState = _undoStack.Count > 0 ? _undoStack.Peek() : null;
+        _savedState = savePoint;
         OnStateChanged();
     }
 
@@ -391,30 +403,25 @@ public class PropertyChangeAction<T> : IUndoableAction
 /// A generic property change action that supports coalescing rapid changes.
 /// </summary>
 /// <typeparam name="T">Type of the property value.</typeparam>
-public class CoalescingPropertyChangeAction<T> : ICoalescingUndoableAction
+public class CoalescingPropertyChangeAction<T>(
+    string description,
+    string coalescingKey,
+    Action<T> setter,
+    T oldValue,
+    T newValue)
+    : ICoalescingUndoableAction
 {
-    private readonly Action<T> _setter;
-    private readonly T _oldValue;
-    private T _newValue;
+    private T _newValue = newValue;
 
     /// <summary>
     /// Gets the description of the property change.
     /// </summary>
-    public string Description { get; }
+    public string Description { get; } = description;
 
     /// <summary>
     /// Gets the coalescing key for this action.
     /// </summary>
-    public string CoalescingKey { get; }
-
-    public CoalescingPropertyChangeAction(string description, string coalescingKey, Action<T> setter, T oldValue, T newValue)
-    {
-        Description = description;
-        CoalescingKey = coalescingKey;
-        _setter = setter;
-        _oldValue = oldValue;
-        _newValue = newValue;
-    }
+    public string CoalescingKey { get; } = coalescingKey;
 
     /// <inheritdoc />
     public void UpdateToNewState(ICoalescingUndoableAction newerAction)
@@ -426,12 +433,12 @@ public class CoalescingPropertyChangeAction<T> : ICoalescingUndoableAction
     /// <summary>
     /// Undoes the property change.
     /// </summary>
-    public void Undo() => _setter(_oldValue);
+    public void Undo() => setter(oldValue);
 
     /// <summary>
     /// Redoes the property change.
     /// </summary>
-    public void Redo() => _setter(_newValue);
+    public void Redo() => setter(_newValue);
 }
 
 /// <summary>

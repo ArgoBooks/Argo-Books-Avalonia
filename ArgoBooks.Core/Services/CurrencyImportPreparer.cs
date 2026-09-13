@@ -65,7 +65,7 @@ public static class CurrencyImportPreparer
     public static CurrencyScanResult ScanWorkbook(string filePath, SpreadsheetAnalysisResult analysis)
     {
         var result = new CurrencyScanResult();
-        if (analysis is null || filePath.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+        if (filePath.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
             return result;
 
         // Aggregate ambiguous symbols across sheets (symbol -> count) so the user is asked once.
@@ -115,8 +115,6 @@ public static class CurrencyImportPreparer
         IReadOnlyList<string> mappedHeaders, IReadOnlyList<IReadOnlyList<object?>> rows)
     {
         var resolved = new Dictionary<int, string>();
-        if (mappedHeaders == null || rows == null)
-            return resolved;
 
         var amountCols = new List<int>(); // 0-based column indices
         int currencyCol = -1;
@@ -240,8 +238,7 @@ public static class CurrencyImportPreparer
                         // need to prompt and won't default to the wrong currency.
                         var byFormat = DisambiguateByDecimals(d.AmbiguousSymbol, text);
                         if (byFormat != null) { resolved = byFormat; break; }
-                        if (pendingSymbol == null)
-                            pendingSymbol = d.AmbiguousSymbol;
+                        pendingSymbol ??= d.AmbiguousSymbol;
                     }
                 }
             }
@@ -266,8 +263,6 @@ public static class CurrencyImportPreparer
     /// </summary>
     public static void ApplyResolution(CurrencyScanResult scan, IReadOnlyDictionary<string, string> symbolToCode)
     {
-        if (scan is null || symbolToCode is null) return;
-
         foreach (var (sheetName, rows) in scan.PendingAmbiguous)
         {
             foreach (var (ordinal, symbol) in rows)

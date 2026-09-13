@@ -47,7 +47,6 @@ public class AiImportUsageService : IDisposable
         _importType = importType;
     }
 
-    /// <inheritdoc />
     public async Task<AiImportCheckResult> CheckUsageAsync(CancellationToken cancellationToken = default)
     {
         var licenseKey = _licenseService?.GetLicenseKey() ?? "";
@@ -177,7 +176,7 @@ public class AiImportUsageService : IDisposable
         }
         catch (Exception ex)
         {
-            _errorLogger?.LogError(ex, ErrorCategory.Api, "AI import usage check failed");
+            NetworkFailure.Report(_errorLogger, ex, "AI import usage check failed", ErrorCategory.Api);
             return new AiImportCheckResult
             {
                 CanImport = false,
@@ -186,7 +185,6 @@ public class AiImportUsageService : IDisposable
         }
     }
 
-    /// <inheritdoc />
     public async Task<AiImportIncrementResult> IncrementUsageAsync(CancellationToken cancellationToken = default)
     {
         var licenseKey = _licenseService?.GetLicenseKey() ?? "";
@@ -244,7 +242,7 @@ public class AiImportUsageService : IDisposable
         }
         catch (Exception ex)
         {
-            _errorLogger?.LogError(ex, ErrorCategory.Api, "AI import usage increment failed");
+            NetworkFailure.Report(_errorLogger, ex, "AI import usage increment failed", ErrorCategory.Api);
             return new AiImportIncrementResult
             {
                 Success = false,
@@ -253,15 +251,11 @@ public class AiImportUsageService : IDisposable
         }
     }
 
-    /// <inheritdoc />
     public void InvalidateCache()
     {
         _cachedUsage = null;
         _cacheExpiry = DateTime.MinValue;
     }
-
-    /// <inheritdoc />
-    public AiImportUsageStatus? GetCachedUsage() => _cachedUsage;
 
     public void Dispose()
     {

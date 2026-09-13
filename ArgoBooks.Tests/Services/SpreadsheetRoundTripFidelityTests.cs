@@ -109,9 +109,11 @@ public class SpreadsheetRoundTripFidelityTests : IDisposable
         return data;
     }
 
-    private async Task<CompanyData> RoundTripAsync(CompanyData source)
+    private Task<CompanyData> RoundTripAsync(CompanyData source) => RoundTripAsync(source, AllSheets);
+
+    private async Task<CompanyData> RoundTripAsync(CompanyData source, string[] sheets)
     {
-        await new SpreadsheetExportService().ExportToExcelAsync(_path, source, [.. AllSheets], null, null);
+        await new SpreadsheetExportService().ExportToExcelAsync(_path, source, [.. sheets], null, null);
 
         var target = new CompanyData();
         target.Settings.Localization.Currency = "USD";
@@ -125,8 +127,6 @@ public class SpreadsheetRoundTripFidelityTests : IDisposable
     [Fact]
     public async Task AnInvoiceKeepsItsIdInsteadOfGainingAHash()
     {
-        // The export wrote only InvoiceNumber (#INV-...), the importer read that column as the
-        // id, so every round trip prefixed the id with a hash and orphaned its payments.
         CompanyData target = await RoundTripAsync(Source());
 
         Invoice invoice = Assert.Single(target.Invoices);
@@ -148,8 +148,6 @@ public class SpreadsheetRoundTripFidelityTests : IDisposable
     [Fact]
     public async Task AnInvoiceKeepsItsLines()
     {
-        // Before the Invoice Line Items sheet existed this came back as a set of totals with
-        // nothing behind them, so the invoice could no longer be reprinted or edited.
         CompanyData target = await RoundTripAsync(Source());
 
         Invoice invoice = Assert.Single(target.Invoices);
@@ -185,8 +183,7 @@ public class SpreadsheetRoundTripFidelityTests : IDisposable
     [Fact]
     public async Task ASheetThatOnlyHasAnInvoiceNumber_StillImports()
     {
-        // Spreadsheets from other systems have no ID column, and that is how this app's own
-        // export used to look. The number has to keep working as the identifier.
+        // Spreadsheets from other systems have no ID column. The number has to keep working as the identifier.
         var source = new CompanyData();
         source.Settings.Localization.Currency = "USD";
         source.Customers.Add(new Customer { Id = "CUS-003", Name = "Jane Doe" });
@@ -204,6 +201,207 @@ public class SpreadsheetRoundTripFidelityTests : IDisposable
         Invoice invoice = Assert.Single(target.Invoices);
         Assert.Equal("INV-9", invoice.Id);
         Assert.Equal("INV-9", invoice.InvoiceNumber);
+    }
+
+    #endregion
+
+    #region Revenue from invoices
+
+    private static CompanyData PaidInvoiceSource(bool withLinkedRevenue)
+    {
+        var data = new CompanyData();
+        data.Settings.Localization.Currency = "USD";
+        data.Customers.Add(new Customer { Id = "CUS-003", Name = "Jane Doe" });
+        data.Invoices.Add(new Invoice
+        {
+            Id = "INV-2025-00001",
+            InvoiceNumber = "#INV-2025-00001",
+            CustomerId = "CUS-003",
+            IssueDate = new DateTime(2025, 5, 4),
+            Subtotal = 300m,
+            TaxAmount = 15m,
+            Total = 315m,
+            AmountPaid = 315m,
+            Balance = 0m,
+            Status = Core.Enums.InvoiceStatus.Paid,
+        });
+
+        if (withLinkedRevenue)
+        {
+            data.Revenues.Add(new Revenue
+            {
+                Id = "REV-2025-00001",
+                Date = new DateTime(2025, 5, 4),
+                CustomerId = "CUS-003",
+                Description = "Widget",
+                InvoiceId = "INV-2025-00001",
+                Quantity = 1m,
+                UnitPrice = 300m,
+                TaxAmount = 15m,
+                Total = 315m,
+            });
+        }
+
+        data.Revenues.Add(new Revenue
+        {
+            Id = "REV-2025-00002",
+            Date = new DateTime(2025, 5, 6),
+            CustomerId = "CUS-003",
+            Description = "Consulting",
+            Quantity = 1m,
+            UnitPrice = 200m,
+            Total = 200m,
+        });
+
+        return data;
+    }
+
+    // The export modal writes Revenue before Invoices; the other order is how AllSheets lists them.
+    public static TheoryData<string[]> SheetOrders => new()
+    {
+        new[] { "Customers", "Revenue", "Invoices", "Payments" },
+        new[] { "Customers", "Invoices", "Payments", "Revenue" },
+    };
+
+    [Theory]
+    [MemberData(nameof(SheetOrders))]
+    public async Task APaidInvoicesRevenue_ComesBackLinkedAndIsNotCountedTwice(string[] sheets)
+    {
+        CompanyData target = await RoundTripAsync(PaidInvoiceSource(withLinkedRevenue: true), sheets);
+
+        Assert.Equal(["REV-2025-00001", "REV-2025-00002"], target.Revenues.Select(r => r.Id).Order().ToArray());
+        Revenue linked = Assert.Single(target.Revenues, r => r.InvoiceId == "INV-2025-00001");
+        Assert.Equal("REV-2025-00001", linked.Id);
+        Assert.Equal(515m, target.Revenues.Sum(r => r.Total));
+    }
+
+    [Fact]
+    public async Task AKeptDeposit_StaysAKeptDeposit()
+    {
+        CompanyData source = PaidInvoiceSource(withLinkedRevenue: true);
+        source.Revenues.Add(new Revenue
+        {
+            Id = "REV-2025-00003",
+            Date = new DateTime(2025, 6, 1),
+            CustomerId = "CUS-003",
+            Description = "Kept security deposit",
+            InvoiceId = "INV-2025-00001",
+            IsKeptDeposit = true,
+            Quantity = 1m,
+            UnitPrice = 50m,
+            Total = 50m,
+        });
+
+        CompanyData target = await RoundTripAsync(source);
+
+        Revenue deposit = target.Revenues.Single(r => r.Id == "REV-2025-00003");
+        Assert.True(deposit.IsKeptDeposit);
+        Assert.Equal("INV-2025-00001", deposit.InvoiceId);
+        Assert.Single(target.Revenues, r => r.InvoiceId == "INV-2025-00001" && !r.IsKeptDeposit);
+    }
+
+    [Fact]
+    public async Task ARevenueCreatedForAPaidInvoice_NeverTakesAnImportedRevenuesId()
+    {
+        // The id counter is only brought up to date after every sheet is in.
+        CompanyData source = PaidInvoiceSource(withLinkedRevenue: false);
+        string clash = $"REV-{DateTime.UtcNow:yyyy}-00001";
+        source.Revenues.Single().Id = clash;
+
+        CompanyData target = await RoundTripAsync(source);
+
+        Assert.Equal(2, target.Revenues.Count);
+        Assert.Equal(2, target.Revenues.Select(r => r.Id).Distinct().Count());
+        Revenue sale = target.Revenues.Single(r => r.Id == clash);
+        Assert.Null(sale.InvoiceId);
+        Assert.Equal(200m, sale.Total);
+        Assert.Equal(315m, Assert.Single(target.Revenues, r => r.InvoiceId == "INV-2025-00001").Total);
+    }
+
+    public static TheoryData<string[]> SheetOrdersWithLines => new()
+    {
+        new[] { "Customers", "Products", "Revenue", "Invoices", "Invoice Line Items" },
+        new[] { "Customers", "Products", "Invoices", "Invoice Line Items", "Revenue" },
+    };
+
+    [Theory]
+    [MemberData(nameof(SheetOrdersWithLines))]
+    public async Task RevenueFromAMultiLineInvoice_KeepsTheInvoicesLinesInsteadOfMakingAProduct(string[] sheets)
+    {
+        // Its description only summarises the lines, "Widget (+2 more)", and the importer took
+        // that for a product name and created a product and a category called that.
+        CompanyData source = PaidInvoiceSource(withLinkedRevenue: true);
+        source.Products.Add(new Product { Id = "PRD-001", Name = "Widget" });
+        source.Products.Add(new Product { Id = "PRD-002", Name = "Gadget" });
+        source.Products.Add(new Product { Id = "PRD-003", Name = "Gizmo" });
+        List<LineItem> lines =
+        [
+            new() { ProductId = "PRD-001", Description = "Widget", Quantity = 1m, UnitPrice = 100m },
+            new() { ProductId = "PRD-002", Description = "Gadget", Quantity = 1m, UnitPrice = 100m },
+            new() { ProductId = "PRD-003", Description = "Gizmo", Quantity = 1m, UnitPrice = 100m },
+        ];
+        source.Invoices.Single().LineItems = lines;
+        Revenue fromInvoice = source.Revenues.Single(r => r.Id == "REV-2025-00001");
+        fromInvoice.Description = "Widget (+2 more)";
+        fromInvoice.LineItems = [.. lines];
+
+        CompanyData target = await RoundTripAsync(source, sheets);
+
+        Assert.DoesNotContain(target.Products, p => p.Name == "Widget (+2 more)");
+        Assert.DoesNotContain(target.Categories, c => c.Name == "Widget (+2 more)");
+        Revenue revenue = target.Revenues.Single(r => r.Id == "REV-2025-00001");
+        Assert.Equal(["PRD-001", "PRD-002", "PRD-003"], revenue.LineItems.Select(li => li.ProductId ?? "").ToArray());
+    }
+
+    [Fact]
+    public async Task ARevenueNamingAnInvoiceThatIsNotThere_ImportsAsAPlainSale()
+    {
+        var source = new CompanyData();
+        source.Settings.Localization.Currency = "USD";
+        source.Revenues.Add(new Revenue
+        {
+            Id = "REV-2025-00009",
+            Date = new DateTime(2025, 5, 6),
+            Description = "Widget",
+            InvoiceId = "1001",
+            Quantity = 1m,
+            UnitPrice = 40m,
+            Total = 40m,
+        });
+
+        CompanyData target = await RoundTripAsync(source, ["Revenue"]);
+
+        Revenue revenue = Assert.Single(target.Revenues);
+        Assert.Null(revenue.InvoiceId);
+        Product widget = Assert.Single(target.Products, p => p.Name == "Widget");
+        Assert.Equal(widget.Id, Assert.Single(revenue.LineItems).ProductId);
+    }
+
+    [Fact]
+    public async Task ThePaidInvoicesRevenueMadeOnImport_TakesTheInvoicesLines()
+    {
+        // With no Revenue sheet the importer makes the paid invoice's revenue itself.
+        CompanyData source = PaidInvoiceSource(withLinkedRevenue: false);
+        source.Revenues.Clear();
+        source.Products.Add(new Product { Id = "PRD-001", Name = "Widget" });
+        source.Products.Add(new Product { Id = "PRD-002", Name = "Gadget" });
+        source.Invoices.Single().LineItems =
+        [
+            new() { ProductId = "PRD-001", Description = "Widget", Quantity = 2m, UnitPrice = 100m, TaxRate = 0.05m },
+            new() { ProductId = "PRD-002", Description = "Gadget", Quantity = 1m, UnitPrice = 100m, TaxRate = 0.05m },
+        ];
+
+        CompanyData target = await RoundTripAsync(source, ["Customers", "Products", "Invoices", "Invoice Line Items"]);
+
+        Revenue revenue = Assert.Single(target.Revenues);
+        Assert.Equal("INV-2025-00001", revenue.InvoiceId);
+        Assert.Equal(["PRD-001", "PRD-002"], revenue.LineItems.Select(li => li.ProductId ?? "").ToArray());
+        Assert.Equal([2m, 1m], revenue.LineItems.Select(li => li.Quantity).ToArray());
+
+        List<ArgoBooks.Core.Models.Reports.ProductSalesData> sales = ProductSalesService.GetProductSales(
+            target, new DateTime(2025, 1, 1), new DateTime(2025, 12, 31), cashBasis: true);
+        Assert.Equal(315m, sales.Sum(s => s.RevenueUSD));
+        Assert.Equal(3m, sales.Sum(s => s.UnitsSold));
     }
 
     #endregion
@@ -364,6 +562,26 @@ public class SpreadsheetRoundTripFidelityTests : IDisposable
         Assert.Equal("on the payroll", employee.Notes);
     }
 
+    // A TD1 claiming nothing is its own flag, because a zero amount has always meant no TD1 was
+    // filed. Lose the flag and the employee is given the basic personal amount again.
+    [Fact]
+    public async Task AnEmployeeWhoseTd1sClaimNothing_StillClaimsNothingAfterARoundTrip()
+    {
+        CompanyData source = Source();
+        Employee dana = Dana();
+        dana.FederalClaimAmount = 0m;
+        dana.ProvincialClaimAmount = 0m;
+        dana.FederalClaimIsZero = true;
+        dana.ProvincialClaimIsZero = true;
+        source.Employees.Add(dana);
+
+        CompanyData target = await RoundTripAsync(source);
+        Employee employee = Assert.Single(target.Employees);
+
+        Assert.True(employee.FederalClaimIsZero);
+        Assert.True(employee.ProvincialClaimIsZero);
+    }
+
     [Fact]
     public async Task AnEmployeeWithNoContractHours_ComesBackWithNoneRatherThanZero()
     {
@@ -490,8 +708,6 @@ public class SpreadsheetRoundTripFidelityTests : IDisposable
     [Fact]
     public async Task APurchaseOrderKeepsItsLines()
     {
-        // The export service could always write this sheet. It was simply never offered in the
-        // export modal, so in practice purchase orders exported with nothing on them.
         CompanyData source = Source();
         source.PurchaseOrders.Add(new PurchaseOrder
         {

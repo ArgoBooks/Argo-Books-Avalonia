@@ -9,12 +9,7 @@ namespace ArgoBooks.Tests.ViewModels;
 /// </summary>
 public class ConfirmationDialogViewModelTests
 {
-    private readonly ConfirmationDialogViewModel _viewModel;
-
-    public ConfirmationDialogViewModelTests()
-    {
-        _viewModel = new ConfirmationDialogViewModel();
-    }
+    private readonly ConfirmationDialogViewModel _viewModel = new();
 
     #region ShowAsync with Options Tests
 

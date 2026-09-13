@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using ArgoBooks.Core.Models.Dashboard;
 using ArgoBooks.Core.Services;
 using ArgoBooks.Services;
+using ArgoBooks.Shared.Telemetry;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -167,6 +168,8 @@ public partial class DashboardLayoutViewModel : ObservableObject
         }
 
         var layout = GetCurrentLayout();
+        if (_savedLayout != null && DashboardCustomization.Describe(_savedLayout, layout) is { } change)
+            _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.DashboardCustomized, change);
         _savedLayout = layout.Clone();
 
         var settings = App.SettingsService?.GlobalSettings;
@@ -186,6 +189,10 @@ public partial class DashboardLayoutViewModel : ObservableObject
     {
         var wasEditMode = IsEditMode;
         var layout = DashboardLayout.CreateDefault();
+
+        // Against the saved layout, not the half-edited one, and not when it was already the default.
+        if (!DashboardCustomization.SameShape(_savedLayout ?? GetCurrentLayout(), layout))
+            _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.DashboardReset);
         LoadFromLayout(layout);
         LoadAllWidgetData();
         if (wasEditMode)

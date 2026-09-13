@@ -1,6 +1,6 @@
 using ArgoBooks.Core.Models;
-using ArgoBooks.Core.Models.Telemetry;
 using ArgoBooks.Core.Services;
+using ArgoBooks.Shared.Telemetry;
 
 namespace ArgoBooks.Services;
 
@@ -24,10 +24,8 @@ public class TutorialService
     public static class ChecklistItems
     {
         public const string ScanReceipt = "scan_receipt";
-        public const string CreateCategory = "create_category";
         public const string RecordExpense = "record_expense";
         public const string RecordRevenue = "record_revenue";
-        public const string AddProduct = "add_product";
         public const string ExploreDashboard = "explore_dashboard";
         public const string VisitAnalytics = "visit_analytics";
     }
@@ -143,12 +141,6 @@ public class TutorialService
         _globalSettingsService?.GetSettings()?.Tutorial ?? new TutorialSettings();
 
     /// <summary>
-    /// Gets whether this is the user's first time using the app (no tutorial completed).
-    /// </summary>
-    public bool IsFirstTimeUser =>
-        !Settings.HasCompletedWelcomeTutorial && Settings.FirstLaunchDate == null;
-
-    /// <summary>
     /// Gets whether a tutorial is currently in progress on a specific company.
     /// </summary>
     public bool IsTutorialInProgressOnCompany =>
@@ -160,7 +152,8 @@ public class TutorialService
     public bool HasCompletedWelcomeTutorial => Settings.HasCompletedWelcomeTutorial;
 
     /// <summary>
-    /// Gets whether the user explicitly skipped the tutorial.
+    /// Gets whether the user skipped the tutorial in an older build, where skipping also
+    /// switched off the setup checklist and first-visit hints. Nothing sets it any more.
     /// </summary>
     public bool HasSkippedTutorial => Settings.HasSkippedTutorial;
 
@@ -177,7 +170,11 @@ public class TutorialService
     /// <summary>
     /// Gets whether first-visit hints should be shown.
     /// </summary>
-    public bool ShowFirstVisitHints => !_hintsDisabledThisSession && Settings.ShowFirstVisitHints;
+    public bool ShowFirstVisitHints => !_hintsDisabledThisSession && Settings.ShowFirstVisitHints && !IsSampleCompanyOpen;
+
+    // Tutorial progress is stored per install, not per company, so anything spent in the
+    // sample (a checklist tick, a page hint) is already used up when the user opens their own.
+    private static bool IsSampleCompanyOpen => App.CompanyManager?.IsSampleCompany == true;
 
     /// <summary>
     /// Sets the global settings service for tutorial persistence.
@@ -197,12 +194,12 @@ public class TutorialService
 
     /// <summary>
     /// Checks if the tutorial should be shown on the current company.
-    /// Returns false if the tutorial was skipped, if no company is set,
-    /// or if we're on a different company than where the tutorial was started.
+    /// Returns false if the tutorial was skipped, if no company is set, if the sample
+    /// company is open, or if we're on a different company than where the tutorial was started.
     /// </summary>
     public bool ShouldShowTutorialOnCurrentCompany()
     {
-        if (string.IsNullOrEmpty(_currentCompanyPath))
+        if (string.IsNullOrEmpty(_currentCompanyPath) || IsSampleCompanyOpen)
             return false;
 
         if (Settings.HasSkippedTutorial)
@@ -276,23 +273,15 @@ public class TutorialService
     }
 
     /// <summary>
-    /// Marks the tutorial as skipped by the user.
+    /// Skips the welcome overlay and the app tour. The setup checklist and first-visit hints
+    /// stay on: the checklist is what leads a new user to their first transaction, and
+    /// declining a tour is not a request to stop being shown where things are.
     /// </summary>
-    public void SkipTutorial()
+    public void SkipTour()
     {
-        var settings = _globalSettingsService?.GetSettings();
-        if (settings?.Tutorial != null)
-        {
-            var wasSkipped = settings.Tutorial.HasSkippedTutorial;
-            settings.Tutorial.HasSkippedTutorial = true;
-            SaveSettings();
-            // Anonymous onboarding telemetry: the user opted out of guided setup.
-            if (!wasSkipped)
-            {
-                _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.OnboardingSkipped);
-            }
-            TutorialStateChanged?.Invoke(this, EventArgs.Empty);
-        }
+        CompleteWelcomeTutorial();
+        CompleteAppTour();
+        _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.OnboardingSkipped);
     }
 
     /// <summary>
@@ -306,7 +295,7 @@ public class TutorialService
     /// <summary>
     /// Marks a checklist item as completed. Out-of-order calls are silently ignored.
     /// <para>
-    /// The gated chain is CreateCategory -> AddProduct -> RecordExpense -> VisitAnalytics.
+    /// The gated chain is RecordExpense -> VisitAnalytics.
     /// ScanReceipt is shown first but sits outside that chain: it has no prerequisites and
     /// is not a prerequisite for anything, so it can be completed at any point, including
     /// last. Items that aren't on the setup checklist are never gated.
@@ -319,7 +308,7 @@ public class TutorialService
             return;
 
         // Don't process checklist items if the tutorial was skipped
-        if (settings.Tutorial.HasSkippedTutorial)
+        if (settings.Tutorial.HasSkippedTutorial || IsSampleCompanyOpen)
             return;
 
         // Check if previous items in sequence are completed
@@ -348,13 +337,12 @@ public class TutorialService
             _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.OnboardingCompleted);
         }
 
-        // Only show completion guidance if tutorial is active on current company
-        if (ShouldShowTutorialOnCurrentCompany())
+        // Only while the checklist is on screen: the guidance points the user back to its next step,
+        // and closing the checklist is how someone says they are done being guided.
+        if (ShouldShowTutorialOnCurrentCompany() && !IsSetupChecklistDismissed)
         {
             // Show completion guidance for main tutorial tasks
             if (itemId == ChecklistItems.ScanReceipt ||
-                itemId == ChecklistItems.CreateCategory ||
-                itemId == ChecklistItems.AddProduct ||
                 itemId == ChecklistItems.RecordExpense)
             {
                 ShowGuidance(CompletionGuidanceType.Standard);
@@ -386,13 +374,8 @@ public class TutorialService
             // prerequisite for anything else: someone who came for invoicing must
             // still be able to work the manual path without scanning anything.
             ChecklistItems.ScanReceipt => true,
-            ChecklistItems.CreateCategory => true, // No prerequisites
-            ChecklistItems.AddProduct => completedItems.Contains(ChecklistItems.CreateCategory),
-            ChecklistItems.RecordExpense => completedItems.Contains(ChecklistItems.CreateCategory) &&
-                                            completedItems.Contains(ChecklistItems.AddProduct),
-            ChecklistItems.VisitAnalytics => completedItems.Contains(ChecklistItems.CreateCategory) &&
-                                             completedItems.Contains(ChecklistItems.AddProduct) &&
-                                             completedItems.Contains(ChecklistItems.RecordExpense),
+            ChecklistItems.RecordExpense => true,
+            ChecklistItems.VisitAnalytics => completedItems.Contains(ChecklistItems.RecordExpense),
             _ => true // Other items (not in main checklist) can be completed anytime
         };
     }
@@ -409,8 +392,6 @@ public class TutorialService
     {
         var completed = Settings.CompletedChecklistItems;
         return completed.Contains(ChecklistItems.ScanReceipt) &&
-               completed.Contains(ChecklistItems.CreateCategory) &&
-               completed.Contains(ChecklistItems.AddProduct) &&
                completed.Contains(ChecklistItems.RecordExpense) &&
                completed.Contains(ChecklistItems.VisitAnalytics);
     }
@@ -421,7 +402,7 @@ public class TutorialService
     public int GetTotalChecklistCount()
     {
         // Core items that all users should complete
-        return 4;
+        return 3;
     }
 
     /// <summary>

@@ -1,3 +1,4 @@
+using System.Reflection;
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Services;
 using Xunit;
@@ -42,10 +43,31 @@ public abstract class ModalViewModelTestBase : IDisposable
     /// <summary>Redo the most recently undone action.</summary>
     protected static void Redo() => App.UndoRedoManager.Redo();
 
+    private static readonly PropertyInfo RatesInstance =
+        typeof(ExchangeRateService).GetProperty(nameof(ExchangeRateService.Instance), BindingFlags.Public | BindingFlags.Static)!;
+
+    private object? _priorRates;
+    private bool _ratesRemoved;
+
+    /// <summary>
+    /// Runs the test with no exchange rate service, so no date has a rate. Picking a currency no
+    /// stub serves isn't enough: the shared service is whichever one the run built first, and that
+    /// can be one with a real HTTP client that fetches the rate.
+    /// </summary>
+    protected void UseNoExchangeRates()
+    {
+        if (_ratesRemoved) return;
+        _priorRates = RatesInstance.GetValue(null);
+        RatesInstance.SetValue(null, null);
+        _ratesRemoved = true;
+    }
+
     public void Dispose()
     {
         App.UndoRedoManager.Clear();
         App.SetCompanyManagerForTesting(null);
+        if (_ratesRemoved)
+            RatesInstance.SetValue(null, _priorRates);
         GC.SuppressFinalize(this);
     }
 }

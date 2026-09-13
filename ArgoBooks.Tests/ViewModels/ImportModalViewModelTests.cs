@@ -8,12 +8,7 @@ namespace ArgoBooks.Tests.ViewModels;
 /// </summary>
 public class ImportModalViewModelTests
 {
-    private readonly ImportModalViewModel _viewModel;
-
-    public ImportModalViewModelTests()
-    {
-        _viewModel = new ImportModalViewModel();
-    }
+    private readonly ImportModalViewModel _viewModel = new();
 
     #region Open/Close Tests
 

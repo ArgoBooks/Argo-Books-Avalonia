@@ -1,12 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.Globalization;
-using System.Linq;
 using ArgoBooks.Core.Services.Sync;
-using CommunityToolkit.Mvvm.ComponentModel;
-using LiveChartsCore;
-using LiveChartsCore.SkiaSharpView;
 
 namespace ArgoBooks.Mobile.ViewModels;
 

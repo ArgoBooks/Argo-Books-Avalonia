@@ -1,14 +1,6 @@
-using System;
-using System.Collections.ObjectModel;
-using System.Globalization;
-using System.Threading.Tasks;
 using ArgoBooks.Core.Services.Sync;
 using ArgoBooks.Mobile.Services;
 using ArgoBooks.Shared.Mobile;
-using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
-using Microsoft.Maui.ApplicationModel;
-using Microsoft.Maui.Networking;
 
 namespace ArgoBooks.Mobile.ViewModels;
 
@@ -20,17 +12,20 @@ namespace ArgoBooks.Mobile.ViewModels;
 /// gallery-only entry point to call. A captured image hands off to ShellViewModel's
 /// StartScanFlowAsync callback, which pushes the ScanningView and drives the AI call.
 /// Also owns the "Recent scans" list (see <see cref="AddRecentScan"/>): once a scan is confirmed
-/// on the review screen and Task 5's CapturePushCoordinator has (or hasn't) pushed it to the
+/// on the review screen and CaptureDeliveryCoordinator has (or hasn't yet) delivered it to the
 /// desktop queue, ShellViewModel records it here so the user has some visible confirmation - the
 /// phone has no ledger of its own and can't poll for the desktop's ingest, so this is local-only
-/// and never reconciled against what actually landed on the desktop.
-/// Task 6 edge states: once the local free-scan counter (<see cref="ScanUsageStore"/>/
+/// and never checked back against what actually landed on the desktop.
+/// Edge states: once the local free-scan counter (<see cref="ScanUsageStore"/>/
 /// <see cref="ScanQuota"/>) reaches the monthly limit, <see cref="IsOverLimit"/> flips and the view
 /// swaps to an upgrade prompt (<see cref="UpgradeCommand"/> opens the marketing site in the system
 /// browser - no in-app purchase). If a capture happens with no network, the cropped image is
 /// queued in <see cref="PendingScanOutbox"/> instead of starting the AI scan flow; once online, the
 /// Capture screen shows a "N receipts ready to review" prompt (<see cref="HasPendingOfflineScans"/>)
 /// and the user walks each queued receipt through the normal review flow - nothing is auto-posted.
+/// Captures waiting on a company that is no longer paired are counted separately
+/// (<see cref="StrandedCount"/>): they are neither reviewable nor sendable until it is paired back,
+/// and the prompt says so rather than offering a review that could not go anywhere.
 /// </summary>
 public partial class CaptureViewModel : ViewModelBase
 {
@@ -39,6 +34,7 @@ public partial class CaptureViewModel : ViewModelBase
     private readonly ISecureStore _secureStore;
     private readonly Func<byte[], Task> _onImageCaptured;
     private readonly PendingScanOutbox _pendingScanOutbox;
+    private readonly PairedCompanyStore _pairedCompanyStore;
     private readonly Func<Task> _onReviewOfflineScans;
 
     /// <summary>Set by ShellViewModel (via <see cref="SetActiveCompanyLabel"/>) whenever the
@@ -79,27 +75,59 @@ public partial class CaptureViewModel : ViewModelBase
     [ObservableProperty]
     private int _pendingOfflineCount;
 
+    /// <summary>How many captures are waiting on a company that is no longer paired. They are kept
+    /// rather than sent to the company that happens to be paired now, so the prompt tells the user
+    /// what would get them moving again.</summary>
+    [ObservableProperty]
+    private int _strandedCount;
+
     /// <summary>True when there's at least one offline-captured receipt waiting for review, so the
     /// prompt only shows when there's something to do.</summary>
     public bool HasPendingOfflineScans => PendingOfflineCount > 0;
 
-    partial void OnPendingOfflineCountChanged(int value) => OnPropertyChanged(nameof(HasPendingOfflineScans));
+    /// <summary>True when at least one capture is waiting on an unpaired company.</summary>
+    public bool HasStrandedScans => StrandedCount > 0;
 
-    public CaptureViewModel(ISecureStore secureStore, Func<byte[], Task> onImageCaptured, PendingScanOutbox pendingScanOutbox, Func<Task> onReviewOfflineScans)
+    /// <summary>Whether the outbox prompt shows at all: either something to review, or something
+    /// stuck waiting on a company.</summary>
+    public bool IsOutboxPromptVisible => HasPendingOfflineScans || HasStrandedScans;
+
+    partial void OnPendingOfflineCountChanged(int value)
+    {
+        OnPropertyChanged(nameof(HasPendingOfflineScans));
+        OnPropertyChanged(nameof(IsOutboxPromptVisible));
+    }
+
+    partial void OnStrandedCountChanged(int value)
+    {
+        OnPropertyChanged(nameof(HasStrandedScans));
+        OnPropertyChanged(nameof(IsOutboxPromptVisible));
+    }
+
+    public CaptureViewModel(ISecureStore secureStore, Func<byte[], Task> onImageCaptured, PendingScanOutbox pendingScanOutbox, PairedCompanyStore pairedCompanyStore, Func<Task> onReviewOfflineScans)
     {
         _secureStore = secureStore ?? throw new ArgumentNullException(nameof(secureStore));
         _onImageCaptured = onImageCaptured ?? throw new ArgumentNullException(nameof(onImageCaptured));
         _pendingScanOutbox = pendingScanOutbox ?? throw new ArgumentNullException(nameof(pendingScanOutbox));
+        _pairedCompanyStore = pairedCompanyStore ?? throw new ArgumentNullException(nameof(pairedCompanyStore));
         _onReviewOfflineScans = onReviewOfflineScans ?? throw new ArgumentNullException(nameof(onReviewOfflineScans));
         _ = RefreshScanUsageAsync();
-        _ = RefreshPendingOfflineCountAsync();
+        _ = RefreshOutboxAsync();
     }
 
-    /// <summary>Reloads the count of offline-captured receipts waiting for review. Called by
-    /// ShellViewModel after every snapshot refresh, after each offline review, and on NavigateCapture
-    /// so the prompt reflects the queue whenever the tab is shown.</summary>
-    public async Task RefreshPendingOfflineCountAsync() =>
-        PendingOfflineCount = await _pendingScanOutbox.GetPendingCountAsync();
+    /// <summary>Reloads what the capture outbox is holding: receipts still to review, and receipts
+    /// waiting on a company that is no longer paired. Called by ShellViewModel after every snapshot
+    /// refresh, after each offline review, and on NavigateCapture so the prompt reflects the queue
+    /// whenever the tab is shown.</summary>
+    public async Task RefreshOutboxAsync()
+    {
+        var counts = await _pendingScanOutbox.GetCountsAsync(await GetPairedCompanyUidsAsync());
+        PendingOfflineCount = counts.AwaitingReview;
+        StrandedCount = counts.Stranded;
+    }
+
+    private async Task<IReadOnlyCollection<string>> GetPairedCompanyUidsAsync() =>
+        (await _pairedCompanyStore.GetAllAsync()).Select(c => c.CompanyUid).ToList();
 
     /// <summary>
     /// "Review now" on the offline-capture prompt: if there's a network, hands off to ShellViewModel
@@ -150,13 +178,14 @@ public partial class CaptureViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Called by ShellViewModel.OnReviewConfirmedAsync right after CapturePushCoordinator has
-    /// tried to push the confirmed <paramref name="transaction"/>. Adds a "Recent scans" row and
-    /// shows a brief confirmation banner - "sent to your desktop" if the push succeeded, or a
-    /// softer "saved, will sync once connected" message if it didn't (no active company, offline,
-    /// server error), since the scan itself was still captured and the review data isn't lost.
+    /// Called by ShellViewModel.OnReviewConfirmedAsync right after CaptureDeliveryCoordinator has
+    /// tried to deliver the confirmed <paramref name="transaction"/>. Adds a "Recent scans" row and
+    /// shows a brief confirmation banner - "sent to your desktop" if it got through, or "waiting to
+    /// send" if it didn't (no active company, offline, server error), which is literally what
+    /// happens: the reviewed transaction is held in the outbox and re-sent by the background retry,
+    /// so nothing the user typed has to be entered again.
     /// </summary>
-    public void AddRecentScan(CapturedTransaction transaction, bool pushed)
+    public void AddRecentScan(CapturedTransaction transaction, bool delivered)
     {
         if (transaction == null) throw new ArgumentNullException(nameof(transaction));
 
@@ -165,12 +194,14 @@ public partial class CaptureViewModel : ViewModelBase
             : transaction.SupplierOrCustomer;
         var amountText = transaction.Total.ToString("C", CultureInfo.CurrentCulture);
         var timeText = DateTime.Now.ToString("h:mm tt", CultureInfo.InvariantCulture);
-        var statusText = pushed ? "Sent to your desktop" : "Saved - will sync once connected";
+        var statusText = delivered ? "Sent to your desktop" : "Waiting to send - it will go on its own";
 
         RecentScans.Insert(0, new RecentScanViewModel(vendor, amountText, timeText, statusText));
         OnPropertyChanged(nameof(HasRecentScans));
 
-        ConfirmationMessage = pushed ? "Added and sent to your desktop" : "Added - will sync to your desktop once connected";
+        ConfirmationMessage = delivered
+            ? "Added and sent to your desktop"
+            : "Added - it will send to your desktop as soon as it can";
         IsConfirmationVisible = true;
         _ = HideConfirmationAfterDelayAsync();
     }
@@ -210,8 +241,11 @@ public partial class CaptureViewModel : ViewModelBase
 
             if (Connectivity.Current.NetworkAccess != NetworkAccess.Internet)
             {
-                await _pendingScanOutbox.EnqueueAsync(imageBytes);
-                await RefreshPendingOfflineCountAsync();
+                // Bound to the company showing in the "Scanning into" bar, so switching company
+                // before reviewing it can't redirect the receipt into the other company's books.
+                var active = await _pairedCompanyStore.GetActiveAsync();
+                await _pendingScanOutbox.EnqueueAsync(imageBytes, active?.CompanyUid);
+                await RefreshOutboxAsync();
                 ShowOfflineQueuedMessage();
                 return;
             }

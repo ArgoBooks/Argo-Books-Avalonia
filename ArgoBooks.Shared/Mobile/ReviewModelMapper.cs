@@ -52,10 +52,10 @@ public sealed class ReviewModel
 }
 
 /// <summary>
-/// Pure mapping logic for the Task 4 review screen: turns a <see cref="ReceiptScanResult"/> (raw AI
+/// Pure mapping logic for the review screen: turns a <see cref="ReceiptScanResult"/> (raw AI
 /// scan output) plus the active <see cref="MobileSnapshot"/> (for supplier/product auto-suggest)
 /// into a <see cref="ReviewModel"/> the UI can bind to and edit, then turns the (possibly edited)
-/// <see cref="ReviewModel"/> back into a <see cref="CapturedTransaction"/> for Task 5 to
+/// <see cref="ReviewModel"/> back into a <see cref="CapturedTransaction"/> to
 /// encrypt+push. No UI/device dependency, so it's fully unit-tested
 /// (see ArgoBooks.Tests/Mobile/ReviewModelMapperTests.cs).
 /// </summary>

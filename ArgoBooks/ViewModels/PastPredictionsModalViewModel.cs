@@ -96,11 +96,12 @@ public partial class PastPredictionItemViewModel : ObservableObject
         return new PastPredictionItemViewModel
         {
             PeriodLabel = $"{record.PeriodStartDate:MMM yyyy}",
-            ForecastedRevenue = record.ForecastedRevenue.ToString("C0"),
-            ActualRevenue = record.ActualRevenue?.ToString("C0") ?? "—",
+            // Stored in USD, so shown as the forecast cards are: in the display currency at today's rate.
+            ForecastedRevenue = InsightsPageViewModel.FormatForecastAmount(record.ForecastedRevenue),
+            ActualRevenue = record.ActualRevenue.HasValue ? InsightsPageViewModel.FormatForecastAmount(record.ActualRevenue.Value) : "—",
             RevenueAccuracy = revenueAccuracy.HasValue ? $"{revenueAccuracy.Value:F0}%" : "—",
-            ForecastedExpenses = record.ForecastedExpenses.ToString("C0"),
-            ActualExpenses = record.ActualExpenses?.ToString("C0") ?? "—",
+            ForecastedExpenses = InsightsPageViewModel.FormatForecastAmount(record.ForecastedExpenses),
+            ActualExpenses = record.ActualExpenses.HasValue ? InsightsPageViewModel.FormatForecastAmount(record.ActualExpenses.Value) : "—",
             ExpensesAccuracy = expensesAccuracy.HasValue ? $"{expensesAccuracy.Value:F0}%" : "—",
             ConfidenceScore = $"{record.ConfidenceScore:F0}%",
             ForecastMethod = record.ForecastMethod,

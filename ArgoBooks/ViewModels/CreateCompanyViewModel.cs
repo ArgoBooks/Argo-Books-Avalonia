@@ -3,6 +3,7 @@ using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Telemetry;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
+using ArgoBooks.Shared.Telemetry;
 using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -54,19 +55,7 @@ public partial class CreateCompanyViewModel : ViewModelBase
         "Other"
     ];
 
-    public string[] Industries { get; } =
-    [
-        "Retail",
-        "Services",
-        "Manufacturing",
-        "Technology",
-        "Healthcare",
-        "Food & Beverage",
-        "Construction",
-        "Transportation",
-        "Real Estate",
-        "Other"
-    ];
+    public string[] Industries { get; } = Core.Models.IndustryNames.All;
 
     [ObservableProperty]
     private string _selectedCurrency = "CAD - Canadian Dollar ($)";

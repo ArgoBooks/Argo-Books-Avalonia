@@ -17,7 +17,7 @@
     </Design.DataContext>
 
     <Panel>
-        <Grid RowDefinitions="Auto,*">
+        <Grid RowDefinitions="Auto,Auto,*">
         <!-- Header Bar with Date Range and Tabs -->
         <Border Grid.Row="0"
                 Background="{DynamicResource SurfaceBrush}"
@@ -70,8 +70,22 @@
             </Grid>
         </Border>
 
+        <!-- Shown while the company has no transactions, so the empty charts point somewhere -->
+        <Border Grid.Row="1"
+                Background="{DynamicResource BackgroundSecondaryBrush}"
+                Padding="24,16,24,0"
+                IsVisible="{Binding HasNoTransactions}">
+            <controls:InfoBanner ShowBanner="{Binding HasNoTransactions}"
+                                 BannerMargin="0"
+                                 Message="{loc:Loc 'Your charts fill in as you record revenue and expenses.'}"
+                                 ActionText="{loc:Loc 'Add Expense'}"
+                                 ActionCommand="{Binding AddExpenseCommand}"
+                                 IconData="{x:Static icons:Icons.Info}"
+                                 BannerBackground="{DynamicResource InfoBrush}" />
+        </Border>
+
         <!-- Main Content Area (all tabs except Products, which has its own bounded layout) -->
-        <ScrollViewer Grid.Row="1"
+        <ScrollViewer Grid.Row="2"
                       VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled"
                       IsVisible="{Binding !IsProductsTabSelected}"
@@ -1973,7 +1987,7 @@
         </ScrollViewer>
 
         <!-- Products Tab Content: bounded; table fills the left half, chart sits on the right -->
-        <Panel Grid.Row="1"
+        <Panel Grid.Row="2"
                Background="{DynamicResource BackgroundSecondaryBrush}"
                IsVisible="{Binding IsProductsTabSelected}">
             <Grid Margin="24" RowDefinitions="Auto,Auto,*">

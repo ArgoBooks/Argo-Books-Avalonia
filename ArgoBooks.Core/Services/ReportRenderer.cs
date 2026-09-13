@@ -94,6 +94,28 @@ public class ReportRenderer : IDisposable
     private decimal ToDisplayCurrency(decimal amountUSD, DateTime date)
         => (decimal)ConvertFromUSD((double)amountUSD, date);
 
+    private string PendingText => Tr("Pending");
+
+    /// <summary>
+    /// An amount recorded in <paramref name="currency"/> rather than USD (a return's refund, a loss's
+    /// value), formatted in the display currency at its own date, or pending when that date's rate is
+    /// unavailable. See docs/Calculations.md §10, Returns and Losses.
+    /// </summary>
+    private string FormatRecordedAmount(decimal amount, string currency, DateTime date)
+    {
+        if (string.Equals(currency, _currencyCode, StringComparison.OrdinalIgnoreCase))
+            return FormatCurrency(amount);
+
+        var rates = ExchangeRateService.Instance;
+        if (rates == null)
+            return FormatCurrency(amount);
+
+        return rates.TryConvertToUsdBase(amount, currency, date, out var usd)
+               && rates.TryConvertFromUSD(usd, _currencyCode, date, out var converted)
+            ? FormatCurrency(converted)
+            : PendingText;
+    }
+
     public ReportRenderer(ReportConfiguration config, CompanyData? companyData, float renderScale = 1f, ITranslationProvider? translationProvider = null, IErrorLogger? errorLogger = null)
     {
         _config = config;
@@ -451,6 +473,12 @@ public class ReportRenderer : IDisposable
     private PageContinuationPlan? _continuationPlan;
 
     /// <summary>
+    /// How many accounting table rows this renderer has drawn, for tests that check a paged table
+    /// loses no rows.
+    /// </summary>
+    internal int AccountingRowsDrawn { get; private set; }
+
+    /// <summary>
     /// The effective number of pages after accounting for continuation pages.
     /// </summary>
     public int EffectivePageCount => _continuationPlan?.TotalPageCount ?? _config.PageCount;
@@ -511,6 +539,17 @@ public class ReportRenderer : IDisposable
         if (tableData.ColumnHeaders.Count > 0)
             height += headerRowHeight; // Column headers
         return height;
+    }
+
+    /// <summary>
+    /// Top and bottom of the content area on a continuation page. The planner and the renderer both
+    /// use this, so the rows planned for a page are the rows that fit when it is drawn.
+    /// </summary>
+    private (float Top, float Bottom) GetContinuationContentBounds(float scaledPageHeight)
+    {
+        var headerHeight = _config.ShowHeader ? PageDimensions.GetHeaderHeight(_config.ShowCompanyDetails) : 0;
+        return ((headerHeight + (float)_config.PageMargins.Top) * _renderScale,
+            scaledPageHeight - (PageDimensions.FooterHeight + (float)_config.PageMargins.Bottom) * _renderScale);
     }
 
     /// <summary>
@@ -584,8 +623,7 @@ public class ReportRenderer : IDisposable
 
                 // Compute continuation pages
                 // Available height on continuation pages: full content area
-                var continuationTop = PageDimensions.HeaderHeight * _renderScale;
-                var continuationBottom = pageHeight * _renderScale - PageDimensions.FooterHeight * _renderScale;
+                var (continuationTop, continuationBottom) = GetContinuationContentBounds(pageHeight * _renderScale);
                 var continuationAvailable = continuationBottom - continuationTop
                     - GetAccountingTableContinuationHeaderHeight(element, tableData, _renderScale);
 
@@ -708,8 +746,7 @@ public class ReportRenderer : IDisposable
                 plan.FirstPageRowCounts[table.Id] = firstPageRowCount;
 
                 // Compute continuation pages
-                var continuationTop = (PageDimensions.GetHeaderHeight(_config.ShowCompanyDetails) + (float)_config.PageMargins.Top) * _renderScale;
-                var continuationBottom = pageHeight * _renderScale - (PageDimensions.FooterHeight + (float)_config.PageMargins.Bottom) * _renderScale;
+                var (continuationTop, continuationBottom) = GetContinuationContentBounds(pageHeight * _renderScale);
 
                 // Continuation header: "(Continued)" indicator + optional column headers
                 var continuationHeaderHeight = dataRowHeight * 0.8f; // "(Continued)" indicator
@@ -793,8 +830,7 @@ public class ReportRenderer : IDisposable
             {
                 // Position the table using the element's X/Width from page 1, with full vertical content area
                 var elementRect = GetScaledRect(accountingElement);
-                var contentTop = (PageDimensions.GetHeaderHeight(_config.ShowCompanyDetails) + (float)_config.PageMargins.Top) * _renderScale;
-                var contentBottom = height - (PageDimensions.FooterHeight + (float)_config.PageMargins.Bottom) * _renderScale;
+                var (contentTop, contentBottom) = GetContinuationContentBounds(height);
                 var overrideRect = new SKRect(elementRect.Left, contentTop, elementRect.Right, contentBottom);
 
                 RenderAccountingTableSlice(canvas, accountingElement, tableData,
@@ -816,8 +852,7 @@ public class ReportRenderer : IDisposable
                     && _continuationPlan?.CachedNormalTableColumns.TryGetValue(normalTable.Id, out var normalColumns) == true)
                 {
                     var elementRect = GetScaledRect(normalTable);
-                    var contentTop = (PageDimensions.GetHeaderHeight(_config.ShowCompanyDetails) + (float)_config.PageMargins.Top) * _renderScale;
-                    var contentBottom = height - (PageDimensions.FooterHeight + (float)_config.PageMargins.Bottom) * _renderScale;
+                    var (contentTop, contentBottom) = GetContinuationContentBounds(height);
                     var overrideRect = new SKRect(elementRect.Left, contentTop, elementRect.Right, contentBottom);
 
                     RenderTableSlice(canvas, normalTable, normalData, normalColumns,
@@ -2648,16 +2683,21 @@ public class ReportRenderer : IDisposable
                 continue;
 
             decimal sum = 0;
+            var pending = false;
             for (int rowIndex = 0; rowIndex < rowCount && rowIndex < tableData.Count; rowIndex++)
             {
                 var row = tableData[rowIndex];
                 if (colIndex < row.Count)
                 {
                     var text = row[colIndex];
+                    // A partial total would understate the column, so it waits on the rate too.
+                    if (text == PendingText)
+                    {
+                        pending = true;
+                        continue;
+                    }
                     // Strip the company's actual currency symbol (plus the common ones) and grouping
-                    // separators, then parse invariantly. The old code only stripped $, €, and £, so a
-                    // company on any other currency (¥, ₹, CHF, ...) produced an unparseable string and
-                    // every total showed 0.
+                    // separators, then parse invariantly.
                     var cleanText = text
                         .Replace(_currencySymbol, "")
                         .Replace("$", "").Replace("€", "").Replace("£", "")
@@ -2669,8 +2709,10 @@ public class ReportRenderer : IDisposable
             }
 
             // Format based on column type
-            if (colName == "Qty")
-                totals[colName] = sum.ToString("N0");
+            if (pending)
+                totals[colName] = PendingText;
+            else if (colName == "Qty")
+                totals[colName] = sum.ToString("#,0.##", System.Globalization.CultureInfo.InvariantCulture);
             else
                 totals[colName] = FormatCurrency(sum);
         }
@@ -2877,7 +2919,7 @@ public class ReportRenderer : IDisposable
                         "Product" => r.ProductName,
                         "Category" => r.CategoryName,
                         "Qty" => r.Quantity.ToString("N0"),
-                        "Total" => FormatCurrency(r.RefundAmount),
+                        "Total" => FormatRecordedAmount(r.RefundAmount, r.Currency, r.ReturnDate),
                         "Reason" => r.Reason,
                         "Status" => r.Status,
                         _ => ""
@@ -2891,7 +2933,7 @@ public class ReportRenderer : IDisposable
                         "Product" => r.ProductName,
                         "Category" => r.CategoryName,
                         "Qty" => r.Quantity.ToString("N0"),
-                        "Total" => FormatCurrency(r.EstimatedValue),
+                        "Total" => FormatRecordedAmount(r.EstimatedValue, r.Currency, r.ReportedDate),
                         "Reason" => r.Reason,
                         _ => ""
                     }).ToList());
@@ -2989,7 +3031,8 @@ public class ReportRenderer : IDisposable
             "ID" => r.TransactionId,
             "Company" => r.CompanyName,
             "Product" => r.ProductName,
-            "Qty" => r.Quantity.ToString("N0"),
+            // Invariant, like the currency cells, so the footer's re-parse reads "1.5" as one and a half.
+            "Qty" => r.Quantity.ToString("#,0.##", System.Globalization.CultureInfo.InvariantCulture),
             "Unit Price" => FormatCurrency(r.UnitPrice),
             // r.Total is USD-normalized (see ReportTableDataService); convert it to the display
             // currency at the row's date instead of stamping the symbol on a raw dollar figure. The
@@ -2997,7 +3040,7 @@ public class ReportRenderer : IDisposable
             "Total" => FormatCurrency(ToDisplayCurrency(r.Total, r.Date)),
             "Status" => r.Status,
             "Accountant" => r.AccountantName,
-            "Shipping" => FormatCurrency(r.ShippingCost),
+            "Shipping" => FormatCurrency(ToDisplayCurrency(r.ShippingCost, r.Date)),
             _ => ""
         }).ToList();
     }
@@ -3485,8 +3528,12 @@ public class ReportRenderer : IDisposable
         {
             var row = tableData.Rows[rowIdx];
 
-            if (currentY + dataRowHeight > rect.Bottom - dataRowHeight)
+            // The planner's own test (a row fits if it ends by the bottom), plus half a pixel for float
+            // drift. Reserving a spare row here dropped rows the planner had placed on this page.
+            if (currentY + GetAccountingRowHeight(row.RowType, dataRowHeight, headerRowHeight) > rect.Bottom + 0.5f)
                 break; // Safety: stop if we'd overflow (shouldn't happen with correct planning)
+
+            AccountingRowsDrawn++;
 
             switch (row.RowType)
             {
@@ -4205,7 +4252,7 @@ public class ReportRenderer : IDisposable
         if (periodLength <= 0) return 0;
 
         var previousStart = startDate.Value.AddDays(-periodLength);
-        var previousEnd = startDate.Value.AddSeconds(-1);
+        var previousEnd = startDate.Value.AddTicks(-1);
 
         decimal currentPeriod, previousPeriod;
 
@@ -4260,7 +4307,9 @@ public class ReportRenderer : IDisposable
             return (start, end);
         }
 
-        return (_config.Filters.StartDate, _config.Filters.EndDate);
+        // A custom end date is midnight; run it to the end of that day as tables and charts do
+        // (ReportFilters.GetDateRange), or the last day's transactions are left out.
+        return (_config.Filters.StartDate?.Date, _config.Filters.EndDate?.Date.AddDays(1).AddTicks(-1));
     }
 
     /// <summary>

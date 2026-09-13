@@ -88,13 +88,18 @@ public class InventoryItem
     /// <summary>
     /// Calculates the current status based on stock levels.
     /// </summary>
-    public InventoryStatus CalculateStatus()
+    public InventoryStatus CalculateStatus() => CalculateStatus(InStock);
+
+    /// <summary>
+    /// Calculates the status this item would have at the given stock level.
+    /// </summary>
+    public InventoryStatus CalculateStatus(int stock)
     {
-        if (InStock == 0)
+        if (stock == 0)
             return InventoryStatus.OutOfStock;
-        if (InStock >= OverstockThreshold && OverstockThreshold > 0)
+        if (stock >= OverstockThreshold && OverstockThreshold > 0)
             return InventoryStatus.Overstock;
-        if (InStock <= ReorderPoint)
+        if (stock <= ReorderPoint)
             return InventoryStatus.LowStock;
         return InventoryStatus.InStock;
     }

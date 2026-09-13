@@ -6,7 +6,6 @@ namespace ArgoBooks.Tests.Services.Sync;
 
 public class SyncServiceTests
 {
-    private sealed class StubHandler : HttpRequestMessage { }
     private sealed class CannedHandler : HttpMessageHandler
     {
         private readonly string _json; public HttpRequestMessage? Last; public string? LastBody;

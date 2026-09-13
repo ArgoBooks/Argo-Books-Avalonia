@@ -335,6 +335,7 @@
                         <ComboBox Grid.Column="1"
                                   ItemsSource="{Binding InsightsDateRangeOptions}"
                                   SelectedIndex="{Binding SelectedInsightsDateRangeIndex}"
+                                  IsEnabled="{Binding CanChangeInsightsPeriod}"
                                   MinWidth="130"
                                   VerticalAlignment="Center" />
                     </Grid>

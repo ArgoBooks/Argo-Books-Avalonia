@@ -73,7 +73,8 @@ public class Employee : BaseEntity
 
     /// <summary>
     /// Total claim amount from the employee's federal TD1. Zero means they have not filed
-    /// one, in which case the basic personal amount is used.
+    /// one, in which case the basic personal amount is used, unless
+    /// <see cref="FederalClaimIsZero"/> says the form claims nothing.
     /// </summary>
     [JsonPropertyName("federalClaimAmount")]
     public decimal FederalClaimAmount { get; set; }
@@ -81,6 +82,19 @@ public class Employee : BaseEntity
     /// <summary>Total claim amount from the provincial or territorial TD1.</summary>
     [JsonPropertyName("provincialClaimAmount")]
     public decimal ProvincialClaimAmount { get; set; }
+
+    /// <summary>
+    /// The federal TD1 claims nothing, as it does for someone whose other employer already
+    /// applies their personal amount. Its own field because a zero
+    /// <see cref="FederalClaimAmount"/> has always meant no TD1 was filed, and every existing
+    /// file stores it that way.
+    /// </summary>
+    [JsonPropertyName("federalClaimIsZero")]
+    public bool FederalClaimIsZero { get; set; }
+
+    /// <summary>The provincial TD1 claims nothing. See <see cref="FederalClaimIsZero"/>.</summary>
+    [JsonPropertyName("provincialClaimIsZero")]
+    public bool ProvincialClaimIsZero { get; set; }
 
     /// <summary>
     /// Dependants claimed on the employee's Ontario TD1ON, feeding T4127's factor Y.

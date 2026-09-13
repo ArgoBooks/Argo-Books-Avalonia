@@ -7,7 +7,12 @@ namespace ArgoBooks.Core.Services;
 /// Service for tracking and enforcing invoice send usage limits via server-side API.
 /// Free-tier users get a configurable monthly limit; premium users are unlimited.
 /// </summary>
-public class InvoiceUsageService : IDisposable
+public class InvoiceUsageService(
+    LicenseService? licenseService,
+    HttpClient httpClient,
+    IConnectivityService connectivityService,
+    IErrorLogger? errorLogger = null)
+    : IDisposable
 {
     private static readonly string UsageApiUrl = $"{ApiConfig.BaseUrl}/api/invoice/usage.php";
     // Must match the server's free-tier default (config/pricing.php
@@ -15,11 +20,7 @@ public class InvoiceUsageService : IDisposable
     // server check fails or hasn't completed yet.
     private const int DefaultFreeLimit = 25;
 
-    private readonly HttpClient _httpClient;
     private readonly bool _ownsHttpClient;
-    private readonly LicenseService? _licenseService;
-    private readonly IConnectivityService _connectivityService;
-    private readonly IErrorLogger? _errorLogger;
     private bool _disposed;
 
     // Cache the last known usage to reduce API calls
@@ -31,14 +32,6 @@ public class InvoiceUsageService : IDisposable
         : this(licenseService, new HttpClient { Timeout = TimeSpan.FromSeconds(15) }, new ConnectivityService(), errorLogger)
     {
         _ownsHttpClient = true;
-    }
-
-    public InvoiceUsageService(LicenseService? licenseService, HttpClient httpClient, IConnectivityService connectivityService, IErrorLogger? errorLogger = null)
-    {
-        _licenseService = licenseService;
-        _httpClient = httpClient;
-        _connectivityService = connectivityService;
-        _errorLogger = errorLogger;
     }
 
     /// <summary>
@@ -105,7 +98,7 @@ public class InvoiceUsageService : IDisposable
         }
         catch (Exception ex)
         {
-            _errorLogger?.LogError(ex, ErrorCategory.Api, "Invoice usage check failed");
+            NetworkFailure.Report(errorLogger, ex, "Invoice usage check failed", ErrorCategory.Api);
 
             // Network error, allow sending if cache is fresh and shows capacity.
             // Without the expiry check a stale cache could permit sends past the server-side quota.
@@ -115,7 +108,7 @@ public class InvoiceUsageService : IDisposable
             // caller can tell the user instead of falsely claiming a send limit was reached.
             var errorMessage = hasFreshCache
                 ? "Unable to verify usage."
-                : await ConnectivityMessage.ResolveAsync(_connectivityService, cancellationToken);
+                : await ConnectivityMessage.ResolveAsync(connectivityService, cancellationToken);
 
             return new InvoiceUsageResult
             {
@@ -164,7 +157,7 @@ public class InvoiceUsageService : IDisposable
         }
         catch (Exception ex)
         {
-            _errorLogger?.LogError(ex, ErrorCategory.Api, "Invoice usage increment failed");
+            NetworkFailure.Report(errorLogger, ex, "Invoice usage increment failed", ErrorCategory.Api);
             return new InvoiceUsageResult
             {
                 Success = false,
@@ -184,8 +177,8 @@ public class InvoiceUsageService : IDisposable
 
     private async Task<InvoiceUsageApiResponse> CallApiAsync(string action, CancellationToken cancellationToken)
     {
-        var licenseKey = _licenseService?.GetLicenseKey() ?? "";
-        var deviceId = _licenseService?.GetDeviceId() ?? "";
+        var licenseKey = licenseService?.GetLicenseKey() ?? "";
+        var deviceId = licenseService?.GetDeviceId() ?? "";
 
         var requestBody = new
         {
@@ -197,7 +190,7 @@ public class InvoiceUsageService : IDisposable
         var json = JsonSerializer.Serialize(requestBody);
         var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-        using var response = await _httpClient.PostAsync(UsageApiUrl, content, cancellationToken);
+        using var response = await httpClient.PostAsync(UsageApiUrl, content, cancellationToken);
         var responseJson = await response.Content.ReadAsStringAsync(cancellationToken);
 
         return JsonSerializer.Deserialize<InvoiceUsageApiResponse>(responseJson) ?? new InvoiceUsageApiResponse();
@@ -215,7 +208,7 @@ public class InvoiceUsageService : IDisposable
         {
             if (disposing && _ownsHttpClient)
             {
-                _httpClient.Dispose();
+                httpClient.Dispose();
             }
             _disposed = true;
         }

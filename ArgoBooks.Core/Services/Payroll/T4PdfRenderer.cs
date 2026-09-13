@@ -298,7 +298,7 @@ public static class T4PdfRenderer
     /// <summary>Grouped the way a SIN is normally written, so it can be checked at a glance.</summary>
     private static string FormatSin(string sin)
     {
-        string digits = new((sin ?? string.Empty).Where(char.IsAsciiDigit).ToArray());
+        string digits = new(sin.Where(char.IsAsciiDigit).ToArray());
         return digits.Length == 9 ? $"{digits[..3]} {digits[3..6]} {digits[6..]}" : "not provided";
     }
 

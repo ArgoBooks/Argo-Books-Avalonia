@@ -63,8 +63,7 @@ public sealed class EarningsCeilings
     /// <summary>
     /// Box 26, and box G on the RL-1. Capped at the SECOND ceiling, the YAMPE.
     ///
-    /// This is the opposite of what it looks like it should be, and it was wrong here for
-    /// exactly that reason. The intuition is that earnings between the two ceilings belong to
+    /// This is the opposite of what it looks like it should be. The intuition is that earnings between the two ceilings belong to
     /// CPP2 and are reported in box 16A, so box 26 should stop at the first ceiling. Both
     /// agencies say otherwise, in as many words:
     ///

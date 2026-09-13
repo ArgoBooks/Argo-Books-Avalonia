@@ -486,7 +486,7 @@ public RevenuePageViewModel()
         if (companyData?.Payments != null)
             refundsComplete = CurrencyService.TrySumDisplayFromUSD(
                 companyData.Payments.Where(p => p.IsRefund && p.Date >= startOfMonth && p.Date <= endOfMonth),
-                p => Math.Abs(p.Amount), p => p.OriginalCurrency, p => Math.Abs(p.AmountUSD), p => p.Date, out monthlyRefundsDisplay);
+                p => Math.Abs(p.Amount) * p.RevenueShare, p => p.OriginalCurrency, p => Math.Abs(p.AmountUSD) * p.RevenueShare, p => p.Date, out monthlyRefundsDisplay);
         // Pending if any component is still awaiting its rate, so the total isn't shown partial.
         TotalMonthlyRevenue = grossComplete && refundsComplete
             ? CurrencyService.Format(monthlyGrossDisplay - monthlyRefundsDisplay)
@@ -555,14 +555,15 @@ public RevenuePageViewModel()
         var refundedByInvoiceId = paymentsForRefunds
             .Where(p => p.IsRefund && !string.IsNullOrEmpty(p.InvoiceId))
             .GroupBy(p => p.InvoiceId)
-            .ToDictionary(g => g.Key, g => g.Sum(p => Math.Abs(p.Amount)));
+            .ToDictionary(g => g.Key, g => g.Sum(p => Math.Abs(p.Amount) * p.RevenueShare));
         var onlinePaymentInvoiceIds = paymentsForRefunds
             .Where(p => p.Source == PaymentSource.Online && !string.IsNullOrEmpty(p.InvoiceId))
             .Select(p => p.InvoiceId)
             .ToHashSet();
 
+        // An invoice's refunds belong to the revenue created from it, not to a deposit kept on it later.
         decimal RefundedForRevenue(Revenue r) =>
-            !string.IsNullOrEmpty(r.InvoiceId) && refundedByInvoiceId.TryGetValue(r.InvoiceId, out var amt) ? amt : 0m;
+            !r.IsKeptDeposit && !string.IsNullOrEmpty(r.InvoiceId) && refundedByInvoiceId.TryGetValue(r.InvoiceId, out var amt) ? amt : 0m;
 
         if (FilterStatus != "All")
         {

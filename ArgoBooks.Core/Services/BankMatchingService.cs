@@ -27,6 +27,8 @@ public class BankMatchingService
 
     #region Deterministic matching
 
+    public const string StripePayoutIgnoreReason = "Stripe payout (already imported)";
+
     /// <summary>
     /// Runs deterministic matching over the lines, auto-confirming unambiguous high-confidence
     /// matches and surfacing the rest as suggestions. Mutates the matched book records' flags.
@@ -35,6 +37,9 @@ public class BankMatchingService
     {
         var result = new BankMatchingResult { Lines = lines.ToList() };
 
+        ReleaseStaleMatches(result.Lines, data);
+        AutoIgnoreStripePayouts(result.Lines, data, options);
+
         // All in-scope book records, aligned to bank sign convention, that aren't already matched.
         var records = BuildRecordRefs(data, options.Scope).Where(r => !IsRecordMatched(data, r)).ToList();
 
@@ -42,13 +47,6 @@ public class BankMatchingService
         {
             if (line.MatchStatus is BankLineMatchStatus.Matched or BankLineMatchStatus.Ignored)
                 continue;
-
-            if (line.Amount > 0 && TryMatchStripePayout(line, data, options))
-            {
-                line.MatchStatus = BankLineMatchStatus.Ignored;
-                line.IgnoreReason = "Stripe payout (already imported)";
-                continue;
-            }
 
             var candidates = ScoreCandidates(line, records, options);
 
@@ -91,25 +89,92 @@ public class BankMatchingService
     }
 
     /// <summary>
-    /// True when the line's amount and date match a remembered, already-imported Stripe payout
-    /// (amount within 1 cent OR 1%, date within DateWindowDays), so the deposit should be
-    /// auto-ignored instead of double-counted against a book record.
+    /// Puts a Matched line back to Unmatched when its record no longer points back at it: the
+    /// record was deleted, its id was reused by a new record after an undo restored the id
+    /// counters, or the record is flagged to a different line. Matching skips Matched lines, so
+    /// without this such a line would stay Matched for good.
     /// </summary>
-    private static bool TryMatchStripePayout(BankStatementLine line, CompanyData data, BankMatchingOptions options)
+    private void ReleaseStaleMatches(List<BankStatementLine> lines, CompanyData data)
+    {
+        var released = false;
+        foreach (var line in lines)
+        {
+            if (line.MatchStatus != BankLineMatchStatus.Matched) continue;
+
+            // A flag with no line id can't be checked against the line, so it is trusted.
+            if (line.MatchedRecordType is { } type && line.MatchedRecordId is { } id &&
+                GetRecordMatchFlags(data, type, id) is { Matched: true } flags &&
+                (flags.LineId == null || flags.LineId == line.Id))
+                continue;
+
+            RejectMatch(line);
+            released = true;
+        }
+
+        if (released) data.MarkAsModified();
+    }
+
+    /// <summary>
+    /// Auto-ignores deposits that are an already-imported Stripe payout (amount within one minor
+    /// unit, a cent or a yen, OR 1%, date within DateWindowDays), so they aren't double-counted
+    /// against a book record. A payout accounts for one deposit, the closest by date and then by
+    /// amount, and the line keeps the payout's id so a later run can't spend the same payout on
+    /// another deposit.
+    /// </summary>
+    private static void AutoIgnoreStripePayouts(List<BankStatementLine> lines, CompanyData data, BankMatchingOptions options)
     {
         var payouts = data.Settings.Integrations.Stripe.ImportedPayouts;
-        if (payouts.Count == 0) return false;
+        if (payouts.Count == 0) return;
+        var companyCurrency = data.Settings.Localization.Currency;
 
-        var lineCents = (long)Math.Round(line.Amount * 100m);
-        foreach (var p in payouts)
+        var spent = lines
+            .Where(l => l.MatchStatus == BankLineMatchStatus.Ignored && l.StripePayoutId != null)
+            .Select(l => l.StripePayoutId!)
+            .ToHashSet(StringComparer.Ordinal);
+
+        // Lines ignored before the payout id was recorded claim a payout first, so a file saved by
+        // an older version doesn't spend that payout again on a different deposit.
+        var pairs = new List<(BankStatementLine Line, Models.Integrations.StripePayoutRecord Payout, bool Legacy, double Days, long CentsOff)>();
+        foreach (var line in lines)
         {
-            var diff = Math.Abs(p.AmountCents - lineCents);
-            var within = diff <= 1 || diff <= (long)Math.Round(Math.Abs(p.AmountCents) * 0.01);
-            if (!within) continue;
-            if (Math.Abs((p.Date.Date - line.Date.Date).TotalDays) <= options.DateWindowDays)
-                return true;
+            var legacy = line.MatchStatus == BankLineMatchStatus.Ignored && line.StripePayoutId == null &&
+                         line.IgnoreReason == StripePayoutIgnoreReason;
+            var open = line.Amount > 0 &&
+                       line.MatchStatus is not (BankLineMatchStatus.Matched or BankLineMatchStatus.Ignored);
+            if (!legacy && !open) continue;
+
+            foreach (var payout in payouts)
+            {
+                if (!spent.Contains(payout.StripePayoutId) && PayoutFit(line, payout, companyCurrency, options) is { } fit)
+                    pairs.Add((line, payout, legacy, fit.Days, fit.CentsOff));
+            }
         }
-        return false;
+
+        var claimed = new HashSet<BankStatementLine>();
+        foreach (var (line, payout, legacy, _, _) in pairs
+                     .OrderBy(p => p.Legacy ? 0 : 1).ThenBy(p => p.Days).ThenBy(p => p.CentsOff))
+        {
+            if (claimed.Contains(line) || !spent.Add(payout.StripePayoutId)) continue;
+
+            claimed.Add(line);
+            line.StripePayoutId = payout.StripePayoutId;
+            if (legacy) continue;
+
+            line.MatchStatus = BankLineMatchStatus.Ignored;
+            line.IgnoreReason = StripePayoutIgnoreReason;
+        }
+    }
+
+    private static (double Days, long CentsOff)? PayoutFit(
+        BankStatementLine line, Models.Integrations.StripePayoutRecord payout, string companyCurrency,
+        BankMatchingOptions options)
+    {
+        var currency = string.IsNullOrWhiteSpace(payout.Currency) ? companyCurrency : payout.Currency;
+        var lineUnits = Integrations.ArgoMoney.ToMinorUnits(line.Amount, currency);
+        var diff = Math.Abs(payout.AmountCents - lineUnits);
+        var within = diff <= 1 || diff <= (long)Math.Round(Math.Abs(payout.AmountCents) * 0.01);
+        var days = Math.Abs((payout.Date.Date - line.Date.Date).TotalDays);
+        return within && days <= options.DateWindowDays ? (days, diff) : null;
     }
 
     /// <summary>
@@ -250,9 +315,15 @@ public class BankMatchingService
 
     /// <summary>
     /// Confirms a candidate as the match for a line, setting the persisted flag on the book record.
+    /// Returns false, changing nothing, when the record is already matched to a different line: one
+    /// record backing two lines lets unlinking either clear the flag the other still relies on.
     /// </summary>
-    public void ConfirmMatch(BankStatementLine line, BankMatchCandidate candidate, CompanyData data)
+    public bool ConfirmMatch(BankStatementLine line, BankMatchCandidate candidate, CompanyData data)
     {
+        if (GetRecordMatchFlags(data, candidate.RecordType, candidate.RecordId) is { Matched: true } flags &&
+            flags.LineId != line.Id)
+            return false;
+
         // If the line was already matched to a different record, release that record first so it
         // doesn't stay flagged as matched (which would orphan it in the unmatched view).
         if (line.MatchedRecordType is { } prevType && line.MatchedRecordId is { } prevId &&
@@ -269,6 +340,7 @@ public class BankMatchingService
 
         SetRecordMatchState(data, candidate.RecordType, candidate.RecordId, matched: true, line.Id);
         data.MarkAsModified();
+        return true;
     }
 
     /// <summary>Marks a line as unmatched without touching any book record (rejects suggestions).</summary>
@@ -334,14 +406,26 @@ public class BankMatchingService
         }
     }
 
-    private static bool IsRecordMatched(CompanyData data, BookRecordRef r) => r.Type switch
+    private static bool IsRecordMatched(CompanyData data, BookRecordRef r) =>
+        GetRecordMatchFlags(data, r.Type, r.Id)?.Matched ?? false;
+
+    /// <summary>The record's bank-match flag and the line it names, or null when no such record exists.</summary>
+    private static (bool Matched, string? LineId)? GetRecordMatchFlags(CompanyData data, BookRecordType type, string id)
     {
-        BookRecordType.Expense => data.Expenses.FirstOrDefault(e => e.Id == r.Id)?.BankMatched ?? false,
-        BookRecordType.Revenue => data.Revenues.FirstOrDefault(x => x.Id == r.Id)?.BankMatched ?? false,
-        BookRecordType.Invoice => data.Invoices.FirstOrDefault(i => i.Id == r.Id)?.BankMatched ?? false,
-        BookRecordType.Payment => data.Payments.FirstOrDefault(p => p.Id == r.Id)?.BankMatched ?? false,
-        _ => false
-    };
+        switch (type)
+        {
+            case BookRecordType.Expense when data.Expenses.FirstOrDefault(e => e.Id == id) is { } e:
+                return (e.BankMatched, e.BankMatchedLineId);
+            case BookRecordType.Revenue when data.Revenues.FirstOrDefault(r => r.Id == id) is { } r:
+                return (r.BankMatched, r.BankMatchedLineId);
+            case BookRecordType.Invoice when data.Invoices.FirstOrDefault(i => i.Id == id) is { } i:
+                return (i.BankMatched, i.BankMatchedLineId);
+            case BookRecordType.Payment when data.Payments.FirstOrDefault(p => p.Id == id) is { } p:
+                return (p.BankMatched, p.BankMatchedLineId);
+            default:
+                return null;
+        }
+    }
 
     #endregion
 

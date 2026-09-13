@@ -69,7 +69,7 @@ public class CurrencyInputParsingTests
     public void ThreeDigitTailIsGroupingOnEveryMachine(string culture) =>
         Assert.Equal(1234m, ParseUnder(culture, "1,234"));
 
-    /// <summary>The zero-decimal currency round trip, which is where this bit first went wrong.</summary>
+    /// <summary>The zero-decimal currency round trip.</summary>
     [Theory]
     [InlineData("hu-HU")]
     [InlineData("en-CA")]

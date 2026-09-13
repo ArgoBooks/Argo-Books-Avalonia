@@ -15,6 +15,12 @@ public partial class PayrollModalsViewModel : ViewModelBase
 {
     private Employee? _editing;
 
+    /// <summary>
+    /// The Record of Employment form. Lives here rather than at year end because an ROE is due
+    /// five days after the pay period in which someone stops being paid.
+    /// </summary>
+    public RoeModalViewModel Roe { get; } = new();
+
     [ObservableProperty]
     private bool _isEmployeeModalOpen;
 
@@ -123,8 +129,7 @@ public partial class PayrollModalsViewModel : ViewModelBase
     ///
     /// Asked for rather than assumed, because CRA reads the province box differently depending on
     /// it: a Canadian address carries a province code, a US address carries a state, and anywhere
-    /// else must carry ZZ. Without a country the app was writing whatever was typed and calling
-    /// every address Canadian.
+    /// else must carry ZZ.
     ///
     /// Defaults to Canada, which is where an employee on a Canadian payroll almost always lives.
     /// </summary>
@@ -183,10 +188,6 @@ public partial class PayrollModalsViewModel : ViewModelBase
     /// <summary>
     /// Set only when no rate edition covers today, in which case no province can be calculated
     /// for and the employer needs to know before entering an employee.
-    ///
-    /// There is deliberately no note about partial coverage any more. Every province and
-    /// territory is supported, so a list of them told the reader nothing and, because Quebec is
-    /// held outside the provinces table, it read as though Quebec were missing.
     /// </summary>
     [ObservableProperty]
     private string _provinceSupportNote = string.Empty;
@@ -223,7 +224,8 @@ public partial class PayrollModalsViewModel : ViewModelBase
 
     private string EmployeeFormSnapshot() => string.Join('\u001f',
         Name, EmployeeNumber, Province, IsSalaried, Parse(PayRate), PayFrequency,
-        Parse(StandardHoursPerWeek), Parse(FederalClaimAmount), Parse(ProvincialClaimAmount),
+        Parse(StandardHoursPerWeek), Parse(FederalClaimAmount), IsTypedZero(FederalClaimAmount),
+        Parse(ProvincialClaimAmount), IsTypedZero(ProvincialClaimAmount),
         OntarioDependants, IsCppExempt, IsEiExempt, StartDate, EndDate,
         Sin, AddressStreet, AddressCity, AddressProvince, AddressPostalCode, AddressCountry,
         DentalBenefit, Notes);
@@ -253,8 +255,8 @@ public partial class PayrollModalsViewModel : ViewModelBase
         PayRate = employee.PayRate == 0m ? string.Empty : CurrencyService.Format(employee.PayRate);
         PayFrequency = employee.PayFrequency;
         StandardHoursPerWeek = employee.StandardHoursPerWeek?.ToString("0.##") ?? string.Empty;
-        FederalClaimAmount = Money(employee.FederalClaimAmount);
-        ProvincialClaimAmount = Money(employee.ProvincialClaimAmount);
+        FederalClaimAmount = Claim(employee.FederalClaimAmount, employee.FederalClaimIsZero);
+        ProvincialClaimAmount = Claim(employee.ProvincialClaimAmount, employee.ProvincialClaimIsZero);
         OntarioDependants = employee.OntarioDependants == 0 ? string.Empty : employee.OntarioDependants.ToString();
         IsCppExempt = employee.IsCppExempt;
         IsEiExempt = employee.IsEiExempt;
@@ -285,7 +287,7 @@ public partial class PayrollModalsViewModel : ViewModelBase
 
     /// <summary>
     /// Closing with unsaved work asks first, as every other entity modal does. Clicking the
-    /// backdrop is the easiest way to lose a half-filled form, and it was silent here.
+    /// backdrop is the easiest way to lose a half-filled form.
     /// </summary>
     [RelayCommand]
     private async Task RequestCloseEmployeeModalAsync()
@@ -485,6 +487,8 @@ public partial class PayrollModalsViewModel : ViewModelBase
 
         employee.FederalClaimAmount = Parse(FederalClaimAmount);
         employee.ProvincialClaimAmount = Parse(ProvincialClaimAmount);
+        employee.FederalClaimIsZero = IsTypedZero(FederalClaimAmount);
+        employee.ProvincialClaimIsZero = IsTypedZero(ProvincialClaimAmount);
         employee.OntarioDependants = int.TryParse(OntarioDependants, out int dependants) && dependants > 0 ? dependants : 0;
         employee.IsCppExempt = IsCppExempt;
         employee.IsEiExempt = IsEiExempt;
@@ -512,6 +516,8 @@ public partial class PayrollModalsViewModel : ViewModelBase
         StandardHoursPerWeek = e.StandardHoursPerWeek,
         FederalClaimAmount = e.FederalClaimAmount,
         ProvincialClaimAmount = e.ProvincialClaimAmount,
+        FederalClaimIsZero = e.FederalClaimIsZero,
+        ProvincialClaimIsZero = e.ProvincialClaimIsZero,
         OntarioDependants = e.OntarioDependants,
         IsCppExempt = e.IsCppExempt,
         IsEiExempt = e.IsEiExempt,
@@ -543,6 +549,8 @@ public partial class PayrollModalsViewModel : ViewModelBase
         target.StandardHoursPerWeek = from.StandardHoursPerWeek;
         target.FederalClaimAmount = from.FederalClaimAmount;
         target.ProvincialClaimAmount = from.ProvincialClaimAmount;
+        target.FederalClaimIsZero = from.FederalClaimIsZero;
+        target.ProvincialClaimIsZero = from.ProvincialClaimIsZero;
         target.OntarioDependants = from.OntarioDependants;
         target.IsCppExempt = from.IsCppExempt;
         target.IsEiExempt = from.IsEiExempt;
@@ -738,6 +746,19 @@ public partial class PayrollModalsViewModel : ViewModelBase
     /// <summary>Blank rather than "0.00", so an unset optional amount shows its placeholder.</summary>
     private static string Money(decimal value) =>
         value == 0 ? string.Empty : value.ToString("0.00", CultureInfo.CurrentCulture);
+
+    /// <summary>
+    /// A TD1 total. A claim of nothing shows as zero rather than blank, because blank is what
+    /// means no TD1 on file and the basic personal amount.
+    /// </summary>
+    private static string Claim(decimal amount, bool claimsZero) =>
+        claimsZero && amount == 0 ? 0m.ToString("0.00", CultureInfo.CurrentCulture) : Money(amount);
+
+    /// <summary>A zero actually typed into a TD1 box, as opposed to the box being left empty.</summary>
+    private static bool IsTypedZero(string text) =>
+        !string.IsNullOrWhiteSpace(text)
+        && Behaviors.CurrencyInputBehavior.TryParse(text, out decimal d)
+        && d == 0m;
 
     /// <summary>
     /// Reads an amount back from a box that may be showing it formatted. Goes through the same

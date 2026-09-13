@@ -10,7 +10,7 @@ namespace ArgoBooks.Mobile;
 
 // Avalonia 12's Android head moved app-builder customization onto the
 // Application subclass (see MainApplication.cs); AvaloniaMainActivity is now
-// non-generic (it was AvaloniaMainActivity<TApp> in Avalonia 11.x).
+// non-generic.
 [Activity(
     Label = "Argo Books",
     Theme = "@style/MyTheme.NoActionBar",

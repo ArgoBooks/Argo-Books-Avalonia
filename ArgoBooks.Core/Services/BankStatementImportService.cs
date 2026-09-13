@@ -215,12 +215,16 @@ public class BankStatementImportService(IErrorLogger? errorLogger = null)
     {
         var result = new List<BankStatementLine>(rows.Count);
 
+        // Decided for the whole column: parsing each row on its own read 05/03 as 3 May and 15/03
+        // as 15 March in the same UK/EU file.
+        var dateOrder = SpreadsheetRowReader.DetectDateOrder(rows, headers, ColDate);
+
         for (int i = 0; i < rows.Count; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var row = rows[i];
 
-            var date = SpreadsheetRowReader.GetDateTime(row, headers, ColDate);
+            var date = SpreadsheetRowReader.GetDateTime(row, headers, ColDate, dateOrder);
             var description = SpreadsheetRowReader.GetString(row, headers, ColDescription);
             var debit = SpreadsheetRowReader.GetNullableDecimal(row, headers, ColDebit);
             var credit = SpreadsheetRowReader.GetNullableDecimal(row, headers, ColCredit);

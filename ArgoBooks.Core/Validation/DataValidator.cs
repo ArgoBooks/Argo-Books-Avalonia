@@ -1,10 +1,6 @@
 using System.Text.RegularExpressions;
 using ArgoBooks.Core.Data;
-using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Models.Entities;
-using ArgoBooks.Core.Models.Inventory;
-using ArgoBooks.Core.Models.Rentals;
-using ArgoBooks.Core.Models.Transactions;
 
 namespace ArgoBooks.Core.Validation;
 
@@ -146,22 +142,6 @@ public partial class DataValidator(CompanyData companyData)
 
         return result;
     }
-
-    #endregion
-
-    #region Transaction Validation
-
-    #endregion
-
-    #region Entity Validation (continued)
-
-    #endregion
-
-    #region Inventory Validation
-
-    #endregion
-
-    #region Rental Validation
 
     #endregion
 

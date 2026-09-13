@@ -307,6 +307,7 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
 
             var dateBefore = created.NextDate;
             var generated = OwnEntries(GenerateDueNow(data), created);
+            var queued = QueueGenerated(data, generated);
             var dateAfter = created.NextDate;
 
             App.UndoRedoManager.RecordAction(new DelegateAction(
@@ -321,7 +322,7 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
                 () =>
                 {
                     data.RecurringTransactions.Add(created);
-                    RestoreGenerated(data, generated);
+                    RestoreGenerated(data, generated, queued);
                     created.NextDate = dateAfter;
                     Saved?.Invoke();
                 }));
@@ -334,18 +335,44 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
         else
         {
             var before = Capture(existing);
-            var amountChanged = existing.Template != null && existing.Template.Total != amount;
+            var statusBefore = existing.Status;
+            var dateBefore = existing.NextDate;
+            var lastGeneratedBefore = existing.LastGeneratedAt;
+            var startChanged = existing.StartDate.Date != start;
+            var oldAmount = existing.Template?.Total ?? 0m;
+            var amountChanged = existing.Template != null && oldAmount != amount;
 
             existing.Frequency = (Frequency)FrequencyIndex;
             existing.StartDate = start;
             existing.EndDate = end;
             await ApplyTemplateAsync(existing, amount, start);
 
+            // The next date came from the old start. Until the schedule has run it is simply the
+            // start. After that, everything before the next date is already dealt with, so the new
+            // start's dates pick up from there and a moved start cannot book a period twice. Whether
+            // it has run is read from the schedule, not from its entries, since those can be deleted,
+            // and a skipped or paused-through date moves the next date without leaving an entry.
+            if (startChanged)
+            {
+                var hasRun = existing.LastGeneratedAt != null || dateBefore.Date > before.Start.Date;
+                existing.NextDate = hasRun
+                    ? RecurrenceSchedule.FirstOnOrAfter(start, existing.Frequency, start.Day, dateBefore)
+                    : start;
+            }
+
+            // Generation only runs Active schedules, and resuming refuses a Completed one, so an end
+            // date moved past the next occurrence would otherwise never produce it.
+            if (existing.Status == RecurringTransactionStatus.Completed
+                && (end == null || existing.NextDate.Date <= end.Value))
+                existing.Status = RecurringTransactionStatus.Active;
+
             var after = Capture(existing);
 
-            var dateBefore = existing.NextDate;
             var generated = OwnEntries(GenerateDueNow(data), existing);
+            var queued = QueueGenerated(data, generated);
             var dateAfter = existing.NextDate;
+            var lastGeneratedAfter = existing.LastGeneratedAt;
+            var statusAfter = existing.Status;
 
             App.UndoRedoManager.RecordAction(new DelegateAction(
                 $"Edit recurring schedule {existing.Id}",
@@ -354,13 +381,17 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
                     RemoveGenerated(data, generated);
                     Restore(existing, before);
                     existing.NextDate = dateBefore;
+                    existing.LastGeneratedAt = lastGeneratedBefore;
+                    existing.Status = statusBefore;
                     Saved?.Invoke();
                 },
                 () =>
                 {
                     Restore(existing, after);
-                    RestoreGenerated(data, generated);
+                    RestoreGenerated(data, generated, queued);
                     existing.NextDate = dateAfter;
+                    existing.LastGeneratedAt = lastGeneratedAfter;
+                    existing.Status = statusAfter;
                     Saved?.Invoke();
                 }));
 
@@ -369,7 +400,7 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
             Saved?.Invoke();
 
             if (amountChanged)
-                await OfferRetroactiveCorrection(existing);
+                await OfferRetroactiveCorrection(existing, oldAmount);
         }
     }
 
@@ -379,7 +410,7 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
     /// </summary>
     private static IReadOnlyList<Transaction> GenerateDueNow(Core.Data.CompanyData data)
     {
-        var generated = RecurringTransactionService.GenerateDue(data, DateTime.UtcNow);
+        var generated = RecurringTransactionService.GenerateDue(data, DateTime.Today);
         if (generated.Count == 0) return generated;
 
         var expenses = generated.Count(t => t is Expense);
@@ -395,6 +426,19 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
         IReadOnlyList<Transaction> generated, RecurringTransaction schedule) =>
         generated.Where(t => t.RecurringScheduleId == schedule.Id).ToList();
 
+    /// <summary>
+    /// Generation queues an entry it has no rate for in the company file only. A conversion pass
+    /// copies the service's queue back over that list, so anything missing there is dropped and
+    /// the entry stays pending for good.
+    /// </summary>
+    private static IReadOnlyList<Core.Models.Common.PendingConversion> QueueGenerated(
+        Core.Data.CompanyData data, IReadOnlyList<Transaction> generated)
+    {
+        var ids = generated.Select(t => t.Id).ToList();
+        MirrorPendingQueue(data, ids);
+        return data.PendingConversions.Where(p => ids.Contains(p.TransactionId)).ToList();
+    }
+
     private static void RemoveGenerated(Core.Data.CompanyData data, IReadOnlyList<Transaction> generated)
     {
         foreach (var entry in generated)
@@ -402,15 +446,24 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
             if (entry is Expense expense) data.Expenses.Remove(expense);
             else if (entry is Revenue revenue) data.Revenues.Remove(revenue);
         }
+
+        var ids = generated.Select(t => t.Id).ToList();
+        data.PendingConversions.RemoveAll(p => ids.Contains(p.TransactionId));
+        MirrorPendingQueue(data, ids);
     }
 
-    private static void RestoreGenerated(Core.Data.CompanyData data, IReadOnlyList<Transaction> generated)
+    private static void RestoreGenerated(
+        Core.Data.CompanyData data, IReadOnlyList<Transaction> generated, IReadOnlyList<Core.Models.Common.PendingConversion> queued)
     {
         foreach (var entry in generated)
         {
             if (entry is Expense expense && !data.Expenses.Contains(expense)) data.Expenses.Add(expense);
             else if (entry is Revenue revenue && !data.Revenues.Contains(revenue)) data.Revenues.Add(revenue);
         }
+
+        foreach (var row in queued.Where(row => !data.PendingConversions.Contains(row)))
+            data.PendingConversions.Add(row);
+        MirrorPendingQueue(data, generated.Select(t => t.Id).ToList());
     }
 
     /// <summary>
@@ -486,15 +539,16 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
 
     /// <summary>
     /// A schedule edit changes future occurrences. Ones already generated are only touched when
-    /// the user says so, and never when they have been matched against a bank line.
+    /// the user says so, and never when they have been matched against a bank line or changed by
+    /// hand.
     /// </summary>
-    private async Task OfferRetroactiveCorrection(RecurringTransaction schedule)
+    private async Task OfferRetroactiveCorrection(RecurringTransaction schedule, decimal oldAmount)
     {
         var data = App.CompanyManager?.CompanyData;
         var dialog = App.ConfirmationDialog;
         if (data == null || dialog == null) return;
 
-        var correctable = RecurringTransactionService.FindCorrectableOccurrences(data, schedule);
+        var correctable = RecurringTransactionService.FindCorrectableOccurrences(data, schedule, oldAmount);
         if (correctable.Count == 0) return;
 
         var earliest = correctable.Min(t => t.Date);
@@ -503,7 +557,7 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
         var result = await dialog.ShowAsync(new ConfirmationDialogOptions
         {
             Title = "Update past entries?".Translate(),
-            Message = "{0} entries from {1} to {2} were generated at the old amount. Update them too? Entries matched to a bank line are left alone."
+            Message = "{0} entries from {1} to {2} were generated at the old amount. Update them too? Entries matched to a bank line or changed by hand are left alone."
                 .TranslateFormat(correctable.Count, earliest.ToString("MMM d, yyyy"), latest.ToString("MMM d, yyyy")),
             PrimaryButtonText = "Update them".Translate(),
             CancelButtonText = "Leave them".Translate()
@@ -511,32 +565,52 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
 
         if (result != ConfirmationResult.Primary) return;
 
-        var before = correctable
-            .Select(t => (Target: t, t.Amount, t.UnitPrice, t.TaxAmount, t.Total))
-            .ToList();
-
-        RecurringTransactionService.ApplyTemplateAmounts(schedule, correctable);
+        var correction = RecurringTransactionService.CorrectOccurrences(data, schedule, correctable);
+        var ids = correctable.Select(t => t.Id).ToList();
+        MirrorPendingQueue(data, ids);
 
         App.UndoRedoManager.RecordAction(new DelegateAction(
             $"Update {correctable.Count} past entries for {schedule.Id}",
             () =>
             {
-                foreach (var (target, amount, unitPrice, taxAmount, total) in before)
-                {
-                    target.Amount = amount;
-                    target.UnitPrice = unitPrice;
-                    target.TaxAmount = taxAmount;
-                    target.Total = total;
-                }
+                correction.Revert(data);
+                MirrorPendingQueue(data, ids);
                 Saved?.Invoke();
             },
             () =>
             {
-                RecurringTransactionService.ApplyTemplateAmounts(schedule, correctable);
+                correction.Reapply(data);
+                MirrorPendingQueue(data, ids);
                 Saved?.Invoke();
             }));
 
         App.CompanyManager?.MarkAsChanged();
         Saved?.Invoke();
+    }
+
+    /// <summary>
+    /// The conversion service works from its own copy of the queue, so a correction that changed
+    /// or cleared a queued row in the company file has to be repeated there. Called on the UI
+    /// thread: MirrorAsync reads the company file's rows before it first awaits.
+    /// </summary>
+    private static void MirrorPendingQueue(Core.Data.CompanyData data, IReadOnlyList<string> ids)
+    {
+        var service = PendingConversionService.Instance;
+        if (service == null) return;
+
+        _ = MirrorPendingQueueAsync(service, data, ids);
+    }
+
+    private static async Task MirrorPendingQueueAsync(
+        PendingConversionService service, Core.Data.CompanyData data, IReadOnlyList<string> ids)
+    {
+        try
+        {
+            await service.MirrorAsync(data, ids);
+        }
+        catch (Exception ex)
+        {
+            App.ErrorLogger?.LogWarning($"Failed to update queued conversions: {ex.Message}", "RecurringSchedule");
+        }
     }
 }

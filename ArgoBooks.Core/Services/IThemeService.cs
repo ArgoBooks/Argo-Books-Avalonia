@@ -70,22 +70,6 @@ public static class ThemeModeExtensions
 public interface IThemeService
 {
     /// <summary>
-    /// Gets the current theme mode.
-    /// </summary>
-    ThemeMode CurrentTheme { get; }
-
-    /// <summary>
-    /// Gets whether the current effective theme is dark.
-    /// </summary>
-    bool IsDarkTheme { get; }
-
-    /// <summary>
-    /// Sets the theme mode.
-    /// </summary>
-    /// <param name="theme">The theme mode to apply.</param>
-    void SetTheme(ThemeMode theme);
-
-    /// <summary>
     /// Event raised when the theme changes.
     /// </summary>
     event EventHandler<ThemeMode>? ThemeChanged;

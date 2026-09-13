@@ -8,12 +8,7 @@ namespace ArgoBooks.Tests.ViewModels;
 /// </summary>
 public class QuickActionsViewModelTests
 {
-    private readonly QuickActionsViewModel _viewModel;
-
-    public QuickActionsViewModelTests()
-    {
-        _viewModel = new QuickActionsViewModel();
-    }
+    private readonly QuickActionsViewModel _viewModel = new();
 
     #region Top Results Tests
 

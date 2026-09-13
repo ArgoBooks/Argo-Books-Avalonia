@@ -67,6 +67,13 @@ public class BankStatementLine
     [JsonPropertyName("ignoreReason")]
     public string? IgnoreReason { get; set; }
 
+    /// <summary>
+    /// When auto-ignored as an imported Stripe payout, the payout it was ignored for, so that one
+    /// payout never accounts for a second deposit.
+    /// </summary>
+    [JsonPropertyName("stripePayoutId")]
+    public string? StripePayoutId { get; set; }
+
     /// <summary>Zero-based source row index in the imported file (for diagnostics only).</summary>
     [JsonIgnore]
     public int SourceRowIndex { get; set; }

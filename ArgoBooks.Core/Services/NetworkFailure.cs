@@ -34,7 +34,16 @@ public static class NetworkFailure
     /// Files <paramref name="exception"/> without probing the network. Use from background
     /// work and silent retries.
     /// </summary>
-    public static void Report(IErrorLogger? errorLogger, Exception exception, string context)
+    /// <param name="reachedCategory">
+    /// Category to use when the request did reach a server, so a caller talking to our own
+    /// API can keep those under <see cref="ErrorCategory.Api"/>. A request that never got
+    /// there is always a network warning, whatever this says.
+    /// </param>
+    public static void Report(
+        IErrorLogger? errorLogger,
+        Exception exception,
+        string context,
+        ErrorCategory reachedCategory = ErrorCategory.Network)
     {
         if (errorLogger is null)
         {
@@ -50,7 +59,7 @@ public static class NetworkFailure
 
         if (ReachedAServer(exception))
         {
-            errorLogger.LogError(exception, ErrorCategory.Network, context);
+            errorLogger.LogError(exception, reachedCategory, context);
             return;
         }
 

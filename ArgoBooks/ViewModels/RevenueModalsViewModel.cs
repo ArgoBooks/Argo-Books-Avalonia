@@ -9,8 +9,8 @@ using ArgoBooks.Core.Models.Transactions;
 using ArgoBooks.Core.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-
 using ArgoBooks.Core.Models.Telemetry;
+using ArgoBooks.Shared.Telemetry;
 
 namespace ArgoBooks.ViewModels;
 
@@ -37,6 +37,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
     protected override string CounterpartyName => "Customer";
     protected override CategoryType CategoryTypeFilter => CategoryType.Revenue;
     protected override bool UseCostPrice => false;
+    protected override bool AllowsTypedItems => true;
 
     #endregion
 
@@ -226,49 +227,61 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
 
             if (result != ConfirmationResult.Primary) return;
 
-            var revenue = companyData?.Revenues.FirstOrDefault(s => s.Id == item.Id);
-            if (revenue == null) return;
-
-            // Find and remove associated receipt
-            Receipt? deletedReceipt = null;
-            if (!string.IsNullOrEmpty(revenue.ReceiptId))
-            {
-                deletedReceipt = companyData?.Receipts.FirstOrDefault(r => r.Id == revenue.ReceiptId);
-                if (deletedReceipt != null)
-                {
-                    companyData?.Receipts.Remove(deletedReceipt);
-                }
-            }
-
-            var deletedRevenue = revenue;
-            var capturedReceipt = deletedReceipt;
-            var action = new DelegateAction(
-                $"Delete revenue {revenue.Id}",
-                () =>
-                {
-                    companyData?.Revenues.Add(deletedRevenue);
-                    if (capturedReceipt != null)
-                        companyData?.Receipts.Add(capturedReceipt);
-                    RaiseTransactionDeleted();
-                },
-                () =>
-                {
-                    companyData?.Revenues.Remove(deletedRevenue);
-                    if (capturedReceipt != null)
-                        companyData?.Receipts.Remove(capturedReceipt);
-                    RaiseTransactionDeleted();
-                });
-
-            companyData?.Revenues.Remove(revenue);
-            App.UndoRedoManager.RecordAction(action);
-            App.CompanyManager?.MarkAsChanged();
-
-            RaiseTransactionDeleted();
+            DeleteRevenue(item.Id);
         }
         catch (Exception ex)
         {
             App.ErrorLogger?.LogError(ex, ErrorCategory.Validation, "Revenue.OpenDeleteConfirm");
         }
+    }
+
+    internal void DeleteRevenue(string revenueId)
+    {
+        var companyData = App.CompanyManager?.CompanyData;
+
+        var revenue = companyData?.Revenues.FirstOrDefault(s => s.Id == revenueId);
+        if (companyData == null || revenue == null) return;
+
+        // Find and remove associated receipt
+        Receipt? deletedReceipt = null;
+        if (!string.IsNullOrEmpty(revenue.ReceiptId))
+        {
+            deletedReceipt = companyData.Receipts.FirstOrDefault(r => r.Id == revenue.ReceiptId);
+            if (deletedReceipt != null)
+            {
+                companyData.Receipts.Remove(deletedReceipt);
+            }
+        }
+
+        // Put back the stock this sale took, as editing its lines down to nothing would
+        var deleteResults = AdjustInventoryForEdit(companyData, revenue.LineItems, [], revenue.Id, isExpense: false, reason: "Revenue deleted");
+
+        var deletedRevenue = revenue;
+        var capturedReceipt = deletedReceipt;
+        var action = new DelegateAction(
+            $"Delete revenue {revenue.Id}",
+            () =>
+            {
+                companyData.Revenues.Add(deletedRevenue);
+                if (capturedReceipt != null)
+                    companyData.Receipts.Add(capturedReceipt);
+                RevertInventoryAdjustments(companyData, deleteResults);
+                RaiseTransactionDeleted();
+            },
+            () =>
+            {
+                companyData.Revenues.Remove(deletedRevenue);
+                if (capturedReceipt != null)
+                    companyData.Receipts.Remove(capturedReceipt);
+                deleteResults = AdjustInventoryForEdit(companyData, deletedRevenue.LineItems, [], deletedRevenue.Id, isExpense: false, reason: "Revenue deleted");
+                RaiseTransactionDeleted();
+            });
+
+        companyData.Revenues.Remove(revenue);
+        App.UndoRedoManager.RecordAction(action);
+        App.CompanyManager?.MarkAsChanged();
+
+        RaiseTransactionDeleted();
     }
 
     #endregion
@@ -614,6 +627,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
 
         // Store original values for undo
         var original = CaptureTransactionState(revenue);
+        var originalQueued = companyData.PendingConversions.Where(p => p.TransactionId == revenue.Id).ToList();
 
         var (description, totalQuantity, averageUnitPrice) = GetLineItemSummary();
         var modelLineItems = CreateModelLineItems();
@@ -648,10 +662,11 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
             : averageUnitPrice;
         revenue.IsPendingConversion = IsPendingConversion;
 
-        // Queue for offline conversion if pending
+        // Queue for offline conversion if pending; a row that converted leaves the queue
+        List<PendingConversion> editedQueued = [];
         if (IsPendingConversion)
         {
-            var pendingEntry = new PendingConversion
+            editedQueued.Add(new PendingConversion
             {
                 TransactionId = revenue.Id,
                 TransactionType = "Revenue",
@@ -663,23 +678,26 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
                 Discount = ModalDiscount,
                 Fee = ModalFee,
                 UnitPrice = averageUnitPrice
-            };
-            companyData.PendingConversions.RemoveAll(p => p.TransactionId == revenue.Id);
-            companyData.PendingConversions.Add(pendingEntry);
-            _ = PendingConversionService.Instance?.AddPendingConversionAsync(pendingEntry);
+            });
         }
-        else if (original.IsPendingConversion)
-        {
-            companyData.PendingConversions.RemoveAll(p => p.TransactionId == revenue.Id);
-        }
+        var queueTouched = originalQueued.Count > 0 || editedQueued.Count > 0;
+        if (queueTouched)
+            SetQueuedConversions(companyData, revenue.Id, editedQueued);
 
-        // Handle receipt
+        // Handle receipt. The form loads an existing receipt's OriginalFilePath, so only a different
+        // path means Change picked a new file.
+        var currentReceipt = string.IsNullOrEmpty(original.ReceiptId)
+            ? null
+            : companyData.Receipts.FirstOrDefault(r => r.Id == original.ReceiptId);
         Receipt? newReceipt = null;
-        if (!string.IsNullOrEmpty(ReceiptFilePath) && string.IsNullOrEmpty(original.ReceiptId))
+        Receipt? replacedReceipt = null;
+        if (!string.IsNullOrEmpty(ReceiptFilePath) && ReceiptFilePath != currentReceipt?.OriginalFilePath)
         {
             newReceipt = CreateReceipt(companyData, revenue.Id, "Revenue", SelectedCustomer?.Name ?? "");
             if (newReceipt != null)
             {
+                if (currentReceipt != null && companyData.Receipts.Remove(currentReceipt))
+                    replacedReceipt = currentReceipt;
                 revenue.ReceiptId = newReceipt.Id;
                 companyData.Receipts.Add(newReceipt);
             }
@@ -689,23 +707,29 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
         var editResults = AdjustInventoryForEdit(companyData, original.LineItems, modelLineItems, revenue.Id, isExpense: false);
 
         var capturedNewReceipt = newReceipt;
-        // Snapshot the NEW state so redo restores the edit itself. The old redo re-read live ViewModel
-        // fields (amount, notes, paid status), so once the modal had been reused or cleared, redo
-        // wrote zeros/blank values and could flip the paid status.
+        // Snapshot the NEW state so redo restores the edit itself.
         var edited = CaptureTransactionState(revenue);
         var action = new DelegateAction(
             $"Edit revenue {EditingTransactionId}",
             () =>
             {
                 RestoreTransactionState(revenue, original);
+                if (queueTouched)
+                    SetQueuedConversions(companyData, revenue.Id, originalQueued);
                 if (capturedNewReceipt != null)
                     companyData.Receipts.Remove(capturedNewReceipt);
+                if (replacedReceipt != null && !companyData.Receipts.Contains(replacedReceipt))
+                    companyData.Receipts.Add(replacedReceipt);
                 RevertInventoryAdjustments(companyData, editResults);
                 RaiseTransactionSaved();
             },
             () =>
             {
                 RestoreTransactionState(revenue, edited);
+                if (queueTouched)
+                    SetQueuedConversions(companyData, revenue.Id, editedQueued);
+                if (replacedReceipt != null)
+                    companyData.Receipts.Remove(replacedReceipt);
                 if (capturedNewReceipt != null && !companyData.Receipts.Contains(capturedNewReceipt))
                     companyData.Receipts.Add(capturedNewReceipt);
                 editResults = AdjustInventoryForEdit(companyData, original.LineItems, modelLineItems, revenue.Id, isExpense: false);

@@ -15,9 +15,28 @@ namespace ArgoBooks.Core.Services.InvoiceTemplates;
 public partial class InvoiceHtmlRenderer
 {
     // All money amounts on an invoice are formatted with InvariantCulture so a non-US machine locale
-    // can't render a hybrid like "$1.234,56" on a customer-facing document.
-    private static string Money(decimal amount) =>
-        amount.ToString("N2", System.Globalization.CultureInfo.InvariantCulture);
+    // can't render a hybrid like "$1.234,56" on a customer-facing document. The number of decimals
+    // is the currency's, not the culture's: yen has no subunit, so "¥5,000.00" is wrong everywhere.
+    private static string Money(decimal amount, int decimals) =>
+        amount.ToString($"N{decimals}", System.Globalization.CultureInfo.InvariantCulture);
+
+    private static int DecimalsFor(Invoice invoice) =>
+        Models.Common.CurrencyInfo.GetByCode(
+            string.IsNullOrEmpty(invoice.OriginalCurrency) ? "USD" : invoice.OriginalCurrency).DecimalPlaces;
+
+    // Dates carry the same decision as the money: the labels around them are hardcoded English, so a
+    // French or German machine must not print "14 août 2026" next to "Invoice Date".
+    private static string InvoiceDate(DateTime date) =>
+        date.ToString("MMMM d, yyyy", System.Globalization.CultureInfo.InvariantCulture);
+
+    // Raw numbers for the editable paper's own fields. The browser parses these with parseFloat, so a
+    // comma decimal separator from the machine locale would be read as a whole number.
+    private static string Raw(decimal value) =>
+        value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+
+    // A stored figure that went negative (an older save, an imported sheet) is still not something to
+    // put in front of a customer. The math that produces them cannot go below zero any more.
+    private static decimal NonNegative(decimal amount) => Math.Max(0m, amount);
 
     // " CAD" style suffix appended to the amount-due rows so the currency is unambiguous.
     private static string CurrencyCodeSuffix(Invoice invoice) =>
@@ -30,6 +49,7 @@ public partial class InvoiceHtmlRenderer
     /// <param name="template">The template to use for rendering.</param>
     /// <param name="companyData">Company data for company info and customer lookup.</param>
     /// <param name="currencySymbol">Currency symbol to use (defaults to $).</param>
+    /// <param name="editable">True when rendering for the in-app editor, which keeps the tax, shipping and discount rows and the on-paper input fields.</param>
     /// <returns>The rendered HTML string.</returns>
     public string RenderInvoice(
         Invoice invoice,
@@ -125,6 +145,7 @@ public partial class InvoiceHtmlRenderer
     {
         var customer = companyData.GetCustomer(invoice.CustomerId);
         var companySettings = companyData.Settings;
+        var decimals = DecimalsFor(invoice);
         var sb = new StringBuilder();
 
         // Header
@@ -142,14 +163,14 @@ public partial class InvoiceHtmlRenderer
 
         // Invoice details
         sb.AppendLine($"Invoice #: {invoice.InvoiceNumber}");
-        sb.AppendLine($"Date: {invoice.IssueDate:MMMM d, yyyy}");
-        sb.AppendLine($"Due Date: {invoice.DueDate:MMMM d, yyyy}");
+        sb.AppendLine($"Date: {InvoiceDate(invoice.IssueDate)}");
+        sb.AppendLine($"Due Date: {InvoiceDate(invoice.DueDate)}");
         sb.AppendLine();
 
         // Bill to
         sb.AppendLine("BILL TO:");
         sb.AppendLine(customer?.Name ?? "Unknown Customer");
-        var customerAddress = customer?.Address?.ToString();
+        var customerAddress = customer?.Address.ToString();
         if (!string.IsNullOrWhiteSpace(customerAddress))
             sb.AppendLine(customerAddress);
         if (!string.IsNullOrWhiteSpace(customer?.Email))
@@ -163,46 +184,45 @@ public partial class InvoiceHtmlRenderer
 
         foreach (var item in invoice.LineItems)
         {
-            var amount = item.Quantity * item.UnitPrice;
             sb.AppendLine($"{item.Description}");
-            sb.AppendLine($"  {item.Quantity} x {currencySymbol}{Money(item.UnitPrice)} = {currencySymbol}{Money(amount)}");
+            sb.AppendLine($"  {item.Quantity} x {currencySymbol}{Money(item.UnitPrice, decimals)} = {currencySymbol}{Money(item.Subtotal, decimals)}");
         }
 
         sb.AppendLine(new string('-', 50));
 
         // Totals
-        sb.AppendLine($"Subtotal: {currencySymbol}{Money(invoice.Subtotal)}");
+        sb.AppendLine($"Subtotal: {currencySymbol}{Money(NonNegative(invoice.Subtotal), decimals)}");
         if (invoice.TaxRate > 0)
         {
             var taxLabel = GetTaxLabel(companySettings.Company.Country);
             // A fixed tax stores a dollar amount in TaxRate, so only a percent tax gets a "(x%)" suffix.
             var taxRateSuffix = invoice.TaxIsFixed ? "" : $" ({invoice.TaxRate}%)";
-            sb.AppendLine($"{taxLabel}{taxRateSuffix}: {currencySymbol}{Money(invoice.TaxAmount)}");
+            sb.AppendLine($"{taxLabel}{taxRateSuffix}: {currencySymbol}{Money(NonNegative(invoice.TaxAmount), decimals)}");
         }
         // Shipping is part of the stored Total, so the breakdown must list it or it won't sum to TOTAL.
         if (invoice.ShippingAmount > 0)
-            sb.AppendLine($"Shipping: {currencySymbol}{Money(invoice.ShippingAmount)}");
+            sb.AppendLine($"Shipping: {currencySymbol}{Money(invoice.ShippingAmount, decimals)}");
         if (invoice.SecurityDeposit > 0)
-            sb.AppendLine($"Security Deposit: {currencySymbol}{Money(invoice.SecurityDeposit)}");
+            sb.AppendLine($"Security Deposit: {currencySymbol}{Money(invoice.SecurityDeposit, decimals)}");
         if (invoice.CustomFeeAmount > 0)
-            sb.AppendLine($"{BuildFeeLabel(invoice)}: {currencySymbol}{Money(CalculateCustomFee(invoice))}");
+            sb.AppendLine($"{BuildFeeLabel(invoice)}: {currencySymbol}{Money(CalculateCustomFee(invoice), decimals)}");
         if (invoice.DiscountAmount > 0)
         {
             var discountLabel = invoice.DiscountIsPercent ? $"Discount ({invoice.DiscountAmount}%)" : "Discount";
-            sb.AppendLine($"{discountLabel}: -{currencySymbol}{Money(CalculateDiscount(invoice))}");
+            sb.AppendLine($"{discountLabel}: -{currencySymbol}{Money(CalculateDiscount(invoice), decimals)}");
         }
-        sb.AppendLine($"TOTAL: {currencySymbol}{Money(invoice.Total)}");
+        sb.AppendLine($"TOTAL: {currencySymbol}{Money(NonNegative(invoice.Total), decimals)}");
 
         if (invoice.AmountPaid > 0)
         {
-            sb.AppendLine($"Amount Paid: -{currencySymbol}{Money(invoice.AmountPaid)}");
-            sb.AppendLine($"Balance Due: {currencySymbol}{Money(invoice.Balance)}");
+            sb.AppendLine($"Amount Paid: -{currencySymbol}{Money(invoice.AmountPaid, decimals)}");
+            sb.AppendLine($"Balance Due: {currencySymbol}{Money(invoice.Balance, decimals)}");
         }
 
         sb.AppendLine();
 
-        // Notes
-        if (template.ShowNotes && !string.IsNullOrWhiteSpace(invoice.Notes))
+        // The customer message, which the HTML invoice always prints in its footer.
+        if (!string.IsNullOrWhiteSpace(invoice.Notes))
         {
             sb.AppendLine("NOTES:");
             sb.AppendLine(invoice.Notes);
@@ -235,6 +255,7 @@ public partial class InvoiceHtmlRenderer
     {
         var isOverdue = invoice.DueDate.Date < DateTime.UtcNow.Date &&
                         invoice.Balance > 0;
+        var decimals = DecimalsFor(invoice);
 
         // Processing-fee row logic:
         //  - If the customer has already paid online with a fee (sum of
@@ -299,9 +320,6 @@ public partial class InvoiceHtmlRenderer
             ["ShowCompanyCountry"] = invoice.ShowCompanyAddress ?? template.ShowCompanyCountry,
             ["ShowTaxBreakdown"] = template.ShowTaxBreakdown && invoice.TaxAmount > 0,
             ["ShowItemDescriptions"] = template.ShowItemDescriptions,
-            // The customer message/notes now render in the footer (FooterOrNotes), so the separate
-            // Notes section is off. Editing the footer on the paper writes to the invoice Notes.
-            ["ShowNotes"] = false,
             ["ShowPaymentInstructions"] = template.ShowPaymentInstructions && !string.IsNullOrWhiteSpace(template.PaymentInstructions),
             ["ShowDueDateProminent"] = invoice.ShowDueDateProminent ?? template.ShowDueDateProminent,
 
@@ -330,48 +348,48 @@ public partial class InvoiceHtmlRenderer
 
             // Invoice details
             ["InvoiceNumber"] = invoice.InvoiceNumber,
-            ["IssueDate"] = invoice.IssueDate.ToString("MMMM d, yyyy"),
-            ["DueDate"] = invoice.DueDate.ToString("MMMM d, yyyy"),
+            ["IssueDate"] = InvoiceDate(invoice.IssueDate),
+            ["DueDate"] = InvoiceDate(invoice.DueDate),
             ["IsOverdue"] = isOverdue,
 
             // Financial
-            ["Subtotal"] = $"{currencySymbol}{Money(invoice.Subtotal)}",
-            ["TaxRate"] = invoice.TaxRate.ToString("0.##"),
+            ["Subtotal"] = $"{currencySymbol}{Money(NonNegative(invoice.Subtotal), decimals)}",
+            ["TaxRate"] = Raw(invoice.TaxRate),
             ["TaxLabel"] = GetTaxLabel(companySettings.Company.Country),
             // The "(13%)" suffix on the tax label only makes sense in percent mode.
-            ["TaxRateLabel"] = invoice.TaxIsFixed ? "" : $" ({invoice.TaxRate.ToString("0.##")}%)",
-            ["TaxAmount"] = $"{currencySymbol}{Money(invoice.TaxAmount)}",
+            ["TaxRateLabel"] = invoice.TaxIsFixed ? "" : $" ({Raw(invoice.TaxRate)}%)",
+            ["TaxAmount"] = $"{currencySymbol}{Money(NonNegative(invoice.TaxAmount), decimals)}",
             // The tax row is always shown in the editor so it can be edited, even if the template
             // normally hides the breakdown.
             ["ShowTaxRow"] = template.ShowTaxBreakdown || editable,
             ["ShowSecurityDeposit"] = invoice.SecurityDeposit > 0,
-            ["SecurityDeposit"] = $"{currencySymbol}{Money(invoice.SecurityDeposit)}",
+            ["SecurityDeposit"] = $"{currencySymbol}{Money(invoice.SecurityDeposit, decimals)}",
             ["ShowShipping"] = invoice.ShippingAmount > 0 || editable,
-            ["ShippingAmount"] = $"{currencySymbol}{Money(invoice.ShippingAmount)}",
+            ["ShippingAmount"] = $"{currencySymbol}{Money(invoice.ShippingAmount, decimals)}",
             // The custom fee carries a user-defined label, so only surface it once one is actually set
             // (it stays editable on the paper when present); tax/shipping/discount are always editable.
             ["ShowCustomFee"] = invoice.CustomFeeAmount > 0,
             ["CustomFeeLabel"] = BuildFeeLabel(invoice),
-            ["CustomFeeAmount"] = $"{currencySymbol}{Money(CalculateCustomFee(invoice))}",
+            ["CustomFeeAmount"] = $"{currencySymbol}{Money(CalculateCustomFee(invoice), decimals)}",
             ["ShowDiscount"] = invoice.DiscountAmount > 0 || editable,
-            ["DiscountAmount"] = $"-{currencySymbol}{Money(CalculateDiscount(invoice))}",
+            ["DiscountAmount"] = $"-{currencySymbol}{Money(CalculateDiscount(invoice), decimals)}",
             // Raw values + modes for the on-paper totals editors (the editing script builds the
             // input + %/fixed swap from these; the customer view just shows the computed amounts above).
             ["Editable"] = editable,
             ["CurrencySymbol"] = currencySymbol,
-            ["TaxRateRaw"] = invoice.TaxRate.ToString("0.##"),
+            ["TaxRateRaw"] = Raw(invoice.TaxRate),
             ["TaxModeRaw"] = invoice.TaxIsFixed ? "fixed" : "percent",
-            ["ShippingRaw"] = invoice.ShippingAmount.ToString("0.##"),
-            ["CustomFeeRaw"] = invoice.CustomFeeAmount.ToString("0.##"),
+            ["ShippingRaw"] = Raw(invoice.ShippingAmount),
+            ["CustomFeeRaw"] = Raw(invoice.CustomFeeAmount),
             ["FeeModeRaw"] = invoice.CustomFeeIsPercent ? "percent" : "fixed",
-            ["DiscountRaw"] = invoice.DiscountAmount.ToString("0.##"),
+            ["DiscountRaw"] = Raw(invoice.DiscountAmount),
             ["DiscountModeRaw"] = invoice.DiscountIsPercent ? "percent" : "fixed",
-            ["Total"] = $"{currencySymbol}{Money(invoice.Total)}{CurrencyCodeSuffix(invoice)}",
+            ["Total"] = $"{currencySymbol}{Money(NonNegative(invoice.Total), decimals)}{CurrencyCodeSuffix(invoice)}",
             // Already gross: portal payments are stored at the amount the customer
             // was actually charged, fee included (see PaymentPortalService). Adding
             // the fee again here double-counts it.
-            ["AmountPaid"] = invoice.AmountPaid > 0 ? $"{currencySymbol}{Money(invoice.AmountPaid)}" : null,
-            ["Balance"] = $"{currencySymbol}{Money(invoice.Balance)}{CurrencyCodeSuffix(invoice)}",
+            ["AmountPaid"] = invoice.AmountPaid > 0 ? $"{currencySymbol}{Money(invoice.AmountPaid, decimals)}" : null,
+            ["Balance"] = $"{currencySymbol}{Money(NonNegative(invoice.Balance), decimals)}{CurrencyCodeSuffix(invoice)}",
 
             // Every fee touching this invoice: already charged, plus the estimate
             // on what is still owed. Both belong in the column, the first to offset
@@ -379,21 +397,19 @@ public partial class InvoiceHtmlRenderer
             ["ShowProcessingFee"] = showProcessingFeeRow,
             ["ProcessingFeeLabel"] = BuildProcessingFeeLabel(companySettings),
             ["ProcessingFeeAmount"] = showProcessingFeeRow
-                ? $"{currencySymbol}{Money(displayProcessingFee)}"
+                ? $"{currencySymbol}{Money(displayProcessingFee, decimals)}"
                 : "",
             // The only headline figure on the invoice, so it always renders, including
             // the 0.00 on a settled invoice.
             ["ShowAmountToPay"] = true,
-            ["AmountToPay"] = $"{currencySymbol}{Money(invoice.Balance + estimatedProcessingFee)}{CurrencyCodeSuffix(invoice)}",
+            ["AmountToPay"] = $"{currencySymbol}{Money(NonNegative(invoice.Balance) + estimatedProcessingFee, decimals)}{CurrencyCodeSuffix(invoice)}",
 
-            // Notes
-            ["Notes"] = invoice.Notes,
-            // The footer shows the invoice's Notes (the customer message), falling back to the
+            // The footer is where the customer message lives: the invoice's Notes, falling back to the
             // template's default footer text when the user hasn't set notes. Editable on the paper.
-            ["FooterOrNotes"] = !string.IsNullOrEmpty(invoice.Notes) ? invoice.Notes : (template.FooterText ?? string.Empty),
+            ["FooterOrNotes"] = !string.IsNullOrEmpty(invoice.Notes) ? invoice.Notes : (template.FooterText),
             // ISO dates so the paper's date editor (an <input type=date>) can pre-fill.
-            ["IssueDateIso"] = invoice.IssueDate.ToString("yyyy-MM-dd"),
-            ["DueDateIso"] = invoice.DueDate.ToString("yyyy-MM-dd"),
+            ["IssueDateIso"] = invoice.IssueDate.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+            ["DueDateIso"] = invoice.DueDate.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
 
             // Line items (as a list of dictionaries). Index drives the editor's data-line-index so
             // an edit on the paper can be routed back to the right row.
@@ -402,12 +418,15 @@ public partial class InvoiceHtmlRenderer
                 ["Index"] = i,
                 ["Description"] = item.Description,
                 ["ItemDescription"] = null, // Can be extended for product descriptions
-                ["Quantity"] = item.Quantity.ToString("0.##"),
-                ["UnitPrice"] = $"{currencySymbol}{Money(item.UnitPrice)}",
+                ["Quantity"] = Raw(item.Quantity),
+                ["UnitPrice"] = $"{currencySymbol}{Money(item.UnitPrice, decimals)}",
                 // LineItem.Subtotal, which is quantity x price LESS the discount and is what the
                 // invoice Subtotal is summed from. Printing quantity x price put an Amount on the
                 // line that did not add up to the total beneath it on a discounted invoice.
-                ["Amount"] = $"{currencySymbol}{Money(item.Subtotal)}"
+                ["Amount"] = $"{currencySymbol}{Money(item.Subtotal, decimals)}",
+                // Carried onto the paper so the browser's live recompute can subtract it too; it has
+                // no editor of its own, and without it an edit anywhere restated the line at full price.
+                ["LineDiscountRaw"] = Raw(item.Discount)
             }).ToList()
         };
 
@@ -586,19 +605,12 @@ public partial class InvoiceHtmlRenderer
             .Select(WebUtility.HtmlEncode));
     }
 
-    private static decimal CalculateCustomFee(Invoice invoice)
-    {
-        return invoice.CustomFeeIsPercent
-            ? invoice.Subtotal * (invoice.CustomFeeAmount / 100m)
-            : invoice.CustomFeeAmount;
-    }
+    private static decimal CalculateCustomFee(Invoice invoice) =>
+        InvoiceMath.CustomFee(NonNegative(invoice.Subtotal), invoice.CustomFeeAmount, invoice.CustomFeeIsPercent);
 
-    private static decimal CalculateDiscount(Invoice invoice)
-    {
-        return invoice.DiscountIsPercent
-            ? invoice.Subtotal * (invoice.DiscountAmount / 100m)
-            : invoice.DiscountAmount;
-    }
+    // Capped at the subtotal it comes off, so the rows the customer adds up can't come to less than nothing.
+    private static decimal CalculateDiscount(Invoice invoice) =>
+        InvoiceMath.Discount(NonNegative(invoice.Subtotal), invoice.DiscountAmount, invoice.DiscountIsPercent);
 
     private static string BuildFeeLabel(Invoice invoice)
     {
@@ -609,13 +621,10 @@ public partial class InvoiceHtmlRenderer
     private static string BuildProcessingFeeLabel(CompanySettings companySettings)
     {
         var providers = new List<string>();
-        var accounts = companySettings.PaymentPortal?.ConnectedAccounts;
-        if (accounts != null)
-        {
-            if (accounts.StripeConnected) providers.Add("Stripe");
-            if (accounts.PaypalConnected) providers.Add("PayPal");
-            if (accounts.SquareConnected) providers.Add("Square");
-        }
+        var accounts = companySettings.PaymentPortal.ConnectedAccounts;
+        if (accounts.StripeConnected) providers.Add("Stripe");
+        if (accounts.PaypalConnected) providers.Add("PayPal");
+        if (accounts.SquareConnected) providers.Add("Square");
 
         var providerName = providers.Count > 0 ? string.Join(" / ", providers) : "Payment";
         return $"{providerName} processing fee";
@@ -628,8 +637,7 @@ public partial class InvoiceHtmlRenderer
     /// </summary>
     private static bool IsPortalConfigured(CompanySettings companySettings)
     {
-        var accounts = companySettings.PaymentPortal?.ConnectedAccounts;
-        if (accounts == null) return false;
+        var accounts = companySettings.PaymentPortal.ConnectedAccounts;
         return accounts.StripeConnected || accounts.PaypalConnected || accounts.SquareConnected;
     }
 

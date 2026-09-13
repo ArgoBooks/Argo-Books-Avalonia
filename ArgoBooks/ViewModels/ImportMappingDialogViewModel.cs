@@ -73,7 +73,7 @@ public partial class SheetAnalysisViewModel : ObservableObject
         : "AI Processing";
 
     /// <summary>
-    /// Confidence color category: high (>0.9), medium (0.7-0.9), low (<0.7).
+    /// Confidence color category: high (>0.9), medium (0.7-0.9), low (&lt;0.7).
     /// </summary>
     public string ConfidenceLevel => Confidence switch
     {

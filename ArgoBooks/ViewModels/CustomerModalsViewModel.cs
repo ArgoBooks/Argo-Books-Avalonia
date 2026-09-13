@@ -12,6 +12,7 @@ using CommunityToolkit.Mvvm.Input;
 
 using ArgoBooks.Core.Models.Telemetry;
 using ArgoBooks.Core.Services;
+using ArgoBooks.Shared.Telemetry;
 
 namespace ArgoBooks.ViewModels;
 
@@ -44,7 +45,7 @@ public partial class CustomerModalsViewModel : ViewModelBase
     /// footer behind until the next Save.
     /// </summary>
     public bool HasValidationMessage =>
-        ModalIdError != null || ModalFirstNameError != null || ModalLastNameError != null
+        ModalIdError != null || ModalFirstNameError != null
         || ModalEmailError != null || ModalPhoneError != null;
 
     [ObservableProperty]
@@ -100,10 +101,6 @@ public partial class CustomerModalsViewModel : ViewModelBase
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasValidationMessage))]
     private string? _modalFirstNameError;
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasValidationMessage))]
-    private string? _modalLastNameError;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasValidationMessage))]
@@ -178,10 +175,6 @@ public partial class CustomerModalsViewModel : ViewModelBase
 
     partial void OnModalLastNameChanged(string value)
     {
-        if (!string.IsNullOrWhiteSpace(value))
-        {
-            ModalLastNameError = null;
-        }
         OnPropertyChanged(nameof(ModalInitialsPreview));
     }
 
@@ -448,8 +441,7 @@ public partial class CustomerModalsViewModel : ViewModelBase
         }
         else
         {
-            companyData.IdCounters.Customer++;
-            newId = $"CUS-{companyData.IdCounters.Customer:D3}";
+            newId = new Core.Data.IdGenerator(companyData).NextCustomerId();
         }
 
         var newCustomer = new Customer
@@ -1301,7 +1293,6 @@ public partial class CustomerModalsViewModel : ViewModelBase
     {
         ModalIdError = null;
         ModalFirstNameError = null;
-        ModalLastNameError = null;
         ModalEmailError = null;
         ModalPhoneError = null;
     }
@@ -1314,12 +1305,6 @@ public partial class CustomerModalsViewModel : ViewModelBase
         if (string.IsNullOrWhiteSpace(ModalFirstName))
         {
             ModalFirstNameError = "First name is required.".Translate();
-            isValid = false;
-        }
-
-        if (string.IsNullOrWhiteSpace(ModalLastName))
-        {
-            ModalLastNameError = "Last name is required.".Translate();
             isValid = false;
         }
 
@@ -1354,7 +1339,7 @@ public partial class CustomerModalsViewModel : ViewModelBase
                 }
             }
 
-            var fullName = $"{ModalFirstName.Trim()} {ModalLastName.Trim()}";
+            var fullName = $"{ModalFirstName.Trim()} {ModalLastName.Trim()}".Trim();
             var existingWithSameName = companyData.Customers.Any(c =>
                 c.Name.Equals(fullName, StringComparison.OrdinalIgnoreCase) &&
                 (_editingCustomer == null || c.Id != _editingCustomer.Id));

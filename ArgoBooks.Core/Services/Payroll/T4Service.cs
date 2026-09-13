@@ -60,10 +60,10 @@ public class T4Service
         // zero. Matches how the year-to-date figures are built.
         var lines = data.PayRuns
             .Where(r => r.Status != PayRunStatus.Draft && r.PayDate.Year == taxYear)
-            .SelectMany(r => r.Lines)
+            .SelectMany(r => r.Lines.Select(l => (r.PayDate, Line: l)))
             .ToList();
 
-        foreach (var group in lines.GroupBy(l => l.EmployeeId))
+        foreach (var group in lines.GroupBy(x => x.Line.EmployeeId))
         {
             Employee? employee = data.Employees.FirstOrDefault(e => e.Id == group.Key);
             if (employee == null)
@@ -71,26 +71,55 @@ public class T4Service
                 continue;
             }
 
-            T4Slip slip = BuildSlip(employee, group.ToList(), ceilings);
+            // CRA wants a separate T4 for each province of employment, and each line records the
+            // province it was earned in; the employee's own province is only where they work now.
+            // Earlier slips take their share of the year's ceilings first, because contributions
+            // stop at one annual maximum however many slips the year is split across.
+            decimal earnedBefore = 0m;
 
-            // A slip whose every figure nets to zero is one whose runs were all voided. There
-            // is nothing to report and CRA has no element that means "nil year".
-            if (slip.EmploymentIncome > 0 || slip.IncomeTaxDeducted > 0)
+            foreach (var province in group
+                         .GroupBy(x => ProvinceOf(x.Line, employee))
+                         .OrderBy(p => p.Min(x => x.PayDate)))
             {
-                t4.Slips.Add(slip);
+                T4Slip slip = BuildSlip(employee, province.Key, province.Select(x => x.Line).ToList(),
+                                        ceilings, earnedBefore);
+                earnedBefore += slip.EmploymentIncome;
+
+                // A slip whose every figure nets to zero is one whose runs were all voided. There
+                // is nothing to report and CRA has no element that means "nil year".
+                if (slip.EmploymentIncome > 0 || slip.IncomeTaxDeducted > 0)
+                {
+                    t4.Slips.Add(slip);
+                }
             }
         }
 
-        t4.Slips.Sort((a, b) => string.Compare(a.Surname, b.Surname, StringComparison.CurrentCultureIgnoreCase));
+        t4.Slips.Sort((a, b) =>
+        {
+            int bySurname = string.Compare(a.Surname, b.Surname, StringComparison.CurrentCultureIgnoreCase);
+            return bySurname != 0
+                ? bySurname
+                : string.CompareOrdinal(a.ProvinceOfEmployment, b.ProvinceOfEmployment);
+        });
         return t4;
     }
 
-    private static T4Slip BuildSlip(Employee employee, List<PayRunLine> lines, EarningsCeilings ceilings)
+    /// <summary>
+    /// The province a line was earned in. Falls back to the employee's for a line that never
+    /// recorded one, which is the only information there is for it.
+    /// </summary>
+    internal static string ProvinceOf(PayRunLine line, Employee employee) =>
+        (string.IsNullOrWhiteSpace(line.Province) ? employee.Province : line.Province)
+        .Trim()
+        .ToUpperInvariant();
+
+    private static T4Slip BuildSlip(Employee employee, string province, List<PayRunLine> lines,
+                                    EarningsCeilings ceilings, decimal earnedBefore)
     {
         (string surname, string given, string initial) = SplitName(employee.Name);
 
         decimal gross = lines.Sum(l => l.GrossPay);
-        bool quebec = string.Equals(employee.Province, "QC", StringComparison.OrdinalIgnoreCase);
+        bool quebec = province == "QC";
         decimal qpip = lines.Sum(l => l.QpipEmployee);
 
         // Exempt for the WHOLE year, which is what boxes 28 and the nil earnings in 24 and 26
@@ -113,7 +142,7 @@ public class T4Service
             Sin = employee.Sin,
             EmployeeNumber = employee.EmployeeNumber,
             Address = employee.Address,
-            ProvinceOfEmployment = employee.Province,
+            ProvinceOfEmployment = province,
             IsQuebec = quebec,
             EmploymentIncome = gross,
             CppContributions = lines.Sum(l => l.CppEmployee),
@@ -137,8 +166,10 @@ public class T4Service
             // way through the year, and reporting their whole salary here would have CRA expect
             // contributions on money that was never pensionable or insurable. The figure looks
             // right either way, which is exactly why it needs pinning.
-            InsurableEarnings = eiExemptAllYear ? 0m : ceilings.CapEi(gross),
-            PensionableEarnings = cppExemptAllYear ? 0m : ceilings.CapPensionable(gross),
+            InsurableEarnings = eiExemptAllYear ? 0m : ceilings.CapEi(earnedBefore + gross) - ceilings.CapEi(earnedBefore),
+            PensionableEarnings = cppExemptAllYear
+                ? 0m
+                : ceilings.CapPensionable(earnedBefore + gross) - ceilings.CapPensionable(earnedBefore),
 
             QpipPremiums = qpip,
 
@@ -208,7 +239,7 @@ public class T4Service
             problems.Add("A contact name is required on the T4 Summary, so CRA knows who to call.");
         }
 
-        if (new string((t4.ContactPhone ?? string.Empty).Where(char.IsAsciiDigit).ToArray()).Length < 10)
+        if (new string(t4.ContactPhone.Where(char.IsAsciiDigit).ToArray()).Length < 10)
         {
             problems.Add("A ten digit contact phone number is required on the T4 Summary.");
         }
@@ -306,7 +337,8 @@ public class T4Service
             problems.Add($"There are no approved pay runs in {t4.TaxYear}, so there is nothing to file.");
         }
 
-        return problems;
+        // Someone who changed province has a slip for each, and one missing address is one problem.
+        return problems.Distinct().ToList();
     }
 
     /// <summary>
@@ -337,7 +369,7 @@ public class T4Service
             }
         }
 
-        return warnings;
+        return warnings.Distinct().ToList();
     }
 
     /// <summary>
@@ -390,8 +422,7 @@ public class T4Service
     /// </summary>
     private static (string Surname, string Given, string Initial) SplitName(string name)
     {
-        string[] parts = (name ?? string.Empty)
-            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        string[] parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
         return parts.Length switch
         {

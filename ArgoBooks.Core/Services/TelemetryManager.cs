@@ -1,6 +1,7 @@
 ﻿using System.Runtime.InteropServices;
 using ArgoBooks.Core.Models.Telemetry;
 using ArgoBooks.Core.Platform;
+using ArgoBooks.Shared.Telemetry;
 
 namespace ArgoBooks.Core.Services;
 
@@ -564,6 +565,7 @@ public class TelemetryManager : ITelemetryManager
             errorEvent.SourceFile = errorEntry.SourceFile;
             errorEvent.LineNumber = errorEntry.LineNumber;
             errorEvent.MethodName = errorEntry.MethodName;
+            errorEvent.Context = errorEntry.Context;
             await _storageService.RecordEventAsync(errorEvent, cancellationToken);
         }
         catch

@@ -63,6 +63,12 @@ public partial class LanguageService
     public bool IsEnglish => CurrentIsoCode == "en";
 
     /// <summary>
+    /// Whether the last download failed because the server has no file for this language and version,
+    /// rather than because it couldn't be reached.
+    /// </summary>
+    public bool LastDownloadNotPublished { get; private set; }
+
+    /// <summary>
     /// Event raised when the language changes.
     /// </summary>
     public event EventHandler<LanguageChangedEventArgs>? LanguageChanged;
@@ -129,11 +135,10 @@ public partial class LanguageService
     /// <summary>
     /// Loads a single language file from disk into the provided dictionary.
     /// </summary>
-    private bool LoadLanguageFile(string isoCode, ref Dictionary<string, string> target)
+    private void LoadLanguageFile(string isoCode, ref Dictionary<string, string> target)
     {
         var filePath = GetLanguageFilePath(isoCode);
-        if (!File.Exists(filePath))
-            return false;
+        if (!File.Exists(filePath)) return;
 
         try
         {
@@ -145,7 +150,6 @@ public partial class LanguageService
                 {
                     target = translations;
                     App.ErrorLogger?.LogDebug($"LanguageService: Loaded {translations.Count} translations from {isoCode}.json");
-                    return true;
                 }
             }
         }
@@ -153,8 +157,6 @@ public partial class LanguageService
         {
             App.ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, $"Failed to load language file: {isoCode}.json");
         }
-
-        return false;
     }
 
     /// <summary>
@@ -313,6 +315,8 @@ public partial class LanguageService
             }
         }
 
+        LastDownloadNotPublished = false;
+
         try
         {
             TranslationProgress?.Invoke(this, new TranslationProgressEventArgs(languageName, true, "Downloading translations..."));
@@ -333,6 +337,7 @@ public partial class LanguageService
                 {
                     App.ErrorLogger?.LogDebug($"LanguageService: No translations published for version {version} ({isoCode}); keeping cached copy");
                     TranslationProgress?.Invoke(this, new TranslationProgressEventArgs(languageName, false, "No update available"));
+                    LastDownloadNotPublished = true;
                     return File.Exists(GetLanguageFilePath(isoCode));
                 }
                 App.ErrorLogger?.LogWarning($"LanguageService: Download failed with status {response.StatusCode}");
@@ -447,16 +452,22 @@ public partial class LanguageService
     /// through covers every language without a parallel set of keys per platform.
     ///
     /// A no-op on Windows and Linux, where the modifier is already Ctrl.
+    ///
+    /// The key's name is matched rather than the exact text "Ctrl+", because translations
+    /// spell it their own way ("Strg+" in German, "Ktrl+" in Basque) and some put spaces round
+    /// the plus. Spelled "Cmd" rather than the U+2318 glyph: Inter, the app's font, has no glyph
+    /// there, and the macOS fallback is what drew the stacked bars.
     /// </summary>
     private static string LocalizeShortcutModifier(string text)
     {
         if (!OperatingSystem.IsMacOS() || string.IsNullOrEmpty(text))
             return text;
 
-        return text.Contains("Ctrl+", StringComparison.Ordinal)
-            ? text.Replace("Ctrl+", PlatformKeys.CommandLabel, StringComparison.Ordinal)
-            : text;
+        return ShortcutModifierName().Replace(text, "Cmd");
     }
+
+    [GeneratedRegex(@"(?<!\p{L})(?:Ctrl|Strg|Ktrl)(?=\s*\+)")]
+    private static partial Regex ShortcutModifierName();
 
     private string TranslateCore(string text)
     {

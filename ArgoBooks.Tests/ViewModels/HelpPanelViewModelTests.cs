@@ -8,12 +8,7 @@ namespace ArgoBooks.Tests.ViewModels;
 /// </summary>
 public class HelpPanelViewModelTests
 {
-    private readonly HelpPanelViewModel _viewModel;
-
-    public HelpPanelViewModelTests()
-    {
-        _viewModel = new HelpPanelViewModel();
-    }
+    private readonly HelpPanelViewModel _viewModel = new();
 
     #region Default State Tests
 

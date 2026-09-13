@@ -11,7 +11,7 @@ namespace ArgoBooks.Mobile.Services;
 /// scan activity provided by Google Play Services, no custom camera pipeline required) and
 /// returns the decoded payload string.
 ///
-/// Unlike ZXing.Net.MAUI (attempted in Task 2, removed - it hard-requires the full
+/// Unlike ZXing.Net.MAUI (it hard-requires the full
 /// Microsoft.Maui/Microsoft.Maui.Controls assembly, which a pure-Avalonia Android head doesn't
 /// reference), this is a plain Android binding (same family as Net.Google.MLKit.DocumentScanner,
 /// already integrated for receipt scanning) and coexists with Avalonia fine.

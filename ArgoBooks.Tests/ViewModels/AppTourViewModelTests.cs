@@ -8,12 +8,7 @@ namespace ArgoBooks.Tests.ViewModels;
 /// </summary>
 public class AppTourViewModelTests
 {
-    private readonly AppTourViewModel _viewModel;
-
-    public AppTourViewModelTests()
-    {
-        _viewModel = new AppTourViewModel();
-    }
+    private readonly AppTourViewModel _viewModel = new();
 
     #region Default State Tests
 

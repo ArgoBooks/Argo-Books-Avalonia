@@ -255,4 +255,59 @@ public class PaymentPortalRefundSyncTests
         Assert.Equal(100m, invoice.AmountRefunded);
         Assert.Equal(InvoiceStatus.PartiallyRefunded, invoice.Status);
     }
+
+    private static Revenue AddInvoiceRevenue(CompanyData company, Invoice invoice)
+    {
+        var revenue = new Revenue
+        {
+            Id = "REV-001",
+            InvoiceId = invoice.Id,
+            OriginalCurrency = "USD",
+            Total = invoice.Total,
+            TotalUSD = invoice.Total,
+            PaymentStatus = RevenuePaymentStatus.Unpaid
+        };
+        company.Revenues.Add(revenue);
+        return revenue;
+    }
+
+    /// <summary>
+    /// A refund is subtracted from revenue on the day it is issued (Calculations.md §8), so the
+    /// revenue it refunds has to stay counted. Marking that revenue uncollected as well took the
+    /// money off twice: a full refund showed as -$100, a $25 one as -$25 instead of $75.
+    /// </summary>
+    [Theory]
+    [InlineData(100)]
+    [InlineData(25)]
+    public void Sync_RefundAfterFullPayment_KeepsTheRevenueCounted(int refunded)
+    {
+        var (company, invoice, _) = Seed(100m);
+        var revenue = AddInvoiceRevenue(company, invoice);
+        PaymentPortalService.ProcessSyncedPayments(
+            new List<PortalPaymentRecord> { MakeOriginalPayment(invoice.Id, 100m, serverId: 1) },
+            company);
+        Assert.Equal(RevenuePaymentStatus.Paid, revenue.PaymentStatus);
+
+        PaymentPortalService.ProcessSyncedPayments(
+            new List<PortalPaymentRecord> { MakeRefund(invoice.Id, refunded, serverId: 2) },
+            company);
+
+        Assert.Equal(RevenuePaymentStatus.Paid, revenue.PaymentStatus);
+    }
+
+    [Fact]
+    public void Sync_RefundOfAPartPayment_LeavesTheRevenueUncollected()
+    {
+        var (company, invoice, _) = Seed(100m);
+        var revenue = AddInvoiceRevenue(company, invoice);
+        PaymentPortalService.ProcessSyncedPayments(
+            new List<PortalPaymentRecord> { MakeOriginalPayment(invoice.Id, 40m, serverId: 1) },
+            company);
+
+        PaymentPortalService.ProcessSyncedPayments(
+            new List<PortalPaymentRecord> { MakeRefund(invoice.Id, 10m, serverId: 2) },
+            company);
+
+        Assert.Equal(RevenuePaymentStatus.Unpaid, revenue.PaymentStatus);
+    }
 }

@@ -44,7 +44,7 @@ public static class PayStubPdfRenderer
             {
                 row.RelativeItem().Column(left =>
                 {
-                    left.Item().Text(company.Name ?? "").FontSize(18).SemiBold();
+                    left.Item().Text(company.Name).FontSize(18).SemiBold();
                     if (!string.IsNullOrWhiteSpace(company.Address))
                         left.Item().Text(company.Address);
                     var cityLine = string.Join(", ", new[] { company.City, company.ProvinceState, company.Country }

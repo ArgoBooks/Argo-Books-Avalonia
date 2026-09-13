@@ -1,4 +1,4 @@
-namespace ArgoBooks.Core.Models.Telemetry;
+namespace ArgoBooks.Shared.Telemetry;
 
 /// <summary>
 /// Features that can be tracked.
@@ -53,16 +53,9 @@ public enum FeatureName
     ChecklistStepCompleted,
     OnboardingCompleted,
     OnboardingSkipped,
-
-    /// <summary>
-    /// The user chose the demo company from the welcome screen rather than creating one.
-    /// Their subsequent activity is evaluation, not real bookkeeping, and without this
-    /// event the two are indistinguishable.
-    /// </summary>
     SampleCompanyOpened,
 
-    // Attempts, so a completion can be divided by one. Without the denominator,
-    // abandonment is invisible.
+    // Attempts, so a completion can be divided by one. Without the denominator, abandonment is invisible.
     CompanyCreateOpened,
     ReceiptScanOpened,
     InvoiceCreateOpened,
@@ -76,7 +69,6 @@ public enum FeatureName
     ImportPreviewShown,
     ImportAbandoned,
     ImportFailed,
-
     ReceiptScanFailed,
 
     // The paywall. Shown is the wall someone hit, opened is them acting on it; the limit or
@@ -84,22 +76,21 @@ public enum FeatureName
     UpgradePromptShown,
     UpgradeModalOpened,
 
-    /// <summary>A list rendered with nothing in it, with the page in the context.</summary>
+    // A page rendered with nothing in it, with the page in the context.
     EmptyStateShown,
 
     WelcomeShown,
 
-    // Payroll reported only its exceptions, so a company could run payroll all year and file
-    // its T4s without producing a single event. Zero errors read the same as nobody opening
-    // the page, which is the one thing worth knowing about the most complex feature here.
-    //
-    // Drafted then approved is the pair that matters: the gap between them is people who
-    // started a pay run and could not finish it.
+    // Payroll
     PayRunDrafted,
     PayRunApproved,
     PayStubsExported,
     T4SlipsGenerated,
+    T4XmlGenerated,
+    RoeWorksheetGenerated,
+    RoeXmlGenerated,
 
-    /// <summary>The CRA submission file itself, so actually filing is separable from previewing.</summary>
-    T4XmlGenerated
+    // The dashboard editor
+    DashboardCustomized,
+    DashboardReset
 }

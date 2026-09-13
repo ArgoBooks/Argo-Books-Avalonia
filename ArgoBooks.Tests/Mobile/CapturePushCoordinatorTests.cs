@@ -159,6 +159,41 @@ public class CapturePushCoordinatorTests
     }
 
     [Fact]
+    public async Task PushAsync_NamedCompany_UsesThatCompanyNotTheActiveOne()
+    {
+        var handler = new CannedHandler("{\"success\":true}");
+        var client = new MobileSyncClient(new HttpClient(handler), "http://localhost:5000");
+        var store = await NewActiveStoreAsync();
+        await store.SaveAsync(new PairedCompanyRecord
+        {
+            CompanyUid = "company-uid-999",
+            CompanyLabel = "Other Co",
+            DeviceToken = "device-tok-other",
+            SyncKeyBase64 = SyncKeyBase64,
+        });
+        var coordinator = new CapturePushCoordinator(client, store);
+
+        var result = await coordinator.PushAsync(NewTransaction(), "company-uid-999", CancellationToken.None);
+
+        Assert.True(result);
+        Assert.Contains("device-tok-other", handler.Last!.Headers.GetValues("X-Sync-Device-Token"));
+    }
+
+    [Fact]
+    public async Task PushAsync_NamedCompanyNoLongerPaired_ReturnsFalseWithoutSendingAnywhere()
+    {
+        var handler = new CannedHandler("{\"success\":true}");
+        var client = new MobileSyncClient(new HttpClient(handler), "http://localhost:5000");
+        var store = await NewActiveStoreAsync();
+        var coordinator = new CapturePushCoordinator(client, store);
+
+        var result = await coordinator.PushAsync(NewTransaction(), "company-uid-unpaired", CancellationToken.None);
+
+        Assert.False(result);
+        Assert.Null(handler.Last);
+    }
+
+    [Fact]
     public async Task PushAsync_HttpFailure_ReturnsFalse()
     {
         var handler = new CannedHandler("{\"success\":false}", HttpStatusCode.InternalServerError);

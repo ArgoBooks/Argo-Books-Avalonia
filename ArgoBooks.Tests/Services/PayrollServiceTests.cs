@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Models.Payroll;
 using ArgoBooks.Core.Models.Transactions;
@@ -141,7 +143,7 @@ public class PayrollServiceTests
         // Note this goes through Void() rather than setting the status by hand. The reversal
         // is half the mechanism: the voided run still counts, and the reversal's negative
         // amounts are what cancel it. A Void status on its own is not a state the service can
-        // produce, and testing it in isolation was what hid the double subtraction.
+        // produce.
         CompanyData data = DataWithEmployee();
         data.PayRuns.Add(ApprovedRun("PR-0001", new DateTime(2026, 1, 9), "EMP-001", 2000m, 110.99m, 32.60m));
 
@@ -363,6 +365,59 @@ public class PayrollServiceTests
 
     #endregion
 
+    #region TD1 claims
+
+    private static (decimal Federal, decimal Provincial) TaxFor(Employee employee)
+    {
+        var data = new CompanyData { Employees = { employee } };
+        PayRun run = new PayrollService().CreateDraft(data, PayDate, PayDate.AddDays(-13), PayDate)!;
+        return (run.Lines[0].FederalTax, run.Lines[0].ProvincialTax);
+    }
+
+    [Fact]
+    public void AZeroClaim_ReachesTheCalculator()
+    {
+        Employee claimsNothing = DataWithEmployee().Employees[0];
+        claimsNothing.FederalClaimIsZero = true;
+        claimsNothing.ProvincialClaimIsZero = true;
+
+        (decimal federal, decimal provincial) = TaxFor(claimsNothing);
+        (decimal basicFederal, decimal basicProvincial) = TaxFor(DataWithEmployee().Employees[0]);
+
+        Assert.True(federal > basicFederal);
+        Assert.True(provincial > basicProvincial);
+    }
+
+    [Fact]
+    public void AnEmployeeFromAFileWrittenBeforeZeroClaims_StillGetsTheBasicPersonalAmount()
+    {
+        // Every existing file stores 0 for "no TD1 on file". Reading one must not turn that into
+        // a claim of nothing, which would raise the tax of every such employee on the next run.
+        // The options are the ones FileService reads a company file with.
+        const string json = """
+            {"id":"EMP-001","name":"Test Person","province":"AB","payType":"Salary","payRate":52000,
+             "payFrequency":"Biweekly","federalClaimAmount":0,"provincialClaimAmount":0}
+            """;
+        var options = new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            Converters = { new JsonStringEnumConverter() },
+        };
+
+        Employee loaded = JsonSerializer.Deserialize<Employee>(json, options)!;
+
+        PayrollRateTable rates = new PayrollRateService().GetForDate(PayDate)!;
+        Employee explicitBasic = DataWithEmployee().Employees[0];
+        explicitBasic.FederalClaimAmount = rates.Federal.BasicPersonalAmount.Maximum;
+        explicitBasic.ProvincialClaimAmount = rates.Provinces["AB"].BasicPersonalAmount.Maximum;
+
+        Assert.False(loaded.FederalClaimIsZero);
+        Assert.False(loaded.ProvincialClaimIsZero);
+        Assert.Equal(TaxFor(explicitBasic), TaxFor(loaded));
+    }
+
+    #endregion
+
     #region What is owed to CRA next
 
     /// <summary>A run whose lines carry a known remittance, so the totals are readable.</summary>
@@ -464,6 +519,75 @@ public class PayrollServiceTests
 
     #endregion
 
+    #region Who is owed what
+
+    /// <summary>
+    /// Revenu Quebec collects Quebec income tax, QPP and QPIP; CRA collects federal tax and EI.
+    /// Counting it all as CRA's asked the employer to send CRA money CRA is not owed, and never
+    /// mentioned the payment Revenu Quebec was waiting for.
+    /// </summary>
+    private static PayRunLine QuebecLine() => new()
+    {
+        EmployeeId = "EMP-001",
+        Province = "QC",
+        GrossPay = 2000m,
+        CppEmployee = 100m,
+        CppEmployer = 100m,
+        Cpp2Employee = 5m,
+        Cpp2Employer = 5m,
+        EiEmployee = 25m,
+        EiEmployer = 35m,
+        QpipEmployee = 9m,
+        QpipEmployer = 12.60m,
+        FederalTax = 180m,
+        ProvincialTax = 140m,
+    };
+
+    [Fact]
+    public void AQuebecLinesRemittance_IsSplitBetweenCraAndRevenuQuebec()
+    {
+        PayRunLine line = QuebecLine();
+
+        Assert.Equal(180m + 25m + 35m, line.CraRemittance);
+        Assert.Equal(140m + 100m + 100m + 5m + 5m + 9m + 12.60m, line.QuebecRemittance);
+        Assert.Equal(line.TotalRemittance, line.CraRemittance + line.QuebecRemittance);
+    }
+
+    [Fact]
+    public void ALineOutsideQuebec_IsOwedEntirelyToCra()
+    {
+        PayRunLine line = QuebecLine();
+        line.Province = "ON";
+        line.QpipEmployee = 0m;
+        line.QpipEmployer = 0m;
+
+        Assert.Equal(line.TotalRemittance, line.CraRemittance);
+        Assert.Equal(0m, line.QuebecRemittance);
+    }
+
+    [Fact]
+    public void TheNextRemittanceToCra_LeavesOutWhatIsOwedToRevenuQuebec()
+    {
+        var run = new PayRun
+        {
+            Id = "PR-0001",
+            PayDate = new DateTime(2026, 8, 14),
+            Status = PayRunStatus.Approved,
+            Lines = { QuebecLine() },
+        };
+
+        (decimal cra, DateTime due) = PayrollService.NextRemittance([run], new DateTime(2026, 8, 16));
+        (decimal craAgain, decimal quebec, DateTime dueAgain) =
+            PayrollService.NextRemittanceByAgency([run], new DateTime(2026, 8, 16));
+
+        Assert.Equal(240m, cra);
+        Assert.Equal(cra, craAgain);
+        Assert.Equal(371.60m, quebec);
+        Assert.Equal(due, dueAgain);
+    }
+
+    #endregion
+
     #region Remitter types
 
     /// <summary>
@@ -526,7 +650,7 @@ public class PayrollServiceTests
             data, new DateTime(2026, 10, 1), RemitterType.Quarterly);
 
         (decimal monthly, _) = PayrollService.NextRemittance(
-            data, new DateTime(2026, 10, 1), RemitterType.Regular);
+            data, new DateTime(2026, 10, 1));
 
         Assert.Equal(new DateTime(2026, 10, 15), due);
 
@@ -559,11 +683,11 @@ public class PayrollServiceTests
     [Fact]
     public void TheDefault_IsStillRegular()
     {
-        var data = new List<PayRun> { RunOn("PR-0001", new DateTime(2026, 8, 14)) };
+        var remitterType = typeof(PayrollService).GetMethod(nameof(PayrollService.NextRemittance))!
+            .GetParameters()
+            .Single(p => p.ParameterType == typeof(RemitterType));
 
-        Assert.Equal(
-            PayrollService.NextRemittance(data, new DateTime(2026, 8, 16), RemitterType.Regular),
-            PayrollService.NextRemittance(data, new DateTime(2026, 8, 16)));
+        Assert.Equal(RemitterType.Regular, (RemitterType)remitterType.DefaultValue!);
     }
 
     #endregion

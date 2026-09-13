@@ -115,14 +115,30 @@ public partial class RecurringSchedulesViewModel : ViewModelBase, ICleanupViewMo
             ? RecurringTransactionStatus.Paused
             : RecurringTransactionStatus.Active;
 
+        // Generation catches up from the next date, so resuming with it still in the paused months
+        // would create an entry for each of them.
+        var dateBefore = schedule.NextDate;
+        var dateAfter = after == RecurringTransactionStatus.Active
+            ? RecurrenceSchedule.FirstOnOrAfter(dateBefore, schedule.Frequency, schedule.StartDate.Day, DateTime.Today)
+            : dateBefore;
+
         schedule.Status = after;
+        schedule.NextDate = dateAfter;
 
         App.UndoRedoManager.RecordAction(new DelegateAction(
             after == RecurringTransactionStatus.Paused
                 ? $"Pause schedule {schedule.Id}"
                 : $"Resume schedule {schedule.Id}",
-            () => schedule.Status = before,
-            () => schedule.Status = after));
+            () =>
+            {
+                schedule.Status = before;
+                schedule.NextDate = dateBefore;
+            },
+            () =>
+            {
+                schedule.Status = after;
+                schedule.NextDate = dateAfter;
+            }));
 
         App.CompanyManager?.MarkAsChanged();
         Load();

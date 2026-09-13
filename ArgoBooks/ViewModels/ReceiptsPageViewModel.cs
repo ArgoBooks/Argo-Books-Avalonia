@@ -43,8 +43,7 @@ public partial class ReceiptsPageViewModel : ViewModelBase, ICleanupViewModel
     ///
     /// Distinct from the AI Scanned stat card, which counts receipts in this company file that
     /// were scanned at any time. This is the monthly allowance the server meters, which is what
-    /// actually decides whether the next scan works, and until now the only place it appeared was
-    /// inside the bulk scan modal after the file picker.
+    /// actually decides whether the next scan works.
     ///
     /// Empty rather than "0 of 0" while it is unknown, and the label hides itself: an offline
     /// moment showing zero remaining would read as an exhausted allowance.
@@ -522,8 +521,7 @@ public partial class ReceiptsPageViewModel : ViewModelBase, ICleanupViewModel
 
             // Every failure path in CheckUsageAsync returns a zero limit, so a hidden label and a
             // genuine "no allowance configured" look identical from here. Recorded rather than
-            // swallowed, because a label that silently never appears is the same trap the receipt
-            // scanner's "No response from the AI service" was.
+            // swallowed.
             App.ErrorLogger?.LogWarning(
                 $"Scan usage unavailable: {usage.ErrorMessage ?? "no limit returned"}",
                 "ReceiptsPageViewModel.RefreshScanUsageAsync",
@@ -648,7 +646,7 @@ public partial class ReceiptsPageViewModel : ViewModelBase, ICleanupViewModel
             IsAiScanned = receipt.IsAiScanned,
             CreatedAt = receipt.CreatedAt,
             ImagePath = GetCachedReceiptImagePath(receipt),
-            PageCount = ReceiptPageRenderer.CachedPageCount(receipt.FileName)
+            PageCount = ReceiptPageRenderer.CachedPageCount(receipt)
         }).ToList();
 
         // Unsubscribe from previous receipt items before replacing
@@ -727,10 +725,10 @@ public partial class ReceiptsPageViewModel : ViewModelBase, ICleanupViewModel
             var isPdf = receipt.FileType?.Contains("pdf", StringComparison.OrdinalIgnoreCase) == true
                         || receipt.FileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase);
 
-            // PDFs cache page 1 as <name>_p1.jpg (shared with the viewer); images cache as <name>.
+            // The same cache paths the viewer uses, so each reuses what the other rendered.
             var path = isPdf
-                ? ReceiptPageRenderer.PagePath(receipt.FileName, 0)
-                : ReceiptPageRenderer.ImagePath(receipt.FileName);
+                ? ReceiptPageRenderer.PagePath(receipt, 0)
+                : ReceiptPageRenderer.ImagePath(receipt);
 
             return File.Exists(path) ? path : string.Empty;
         }
@@ -747,8 +745,7 @@ public partial class ReceiptsPageViewModel : ViewModelBase, ICleanupViewModel
 
         try
         {
-            var tempDir = Path.Combine(Path.GetTempPath(), "ArgoBooks", "Receipts");
-            Directory.CreateDirectory(tempDir);
+            ReceiptPageRenderer.EnsureTempDir();
             var bytes = Convert.FromBase64String(receipt.FileData);
 
             var isPdf = receipt.FileType?.Contains("pdf", StringComparison.OrdinalIgnoreCase) == true
@@ -758,15 +755,15 @@ public partial class ReceiptsPageViewModel : ViewModelBase, ICleanupViewModel
             {
                 var rendered = await PdfThumbnailService.Instance.RenderPdfFirstPageAsync(bytes);
                 if (rendered == null) return (string.Empty, 1);
-                // Cache page 1 under the shared <name>_p1.jpg name and record the page count so the
+                // Cache page 1 where the viewer looks for it and record the page count, so the
                 // viewer can reuse this page and only render the rest.
-                var pdfPreviewPath = ReceiptPageRenderer.PagePath(receipt.FileName, 0);
+                var pdfPreviewPath = ReceiptPageRenderer.PagePath(receipt, 0);
                 await File.WriteAllBytesAsync(pdfPreviewPath, rendered.Value.Image);
-                ReceiptPageRenderer.WritePageCount(receipt.FileName, rendered.Value.PageCount);
+                ReceiptPageRenderer.WritePageCount(receipt, rendered.Value.PageCount);
                 return (pdfPreviewPath, rendered.Value.PageCount);
             }
 
-            var tempPath = Path.Combine(tempDir, receipt.FileName);
+            var tempPath = ReceiptPageRenderer.ImagePath(receipt);
             var output = ReceiptImageHelper.FixOrientation(bytes);
             File.WriteAllBytes(tempPath, output);
             return (tempPath, 1);
@@ -857,11 +854,27 @@ public partial class ReceiptsPageViewModel : ViewModelBase, ICleanupViewModel
         ScanFileRequested?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>
+    /// Writes a receipt's stored file into a folder and returns its path, or null when it has no file.
+    /// The display image can't be used: for a PDF it is only page 1 as a JPEG.
+    /// </summary>
+    internal static string? WriteExportFile(Receipt receipt, string folder, string baseName)
+    {
+        if (string.IsNullOrEmpty(receipt.FileData)) return null;
+
+        var path = Path.Combine(folder, baseName + Path.GetExtension(receipt.FileName));
+        File.WriteAllBytes(path, Convert.FromBase64String(receipt.FileData));
+        return path;
+    }
+
     [RelayCommand]
     private async Task ExportSelected()
     {
         var selectedReceipts = Receipts.Where(r => r.IsSelected).ToList();
         if (selectedReceipts.Count == 0) return;
+
+        var companyData = App.CompanyManager?.CompanyData;
+        if (companyData == null) return;
 
         try
         {
@@ -892,20 +905,14 @@ public partial class ReceiptsPageViewModel : ViewModelBase, ICleanupViewModel
 
             var exportedCount = 0;
 
-            foreach (var receipt in selectedReceipts)
+            foreach (var item in selectedReceipts)
             {
-                if (string.IsNullOrEmpty(receipt.ImagePath) || !File.Exists(receipt.ImagePath))
-                    continue;
+                var receipt = companyData.Receipts.FirstOrDefault(r => r.Id == item.Id);
+                if (receipt == null) continue;
 
-                var extension = Path.GetExtension(receipt.FileName);
-                if (string.IsNullOrEmpty(extension))
-                    extension = Path.GetExtension(receipt.ImagePath);
-
-                var fileName = $"Receipt_{receipt.Id}_{receipt.DateFormatted.Replace(",", "").Replace(" ", "_")}{extension}";
-                var destinationPath = Path.Combine(exportFolder, fileName);
-
-                File.Copy(receipt.ImagePath, destinationPath, overwrite: true);
-                exportedCount++;
+                var baseName = $"Receipt_{item.Id}_{item.DateFormatted.Replace(",", "").Replace(" ", "_")}";
+                if (WriteExportFile(receipt, exportFolder, baseName) != null)
+                    exportedCount++;
             }
 
             if (exportedCount > 0)

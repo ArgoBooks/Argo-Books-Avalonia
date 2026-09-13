@@ -14,7 +14,7 @@ public class StripeDetailImporterTests
     public void Import_CreatesRevenue_WithProductCustomerTaxDiscount()
     {
         var data = new CompanyData();
-        var result = new StripeDetailImporter().ImportCharges(data, new[] { Charge("ch_1", 5000, 175, 400, 500) });
+        var result = new StripeDetailImporter().ImportCharges(data, [Charge("ch_1", 5000, 175, 400, 500)]);
 
         Assert.Equal(1, result.RevenuesCreated);
         var rev = Assert.Single(data.Revenues);
@@ -42,19 +42,31 @@ public class StripeDetailImporterTests
     {
         var data = new CompanyData();
         var importer = new StripeDetailImporter();
-        importer.ImportCharges(data, new[] { Charge("ch_1", 5000, 100, 0, 0) });
-        importer.ImportCharges(data, new[] { Charge("ch_2", 3000, 100, 0, 0) });
+        importer.ImportCharges(data, [Charge("ch_1", 5000, 100, 0, 0)]);
+        importer.ImportCharges(data, [Charge("ch_2", 3000, 100, 0, 0)]);
 
         Assert.Single(data.Customers);   // same Jane
         Assert.Single(data.Products);    // same Premium Plan
         Assert.Equal(2, data.Revenues.Count);
     }
 
+    /// <summary>Stripe gives JPY, KRW and the like in whole units, so dividing by 100 files 1000 yen as 10.</summary>
+    [Fact]
+    public void Import_ZeroDecimalCurrency_IsNotDividedBy100()
+    {
+        var data = new CompanyData();
+        new StripeDetailImporter().ImportCharges(data,
+            [new StripeChargeDetail("ch_1", 1700000000, 1000, 40, "jpy", null, null, "Tea", 0, 0, 0)]);
+
+        Assert.Equal(1000m, data.Revenues.Single().Total);
+        Assert.Equal(40m, data.Expenses.Single().Total);
+    }
+
     [Fact]
     public void Import_NoCustomer_LeavesCustomerEmpty()
     {
         var data = new CompanyData();
-        new StripeDetailImporter().ImportCharges(data, new[] { Charge("ch_1", 5000, 0, 0, 0, name: null, email: null) });
+        new StripeDetailImporter().ImportCharges(data, [Charge("ch_1", 5000, 0, 0, 0, name: null, email: null)]);
         Assert.Empty(data.Customers);
         Assert.True(string.IsNullOrEmpty(data.Revenues[0].CustomerId));
     }

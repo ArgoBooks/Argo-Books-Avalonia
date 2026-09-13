@@ -147,8 +147,9 @@
                                         <TextBlock Text="{loc:Loc 'Tax credits'}" FontSize="13" FontWeight="SemiBold"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
                                         <!-- Left blank, the basic personal amount is used. An employer applies
-                                             whatever the employee wrote on their TD1. -->
-                                        <TextBlock Text="{loc:Loc 'Leave blank to use the basic personal amount. Enter the totals from the employee''s TD1 forms if they claim more.'}"
+                                             whatever the employee wrote on their TD1, and a typed 0 is a real
+                                             claim of nothing, which blank cannot say. -->
+                                        <TextBlock Text="{loc:Loc 'Leave blank to use the basic personal amount. Enter the totals from the employee''s TD1 forms if they claim more, or 0 if a form claims nothing, as it does when another employer already applies their credits.'}"
                                                    FontSize="11" TextWrapping="Wrap"
                                                    Foreground="{DynamicResource TextTertiaryBrush}" />
                                         <Grid ColumnDefinitions="*,16,*">
@@ -438,6 +439,262 @@
                                             Command="{Binding CloseFilterModalCommand}" />
                                     <Button Classes="primary-button" Content="{loc:Loc Apply}"
                                             Command="{Binding ApplyFiltersCommand}" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Border>
+            </controls:ModalOverlay.ModalContent>
+        </controls:ModalOverlay>
+
+        <!-- ======================= RECORD OF EMPLOYMENT ======================= -->
+        <!-- On the employee row rather than at year end: an ROE is due five days after the pay
+             period in which someone stops being paid. A form at all only because of block 16,
+             which the app cannot work out and must not guess. -->
+        <controls:ModalOverlay IsOpen="{Binding Roe.IsOpen}"
+                               ClosingCommand="{Binding Roe.CloseCommand}">
+            <controls:ModalOverlay.ModalContent>
+                <Border HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Width="680" MaxHeight="760"
+                        Background="{DynamicResource SurfaceBrush}"
+                        CornerRadius="12"
+                        BoxShadow="0 8 32 0 #40000000">
+                    <Grid RowDefinitions="Auto,*,Auto">
+
+                        <Border Grid.Row="0" Padding="24,16"
+                                BorderBrush="{DynamicResource BorderBrush}"
+                                BorderThickness="0,0,0,1">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <StackPanel Grid.Column="0" Spacing="2">
+                                    <TextBlock Text="{loc:Loc 'Record of Employment'}"
+                                               FontSize="18" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                                    <TextBlock Text="{Binding Roe.EmployeeName}" FontSize="13"
+                                               Foreground="{DynamicResource TextSecondaryBrush}" />
+                                </StackPanel>
+                                <Button Grid.Column="1" Classes="icon-button"
+                                        Command="{Binding Roe.CloseCommand}">
+                                    <PathIcon Data="{x:Static icons:Icons.Close}" Width="20" Height="20" />
+                                </Button>
+                            </Grid>
+                        </Border>
+
+                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <StackPanel Margin="24" Spacing="18">
+
+                                <!-- Worked out from the pay runs. Read only, and shown so the
+                                     figures can be checked before anything is filed. -->
+                                <Border Background="{DynamicResource SurfaceAltBrush}"
+                                        CornerRadius="8" Padding="16">
+                                    <StackPanel Spacing="10">
+                                        <TextBlock Text="{loc:Loc 'From your pay runs'}"
+                                                   FontSize="13" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        <Grid ColumnDefinitions="*,16,*" RowDefinitions="Auto,Auto,Auto">
+                                            <StackPanel Grid.Row="0" Grid.Column="0" Spacing="2">
+                                                <TextBlock Text="{loc:Loc 'First day worked (Block 10)'}" FontSize="12"
+                                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                                                <TextBlock Text="{Binding Roe.FirstDayWorked}" FontSize="14" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Row="0" Grid.Column="2" Spacing="2">
+                                                <TextBlock Text="{loc:Loc 'Last day paid (Block 11)'}" FontSize="12"
+                                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                                                <TextBlock Text="{Binding Roe.LastDayPaid}" FontSize="14" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Row="1" Grid.Column="0" Spacing="2" Margin="0,10,0,0">
+                                                <TextBlock Text="{loc:Loc 'Final period end (Block 12)'}" FontSize="12"
+                                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                                                <TextBlock Text="{Binding Roe.FinalPeriodEnd}" FontSize="14" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Row="1" Grid.Column="2" Spacing="2" Margin="0,10,0,0">
+                                                <TextBlock Text="{loc:Loc 'Insurable hours (Block 15A)'}" FontSize="12"
+                                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                                                <TextBlock Text="{Binding Roe.InsurableHours}" FontSize="14" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Row="2" Grid.Column="0" Spacing="2" Margin="0,10,0,0">
+                                                <TextBlock Text="{loc:Loc 'Insurable earnings (Block 15B)'}" FontSize="12"
+                                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                                                <TextBlock Text="{Binding Roe.InsurableEarnings}" FontSize="14" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Row="2" Grid.Column="2" Spacing="2" Margin="0,10,0,0">
+                                                <TextBlock Text="{loc:Loc 'Pay periods (Block 15C)'}" FontSize="12"
+                                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                                                <TextBlock Text="{Binding Roe.PeriodSummary}" FontSize="14" />
+                                            </StackPanel>
+                                        </Grid>
+                                        <TextBlock Text="{Binding Roe.HoursUnavailableReason}"
+                                                   FontSize="12" TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource WarningBrush}"
+                                                   IsVisible="{Binding Roe.HoursUnavailableReason, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Block 16. No default: quit, dismissal and leave are different
+                                     legal statements and the app cannot tell them apart. -->
+                                <StackPanel Spacing="6">
+                                    <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}"><Run Text="{loc:Loc 'Reason for issuing (Block 16)'}" /><Run Text=" *" Foreground="{DynamicResource ErrorBrush}" /></TextBlock>
+                                    <ComboBox ItemsSource="{Binding Roe.ReasonOptions}"
+                                              SelectedItem="{Binding Roe.SelectedReason}"
+                                              PlaceholderText="{loc:Loc 'Choose a reason'}"
+                                              Classes="form-combobox" HorizontalAlignment="Stretch">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Converter={StaticResource TranslateConverter}}" />
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                </StackPanel>
+
+                                <Grid ColumnDefinitions="*,16,*">
+                                    <StackPanel Grid.Column="0" Spacing="6">
+                                        <TextBlock Text="{loc:Loc 'Expected back'}" FontSize="13" FontWeight="Medium"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        <ComboBox ItemsSource="{Binding Roe.RecallOptions}"
+                                                  SelectedItem="{Binding Roe.SelectedRecall}"
+                                                  Classes="form-combobox" HorizontalAlignment="Stretch">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding Converter={StaticResource TranslateConverter}}" />
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2" Spacing="6" IsVisible="{Binding Roe.ShowRecallDate}">
+                                        <TextBlock Text="{loc:Loc 'Date of recall'}" FontSize="13" FontWeight="Medium"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        <DatePicker SelectedDate="{Binding Roe.RecallDate}" HorizontalAlignment="Stretch" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <TextBlock Text="{loc:Loc 'Who Service Canada should call about this ROE'}"
+                                           FontSize="13" FontWeight="SemiBold" Margin="0,4,0,-8"
+                                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                                <TextBlock Text="{loc:Loc 'Someone at your company, not the employee.'}"
+                                           FontSize="12" Margin="0,0,0,-6" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+
+                                <Grid ColumnDefinitions="*,16,*">
+                                    <StackPanel Grid.Column="0" Spacing="6">
+                                        <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}"><Run Text="{loc:Loc 'First name'}" /><Run Text=" *" Foreground="{DynamicResource ErrorBrush}" /></TextBlock>
+                                        <TextBox Text="{Binding Roe.ContactFirstName}" Classes="form-input" MaxLength="20" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2" Spacing="6">
+                                        <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}"><Run Text="{loc:Loc 'Last name'}" /><Run Text=" *" Foreground="{DynamicResource ErrorBrush}" /></TextBlock>
+                                        <TextBox Text="{Binding Roe.ContactLastName}" Classes="form-input" MaxLength="20" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <Grid ColumnDefinitions="*,16,*">
+                                    <StackPanel Grid.Column="0" Spacing="6">
+                                        <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}"><Run Text="{loc:Loc 'Telephone'}" /><Run Text=" *" Foreground="{DynamicResource ErrorBrush}" /></TextBlock>
+                                        <!-- PhoneNumber, not FullPhoneNumber: that one prefixes the dial code, and
+                                             Service Canada wants block 16 as a bare area code plus seven digits. -->
+                                        <controls:PhoneInput PhoneNumber="{Binding Roe.ContactPhone, Mode=TwoWay}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2" Spacing="6">
+                                        <TextBlock Text="{loc:Loc 'Extension'}" FontSize="13" FontWeight="Medium"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        <TextBox Text="{Binding Roe.ContactPhoneExtension}" Classes="form-input" MaxLength="5" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <Grid ColumnDefinitions="*,16,*">
+                                    <StackPanel Grid.Column="0" Spacing="6">
+                                        <TextBlock Text="{loc:Loc 'Occupation'}" FontSize="13" FontWeight="Medium"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        <TextBox Text="{Binding Roe.Occupation}" Classes="form-input" MaxLength="40" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2" Spacing="6">
+                                        <TextBlock Text="{loc:Loc 'Your reference'}" FontSize="13" FontWeight="Medium"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        <TextBox Text="{Binding Roe.PayrollReferenceNumber}" Classes="form-input" MaxLength="26" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="{loc:Loc 'Language'}" FontSize="13" FontWeight="Medium"
+                                               Foreground="{DynamicResource TextSecondaryBrush}" />
+                                    <ComboBox ItemsSource="{Binding Roe.LanguageOptions}"
+                                              SelectedItem="{Binding Roe.SelectedLanguage}"
+                                              Classes="form-combobox" HorizontalAlignment="Stretch">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Converter={StaticResource TranslateConverter}}" />
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                </StackPanel>
+
+                                <!-- Block 17A. Blank by default: the final pay run's vacation pay is often
+                                     the percentage added to every cheque, which is never reported. -->
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="{loc:Loc 'Vacation pay paid because they left (Block 17A)'}" FontSize="13" FontWeight="Medium"
+                                               Foreground="{DynamicResource TextSecondaryBrush}" />
+                                    <TextBox Text="{Binding Roe.VacationPayOnLeaving, Mode=TwoWay}"
+                                             Classes="form-input"
+                                             PlaceholderText="0.00"
+                                             behaviors:NumericInputBehavior.IsDecimalOnly="True"
+                                             MaxLength="13" />
+                                    <TextBlock Text="{Binding Roe.VacationPayHint}"
+                                               FontSize="12" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource TextTertiaryBrush}"
+                                               IsVisible="{Binding Roe.VacationPayHint, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                </StackPanel>
+
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="{loc:Loc 'Comments'}" FontSize="13" FontWeight="Medium"
+                                               Foreground="{DynamicResource TextSecondaryBrush}" />
+                                    <TextBox Text="{Binding Roe.Comments}" Classes="form-input" MaxLength="160"
+                                             AcceptsReturn="True" Height="64" TextWrapping="Wrap" />
+                                    <!-- Worth saying before they type, not after. -->
+                                    <TextBlock Text="{loc:Loc 'A comment sends this ROE to manual review at Service Canada, which delays the claim. Leave it empty unless something needs explaining.'}"
+                                               FontSize="12" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource WarningBrush}"
+                                               IsVisible="{Binding Roe.ShowCommentWarning}" />
+                                </StackPanel>
+
+                                <!-- Everything still missing, at once. -->
+                                <Border Background="{DynamicResource ErrorBackgroundBrush}"
+                                        CornerRadius="8" Padding="14"
+                                        IsVisible="{Binding !Roe.CanExport}">
+                                    <StackPanel Spacing="6">
+                                        <TextBlock Text="{loc:Loc 'Before this can be exported'}"
+                                                   FontSize="13" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource ErrorBrush}" />
+                                        <ItemsControl ItemsSource="{Binding Roe.Problems}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding}" FontSize="12" TextWrapping="Wrap"
+                                                               Margin="0,2"
+                                                               Foreground="{DynamicResource ErrorBrush}" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+
+                                <TextBlock Text="{Binding Roe.StatusMessage}" FontSize="12" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                           IsVisible="{Binding Roe.StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                            </StackPanel>
+                        </ScrollViewer>
+
+                        <Border Grid.Row="2" Padding="24,16"
+                                BorderBrush="{DynamicResource BorderBrush}"
+                                BorderThickness="0,1,0,0">
+                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                <!-- Needs nothing filled in: the usual thing to do with the
+                                     worksheet is read figures off it while ROE Web is open. -->
+                                <Button Grid.Column="0" Classes="secondary-button"
+                                        Content="{loc:Loc 'View worksheet'}"
+                                        Command="{Binding Roe.ViewWorksheetCommand}" />
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12">
+                                    <Button Classes="secondary-button" Content="{loc:Loc 'Save as draft'}"
+                                            Command="{Binding Roe.SaveDraftXmlCommand}"
+                                            IsEnabled="{Binding Roe.CanExport}" />
+                                    <Button Classes="primary-button" Content="{loc:Loc 'Save ROE XML'}"
+                                            Command="{Binding Roe.SaveXmlCommand}"
+                                            IsEnabled="{Binding Roe.CanExport}" />
                                 </StackPanel>
                             </Grid>
                         </Border>

@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using ArgoBooks.Core.Models.Telemetry;
 
 namespace ArgoBooks.Core.Services;
@@ -13,7 +14,13 @@ public interface IErrorLogger
     /// <param name="exception">The exception to log.</param>
     /// <param name="category">Category of the error.</param>
     /// <param name="context">Optional context about where/why the error occurred.</param>
-    void LogError(Exception exception, ErrorCategory category, string? context = null);
+    void LogError(
+        Exception exception,
+        ErrorCategory category,
+        string? context = null,
+        [CallerFilePath] string callerFile = "",
+        [CallerLineNumber] int callerLine = 0,
+        [CallerMemberName] string callerMember = "");
 
     /// <summary>
     /// Logs an error message without an exception.
@@ -21,7 +28,13 @@ public interface IErrorLogger
     /// <param name="message">Error message.</param>
     /// <param name="category">Category of the error.</param>
     /// <param name="context">Optional context.</param>
-    void LogError(string message, ErrorCategory category, string? context = null);
+    void LogError(
+        string message,
+        ErrorCategory category,
+        string? context = null,
+        [CallerFilePath] string callerFile = "",
+        [CallerLineNumber] int callerLine = 0,
+        [CallerMemberName] string callerMember = "");
 
     /// <summary>
     /// Logs a warning message.
@@ -38,7 +51,14 @@ public interface IErrorLogger
     /// <param name="context">Optional context.</param>
     /// <param name="category">Category, used only when <paramref name="code"/> is set.</param>
     /// <param name="code">Stable identifier. Supplying it opts this warning into telemetry.</param>
-    void LogWarning(string message, string? context = null, ErrorCategory category = ErrorCategory.Unknown, string? code = null);
+    void LogWarning(
+        string message,
+        string? context = null,
+        ErrorCategory category = ErrorCategory.Unknown,
+        string? code = null,
+        [CallerFilePath] string callerFile = "",
+        [CallerLineNumber] int callerLine = 0,
+        [CallerMemberName] string callerMember = "");
 
     /// <summary>
     /// Logs an informational message.

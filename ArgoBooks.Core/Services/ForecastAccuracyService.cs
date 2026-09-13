@@ -13,19 +13,21 @@ public class ForecastAccuracyService : IForecastAccuracyService
     /// <summary>
     /// Increment this when the forecasting algorithm changes to trigger a full re-backtest.
     /// </summary>
-    private const string CurrentBacktestVersion = "v2-smape-interpolation";
+    private const string CurrentBacktestVersion = "v3-gross-collected";
     /// <inheritdoc />
     public void SaveForecast(CompanyData companyData, ForecastData forecast, AnalysisDateRange forecastPeriod)
     {
-        // Check if we already have a forecast for this exact period
+        // Matched on days: a period saved by an older build ends at 23:59:59, not the day's last tick.
         var existingRecord = companyData.ForecastRecords.FirstOrDefault(r =>
-            r.PeriodStartDate == forecastPeriod.StartDate &&
-            r.PeriodEndDate == forecastPeriod.EndDate &&
+            r.PeriodStartDate.Date == forecastPeriod.StartDate.Date &&
+            r.PeriodEndDate.Date == forecastPeriod.EndDate.Date &&
             !r.IsValidated);
 
         if (existingRecord != null)
         {
             // Update existing unvalidated record
+            existingRecord.PeriodStartDate = forecastPeriod.StartDate;
+            existingRecord.PeriodEndDate = forecastPeriod.EndDate;
             existingRecord.ForecastedRevenue = forecast.ForecastedRevenue;
             existingRecord.ForecastedExpenses = forecast.ForecastedExpenses;
             existingRecord.ForecastedProfit = forecast.ForecastedProfit;
@@ -343,15 +345,17 @@ public class ForecastAccuracyService : IForecastAccuracyService
     /// </summary>
     private List<MonthlyAggregate> GetMonthlyAggregates(CompanyData companyData)
     {
-        // Aggregate sales by month
+        // Same basis as the live forecast and ValidatePastForecasts: gross collected revenue and
+        // gross expenses, so backtests and live forecasts are scored against one yardstick.
         var salesByMonth = companyData.Revenues
+            .Where(RevenueAggregator.IsCollected)
             .GroupBy(s => new DateTime(s.Date.Year, s.Date.Month, 1))
-            .ToDictionary(g => g.Key, g => g.Sum(s => s.EffectiveSubtotalUSD));
+            .ToDictionary(g => g.Key, g => g.Sum(s => s.EffectiveTotalUSD));
 
         // Aggregate purchases by month
         var purchasesByMonth = companyData.Expenses
             .GroupBy(p => new DateTime(p.Date.Year, p.Date.Month, 1))
-            .ToDictionary(g => g.Key, g => g.Sum(p => p.EffectiveSubtotalUSD));
+            .ToDictionary(g => g.Key, g => g.Sum(p => p.EffectiveTotalUSD));
 
         // Get the full range of months with data
         var allDataMonths = salesByMonth.Keys.Concat(purchasesByMonth.Keys).ToList();

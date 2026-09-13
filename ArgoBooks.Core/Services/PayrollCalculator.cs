@@ -32,6 +32,11 @@ public static class PayrollCalculator
         ArgumentNullException.ThrowIfNull(ytd);
         ArgumentNullException.ThrowIfNull(rates);
 
+        if (input.RegularPayPerPeriod > 0 && input.GrossPay > 0 && input.NonPeriodicPay >= input.GrossPay)
+        {
+            return CalculateBonusOnly(input, ytd, rates);
+        }
+
         // Quebec is handed off whole rather than branched through. Its pension plan, its
         // parental insurance plan and its income tax formula are all different in kind, so
         // there is nothing below this line that would apply to it.
@@ -99,9 +104,31 @@ public static class PayrollCalculator
         // same pay gets the same tax in period 1 and period 7, with year-to-date CPP of 808.74
         // on the second. Adding it makes the projection creep up to the annual maximum partway
         // through the year and pin there, quietly under-withholding from that point on.
-        decimal annualCpp = Math.Min(cppUncapped * periods, rates.Cpp.MaxContributionEmployee)
+        // Annualise the RECURRING pay only. cppUncapped and eiUncapped are computed on the whole
+        // period including any bonus, and a bonus is paid once: annualising it projects a year of
+        // contributions nobody will make, which pins the credit at its maximum and under-withholds
+        // every remaining period. Verified against PDOC, which puts the periodic federal tax on a
+        // 2,000 biweekly with a 5,000 bonus at 163.09; annualising the full 7,000 gives 155.59.
+        decimal recurring = Math.Max(0m, gross - Math.Clamp(input.NonPeriodicPay, 0m, Math.Max(0m, gross)));
+        decimal recurringCppUncapped = cppUncapped;
+        decimal recurringEiUncapped = eiUncapped;
+
+        if (recurring < gross)
+        {
+            CppForPeriod(recurring, periods, ytd, rates, input.IsCppExempt, out _, out recurringCppUncapped);
+            EiForPeriod(recurring, ytd, rates, input.IsEiExempt, out recurringEiUncapped);
+        }
+
+        decimal annualCpp = Math.Min(recurringCppUncapped * periods, rates.Cpp.MaxContributionEmployee)
                             * (1 - enhancedShare);
-        decimal annualEi = Math.Min(eiUncapped * periods, rates.Ei.MaxPremiumEmployee);
+        decimal annualEi = Math.Min(recurringEiUncapped * periods, rates.Ei.MaxPremiumEmployee);
+
+        // The contributions the bonus itself attracts, NOT annualised, because it is paid once.
+        // They belong in K2 for the with-bonus step only, which is what makes the two steps
+        // differ by more than the bonus. Leaving them out over-taxed a 5,000 bonus by 46.06
+        // federal, the difference between the engine and PDOC that found this.
+        decimal bonusCpp = Math.Max(0m, (cppUncapped - recurringCppUncapped)) * (1 - enhancedShare);
+        decimal bonusEi = Math.Max(0m, eiUncapped - recurringEiUncapped);
 
         decimal federalAnnual = Math.Max(0, FederalTaxForYear(annual, annualCpp, annualEi, input, rates));
         decimal provincialAnnual = Math.Max(0, ProvincialTaxForYear(annual, annualCpp, annualEi, input, rates, province));
@@ -135,15 +162,20 @@ public static class PayrollCalculator
             {
                 // Against the step 2 figure, not the periodic one. They are only the same when
                 // there are no prior bonuses.
+                decimal bonusCppCredit = Math.Min(annualCpp + bonusCpp,
+                    rates.Cpp.MaxContributionEmployee * (1 - enhancedShare));
+                decimal bonusEiCredit = Math.Min(annualEi + bonusEi, rates.Ei.MaxPremiumEmployee);
+
                 decimal federalBase =
                     Math.Max(0, FederalTaxForYear(bonusBase, annualCpp, annualEi, input, rates));
                 decimal provincialBase =
                     Math.Max(0, ProvincialTaxForYear(bonusBase, annualCpp, annualEi, input, rates, province));
 
                 federal += Round(
-                    Math.Max(0, FederalTaxForYear(withBonus, annualCpp, annualEi, input, rates)) - federalBase);
+                    Math.Max(0, FederalTaxForYear(withBonus, bonusCppCredit, bonusEiCredit, input, rates))
+                    - federalBase);
                 provincial += Round(
-                    Math.Max(0, ProvincialTaxForYear(withBonus, annualCpp, annualEi, input, rates, province))
+                    Math.Max(0, ProvincialTaxForYear(withBonus, bonusCppCredit, bonusEiCredit, input, rates, province))
                     - provincialBase);
             }
         }
@@ -160,6 +192,31 @@ public static class PayrollCalculator
             FederalTax = federal,
             ProvincialTax = provincial,
         };
+    }
+
+    /// <summary>
+    /// A period that pays a bonus and nothing else.
+    ///
+    /// Income tax is what the bonus would add to a period of regular pay: the tax on the regular
+    /// pay with the bonus, less the tax on the regular pay alone. Working it from this period's
+    /// own figures annualised a regular pay of zero, so the bonus was taxed as though it were the
+    /// employee's whole year and mostly vanished under the personal amount.
+    ///
+    /// Contributions are still charged on what this period pays. The regular pay is borrowed only
+    /// to place the bonus in the right bracket, and was never paid in this run.
+    /// </summary>
+    private static PayrollDeductions CalculateBonusOnly(PayrollInput input, PayrollYearToDate ytd, PayrollRateTable rates)
+    {
+        decimal bonus = input.GrossPay;
+        decimal regular = input.RegularPayPerPeriod;
+
+        PayrollDeductions actual = Calculate(input.WithPay(bonus, bonus), ytd, rates);
+        PayrollDeductions alone = Calculate(input.WithPay(regular, 0m), ytd, rates);
+        PayrollDeductions together = Calculate(input.WithPay(regular + bonus, bonus), ytd, rates);
+
+        actual.FederalTax = Math.Max(0m, together.FederalTax - alone.FederalTax);
+        actual.ProvincialTax = Math.Max(0m, together.ProvincialTax - alone.ProvincialTax);
+        return actual;
     }
 
     /// <summary>
@@ -283,9 +340,8 @@ public static class PayrollCalculator
         // Deliberately not phased down for income: an employer applies the figure the employee
         // wrote on their TD1, and reflecting the high-income reduction is the employee's job
         // when completing that form. CRA's own calculator behaves this way.
-        decimal claim = input.FederalClaimAmount > 0
-            ? input.FederalClaimAmount
-            : federal.BasicPersonalAmount.Maximum;
+        decimal claim = ClaimOrBasic(input.FederalClaimAmount, input.FederalClaimIsZero,
+                                     federal.BasicPersonalAmount.Maximum);
 
         decimal k1 = lowest * claim;
         decimal k2 = lowest * (annualCpp + annualEi);
@@ -305,9 +361,8 @@ public static class PayrollCalculator
         (decimal rate, decimal k) = BracketFor(province.Brackets, annual);
         decimal lowest = province.Brackets.Count > 0 ? province.Brackets[0].Rate : 0m;
 
-        decimal claim = input.ProvincialClaimAmount > 0
-            ? input.ProvincialClaimAmount
-            : province.BasicPersonalAmount.Maximum;
+        decimal claim = ClaimOrBasic(input.ProvincialClaimAmount, input.ProvincialClaimIsZero,
+                                     province.BasicPersonalAmount.Maximum);
 
         // Yukon alone grants a provincial Canada Employment Amount. Elsewhere the amount is
         // zero, so this term is zero and costs nothing.
@@ -371,6 +426,13 @@ public static class PayrollCalculator
         return tax;
     }
 
+    /// <summary>
+    /// The TD1 claim, or the basic personal amount when none was filed. Shared with the Quebec
+    /// calculator. A zero amount means no TD1 unless the form itself claims nothing.
+    /// </summary>
+    internal static decimal ClaimOrBasic(decimal claim, bool claimsZero, decimal basic) =>
+        claim > 0 ? claim : claimsZero ? 0m : basic;
+
     private static decimal HealthPremiumFor(decimal annual, List<HealthPremiumBand> bands)
     {
         foreach (HealthPremiumBand band in bands)
@@ -424,6 +486,12 @@ public class PayrollInput
     /// <summary>TD1P total. Zero means use the basic personal amount.</summary>
     public decimal ProvincialClaimAmount { get; set; }
 
+    /// <summary>The TD1 claims nothing, so a zero <see cref="FederalClaimAmount"/> is a real zero.</summary>
+    public bool FederalClaimIsZero { get; set; }
+
+    /// <summary>The provincial TD1 claims nothing.</summary>
+    public bool ProvincialClaimIsZero { get; set; }
+
     /// <summary>
     /// T4127's B: the part of <see cref="GrossPay"/> that is a bonus, retroactive pay increase,
     /// vacation pay for vacation not taken, accumulated overtime or any other payment that does
@@ -435,12 +503,29 @@ public class PayrollInput
     /// </summary>
     public decimal NonPeriodicPay { get; set; }
 
+    /// <summary>
+    /// What the employee is normally paid for a period, bonuses excluded. Read only when this
+    /// period pays a bonus and nothing else, because T4127 taxes a bonus on top of the regular
+    /// annual income and a run with no regular pay has none to annualise.
+    /// </summary>
+    public decimal RegularPayPerPeriod { get; set; }
+
     /// <summary>Only used by provinces whose tax reduction has a dependant component.</summary>
     public int Dependants { get; set; }
 
     public bool IsCppExempt { get; set; }
 
     public bool IsEiExempt { get; set; }
+
+    /// <summary>The same employee and period with different pay and no borrowed regular pay.</summary>
+    internal PayrollInput WithPay(decimal gross, decimal nonPeriodic)
+    {
+        var copy = (PayrollInput)MemberwiseClone();
+        copy.GrossPay = gross;
+        copy.NonPeriodicPay = nonPeriodic;
+        copy.RegularPayPerPeriod = 0m;
+        return copy;
+    }
 }
 
 /// <summary>

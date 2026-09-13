@@ -3,7 +3,7 @@ using Xunit;
 
 namespace ArgoBooks.Tests.Mobile;
 
-/// <summary>Unit tests for ScanQuota's pure free-tier scan math (Task 6).</summary>
+/// <summary>Unit tests for ScanQuota's pure free-tier scan math.</summary>
 public class ScanQuotaTests
 {
     [Theory]

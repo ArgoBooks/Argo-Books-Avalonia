@@ -148,6 +148,14 @@ public partial class UnifiedChartWidgetViewModel : WidgetViewModelBase
             return;
         }
 
+        // Return and loss amounts are in their sale's or purchase's own currency, not USD, so they take
+        // the analytics-page loaders, which convert each one from that currency at its own date.
+        if (ChartDataType is ChartDataType.ReturnFinancialImpact or ChartDataType.LossFinancialImpact)
+        {
+            LoadReturnOrLossImpactChart(data, chartSettings.StartDate, chartSettings.EndDate);
+            return;
+        }
+
         var service = new ReportChartDataService(data, filters);
 
         if (IsDistribution)
@@ -196,6 +204,22 @@ public partial class UnifiedChartWidgetViewModel : WidgetViewModelBase
         HasData = dates.Length > 0;
     }
 
+    private void LoadReturnOrLossImpactChart(CompanyData data, DateTime startDate, DateTime endDate)
+    {
+        var (series, dates) = ChartDataType == ChartDataType.ReturnFinancialImpact
+            ? ChartLoaderService.LoadReturnFinancialImpactChart(data, startDate, endDate)
+            : ChartLoaderService.LoadLossFinancialImpactChart(data, startDate, endDate);
+        XAxes = ChartLoaderService.CreateDateXAxes(dates);
+        YAxes = ChartLoaderService.CreateCurrencyYAxes(CurrencyService.CurrentSymbol);
+        Series = series;
+        HasData = dates.Length > 0;
+    }
+
+    // Counts get a plain number axis, money the display currency's.
+    private Axis[] CreateYAxes() => ChartDataType.IsCount()
+        ? ChartLoaderService.CreateNumberYAxes()
+        : ChartLoaderService.CreateCurrencyYAxes(CurrencyService.CurrentSymbol);
+
     private void LoadDistributionChart(object result)
     {
         if (result is not List<ChartDataPoint> points || points.Count == 0)
@@ -206,6 +230,7 @@ public partial class UnifiedChartWidgetViewModel : WidgetViewModelBase
         }
 
         var isDonut = ChartStyle == "donut";
+        var isCount = ChartDataType.IsCount();
         var series = new ObservableCollection<ISeries>();
 
         // Distribution points already arrive in the display currency: currency distributions are
@@ -225,9 +250,10 @@ public partial class UnifiedChartWidgetViewModel : WidgetViewModelBase
                 Fill = new SolidColorPaint(SKColor.Parse(colorHex)),
                 InnerRadius = isDonut ? 50 : 0,
                 Pushout = 0,
-                // Values are already in display currency, so just format.
-                ToolTipLabelFormatter = p =>
-                    CurrencyService.Format((decimal)p.Coordinate.PrimaryValue)
+                // Values are already in display currency (or plain counts), so just format.
+                ToolTipLabelFormatter = p => isCount
+                    ? ((decimal)p.Coordinate.PrimaryValue).ToString("N0")
+                    : CurrencyService.Format((decimal)p.Coordinate.PrimaryValue)
             });
         }
 
@@ -259,11 +285,14 @@ public partial class UnifiedChartWidgetViewModel : WidgetViewModelBase
 
         // Convert each DAILY point to display currency at its OWN date BEFORE pivoting onto the
         // aligned date axis (Calculations.md §3a Phase 2). The pivoted values are then already
-        // display currency, so CreateDateTimeSeries must not convert again.
-        foreach (var sd in seriesData)
-            foreach (var p in sd.DataPoints)
-                if (p.Date.HasValue)
-                    p.Value = (double)CurrencyService.GetDisplayAmount((decimal)p.Value, p.Date.Value);
+        // display currency, so CreateDateTimeSeries must not convert again. Counts stay as they are.
+        if (!ChartDataType.IsCount())
+        {
+            foreach (var sd in seriesData)
+                foreach (var p in sd.DataPoints)
+                    if (p.Date.HasValue)
+                        p.Value = (double)CurrencyService.GetDisplayAmount((decimal)p.Value, p.Date.Value);
+        }
 
         var series = new ObservableCollection<ISeries>();
         var seriesDisplayValues = new List<double[]>();
@@ -274,13 +303,13 @@ public partial class UnifiedChartWidgetViewModel : WidgetViewModelBase
                 sd.DataPoints.FirstOrDefault(p => p.Date == date)?.Value ?? 0.0).ToArray();
             seriesDisplayValues.Add(displayValues);
 
-            var colorHex = sd.Color ?? AppColors.Palette[i % AppColors.Palette.Length];
+            var colorHex = sd.Color;
             series.Add(ChartLoaderService.CreateDateTimeSeries(
                 allDates, displayValues, sd.Name, SKColor.Parse(colorHex), convertFromUSD: false));
         }
 
         XAxes = ChartLoaderService.CreateDateXAxes(allDates);
-        YAxes = ChartLoaderService.CreateCurrencyYAxes(CurrencyService.CurrentSymbol);
+        YAxes = CreateYAxes();
         Series = series;
         HasData = allDates.Length > 0;
 
@@ -315,8 +344,12 @@ public partial class UnifiedChartWidgetViewModel : WidgetViewModelBase
 
         // Convert each DAILY point to display currency at its OWN date BEFORE re-bucketing, so the
         // bucket sum is a sum of per-day-correct display values (Calculations.md §3a Phase 2).
-        foreach (var p in dated)
-            p.Value = (double)CurrencyService.GetDisplayAmount((decimal)p.Value, p.Date!.Value);
+        // Counts stay as they are.
+        if (!ChartDataType.IsCount())
+        {
+            foreach (var p in dated)
+                p.Value = (double)CurrencyService.GetDisplayAmount((decimal)p.Value, p.Date!.Value);
+        }
 
         // Bucket daily data into weeks/months when the date range is wide so
         // column bars are a readable width instead of hairline-thin slivers.
@@ -338,7 +371,7 @@ public partial class UnifiedChartWidgetViewModel : WidgetViewModelBase
             convertFromUSD: false));
 
         XAxes = ChartLoaderService.CreateDateXAxes(dates);
-        YAxes = ChartLoaderService.CreateCurrencyYAxes(CurrencyService.CurrentSymbol);
+        YAxes = CreateYAxes();
         Series = series;
         HasData = dates.Length > 0;
 

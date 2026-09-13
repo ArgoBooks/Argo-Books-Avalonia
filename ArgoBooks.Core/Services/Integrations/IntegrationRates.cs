@@ -159,7 +159,7 @@ public static class IntegrationRates
         if (data.PendingConversions.Any(p => p.TransactionId == txn.Id))
             return;
 
-        data.PendingConversions.Add(new PendingConversion
+        var entry = new PendingConversion
         {
             TransactionId = txn.Id,
             TransactionType = txn is Revenue ? "Revenue" : "Expense",
@@ -171,6 +171,11 @@ public static class IntegrationRates
             Discount = txn.Discount,
             Fee = txn.Fee,
             UnitPrice = txn.UnitPrice
-        });
+        };
+        data.PendingConversions.Add(entry);
+
+        // The retry timer drains the service's own queue, which takes in the company file's list
+        // only when the file opens; without this the row stays pending until the next open.
+        _ = PendingConversionService.Instance?.AddPendingConversionAsync(entry);
     }
 }

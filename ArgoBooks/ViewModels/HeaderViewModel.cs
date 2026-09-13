@@ -13,8 +13,6 @@ namespace ArgoBooks.ViewModels;
 /// </summary>
 public partial class HeaderViewModel : ViewModelBase
 {
-    private readonly INavigationService? _navigationService;
-
     #region Page Title
 
     [ObservableProperty]
@@ -326,8 +324,6 @@ public partial class HeaderViewModel : ViewModelBase
     /// <param name="navigationService">Navigation service.</param>
     public HeaderViewModel(INavigationService? navigationService)
     {
-        _navigationService = navigationService;
-
         UndoRedoViewModel.SetUndoRedoManager(SharedUndoRedoManager);
 
         // Sync HasUnsavedChanges with undo/redo state
@@ -656,6 +652,7 @@ public partial class HeaderViewModel : ViewModelBase
         Notifications.Clear();
         UnreadNotificationCount = 0;
         HasUnreadNotifications = false;
+        HideToast();
     }
 
     /// <summary>

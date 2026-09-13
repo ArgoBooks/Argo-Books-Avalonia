@@ -59,7 +59,7 @@ public class StripeImportCreation
         stripe.LastSyncCursor = PreviousCursor;
         stripe.LastSyncTime = PreviousSyncTime;
 
-        Pre.RestoreTo(data.IdCounters);
+        Pre.RewindTo(data.IdCounters, Post);
         data.MarkAsModified();
     }
 
@@ -80,24 +80,40 @@ public class StripeImportCreation
         stripe.LastSyncCursor = NewCursor;
         stripe.LastSyncTime = NewSyncTime;
 
-        Post.RestoreTo(data.IdCounters);
+        Post.RaiseTo(data.IdCounters);
         data.MarkAsModified();
     }
 
-    /// <summary>Snapshot of the id counters the Stripe import can bump, so undo/redo restores them exactly.</summary>
+    /// <summary>Snapshot of the id counters the Stripe import can bump, so undo/redo can put them back.</summary>
     public readonly record struct CounterSnapshot(int Revenue, int Expense, int Customer, int Product, int Category, int Return)
     {
         public static CounterSnapshot From(IdCounters c) =>
             new(c.Revenue, c.Expense, c.Customer, c.Product, c.Category, c.Return);
 
-        public void RestoreTo(IdCounters c)
+        /// <summary>
+        /// Back to this snapshot, but only for a counter still where the import left it. One that
+        /// has moved on issued an id to a record the undo does not remove, and lowering it would
+        /// issue that id again.
+        /// </summary>
+        public void RewindTo(IdCounters c, CounterSnapshot post)
         {
-            c.Revenue = Revenue;
-            c.Expense = Expense;
-            c.Customer = Customer;
-            c.Product = Product;
-            c.Category = Category;
-            c.Return = Return;
+            if (c.Revenue == post.Revenue) c.Revenue = Revenue;
+            if (c.Expense == post.Expense) c.Expense = Expense;
+            if (c.Customer == post.Customer) c.Customer = Customer;
+            if (c.Product == post.Product) c.Product = Product;
+            if (c.Category == post.Category) c.Category = Category;
+            if (c.Return == post.Return) c.Return = Return;
+        }
+
+        /// <summary>Up to this snapshot, never down: an id issued while the import was undone stays issued.</summary>
+        public void RaiseTo(IdCounters c)
+        {
+            c.Revenue = Math.Max(c.Revenue, Revenue);
+            c.Expense = Math.Max(c.Expense, Expense);
+            c.Customer = Math.Max(c.Customer, Customer);
+            c.Product = Math.Max(c.Product, Product);
+            c.Category = Math.Max(c.Category, Category);
+            c.Return = Math.Max(c.Return, Return);
         }
     }
 

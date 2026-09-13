@@ -217,6 +217,6 @@ public static class GridExtractor
         var rowCells = grid.Cells[row];
         if (col < 0 || col >= rowCells.Count)
             return "";
-        return rowCells[col] ?? "";
+        return rowCells[col];
     }
 }

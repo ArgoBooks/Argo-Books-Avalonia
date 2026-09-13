@@ -60,6 +60,14 @@ public class RoeWorksheet
     public decimal VacationPay { get; set; }
 
     /// <summary>
+    /// Block 17A as filed: vacation pay the employer confirms was paid because the employee left,
+    /// written under code 2. Separate from <see cref="VacationPay"/>, which is only the final
+    /// period's figure and can be the percentage paid with every cheque, which must not be
+    /// reported. Null or zero leaves the block out.
+    /// </summary>
+    public decimal? VacationPayOnLeaving { get; set; }
+
+    /// <summary>
     /// Why the hours could not be worked out, if they could not. Shown on the worksheet in
     /// place of a figure.
     /// </summary>
@@ -76,6 +84,47 @@ public class RoeWorksheet
 
     /// <summary>How many pay periods block 15A and 15C cover.</summary>
     public int HoursPeriodCount { get; set; }
+
+    // The blocks below cannot be derived from payroll. They are asked for on the way to an
+    // export and left at their defaults for the worksheet, which is why none of them is
+    // required to render one.
+
+    /// <summary>Block 16. Asked, never guessed: see RoeReason.</summary>
+    public RoeReason? Reason { get; set; }
+
+    /// <summary>Block 14.</summary>
+    public RoeRecall Recall { get; set; } = RoeRecall.Unknown;
+
+    /// <summary>Block 14. Required when <see cref="Recall"/> is <see cref="RoeRecall.ExpectedDate"/>.</summary>
+    public DateTime? RecallDate { get; set; }
+
+    /// <summary>Block 6, from the pay frequency.</summary>
+    public PayFrequency PayPeriodType => PayFrequency;
+
+    /// <summary>Block 3. The employer's own reference for this employee, if they use one.</summary>
+    public string? PayrollReferenceNumber { get; set; }
+
+    /// <summary>Block 13.</summary>
+    public string? Occupation { get; set; }
+
+    /// <summary>
+    /// Block 18. Optional, and worth leaving empty: Service Canada routes an ROE carrying a
+    /// comment to manual review, which delays the claim it belongs to.
+    /// </summary>
+    public string? Comments { get; set; }
+
+    /// <summary>Block 16's contact, and block 20's language.</summary>
+    public string? ContactFirstName { get; set; }
+
+    public string? ContactLastName { get; set; }
+
+    /// <summary>Ten digits. Split into area code and number on the way out.</summary>
+    public string? ContactPhone { get; set; }
+
+    public string? ContactPhoneExtension { get; set; }
+
+    /// <summary>Block 20, and the language Service Canada prints the ROE in.</summary>
+    public RoeLanguage Language { get; set; } = RoeLanguage.English;
 }
 
 /// <summary>One line of block 15C.</summary>

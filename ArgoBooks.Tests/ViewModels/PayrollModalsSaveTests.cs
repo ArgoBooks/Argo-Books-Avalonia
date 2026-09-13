@@ -307,6 +307,60 @@ public class PayrollModalsSaveTests : ModalViewModelTestBase
         Assert.Equal("Calgary", employee.Address.City);
     }
 
+    [Fact]
+    public void ATypedZeroClaim_IsSavedAsAClaimOfNothing_AndABlankOneIsNot()
+    {
+        // A blank box has always meant "no TD1, use the basic personal amount". A zero typed in
+        // is the employee claiming nothing, and has to reach the pay run as that.
+        var vm = new PayrollModalsViewModel();
+        vm.OpenAddEmployeeModal();
+        Filled(vm);
+        vm.FederalClaimAmount = "0";
+        vm.ProvincialClaimAmount = string.Empty;
+
+        vm.SaveEmployeeCommand.Execute(null);
+
+        Employee saved = Assert.Single(Company.Employees);
+        Assert.True(saved.FederalClaimIsZero);
+        Assert.Equal(0m, saved.FederalClaimAmount);
+        Assert.False(saved.ProvincialClaimIsZero);
+    }
+
+    [Fact]
+    public void AZeroClaim_ShowsAsZeroWhenReopened()
+    {
+        Employee employee = Existing();
+        employee.FederalClaimAmount = 0m;
+        employee.FederalClaimIsZero = true;
+
+        var vm = new PayrollModalsViewModel();
+        vm.OpenEditEmployeeModal(employee);
+
+        Assert.Equal(0m.ToString("0.00", System.Globalization.CultureInfo.CurrentCulture), vm.FederalClaimAmount);
+        Assert.Empty(vm.ProvincialClaimAmount);
+        Assert.False(vm.HasEmployeeModalChanges);
+
+        vm.FederalClaimAmount = string.Empty;
+        Assert.True(vm.HasEmployeeModalChanges);
+    }
+
+    [Fact]
+    public void UndoingAZeroClaim_PutsTheBasicPersonalAmountBack()
+    {
+        Employee employee = Existing();
+        employee.FederalClaimAmount = 0m;
+
+        var vm = new PayrollModalsViewModel();
+        vm.OpenEditEmployeeModal(employee);
+        vm.FederalClaimAmount = "0";
+        vm.SaveEmployeeCommand.Execute(null);
+
+        Assert.True(employee.FederalClaimIsZero);
+
+        Undo();
+        Assert.False(employee.FederalClaimIsZero);
+    }
+
     #endregion
 
     #region Closing
@@ -514,9 +568,7 @@ public class PayrollModalsSaveTests : ModalViewModelTestBase
     #region Standard hours
 
     /// <summary>
-    /// Standard hours per week are part of the undo snapshot. They were the one field left out,
-    /// so undoing an employee edit put every other field back and kept the new hours, leaving a
-    /// record nobody had approved. Block 15A of a record of employment is calculated from this
+    /// Standard hours per week are part of the undo snapshot. Block 15A of a record of employment is calculated from this
     /// for a salaried employee, and an EI claim is calculated from block 15A.
     /// </summary>
     [Fact]

@@ -138,34 +138,23 @@ public class SourceSurveyOptionsServiceTests
         Assert.Equal("other", defaults[^1].Key);
     }
 
-    private sealed class StubHandler : HttpMessageHandler
+    private sealed class StubHandler(HttpStatusCode status, string body) : HttpMessageHandler
     {
-        private readonly HttpStatusCode _status;
-        private readonly string _body;
-
-        public StubHandler(HttpStatusCode status, string body)
-        {
-            _status = status;
-            _body = body;
-        }
-
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.FromResult(new HttpResponseMessage(_status)
+            return Task.FromResult(new HttpResponseMessage(status)
             {
-                Content = new StringContent(_body, Encoding.UTF8, "application/json"),
+                Content = new StringContent(body, Encoding.UTF8, "application/json"),
             });
         }
     }
 
-    private sealed class ThrowingHandler : HttpMessageHandler
+    private sealed class ThrowingHandler(Exception ex) : HttpMessageHandler
     {
-        private readonly Exception _ex;
-        public ThrowingHandler(Exception ex) { _ex = ex; }
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request, CancellationToken cancellationToken)
-            => throw _ex;
+            => throw ex;
     }
 }

@@ -16,7 +16,6 @@ namespace ArgoBooks.ViewModels;
 public partial class AppShellViewModel : ViewModelBase
 {
     private readonly INavigationService? _navigationService;
-    private bool _hasPremium;
 
     // Lazy modal VM backing fields
     private CustomerModalsViewModel? _customerModalsViewModel;
@@ -294,7 +293,7 @@ public partial class AppShellViewModel : ViewModelBase
             {
                 _invoiceModalsViewModel = new InvoiceModalsViewModel();
                 _invoiceModalsViewModel.InvoiceDeleted += RaiseUnsavedChanges;
-                _invoiceModalsViewModel.HasPremium = _hasPremium;
+                _invoiceModalsViewModel.HasPremium = SidebarViewModel.HasPremium;
                 OnPropertyChanged();
             }
             return _invoiceModalsViewModel;
@@ -474,9 +473,9 @@ public partial class AppShellViewModel : ViewModelBase
         {
             if (_receiptsModalsViewModel == null)
             {
+                // No InvalidateScanServices here: a fresh VM has nothing cached, and it builds its
+                // scan services from the live licence on first use.
                 _receiptsModalsViewModel = new ReceiptsModalsViewModel();
-                if (_hasPremium)
-                    _receiptsModalsViewModel.InvalidateScanServices();
                 OnPropertyChanged();
             }
             return _receiptsModalsViewModel;
@@ -628,7 +627,7 @@ public partial class AppShellViewModel : ViewModelBase
         // Wire up license verification to enable premium features
         UpgradeModalViewModel.KeyVerified += (_, _) =>
         {
-            SetPremiumStatus(true);
+            SetPlanStatus(true);
         };
 
         // Create company creation wizard
@@ -1002,12 +1001,13 @@ public partial class AppShellViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Sets the premium status to show or hide premium features.
+    /// Applies the plan to every screen, showing or hiding premium features. The single entry point
+    /// for a plan change, whether it comes from a licence loaded at startup, an online revalidation
+    /// that failed, or a key entered in the upgrade modal.
     /// </summary>
-    public void SetPremiumStatus(bool hasPremium)
+    public void SetPlanStatus(bool hasPremium)
     {
-        _hasPremium = hasPremium;
-
+        // SidebarViewModel.HasPremium is the current plan: screens built later read it back from here.
         SidebarViewModel.HasPremium = hasPremium;
         SettingsModalViewModel.HasPremium = hasPremium;
         UpgradeModalViewModel.HasPremium = hasPremium;
@@ -1020,20 +1020,6 @@ public partial class AppShellViewModel : ViewModelBase
         _receiptsModalsViewModel?.InvalidateScanServices();
 
         // Notify lazily-created page ViewModels (e.g., InsightsPageViewModel)
-        App.RaisePlanStatusChanged(hasPremium);
-    }
-
-    /// <summary>
-    /// Sets all plan statuses at once.
-    /// </summary>
-    public void SetPlanStatus(bool hasPremium)
-    {
-        SidebarViewModel.HasPremium = hasPremium;
-        SettingsModalViewModel.HasPremium = hasPremium;
-        UpgradeModalViewModel.HasPremium = hasPremium;
-        HeaderViewModel.HasPremium = hasPremium;
-
-        // Notify any subscribers (e.g., ProductsPageViewModel) of plan status change
         App.RaisePlanStatusChanged(hasPremium);
     }
 

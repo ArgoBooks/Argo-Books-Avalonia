@@ -3,8 +3,7 @@ using System.Text.RegularExpressions;
 namespace ArgoBooks.Core.Services;
 
 /// <summary>
-/// Shared utilities for cleaning LLM JSON responses. Public (was internal) now that it lives in
-/// ArgoBooks.Shared: several ArgoBooks.Core callers (GeminiService, ReportRenderer,
+/// Shared utilities for cleaning LLM JSON responses. Public: several ArgoBooks.Core callers (GeminiService, ReportRenderer,
 /// SpreadsheetAnalysisService, etc.) are in a different assembly and need cross-assembly access.
 /// </summary>
 public static partial class JsonResponseHelper

@@ -263,13 +263,72 @@ public class RemoveElementAction : IReportUndoableAction
 
     public void Undo()
     {
+        // Straight into the list: AddElement would put it on top of everything.
         _element.ZOrder = _originalZOrder;
-        _config.AddElement(_element);
+        _config.Elements.Add(_element);
     }
 
     public void Redo()
     {
         _config.RemoveElement(_element.Id);
+    }
+}
+
+/// <summary>
+/// Action for removing a whole selection of elements as one undo entry.
+/// </summary>
+public class RemoveElementsAction : IReportUndoableAction
+{
+    private readonly ReportConfiguration _config;
+    private readonly List<(ReportElementBase Element, int ZOrder)> _removed;
+
+    public RemoveElementsAction(ReportConfiguration config, IReadOnlyList<ReportElementBase> elements)
+    {
+        _config = config;
+        _removed = elements.Select(e =>
+        {
+            var clone = e.Clone();
+            clone.Id = e.Id; // Preserve original ID so undo/redo pairs stay consistent
+            clone.PageNumber = e.PageNumber;
+            return (clone, e.ZOrder);
+        }).ToList();
+    }
+
+    public string Description => _removed.Count == 1
+        ? "Remove {0}".TranslateFormat(_removed[0].Element.DisplayName)
+        : $"Remove {_removed.Count} elements";
+
+    /// <summary>
+    /// Removes the elements and records the whole set as one undo entry, so a single
+    /// undo brings the entire selection back instead of one element at a time.
+    /// </summary>
+    public static void RemoveAndRecord(
+        ReportConfiguration config,
+        IReadOnlyList<ReportElementBase> elements,
+        ReportUndoRedoManager? undoRedoManager)
+    {
+        if (elements.Count == 0) return;
+
+        undoRedoManager?.RecordAction(new RemoveElementsAction(config, elements));
+
+        foreach (var element in elements)
+            config.RemoveElement(element.Id);
+    }
+
+    public void Undo()
+    {
+        foreach (var (element, zOrder) in _removed)
+        {
+            // Straight into the list: AddElement would put it on top of everything.
+            element.ZOrder = zOrder;
+            _config.Elements.Add(element);
+        }
+    }
+
+    public void Redo()
+    {
+        foreach (var (element, _) in _removed)
+            _config.RemoveElement(element.Id);
     }
 }
 
@@ -328,36 +387,27 @@ public class MoveResizeElementAction : ICoalescingAction
 /// <summary>
 /// Action for resizing accounting table columns via drag in the designer.
 /// </summary>
-public class ColumnResizeAction : IReportUndoableAction
+public class ColumnResizeAction(
+    ReportConfiguration config,
+    string elementId,
+    List<double> oldRatios,
+    List<double> newRatios)
+    : IReportUndoableAction
 {
-    private readonly ReportConfiguration _config;
-    private readonly string _elementId;
-    private readonly List<double> _oldRatios;
-    private readonly List<double> _newRatios;
-
-    public ColumnResizeAction(
-        ReportConfiguration config,
-        string elementId,
-        List<double> oldRatios,
-        List<double> newRatios)
-    {
-        _config = config;
-        _elementId = elementId;
-        _oldRatios = oldRatios.ToList();
-        _newRatios = newRatios.ToList();
-    }
+    private readonly List<double> _oldRatios = oldRatios.ToList();
+    private readonly List<double> _newRatios = newRatios.ToList();
 
     public string Description => "Resize column".Translate();
 
     public void Undo()
     {
-        if (_config.GetElementById(_elementId) is AccountingTableReportElement element)
+        if (config.GetElementById(elementId) is AccountingTableReportElement element)
             element.ColumnWidthRatios = _oldRatios.ToList();
     }
 
     public void Redo()
     {
-        if (_config.GetElementById(_elementId) is AccountingTableReportElement element)
+        if (config.GetElementById(elementId) is AccountingTableReportElement element)
             element.ColumnWidthRatios = _newRatios.ToList();
     }
 }
@@ -565,9 +615,11 @@ public class DeletePageAction : IReportUndoableAction
         _config = config;
         _deletedPageNumber = pageNumber;
         _removedElements = removedElements.Select(e => e.Clone()).ToList();
-        // Preserve original page numbers in clones
+        // Preserve original IDs and page numbers in clones, so other undo/redo actions that name
+        // these elements still find them once the page is back (as RemoveElementAction does)
         for (int i = 0; i < _removedElements.Count; i++)
         {
+            _removedElements[i].Id = removedElements[i].Id;
             _removedElements[i].PageNumber = removedElements[i].PageNumber;
         }
     }
@@ -585,7 +637,9 @@ public class DeletePageAction : IReportUndoableAction
 
         foreach (var element in _removedElements)
         {
-            _config.Elements.Add(element.Clone());
+            var restored = element.Clone();
+            restored.Id = element.Id;
+            _config.Elements.Add(restored);
         }
     }
 

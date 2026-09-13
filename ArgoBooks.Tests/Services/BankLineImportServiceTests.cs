@@ -161,4 +161,149 @@ public class BankLineImportServiceTests
         Assert.Null(data.Expenses[0].BankMatchedLineId);
         Assert.Equal(BankLineMatchStatus.Unmatched, line.MatchStatus); // unchanged from default
     }
+
+    private static CompanyData CadCompany()
+    {
+        var data = new CompanyData();
+        data.Settings.Localization.Currency = "CAD";
+        return data;
+    }
+
+    private static BankLineResolution Outflow(DateTime date) => new()
+    {
+        Line = new BankStatementLine { Id = "L1", Date = date, Description = "HOSTING", Amount = -100m },
+        Type = BookRecordType.Expense
+    };
+
+    private static bool NoRate(decimal amount, string currency, DateTime date, out decimal usd)
+    {
+        usd = 0m;
+        return false;
+    }
+
+    // Calculations.md Rule 3a: a CAD company's -100.00 line is CAD 100 converted at the line's own
+    // date, not filed as 100 USD.
+    [Fact]
+    public void CreateFromLines_NonUsdCompany_ConvertsAtTheLinesOwnDate()
+    {
+        var data = CadCompany();
+        var date = new DateTime(2026, 3, 10);
+        DateTime? rateDate = null;
+        bool CadAt75Cents(decimal amount, string currency, DateTime d, out decimal usd)
+        {
+            rateDate = d;
+            usd = amount * 0.75m;
+            return currency == "CAD";
+        }
+
+        new BankLineImportService(CadAt75Cents).CreateFromLines(data, [Outflow(date)], linkToBankLine: false);
+
+        var expense = Assert.Single(data.Expenses);
+        Assert.Equal("CAD", expense.OriginalCurrency);
+        Assert.Equal(100m, expense.Total);
+        Assert.Equal(75m, expense.TotalUSD);
+        Assert.Equal(75m, expense.UnitPriceUSD);
+        Assert.False(expense.IsPendingConversion);
+        Assert.Equal(date, rateDate);
+    }
+
+    [Fact]
+    public void CreateFromLines_NonUsdCompany_NoRateForTheDate_MarksPendingAndQueues()
+    {
+        var data = CadCompany();
+        var date = new DateTime(2026, 3, 10);
+
+        new BankLineImportService(NoRate).CreateFromLines(data, [Outflow(date)], linkToBankLine: false);
+
+        var expense = Assert.Single(data.Expenses);
+        Assert.True(expense.IsPendingConversion);
+        Assert.Equal(0m, expense.TotalUSD);
+        Assert.Equal(100m, expense.Total);
+        var entry = Assert.Single(data.PendingConversions);
+        Assert.Equal(expense.Id, entry.TransactionId);
+        Assert.Equal("Expense", entry.TransactionType);
+        Assert.Equal("CAD", entry.OriginalCurrency);
+        Assert.Equal(date, entry.TransactionDate);
+        Assert.Equal(100m, entry.Total);
+        Assert.Equal(100m, entry.UnitPrice);
+    }
+
+    [Fact]
+    public void CreateFromLines_UsdCompany_IsItsOwnUsdBase_WithoutAskingForARate()
+    {
+        var data = new CompanyData(); // USD by default
+        static bool NoCallExpected(decimal amount, string currency, DateTime date, out decimal usd) =>
+            throw new InvalidOperationException("A USD company needs no exchange rate.");
+
+        new BankLineImportService(NoCallExpected).CreateFromLines(data, [Outflow(new DateTime(2026, 3, 10))], linkToBankLine: false);
+
+        var expense = Assert.Single(data.Expenses);
+        Assert.Equal(100m, expense.TotalUSD);
+        Assert.Equal(100m, expense.UnitPriceUSD);
+        Assert.False(expense.IsPendingConversion);
+        Assert.Empty(data.PendingConversions);
+    }
+
+    // Undo removes the import's rows, so the conversions it queued must go too: nothing else
+    // prunes an entry whose row is gone, so it would be retried forever.
+    [Fact]
+    public void Undo_RemovesTheConversionsTheImportQueued_AndRedoQueuesThemAgain()
+    {
+        var data = CadCompany();
+        var unrelated = new ArgoBooks.Core.Models.Common.PendingConversion
+        {
+            TransactionId = "PUR-2020-00001", TransactionType = "Expense", OriginalCurrency = "CAD"
+        };
+        data.PendingConversions.Add(unrelated);
+
+        var creation = new BankLineImportService(NoRate).CreateFromLines(data, [Outflow(new DateTime(2026, 3, 10))], linkToBankLine: false);
+        var id = Assert.Single(data.Expenses).Id;
+        Assert.Contains(data.PendingConversions, p => p.TransactionId == id);
+
+        creation.Undo(data);
+
+        Assert.Empty(data.Expenses);
+        Assert.DoesNotContain(data.PendingConversions, p => p.TransactionId == id);
+        Assert.Contains(unrelated, data.PendingConversions);
+
+        creation.Redo(data);
+
+        Assert.Single(data.Expenses);
+        Assert.Contains(data.PendingConversions, p => p.TransactionId == id);
+    }
+
+    // An import's rows can be linked to statement lines directly, or matched to them afterwards.
+    // Undo must free those lines rather than leave them Matched to rows that no longer exist.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Undo_ReleasesStatementLinesMatchedToItsRows_AndRedoRelinksThem(bool linkToBankLine)
+    {
+        var data = new CompanyData();
+        var date = new DateTime(2026, 4, 5);
+        var statementLine = new BankStatementLine { Id = "S1", Date = date, Description = "AMZN MKTP", Amount = -38.20m };
+        data.BankImportSessions.Add(new BankImportSession { Id = "SESSION", Lines = [statementLine] });
+
+        var resolutionLine = linkToBankLine
+            ? statementLine
+            : new BankStatementLine { Id = "PARSED", Date = date, Description = "AMZN MKTP", Amount = -38.20m };
+        var creation = new BankLineImportService().CreateFromLines(data,
+            [new BankLineResolution { Line = resolutionLine, Type = BookRecordType.Expense }], linkToBankLine);
+        if (!linkToBankLine)
+            new BankMatchingService().MatchDeterministic([statementLine], data, new BankMatchingOptions());
+        var expense = Assert.Single(data.Expenses);
+        Assert.Equal(expense.Id, statementLine.MatchedRecordId);
+
+        creation.Undo(data);
+
+        Assert.Equal(BankLineMatchStatus.Unmatched, statementLine.MatchStatus);
+        Assert.Null(statementLine.MatchedRecordId);
+
+        creation.Redo(data);
+
+        Assert.Equal(BankLineMatchStatus.Matched, statementLine.MatchStatus);
+        Assert.Equal(expense.Id, statementLine.MatchedRecordId);
+        Assert.True(expense.BankMatched);
+        Assert.Equal("S1", expense.BankMatchedLineId);
+    }
 }

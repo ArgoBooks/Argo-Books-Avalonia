@@ -36,7 +36,7 @@ public static class ExportFolderHelper
     /// A name that is safe on disk. Spaces become dashes as well as the invalid characters,
     /// because these end up in file names that get emailed around.
     /// </summary>
-    public static string Sanitize(string name)
+    public static string Sanitize(string? name)
     {
         char[] invalid = Path.GetInvalidFileNameChars();
         string result = new((name ?? string.Empty)

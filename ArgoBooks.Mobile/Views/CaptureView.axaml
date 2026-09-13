@@ -55,18 +55,28 @@
                    FontSize="12" Opacity="0.6" Margin="2,0,0,10"
                    IsVisible="{Binding !IsOverLimit}" />
 
-        <!-- Receipts captured while offline, waiting to be reviewed (never auto-posted). -->
+        <!-- Receipts captured while offline, waiting to be reviewed (never auto-posted), plus any
+             waiting on a company that is no longer connected. -->
         <Border Grid.Row="2" Classes="offline-review-prompt" Margin="0,0,0,10"
-                IsVisible="{Binding HasPendingOfflineScans}">
+                IsVisible="{Binding IsOutboxPromptVisible}">
           <Grid ColumnDefinitions="*,Auto">
             <StackPanel Grid.Column="0" VerticalAlignment="Center">
-              <TextBlock Text="{Binding PendingOfflineCount, StringFormat='{}{0} captured offline'}"
-                         FontSize="13" FontWeight="SemiBold" />
-              <TextBlock Text="Review them to add to your books"
-                         FontSize="11" Opacity="0.7" Margin="0,1,0,0" />
+              <StackPanel IsVisible="{Binding HasPendingOfflineScans}">
+                <TextBlock Text="{Binding PendingOfflineCount, StringFormat='{}{0} captured offline'}"
+                           FontSize="13" FontWeight="SemiBold" />
+                <TextBlock Text="Review them to add to your books"
+                           FontSize="11" Opacity="0.7" Margin="0,1,0,0" />
+              </StackPanel>
+              <StackPanel IsVisible="{Binding HasStrandedScans}" Margin="0,4,0,0">
+                <TextBlock Text="{Binding StrandedCount, StringFormat='{}{0} waiting on a company you are no longer connected to'}"
+                           FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" />
+                <TextBlock Text="They are kept here. Connect that company again to send them."
+                           FontSize="11" Opacity="0.7" Margin="0,1,0,0" TextWrapping="Wrap" />
+              </StackPanel>
             </StackPanel>
             <Button Grid.Column="1" Content="Review now"
                     Command="{Binding ReviewOfflineScansCommand}"
+                    IsVisible="{Binding HasPendingOfflineScans}"
                     VerticalAlignment="Center" Margin="10,0,0,0" />
           </Grid>
         </Border>

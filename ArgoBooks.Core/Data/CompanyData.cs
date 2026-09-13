@@ -286,6 +286,12 @@ public class CompanyData
         set => Settings.ChangesMade = value;
     }
 
+    /// <summary>
+    /// Counts edits, see <see cref="CompanySettings.ChangeCount"/>.
+    /// </summary>
+    [JsonIgnore]
+    public long ChangeCount => Settings.ChangeCount;
+
     #endregion
 
     #region Helper Methods
@@ -315,22 +321,41 @@ public class CompanyData
 
     #region Cached Lookups
 
-    [JsonIgnore] private Dictionary<string, Customer>? _customerLookup;
-    [JsonIgnore] private int _customerLookupCount = -1;
-    [JsonIgnore] private Dictionary<string, Product>? _productLookup;
-    [JsonIgnore] private int _productLookupCount = -1;
-    [JsonIgnore] private Dictionary<string, Supplier>? _supplierLookup;
-    [JsonIgnore] private int _supplierLookupCount = -1;
-    [JsonIgnore] private Dictionary<string, Category>? _categoryLookup;
-    [JsonIgnore] private int _categoryLookupCount = -1;
-    [JsonIgnore] private Dictionary<string, Accountant>? _accountantLookup;
-    [JsonIgnore] private int _accountantLookupCount = -1;
-    [JsonIgnore] private Dictionary<string, Location>? _locationLookup;
-    [JsonIgnore] private int _locationLookupCount = -1;
-    [JsonIgnore] private Dictionary<string, Invoice>? _invoiceLookup;
-    [JsonIgnore] private int _invoiceLookupCount = -1;
-    [JsonIgnore] private Dictionary<string, Receipt>? _receiptLookup;
-    [JsonIgnore] private int _receiptLookupCount = -1;
+    [JsonIgnore] private readonly LookupCache<Customer> _customerLookup = new(c => c.Id);
+    [JsonIgnore] private readonly LookupCache<Product> _productLookup = new(p => p.Id);
+    [JsonIgnore] private readonly LookupCache<Supplier> _supplierLookup = new(s => s.Id);
+    [JsonIgnore] private readonly LookupCache<Category> _categoryLookup = new(c => c.Id);
+    [JsonIgnore] private readonly LookupCache<Accountant> _accountantLookup = new(a => a.Id);
+    [JsonIgnore] private readonly LookupCache<Location> _locationLookup = new(l => l.Id);
+    [JsonIgnore] private readonly LookupCache<Invoice> _invoiceLookup = new(i => i.Id);
+    [JsonIgnore] private readonly LookupCache<Receipt> _receiptLookup = new(r => r.Id);
+
+    /// <summary>
+    /// An Id lookup over one collection, rebuilt when the collection changes. Records are only
+    /// added at the end or removed, so any change moves the count or the last record; checking
+    /// the count alone missed a delete followed by an add.
+    /// </summary>
+    private sealed class LookupCache<T>(Func<T, string> keySelector) where T : class
+    {
+        private Dictionary<string, T>? _lookup;
+        private int _count;
+        private T? _last;
+
+        public T? Get(List<T> list, string id)
+        {
+            if (string.IsNullOrEmpty(id)) return null;
+            var last = list.Count > 0 ? list[^1] : null;
+            if (_lookup == null || _count != list.Count || !ReferenceEquals(_last, last))
+            {
+                _lookup = BuildLookup(list, keySelector);
+                _count = list.Count;
+                _last = last;
+            }
+            return _lookup.GetValueOrDefault(id);
+        }
+
+        public void Invalidate() => _lookup = null;
+    }
 
     private static Dictionary<string, T> BuildLookup<T>(List<T> list, Func<T, string> keySelector)
     {
@@ -345,19 +370,19 @@ public class CompanyData
     }
 
     /// <summary>
-    /// Invalidates all cached lookup dictionaries. Call after bulk modifications
-    /// that add and remove items in the same operation (count stays the same).
+    /// Invalidates all cached lookup dictionaries. Call after changing a record's Id, which
+    /// leaves the collection itself as it was.
     /// </summary>
     public void InvalidateLookupCaches()
     {
-        _customerLookup = null;
-        _productLookup = null;
-        _supplierLookup = null;
-        _categoryLookup = null;
-        _accountantLookup = null;
-        _locationLookup = null;
-        _invoiceLookup = null;
-        _receiptLookup = null;
+        _customerLookup.Invalidate();
+        _productLookup.Invalidate();
+        _supplierLookup.Invalidate();
+        _categoryLookup.Invalidate();
+        _accountantLookup.Invalidate();
+        _locationLookup.Invalidate();
+        _invoiceLookup.Invalidate();
+        _receiptLookup.Invalidate();
     }
 
     #endregion
@@ -365,114 +390,42 @@ public class CompanyData
     /// <summary>
     /// Gets a customer by ID.
     /// </summary>
-    public Customer? GetCustomer(string id)
-    {
-        if (string.IsNullOrEmpty(id)) return null;
-        if (_customerLookup == null || _customerLookupCount != Customers.Count)
-        {
-            _customerLookup = BuildLookup(Customers, c => c.Id);
-            _customerLookupCount = Customers.Count;
-        }
-        return _customerLookup.GetValueOrDefault(id);
-    }
+    public Customer? GetCustomer(string id) => _customerLookup.Get(Customers, id);
 
     /// <summary>
     /// Gets a product by ID.
     /// </summary>
-    public Product? GetProduct(string id)
-    {
-        if (string.IsNullOrEmpty(id)) return null;
-        if (_productLookup == null || _productLookupCount != Products.Count)
-        {
-            _productLookup = BuildLookup(Products, p => p.Id);
-            _productLookupCount = Products.Count;
-        }
-        return _productLookup.GetValueOrDefault(id);
-    }
+    public Product? GetProduct(string id) => _productLookup.Get(Products, id);
 
     /// <summary>
     /// Gets a supplier by ID.
     /// </summary>
-    public Supplier? GetSupplier(string id)
-    {
-        if (string.IsNullOrEmpty(id)) return null;
-        if (_supplierLookup == null || _supplierLookupCount != Suppliers.Count)
-        {
-            _supplierLookup = BuildLookup(Suppliers, s => s.Id);
-            _supplierLookupCount = Suppliers.Count;
-        }
-        return _supplierLookup.GetValueOrDefault(id);
-    }
+    public Supplier? GetSupplier(string id) => _supplierLookup.Get(Suppliers, id);
 
     /// <summary>
     /// Gets a category by ID.
     /// </summary>
-    public Category? GetCategory(string id)
-    {
-        if (string.IsNullOrEmpty(id)) return null;
-        if (_categoryLookup == null || _categoryLookupCount != Categories.Count)
-        {
-            _categoryLookup = BuildLookup(Categories, c => c.Id);
-            _categoryLookupCount = Categories.Count;
-        }
-        return _categoryLookup.GetValueOrDefault(id);
-    }
+    public Category? GetCategory(string id) => _categoryLookup.Get(Categories, id);
 
     /// <summary>
     /// Gets an accountant by ID.
     /// </summary>
-    public Accountant? GetAccountant(string id)
-    {
-        if (string.IsNullOrEmpty(id)) return null;
-        if (_accountantLookup == null || _accountantLookupCount != Accountants.Count)
-        {
-            _accountantLookup = BuildLookup(Accountants, a => a.Id);
-            _accountantLookupCount = Accountants.Count;
-        }
-        return _accountantLookup.GetValueOrDefault(id);
-    }
+    public Accountant? GetAccountant(string id) => _accountantLookup.Get(Accountants, id);
 
     /// <summary>
     /// Gets a location by ID.
     /// </summary>
-    public Location? GetLocation(string id)
-    {
-        if (string.IsNullOrEmpty(id)) return null;
-        if (_locationLookup == null || _locationLookupCount != Locations.Count)
-        {
-            _locationLookup = BuildLookup(Locations, l => l.Id);
-            _locationLookupCount = Locations.Count;
-        }
-        return _locationLookup.GetValueOrDefault(id);
-    }
+    public Location? GetLocation(string id) => _locationLookup.Get(Locations, id);
 
     /// <summary>
     /// Gets an invoice by ID.
     /// </summary>
-    public Invoice? GetInvoice(string id)
-    {
-        if (string.IsNullOrEmpty(id)) return null;
-        if (_invoiceLookup == null || _invoiceLookupCount != Invoices.Count)
-        {
-            _invoiceLookup = BuildLookup(Invoices, i => i.Id);
-            _invoiceLookupCount = Invoices.Count;
-        }
-        return _invoiceLookup.GetValueOrDefault(id);
-    }
+    public Invoice? GetInvoice(string id) => _invoiceLookup.Get(Invoices, id);
 
     /// <summary>
     /// Gets a receipt by ID.
     /// </summary>
-    public Receipt? GetReceipt(string id)
-    {
-        if (string.IsNullOrEmpty(id)) return null;
-        if (_receiptLookup == null || _receiptLookupCount != Receipts.Count)
-        {
-            _receiptLookup = BuildLookup(Receipts, r => r.Id);
-            _receiptLookupCount = Receipts.Count;
-        }
-        return _receiptLookup.GetValueOrDefault(id);
-    }
+    public Receipt? GetReceipt(string id) => _receiptLookup.Get(Receipts, id);
 
     /// <summary>
     /// Gets an invoice template by ID.
@@ -494,6 +447,16 @@ public class CompanyData
     public void MarkAsSaved()
     {
         Settings.ChangesMade = false;
+    }
+
+    /// <summary>
+    /// Marks the data as saved, unless something changed after <paramref name="changeCount"/>
+    /// was read from <see cref="ChangeCount"/>, since that edit may not be in the file.
+    /// </summary>
+    public void MarkAsSaved(long changeCount)
+    {
+        if (Settings.ChangeCount == changeCount)
+            Settings.ChangesMade = false;
     }
 
     #endregion

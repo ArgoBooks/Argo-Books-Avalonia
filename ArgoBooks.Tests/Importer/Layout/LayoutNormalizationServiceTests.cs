@@ -1,4 +1,3 @@
-using ArgoBooks.Core.Models.AI;
 using ArgoBooks.Core.Services;
 using ArgoBooks.Core.Services.Layout;
 using ClosedXML.Excel;
@@ -43,14 +42,6 @@ public class LayoutNormalizationServiceTests : IDisposable
         public bool IsConfigured => true;
         public int CallCount { get; private set; }
 
-        public Task<SupplierCategorySuggestion?> GetSupplierCategorySuggestionAsync(
-            ReceiptAnalysisRequest request, CancellationToken cancellationToken = default)
-            => Task.FromResult<SupplierCategorySuggestion?>(null);
-
-        public Task<List<BankLineSuggestion>?> GetBankLineSuggestionsAsync(
-            BankLineCategorizationRequest request, CancellationToken cancellationToken = default)
-            => Task.FromResult<List<BankLineSuggestion>?>(null);
-
         public Task<string?> SendChatAsync(
             string systemPrompt, string userPrompt,
             int maxTokens = 4000, double temperature = 0.1,
@@ -61,13 +52,6 @@ public class LayoutNormalizationServiceTests : IDisposable
             CallCount++;
             return Task.FromResult(_response);
         }
-
-        public Task<string?> SendVisionChatAsync(
-            string systemPrompt, string userPrompt, string base64Image, string mimeType,
-            int maxTokens = 4000, double temperature = 0.1, string? model = null,
-            CancellationToken cancellationToken = default,
-            OperationKind operation = OperationKind.ReceiptScan)
-            => Task.FromResult<string?>(null);
     }
 
     // ─── Workbook builders ───────────────────────────────────────────────────

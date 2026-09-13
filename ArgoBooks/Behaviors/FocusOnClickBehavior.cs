@@ -21,11 +21,6 @@ public static class FocusOnClickBehavior
         FocusTextBoxOnClickProperty.Changed.AddClassHandler<Control>(OnFocusTextBoxOnClickChanged);
     }
 
-    public static bool GetFocusTextBoxOnClick(Control element)
-    {
-        return element.GetValue(FocusTextBoxOnClickProperty);
-    }
-
     public static void SetFocusTextBoxOnClick(Control element, bool value)
     {
         element.SetValue(FocusTextBoxOnClickProperty, value);

@@ -36,7 +36,7 @@ public static class PurchaseOrderPdfRenderer
                     {
                         row.RelativeItem().Column(left =>
                         {
-                            left.Item().Text(company.Name ?? "")
+                            left.Item().Text(company.Name)
                                 .FontSize(18).SemiBold();
                             if (!string.IsNullOrWhiteSpace(company.Address))
                                 left.Item().Text(company.Address);

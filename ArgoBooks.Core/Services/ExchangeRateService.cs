@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Net.Http.Json;
 
+using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Models.Telemetry;
 using ArgoBooks.Core.Platform;
 
@@ -152,7 +153,8 @@ public class ExchangeRateService
 
     /// <summary>
     /// Converts an amount between currencies using ONLY the exact-date cached rate. Returns
-    /// <see langword="true"/> with the converted, 2dp-rounded amount when the rate is available
+    /// <see langword="true"/> with the converted amount, rounded to the target currency's decimal
+    /// places so a sum of converted rows equals the rows as shown, when the rate is available
     /// (or when <paramref name="from"/> == <paramref name="to"/>); otherwise returns
     /// <see langword="false"/> and <paramref name="result"/> = 0. This is the strict chokepoint for
     /// all money conversion: it never substitutes a different date's rate, so a caller treats a
@@ -173,7 +175,7 @@ public class ExchangeRateService
             return false;
         }
 
-        result = Math.Round(amount * rate, 2);
+        result = Math.Round(amount * rate, CurrencyInfo.GetByCode(to).DecimalPlaces);
         return true;
     }
 

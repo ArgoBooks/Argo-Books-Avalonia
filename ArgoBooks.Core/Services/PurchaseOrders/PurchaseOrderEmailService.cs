@@ -193,7 +193,7 @@ public class PurchaseOrderEmailService : IDisposable
         return template
             .Replace("{PoNumber}", order.PoNumber)
             .Replace("{OrderId}", order.Id)
-            .Replace("{CompanyName}", companyData.Settings.Company.Name ?? string.Empty)
+            .Replace("{CompanyName}", companyData.Settings.Company.Name)
             .Replace("{SupplierName}", supplier?.Name ?? string.Empty)
             .Replace("{OrderDate}", order.OrderDate.ToString("yyyy-MM-dd"))
             .Replace("{ExpectedDeliveryDate}", order.ExpectedDeliveryDate.ToString("yyyy-MM-dd"))

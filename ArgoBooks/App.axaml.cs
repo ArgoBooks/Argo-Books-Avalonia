@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -21,6 +21,7 @@ using ArgoBooks.Core.Services.Layout;
 using ArgoBooks.Core.Services.Sync;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
+using ArgoBooks.Shared.Telemetry;
 using ArgoBooks.ViewModels;
 using ArgoBooks.Views;
 
@@ -58,6 +59,7 @@ public partial class App : Application
     /// can drive ViewModels that read <c>App.CompanyManager.CompanyData</c>. Not used in production.
     /// </summary>
     internal static void SetCompanyManagerForTesting(CompanyManager? manager) => CompanyManager = manager;
+    internal static void SetPaymentPortalServiceForTesting(PaymentPortalService? service) => PaymentPortalService = service;
 
     /// <summary>
     /// Gets the global settings service instance.
@@ -421,6 +423,38 @@ public partial class App : Application
 
     private static int _isAutoSyncing;
     private static Timer? _portalSyncTimer;
+    private static int _portalSyncTimerMinutes;
+
+    /// <summary>
+    /// Runs the periodic portal sync at the open company's chosen interval, or not at all for
+    /// "Manual" (0). A timer already running at that interval is left alone, so saving other
+    /// settings doesn't push the next sync back.
+    /// </summary>
+    internal static void ApplyPortalSyncInterval()
+    {
+        var minutes = CompanyManager?.IsCompanyOpen == true
+            ? CompanyManager.CompanyData?.Settings.PaymentPortal.AutoSyncIntervalMinutes ?? 0
+            : 0;
+        if (_portalSyncTimer != null && minutes == _portalSyncTimerMinutes) return;
+
+        StopPortalSyncTimer();
+        if (minutes <= 0) return;
+
+        // Run the sync on the UI thread, not the timer's: it adds payments, bumps the payment id
+        // counter, updates invoices and saves, all of which the UI thread does too.
+        var interval = TimeSpan.FromMinutes(minutes);
+        _portalSyncTimer = new Timer(
+            state => Avalonia.Threading.Dispatcher.UIThread.Post(() => { _ = AutoSyncPortalPaymentsAsync(); }),
+            null, interval, interval);
+        _portalSyncTimerMinutes = minutes;
+    }
+
+    private static void StopPortalSyncTimer()
+    {
+        _portalSyncTimer?.Dispose();
+        _portalSyncTimer = null;
+        _portalSyncTimerMinutes = 0;
+    }
 
     /// <summary>
     /// Auto-syncs online payments from the portal so invoice statuses stay up-to-date.
@@ -438,12 +472,16 @@ public partial class App : Application
 
             var portalSettings = companyData.Settings.PaymentPortal;
 
+            // The replies describe the company whose key asked. Opening another swaps both the key
+            // and CompanyData, and nothing from these replies may then land in it.
+            bool CompanyChanged() => !ReferenceEquals(CompanyManager?.CompanyData, companyData);
+
             // Use force sync to also recover any payments that were previously
             // confirmed on the server but never saved locally (e.g. due to app crash).
             // Duplicate prevention in ProcessSyncedPayments handles efficiency.
             var syncResponse = await portalService.SyncPaymentsAsync(since: null, force: true);
 
-            if (!syncResponse.Success)
+            if (!syncResponse.Success || CompanyChanged())
                 return;
 
             // Always advance the sync timestamp on success to avoid re-querying the same window
@@ -460,6 +498,7 @@ public partial class App : Application
             if (PortalBalanceSyncService != null)
             {
                 await PortalBalanceSyncService.ReconcileAsync();
+                if (CompanyChanged()) return;
             }
 
             if (syncResponse.Payments.Count == 0)
@@ -479,6 +518,7 @@ public partial class App : Application
             if (processedPortalIds.Count > 0)
             {
                 await portalService.ConfirmSyncAsync(processedPortalIds);
+                if (CompanyChanged()) return;
             }
 
             // Persist when there are new rows OR existing rows were backfilled
@@ -495,11 +535,13 @@ public partial class App : Application
                 // sync can't quietly commit the user's in-progress edits.
                 if (!CompanyManager!.HasUnsavedChanges)
                 {
-                    try { await CompanyManager.SavePaymentSyncAsync(); }
+                    try { await CompanyManager.SavePaymentSyncAsync(companyData); }
                     catch (Exception ex)
                     {
                         ErrorLogger?.LogWarning($"Failed to persist synced payments: {ex.Message}", "PortalSync");
                     }
+
+                    if (CompanyChanged()) return;
                 }
 
                 // Refresh any already-instantiated page ViewModels so the UI reflects the new data
@@ -559,6 +601,10 @@ public partial class App : Application
             var syncKey = mobileSync.SyncKeyBase64!;
             var ct = CancellationToken.None;
 
+            // Opening another company replaces CompanyData. Captures applied to the one that was
+            // closed are never saved, so they must stay in the queue for its next sync.
+            bool CompanyChanged() => !ReferenceEquals(CompanyManager?.CompanyData, companyData);
+
             // UPLOAD: push a fresh snapshot so the phone always has current data to browse offline.
             // Wrapped in its own try/catch so an upload/network failure doesn't skip the pull/ingest
             // below - the two directions are independent and one failing shouldn't block the other.
@@ -574,11 +620,15 @@ public partial class App : Application
                 ErrorLogger?.LogWarning($"Failed to upload mobile-sync snapshot: {ex.Message}", "MobileSync");
             }
 
+            if (CompanyChanged()) return;
+
             // PULL + INGEST: drain the phone's capture queue into local Expenses/Revenue/Receipts.
             // CaptureIngestService de-dupes on CapturedTransaction.ScanUid via the persisted
             // CompanyData.IngestedScanUids list, so a re-delivered-but-still-pending item is
             // safely skipped even across app restarts (not just within this session).
             var items = await syncService.PullQueueAsync(companyUid, ct);
+            if (CompanyChanged()) return;
+
             var malformedIds = new List<int>();
             var ingestedIds = new List<int>();
             var duplicateIds = new List<int>();
@@ -590,8 +640,8 @@ public partial class App : Application
                     var tx = System.Text.Json.JsonSerializer.Deserialize<CapturedTransaction>(plain);
                     var newId = CaptureIngestService.Ingest(companyData, tx!);
                     if (newId == null)
-                        // Already ingested (and its ScanUid persisted) in a prior cycle - nothing new
-                        // to save, so it's safe to ack immediately regardless of this cycle's save.
+                        // Already ingested in a prior cycle: nothing new to add, but see below for
+                        // when it is safe to ack.
                         duplicateIds.Add(item.Id);
                     else
                         ingestedIds.Add(item.Id);
@@ -609,26 +659,38 @@ public partial class App : Application
 
             // PERSIST before ACK: an item that added new data must never be acknowledged (and thus
             // deleted server-side) before that data is actually saved locally. If the save is skipped
-            // (the user has unsaved edits in memory) or throws, the newly-ingested items must NOT be
-            // acked - they stay in the server queue and will be re-delivered next cycle, where
-            // CaptureIngestService's ScanUid check safely no-ops the ones already saved and retries
-            // the rest.
+            // (the user has unsaved edits in memory), writes nothing or throws, the newly-ingested items must NOT be
+            // acked - they stay in the server queue and are re-delivered each cycle, where
+            // CaptureIngestService's ScanUid check no-ops them, until a save has written them.
             var saved = false;
-            if (ingestedIds.Count > 0 && CompanyManager != null && !CompanyManager.HasUnsavedChanges)
+            if (ingestedIds.Count > 0 && CompanyManager != null)
             {
-                try
+                if (!CompanyManager.HasUnsavedChanges)
                 {
-                    await CompanyManager.SavePaymentSyncAsync();
-                    saved = true;
+                    try
+                    {
+                        saved = await CompanyManager.SavePaymentSyncAsync(companyData);
+                    }
+                    catch (Exception ex)
+                    {
+                        ErrorLogger?.LogWarning($"Failed to persist mobile-sync captures: {ex.Message}", "MobileSync");
+                    }
                 }
-                catch (Exception ex)
-                {
-                    ErrorLogger?.LogWarning($"Failed to persist mobile-sync captures: {ex.Message}", "MobileSync");
-                }
+
+                // Left in memory, the captures go out with the user's next save, so the file must read
+                // as changed: that is what makes quitting ask, and what the duplicate check below reads.
+                if (!saved)
+                    companyData.MarkAsModified();
             }
 
+            // A duplicate is only known to be a duplicate from its ScanUid in memory, which may come
+            // from an earlier cycle whose save was skipped. Acking deletes the server's copy, so wait
+            // until nothing is unsaved: from then on the capture is in the file.
             var toAck = new List<int>(malformedIds);
-            toAck.AddRange(duplicateIds);
+            if (saved || !companyData.ChangesMade)
+            {
+                toAck.AddRange(duplicateIds);
+            }
             if (saved)
             {
                 toAck.AddRange(ingestedIds);
@@ -641,11 +703,14 @@ public partial class App : Application
 
             mobileSync.LastSyncTime = DateTime.UtcNow;
 
-            var ingestedCount = saved ? ingestedIds.Count : 0;
-            if (ingestedCount > 0)
+            var ingestedCount = ingestedIds.Count;
+            if (ingestedCount > 0 && !CompanyChanged())
             {
                 Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                 {
+                    if (!saved)
+                        CompanyManager?.MarkAsChanged();
+
                     _receiptsPageViewModel?.RefreshReceiptsCommand.Execute(null);
                     _expensesPageViewModel?.RefreshExpensesCommand.Execute(null);
                     _revenuePageViewModel?.RefreshRevenueCommand.Execute(null);
@@ -743,8 +808,9 @@ public partial class App : Application
         // Check for overdue invoices
         if (settings.InvoiceOverdueAlert)
         {
+            // A never-sent draft isn't owed, as on the Invoices page and dashboard.
             var overdueInvoices = companyData.Invoices
-                .Where(invoice => invoice.IsOverdue)
+                .Where(invoice => invoice.IsOverdue && invoice.Status != InvoiceStatus.Draft)
                 .ToList();
 
             if (overdueInvoices.Count > 0)
@@ -812,6 +878,19 @@ public partial class App : Application
                 "{0} is running low on stock.".TranslateFormat(productName),
                 NotificationType.Warning);
         }
+    }
+
+    /// <summary>
+    /// Like <see cref="CheckAndNotifyStockStatus(InventoryItem)"/>, but only alerts when this change
+    /// lowered stock into a new status. Transactions call this on every stock change, so without the
+    /// check each sale from an already-low item would repeat the same alert.
+    /// </summary>
+    public static void CheckAndNotifyStockStatus(InventoryItem item, int previousStock)
+    {
+        if (item.InStock >= previousStock || item.CalculateStatus(previousStock) == item.CalculateStatus())
+            return;
+
+        CheckAndNotifyStockStatus(item);
     }
 
     /// <summary>
@@ -1273,7 +1352,10 @@ public partial class App : Application
             UnsavedChangesDialog = new UnsavedChangesDialogViewModel();
             ReceiptViewerModal = new ReceiptViewerModalViewModel();
             ChangeTrackingService = new ChangeTrackingService();
-            PendingConversionService = new PendingConversionService(errorLogger);
+            PendingConversionService = new PendingConversionService(errorLogger)
+            {
+                CurrentCompany = () => (CompanyManager?.CompanyData, CompanyManager?.CurrentFilePath)
+            };
             PdfStatementExtractor = new PdfStatementExtractor(LicenseService, ErrorLogger);
             _idleDetectionService = new IdleDetectionService();
 
@@ -1353,10 +1435,14 @@ public partial class App : Application
                         : string.Format("{0} pending transactions have been processed successfully.".Translate(), args.ConvertedCount);
                     Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                     {
-                        AddNotification(
-                            "Back Online".Translate(),
-                            message,
-                            NotificationType.Success);
+                        // The sample converts its demo rows on every open; announcing that is noise.
+                        if (CompanyManager?.IsSampleCompany != true)
+                        {
+                            AddNotification(
+                                "Back Online".Translate(),
+                                message,
+                                NotificationType.Success);
+                        }
 
                         // Refresh ViewModels so converted transactions show updated status and amounts
                         _expensesPageViewModel?.RefreshExpensesCommand.Execute(null);
@@ -1679,6 +1765,20 @@ public partial class App : Application
             if (SettingsService != null)
             {
                 var language = SettingsService.GlobalSettings.Ui.Language;
+
+                // A fresh install starts in the machine's own language when we have that translation.
+                // Only on the very first run: after that the setting is the user's answer, and a
+                // machine whose language changes later must not overrule it.
+                if (SettingsService.IsFirstRun
+                    && Data.Languages.MatchSystemLanguage(System.Globalization.CultureInfo.CurrentUICulture.Name)
+                        is { } detected
+                    && detected != language)
+                {
+                    language = detected;
+                    SettingsService.GlobalSettings.Ui.Language = detected;
+                    _ = SettingsService.SaveGlobalSettingsAsync();
+                }
+
                 if (!string.IsNullOrEmpty(language) && language != "English")
                 {
                     await LanguageService.Instance.SetLanguageAsync(language);
@@ -1784,7 +1884,6 @@ public partial class App : Application
                 case LicenseValidationStatus.InvalidKey:
                     await LicenseService.ClearLicenseAsync();
                     _appShellViewModel.SetPlanStatus(false);
-                    RaisePlanStatusChanged(false);
                     await ShowErrorMessageBoxAsync(
                         "License Issue".Translate(),
                         "Your license key is no longer valid. Please contact support or enter a new key.".Translate());
@@ -1793,7 +1892,6 @@ public partial class App : Application
                 case LicenseValidationStatus.ExpiredSubscription:
                     await LicenseService.ClearLicenseAsync();
                     _appShellViewModel.SetPlanStatus(false);
-                    RaisePlanStatusChanged(false);
                     await ShowErrorMessageBoxAsync(
                         "Subscription Expired".Translate(),
                         "Your premium subscription has expired. Please renew your subscription to continue using premium features.".Translate());
@@ -1802,7 +1900,6 @@ public partial class App : Application
                 case LicenseValidationStatus.WrongDevice:
                     await LicenseService.ClearLicenseAsync();
                     _appShellViewModel.SetPlanStatus(false);
-                    RaisePlanStatusChanged(false);
                     await ShowErrorMessageBoxAsync(
                         "License Deactivated".Translate(),
                         "Your license key has been activated on a different device. Premium features have been deactivated on this device. You can re-enter your key in the Upgrade menu to reactivate.".Translate());
@@ -2207,6 +2304,50 @@ public partial class App : Application
     /// <summary>
     /// Creates and opens a sample company with pre-populated demo data.
     /// </summary>
+    /// <summary>
+    /// Freezes the sample's insights for a free user, straight after it opens and before anything
+    /// in it can change. Never fails the open: the page falls back to its teaser.
+    /// </summary>
+    private static async Task CaptureSampleInsightsAsync()
+    {
+        if (CompanyManager?.CompanyData is not { } data || _appShellViewModel?.SidebarViewModel.HasPremium == true)
+            return;
+
+        // The overlay stays up until the snapshot is taken, so nothing can go into the sample first.
+        _mainWindowViewModel?.ShowLoading("Opening sample company...".Translate());
+        try
+        {
+            // A row still waiting for its rate counts as zero in the insights, and the forecast cards
+            // convert at today's rate, so both are settled before anything is frozen.
+            if (PendingConversionService != null && data.PendingConversions.Count > 0)
+            {
+                await PendingConversionService.ReconcileWithCompanyDataAsync(data);
+                await PendingConversionService.ProcessPendingConversionsAsync(data);
+                data.MarkAsSaved();
+                if (_mainWindowViewModel != null)
+                    _mainWindowViewModel.HasUnsavedChanges = false;
+                if (_appShellViewModel != null)
+                    _appShellViewModel.HeaderViewModel.HasUnsavedChanges = false;
+            }
+            await CurrencyService.TryWarmTodayRateAsync();
+
+            // Offline the figures would be wrong rather than pending, so the page keeps its teaser.
+            if (data.PendingConversions.Count > 0)
+                return;
+
+            await InsightsPageViewModel.CaptureSampleSnapshotAsync(data);
+            _insightsPageViewModel?.OnSampleSnapshotChanged();
+        }
+        catch (Exception ex)
+        {
+            ErrorLogger?.LogWarning($"Could not work out the sample company's insights: {ex.Message}", "Insights");
+        }
+        finally
+        {
+            _mainWindowViewModel?.HideLoading();
+        }
+    }
+
     private static async Task OpenSampleCompanyAsync()
     {
         if (CompanyManager == null || _mainWindowViewModel == null || _appShellViewModel == null || _fileService == null)
@@ -2295,6 +2436,8 @@ public partial class App : Application
 
                     // Set date range to show full year of sample data
                     ChartSettingsService.Instance.SelectedDateRange = "Last 365 Days";
+
+                    await CaptureSampleInsightsAsync();
                 }
 
                 // Exploring in the sample company looks identical to real use on the
@@ -2520,8 +2663,8 @@ public partial class App : Application
         var importService = new SpreadsheetImportService(ErrorLogger, TelemetryManager, geminiService);
 
         // Drive the analysis bar from the learned duration estimate (smooth easing toward the pooled
-        // p50/p90, asymptoting near the ceiling and completing when the call returns) instead of the
-        // old fake timer that crawled to 95% and stalled. The service reports only the status detail.
+        // p50/p90, asymptoting near the ceiling and completing when the call returns).
+        // The service reports only the status detail.
         var analysisDetail = "Reading file...".Translate();
         using var analysisTicker = new EstimatedProgressTicker(
             OperationKind.SpreadsheetAnalysis,
@@ -2589,6 +2732,7 @@ public partial class App : Application
 
             // Create snapshot for undo
             var snapshot = CreateCompanyDataSnapshot(companyData);
+            var queuedBeforeImport = companyData.PendingConversions.ToHashSet();
 
             // Step 3: Split sheets by processing tier
             // Respect the AI's tier recommendation for both Excel and CSV files.
@@ -2628,10 +2772,12 @@ public partial class App : Application
                 // transaction date before importing, so money never converts at a wrong-date rate
                 // (see docs/Calculations.md). If rates can't be fetched (offline or server down),
                 // pause with a connect-and-retry prompt. Best-effort: any row the scan misses still
-                // self-heals via IsPendingConversion.
+                // self-heals via IsPendingConversion. A row that names no currency is in the
+                // company's, so a non-USD company always needs its rates.
                 var hasNonUsd =
                     currencyScan.Resolved.Values.SelectMany(m => m.Values)
                         .Concat(importOptions.SymbolResolution.Values)
+                        .Append(companyData.Settings.Localization.Currency)
                         .Any(c => !string.IsNullOrEmpty(c) && !string.Equals(c, "USD", StringComparison.OrdinalIgnoreCase));
                 if (hasNonUsd && ExchangeRateService.Instance is { } exchangeRates)
                 {
@@ -2889,8 +3035,10 @@ public partial class App : Application
             _ = TelemetryManager?.TrackFeatureAsync(
                 FeatureName.DataImported, importContext, importStopwatch.ElapsedMilliseconds);
 
-            // Record usage on server
-            await usageService.IncrementUsageAsync();
+            // Rows the import could not price yet were queued, or requeued with new amounts, in the
+            // company file only.
+            MirrorQueuedConversions(companyData, companyData.PendingConversions
+                .Where(p => !queuedBeforeImport.Contains(p)).Select(p => p.TransactionId));
 
             // Create snapshot for redo
             var importedSnapshot = CreateCompanyDataSnapshot(companyData);
@@ -2965,6 +3113,10 @@ public partial class App : Application
             // Bank statement rows are routed to the Bank Matching page (their own session), not
             // counted as new/updated book records, so factor them into "needs save" separately.
             var totalBankRouted = allSheetResults.Sum(sr => sr.BankMatchingImported);
+
+            // Only a run that brought something in uses up an import.
+            if (totalProcessed > 0 || totalBankRouted > 0)
+                await usageService.IncrementUsageAsync();
 
             // Show import result dialog
             var resultDialog = _appShellViewModel.ImportResultDialogViewModel;
@@ -3056,13 +3208,22 @@ public partial class App : Application
 
         var destPath = saveFile.Path.LocalPath;
 
+        // Both come before the copy. After it, saving the open company's changes, or another
+        // window's save, would write over the file just restored.
+        if (CompanyManager.IsOpenInAnotherInstance(destPath))
+        {
+            await ShowCompanyAlreadyOpenAsync();
+            return;
+        }
+        if (!await ConfirmLeavingCompanyAsync()) return;
+
         try
         {
             // Copy the backup file to the new .argo path
             File.Copy(backupPath, destPath, overwrite: true);
 
             // Open it as a new company (this closes the current one)
-            await OpenCompanyWithRetryAsync(destPath);
+            await OpenCompanyWithRetryAsync(destPath, leavingConfirmed: true);
             _ = TelemetryManager?.TrackFeatureAsync(FeatureName.BackupRestored);
         }
         catch (Exception ex)
@@ -3148,7 +3309,11 @@ public partial class App : Application
                     : await parser.ParseExcelAsync(filePath);
 
                 if (lines.Count == 0)
-                    lines = await TryAiParseBankStatementAsync(filePath, isCsv, parser);
+                {
+                    // Null: the user is out of bank imports and has just been told so.
+                    if (await TryAiParseBankStatementAsync(filePath, isCsv, parser) is not { } aiLines) return;
+                    lines = aiLines;
+                }
             }
 
             _mainWindowViewModel?.HideLoading();
@@ -3203,18 +3368,21 @@ public partial class App : Application
 
     /// <summary>
     /// Backup parser: uses the smart importer's AI column mapping when local header detection
-    /// couldn't recognize the statement's columns. Consumes one AI import credit on success.
-    /// Returns an empty list if AI isn't available or finds nothing.
+    /// couldn't recognize the statement's columns. Consumes one bank AI import on success. Returns
+    /// null when the user is out of bank imports (the limit prompt has been shown), or an empty list
+    /// if AI isn't available or finds nothing.
     /// </summary>
-    private static async Task<List<Core.Models.BankMatching.BankStatementLine>> TryAiParseBankStatementAsync(
+    private static async Task<List<Core.Models.BankMatching.BankStatementLine>?> TryAiParseBankStatementAsync(
         string filePath, bool isCsv, BankStatementImportService parser)
     {
         var gemini = new GeminiService(ErrorLogger, TelemetryManager);
         if (!gemini.IsConfigured) return [];
 
-        using var usage = new AiImportUsageService(LicenseService, ErrorLogger);
-        var usageCheck = await usage.CheckUsageAsync();
-        if (!usageCheck.CanImport) return [];
+        // The gate may show the limit prompt, which the loading overlay would cover.
+        _mainWindowViewModel?.HideLoading();
+        using var usage = await TryBeginBankPdfImportAsync();
+        if (usage == null) return null;
+        _mainWindowViewModel?.ShowLoading("Scanning bank statement...".Translate());
 
         var analysisService = new SpreadsheetAnalysisService(gemini, ErrorLogger, CompanyManager?.CurrentCompanySettings?.Company.Country);
         var analysis = isCsv
@@ -3235,7 +3403,8 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// Shared usage gate for importing a PDF bank statement (one "bank" AI import). Available on the
+    /// Shared usage gate for a bank statement AI import (one "bank" import): a PDF statement, or the AI
+    /// column fallback for a CSV/Excel statement whose columns weren't recognized. Available on the
     /// free tier within the monthly limit, like the other AI imports. Shows the usage-limit prompt and
     /// returns null when the user is out of imports. On success returns a live bank-import usage
     /// service the CALLER owns: dispose it (with <c>using</c>) and call IncrementUsageAsync once
@@ -3297,7 +3466,7 @@ public partial class App : Application
         }
     }
 
-    private static string CreateCompanyDataSnapshot(CompanyData data)
+    internal static string CreateCompanyDataSnapshot(CompanyData data)
     {
         var snapshot = new
         {
@@ -3323,15 +3492,29 @@ public partial class App : Application
             data.LostDamaged,
             data.Receipts,
             data.EventLog,
-            data.BankImportSessions
+            data.BankImportSessions,
+            data.Employees,
+            data.PendingConversions
         };
         return System.Text.Json.JsonSerializer.Serialize(snapshot);
     }
 
     /// <summary>
+    /// Brings the conversion service's queue in line with the company file for these rows. The
+    /// service converts from its own copy, and takes in the company file's only when it opens, so
+    /// a row queued or unqueued anywhere else has to be handed over or it is missed or dropped.
+    /// </summary>
+    private static void MirrorQueuedConversions(CompanyData data, IEnumerable<string> transactionIds)
+    {
+        var ids = transactionIds.Distinct().ToList();
+        if (ids.Count > 0)
+            _ = Core.Services.PendingConversionService.Instance?.MirrorAsync(data, ids);
+    }
+
+    /// <summary>
     /// Restores company data collections from a JSON snapshot.
     /// </summary>
-    private static void RestoreCompanyDataFromSnapshot(CompanyData data, string snapshotJson)
+    internal static void RestoreCompanyDataFromSnapshot(CompanyData data, string snapshotJson)
     {
         var options = new System.Text.Json.JsonSerializerOptions
         {
@@ -3340,6 +3523,7 @@ public partial class App : Application
 
         using var doc = System.Text.Json.JsonDocument.Parse(snapshotJson);
         var root = doc.RootElement;
+        var queuedBefore = data.PendingConversions.Select(p => p.TransactionId).ToList();
 
         // Helper to deserialize a list property
         void RestoreList<T>(List<T> list, string propertyName)
@@ -3408,6 +3592,11 @@ public partial class App : Application
         RestoreList(data.Receipts, "Receipts");
         RestoreList(data.EventLog, "EventLog");
         RestoreList(data.BankImportSessions, "BankImportSessions");
+        RestoreList(data.Employees, "Employees");
+        RestoreList(data.PendingConversions, "PendingConversions");
+
+        // An undo takes away rows whose conversions were queued, and a redo brings them back pending.
+        MirrorQueuedConversions(data, queuedBefore.Concat(data.PendingConversions.Select(p => p.TransactionId)));
     }
 
     /// <summary>
@@ -3491,46 +3680,65 @@ public partial class App : Application
     internal static async Task RequestCreateNewCompanyAsync()
     {
         if (_appShellViewModel == null) return;
-
-        // Use UndoRedoManager's saved state, which correctly accounts for undoing back to the
-        // last-saved point (matches the Close Company prompt).
-        if (CompanyManager?.IsCompanyOpen == true && UndoRedoManager.IsAtSavedState == false)
-        {
-            var result = await ShowUnsavedChangesDialogAsync();
-            switch (result)
-            {
-                case UnsavedChangesResult.Save:
-                    // Sample company cannot be saved directly - redirect to Save As.
-                    if (CompanyManager.IsSampleCompany)
-                    {
-                        var desktop = Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime;
-                        if (desktop == null) return;
-                        var saved = await SaveCompanyAsDialogAsync(desktop);
-                        if (!saved) return; // user cancelled Save As, abort the new-company action
-                    }
-                    else
-                    {
-                        await CompanyManager.SaveCompanyAsync();
-                    }
-                    break;
-                case UnsavedChangesResult.DontSave:
-                    break;
-                case UnsavedChangesResult.Cancel:
-                case UnsavedChangesResult.None:
-                    return; // user cancelled, don't open the wizard
-            }
-        }
+        if (!await ConfirmLeavingCompanyAsync()) return;
 
         _appShellViewModel.CreateCompanyViewModel.OpenCommand.Execute(null);
+    }
+
+    /// <summary>
+    /// Offers to save unsaved changes before the open company is closed or replaced. Shared by
+    /// Close Company, New Company and every way of opening a company: opening one closes the
+    /// current company without saving it, so any path that skips this loses the changes.
+    /// </summary>
+    /// <returns>False when the user chose to stay where they are.</returns>
+    private static async Task<bool> ConfirmLeavingCompanyAsync()
+    {
+        // UndoRedoManager's saved state, which correctly accounts for undoing back to the
+        // last-saved point.
+        if (CompanyManager?.IsCompanyOpen != true || UndoRedoManager.IsAtSavedState)
+            return true;
+
+        switch (await ShowUnsavedChangesDialogAsync())
+        {
+            case UnsavedChangesResult.Save:
+                // Sample company cannot be saved directly - redirect to Save As.
+                if (CompanyManager.IsSampleCompany)
+                {
+                    return Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
+                           && await SaveCompanyAsDialogAsync(desktop);
+                }
+
+                try
+                {
+                    return await SaveCompanyWithSecurityGuidanceAsync();
+                }
+                catch (Exception ex)
+                {
+                    // What the security guidance does not cover, such as a drive that has gone.
+                    // Staying on the open company keeps the changes; carrying on would discard them.
+                    ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Save before leaving the company failed");
+                    await ShowWarningMessageBoxAsync(
+                        "Could Not Save".Translate(),
+                        "Your changes could not be saved, so the company is still open with them. {0}".TranslateFormat(ex.Message));
+                    return false;
+                }
+            case UnsavedChangesResult.DontSave:
+                return true;
+            default:
+                return false;
+        }
     }
 
     /// <summary>
     /// Opens a company file with password retry support.
     /// Shows password modal on encrypted files and retries on wrong password.
     /// </summary>
-    private static async Task OpenCompanyWithRetryAsync(string filePath)
+    /// <param name="filePath">The company file to open.</param>
+    /// <param name="leavingConfirmed">True when the caller has already asked about unsaved changes.</param>
+    private static async Task OpenCompanyWithRetryAsync(string filePath, bool leavingConfirmed = false)
     {
         if (CompanyManager == null || _mainWindowViewModel == null || _appShellViewModel == null) return;
+        if (!leavingConfirmed && !await ConfirmLeavingCompanyAsync()) return;
 
         var passwordModal = _appShellViewModel.PasswordPromptModalViewModel;
 
@@ -3560,6 +3768,7 @@ public partial class App : Application
                     _appShellViewModel.HeaderViewModel.HasUnsavedChanges = false;
                     SyncSampleCompanyState();
                     ChartSettingsService.Instance.SelectedDateRange = "Last 365 Days";
+                    await CaptureSampleInsightsAsync();
                 }
 
                 await LoadRecentCompaniesAsync();
@@ -3939,7 +4148,7 @@ public partial class App : Application
         return await desktop.MainWindow!.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
             Title = "Save Company".Translate(),
-            SuggestedFileName = $"{suggestedFileName}.argo",
+            SuggestedFileName = $"{CompanyManager.ToCompanyFileName(suggestedFileName)}.argo",
             DefaultExtension = "argo",
             FileTypeChoices =
             [

@@ -7,16 +7,15 @@ namespace ArgoBooks.Tests.Services;
 
 public class StripeChargeFetchTests
 {
-    private sealed class StubHandler : HttpMessageHandler
+    private sealed class StubHandler(string body) : HttpMessageHandler
     {
-        private readonly string _body;
         public string? LastUrl { get; private set; }
-        public StubHandler(string body) => _body = body;
+
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
             LastUrl = request.RequestUri!.ToString();
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
-            { Content = new StringContent(_body, Encoding.UTF8, "application/json") });
+            { Content = new StringContent(body, Encoding.UTF8, "application/json") });
         }
     }
 

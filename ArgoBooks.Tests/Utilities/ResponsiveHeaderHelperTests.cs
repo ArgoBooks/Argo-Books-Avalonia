@@ -13,9 +13,10 @@ public class ResponsiveHeaderHelperTests
     [Fact]
     public void HeaderWidth_Below750_SetsCompactMode()
     {
-        var helper = new ResponsiveHeaderHelper();
-
-        helper.HeaderWidth = 600;
+        var helper = new ResponsiveHeaderHelper
+        {
+            HeaderWidth = 600
+        };
 
         Assert.True(helper.IsCompactMode);
         Assert.False(helper.IsMediumMode);
@@ -24,9 +25,10 @@ public class ResponsiveHeaderHelperTests
     [Fact]
     public void HeaderWidth_Below750_HidesButtonText()
     {
-        var helper = new ResponsiveHeaderHelper();
-
-        helper.HeaderWidth = 600;
+        var helper = new ResponsiveHeaderHelper
+        {
+            HeaderWidth = 600
+        };
 
         Assert.False(helper.ShowButtonText);
     }
@@ -34,9 +36,10 @@ public class ResponsiveHeaderHelperTests
     [Fact]
     public void HeaderWidth_Below750_SetsSearchBoxWidth200()
     {
-        var helper = new ResponsiveHeaderHelper();
-
-        helper.HeaderWidth = 600;
+        var helper = new ResponsiveHeaderHelper
+        {
+            HeaderWidth = 600
+        };
 
         Assert.Equal(200, helper.SearchBoxWidth);
     }
@@ -44,9 +47,10 @@ public class ResponsiveHeaderHelperTests
     [Fact]
     public void HeaderWidth_Below750_SetsHeaderSpacing6()
     {
-        var helper = new ResponsiveHeaderHelper();
-
-        helper.HeaderWidth = 600;
+        var helper = new ResponsiveHeaderHelper
+        {
+            HeaderWidth = 600
+        };
 
         Assert.Equal(6, helper.HeaderSpacing);
     }
@@ -54,9 +58,10 @@ public class ResponsiveHeaderHelperTests
     [Fact]
     public void HeaderWidth_Below750_SetsSearchBoxMinHeight30()
     {
-        var helper = new ResponsiveHeaderHelper();
-
-        helper.HeaderWidth = 600;
+        var helper = new ResponsiveHeaderHelper
+        {
+            HeaderWidth = 600
+        };
 
         Assert.Equal(30, helper.SearchBoxMinHeight);
     }
@@ -68,9 +73,10 @@ public class ResponsiveHeaderHelperTests
     [Fact]
     public void HeaderWidth_Between750And950_SetsMediumMode()
     {
-        var helper = new ResponsiveHeaderHelper();
-
-        helper.HeaderWidth = 850;
+        var helper = new ResponsiveHeaderHelper
+        {
+            HeaderWidth = 850
+        };
 
         Assert.False(helper.IsCompactMode);
         Assert.True(helper.IsMediumMode);
@@ -79,9 +85,10 @@ public class ResponsiveHeaderHelperTests
     [Fact]
     public void HeaderWidth_Between750And950_ShowsButtonText()
     {
-        var helper = new ResponsiveHeaderHelper();
-
-        helper.HeaderWidth = 850;
+        var helper = new ResponsiveHeaderHelper
+        {
+            HeaderWidth = 850
+        };
 
         Assert.True(helper.ShowButtonText);
     }
@@ -89,9 +96,10 @@ public class ResponsiveHeaderHelperTests
     [Fact]
     public void HeaderWidth_Between750And950_SetsSearchBoxWidth200()
     {
-        var helper = new ResponsiveHeaderHelper();
-
-        helper.HeaderWidth = 850;
+        var helper = new ResponsiveHeaderHelper
+        {
+            HeaderWidth = 850
+        };
 
         Assert.Equal(200, helper.SearchBoxWidth);
     }
@@ -99,9 +107,10 @@ public class ResponsiveHeaderHelperTests
     [Fact]
     public void HeaderWidth_Between750And950_SetsHeaderSpacing8()
     {
-        var helper = new ResponsiveHeaderHelper();
-
-        helper.HeaderWidth = 850;
+        var helper = new ResponsiveHeaderHelper
+        {
+            HeaderWidth = 850
+        };
 
         Assert.Equal(8, helper.HeaderSpacing);
     }
@@ -113,9 +122,10 @@ public class ResponsiveHeaderHelperTests
     [Fact]
     public void HeaderWidth_Above950_SetsFullMode()
     {
-        var helper = new ResponsiveHeaderHelper();
-
-        helper.HeaderWidth = 1200;
+        var helper = new ResponsiveHeaderHelper
+        {
+            HeaderWidth = 1200
+        };
 
         Assert.False(helper.IsCompactMode);
         Assert.False(helper.IsMediumMode);
@@ -124,9 +134,10 @@ public class ResponsiveHeaderHelperTests
     [Fact]
     public void HeaderWidth_Above950_ShowsButtonText()
     {
-        var helper = new ResponsiveHeaderHelper();
-
-        helper.HeaderWidth = 1200;
+        var helper = new ResponsiveHeaderHelper
+        {
+            HeaderWidth = 1200
+        };
 
         Assert.True(helper.ShowButtonText);
     }
@@ -134,9 +145,10 @@ public class ResponsiveHeaderHelperTests
     [Fact]
     public void HeaderWidth_Above950_SetsSearchBoxWidth250()
     {
-        var helper = new ResponsiveHeaderHelper();
-
-        helper.HeaderWidth = 1200;
+        var helper = new ResponsiveHeaderHelper
+        {
+            HeaderWidth = 1200
+        };
 
         Assert.Equal(250, helper.SearchBoxWidth);
     }
@@ -144,9 +156,10 @@ public class ResponsiveHeaderHelperTests
     [Fact]
     public void HeaderWidth_Above950_SetsHeaderSpacing12()
     {
-        var helper = new ResponsiveHeaderHelper();
-
-        helper.HeaderWidth = 1200;
+        var helper = new ResponsiveHeaderHelper
+        {
+            HeaderWidth = 1200
+        };
 
         Assert.Equal(12, helper.HeaderSpacing);
     }
@@ -154,9 +167,10 @@ public class ResponsiveHeaderHelperTests
     [Fact]
     public void HeaderWidth_Above950_SetsSearchBoxMinHeight36()
     {
-        var helper = new ResponsiveHeaderHelper();
-
-        helper.HeaderWidth = 1200;
+        var helper = new ResponsiveHeaderHelper
+        {
+            HeaderWidth = 1200
+        };
 
         Assert.Equal(36, helper.SearchBoxMinHeight);
     }
@@ -168,9 +182,10 @@ public class ResponsiveHeaderHelperTests
     [Fact]
     public void HeaderWidth_Exactly750_IsNotCompact()
     {
-        var helper = new ResponsiveHeaderHelper();
-
-        helper.HeaderWidth = 750;
+        var helper = new ResponsiveHeaderHelper
+        {
+            HeaderWidth = 750
+        };
 
         Assert.False(helper.IsCompactMode);
         Assert.True(helper.IsMediumMode);
@@ -179,9 +194,10 @@ public class ResponsiveHeaderHelperTests
     [Fact]
     public void HeaderWidth_Exactly950_IsFullMode()
     {
-        var helper = new ResponsiveHeaderHelper();
-
-        helper.HeaderWidth = 950;
+        var helper = new ResponsiveHeaderHelper
+        {
+            HeaderWidth = 950
+        };
 
         Assert.False(helper.IsCompactMode);
         Assert.False(helper.IsMediumMode);

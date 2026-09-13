@@ -50,6 +50,19 @@ public class RecurrenceScheduleTests
     }
 
     [Fact]
+    public void AdvanceDate_AnnuallyFromALeapDay_ReturnsToItInTheNextLeapYear()
+    {
+        var date = new DateTime(2028, 2, 29);
+
+        var next = RecurrenceSchedule.AdvanceDate(date, Frequency.Annually, anchorDay: 29);
+        for (var i = 0; i < 3; i++)
+            date = RecurrenceSchedule.AdvanceDate(i == 0 ? next : date, Frequency.Annually, anchorDay: 29);
+
+        Assert.Equal(new DateTime(2029, 2, 28), next);
+        Assert.Equal(new DateTime(2032, 2, 29), date);
+    }
+
+    [Fact]
     public void AdvanceDate_Annually_MovesAYear()
     {
         Assert.Equal(

@@ -1,7 +1,4 @@
-using System;
-using System.Threading.Tasks;
 using ArgoBooks.Shared.Mobile;
-using Microsoft.Maui.Storage;
 
 namespace ArgoBooks.Mobile.Services;
 

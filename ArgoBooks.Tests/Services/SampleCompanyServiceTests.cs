@@ -345,9 +345,7 @@ public class SampleCompanyServiceTests
 
     /// <summary>
     /// The real sample company arrives with employees already imported from the workbook's
-    /// Employees sheet, carrying a name and a salary but nothing payroll needs. This used to see
-    /// them, conclude payroll was set up, and add nothing, so the sample shipped with eight
-    /// nameless employees and no pay runs.
+    /// Employees sheet, carrying a name and a salary but nothing payroll needs.
     /// </summary>
     [Fact]
     public void SamplePayroll_CompletesEmployeesThatCameFromTheSpreadsheet()

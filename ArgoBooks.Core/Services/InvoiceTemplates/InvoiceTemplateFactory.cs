@@ -46,7 +46,6 @@ public static class InvoiceTemplateFactory
             ShowCompanyAddress = true,
             ShowTaxBreakdown = true,
             ShowItemDescriptions = true,
-            ShowNotes = true,
             ShowPaymentInstructions = true,
             ShowDueDateProminent = true
         };
@@ -76,7 +75,6 @@ public static class InvoiceTemplateFactory
             ShowCompanyAddress = true,
             ShowTaxBreakdown = true,
             ShowItemDescriptions = true,
-            ShowNotes = true,
             ShowPaymentInstructions = true,
             ShowDueDateProminent = false
         };
@@ -106,7 +104,6 @@ public static class InvoiceTemplateFactory
             ShowCompanyAddress = true,
             ShowTaxBreakdown = true,
             ShowItemDescriptions = true,
-            ShowNotes = true,
             ShowPaymentInstructions = true,
             ShowDueDateProminent = false
         };
@@ -136,7 +133,6 @@ public static class InvoiceTemplateFactory
             ShowCompanyAddress = true,
             ShowTaxBreakdown = true,
             ShowItemDescriptions = true,
-            ShowNotes = true,
             ShowPaymentInstructions = true,
             ShowDueDateProminent = true
         };
@@ -166,7 +162,6 @@ public static class InvoiceTemplateFactory
             ShowCompanyAddress = true,
             ShowTaxBreakdown = true,
             ShowItemDescriptions = true,
-            ShowNotes = true,
             ShowPaymentInstructions = true,
             ShowDueDateProminent = false
         };

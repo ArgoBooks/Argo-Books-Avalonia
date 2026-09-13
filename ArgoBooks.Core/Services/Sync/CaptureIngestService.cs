@@ -4,6 +4,7 @@ using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Models.Entities;
 using ArgoBooks.Core.Models.Tracking;
 using ArgoBooks.Core.Models.Transactions;
+using ArgoBooks.Core.Services.Integrations;
 
 namespace ArgoBooks.Core.Services.Sync;
 
@@ -20,7 +21,8 @@ namespace ArgoBooks.Core.Services.Sync;
 /// .CurrentCurrencyCode</c>, a UI-project static Core cannot reference). Amounts are stamped with the
 /// company's default currency (<c>data.Settings.Localization.Currency</c>), matching the same
 /// <c>OriginalCurrency</c> stamping <see cref="BankLineImportService"/> does for its own Core-only
-/// transaction creation path.
+/// transaction creation path, and given their USD base (or marked pending and queued) through
+/// <see cref="IntegrationRates.ApplyUsdAmounts"/>.
 /// </summary>
 public static class CaptureIngestService
 {
@@ -92,10 +94,10 @@ public static class CaptureIngestService
             Total = tx.Total,
             PaymentMethod = PaymentMethod.Cash,
             ReceiptId = receiptId,
-            OriginalCurrency = companyCurrency,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
+        IntegrationRates.ApplyUsdAmounts(expense, companyCurrency, data);
 
         var receipt = BuildReceipt(tx, receiptId, expenseId, "Expense");
 
@@ -130,10 +132,10 @@ public static class CaptureIngestService
             PaymentMethod = PaymentMethod.Cash,
             PaymentStatus = RevenuePaymentStatus.Paid,
             ReceiptId = receiptId,
-            OriginalCurrency = companyCurrency,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
+        IntegrationRates.ApplyUsdAmounts(revenue, companyCurrency, data);
 
         var receipt = BuildReceipt(tx, receiptId, revenueId, "Revenue");
 

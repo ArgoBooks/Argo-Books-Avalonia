@@ -8,12 +8,7 @@ namespace ArgoBooks.Tests.ViewModels;
 /// </summary>
 public class HeaderViewModelTests
 {
-    private readonly HeaderViewModel _viewModel;
-
-    public HeaderViewModelTests()
-    {
-        _viewModel = new HeaderViewModel(null);
-    }
+    private readonly HeaderViewModel _viewModel = new(null);
 
     #region SetPageTitle Tests
 

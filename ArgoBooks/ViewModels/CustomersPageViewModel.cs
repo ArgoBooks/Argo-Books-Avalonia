@@ -12,8 +12,7 @@ using ArgoBooks.Utilities;
 using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-
-using ArgoBooks.Core.Models.Telemetry;
+using ArgoBooks.Shared.Telemetry;
 
 namespace ArgoBooks.ViewModels;
 
@@ -204,9 +203,6 @@ public partial class CustomersPageViewModel : SortablePageViewModelBase
 
     [ObservableProperty]
     private string? _modalFirstNameError;
-
-    [ObservableProperty]
-    private string? _modalLastNameError;
 
     [ObservableProperty]
     private string? _modalEmailError;
@@ -864,7 +860,6 @@ public partial class CustomersPageViewModel : SortablePageViewModelBase
     private void ClearModalErrors()
     {
         ModalFirstNameError = null;
-        ModalLastNameError = null;
         ModalEmailError = null;
     }
 
@@ -877,13 +872,6 @@ public partial class CustomersPageViewModel : SortablePageViewModelBase
         if (string.IsNullOrWhiteSpace(ModalFirstName))
         {
             ModalFirstNameError = "First name is required.".Translate();
-            isValid = false;
-        }
-
-        // Validate last name (required)
-        if (string.IsNullOrWhiteSpace(ModalLastName))
-        {
-            ModalLastNameError = "Last name is required.".Translate();
             isValid = false;
         }
 

@@ -1,5 +1,4 @@
 using Avalonia.Controls.ApplicationLifetimes;
-using Avalonia.Media.Imaging;
 using Avalonia.Platform.Storage;
 using ArgoBooks.Helpers;
 using ArgoBooks.Core.Enums;
@@ -10,6 +9,7 @@ using ArgoBooks.Core.Platform;
 using ArgoBooks.Core.Services;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
+using ArgoBooks.Shared.Telemetry;
 using ArgoBooks.ViewModels;
 
 namespace ArgoBooks;
@@ -20,6 +20,10 @@ namespace ArgoBooks;
 /// </summary>
 public partial class App
 {
+    // The undo state the running save writes, taken as it starts. Edits made while it is
+    // writing come after this point, so they stay unsaved.
+    private static IUndoableAction? _saveUndoPoint;
+
     /// <summary>
     /// Wires up CompanyManager events to update UI.
     /// </summary>
@@ -29,7 +33,11 @@ public partial class App
             return;
 
         // Sync event log to CompanyData before every save (centralized handler)
-        CompanyManager.CompanySaving += (_, _) => SyncEventLogBeforeSave();
+        CompanyManager.CompanySaving += (_, _) =>
+        {
+            _saveUndoPoint = UndoRedoManager.SavePoint;
+            SyncEventLogBeforeSave();
+        };
 
         CompanyManager.CompanyOpened += async (_, args) =>
         {
@@ -75,7 +83,7 @@ public partial class App
             if (companySettings != null)
             {
                 // Hooked here rather than at the create-company screen so it also covers
-                // companies made before this shipped, and companies opened on a second
+                // existing companies, and companies opened on a second
                 // machine. TrackCompanyProfileAsync ignores repeats within a session.
                 //
                 // The sample company is skipped outright: its name, industry, country and
@@ -179,7 +187,7 @@ public partial class App
                     if (CompanyManager.CompanyData != null && !CompanyManager.IsSampleCompany)
                     {
                         var generatedRecurring = RecurringInvoiceService
-                            .GenerateDueInvoices(CompanyManager.CompanyData, DateTime.UtcNow);
+                            .GenerateDueInvoices(CompanyManager.CompanyData, DateTime.Today);
                         if (generatedRecurring.Count > 0)
                         {
                             await CompanyManager.SaveCompanyAsync();
@@ -195,7 +203,7 @@ public partial class App
                         }
 
                         var generatedTxns = RecurringTransactionService
-                            .GenerateDue(CompanyManager.CompanyData, DateTime.UtcNow);
+                            .GenerateDue(CompanyManager.CompanyData, DateTime.Today);
                         if (generatedTxns.Count > 0)
                         {
                             await CompanyManager.SaveCompanyAsync();
@@ -244,13 +252,7 @@ public partial class App
                     // Auto-sync online payments from the portal on company open
                     await AutoSyncPortalPaymentsAsync();
 
-                    // Start periodic portal sync every 5 minutes
-                    _portalSyncTimer?.Dispose();
-                    _portalSyncTimer = new Timer(
-                        state => { _ = AutoSyncPortalPaymentsAsync(); },
-                        null,
-                        TimeSpan.FromMinutes(5),
-                        TimeSpan.FromMinutes(5));
+                    ApplyPortalSyncInterval();
                 }
                 catch (Exception ex)
                 {
@@ -264,8 +266,7 @@ public partial class App
             // Clear the portal API key so a new company starts fresh
             PortalSettings.DeactivateApiKey();
 
-            _portalSyncTimer?.Dispose();
-            _portalSyncTimer = null;
+            StopPortalSyncTimer();
 
             _mainWindowViewModel.CloseCompany();
             _appShellViewModel.SetCompanyInfo(null);
@@ -286,6 +287,7 @@ public partial class App
 
             // Clear cached page ViewModels to ensure fresh state when opening a new company
             ClearPageCaches();
+            ViewModels.InsightsPageViewModel.ClearSampleSnapshot();
 
             NavigationService?.NavigateTo("Welcome");
             _welcomeScreenViewModel?.InitializeTutorialMode();
@@ -313,7 +315,7 @@ public partial class App
             _mainWindowViewModel.HasUnsavedChanges = false;
 
             // Mark undo/redo state as saved so IsAtSavedState returns true
-            UndoRedoManager.MarkSaved();
+            UndoRedoManager.MarkSaved(_saveUndoPoint);
 
             // Clear tracked changes after saving
             ChangeTrackingService?.ClearAllChanges();
@@ -534,40 +536,9 @@ public partial class App
 
         fileMenu.CloseCompanyRequested += async (_, _) =>
         {
-            if (CompanyManager?.IsCompanyOpen == true)
+            if (CompanyManager?.IsCompanyOpen == true && await ConfirmLeavingCompanyAsync())
             {
-                // Use UndoRedoManager's saved state which correctly handles undo back to original
-                if (UndoRedoManager.IsAtSavedState == false)
-                {
-                    var result = await ShowUnsavedChangesDialogAsync();
-                    switch (result)
-                    {
-                        case UnsavedChangesResult.Save:
-                            // Sample company cannot be saved directly - redirect to Save As
-                            if (CompanyManager.IsSampleCompany)
-                            {
-                                var saved = await SaveCompanyAsDialogAsync(desktop);
-                                if (!saved) return; // User cancelled Save As, don't close
-                            }
-                            else
-                            {
-                                await CompanyManager.SaveCompanyAsync();
-                            }
-                            await CompanyManager.CloseCompanyAsync();
-                            break;
-                        case UnsavedChangesResult.DontSave:
-                            await CompanyManager.CloseCompanyAsync();
-                            break;
-                        case UnsavedChangesResult.Cancel:
-                        case UnsavedChangesResult.None:
-                            // User cancelled, do nothing
-                            return;
-                    }
-                }
-                else
-                {
-                    await CompanyManager.CloseCompanyAsync();
-                }
+                await CompanyManager.CloseCompanyAsync();
             }
         };
 
@@ -928,10 +899,10 @@ public partial class App
                     {
                         var currentPath = CompanyManager.CurrentFilePath;
                         var directory = Path.GetDirectoryName(currentPath);
-                        var newFileName = args.CompanyName + ".argo";
+                        var newFileName = CompanyManager.ToCompanyFileName(args.CompanyName) + ".argo";
                         var newPath = Path.Combine(directory!, newFileName);
 
-                        if (currentPath != newPath && !File.Exists(newPath))
+                        if (CompanyManager.CanRenameTo(newPath))
                         {
                             CompanyManager.SetPendingRename(newPath);
                         }
@@ -953,6 +924,7 @@ public partial class App
                     var newBusinessType = args.BusinessType;
                     var newIndustry = args.Industry;
                     var newPhone = args.Phone;
+                    var newEmail = args.Email;
                     var newCountry = args.Country;
                     var newCity = args.City;
                     var newAddress = args.Address;
@@ -1004,6 +976,7 @@ public partial class App
                             settings.Company.BusinessType = newBusinessType;
                             settings.Company.Industry = newIndustry;
                             settings.Company.Phone = newPhone;
+                            settings.Company.Email = newEmail;
                             settings.Company.Country = newCountry;
                             settings.Company.City = newCity;
                             settings.Company.Address = newAddress;
@@ -1070,12 +1043,14 @@ public partial class App
         {
             CompanyManager.CompanyOpened += (_, args) =>
             {
+                settings.CloseForCompanyChange();
                 settings.HasPassword = args.IsEncrypted;
                 settings.IsSampleCompany = CompanyManager.IsSampleCompany;
             };
 
             CompanyManager.CompanyClosed += (_, _) =>
             {
+                settings.CloseForCompanyChange();
                 settings.HasPassword = false;
                 settings.IsSampleCompany = false;
             };
@@ -1121,6 +1096,7 @@ public partial class App
                 // The file had no password until now, so any enrolment still on disk belongs
                 // to an older password. Start clean and let the user re-enable biometrics.
                 SyncBiometricEnrolment(args.NewPassword, keepEnrolment: false);
+                ConfigureAutoLock();
 
                 _appShellViewModel.AddNotification("Success".Translate(), "Password has been set.".Translate(), NotificationType.Success);
             }
@@ -1180,6 +1156,7 @@ public partial class App
                 // With no password there is nothing for biometrics to unlock, so drop the
                 // stored credential rather than leaving the old password on disk.
                 SyncBiometricEnrolment(null, keepEnrolment: false);
+                ConfigureAutoLock();
 
                 settings.OnPasswordRemoved();
                 _appShellViewModel.AddNotification("Success".Translate(), "Password has been removed.".Translate(), NotificationType.Success);
@@ -1450,7 +1427,7 @@ public partial class App
                 var backupFile = await desktop.MainWindow!.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
                 {
                     Title = "Export Backup".Translate(),
-                    SuggestedFileName = $"{CompanyManager.CurrentCompanyName ?? "Backup"}-{DateTime.Now:yyyy-MM-dd}.argobk",
+                    SuggestedFileName = $"{CompanyManager.ToCompanyFileName(CompanyManager.CurrentCompanyName ?? "Backup")}-{DateTime.Now:yyyy-MM-dd}.argobk",
                     DefaultExtension = "argobk",
                     FileTypeChoices =
                     [
@@ -1777,12 +1754,7 @@ public partial class App
             if (companySettings != null)
             {
                 var security = companySettings.Security;
-                // The timeout is authoritative: "Never" (0) is off, any positive value is on, and it
-                // requires a password. The separate AutoLockEnabled flag defaults to false while the
-                // default AutoLockMinutes is 5, so trusting it left auto-lock disabled even though the
-                // settings dropdown showed "5 minutes". Derive enablement from the timeout instead.
-                var autoLockOn = security.AutoLockMinutes > 0 && CompanyManager.IsEncrypted;
-                _idleDetectionService.Configure(autoLockOn, security.AutoLockMinutes);
+                ConfigureAutoLock();
 
                 // Sync the UI with company settings
                 var timeoutString = security.AutoLockMinutes switch
@@ -1810,6 +1782,23 @@ public partial class App
             desktop.MainWindow.KeyDown += (_, _) => _idleDetectionService.RecordActivity();
             desktop.MainWindow.PointerPressed += (_, _) => _idleDetectionService.RecordActivity();
         }
+    }
+
+    /// <summary>
+    /// Arms or disarms auto-lock for the open company. Called on open and whenever a password is
+    /// added or removed, since whether the company has one decides it.
+    /// </summary>
+    private static void ConfigureAutoLock()
+    {
+        var security = CompanyManager?.CurrentCompanySettings?.Security;
+        if (_idleDetectionService == null || security == null) return;
+
+        // The timeout is authoritative: "Never" (0) is off, any positive value is on, and it
+        // requires a password. The separate AutoLockEnabled flag defaults to false while the
+        // default AutoLockMinutes is 5, so trusting it left auto-lock disabled even though the
+        // settings dropdown showed "5 minutes". Derive enablement from the timeout instead.
+        var autoLockOn = security.AutoLockMinutes > 0 && CompanyManager!.IsEncrypted;
+        _idleDetectionService.Configure(autoLockOn, security.AutoLockMinutes);
     }
 
     /// <summary>

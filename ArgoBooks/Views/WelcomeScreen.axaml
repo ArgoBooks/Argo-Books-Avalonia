@@ -59,10 +59,41 @@
                                Margin="0,8,0,0" />
                 </StackPanel>
 
-                <!-- Main Actions - Normal Mode (two columns) -->
+                <!-- First run: one obvious action. A new user has no file to open, so Open
+                     drops to a link under the sample instead of sharing equal weight. -->
+                <Border Classes="action-card-primary"
+                        Margin="0,0,0,16"
+                        IsVisible="{Binding IsTutorialMode}">
+                    <Button Classes="action-card-primary-button"
+                            Command="{Binding CreateNewCompanyCommand}">
+                        <StackPanel Spacing="16">
+                            <Border Width="64" Height="64"
+                                    CornerRadius="32"
+                                    Background="#33FFFFFF">
+                                <PathIcon Data="{x:Static local:Icons.Add}"
+                                          Width="28" Height="28"
+                                          Foreground="White" />
+                            </Border>
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="{loc:Loc 'Create New Company'}"
+                                           FontSize="20"
+                                           FontWeight="SemiBold"
+                                           Foreground="White"
+                                           HorizontalAlignment="Center" />
+                                <TextBlock Text="{loc:Loc 'Start fresh with a new company file'}"
+                                           FontSize="13"
+                                           Foreground="#CCFFFFFF"
+                                           HorizontalAlignment="Center"
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Button>
+                </Border>
+
+                <!-- Main Actions (two columns) -->
                 <UniformGrid Rows="1" Columns="2"
                              Margin="0,0,0,48"
-                             IsVisible="{Binding ShowOpenCompany}">
+                             IsVisible="{Binding !IsTutorialMode}">
                     <!-- Create New Company -->
                     <Border Classes="action-card"
                             Margin="0,0,12,0">
@@ -121,75 +152,6 @@
                         </Button>
                     </Border>
                 </UniformGrid>
-
-                <!-- Tutorial Mode Guidance Banner (shown above create company card) -->
-                <Border Classes="tutorial-banner"
-                        IsVisible="{Binding IsTutorialMode}"
-                        Margin="0,0,0,24">
-                    <StackPanel Spacing="12">
-                        <!-- Tutorial message -->
-                        <StackPanel Orientation="Horizontal"
-                                    HorizontalAlignment="Center"
-                                    Spacing="12">
-                            <Border Width="40" Height="40"
-                                    CornerRadius="20"
-                                    Background="White">
-                                <PathIcon Data="{x:Static local:Icons.Help}"
-                                          Width="20" Height="20"
-                                          Foreground="{DynamicResource PrimaryBrush}" />
-                            </Border>
-                            <StackPanel VerticalAlignment="Center"
-                                        Spacing="2">
-                                <TextBlock Text="{loc:Loc 'A tutorial will guide you through the setup'}"
-                                           FontSize="15"
-                                           FontWeight="Medium"
-                                           Foreground="#1E293B" />
-                                <TextBlock Text="{loc:Loc 'Create a new company below to get started'}"
-                                           FontSize="13"
-                                           Foreground="#1E293B" />
-                            </StackPanel>
-                        </StackPanel>
-
-                        <!-- Skip tutorial button -->
-                        <Button Classes="skip-tutorial-button"
-                                Command="{Binding SkipTutorialCommand}"
-                                HorizontalAlignment="Center">
-                            <TextBlock Text="{loc:Loc 'Skip Tutorial'}" />
-                        </Button>
-                    </StackPanel>
-                </Border>
-
-                <!-- Main Action - Tutorial Mode (single centered card) -->
-                <Border Classes="action-card"
-                        HorizontalAlignment="Center"
-                        MaxWidth="350"
-                        Margin="0,0,0,48"
-                        IsVisible="{Binding IsTutorialMode}">
-                    <Button Classes="action-card-button"
-                            Command="{Binding CreateNewCompanyCommand}">
-                        <StackPanel Spacing="16">
-                            <Border Width="64" Height="64"
-                                    CornerRadius="32"
-                                    Background="{DynamicResource PrimaryLightBrush}">
-                                <PathIcon Data="{x:Static local:Icons.Add}"
-                                          Width="28" Height="28"
-                                          Foreground="{DynamicResource PrimaryBrush}" />
-                            </Border>
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="{loc:Loc 'Create New Company'}"
-                                           FontSize="18"
-                                           FontWeight="SemiBold"
-                                           Foreground="{DynamicResource TextPrimaryBrush}"
-                                           HorizontalAlignment="Center" />
-                                <TextBlock Text="{loc:Loc 'Start fresh with a new company file'}"
-                                           FontSize="13"
-                                           Foreground="{DynamicResource TextSecondaryBrush}"
-                                           HorizontalAlignment="Center"
-                                           TextWrapping="Wrap" />
-                            </StackPanel>
-                        </StackPanel>
-                    </Button>
-                </Border>
 
                 <!-- Recent Companies Section -->
                 <Border Classes="section-card"
@@ -277,8 +239,7 @@
 
                 <!-- Sample Company -->
                 <Border Classes="sample-card"
-                        Margin="0,0,0,32"
-                        IsVisible="{Binding ShowSampleCompany}">
+                        Margin="0,0,0,32">
                     <Button Classes="sample-button"
                             Command="{Binding OpenSampleCompanyCommand}">
                         <Grid ColumnDefinitions="Auto,*,Auto">
@@ -296,14 +257,17 @@
                             <!-- Text -->
                             <StackPanel Grid.Column="1"
                                         VerticalAlignment="Center"
+                                        Margin="0,0,16,0"
                                         Spacing="2">
                                 <TextBlock Text="{loc:Loc 'Explore Sample Company'}"
                                            FontSize="15"
                                            FontWeight="Medium"
-                                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           TextWrapping="Wrap" />
                                 <TextBlock Text="{loc:Loc 'See how Argo Books works with pre-populated data'}"
                                            FontSize="13"
-                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                           TextWrapping="Wrap" />
                             </StackPanel>
 
                             <!-- Arrow -->
@@ -315,6 +279,13 @@
                         </Grid>
                     </Button>
                 </Border>
+
+                <Button Classes="text-link"
+                        HorizontalAlignment="Center"
+                        Margin="0,-16,0,32"
+                        IsVisible="{Binding IsTutorialMode}"
+                        Content="{loc:Loc 'Open an existing company file'}"
+                        Command="{Binding OpenCompanyCommand}" />
 
                 <!-- Footer Links -->
                 <StackPanel Orientation="Horizontal"
@@ -479,43 +450,26 @@
             <Setter Property="Foreground" Value="{DynamicResource PrimaryBrush}" />
         </Style>
 
-        <!-- Tutorial Banner -->
-        <Style Selector="Border.tutorial-banner">
-            <Setter Property="Background" Value="{DynamicResource PrimaryLightBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
+        <!-- Primary Action Card (first run) -->
+        <Style Selector="Border.action-card-primary">
+            <Setter Property="Background" Value="{DynamicResource PrimaryBrush}" />
             <Setter Property="CornerRadius" Value="12" />
-            <Setter Property="Padding" Value="24" />
-            <Setter Property="Opacity" Value="0.95" />
         </Style>
 
-        <!-- Skip Tutorial Button -->
-        <Style Selector="Button.skip-tutorial-button">
-            <Setter Property="Background" Value="White" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="BorderBrush" Value="#CBD5E1" />
-            <Setter Property="Foreground" Value="#475569" />
-            <Setter Property="Padding" Value="20,10" />
-            <Setter Property="FontSize" Value="13" />
-            <Setter Property="FontWeight" Value="Medium" />
-            <Setter Property="CornerRadius" Value="6" />
+        <Style Selector="Button.action-card-primary-button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="32" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="CornerRadius" Value="12" />
             <Setter Property="Cursor" Value="Hand" />
         </Style>
-        <Style Selector="Button.skip-tutorial-button /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="White" />
+        <Style Selector="Button.action-card-primary-button /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
         </Style>
-        <Style Selector="Button.skip-tutorial-button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="#F1F5F9" />
-        </Style>
-        <Style Selector="Button.skip-tutorial-button:pointerover">
-            <Setter Property="Foreground" Value="#1E293B" />
-            <Setter Property="BorderBrush" Value="#94A3B8" />
-        </Style>
-        <Style Selector="Button.skip-tutorial-button TextBlock">
-            <Setter Property="Foreground" Value="#475569" />
-        </Style>
-        <Style Selector="Button.skip-tutorial-button:pointerover TextBlock">
-            <Setter Property="Foreground" Value="#1E293B" />
+        <Style Selector="Button.action-card-primary-button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource PrimaryHoverBrush}" />
         </Style>
     </UserControl.Styles>
 </UserControl>

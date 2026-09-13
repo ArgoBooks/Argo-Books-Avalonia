@@ -417,9 +417,7 @@
                                 <Button Classes="secondary-button"
                                         Content="{Binding BackButtonText, Converter={StaticResource TranslateConverter}}"
                                         Command="{Binding BackCommand}" />
-                                <!-- Nothing to advance to with nobody to pay, and clicking it
-                                     answered "Select at least one employee" when there were
-                                     none to select. -->
+                                <!-- Nothing to advance to with nobody to pay. -->
                                 <Button Classes="primary-button"
                                         Content="{Binding NextButtonText, Converter={StaticResource TranslateConverter}}"
                                         IsEnabled="{Binding !HasNobodyToPay}"

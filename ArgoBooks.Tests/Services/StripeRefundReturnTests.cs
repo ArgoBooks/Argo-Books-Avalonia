@@ -14,10 +14,10 @@ public class StripeRefundReturnTests
     {
         var data = new CompanyData();
         var importer = new StripeDetailImporter();
-        importer.ImportCharges(data, new[] { Charge("ch_1", 5000, 0) });
+        importer.ImportCharges(data, [Charge("ch_1", 5000, 0)]);
         var revId = data.Revenues[0].Id;
 
-        var made = importer.ApplyRefunds(data, new[] { Charge("ch_1", 5000, 5000) });
+        var made = importer.ApplyRefunds(data, [Charge("ch_1", 5000, 5000)]);
 
         Assert.Equal(1, made);
         var ret = Assert.Single(data.Returns);
@@ -31,19 +31,30 @@ public class StripeRefundReturnTests
     {
         var data = new CompanyData();
         var importer = new StripeDetailImporter();
-        importer.ImportCharges(data, new[] { Charge("ch_1", 5000, 0) });
+        importer.ImportCharges(data, [Charge("ch_1", 5000, 0)]);
 
-        importer.ApplyRefunds(data, new[] { Charge("ch_1", 5000, 5000) });
-        importer.ApplyRefunds(data, new[] { Charge("ch_1", 5000, 5000) });
+        importer.ApplyRefunds(data, [Charge("ch_1", 5000, 5000)]);
+        importer.ApplyRefunds(data, [Charge("ch_1", 5000, 5000)]);
 
         Assert.Single(data.Returns);
+    }
+
+    [Fact]
+    public void Refund_ZeroDecimalCurrency_IsNotDividedBy100()
+    {
+        var data = new CompanyData();
+        var made = new StripeDetailImporter().ApplyRefunds(data,
+            [new StripeChargeDetail("ch_old", 1700000000, 1000, 0, "jpy", null, null, "Tea", 0, 0, 1000)]);
+
+        Assert.Equal(1, made);
+        Assert.Equal(1000m, data.Expenses.Single().Total);
     }
 
     [Fact]
     public void Refund_OfUnimportedCharge_FallsBackToExpense()
     {
         var data = new CompanyData();
-        var made = new StripeDetailImporter().ApplyRefunds(data, new[] { Charge("ch_old", 5000, 5000) });
+        var made = new StripeDetailImporter().ApplyRefunds(data, [Charge("ch_old", 5000, 5000)]);
 
         Assert.Equal(1, made);
         Assert.Empty(data.Returns);

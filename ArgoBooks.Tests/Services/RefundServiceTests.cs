@@ -217,11 +217,9 @@ public class RefundServiceTests
         }
     }
 
-    private sealed class ThrowingHandler : HttpMessageHandler
+    private sealed class ThrowingHandler(Exception ex) : HttpMessageHandler
     {
-        private readonly Exception _ex;
-        public ThrowingHandler(Exception ex) { _ex = ex; }
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-            => throw _ex;
+            => throw ex;
     }
 }

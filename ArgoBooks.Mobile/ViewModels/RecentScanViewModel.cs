@@ -3,7 +3,7 @@ namespace ArgoBooks.Mobile.ViewModels;
 /// <summary>
 /// One row in the Capture tab's "Recent scans" list (see <see cref="CaptureViewModel.RecentScans"/>).
 /// Immutable display snapshot of a confirmed scan - vendor/customer, amount, when it was confirmed,
-/// and whether Task 5's CapturePushCoordinator managed to push it to the desktop queue.
+/// and whether it reached the desktop queue or is still waiting in the outbox for a retry.
 /// </summary>
 public sealed class RecentScanViewModel
 {

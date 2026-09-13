@@ -139,30 +139,6 @@ public interface IMessageBoxService
     Task<MessageBoxResult> ShowAsync(MessageBoxOptions options);
 
     /// <summary>
-    /// Shows an information message box.
-    /// </summary>
-    /// <param name="title">Dialog title.</param>
-    /// <param name="message">Message content.</param>
-    /// <returns>The result (usually Ok).</returns>
-    Task<MessageBoxResult> ShowInfoAsync(string title, string message);
-
-    /// <summary>
-    /// Shows a success message box.
-    /// </summary>
-    /// <param name="title">Dialog title.</param>
-    /// <param name="message">Message content.</param>
-    /// <returns>The result (usually Ok).</returns>
-    Task<MessageBoxResult> ShowSuccessAsync(string title, string message);
-
-    /// <summary>
-    /// Shows a warning message box.
-    /// </summary>
-    /// <param name="title">Dialog title.</param>
-    /// <param name="message">Message content.</param>
-    /// <returns>The result (usually Ok).</returns>
-    Task<MessageBoxResult> ShowWarningAsync(string title, string message);
-
-    /// <summary>
     /// Shows an error message box.
     /// </summary>
     /// <param name="title">Dialog title.</param>
@@ -187,5 +163,4 @@ public interface IMessageBoxService
     /// <param name="cancelText">Text for cancel button.</param>
     /// <returns>True if confirm was clicked, false otherwise.</returns>
     Task<bool> ConfirmAsync(string title, string message, string confirmText, string cancelText);
-
 }

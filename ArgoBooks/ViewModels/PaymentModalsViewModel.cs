@@ -3,12 +3,14 @@ using ArgoBooks.Services;
 using System.Collections.ObjectModel;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models;
+using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Models.Transactions;
 using ArgoBooks.Core.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
 using ArgoBooks.Core.Models.Telemetry;
+using ArgoBooks.Shared.Telemetry;
 
 namespace ArgoBooks.ViewModels;
 
@@ -360,6 +362,52 @@ public partial class PaymentModalsViewModel : ViewModelBase
         return CurrencyService.CurrentCurrencyCode;
     }
 
+    /// <summary>
+    /// The payment's USD figure at its own date's rate, or pending when there is none: future
+    /// dated, offline, or no rate service (docs/Calculations.md Rule 3a).
+    /// </summary>
+    private static async Task<(decimal AmountUSD, bool IsPending)> ConvertToUsdAsync(decimal amount, string currency, DateTime date)
+    {
+        if (string.Equals(currency, "USD", StringComparison.OrdinalIgnoreCase))
+            return (amount, false);
+
+        var rate = ExchangeRateService.Instance is { } exchangeService
+            ? await exchangeService.GetExchangeRateAsync(currency, "USD", date)
+            : 0m;
+
+        // USD base stored full-precision (no 2dp round); display rounds. See Calculations.md Rule 3.
+        return rate > 0 ? (amount * rate, false) : (0m, true);
+    }
+
+    /// <summary>
+    /// Keeps the payment's conversion queue entry in step with it: there while it waits for a
+    /// rate, gone once it doesn't. The service drops an entry whose payment is missing, so undo
+    /// and redo have to move the entry with the payment or a redone payment waits forever.
+    /// </summary>
+    private static void QueueConversion(Core.Data.CompanyData companyData, Payment payment)
+    {
+        companyData.PendingConversions.RemoveAll(p => p.TransactionId == payment.Id);
+        if (payment.IsPendingConversion)
+        {
+            companyData.PendingConversions.Add(new PendingConversion
+            {
+                TransactionId = payment.Id,
+                TransactionType = "Payment",
+                OriginalCurrency = payment.OriginalCurrency,
+                TransactionDate = payment.Date,
+                Total = payment.Amount
+            });
+        }
+
+        _ = PendingConversionService.Instance?.MirrorAsync(companyData, [payment.Id]);
+    }
+
+    private static void ForgetConversion(Core.Data.CompanyData companyData, Payment payment)
+    {
+        companyData.PendingConversions.RemoveAll(p => p.TransactionId == payment.Id);
+        _ = PendingConversionService.Instance?.MirrorAsync(companyData, [payment.Id]);
+    }
+
     [RelayCommand]
     public async Task SaveNewPayment()
     {
@@ -381,21 +429,7 @@ public partial class PaymentModalsViewModel : ViewModelBase
         var currentCurrency = ResolvePaymentCurrency(companyData);
         var paymentDate = ModalDate?.DateTime ?? DateTime.Today;
 
-        // Convert payment amount to USD for consistent reporting
-        decimal amountUSD = parsedAmount;
-        if (!string.Equals(currentCurrency, "USD", StringComparison.OrdinalIgnoreCase))
-        {
-            var exchangeService = ExchangeRateService.Instance;
-            if (exchangeService != null)
-            {
-                var rate = await exchangeService.GetExchangeRateAsync(currentCurrency, "USD", paymentDate);
-                if (rate > 0)
-                {
-                    // USD base stored full-precision (no 2dp round); display rounds. See Calculations.md Rule 3.
-                    amountUSD = parsedAmount * rate;
-                }
-            }
-        }
+        var (amountUSD, isPending) = await ConvertToUsdAsync(parsedAmount, currentCurrency, paymentDate);
 
         var newPayment = new Payment
         {
@@ -409,10 +443,12 @@ public partial class PaymentModalsViewModel : ViewModelBase
             Notes = ModalNotes.Trim(),
             CreatedAt = DateTime.UtcNow,
             OriginalCurrency = currentCurrency,
-            AmountUSD = amountUSD
+            AmountUSD = amountUSD,
+            IsPendingConversion = isPending
         };
 
         companyData.Payments.Add(newPayment);
+        QueueConversion(companyData, newPayment);
         _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.PaymentRecorded);
         // Recalc the affected invoice's totals + status. Without this the
         // invoice's AmountPaid / Balance / Status drift out of sync with
@@ -427,6 +463,7 @@ public partial class PaymentModalsViewModel : ViewModelBase
             () =>
             {
                 companyData.Payments.Remove(paymentToUndo);
+                ForgetConversion(companyData, paymentToUndo);
                 RecalcInvoiceTotals(companyData, invoiceIdForRecalc);
                 companyData.MarkAsModified();
                 PaymentSaved?.Invoke(this, EventArgs.Empty);
@@ -434,6 +471,7 @@ public partial class PaymentModalsViewModel : ViewModelBase
             () =>
             {
                 companyData.Payments.Add(paymentToUndo);
+                QueueConversion(companyData, paymentToUndo);
                 RecalcInvoiceTotals(companyData, invoiceIdForRecalc);
                 companyData.MarkAsModified();
                 PaymentSaved?.Invoke(this, EventArgs.Empty);
@@ -576,20 +614,7 @@ public partial class PaymentModalsViewModel : ViewModelBase
         // Convert to USD for consistent reporting. Tag the payment with the linked invoice's/revenue's
         // currency, not the company display currency, so it counts toward that invoice's totals (§5).
         var editCurrentCurrency = ResolvePaymentCurrency(companyData);
-        decimal newAmountUSD = newAmount;
-        if (!string.Equals(editCurrentCurrency, "USD", StringComparison.OrdinalIgnoreCase))
-        {
-            var exchangeService = ExchangeRateService.Instance;
-            if (exchangeService != null)
-            {
-                var rate = await exchangeService.GetExchangeRateAsync(editCurrentCurrency, "USD", newDate);
-                if (rate > 0)
-                {
-                    // USD base stored full-precision (no 2dp round); display rounds. See Calculations.md Rule 3.
-                    newAmountUSD = newAmount * rate;
-                }
-            }
-        }
+        var (newAmountUSD, newIsPending) = await ConvertToUsdAsync(newAmount, editCurrentCurrency, newDate);
 
         var newPaymentMethod = PaymentMethodExtensions.ParseDisplayName(ModalPaymentMethod);
         var newReferenceNumber = string.IsNullOrWhiteSpace(ModalReferenceNumber) ? null : ModalReferenceNumber.Trim();
@@ -621,6 +646,7 @@ public partial class PaymentModalsViewModel : ViewModelBase
         if (changes2.Count > 0) App.EventLogService?.SetPendingChanges(changes2);
         var oldOriginalCurrency = paymentToEdit2.OriginalCurrency;
         var oldAmountUSD = paymentToEdit2.AmountUSD;
+        var oldIsPending = paymentToEdit2.IsPendingConversion;
 
         paymentToEdit2.InvoiceId = newInvoiceId;
         paymentToEdit2.CustomerId = newCustomerId;
@@ -631,6 +657,8 @@ public partial class PaymentModalsViewModel : ViewModelBase
         paymentToEdit2.Notes = newNotesVal;
         paymentToEdit2.OriginalCurrency = editCurrentCurrency;
         paymentToEdit2.AmountUSD = newAmountUSD;
+        paymentToEdit2.IsPendingConversion = newIsPending;
+        QueueConversion(companyData, paymentToEdit2);
 
         // Recalc both invoices when the payment moves between them; recalc
         // just the one when only the amount/details changed. See §5.
@@ -652,6 +680,8 @@ public partial class PaymentModalsViewModel : ViewModelBase
                 paymentToEdit2.Notes = oldNotesVal;
                 paymentToEdit2.OriginalCurrency = oldOriginalCurrency;
                 paymentToEdit2.AmountUSD = oldAmountUSD;
+                paymentToEdit2.IsPendingConversion = oldIsPending;
+                QueueConversion(companyData, paymentToEdit2);
                 RecalcInvoiceTotals(companyData, newInvoiceId);
                 if (newInvoiceId != oldInvoiceId)
                     RecalcInvoiceTotals(companyData, oldInvoiceId);
@@ -669,6 +699,8 @@ public partial class PaymentModalsViewModel : ViewModelBase
                 paymentToEdit2.Notes = newNotesVal;
                 paymentToEdit2.OriginalCurrency = editCurrentCurrency;
                 paymentToEdit2.AmountUSD = newAmountUSD;
+                paymentToEdit2.IsPendingConversion = newIsPending;
+                QueueConversion(companyData, paymentToEdit2);
                 RecalcInvoiceTotals(companyData, oldInvoiceId);
                 if (newInvoiceId != oldInvoiceId)
                     RecalcInvoiceTotals(companyData, newInvoiceId);
@@ -717,6 +749,7 @@ public partial class PaymentModalsViewModel : ViewModelBase
                 var deletedPayment = payment;
                 var invoiceIdForRecalc = deletedPayment.InvoiceId;
                 companyData.Payments.Remove(payment);
+                ForgetConversion(companyData, payment);
                 RecalcInvoiceTotals(companyData, invoiceIdForRecalc);
                 companyData.MarkAsModified();
 
@@ -725,6 +758,7 @@ public partial class PaymentModalsViewModel : ViewModelBase
                     () =>
                     {
                         companyData.Payments.Add(deletedPayment);
+                        QueueConversion(companyData, deletedPayment);
                         RecalcInvoiceTotals(companyData, invoiceIdForRecalc);
                         companyData.MarkAsModified();
                         PaymentDeleted?.Invoke(this, EventArgs.Empty);
@@ -732,6 +766,7 @@ public partial class PaymentModalsViewModel : ViewModelBase
                     () =>
                     {
                         companyData.Payments.Remove(deletedPayment);
+                        ForgetConversion(companyData, deletedPayment);
                         RecalcInvoiceTotals(companyData, invoiceIdForRecalc);
                         companyData.MarkAsModified();
                         PaymentDeleted?.Invoke(this, EventArgs.Empty);
@@ -748,7 +783,8 @@ public partial class PaymentModalsViewModel : ViewModelBase
 
     /// <summary>
     /// Re-derives invoice.AmountPaid / AmountRefunded / Balance / BalanceUSD
-    /// and the stored Status from the current Payments list. Called after
+    /// and the stored Status from the current Payments list, and whether the
+    /// invoice's revenue counts as collected. Called after
     /// any add / edit / delete of a Payment row, including undo / redo.
     /// No-op when invoiceId is null/empty or the invoice can't be found
     /// (the payment isn't tied to an invoice).
@@ -759,6 +795,7 @@ public partial class PaymentModalsViewModel : ViewModelBase
         var invoice = companyData.GetInvoice(invoiceId);
         if (invoice == null) return;
         InvoiceTotalsService.Recalculate(invoice, companyData.Payments);
+        InvoiceTotalsService.SyncLinkedRevenueStatus(invoice, companyData.Revenues);
 
         // Every add / edit / delete of a payment funnels through here, and so do
         // the undo and redo lambdas, so this one call covers them all. Without
@@ -840,7 +877,12 @@ public partial class PaymentModalsViewModel : ViewModelBase
         if (companyData?.Invoices == null)
             return;
 
-        foreach (var invoice in companyData.Invoices.OrderByDescending(i => i.IssueDate))
+        // Payments are recorded on sent invoices, as the invoice row offers. A payment on a draft
+        // marked it paid while its revenue, created when it is sent, never existed. A draft that
+        // already has a payment keeps it linked when that payment is edited.
+        foreach (var invoice in companyData.Invoices
+                     .Where(i => i.Status != InvoiceStatus.Draft || i.Id == _editingPayment?.InvoiceId)
+                     .OrderByDescending(i => i.IssueDate))
         {
             var customer = companyData.GetCustomer(invoice.CustomerId);
             var customerName = customer?.Name ?? "Unknown";

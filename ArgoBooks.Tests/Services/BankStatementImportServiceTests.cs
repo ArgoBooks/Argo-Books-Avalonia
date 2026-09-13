@@ -117,4 +117,40 @@ public class BankStatementImportServiceTests
         }
         finally { File.Delete(path); }
     }
+
+    // A file is written one way. 15/03 can only be day-first, so 05/03 in the same column is
+    // 5 March; reading each row on its own made it 3 May.
+    [Fact]
+    public async Task ParseCsvAsync_DayFirstFile_ReadsEveryRowDayFirst()
+    {
+        var path = await WriteTempCsvAsync(
+            "Date,Description,Amount\n" +
+            "05/03/2024,Coffee shop,-4.50\n" +
+            "15/03/2024,Client deposit,250.00\n");
+        try
+        {
+            var lines = await new BankStatementImportService().ParseCsvAsync(path);
+
+            Assert.Equal(new DateTime(2024, 3, 5), lines[0].Date);
+            Assert.Equal(new DateTime(2024, 3, 15), lines[1].Date);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
+    public async Task ParseCsvAsync_MonthFirstFile_StaysMonthFirst()
+    {
+        var path = await WriteTempCsvAsync(
+            "Date,Description,Amount\n" +
+            "03/05/2024,Coffee shop,-4.50\n" +
+            "03/15/2024,Client deposit,250.00\n");
+        try
+        {
+            var lines = await new BankStatementImportService().ParseCsvAsync(path);
+
+            Assert.Equal(new DateTime(2024, 3, 5), lines[0].Date);
+            Assert.Equal(new DateTime(2024, 3, 15), lines[1].Date);
+        }
+        finally { File.Delete(path); }
+    }
 }

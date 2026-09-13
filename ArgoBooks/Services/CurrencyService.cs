@@ -156,6 +156,28 @@ public static class CurrencyService
     }
 
     /// <summary>
+    /// Converts an amount recorded in <paramref name="currency"/> rather than USD (a return's refund
+    /// amount, a loss's value) to the display currency at the exact <paramref name="date"/>, through
+    /// the USD base. An amount already in the display currency is used as-is and never waits on a
+    /// rate. Null when the exact-date rate is unavailable, which callers treat as pending.
+    /// </summary>
+    public static decimal? GetDisplayAmountFromNative(decimal amount, string currency, DateTime date)
+    {
+        var target = CurrentCurrencyCode;
+        if (string.Equals(currency, target, StringComparison.OrdinalIgnoreCase))
+            return amount;
+
+        var svc = ExchangeRateService.Instance;
+        if (svc == null)
+            return amount;
+
+        return svc.TryConvertToUsdBase(amount, currency, date, out var usd)
+               && svc.TryConvertFromUSD(usd, target, date, out var converted)
+            ? converted
+            : null;
+    }
+
+    /// <summary>
     /// Formats a legacy decimal value (assumes USD) in the current display currency, at the exact
     /// <paramref name="date"/>. Shows <see cref="PendingMarker"/> when no exact-date rate is available.
     /// </summary>
@@ -264,9 +286,15 @@ public static class CurrencyService
     /// front. No-op for a USD display currency or when the rate is already cached. Best-effort: a
     /// failed fetch just leaves the row to fall back to pending + the self-heal.
     /// </summary>
-    public static async Task WarmRateForDateAsync(DateTime date, CancellationToken cancellationToken = default)
+    public static Task WarmRateForDateAsync(DateTime date, CancellationToken cancellationToken = default)
+        => WarmRateForDateAsync(date, CurrentCurrencyCode, cancellationToken);
+
+    /// <summary>
+    /// <see cref="WarmRateForDateAsync(DateTime, CancellationToken)"/> for a transaction in
+    /// <paramref name="code"/> rather than the display currency, such as a receipt scanned abroad.
+    /// </summary>
+    public static async Task WarmRateForDateAsync(DateTime date, string code, CancellationToken cancellationToken = default)
     {
-        var code = CurrentCurrencyCode;
         if (string.Equals(code, "USD", StringComparison.OrdinalIgnoreCase))
             return;
 
@@ -311,11 +339,17 @@ public static class CurrencyService
     /// <param name="amount">The amount entered by the user.</param>
     /// <param name="date">The transaction date for exchange rate lookup.</param>
     /// <returns>A MonetaryValue with both original and USD amounts.</returns>
-    public static async Task<MonetaryValue> CreateMonetaryValueAsync(decimal amount, DateTime date)
-    {
-        var currentCurrency = CurrentCurrencyCode;
+    public static Task<MonetaryValue> CreateMonetaryValueAsync(decimal amount, DateTime date)
+        => CreateMonetaryValueAsync(amount, CurrentCurrencyCode, date);
 
-        if (string.Equals(currentCurrency, "USD", StringComparison.OrdinalIgnoreCase))
+    /// <summary>
+    /// <see cref="CreateMonetaryValueAsync(decimal, DateTime)"/> for an amount in
+    /// <paramref name="currency"/> rather than the company currency, such as an entry being edited
+    /// that was recorded in another currency.
+    /// </summary>
+    public static async Task<MonetaryValue> CreateMonetaryValueAsync(decimal amount, string currency, DateTime date)
+    {
+        if (string.Equals(currency, "USD", StringComparison.OrdinalIgnoreCase))
         {
             return new MonetaryValue(amount, "USD", amount, date);
         }
@@ -326,10 +360,10 @@ public static class CurrencyService
 
         if (exchangeService != null)
         {
-            amountUSD = await exchangeService.ConvertToUSDAsync(amount, currentCurrency, date);
+            amountUSD = await exchangeService.ConvertToUSDAsync(amount, currency, date);
         }
 
-        return new MonetaryValue(amount, currentCurrency, amountUSD, date);
+        return new MonetaryValue(amount, currency, amountUSD, date);
     }
 
     /// <summary>

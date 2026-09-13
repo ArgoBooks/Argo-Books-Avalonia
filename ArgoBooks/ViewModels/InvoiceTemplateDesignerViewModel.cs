@@ -287,9 +287,6 @@ public partial class InvoiceTemplateDesignerViewModel : ViewModelBase
     private bool _showItemDescriptions = true;
 
     [ObservableProperty]
-    private bool _showNotes = true;
-
-    [ObservableProperty]
     private bool _showPaymentInstructions = true;
 
     [ObservableProperty]
@@ -965,12 +962,6 @@ public partial class InvoiceTemplateDesignerViewModel : ViewModelBase
         UpdatePreview();
     }
 
-    partial void OnShowNotesChanged(bool oldValue, bool newValue)
-    {
-        RecordChange("Toggle notes section", v => ShowNotes = v, oldValue, newValue);
-        UpdatePreview();
-    }
-
     partial void OnShowPaymentInstructionsChanged(bool oldValue, bool newValue)
     {
         RecordChange("Toggle payment instructions", v => ShowPaymentInstructions = v, oldValue, newValue);
@@ -1059,7 +1050,6 @@ public partial class InvoiceTemplateDesignerViewModel : ViewModelBase
             ShowCompanyCountry = ShowCompanyCountry,
             ShowTaxBreakdown = ShowTaxBreakdown,
             ShowItemDescriptions = ShowItemDescriptions,
-            ShowNotes = ShowNotes,
             ShowPaymentInstructions = ShowPaymentInstructions,
             ShowDueDateProminent = ShowDueDateProminent
         };
@@ -1091,7 +1081,6 @@ public partial class InvoiceTemplateDesignerViewModel : ViewModelBase
         template.ShowCompanyCountry = ShowCompanyCountry;
         template.ShowTaxBreakdown = ShowTaxBreakdown;
         template.ShowItemDescriptions = ShowItemDescriptions;
-        template.ShowNotes = ShowNotes;
         template.ShowPaymentInstructions = ShowPaymentInstructions;
         template.ShowDueDateProminent = ShowDueDateProminent;
         template.UpdatedAt = DateTime.UtcNow;
@@ -1123,7 +1112,6 @@ public partial class InvoiceTemplateDesignerViewModel : ViewModelBase
         target.ShowCompanyCountry = snapshot.ShowCompanyCountry;
         target.ShowTaxBreakdown = snapshot.ShowTaxBreakdown;
         target.ShowItemDescriptions = snapshot.ShowItemDescriptions;
-        target.ShowNotes = snapshot.ShowNotes;
         target.ShowPaymentInstructions = snapshot.ShowPaymentInstructions;
         target.ShowDueDateProminent = snapshot.ShowDueDateProminent;
         target.ThumbnailBase64 = snapshot.ThumbnailBase64;
@@ -1158,7 +1146,6 @@ public partial class InvoiceTemplateDesignerViewModel : ViewModelBase
         ShowCompanyCountry = template.ShowCompanyCountry;
         ShowTaxBreakdown = template.ShowTaxBreakdown;
         ShowItemDescriptions = template.ShowItemDescriptions;
-        ShowNotes = template.ShowNotes;
         ShowPaymentInstructions = template.ShowPaymentInstructions;
         ShowDueDateProminent = template.ShowDueDateProminent;
         HasLogo = !string.IsNullOrEmpty(template.LogoBase64);
@@ -1196,7 +1183,6 @@ public partial class InvoiceTemplateDesignerViewModel : ViewModelBase
         ShowCompanyCountry = true;
         ShowTaxBreakdown = true;
         ShowItemDescriptions = true;
-        ShowNotes = true;
         ShowPaymentInstructions = true;
         ShowDueDateProminent = true;
         HasLogo = false;

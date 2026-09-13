@@ -15,7 +15,7 @@ namespace ArgoBooks.Tests.Services;
 /// </summary>
 public class CurrencyStoragePrecisionTests
 {
-    // USD->CAD = 1.63 is a rate where the OLD 2dp-rounded base drifts: round(10/1.63, 2) = 6.13,
+    // USD->CAD = 1.63 is a rate where the 2dp-rounded base drifts: round(10/1.63, 2) = 6.13,
     // and round(6.13 * 1.63, 2) = 9.99, not 10.00.
     private const decimal UsdToCad = 1.63m;
     private static readonly DateTime RateDate = new(2026, 1, 5);

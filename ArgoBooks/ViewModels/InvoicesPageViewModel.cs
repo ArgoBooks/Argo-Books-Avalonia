@@ -510,7 +510,7 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
         // Server returns monthly_limit = -1 as a sentinel for Premium /
         // unlimited. If we update SendCount but not the limit, the UI ends
         // up with SendCount > stale-default-limit and falsely flags
-        // "limit reached", exactly what bit us before. Treat the sentinel
+        // "limit reached". Treat the sentinel
         // as a Premium-equivalent: mark HasPremium so RemainingInvoices is
         // ignored downstream.
         if (result.MonthlyLimit < 0 || string.Equals(result.Tier, "premium", StringComparison.OrdinalIgnoreCase))
@@ -946,13 +946,13 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
 
         // Self-heal: even if invoice.Status is stale (PartiallyRefunded
         // persisted from before the comparison-against-Total fix), derive
-        // the correct refund status fresh at display time. Same comparison
-        // the sync recompute now uses.
+        // the correct refund status fresh at display time, by the rule the
+        // sync recompute uses.
         if (invoice.AmountRefunded > 0 && invoice.Total > 0)
         {
-            if (invoice.AmountRefunded + 0.01m >= invoice.Total)
-                return "Refunded";
-            return "Partially Refunded";
+            return InvoiceTotalsService.RefundedStatus(invoice) == InvoiceStatus.Refunded
+                ? "Refunded"
+                : "Partially Refunded";
         }
 
         return invoice.Status switch
@@ -1177,14 +1177,23 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
 
         var oldStatus = schedule.Status;
         var newStatus = pausing ? RecurringInvoiceStatus.Paused : RecurringInvoiceStatus.Active;
+
+        // Generation catches up from the next date, so resuming with it still in the paused months
+        // would create a draft for each of them.
+        var oldDate = schedule.NextInvoiceDate;
+        var newDate = pausing
+            ? oldDate
+            : RecurrenceSchedule.FirstOnOrAfter(oldDate, schedule.Frequency, schedule.StartDate.Day, DateTime.Today);
+
         schedule.Status = newStatus;
+        schedule.NextInvoiceDate = newDate;
         companyData.MarkAsModified();
         LoadSchedules();
 
         App.UndoRedoManager.RecordAction(new DelegateAction(
             pausing ? "Pause recurring invoice" : "Resume recurring invoice",
-            () => { schedule.Status = oldStatus; companyData.MarkAsModified(); LoadSchedules(); },
-            () => { schedule.Status = newStatus; companyData.MarkAsModified(); LoadSchedules(); }));
+            () => { schedule.Status = oldStatus; schedule.NextInvoiceDate = oldDate; companyData.MarkAsModified(); LoadSchedules(); },
+            () => { schedule.Status = newStatus; schedule.NextInvoiceDate = newDate; companyData.MarkAsModified(); LoadSchedules(); }));
     }
 
     [RelayCommand]
@@ -1418,6 +1427,9 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
             return;
         }
 
+        // The replies describe the company whose key asked; once another is open they must not land in it.
+        bool CompanyChanged() => !ReferenceEquals(App.CompanyManager?.CompanyData, companyData);
+
         IsSyncing = true;
         try
         {
@@ -1425,6 +1437,7 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
 
             // force=true recovers payments confirmed server-side but never saved locally.
             var syncResponse = await portalService.SyncPaymentsAsync(since: null, force: true);
+            if (CompanyChanged()) return;
 
             if (!syncResponse.Success)
             {
@@ -1450,6 +1463,7 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
                 if (processedPortalIds.Count > 0)
                 {
                     await portalService.ConfirmSyncAsync(processedPortalIds);
+                    if (CompanyChanged()) return;
                 }
 
                 // Also save when only existing rows were backfilled, or the in-memory
@@ -1458,7 +1472,7 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
                 // in-progress work.
                 if ((newPayments.Count > 0 || syncResult.BackfilledRows > 0) && !(App.CompanyManager?.HasUnsavedChanges ?? false))
                 {
-                    try { await App.CompanyManager!.SavePaymentSyncAsync(); }
+                    try { await App.CompanyManager!.SavePaymentSyncAsync(companyData); }
                     catch { /* non-fatal */ }
                 }
             }
@@ -1612,7 +1626,9 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
                     invoice, companyData, template, currencySymbol);
                 if (!response.Success)
                 {
-                    failure = response.Message ?? "The payment portal rejected the request.";
+                    failure = string.IsNullOrEmpty(response.Message)
+                        ? "The payment portal rejected the request."
+                        : response.Message;
                 }
             }
             else

@@ -1,5 +1,4 @@
 using System.Net;
-using ArgoBooks.Core.Models.Payroll;
 using ArgoBooks.Core.Platform;
 using ArgoBooks.Core.Services;
 using Xunit;

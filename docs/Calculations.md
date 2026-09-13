@@ -78,9 +78,10 @@ The app never substitutes a different date's rate or shows a raw cross-currency 
 
 - The single chokepoint is `ExchangeRateService.TryConvertExact`; it succeeds only on an exact-date
   cache hit (or same-currency). There is no "nearest cached rate" fallback for money.
-- **Storage vs display precision.** `TryConvertExact` rounds to 2 decimals because it produces a
-  number the user sees. The stored USD base is different: every `*USD` field is written at FULL
-  precision (never rounded to cents) via `ExchangeRateService.TryConvertToUsdBase` (cache-only) and
+- **Storage vs display precision.** `TryConvertExact` rounds to the target currency's decimal places
+  (two for most, none for yen) because it produces a number the user sees, and a total of converted
+  rows has to equal the rows as shown. The stored USD base is different: every `*USD` field is
+  written at FULL precision (never rounded to cents) via `ExchangeRateService.TryConvertToUsdBase` (cache-only) and
   `ConvertToUSDAsync` (the async manual-entry path). USD is the aggregation currency; rounding the
   base to cents made a same-currency round-trip (native -> USD base -> native) drift by a cent, so a
   $10 CAD expense read $9.99 on a chart that re-derives its value from the USD base while the stat
@@ -94,6 +95,9 @@ The app never substitutes a different date's rate or shows a raw cross-currency 
   best-effort optimization; the pending self-heal is the guarantee.
 - **Manual add/edit** saves a row as `IsPendingConversion` when its exact-date rate is unavailable;
   it converts automatically later (`PendingConversionService`) once that exact rate is fetchable.
+- **Online payments** take their invoice's rate, as its refunds do. A payment or refund on an
+  invoice still waiting for its rate waits too, queued at the invoice's date, so it converts at the
+  rate the invoice does and a paid invoice owes nothing in USD either.
 - **Future-dated rows** have no rate (the future is unpriced) and stay pending until their date
   arrives.
 - **Display** shows `CurrencyService.PendingMarker` instead of a number when a row's exact-date
@@ -128,8 +132,9 @@ Every aggregation across multi-currency data uses the `Effective*USD` properties
 How an invoice's grand total is built from its parts. The Invoice model stores the final numbers; this is how they're derived.
 
 ```
-1. Subtotal           = Σ over LineItem of (Quantity × UnitPrice − Discount)   (the stored/displayed Subtotal)
-2. invoiceDiscount    = DiscountIsPercent ? Subtotal × DiscountAmount/100 : DiscountAmount
+0. LineSubtotal       = max(0, Quantity × UnitPrice − Discount), rounded to 2 dp   (LineItem.Subtotal)
+1. Subtotal           = Σ over LineItem of LineSubtotal                            (the stored/displayed Subtotal)
+2. invoiceDiscount    = min(Subtotal, DiscountIsPercent ? Subtotal × DiscountAmount/100 : DiscountAmount)
 3. invoiceCustomFee   = CustomFeeIsPercent ? Subtotal × CustomFeeAmount/100 : CustomFeeAmount
 4. TaxableBase        = Subtotal − invoiceDiscount + invoiceCustomFee + ShippingAmount
 5. TaxAmount          = TaxableBase × TaxRate
@@ -137,11 +142,14 @@ How an invoice's grand total is built from its parts. The Invoice model stores t
                       = Subtotal − invoiceDiscount + invoiceCustomFee + ShippingAmount + TaxAmount + SecurityDeposit
 ```
 
+`InvoiceMath` implements steps 1 to 6 and is the only copy of them. The invoice form, the live preview, the saved invoice and the rendered HTML all call it, so they cannot drift apart.
+
 Notes:
-- **`Subtotal` is the raw line-items sum** (after any per-line discounts). It is stored on the invoice and shown as the "Subtotal" line, and it is the base a *percentage* discount or fee is taken from. The invoice-level discount and custom fee are shown as their own separate lines, not folded into `Subtotal`.
-- **Discount on a line item** reduces only that line's subtotal.
+- **`Subtotal` is the line-items sum.** It is stored on the invoice and shown as the "Subtotal" line, and it is the base a *percentage* discount or fee is taken from. The invoice-level discount and custom fee are shown as their own separate lines, not folded into `Subtotal`.
+- **Discount on a line item** reduces only that line's subtotal, and never below zero: a discount bigger than the line it sits on makes that line free, it does not come off the rest of the invoice.
+- **No figure on an invoice can be negative.** The invoice-level discount is worth at most the `Subtotal` it comes off (a 150 discount on a 100 subtotal is a 100 discount), and the taxable base floors at zero, so an invoice can come to nothing but can never owe the customer money. Shipping is still payable when a discount wipes out the goods, because the discount caps at the subtotal rather than at the whole invoice.
 - **Invoice-level discount**, **custom fee**, and **shipping** adjust the *taxable base* before tax (industry standard: tax is charged on the net amount after discount, and a taxable fee and shipping are taxed). The discount lowers it; the fee and shipping raise it.
-- **Security deposit** is added to the total but is *not* taxed and is *not* considered revenue earned, it's a refundable hold against damages. If the deposit is forfeited, it should be moved into revenue separately.
+- **Security deposit** is added to the total but is *not* taxed and is *not* revenue: it's a refundable hold against damages. The revenue created from the invoice leaves it out (`Total − SecurityDeposit`). If a rental comes back and the business keeps the deposit, the return adds it as its own revenue row (`Revenue.IsKeptDeposit`), dated on the return, linked to the invoice, and priced at the invoice's rate as the invoice's refunds are. A rental with no invoice has no deposit in the books, so there is nothing to move. How refunds treat the deposit is in §8. Helper: `SecurityDeposits`.
 - **Tax** is applied to `TaxableBase` (Subtotal − discount + fee + shipping), not to the raw `Subtotal`. Argo Books treats tax as a single flat rate; we do not support different tax rates per line item at the invoice-roll-up level (line items each carry a `TaxRate` but the invoice header rate is what's stored as the final tax).
 
 ---
@@ -160,7 +168,9 @@ A payment can instead be linked to a revenue (`Payment.RevenueId`) rather than a
 | `BalanceUSD` | `max(0, TotalUSD − sumOfPaymentsUSD)` | USD-normalized balance for cross-currency aggregation. |
 | `NetPaid` *(computed)* | `AmountPaid − AmountRefunded` | Cash kept from this invoice. Used in revenue/profit aggregation. |
 
-`InvoiceTotalsService.RecalculateStatus` separately recomputes the stored `Status` from `AmountPaid` / `AmountRefunded`, flipping between Paid / Partial / PartiallyRefunded / Refunded as appropriate. Lifecycle states (Draft / Pending / Sent / Viewed / Cancelled / Overdue) are owned by the surfaces that drive them and are not overwritten by this service.
+`InvoiceTotalsService.RecalculateStatus` separately recomputes the stored `Status` from `AmountPaid` / `AmountRefunded`, flipping between Paid / Partial / PartiallyRefunded / Refunded as appropriate. Lifecycle states (Draft / Pending / Sent / Viewed / Cancelled / Overdue) are owned by the surfaces that drive them. This service leaves one only when a payment or refund arrives, and remembers it in `Invoice.StatusBeforePayment`. When every payment is removed again (deleted, undone, or moved to another invoice), the invoice goes back to that status, so it is outstanding again and can go overdue. An invoice that reached a payment status some other way (an import marked Paid) has no earlier status to return to and keeps its own.
+
+Payments are recorded on invoices that have been sent. The payment form does not offer drafts, because an invoice's revenue is only created when it is sent (§7); a draft's existing payment stays linked when edited.
 
 A one-time recalc pass runs on `CompanyData` load (`CompanyManager.OpenCompanyAsync`) to heal any historic drift, scoped to invoices that actually have Payment rows, invoices imported from spreadsheets without payments keep the stored `AmountPaid` value the import gave them.
 
@@ -187,7 +197,7 @@ If you find code that subtracts refunds from a `Payment.Amount` before displayin
 | `Viewed` | Recipient opened it. | Portal tracking signal. |
 | `Partial` | Customer paid some, owes more. | `0 < AmountPaid < Total`. |
 | `Paid` | `AmountPaid >= Total`. | First positive payment that closes the balance. |
-| `Overdue` | Today is past `DueDate` and not fully paid / cancelled. | Derived (`IsOverdue` getter), not a stored transition. |
+| `Overdue` | Today is past `DueDate` and something is still owed: not Paid, Refunded, Cancelled, or paid in full and then partly refunded. | Derived (`IsOverdue` getter), not a stored transition. |
 | `Cancelled` | Invoice voided. | Explicit user action. |
 | `PartiallyRefunded` | Was paid, then some (but not all) was refunded, or was fully refunded and then paid again. | See refund rule below. |
 | `Refunded` | Was paid, then fully refunded with no subsequent payment. | See refund rule below. |
@@ -202,8 +212,9 @@ The discriminator is **net paid** (`AmountPaid − AmountRefunded`). If it is le
 Owned by `InvoiceTotalsService.RecalculateStatus`.
 
 Heuristics:
-- `Overdue` is a *display state*, not a write. Always compute it from `DueDate` and `Status != Paid/Cancelled` rather than storing it.
-- Refund statuses (`PartiallyRefunded` / `Refunded`) supersede `Paid` as soon as a refund row exists for the invoice. The display layer self-heals using `AmountRefunded` vs `Total` rather than relying on the stored status, if the stored status disagrees, the computed one wins.
+- `Overdue` is a *display state*, not a write. Always compute it with `Invoice.IsOverdue` (past `DueDate`, not Paid / Refunded / Cancelled, and not paid in full) rather than storing it. A partly paid invoice that was then partly refunded still owes its balance, so it can be overdue.
+- Refund statuses (`PartiallyRefunded` / `Refunded`) supersede `Paid` as soon as a refund row exists for the invoice. The display layer self-heals with the same net-paid rule (`InvoiceTotalsService.RefundedStatus`) rather than relying on the stored status, if the stored status disagrees, the computed one wins.
+- `InvoiceTotalsService.DisplayStatus` applies both of the above and is what report tables print, the same status the invoices list shows. Never print the stored `Status` alone.
 
 ---
 
@@ -222,6 +233,8 @@ Heuristics:
 
 Use `RevenueAggregator.IsCollected(revenue)` everywhere, never inline the enum comparison. If a new status should count as collected, add it to that helper in one place. The spreadsheet importer's `NormalizePaymentStatus` maps free-form text to the enum and is the only place that should parse strings.
 
+**Revenue created from an invoice** counts as collected once the invoice is paid in full, and stays collected after a refund, because the refund is subtracted on its own date (§8). `InvoiceTotalsService.SyncLinkedRevenueStatus` sets it whenever a payment is recorded or removed, by hand or through the payment portal, so both count the same.
+
 `Payment.Source` is similarly the `PaymentSource` enum (`Manual` / `Online`), also with a permissive JSON converter for legacy data.
 
 ---
@@ -232,23 +245,36 @@ A refund is a `Payment` row with `IsRefund = true` and a negative `Amount`. It i
 
 ### Effect on revenue (gross, display)
 
-Subtract the **full refund amount** from gross revenue:
+Subtract the refund from gross revenue, less any security deposit it gave back (see *Refunds that give back a deposit* below):
 
 ```
 Revenue in period = Σ Revenue.EffectiveTotalUSD (paid-only, in date range)
-                  − Σ |Payment.EffectiveAmountUSD| for refunds in date range
+                  − Σ |Payment.EffectiveAmountUSD| × Payment.RevenueShare for refunds in date range
 ```
 
 Helper: `RefundAggregator.GetRefundedInDateRangeUSD(...)`.
 
 ### Effect on profit (pre-tax)
 
-Subtract the **pre-tax portion** of the refund. Because a refund both reverses revenue *and* reverses the tax we owed on that revenue, the net profit impact is only the subtotal portion:
+Subtract the **pre-tax portion** of the refund. Because a refund both reverses revenue *and* reverses the tax we owed on that revenue, the net profit impact is only the pre-tax portion:
 
 ```
-Per refund:   profit reduction = |Payment.EffectiveAmountUSD| × (Invoice.Subtotal / Invoice.Total)
-Fallback:     if invoice link missing → full refund amount
+Per refund:   profit reduction = |Payment.EffectiveAmountUSD| × Payment.RevenueShare
+                                 × ((Invoice.Total − Invoice.SecurityDeposit − Invoice.TaxAmount) / (Invoice.Total − Invoice.SecurityDeposit))
+Fallback:     if invoice link missing → the refund's revenue part in full
 ```
+
+The share is total less deposit and tax, over total less deposit, which is what the invoice's revenue counted before tax. It is not `Subtotal / Total`: `Subtotal` is the line sum before an invoice-level discount and without shipping, fees or a deposit (§4), so it disagrees whenever an invoice has any of those. Helper: `RefundAggregator.PreTaxShare`.
+
+### Refunds that give back a deposit
+
+A deposit was never revenue (§4), so the part of a refund that hands it back comes off nothing. Each refund stores that part as `Payment.DepositAmount`, and every refund sum above uses `Payment.RevenueShare`, the rest of the refund as a share of it.
+
+- A refund made in Argo Books names its deposit part: the refund form lists the deposit as its own line, and the payment sync returns that line's amount.
+- A refund made in the provider's dashboard doesn't, so it is taken from the deposit first, which is what a refund on a deposit invoice usually is.
+- Either way, never more than is still held: the deposit less earlier refunds of it and any kept deposit. Refunding a deposit the business kept comes off revenue, because keeping it made it revenue.
+
+Set when the refund is synced (`PaymentPortalService`), and once for older refunds by the open-time heal. Helper: `SecurityDeposits.RefundPortion`.
 
 Helper: `RefundAggregator.GetRefundedPreTaxInDateRangeUSD(payments, invoicesById, start, end)`. `ProfitCalculator` already calls this; new profit surfaces should reuse `ProfitCalculator.CalculateNetProfitUSD` or `CalculateNetProfitByDayUSD` rather than re-deriving the formula.
 
@@ -261,7 +287,7 @@ Worked example:
 
 ### Effect on invoice status
 
-See §6. The status flips to `PartiallyRefunded` or `Refunded` based on `AmountRefunded` vs `Total`.
+See §6. The status flips to `PartiallyRefunded` or `Refunded` by the refund status rule there (net paid vs `Total`).
 
 ---
 
@@ -282,7 +308,8 @@ Expenses are simpler than revenue because there's no "paid vs unpaid" distinctio
 - They use `EffectiveSubtotalUSD` for revenue **and** expense, because formal reports break tax out as a separate liability line.
 - They include all invoiced revenue, not just collected, formal reports typically follow accrual basis. (If the user toggles cash-basis on a report, the report layer applies the paid-only filter itself.)
 - `GetCashFlowData` is the exception inside this service: it correctly uses paid-only revenue plus all Payment cash events plus all Expense rows (which are themselves cash-out events, there is no `PaymentStatus` on expenses).
-- The Balance Sheet lists **Inventory** as a current asset. Its value is computed by `InventoryValuationService.TotalValueAsOf`, which reconstructs each item's stock-on-hand as of the report end date by rolling back, from the current `InStock`, the signed quantity delta of every `StockAdjustment` whose effective date is after that date. An adjustment's effective date is its linked transaction's `Date` when `ReferenceNumber` resolves to a Revenue/Expense, otherwise its own `Timestamp`. Quantity is reconstructed historically; **cost is not** (the app keeps no per-date cost history), so value uses each item's current `UnitCost`, treated as USD-equivalent. The Income Statement and dashboard profit remain cash-basis and unchanged: buying stock is still expensed when purchased, with no COGS matching. Adding inventory as an asset only affects the Balance Sheet's asset total and the derived Retained Earnings balancing figure.
+- The Balance Sheet lists **Inventory** as a current asset. Its value is computed by `InventoryValuationService.TotalValueAsOf`, which reconstructs each item's stock-on-hand as of the report end date by rolling back, from the current `InStock`, the signed quantity delta of every `StockAdjustment` whose effective date is after that date. An adjustment's effective date is its linked transaction's `Date` when `ReferenceNumber` resolves to a Revenue/Expense, otherwise its own `Timestamp`, read as the local day it was made on (timestamps are stored in UTC, and the report date is a local day). Quantity is reconstructed historically; **cost is not** (the app keeps no per-date cost history), so value uses each item's current `UnitCost`, treated as USD-equivalent. The Income Statement and dashboard profit remain cash-basis and unchanged: buying stock is still expensed when purchased, with no COGS matching. Adding inventory as an asset only affects the Balance Sheet's asset total and the derived Retained Earnings balancing figure.
+- The Balance Sheet lists **Security Deposits** as a liability: the deposit on every issued invoice as of the report end date, less what refunds dated by then gave back and any deposit kept by then (`SecurityDeposits.StillHeld`). The invoice total carrying a deposit sits in cash or receivables from the day it is issued, and a deposit is not earned (§4), so without this line it would land in Retained Earnings.
 
 If you find yourself touching these services, do not "fix" them to match the dashboard, they are correct for their context.
 
@@ -290,11 +317,17 @@ If you find yourself touching these services, do not "fix" them to match the das
 
 The Insights tab (trends, anomalies, forecasts, recommendations) follows the **dashboard** rules: `IsCollected` filter + `EffectiveTotalUSD` for revenue figures shown in descriptions, `EffectiveTotalUSD` for expenses. Forecast inputs use the same cash-basis signal so projections match the Revenue stat card. Forecast profit is computed as `forecasted gross revenue − forecasted gross expenses`, an approximation of net profit; the exact net profit formula (§2 Rule 1) is not currently applied to forecasts because doing so would require two parallel revenue series (gross for display, pre-tax for profit).
 
+**Trend comparisons.** Trends compare the chosen period with the one `ComparisonPeriod.For` gives (§12), the same rule as the dashboard, so Last Month is measured against the whole calendar month before it and Last 3 Months against the same number of days just before. The rule reads the preset from `AnalysisDateRange.PresetName`, so the page builds its range with `AnalysisDateRange.FromPreset`; a range made with `AnalysisDateRange.Custom` compares against the same number of days before. A forecast range ("Next Month") is first mapped to this month, quarter or year so far.
+
 **Display currency.** The analytics above run entirely in USD (percentages, z-scores, and forecasting are currency-invariant). Only the amounts shown to the user are converted to the company display currency, display-only: `InsightsService` resolves one currency per run (`ResolveDisplayCode`), the company currency when an exact-date USD→currency rate exists for every conversion date, otherwise "USD" for the whole run (the same all-or-nothing rule reports use, §3a). Description amounts convert each contributing transaction at its own date (`SumDisplay`, §3a Phase 2); statistical means, which have no single date, convert at today's rate. The forecast cards/ranges are "as of now" projections, so `InsightsPageViewModel` converts them at today's rate via `CurrencyService.FormatFromUSD` (warmed with `TryWarmTodayRateAsync`). The free-tier teaser numbers are illustrative and shown with the symbol only, never converted.
+
+**Forecast accuracy.** A live forecast is saved under the period it forecasts: the future range picked on the page ("Next Month" on Sep 11 is Oct 1 to Oct 31). Checking it once that period ends (`ForecastAccuracyService.ValidatePastForecasts`) and the backtests (`RunBacktestAsync`) measure revenue and expenses on the same basis as the forecast itself, gross collected revenue and gross expenses, so every accuracy score compares like with like. Past Predictions shows the stored USD figures the way the forecast cards do, in the display currency at today's rate.
 
 ### Returns and Losses
 
-Returns (customer-returned items) and Losses (lost / damaged inventory) have their own charts but do **not** participate in the revenue / profit / expense pipeline directly. They surface in dedicated "Return Financial Impact" / "Loss Financial Impact" charts that sum `Return.RefundAmount` and `LostDamaged.ValueLost` respectively. The recorded *refund* (a Payment row) is what flows through the revenue / profit subtraction defined in §8.
+Returns (customer-returned items) and Losses (lost / damaged inventory) have their own charts but do **not** participate in the revenue / profit / expense pipeline directly. They surface in dedicated "Return Financial Impact" / "Loss Financial Impact" charts and stat cards that sum `Return.RefundAmount` and `LostDamaged.ValueLost` respectively. The recorded *refund* (a Payment row) is what flows through the revenue / profit subtraction defined in §8.
+
+Neither record stores a USD amount or a currency of its own. The amount is in the currency of the sale or purchase it came from (`Return.OriginalTransactionId`, `LostDamaged.InventoryItemId`), or the company currency when it has none, and each one converts from that currency to the display currency at the record's own date (`ReturnLossAmounts.CurrencyOf`, `CurrencyService.GetDisplayAmountFromNative`, §3a). An amount already in the display currency is used as it is. One whose rate is missing counts as 0 on a chart and shows Pending on a stat card.
 
 ### Bank matching
 
@@ -316,11 +349,15 @@ Bank Matching (`BankMatchingService`) is a non-financial reference layer: it imp
 | Revenue vs Expenses | `EffectiveTotalUSD` | `EffectiveTotalUSD` | Yes (revenue side) | Full amount (revenue side) |
 | Top Customers by Revenue | `EffectiveTotalUSD` | — | Yes | Full amount |
 | Customer Lifetime Value | `EffectiveTotalUSD` | — | Yes | Full amount |
+| Revenue Growth (Analytics) | `EffectiveTotalUSD` | — | Yes | Full amount |
+| Avg Shipping Cost (Analytics) | `EffectiveShippingCostUSD` | `EffectiveShippingCostUSD` | Yes (revenue side) | n/a |
+| Return / Loss Financial Impact | `Return.RefundAmount`, in its sale's currency (§10) | `LostDamaged.ValueLost`, in its sale's or purchase's currency (§10) | n/a | n/a |
+| Forecasts, backtests and accuracy checks (Insights) | `EffectiveTotalUSD` | `EffectiveTotalUSD` | Yes (revenue side) | Not applied |
 | Geographic / Country charts | `EffectiveTotalUSD` | `EffectiveTotalUSD` | Yes (revenue side) | (not applied, TODO) |
 | Outstanding Invoices stat | `EffectiveBalanceUSD` | — | **No** (by design) | n/a |
 | Overdue Invoices stat | `EffectiveBalanceUSD` | — | **No** (by design) | n/a |
 | Revenue page list | `EffectiveTotalUSD` | — | **No** (shows all) | n/a |
-| Income Statement / GL | `EffectiveSubtotalUSD` | `EffectiveSubtotalUSD` | Per-report setting | Per-report setting |
+| Income Statement / GL | `EffectiveSubtotalUSD` | `EffectiveSubtotalUSD` | No (accrual) | Pre-tax portion |
 | Sales by Product (Analytics tab) | `EffectiveTotalUSD` (allocated per line item) | — | Yes | Not applied (see §13) |
 | Sales by Product (Report) | `EffectiveTotalUSD` (allocated per line item) | — | No (accrual) | Not applied (see §13) |
 
@@ -340,7 +377,9 @@ When writing or reviewing aggregation code:
 - `RefundAggregator.GroupRefundsByDayUSD(payments, start, end)`: per-day refund map for time-series charts.
 - `ProfitCalculator.CalculateNetProfitUSD(data, start, end)`: the cross-cutting net profit formula. Use this; don't re-derive.
 - `ProfitCalculator.CalculateNetProfitByDayUSD(data, start, end)`: per-day profit for charts.
+- `ComparisonPeriod.For(preset, start, end)`: the period every "vs previous period" figure compares against (dashboard, Analytics, Insights trends). This month, quarter or year so far compares with the same days of the one before, stopping at its end when it is shorter (This Month on Sep 11 is Aug 1 to Aug 11; This Year on Feb 29 is Jan 1 to Feb 28). Last month, quarter or year compares with the whole calendar period before it. Everything else compares with the same number of days just before.
 - `InvoiceTotalsService.Recalculate(invoice, allPayments)`: call after any mutation to an invoice's payment list.
+- `InvoiceMath`: the §4 per-invoice formula (subtotal, discount, fee, taxable base, tax, total). Anything that needs an invoice figure calls it rather than re-deriving the arithmetic.
 
 **Display helpers (`ArgoBooks/Services/`):**
 - `CurrencyService.FormatFromUSD(amountUSD, date)`: USD → display currency string. Use as the last step before binding to a UI text.

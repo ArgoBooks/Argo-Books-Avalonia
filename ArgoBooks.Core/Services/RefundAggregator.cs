@@ -11,6 +11,9 @@ namespace ArgoBooks.Core.Services;
 /// issued, not the date of the original payment. Same-day refund nets to zero
 /// on that day; multi-day refund leaves the original day's revenue intact and
 /// produces a negative on the refund's day.
+///
+/// Only the part of a refund that was revenue comes off: a security deposit it
+/// gave back was never counted (<see cref="Payment.RevenueShare"/>, §8).
 /// </summary>
 public static class RefundAggregator
 {
@@ -22,7 +25,7 @@ public static class RefundAggregator
     {
         return allPayments
             .Where(p => p.IsRefund && p.Date >= start && p.Date <= end)
-            .Sum(p => Math.Abs(p.EffectiveAmountUSD));
+            .Sum(p => Math.Abs(p.EffectiveAmountUSD) * p.RevenueShare);
     }
 
     /// <summary>
@@ -35,7 +38,7 @@ public static class RefundAggregator
     {
         return allPayments
             .Where(p => p.IsRefund && p.Date >= start && p.Date <= end)
-            .Sum(p => toDisplay(Math.Abs(p.EffectiveAmountUSD), p.Date));
+            .Sum(p => toDisplay(Math.Abs(p.EffectiveAmountUSD) * p.RevenueShare, p.Date));
     }
 
     /// <summary>
@@ -49,14 +52,48 @@ public static class RefundAggregator
         return allPayments
             .Where(p => p.IsRefund && p.Date >= start && p.Date <= end)
             .GroupBy(p => p.Date.Date)
-            .ToDictionary(g => g.Key, g => g.Sum(p => Math.Abs(p.EffectiveAmountUSD)));
+            .ToDictionary(g => g.Key, g => g.Sum(p => Math.Abs(p.EffectiveAmountUSD) * p.RevenueShare));
     }
 
     /// <summary>
+    /// The share of an invoice's revenue that was before tax: total less deposit and tax, over total
+    /// less deposit, which is what the invoice's revenue counted. It scales the revenue part of a
+    /// refund; the deposit part came off nothing. Not Subtotal/Total: Subtotal is the line sum
+    /// before an invoice discount and without shipping or fees, so it took the wrong amount off
+    /// profit whenever an invoice had any of those. An invoice that is all deposit has no tax.
+    /// </summary>
+    public static decimal PreTaxShare(Invoice invoice)
+    {
+        var revenue = invoice.Total - invoice.SecurityDeposit;
+        return revenue > 0 ? (revenue - invoice.TaxAmount) / revenue : 1m;
+    }
+
+    /// <summary>
+    /// The pre-tax USD part of one refund: its revenue part scaled by its invoice's
+    /// <see cref="PreTaxShare"/>, or the whole revenue part when the invoice link is missing.
+    /// </summary>
+    public static decimal PreTaxPortionUSD(Payment refund, IReadOnlyDictionary<string, Invoice> invoicesById)
+    {
+        var refundUSD = Math.Abs(refund.EffectiveAmountUSD) * refund.RevenueShare;
+        return !string.IsNullOrEmpty(refund.InvoiceId)
+               && invoicesById.TryGetValue(refund.InvoiceId, out var invoice)
+               && invoice.Total > 0
+            ? refundUSD * PreTaxShare(invoice)
+            : refundUSD;
+    }
+
+    /// <summary>
+    /// The sales tax one refund handed back (USD): its revenue part less the pre-tax part. The
+    /// deposit part carried no tax.
+    /// </summary>
+    public static decimal TaxPortionUSD(Payment refund, IReadOnlyDictionary<string, Invoice> invoicesById) =>
+        Math.Abs(refund.EffectiveAmountUSD) * refund.RevenueShare - PreTaxPortionUSD(refund, invoicesById);
+
+    /// <summary>
     /// Pre-tax USD portion of refunds inside [start, end], for profit math.
-    /// Each refund is scaled by its invoice's Subtotal/Total ratio so the
-    /// tax part of the refund, which was never profit on the revenue side,
-    /// isn't subtracted again. Falls back to the full refund amount when
+    /// Each refund's revenue part is scaled by its invoice's <see cref="PreTaxShare"/>
+    /// so the tax part of the refund, which was never profit on the revenue side,
+    /// isn't subtracted again. Falls back to the full revenue part when
     /// the invoice link is missing.
     /// See docs/Calculations.md §8 for the rationale.
     /// </summary>
@@ -65,22 +102,9 @@ public static class RefundAggregator
         IReadOnlyDictionary<string, Invoice> invoicesById,
         DateTime start, DateTime end)
     {
-        decimal sum = 0m;
-        foreach (var p in allPayments.Where(x => x.IsRefund && x.Date >= start && x.Date <= end))
-        {
-            var refundTotalUSD = Math.Abs(p.EffectiveAmountUSD);
-            if (!string.IsNullOrEmpty(p.InvoiceId)
-                && invoicesById.TryGetValue(p.InvoiceId, out var invoice)
-                && invoice.Total > 0)
-            {
-                sum += refundTotalUSD * (invoice.Subtotal / invoice.Total);
-            }
-            else
-            {
-                sum += refundTotalUSD;
-            }
-        }
-        return sum;
+        return allPayments
+            .Where(x => x.IsRefund && x.Date >= start && x.Date <= end)
+            .Sum(p => PreTaxPortionUSD(p, invoicesById));
     }
 
     /// <summary>
@@ -93,23 +117,8 @@ public static class RefundAggregator
         IReadOnlyDictionary<string, Invoice> invoicesById,
         DateTime start, DateTime end, Func<decimal, DateTime, decimal> toDisplay)
     {
-        decimal sum = 0m;
-        foreach (var p in allPayments.Where(x => x.IsRefund && x.Date >= start && x.Date <= end))
-        {
-            var refundTotalUSD = Math.Abs(p.EffectiveAmountUSD);
-            decimal preTaxUSD;
-            if (!string.IsNullOrEmpty(p.InvoiceId)
-                && invoicesById.TryGetValue(p.InvoiceId, out var invoice)
-                && invoice.Total > 0)
-            {
-                preTaxUSD = refundTotalUSD * (invoice.Subtotal / invoice.Total);
-            }
-            else
-            {
-                preTaxUSD = refundTotalUSD;
-            }
-            sum += toDisplay(preTaxUSD, p.Date);
-        }
-        return sum;
+        return allPayments
+            .Where(x => x.IsRefund && x.Date >= start && x.Date <= end)
+            .Sum(p => toDisplay(PreTaxPortionUSD(p, invoicesById), p.Date));
     }
 }

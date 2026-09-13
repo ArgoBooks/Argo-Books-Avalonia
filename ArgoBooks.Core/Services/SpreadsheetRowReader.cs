@@ -184,7 +184,16 @@ internal static class SpreadsheetRowReader
         };
     }
 
+    public enum DateOrder { Unknown, MonthFirst, DayFirst }
+
     public static DateTime GetDateTime(List<object?> row, List<string> headers, string columnName)
+        => GetDateTime(row, headers, columnName, DateOrder.Unknown);
+
+    /// <summary>
+    /// Reads a date cell, parsing text in the given <paramref name="order"/> (from
+    /// <see cref="DetectDateOrder"/>) so every row of a column is read the same way.
+    /// </summary>
+    public static DateTime GetDateTime(List<object?> row, List<string> headers, string columnName, DateOrder order)
     {
         var index = GetColumnIndex(headers, columnName);
         if (index < 0 || index >= row.Count) return DateTime.MinValue;
@@ -194,19 +203,69 @@ internal static class SpreadsheetRowReader
         {
             DateTime dt => dt,
             double d => DateTime.FromOADate(d),
-            string s => ParseDateString(s),
+            string s => ParseDateString(s, order),
             _ => DateTime.MinValue
         };
     }
 
-    // Day-first formats the invariant (month-first) parse rejects, e.g. UK/EU "15/03/2023" or
-    // "15.03.2023". Tried ONLY after the invariant parse fails, so a date that already parses
-    // month-first (like "03/01/2023" -> March 1) is never reinterpreted as day-first.
+    /// <summary>
+    /// Decides once for a whole column whether its numeric dates are day-first or month-first. A
+    /// first field over 12 can only be a day, and so can a second field over 12, so one such value
+    /// settles the column. Unknown when nothing settles it (every field is 12 or under) or the
+    /// column contradicts itself; those values keep the per-value parse, which reads month-first.
+    /// </summary>
+    public static DateOrder DetectDateOrder(List<List<object?>> rows, List<string> headers, string columnName)
+    {
+        var index = GetColumnIndex(headers, columnName);
+        if (index < 0) return DateOrder.Unknown;
+
+        bool dayFirst = false, monthFirst = false;
+        foreach (var row in rows)
+        {
+            if (index >= row.Count || row[index] is not string s) continue;
+
+            // A year-first date (2024-03-05) is never ambiguous, so only 1-2 digit leading fields count.
+            var parts = s.Trim().Split('/', '.', '-');
+            if (parts.Length < 3 || parts[0].Length > 2 ||
+                !int.TryParse(parts[0], NumberStyles.None, CultureInfo.InvariantCulture, out var first) ||
+                !int.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out var second))
+                continue;
+
+            if (first > 12) dayFirst = true;
+            if (second > 12) monthFirst = true;
+        }
+
+        if (dayFirst == monthFirst) return DateOrder.Unknown;
+        return dayFirst ? DateOrder.DayFirst : DateOrder.MonthFirst;
+    }
+
+    // Day-first formats, e.g. UK/EU "15/03/2023" or "15.03.2023". Unless the column is known to be
+    // day-first they're tried ONLY after the invariant (month-first) parse fails, so a date that
+    // already parses month-first (like "03/01/2023" -> March 1) is never reinterpreted as day-first.
     private static readonly string[] DayFirstDateFormats =
         ["d/M/yyyy", "dd/MM/yyyy", "d.M.yyyy", "dd.MM.yyyy", "d-M-yyyy", "dd-MM-yyyy"];
 
-    private static DateTime ParseDateString(string s)
+    // Invariant with a day-first short date pattern, which is what orders an ambiguous value with
+    // a time ("05/03/2024 10:30") in the lenient parse. Cloned from invariant so it doesn't depend
+    // on the cultures installed on the machine.
+    private static readonly CultureInfo DayFirstCulture = CreateDayFirstCulture();
+
+    private static CultureInfo CreateDayFirstCulture()
     {
+        var culture = (CultureInfo)CultureInfo.InvariantCulture.Clone();
+        culture.DateTimeFormat.ShortDatePattern = "dd/MM/yyyy";
+        return culture;
+    }
+
+    private static DateTime ParseDateString(string s, DateOrder order)
+    {
+        if (order == DateOrder.DayFirst)
+        {
+            if (DateTime.TryParseExact(s.Trim(), DayFirstDateFormats, CultureInfo.InvariantCulture, DateTimeStyles.None, out var exact))
+                return exact;
+            return DateTime.TryParse(s, DayFirstCulture, DateTimeStyles.None, out var lenient) ? lenient : DateTime.MinValue;
+        }
+
         if (DateTime.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.None, out var result))
             return result;
         if (DateTime.TryParseExact(s, DayFirstDateFormats, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dayFirst))
@@ -215,8 +274,11 @@ internal static class SpreadsheetRowReader
     }
 
     public static DateTime? GetNullableDateTime(List<object?> row, List<string> headers, string columnName)
+        => GetNullableDateTime(row, headers, columnName, DateOrder.Unknown);
+
+    public static DateTime? GetNullableDateTime(List<object?> row, List<string> headers, string columnName, DateOrder order)
     {
-        var dt = GetDateTime(row, headers, columnName);
+        var dt = GetDateTime(row, headers, columnName, order);
         return dt == DateTime.MinValue ? null : dt;
     }
 }

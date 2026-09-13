@@ -8,11 +8,7 @@ namespace ArgoBooks.Tests.Services;
 
 /// <summary>
 /// A master-data / entity sheet with no ID column (or blank ID cells) must still import every
-/// distinct row. Before the fix, a blank ID matched every other blank-ID row via
-/// <c>FirstOrDefault(x =&gt; x.Id == id)</c>, so with SkipExistingRecords the first row imported and the
-/// rest were dropped as "already exists" (N rows collapsed into 1). The fix mints a unique id for
-/// blank-ID rows (mirroring the existing ImportPurchases/ImportPayments/ImportSales fix) and skips
-/// fully-empty rows so trailing template blanks aren't imported as junk.
+/// distinct row. The fix mints a unique id for blank-ID rows and skips fully-empty rows so trailing template blanks aren't imported as junk.
 /// </summary>
 public class ImportBlankIdCollapseTests
 {

@@ -9,6 +9,7 @@ using ArgoBooks.Core.Models.Transactions;
 using ArgoBooks.Core.Services;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
+using ArgoBooks.Shared.Telemetry;
 using Avalonia;
 using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -47,6 +48,12 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     /// Whether to use cost price (expenses) or selling price (revenue) for products.
     /// </summary>
     protected abstract bool UseCostPrice { get; }
+
+    /// <summary>
+    /// Whether lines take a typed item name and category, creating the product and category on
+    /// save when they don't exist yet, and letting a line move its product to another category.
+    /// </summary>
+    protected virtual bool AllowsTypedItems => false;
 
     #endregion
 
@@ -258,7 +265,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     private decimal _originalFee;
     private string _originalPaymentMethod = "Cash";
     private string _originalNotes = string.Empty;
-    private List<(string? ProductId, string Description, decimal? Quantity, decimal? UnitPrice)> _originalLineItems = [];
+    private List<(string? ProductId, string? CategoryId, string Description, decimal? Quantity, decimal? UnitPrice, string? ItemText, string? CategoryText)> _originalLineItems = [];
 
     /// <summary>
     /// Returns true if any data has been entered in the Add modal.
@@ -271,7 +278,15 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         ModalShipping > 0 ||
         ModalDiscount > 0 ||
         ModalFee > 0 ||
-        LineItems.Any(li => li.SelectedProduct != null || !string.IsNullOrWhiteSpace(li.Description) || (li.UnitPrice ?? 0) > 0);
+        LineItems.Any(li => li.SelectedProduct != null || li.SelectedCategory != null || !string.IsNullOrWhiteSpace(li.Description) || (li.UnitPrice ?? 0) > 0 ||
+                            !string.IsNullOrWhiteSpace(li.ItemText) || !string.IsNullOrWhiteSpace(li.CategoryText));
+
+    /// <summary>
+    /// Typed text counts as a change even though it moves no selection: typing over a picked
+    /// product changes only the box's text, and that text is what the save acts on.
+    /// </summary>
+    private static bool SameText(string? a, string? b) =>
+        string.Equals(a?.Trim() ?? string.Empty, b?.Trim() ?? string.Empty, StringComparison.Ordinal);
 
     /// <summary>
     /// Returns true if any changes have been made in the Edit modal compared to original values.
@@ -297,9 +312,12 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
                 var current = LineItems[i];
                 var original = _originalLineItems[i];
                 if (current.SelectedProduct?.Id != original.ProductId ||
+                    current.SelectedCategory?.Id != original.CategoryId ||
                     current.Description != original.Description ||
                     current.Quantity != original.Quantity ||
-                    current.UnitPrice != original.UnitPrice)
+                    current.UnitPrice != original.UnitPrice ||
+                    !SameText(current.ItemText, original.ItemText) ||
+                    !SameText(current.CategoryText, original.CategoryText))
                     return true;
             }
 
@@ -321,7 +339,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         _originalFee = ModalFee;
         _originalPaymentMethod = SelectedPaymentMethod;
         _originalNotes = ModalNotes;
-        _originalLineItems = LineItems.Select(li => (li.SelectedProduct?.Id, li.Description, li.Quantity, li.UnitPrice)).ToList();
+        _originalLineItems = LineItems.Select(li => (li.SelectedProduct?.Id, li.SelectedCategory?.Id, li.Description, li.Quantity, li.UnitPrice, li.ItemText, li.CategoryText)).ToList();
     }
 
     // Computed totals
@@ -334,19 +352,44 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     public decimal FeeAmount => ModalFee;
     public decimal Total => Subtotal + TaxAmount + ShippingAmount + FeeAmount - DiscountAmount;
 
-    public string SubtotalFormatted => CurrencyService.Format(Subtotal);
-    public string TaxAmountFormatted => CurrencyService.Format(TaxAmount);
+    /// <summary>
+    /// The currency of the entry being edited when it isn't the company's, otherwise null. An entry
+    /// keeps its own currency, so its amounts load and save as recorded.
+    /// </summary>
+    private string? _entryCurrency;
+
+    /// <summary>The currency the form's amounts are in.</summary>
+    protected string FormCurrencyCode => _entryCurrency ?? CurrencyService.CurrentCurrencyCode;
+
+    /// <summary>
+    /// Follows the tax label. Another currency is named by its code, since several share a symbol.
+    /// </summary>
+    public string TaxCurrencyLabel => $" ({_entryCurrency ?? CurrencyService.CurrentSymbol})";
+
+    private void SetEntryCurrency(string? currency)
+    {
+        _entryCurrency = currency;
+        OnPropertyChanged(nameof(TaxCurrencyLabel));
+    }
+
+    private string FormatAmount(decimal amount) =>
+        _entryCurrency == null ? CurrencyService.Format(amount) : CurrencyInfo.GetByCode(_entryCurrency).Format(amount);
+
+    public string SubtotalFormatted => FormatAmount(Subtotal);
+    public string TaxAmountFormatted => FormatAmount(TaxAmount);
     // Only show the leading "-" (and the green "savings" colour, via HasDiscount) when there's an
     // actual discount; a zero discount reads as a plain neutral amount like the other lines.
     public string DiscountAmountFormatted => DiscountAmount > 0
-        ? $"-{CurrencyService.Format(DiscountAmount)}"
-        : CurrencyService.Format(DiscountAmount);
+        ? $"-{FormatAmount(DiscountAmount)}"
+        : FormatAmount(DiscountAmount);
 
     /// <summary>True when a discount is applied, used to colour the discount amount green.</summary>
     public bool HasDiscount => DiscountAmount > 0;
-    public string ShippingAmountFormatted => CurrencyService.Format(ShippingAmount);
-    public string FeeAmountFormatted => CurrencyService.Format(FeeAmount);
-    public string TotalFormatted => CurrencyService.Format(Total);
+    public string ShippingAmountFormatted => FormatAmount(ShippingAmount);
+    public string FeeAmountFormatted => FormatAmount(FeeAmount);
+    public string TotalFormatted => _entryCurrency == null
+        ? CurrencyService.Format(Total)
+        : CurrencyInfo.GetByCode(_entryCurrency).Format(Total, includeCode: true);
 
     partial void OnModalQuantityChanged(decimal value) => UpdateTotals();
     partial void OnModalUnitPriceChanged(decimal value) => UpdateTotals();
@@ -355,7 +398,15 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     partial void OnModalDiscountChanged(decimal value) => UpdateTotals();
     partial void OnModalFeeChanged(decimal value) => UpdateTotals();
 
-    private void OnLineItemPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e) => UpdateTotals();
+    private void OnLineItemPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        // A picked product brings its category into the line's category box.
+        if (e.PropertyName == nameof(TransactionLineItemBase.SelectedProduct) &&
+            sender is TLineItem { SelectedProduct: { } product } lineItem)
+            lineItem.SelectedCategory = CategoryOptionFor(product);
+
+        UpdateTotals();
+    }
 
     protected void UpdateTotals()
     {
@@ -399,13 +450,13 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
             HasTotalMismatchWarning = true;
             TotalMismatchWarningMessage = string.Format(
                 "Line items ({0}) + tax ({1}) + shipping ({2}) + fee ({3}) - discount ({4}) = {5}, but the stored total is {6}. Some values may be incorrect.".Translate(),
-                CurrencyService.Format(Subtotal),
-                CurrencyService.Format(TaxAmount),
-                CurrencyService.Format(ShippingAmount),
-                CurrencyService.Format(FeeAmount),
-                CurrencyService.Format(DiscountAmount),
-                CurrencyService.Format(Total),
-                CurrencyService.Format(storedTotal));
+                FormatAmount(Subtotal),
+                FormatAmount(TaxAmount),
+                FormatAmount(ShippingAmount),
+                FormatAmount(FeeAmount),
+                FormatAmount(DiscountAmount),
+                FormatAmount(Total),
+                FormatAmount(storedTotal));
         }
     }
 
@@ -523,7 +574,8 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
                 Id = product.Id,
                 Name = product.Name,
                 Description = product.Description,
-                UnitPrice = UseCostPrice ? product.CostPrice : product.UnitPrice
+                UnitPrice = UseCostPrice ? product.CostPrice : product.UnitPrice,
+                CategoryId = product.CategoryId
             });
         }
     }
@@ -592,31 +644,15 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         var product = productId != null ? App.CompanyManager?.CompanyData?.GetProduct(productId) : null;
         SelectedCategory = CategoryOptions.FirstOrDefault(c => c.Id == product?.CategoryId);
 
-        // Convert monetary values to current display currency if needed
-        var txCurrency = transaction.OriginalCurrency ?? "USD";
-        var currentCurrency = CurrencyService.CurrentCurrencyCode;
-        var needsConversion = !string.Equals(txCurrency, currentCurrency, StringComparison.OrdinalIgnoreCase);
+        // Amounts load as recorded, in the entry's own currency. Converting them into the company
+        // currency made saving an untouched EUR 100 entry relabel it as a company-currency 125.
+        var txCurrency = string.IsNullOrEmpty(transaction.OriginalCurrency) ? "USD" : transaction.OriginalCurrency.ToUpperInvariant();
+        SetEntryCurrency(string.Equals(txCurrency, CurrencyService.CurrentCurrencyCode, StringComparison.OrdinalIgnoreCase) ? null : txCurrency);
 
-        if (needsConversion)
-        {
-            // Convert from original currency amounts using their USD equivalents (with fallback for legacy data)
-            var taxUSD = transaction.TaxAmountUSD > 0 ? transaction.TaxAmountUSD : transaction.TaxAmount;
-            var shippingUSD = transaction.ShippingCostUSD > 0 ? transaction.ShippingCostUSD : transaction.ShippingCost;
-            var discountUSD = transaction.DiscountUSD > 0 ? transaction.DiscountUSD : transaction.Discount;
-            var feeUSD = transaction.FeeUSD > 0 ? transaction.FeeUSD : transaction.Fee;
-
-            ModalTaxAmount = CurrencyService.GetDisplayAmount(taxUSD, transaction.Date);
-            ModalShipping = CurrencyService.GetDisplayAmount(shippingUSD, transaction.Date);
-            ModalDiscount = CurrencyService.GetDisplayAmount(discountUSD, transaction.Date);
-            ModalFee = CurrencyService.GetDisplayAmount(feeUSD, transaction.Date);
-        }
-        else
-        {
-            ModalTaxAmount = transaction.TaxAmount;
-            ModalShipping = transaction.ShippingCost;
-            ModalDiscount = transaction.Discount;
-            ModalFee = transaction.Fee;
-        }
+        ModalTaxAmount = transaction.TaxAmount;
+        ModalShipping = transaction.ShippingCost;
+        ModalDiscount = transaction.Discount;
+        ModalFee = transaction.Fee;
 
         SelectedPaymentMethod = transaction.PaymentMethod.ToString();
         ModalNotes = transaction.Notes;
@@ -626,17 +662,20 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         {
             foreach (var li in transaction.LineItems)
             {
-                var unitPrice = needsConversion
-                    ? CurrencyService.GetDisplayAmount(transaction.EffectiveUnitPriceUSD, transaction.Date)
-                    : li.UnitPrice;
-
+                var selectedProduct = ProductOptions.FirstOrDefault(p => p.Id == li.ProductId) ?? StoredProductOption(li.ProductId);
                 var lineItem = new TLineItem
                 {
-                    SelectedProduct = ProductOptions.FirstOrDefault(p => p.Id == li.ProductId),
+                    CurrencyCode = _entryCurrency,
+                    SelectedProduct = selectedProduct,
+                    SelectedCategory = CategoryOptionFor(selectedProduct),
                     Description = li.Description,
                     Quantity = li.Quantity,
-                    UnitPrice = unitPrice
+                    UnitPrice = li.UnitPrice
                 };
+                // Fill each box's text along with its selection, so what the box shows never depends
+                // on which of its two bindings the dropdown applies first.
+                lineItem.ItemText = selectedProduct?.Name ?? li.Description;
+                lineItem.CategoryText = lineItem.SelectedCategory?.Name;
                 lineItem.PropertyChanged += OnLineItemPropertyChanged;
                 LineItems.Add(lineItem);
             }
@@ -644,15 +683,13 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         else
         {
             // Fallback for old data without line items
-            var unitPrice = needsConversion
-                ? CurrencyService.GetDisplayAmount(transaction.EffectiveUnitPriceUSD, transaction.Date)
-                : transaction.UnitPrice;
-
             var lineItem = new TLineItem
             {
+                CurrencyCode = _entryCurrency,
                 Description = transaction.Description,
+                ItemText = transaction.Description,
                 Quantity = transaction.Quantity,
-                UnitPrice = unitPrice
+                UnitPrice = transaction.UnitPrice
             };
             lineItem.PropertyChanged += OnLineItemPropertyChanged;
             LineItems.Add(lineItem);
@@ -683,10 +720,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         ClearValidationErrors();
 
         // Check if stored total matches recomputed total (catches AI receipt scan mismatches)
-        var storedTotal = needsConversion
-            ? CurrencyService.GetDisplayAmount(transaction.TotalUSD > 0 ? transaction.TotalUSD : transaction.Total, transaction.Date)
-            : transaction.Total;
-        ValidateTotalMismatch(storedTotal);
+        ValidateTotalMismatch(transaction.Total);
 
         // Capture original values for change detection
         CaptureOriginalValues();
@@ -894,21 +928,42 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
             return;
         }
 
-        // Validate that all line items have a product selected
+        // Every line needs a product. Where lines take typed items, a name that matches no product is
+        // created as one on save (ResolveTypedItems), so here it only needs a category to go in.
         var hasProductErrors = false;
+        var hasCategoryErrors = false;
         foreach (var lineItem in LineItems)
         {
-            if (lineItem.SelectedProduct == null)
+            if (!AllowsTypedItems)
+            {
+                if (lineItem.SelectedProduct == null)
+                {
+                    lineItem.HasProductError = true;
+                    hasProductErrors = true;
+                }
+                continue;
+            }
+
+            if (FindExistingProduct(lineItem) != null) continue;
+
+            if (string.IsNullOrWhiteSpace(lineItem.ItemText))
             {
                 lineItem.HasProductError = true;
                 hasProductErrors = true;
             }
+            if (lineItem.SelectedCategory == null && string.IsNullOrWhiteSpace(lineItem.CategoryText))
+            {
+                lineItem.HasCategoryError = true;
+                hasCategoryErrors = true;
+            }
         }
 
-        if (hasProductErrors)
+        if (hasProductErrors || hasCategoryErrors)
         {
-            ReportValidationBlock("line-item-missing-product");
-            ValidationMessage = "Please select a product for all line items".Translate();
+            ReportValidationBlock(hasProductErrors ? "line-item-missing-product" : "line-item-missing-category");
+            ValidationMessage = AllowsTypedItems
+                ? "Each line needs an item and a category".Translate()
+                : "Please select a product for all line items".Translate();
             HasValidationMessage = true;
             ScrollToLineItemsRequested?.Invoke(this, EventArgs.Empty);
             return;
@@ -917,6 +972,20 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         var companyData = App.CompanyManager?.CompanyData;
         if (companyData == null) return;
 
+        List<TypedLine>? typedLines = null;
+        if (AllowsTypedItems)
+        {
+            typedLines = PlanTypedItems(companyData, out var typedProblem);
+            if (typedLines == null)
+            {
+                ReportValidationBlock("line-item-typed-conflict");
+                ValidationMessage = typedProblem;
+                HasValidationMessage = true;
+                ScrollToLineItemsRequested?.Invoke(this, EventArgs.Empty);
+                return;
+            }
+        }
+
         IsSavingTransaction = true;
         try
         {
@@ -924,7 +993,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
             await Task.Delay(1);
 
             // Perform USD conversion if currency is not USD
-            var currentCurrency = CurrencyService.CurrentCurrencyCode;
+            var currentCurrency = FormCurrencyCode;
             var transactionDate = ModalDate?.DateTime ?? DateTime.Now;
 
             IsPendingConversion = false;
@@ -946,11 +1015,11 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
                     var rate = await exchangeService.GetExchangeRateAsync(currentCurrency, "USD", transactionDate, fetchIfMissing: true);
                     if (rate > 0)
                     {
-                        ConvertedTotal = await CurrencyService.CreateMonetaryValueAsync(Total, transactionDate);
-                        ConvertedTaxAmount = await CurrencyService.CreateMonetaryValueAsync(TaxAmount, transactionDate);
-                        ConvertedShippingCost = await CurrencyService.CreateMonetaryValueAsync(ShippingAmount, transactionDate);
-                        ConvertedDiscount = await CurrencyService.CreateMonetaryValueAsync(DiscountAmount, transactionDate);
-                        ConvertedFee = await CurrencyService.CreateMonetaryValueAsync(FeeAmount, transactionDate);
+                        ConvertedTotal = await CurrencyService.CreateMonetaryValueAsync(Total, currentCurrency, transactionDate);
+                        ConvertedTaxAmount = await CurrencyService.CreateMonetaryValueAsync(TaxAmount, currentCurrency, transactionDate);
+                        ConvertedShippingCost = await CurrencyService.CreateMonetaryValueAsync(ShippingAmount, currentCurrency, transactionDate);
+                        ConvertedDiscount = await CurrencyService.CreateMonetaryValueAsync(DiscountAmount, currentCurrency, transactionDate);
+                        ConvertedFee = await CurrencyService.CreateMonetaryValueAsync(FeeAmount, currentCurrency, transactionDate);
                     }
                     else
                     {
@@ -983,6 +1052,9 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
                 ConvertedDiscount = new MonetaryValue(DiscountAmount, "USD", DiscountAmount, transactionDate);
                 ConvertedFee = new MonetaryValue(FeeAmount, "USD", FeeAmount, transactionDate);
             }
+
+            if (typedLines != null)
+                ResolveTypedItems(companyData, typedLines);
 
             if (IsEditMode)
             {
@@ -1052,6 +1124,264 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         }).ToList();
     }
 
+    private CategoryOption? FindCategoryOption(string? name) =>
+        string.IsNullOrWhiteSpace(name)
+            ? null
+            : CategoryOptions.FirstOrDefault(c => string.Equals(c.Name, name.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    private ProductOption? FindProductOption(string? name) =>
+        string.IsNullOrWhiteSpace(name)
+            ? null
+            : ProductOptions.FirstOrDefault(p => string.Equals(p.Name, name.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    private CategoryOption? CategoryOptionFor(ProductOption? product) =>
+        product?.CategoryId == null ? null : CategoryOptions.FirstOrDefault(c => c.Id == product.CategoryId);
+
+    /// <summary>
+    /// A product a saved line points at that this form does not list: a phone capture matches
+    /// products by name on either side, so an expense line can hold a revenue product. Kept as the
+    /// line's product, or its name reads as a new item clashing with that same product.
+    /// </summary>
+    private ProductOption? StoredProductOption(string? productId)
+    {
+        if (string.IsNullOrEmpty(productId) || App.CompanyManager?.CompanyData?.GetProduct(productId) is not { } product)
+            return null;
+
+        return new ProductOption
+        {
+            Id = product.Id,
+            Name = product.Name,
+            Description = product.Description,
+            UnitPrice = UseCostPrice ? product.CostPrice : product.UnitPrice,
+            CategoryId = product.CategoryId
+        };
+    }
+
+    /// <summary>
+    /// The existing product a line refers to: the picked one while the item box still shows its
+    /// name, otherwise the product whose name was typed, if there is one.
+    /// </summary>
+    private ProductOption? FindExistingProduct(TLineItem lineItem)
+    {
+        var text = lineItem.ItemText?.Trim();
+        if (lineItem.SelectedProduct != null &&
+            (string.IsNullOrEmpty(text) || string.Equals(text, lineItem.SelectedProduct.Name, StringComparison.OrdinalIgnoreCase)))
+            return lineItem.SelectedProduct;
+        return FindProductOption(text);
+    }
+
+    /// <summary>What one line's boxes name, worked out before anything is created or moved.</summary>
+    private sealed class TypedLine
+    {
+        public required TLineItem Line { get; init; }
+
+        /// <summary>The existing product, or null when <see cref="NewProductName"/> is to be created.</summary>
+        public ProductOption? Product { get; init; }
+
+        public string? NewProductName { get; init; }
+
+        /// <summary>The existing category, or null when <see cref="NewCategoryName"/> is to be created or the box is empty.</summary>
+        public CategoryOption? Category { get; init; }
+
+        public string? NewCategoryName { get; init; }
+
+        /// <summary>Whether the existing <see cref="Product"/> moves into the line's category.</summary>
+        public bool MovesProduct { get; init; }
+    }
+
+    /// <summary>
+    /// Works out what each line's item and category boxes name, and refuses a save that would
+    /// contradict itself, before anything is created or moved. The boxes' text decides, not their
+    /// selections, because typing over a pick changes only the text. Clearing a selection is no
+    /// way round that: the dropdown empties its text when its selection is cleared.
+    /// </summary>
+    /// <returns>The plan, or null with <paramref name="problem"/> saying what to fix.</returns>
+    private List<TypedLine>? PlanTypedItems(CompanyData companyData, out string problem)
+    {
+        problem = string.Empty;
+        var plan = new List<TypedLine>();
+
+        // Where each product starts the save. Every line is compared with this rather than with a
+        // move an earlier line asked for.
+        string? StartingCategory(ProductOption option) =>
+            companyData.GetProduct(option.Id ?? string.Empty)?.CategoryId ?? option.CategoryId;
+
+        foreach (var lineItem in LineItems)
+        {
+            var categoryText = lineItem.CategoryText?.Trim();
+            var category = lineItem.SelectedCategory;
+            string? newCategoryName = null;
+            if (!string.IsNullOrEmpty(categoryText) &&
+                !string.Equals(categoryText, lineItem.SelectedCategory?.Name, StringComparison.OrdinalIgnoreCase))
+            {
+                category = FindCategoryOption(categoryText);
+                if (category == null)
+                    newCategoryName = categoryText;
+            }
+
+            var product = FindExistingProduct(lineItem);
+            if (product == null)
+            {
+                var name = lineItem.ItemText?.Trim();
+                if (string.IsNullOrEmpty(name)) continue;
+
+                // Product names are unique across expenses and revenue, and this form lists only
+                // its own side, so a name from the other side matched nothing above.
+                if (companyData.Products.Any(p => string.Equals(p.Name.Trim(), name, StringComparison.OrdinalIgnoreCase)))
+                {
+                    lineItem.HasProductError = true;
+                    problem = "There is already a product called {0}. Give this item a different name.".TranslateFormat(name);
+                    return null;
+                }
+
+                plan.Add(new TypedLine { Line = lineItem, NewProductName = name, Category = category, NewCategoryName = newCategoryName });
+                continue;
+            }
+
+            // Typing an existing product's name over a picked one leaves the category box showing
+            // the pick's category. That was never a choice about the typed product, so it stays put.
+            var boxShowsPick = lineItem.SelectedProduct != null && lineItem.SelectedProduct != product &&
+                               newCategoryName == null && category?.Id == StartingCategory(lineItem.SelectedProduct);
+
+            var moves = !boxShowsPick &&
+                        (newCategoryName != null || (category?.Id != null && category.Id != StartingCategory(product)));
+
+            plan.Add(new TypedLine { Line = lineItem, Product = product, Category = category, NewCategoryName = newCategoryName, MovesProduct = moves });
+        }
+
+        // A product is in one category, so two lines sending it to different ones, or one new name
+        // typed into two categories, cannot both be done. Refused rather than letting a line win.
+        foreach (var group in plan.GroupBy(t => t.Product != null ? "id:" + t.Product.Id : "new:" + t.NewProductName!.ToUpperInvariant()))
+        {
+            var destinations = group
+                .Where(t => t.Product == null || t.MovesProduct)
+                .Select(t => t.NewCategoryName != null ? "new:" + t.NewCategoryName.ToUpperInvariant() : t.Category?.Id)
+                .Distinct()
+                .Count();
+            if (destinations <= 1) continue;
+
+            foreach (var typed in group)
+                typed.Line.HasCategoryError = true;
+            problem = "{0} has a different category on another line. An item can only be in one category."
+                .TranslateFormat(group.First().Product?.Name ?? group.First().NewProductName ?? string.Empty);
+            return null;
+        }
+
+        return plan;
+    }
+
+    private CategoryOption CreateCategory(CompanyData companyData, string name, List<Category> created)
+    {
+        companyData.IdCounters.Category++;
+        var typePrefix = CategoryTypeFilter == CategoryType.Expense ? "PUR" : "SAL";
+        var category = new Category
+        {
+            Id = $"CAT-{typePrefix}-{companyData.IdCounters.Category:D3}",
+            Name = name,
+            Type = CategoryTypeFilter
+        };
+        companyData.Categories.Add(category);
+        created.Add(category);
+        _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.CategoryCreated);
+
+        var option = new CategoryOption { Id = category.Id, Name = category.Name };
+        CategoryOptions.Add(option);
+        return option;
+    }
+
+    private ProductOption CreateProduct(CompanyData companyData, string name, decimal price, CategoryOption? category, List<Product> created)
+    {
+        var id = new Core.Data.IdGenerator(companyData).NextProductId();
+        var product = new Product
+        {
+            Id = id,
+            Name = name,
+            Sku = id,
+            CategoryId = category?.Id,
+            Type = CategoryTypeFilter,
+            CostPrice = UseCostPrice ? price : 0,
+            UnitPrice = UseCostPrice ? 0 : price
+        };
+        companyData.Products.Add(product);
+        created.Add(product);
+        _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ProductCreated);
+
+        var option = new ProductOption { Id = id, Name = name, UnitPrice = price, CategoryId = category?.Id };
+        ProductOptions.Add(option);
+        return option;
+    }
+
+    /// <summary>
+    /// Carries out a plan from <see cref="PlanTypedItems"/>: the new categories and products, and
+    /// the moves. Everything created or changed here is one undo step, ahead of the transaction's.
+    /// </summary>
+    private void ResolveTypedItems(CompanyData companyData, List<TypedLine> plan)
+    {
+        var createdCategories = new List<Category>();
+        var createdProducts = new List<Product>();
+        var moved = new List<(Product Product, string? OldCategoryId, string NewCategoryId)>();
+
+        foreach (var typed in plan)
+        {
+            var category = typed.NewCategoryName == null
+                ? typed.Category
+                : FindCategoryOption(typed.NewCategoryName) ?? CreateCategory(companyData, typed.NewCategoryName, createdCategories);
+
+            var product = typed.Product
+                          ?? FindProductOption(typed.NewProductName)
+                          ?? CreateProduct(companyData, typed.NewProductName!, typed.Line.UnitPrice ?? 0, category, createdProducts);
+
+            // Categories belong to products, so a move takes every transaction using the product
+            // along. Recorded once, from where the product started, so undo puts it back there.
+            if (typed.MovesProduct && category?.Id != null && product.CategoryId != category.Id &&
+                companyData.GetProduct(product.Id ?? string.Empty) is { } record)
+            {
+                moved.Add((record, record.CategoryId, category.Id));
+                record.CategoryId = category.Id;
+                product.CategoryId = category.Id;
+            }
+
+            if (typed.Line.SelectedProduct != product)
+            {
+                // Setting the product fills an empty price from it. The total was converted from
+                // the line as it stood, so the line keeps the price it was saved with.
+                var price = typed.Line.UnitPrice;
+                typed.Line.SelectedProduct = product;
+                typed.Line.UnitPrice = price;
+            }
+        }
+
+        if (createdCategories.Count == 0 && createdProducts.Count == 0 && moved.Count == 0) return;
+
+        App.UndoRedoManager.RecordAction(new DelegateAction(
+            $"Update products and categories from {TransactionTypeName.ToLowerInvariant()}",
+            () =>
+            {
+                foreach (var m in moved) m.Product.CategoryId = m.OldCategoryId;
+                foreach (var p in createdProducts) companyData.Products.Remove(p);
+                foreach (var c in createdCategories) companyData.Categories.Remove(c);
+                companyData.MarkAsModified();
+            },
+            () =>
+            {
+                companyData.Categories.AddRange(createdCategories);
+                companyData.Products.AddRange(createdProducts);
+                foreach (var m in moved) m.Product.CategoryId = m.NewCategoryId;
+                companyData.MarkAsModified();
+            }));
+    }
+
+    /// <summary>
+    /// Replaces the row's conversion queue entries in the company file and in the conversion
+    /// service's copy, which converts from its own entries rather than from the row.
+    /// </summary>
+    protected static void SetQueuedConversions(CompanyData companyData, string transactionId, List<PendingConversion> entries)
+    {
+        companyData.PendingConversions.RemoveAll(p => p.TransactionId == transactionId);
+        companyData.PendingConversions.AddRange(entries);
+        _ = PendingConversionService.Instance?.MirrorAsync(companyData, [transactionId]);
+    }
+
     protected (string description, decimal totalQuantity, decimal averageUnitPrice) GetLineItemSummary()
     {
         var description = LineItems.Count == 1
@@ -1065,6 +1395,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     protected void ResetForm()
     {
         EditingTransactionId = string.Empty;
+        SetEntryCurrency(null);
         ModalDate = DateTimeOffset.Now;
         SelectedCounterparty = null;
         SelectedCategory = null;
@@ -1180,7 +1511,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     }
 
     [RelayCommand]
-    protected void OpenCreateCategory()
+    protected void OpenCreateCategory(TLineItem? lineItem)
     {
         var categoryModals = App.CategoryModalsViewModel;
         if (categoryModals == null) return;
@@ -1193,9 +1524,12 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
             {
                 LoadCategoryOptions();
 
-                // Auto-select the category the user just created.
+                // Auto-select the category the user just created, into the line that asked for it.
                 var newCategory = CategoryOptions.FirstOrDefault(c => c.Id == categoryModals.LastSavedCategoryId);
-                if (newCategory != null)
+                if (newCategory == null) return;
+                if (lineItem != null)
+                    lineItem.SelectedCategory = newCategory;
+                else
                     SelectedCategory = newCategory;
             });
         categoryModals.OpenAddModal(isExpense);
@@ -1233,7 +1567,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     [RelayCommand]
     protected void AddLineItem()
     {
-        var lineItem = new TLineItem();
+        var lineItem = new TLineItem { CurrencyCode = _entryCurrency };
         lineItem.PropertyChanged += OnLineItemPropertyChanged;
         LineItems.Add(lineItem);
         UpdateTotals();
@@ -1351,6 +1685,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
             inventoryItem.InStock += isExpense ? qty : -qty;
             inventoryItem.Status = inventoryItem.CalculateStatus();
             inventoryItem.LastUpdated = DateTime.UtcNow;
+            App.CheckAndNotifyStockStatus(inventoryItem, oldStock);
 
             // Create audit record
             companyData.IdCounters.StockAdjustment++;
@@ -1389,7 +1724,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     /// </summary>
     protected static List<InventoryAdjustmentResult> AdjustInventoryForEdit(
         CompanyData companyData, List<LineItem> oldLineItems, List<LineItem> newLineItems,
-        string transactionId, bool isExpense)
+        string transactionId, bool isExpense, string? reason = null)
     {
         // Build per-product quantity maps
         var oldQtyByProduct = new Dictionary<string, int>();
@@ -1436,6 +1771,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
             inventoryItem.InStock += stockChange;
             inventoryItem.Status = inventoryItem.CalculateStatus();
             inventoryItem.LastUpdated = DateTime.UtcNow;
+            App.CheckAndNotifyStockStatus(inventoryItem, oldStock);
 
             companyData.IdCounters.StockAdjustment++;
             var adjustment = new StockAdjustment
@@ -1446,7 +1782,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
                 Quantity = Math.Abs(stockChange),
                 PreviousStock = oldStock,
                 NewStock = inventoryItem.InStock,
-                Reason = isExpense ? "Expense edited" : "Revenue edited",
+                Reason = reason ?? (isExpense ? "Expense edited" : "Revenue edited"),
                 ReferenceNumber = transactionId,
                 Timestamp = DateTime.UtcNow,
                 IsAutoGenerated = true
@@ -1473,8 +1809,11 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     /// </summary>
     protected static void RevertInventoryAdjustments(CompanyData companyData, List<InventoryAdjustmentResult> adjustments)
     {
-        foreach (var result in adjustments)
+        // Newest first: when several lines adjusted the same item, each OldStock is the stock before
+        // that line, so only the earliest one holds the true original and it must be applied last.
+        for (var i = adjustments.Count - 1; i >= 0; i--)
         {
+            var result = adjustments[i];
             if (result.WasCreated)
             {
                 companyData.Inventory.RemoveAll(inv => inv.Id == result.InventoryItemId);
@@ -1484,9 +1823,11 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
                 var inventoryItem = companyData.Inventory.FirstOrDefault(inv => inv.Id == result.InventoryItemId);
                 if (inventoryItem != null)
                 {
+                    var stockBeforeRevert = inventoryItem.InStock;
                     inventoryItem.InStock = result.OldStock;
                     inventoryItem.Status = inventoryItem.CalculateStatus();
                     inventoryItem.LastUpdated = DateTime.UtcNow;
+                    App.CheckAndNotifyStockStatus(inventoryItem, stockBeforeRevert);
                 }
             }
 
@@ -1576,8 +1917,37 @@ public abstract partial class TransactionLineItemBase : ObservableObject
     [ObservableProperty]
     private bool _hasProductError;
 
+    /// <summary>
+    /// The line's category box, on forms that take typed items: the category a new product goes
+    /// in, or the one a picked product is moved to.
+    /// </summary>
+    [ObservableProperty]
+    private CategoryOption? _selectedCategory;
+
+    [ObservableProperty]
+    private bool _hasCategoryError;
+
+    /// <summary>
+    /// Text in the category box. A name matching no existing category is created on save.
+    /// </summary>
+    [ObservableProperty]
+    private string? _categoryText;
+
+    /// <summary>
+    /// Text in the item box. A name that matches no product becomes a new product on save; until
+    /// then it stands as the line's description. Once a product is picked the box shows its name
+    /// and the description follows the product instead.
+    /// </summary>
+    [ObservableProperty]
+    private string? _itemText;
+
+    /// <summary>The currency of an entry being edited in another currency than the company's, otherwise null.</summary>
+    public string? CurrencyCode { get; init; }
+
     public decimal Amount => (Quantity ?? 0) * (UnitPrice ?? 0);
-    public string AmountFormatted => CurrencyService.Format(Amount);
+    public string AmountFormatted => CurrencyCode == null
+        ? CurrencyService.Format(Amount)
+        : CurrencyInfo.GetByCode(CurrencyCode).Format(Amount);
 
     partial void OnSelectedProductChanged(ProductOption? value)
     {
@@ -1587,7 +1957,28 @@ public abstract partial class TransactionLineItemBase : ObservableObject
             if (UnitPrice is null or 0)
                 UnitPrice = value.UnitPrice;
             HasProductError = false;
+            HasCategoryError = false;
         }
+    }
+
+    partial void OnSelectedCategoryChanged(CategoryOption? value)
+    {
+        if (value != null)
+            HasCategoryError = false;
+    }
+
+    partial void OnCategoryTextChanged(string? value)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+            HasCategoryError = false;
+    }
+
+    partial void OnItemTextChanged(string? value)
+    {
+        if (SelectedProduct != null) return;
+        Description = value?.Trim() ?? string.Empty;
+        if (Description.Length > 0)
+            HasProductError = false;
     }
 
     partial void OnQuantityChanged(decimal? value)
@@ -1623,5 +2014,6 @@ public class ProductOption
     public string Description { get; set; } = string.Empty;
     public decimal UnitPrice { get; set; }
     public string? SupplierId { get; set; }
+    public string? CategoryId { get; set; }
     public override string ToString() => Name;
 }

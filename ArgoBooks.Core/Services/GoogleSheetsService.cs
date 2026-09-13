@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Text;
 using ArgoBooks.Core.Models.Telemetry;
 using ArgoBooks.Core.Platform;
@@ -14,16 +13,14 @@ public class GoogleSheetsService
 
     private readonly HttpClient _httpClient;
     private readonly IErrorLogger? _errorLogger;
-    private readonly ITelemetryManager? _telemetryManager;
 
     /// <summary>
     /// Creates a new instance of the GoogleSheetsService.
     /// </summary>
-    public GoogleSheetsService(IErrorLogger? errorLogger = null, ITelemetryManager? telemetryManager = null)
+    public GoogleSheetsService(IErrorLogger? errorLogger = null)
     {
         _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
         _errorLogger = errorLogger;
-        _telemetryManager = telemetryManager;
     }
 
     /// <summary>

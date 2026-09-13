@@ -6,9 +6,10 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace ArgoBooks.ViewModels.Dashboard;
 
-public partial class CatalogItem : ObservableObject
+public partial class CatalogItem(WidgetDefinition definition) : ObservableObject
 {
-    public WidgetDefinition Definition { get; }
+    public WidgetDefinition Definition { get; } = definition;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowWontFit))]
     private bool _isAlreadyAdded;
@@ -16,7 +17,6 @@ public partial class CatalogItem : ObservableObject
     [NotifyPropertyChangedFor(nameof(ShowWontFit))]
     private bool _cannotFitInRow;
     public bool ShowWontFit => CannotFitInRow && !IsAlreadyAdded;
-    public CatalogItem(WidgetDefinition definition) { Definition = definition; }
 }
 
 public partial class WidgetCatalogViewModel : ObservableObject

@@ -189,8 +189,10 @@ public class NotificationPanelViewModelTests
     [Fact]
     public void ToggleCommand_WhenOpen_SetsIsOpenToFalse()
     {
-        var vm = new NotificationPanelViewModel();
-        vm.IsOpen = true;
+        var vm = new NotificationPanelViewModel
+        {
+            IsOpen = true
+        };
 
         vm.ToggleCommand.Execute(null);
 

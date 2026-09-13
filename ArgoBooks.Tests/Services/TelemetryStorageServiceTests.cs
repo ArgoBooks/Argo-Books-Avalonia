@@ -1,3 +1,5 @@
+using System.Text.Json.Nodes;
+using ArgoBooks.Core.Models.Telemetry;
 using ArgoBooks.Core.Platform;
 using ArgoBooks.Core.Services;
 using Xunit;
@@ -21,6 +23,58 @@ public class TelemetryStorageServiceTests
 
         Assert.NotNull(events);
         Assert.Empty(events);
+    }
+
+    private static string EventsPath(MockPlatformService platform) =>
+        Path.Combine(platform.GetAppDataPath(), "telemetry", "events.json");
+
+    private static JsonArray ReadEventsFile(MockPlatformService platform) =>
+        JsonNode.Parse(File.ReadAllText(EventsPath(platform)))!.AsArray();
+
+    private static void WriteEventsFile(MockPlatformService platform, JsonArray events) =>
+        File.WriteAllText(EventsPath(platform), events.ToJsonString());
+
+    /// <summary>
+    /// A file written by a newer build can hold a value this one does not know. Dropping that
+    /// one event is fine. Keeping it as an empty entry was not: every later read of the list
+    /// failed on it, so nothing pending was ever uploaded again.
+    /// </summary>
+    [Fact]
+    public async Task GetPendingEventsAsync_AnUnreadableEvent_CostsOnlyThatEvent()
+    {
+        var platformService = new MockPlatformService();
+        var service = new TelemetryStorageService(platformService);
+        var kept = new SessionEvent { Action = SessionAction.SessionStart };
+        await service.RecordEventAsync(new SessionEvent { Action = SessionAction.SessionStart });
+        await service.RecordEventAsync(kept);
+
+        JsonArray events = ReadEventsFile(platformService);
+        events[0]!["event"]!["action"] = "AnActionFromANewerBuild";
+        WriteEventsFile(platformService, events);
+
+        var pending = await service.GetPendingEventsAsync();
+        Assert.Equal(kept.DataId, Assert.Single(pending).DataId);
+
+        await service.MarkEventsUploadedAsync([kept.DataId]);
+        Assert.Empty(await service.GetPendingEventsAsync());
+    }
+
+    [Fact]
+    public async Task GetPendingEventsAsync_AnEventOfAnUnknownType_CostsOnlyThatEvent()
+    {
+        var platformService = new MockPlatformService();
+        var service = new TelemetryStorageService(platformService);
+        var kept = new SessionEvent { Action = SessionAction.SessionStart };
+        await service.RecordEventAsync(new SessionEvent { Action = SessionAction.SessionStart });
+        await service.RecordEventAsync(kept);
+
+        JsonArray events = ReadEventsFile(platformService);
+        events[0]!["event"]!["dataType"] = "ATypeFromANewerBuild";
+        WriteEventsFile(platformService, events);
+
+        var pending = await service.GetPendingEventsAsync();
+
+        Assert.Equal(kept.DataId, Assert.Single(pending).DataId);
     }
 
     #endregion

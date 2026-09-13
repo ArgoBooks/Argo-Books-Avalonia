@@ -8,12 +8,7 @@ namespace ArgoBooks.Tests.ViewModels;
 /// </summary>
 public class ExportAsModalViewModelTests
 {
-    private readonly ExportAsModalViewModel _viewModel;
-
-    public ExportAsModalViewModelTests()
-    {
-        _viewModel = new ExportAsModalViewModel();
-    }
+    private readonly ExportAsModalViewModel _viewModel = new();
 
     #region Tab Selection Tests
 

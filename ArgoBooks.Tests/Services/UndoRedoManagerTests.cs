@@ -10,6 +10,39 @@ public class UndoRedoManagerTests
 {
     private readonly UndoRedoManager _manager = new();
 
+    #region Saved State Tests
+
+    /// <summary>
+    /// A save takes a while, and the user can keep editing during it. Only what existed when the
+    /// save started is in the file, so an action recorded after that must still count as unsaved.
+    /// </summary>
+    [Fact]
+    public void MarkSaved_ActionRecordedDuringSave_StaysUnsaved()
+    {
+        _manager.RecordAction(new MockUndoableAction("Before save"));
+        var savePoint = _manager.SavePoint;
+        _manager.RecordAction(new MockUndoableAction("During save"));
+
+        _manager.MarkSaved(savePoint);
+
+        Assert.False(_manager.IsAtSavedState);
+        _manager.Undo();
+        Assert.True(_manager.IsAtSavedState);
+    }
+
+    [Fact]
+    public void MarkSaved_NothingBeforeSave_ActionRecordedDuringSave_StaysUnsaved()
+    {
+        var savePoint = _manager.SavePoint;
+        _manager.RecordAction(new MockUndoableAction("During save"));
+
+        _manager.MarkSaved(savePoint);
+
+        Assert.False(_manager.IsAtSavedState);
+    }
+
+    #endregion
+
     #region Record Tests
 
     [Fact]
@@ -169,16 +202,11 @@ public class UndoRedoManagerTests
 
     #region Mock Classes
 
-    private class MockUndoableAction : IUndoableAction
+    private class MockUndoableAction(string description) : IUndoableAction
     {
-        public string Description { get; }
+        public string Description { get; } = description;
         public bool UndoCalled { get; private set; }
         public bool RedoCalled { get; private set; }
-
-        public MockUndoableAction(string description)
-        {
-            Description = description;
-        }
 
         public void Undo() => UndoCalled = true;
         public void Redo() => RedoCalled = true;

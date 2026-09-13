@@ -5,15 +5,14 @@ using Xunit;
 namespace ArgoBooks.Tests.ViewModels;
 
 /// <summary>
-/// Tests for ImportResultDialogViewModel focusing on the unimported-rows surface (Task 1A-2).
+/// Tests for ImportResultDialogViewModel focusing on the unimported-rows surface.
 /// </summary>
 public class ImportResultDialogViewModelTests
 {
-    private static Task CallShowAsync(
-        ImportResultDialogViewModel vm,
+    private static void CallShowAsync(ImportResultDialogViewModel vm,
         List<UnimportedRow>? unimportedRows = null)
     {
-        return vm.ShowAsync(
+        vm.ShowAsync(
             fileName: "test.xlsx",
             sheetResults: [],
             totalNew: 0,
@@ -79,7 +78,7 @@ public class ImportResultDialogViewModelTests
         Assert.Single(vm.UnimportedRows);
 
         // Second call with no unimported rows should clear the collection.
-        CallShowAsync(vm, null);
+        CallShowAsync(vm);
 
         Assert.Empty(vm.UnimportedRows);
         Assert.False(vm.HasUnimportedRows);
@@ -155,7 +154,7 @@ public class ImportResultDialogViewModelTests
     {
         var vm = new ImportResultDialogViewModel();
         // ShowAsync with null unimportedRows leaves the collection empty.
-        CallShowAsync(vm, null);
+        CallShowAsync(vm);
 
         var csv = vm.BuildUnimportedCsv();
         var lines = csv.Split('\n', StringSplitOptions.RemoveEmptyEntries);

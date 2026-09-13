@@ -136,7 +136,8 @@ public static class QuebecPayrollCalculator
     {
         (decimal rate, decimal k) = BracketFor(qc.Brackets, annual);
 
-        decimal claim = input.ProvincialClaimAmount > 0 ? input.ProvincialClaimAmount : qc.BasicPersonalAmount;
+        decimal claim = PayrollCalculator.ClaimOrBasic(
+            input.ProvincialClaimAmount, input.ProvincialClaimIsZero, qc.BasicPersonalAmount);
 
         return Math.Max(0, rate * annual - k - qc.CreditRate * claim);
     }
@@ -221,9 +222,8 @@ public static class QuebecPayrollCalculator
         (decimal rate, decimal k) = BracketFor(federal.Brackets, annual);
         decimal lowest = federal.LowestRateForCredits;
 
-        decimal claim = input.FederalClaimAmount > 0
-            ? input.FederalClaimAmount
-            : federal.BasicPersonalAmount.Maximum;
+        decimal claim = PayrollCalculator.ClaimOrBasic(
+            input.FederalClaimAmount, input.FederalClaimIsZero, federal.BasicPersonalAmount.Maximum);
 
         decimal t3 = rate * annual
                      - k

@@ -248,7 +248,7 @@ public partial class UpgradeModalViewModel : ViewModelBase
 
     private void RefreshPricingDisplay()
     {
-        // Period now also carries the currency code so it renders as e.g. "CAD/month"
+        // Period carries the currency code so it renders as e.g. "CAD/month"
         // at the same size and color as the period text. We construct it manually so
         // the slash is preserved and the word stays lowercase regardless of how the
         // translation pipeline handles "/month" or "month".
@@ -347,8 +347,7 @@ public partial class UpgradeModalViewModel : ViewModelBase
     ///
     /// Keys sold through a reseller arrive as a pre-generated batch with no buyer details, so
     /// this is the only moment their address can be asked for. Anyone who bought through the
-    /// website is already on record and never sees this: they get the success panel directly,
-    /// exactly as before.
+    /// website is already on record and never sees this: they get the success panel directly.
     ///
     /// Premium is ALREADY active by the time this appears, both on the server and locally.
     /// Nothing here can withhold it, and closing the modal at this step costs us an address

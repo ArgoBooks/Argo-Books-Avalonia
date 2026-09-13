@@ -32,7 +32,7 @@
                                    IconColor="Success" />
                 <controls:StatCard Label="{loc:Loc 'Archived'}"
                                    Value="{Binding ArchivedCount}"
-                                   Icon="{x:Static icons:Icons.Suppliers}"
+                                   Icon="{x:Static icons:Icons.Archive}"
                                    IconColor="Warning" />
             </controls:StatCardsRow>
 
@@ -159,7 +159,7 @@
                                                     <!-- Due five days after the pay period in which someone stops
                                                          being paid, so it belongs on the row rather than at year end. -->
                                                     <Button Classes="icon-button"
-                                                            ToolTip.Tip="{loc:Loc 'Record of Employment worksheet'}"
+                                                            ToolTip.Tip="{loc:Loc 'Record of Employment'}"
                                                             Command="{Binding $parent[ItemsControl].((vm:EmployeesPageViewModel)DataContext).RecordOfEmploymentCommand}"
                                                             CommandParameter="{Binding}">
                                                         <PathIcon Data="{x:Static icons:Icons.Reports}" Width="16" Height="16" />
@@ -170,7 +170,7 @@
                                                             ToolTip.Tip="{Binding ArchiveTooltip, Converter={StaticResource TranslateConverter}}"
                                                             Command="{Binding $parent[ItemsControl].((vm:EmployeesPageViewModel)DataContext).ArchiveEmployeeCommand}"
                                                             CommandParameter="{Binding}">
-                                                        <PathIcon Data="{x:Static icons:Icons.Suppliers}" Width="16" Height="16" />
+                                                        <PathIcon Data="{Binding ArchiveIcon}" Width="16" Height="16" />
                                                     </Button>
                                                 </StackPanel>
                                             </table:ArgoTableCell.CellContent>

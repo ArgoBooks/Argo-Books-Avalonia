@@ -9,9 +9,6 @@ namespace ArgoBooks.Tests.Services;
 ///
 /// This is the gap every other payroll test file shares: they call Calculate two or three times
 /// against a PayrollYearToDate they never update, so nothing that accumulates is ever exercised.
-/// PayrollBonusTests even has a case named for the bug that shipped, commented "every pay period
-/// after a bonus would be wrong too", which passed because the year-to-date it reused stayed
-/// empty and the later call never saw the bonus at all.
 ///
 /// A single period cannot catch an error in what carries forward. These run the full 26 and
 /// check the totals, which is the only place a carry-forward mistake shows up.
@@ -111,7 +108,7 @@ public class PayrollFullYearTests
     }
 
     /// <summary>
-    /// The master invariant, and the one that would have caught the bonus bug on its own: below
+    /// The master invariant: below
     /// the annual ceilings, a year of steady pay withholds exactly 26 times one period.
     ///
     /// Only below the ceilings. Once CPP stops and CPP2 starts the deduction changes, and the

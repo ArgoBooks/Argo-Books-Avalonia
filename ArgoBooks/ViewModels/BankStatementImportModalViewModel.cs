@@ -5,7 +5,6 @@ using ArgoBooks.Core.Models.AI;
 using ArgoBooks.Core.Models.BankMatching;
 using ArgoBooks.Core.Models.Entities;
 using ArgoBooks.Core.Models.Telemetry;
-using ArgoBooks.Core.Models.Transactions;
 using ArgoBooks.Core.Services;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
@@ -212,6 +211,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
 
         // linkToBankLine: false -> plain transactions, no bank-match flag.
         var creation = new BankLineImportService().CreateFromLines(data, resolutions, linkToBankLine: false);
+        creation.MirrorPendingConversions(data);
 
         // Learn a rule per line (merchant -> product + counterparty) so the next import is pre-filled.
         var ruleCaptures = LearnRules(data, resolutions);
@@ -482,22 +482,13 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
     private void UndoImport(CompanyData data, BankImportCreation creation,
         List<RuleLearningCapture> ruleCaptures, IdCounterSnapshot preCounters)
     {
-        foreach (var tx in creation.CreatedTransactions)
-        {
-            if (tx is Expense e) data.Expenses.Remove(e);
-            else if (tx is Revenue r) data.Revenues.Remove(r);
-        }
+        creation.Undo(data);
 
-        foreach (var entity in creation.CreatedEntities)
+        // Newest first: when two lines updated the same rule, each capture's Prior is the state the
+        // line before it left, so only a reverse walk ends on the rule as it was before the import.
+        for (var i = ruleCaptures.Count - 1; i >= 0; i--)
         {
-            if (entity is Supplier s) data.Suppliers.Remove(s);
-            else if (entity is Customer c) data.Customers.Remove(c);
-            else if (entity is Product p) data.Products.Remove(p);
-            else if (entity is Category cat) data.Categories.Remove(cat);
-        }
-
-        foreach (var cap in ruleCaptures)
-        {
+            var cap = ruleCaptures[i];
             if (cap.Prior == null)
             {
                 data.BankCategoryRules.Remove(cap.Rule);
@@ -521,19 +512,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
     private void RedoImport(CompanyData data, BankImportCreation creation,
         List<RuleLearningCapture> ruleCaptures, IdCounterSnapshot postCounters)
     {
-        foreach (var entity in creation.CreatedEntities)
-        {
-            if (entity is Supplier s && !data.Suppliers.Contains(s)) data.Suppliers.Add(s);
-            else if (entity is Customer c && !data.Customers.Contains(c)) data.Customers.Add(c);
-            else if (entity is Product p && !data.Products.Contains(p)) data.Products.Add(p);
-            else if (entity is Category cat && !data.Categories.Contains(cat)) data.Categories.Add(cat);
-        }
-
-        foreach (var tx in creation.CreatedTransactions)
-        {
-            if (tx is Expense e && !data.Expenses.Contains(e)) data.Expenses.Add(e);
-            else if (tx is Revenue r && !data.Revenues.Contains(r)) data.Revenues.Add(r);
-        }
+        creation.Redo(data);
 
         foreach (var cap in ruleCaptures)
         {
@@ -747,7 +726,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
         var row = _editingRow;
         if (row == null) return;
 
-        var name = (ProductEditorName ?? string.Empty).Trim();
+        var name = (ProductEditorName).Trim();
         if (name.Length == 0)
         {
             ProductEditorNameError = true;

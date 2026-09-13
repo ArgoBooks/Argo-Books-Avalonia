@@ -7,8 +7,7 @@ namespace ArgoBooks.Tests.Services;
 
 /// <summary>
 /// Tests for InvoiceTotalsService: deriving AmountPaid, AmountRefunded,
-/// Balance, BalanceUSD, and Status from the Payment list. Centralized
-/// from the previously-inline logic in PaymentPortalService.
+/// Balance, BalanceUSD, and Status from the Payment list.
 /// </summary>
 public class InvoiceTotalsServiceTests
 {

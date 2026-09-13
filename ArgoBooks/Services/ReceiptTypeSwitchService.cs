@@ -56,7 +56,7 @@ public static class ReceiptTypeSwitchService
 
             if (result != ConfirmationResult.Primary) return false;
 
-            var oldTransactionId = receipt.TransactionId!;
+            var oldTransactionId = receipt.TransactionId;
             var switched = ReceiptTypeConverter.Switch(companyData, receipt);
             ResyncPendingQueue(switched.MovedConversion, oldTransactionId);
 

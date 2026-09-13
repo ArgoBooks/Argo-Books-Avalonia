@@ -9,12 +9,7 @@ namespace ArgoBooks.Tests.ViewModels;
 /// </summary>
 public class EmojiPickerViewModelTests
 {
-    private readonly EmojiPickerViewModel _viewModel;
-
-    public EmojiPickerViewModelTests()
-    {
-        _viewModel = new EmojiPickerViewModel();
-    }
+    private readonly EmojiPickerViewModel _viewModel = new();
 
     #region Tabs Initialization Tests
 

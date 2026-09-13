@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using ArgoBooks.Controls.ColumnWidths;
-using ArgoBooks.Core;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Helpers;
 using ArgoBooks.Core.Models.Tracking;

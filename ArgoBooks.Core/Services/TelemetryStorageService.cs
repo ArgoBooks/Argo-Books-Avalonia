@@ -43,7 +43,7 @@ public class TelemetryStorageService : ITelemetryStorageService
     /// <inheritdoc />
     public async Task RecordEventAsync(TelemetryEvent telemetryEvent, CancellationToken cancellationToken = default)
     {
-        await WithFreshStateAsync<bool>(async () =>
+        await WithFreshStateAsync(async () =>
         {
             var wrapper = new TelemetryEventWrapper
             {
@@ -77,7 +77,7 @@ public class TelemetryStorageService : ITelemetryStorageService
     /// <inheritdoc />
     public async Task<IReadOnlyList<TelemetryEvent>> GetPendingEventsAsync(CancellationToken cancellationToken = default)
     {
-        return await WithFreshStateAsync<IReadOnlyList<TelemetryEvent>>(() =>
+        return await WithFreshStateAsync(() =>
         {
             IReadOnlyList<TelemetryEvent> pending = _events
                 .Where(e => !e.Event.IsUploaded)
@@ -94,7 +94,7 @@ public class TelemetryStorageService : ITelemetryStorageService
     {
         var idSet = dataIds.ToHashSet();
 
-        await WithFreshStateAsync<bool>(async () =>
+        await WithFreshStateAsync(async () =>
         {
             // Counted from what this call actually flipped, not from the id set. A sibling
             // instance may have uploaded some of these already, and adding the whole set
@@ -264,8 +264,19 @@ public class TelemetryStorageService : ITelemetryStorageService
         try
         {
             await using var stream = File.OpenRead(path);
-            var loaded = await JsonSerializer.DeserializeAsync<List<TelemetryEventWrapper>>(stream, _jsonOptions, cancellationToken);
-            _events = loaded ?? [];
+            var loaded = await JsonSerializer.DeserializeAsync<List<StoredEventWrapper>>(stream, _jsonOptions, cancellationToken);
+
+            // The converter answers an event it cannot read with null. Kept, that entry broke
+            // every query over the list, all of which read Event, so pending events stopped
+            // uploading for good. Dropping it costs that one event and nothing else.
+            var events = new List<TelemetryEventWrapper>();
+            foreach (var stored in loaded ?? [])
+            {
+                if (stored.Event is { } telemetryEvent)
+                    events.Add(new TelemetryEventWrapper { DataType = stored.DataType, Event = telemetryEvent });
+            }
+
+            _events = events;
             return true;
         }
         catch (Exception ex)
@@ -411,7 +422,7 @@ public class TelemetryStorageService : ITelemetryStorageService
     /// <inheritdoc />
     public async Task<string?> SaveBackupFileAsync(CancellationToken cancellationToken = default)
     {
-        return await WithFreshStateAsync<string?>(async () =>
+        return await WithFreshStateAsync(async () =>
         {
             var pendingEvents = _events
                 .Where(e => !e.Event.IsUploaded)
@@ -469,6 +480,17 @@ public class TelemetryStorageService : ITelemetryStorageService
         public TelemetryEvent Event { get; set; } = null!;
     }
 
+    /// <summary>
+    /// A wrapper as read from disk, where Event is null if the converter could not read it.
+    /// </summary>
+    private class StoredEventWrapper
+    {
+        public TelemetryDataType DataType { get; set; }
+
+        [JsonConverter(typeof(TelemetryEventConverter))]
+        public TelemetryEvent? Event { get; set; }
+    }
+
     private class UploadState
     {
         public DateTime? LastUploadTime { get; set; }
@@ -504,9 +526,32 @@ public class TelemetryStorageService : ITelemetryStorageService
                 return null;
             }
 
-            var dataType = Enum.Parse<TelemetryDataType>(dataTypeElement.GetString()!, ignoreCase: true);
+            // A data type added since this build is as unreadable as any other unknown value, and
+            // costs the same: that event, not the file.
+            if (dataTypeElement.ValueKind != JsonValueKind.String ||
+                !Enum.TryParse<TelemetryDataType>(dataTypeElement.GetString(), ignoreCase: true, out var dataType))
+            {
+                return null;
+            }
+
             var json = root.GetRawText();
 
+            // One unreadable event used to fail the whole List<TelemetryEvent>, taking every
+            // other event in the file with it. That is reachable whenever a build reads a file
+            // written by a newer one: an enum value it does not have, such as a FeatureName
+            // added since, throws here. Losing one event is acceptable, losing the batch is not.
+            try
+            {
+                return Deserialize(dataType, json, options);
+            }
+            catch (JsonException)
+            {
+                return null;
+            }
+        }
+
+        private static TelemetryEvent? Deserialize(TelemetryDataType dataType, string json, JsonSerializerOptions options)
+        {
             return dataType switch
             {
                 TelemetryDataType.Session => JsonSerializer.Deserialize<SessionEvent>(json, options),

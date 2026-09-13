@@ -21,8 +21,8 @@ public static class ImageFileLoader
     /// Where a converted copy is staged before the caller copies it into the company. The
     /// caller keeps its own copy, so nothing here outlives the pick that produced it.
     /// </summary>
-    private static string ConvertedDirectory { get; } = System.IO.Path.Combine(
-        System.IO.Path.GetTempPath(), "ArgoBooks", "PickedImages");
+    private static string ConvertedDirectory { get; } = Path.Combine(
+        Path.GetTempPath(), "ArgoBooks", "PickedImages");
 
     /// <summary>
     /// Clears the staging directory. Called at startup rather than after each pick, because
@@ -63,9 +63,9 @@ public static class ImageFileLoader
             if (asJpeg == null)
                 return null;
 
-            var converted = System.IO.Path.Combine(
+            var converted = Path.Combine(
                 ConvertedDirectory,
-                $"{System.IO.Path.GetFileNameWithoutExtension(pickedPath)}_{Guid.NewGuid():N}.jpg");
+                $"{Path.GetFileNameWithoutExtension(pickedPath)}_{Guid.NewGuid():N}.jpg");
 
             Directory.CreateDirectory(ConvertedDirectory);
             File.WriteAllBytes(converted, asJpeg);

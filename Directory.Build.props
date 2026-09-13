@@ -1,9 +1,9 @@
 <Project>
     <PropertyGroup>
         <!-- Application Version, for all projects -->
-        <Version>2.0.14</Version>
-        <AssemblyVersion>2.0.14</AssemblyVersion>
-        <FileVersion>2.0.14</FileVersion>
+        <Version>2.0.15</Version>
+        <AssemblyVersion>2.0.15</AssemblyVersion>
+        <FileVersion>2.0.15</FileVersion>
         <!-- Strip the +commit-hash suffix that .NET 8+ otherwise appends to
              AssemblyInformationalVersionAttribute. NetSparkle reads the informational
              version when comparing against the appcast and would otherwise log a

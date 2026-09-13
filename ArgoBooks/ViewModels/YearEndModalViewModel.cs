@@ -1,11 +1,11 @@
 using System.Collections.ObjectModel;
-using System.Globalization;
 using System.Text;
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Models.Payroll;
 using ArgoBooks.Core.Services.Payroll;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
+using ArgoBooks.Shared.Telemetry;
 using ArgoBooks.Utilities;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -154,7 +154,8 @@ public partial class YearEndModalViewModel : ViewModelBase
             : !IsAmending
                 ? _return.Slips
                 : _return.Slips
-                    .Where(s => Rows.FirstOrDefault(r => r.EmployeeId == s.EmployeeId)?.IsSelected == true)
+                    .Where(s => Rows.FirstOrDefault(r => r.EmployeeId == s.EmployeeId
+                                                         && r.Province == s.ProvinceOfEmployment)?.IsSelected == true)
                     .ToList();
 
     /// <summary>
@@ -392,9 +393,9 @@ public partial class YearEndModalViewModel : ViewModelBase
     private void Rebuild()
     {
         // Rebuild runs on every keystroke in the filing-detail boxes, so the ticks have to survive it.
-        HashSet<string> selected = Rows.Where(r => r.IsSelected)
-            .Select(r => r.EmployeeId)
-            .ToHashSet(StringComparer.Ordinal);
+        HashSet<(string, string)> selected = Rows.Where(r => r.IsSelected)
+            .Select(r => (r.EmployeeId, r.Province))
+            .ToHashSet();
 
         Rows.Clear();
         Problems.Clear();
@@ -412,16 +413,19 @@ public partial class YearEndModalViewModel : ViewModelBase
 
         foreach (T4Slip slip in _return.Slips)
         {
+            string name = $"{slip.GivenName} {slip.Surname}".Trim();
+
             Rows.Add(new T4RowViewModel(OnRowSelectionChanged)
             {
                 EmployeeId = slip.EmployeeId,
-                Name = $"{slip.GivenName} {slip.Surname}".Trim(),
+                Province = slip.ProvinceOfEmployment,
+                Name = HasSeveralSlips(_return, slip) ? $"{name} ({slip.ProvinceOfEmployment})" : name,
                 Income = CurrencyService.Format(slip.EmploymentIncome),
                 Cpp = CurrencyService.Format(slip.CppContributions + slip.Cpp2Contributions),
                 Ei = CurrencyService.Format(slip.EiPremiums),
                 Tax = CurrencyService.Format(slip.IncomeTaxDeducted),
                 HasSin = slip.Sin.Count(char.IsAsciiDigit) == 9,
-                IsSelected = selected.Contains(slip.EmployeeId),
+                IsSelected = selected.Contains((slip.EmployeeId, slip.ProvinceOfEmployment)),
             });
         }
 
@@ -484,7 +488,14 @@ public partial class YearEndModalViewModel : ViewModelBase
     /// <summary>Mirrors <see cref="CanFile"/>: the slips print regardless, filing is what blocks.</summary>
     public bool CanFileQuebec => HasQuebec && QuebecProblems.Count == 0 && _quebecReturn?.Slips.Count > 0;
 
-    /// <summary>Saves a slip per employee plus the summary, into a folder of the user's choosing.</summary>
+    /// <summary>An employee who changed province during the year has a T4 for each.</summary>
+    private static bool HasSeveralSlips(T4Return t4, T4Slip slip) =>
+        t4.Slips.Count(s => s.EmployeeId == slip.EmployeeId) > 1;
+
+    /// <summary>
+    /// Saves a slip per employee and province plus the summary, into a folder of the user's
+    /// choosing.
+    /// </summary>
     [RelayCommand]
     private async Task DownloadSlipsAsync()
     {
@@ -509,14 +520,17 @@ public partial class YearEndModalViewModel : ViewModelBase
             foreach (T4Slip slip in t4.Slips)
             {
                 byte[] bytes = await Task.Run(() => T4PdfRenderer.RenderSlip(t4, slip));
-                string name = $"T4-{t4.TaxYear}-{ExportFolderHelper.Sanitize($"{slip.GivenName} {slip.Surname}")}.pdf";
+                string who = HasSeveralSlips(t4, slip)
+                    ? $"{slip.GivenName} {slip.Surname} {slip.ProvinceOfEmployment}"
+                    : $"{slip.GivenName} {slip.Surname}";
+                string name = $"T4-{t4.TaxYear}-{ExportFolderHelper.Sanitize(who)}.pdf";
                 await File.WriteAllBytesAsync(Path.Combine(directory, name), bytes);
             }
 
             byte[] summary = await Task.Run(() => T4PdfRenderer.RenderSummary(t4));
             await File.WriteAllBytesAsync(Path.Combine(directory, $"T4-Summary-{t4.TaxYear}.pdf"), summary);
 
-            _ = App.TelemetryManager?.TrackFeatureAsync(Core.Models.Telemetry.FeatureName.T4SlipsGenerated);
+            _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.T4SlipsGenerated);
 
             StatusMessage = "Saved {0} slips and the summary.".TranslateFormat(t4.Slips.Count);
         }
@@ -637,7 +651,7 @@ public partial class YearEndModalViewModel : ViewModelBase
 
             await File.WriteAllTextAsync(file.Path.LocalPath, T4XmlWriter.BuildString(filing), new UTF8Encoding(false));
 
-            _ = App.TelemetryManager?.TrackFeatureAsync(Core.Models.Telemetry.FeatureName.T4XmlGenerated);
+            _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.T4XmlGenerated);
 
             StatusMessage = IsAmending
                 ? "Saved {0} slip(s). Upload it through CRA's Internet File Transfer. Send it on its own: CRA rejects a return that mixes amended and original slips."
@@ -661,7 +675,7 @@ public partial class YearEndModalViewModel : ViewModelBase
     ///
     /// Every field has to be carried across. A field left off is not a compile error and not
     /// visible anywhere in the app: it is an element CRA rejects the submission over, months
-    /// later. The contact email was missing from here once, which rejected every filing.
+    /// later.
     /// </summary>
     public T4Return? BuildFilingReturn() => _return == null ? null : new T4Return
     {
@@ -697,7 +711,7 @@ public partial class YearEndModalViewModel : ViewModelBase
 
 }
 
-/// <summary>One employee's line on the year end review.</summary>
+/// <summary>One slip's line on the year end review: an employee, in one province.</summary>
 public partial class T4RowViewModel : ObservableObject
 {
     private readonly Action? _selectionChanged;
@@ -705,6 +719,9 @@ public partial class T4RowViewModel : ObservableObject
     public T4RowViewModel(Action? selectionChanged = null) => _selectionChanged = selectionChanged;
 
     public string EmployeeId { get; init; } = string.Empty;
+
+    /// <summary>Together with the employee, which slip this is.</summary>
+    public string Province { get; init; } = string.Empty;
 
     /// <summary>
     /// Whether this slip goes in an amended or cancelled return. Ignored on an original, where

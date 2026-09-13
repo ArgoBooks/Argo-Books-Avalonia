@@ -7,7 +7,6 @@ using ArgoBooks.Localization;
 using ArgoBooks.Services;
 using ArgoBooks.ViewModels;
 using System.ComponentModel;
-using System.Linq;
 using Avalonia.VisualTree;
 
 namespace ArgoBooks.Views;
@@ -123,6 +122,16 @@ public partial class MainWindow : Window
     private WindowState _preFullScreenState = WindowState.Maximized;
 
     /// <summary>
+    /// Runs ahead of every key press and click purely to timestamp it. Deliberately does
+    /// nothing else and never marks the event handled, so it cannot alter what the input
+    /// actually does.
+    /// </summary>
+    private static void OnAnyInput(object? sender, RoutedEventArgs e)
+    {
+        App.TelemetryManager?.MarkActivity();
+    }
+
+    /// <summary>
     /// F11 toggles fullscreen; Escape leaves it, but only when nothing else wanted the
     /// key first.
     ///
@@ -136,16 +145,6 @@ public partial class MainWindow : Window
     /// holds focus, so focus sitting elsewhere would otherwise let Escape drop the
     /// window out of fullscreen with a dialog still on screen.
     /// </summary>
-    /// <summary>
-    /// Runs ahead of every key press and click purely to timestamp it. Deliberately does
-    /// nothing else and never marks the event handled, so it cannot alter what the input
-    /// actually does.
-    /// </summary>
-    private static void OnAnyInput(object? sender, RoutedEventArgs e)
-    {
-        App.TelemetryManager?.MarkActivity();
-    }
-
     protected override void OnKeyDown(KeyEventArgs e)
     {
         if (e.Key == Key.F11)
@@ -331,8 +330,20 @@ public partial class MainWindow : Window
                                 }
                                 else
                                 {
-                                    var saved = await App.SaveCompanyWithSecurityGuidanceAsync();
-                                    if (!saved) return; // User cancelled the blocked-save dialog, don't close
+                                    try
+                                    {
+                                        var saved = await App.SaveCompanyWithSecurityGuidanceAsync();
+                                        if (!saved) return; // User cancelled the blocked-save dialog, don't close
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        // Staying open keeps the changes; closing would discard them.
+                                        App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.FileSystem, "Save before closing failed");
+                                        await App.ShowWarningMessageBoxAsync(
+                                            "Could Not Save".Translate(),
+                                            "Your changes could not be saved, so the company is still open with them. {0}".TranslateFormat(ex.Message));
+                                        return;
+                                    }
                                 }
                             }
                             await EndTelemetryAndCloseAsync();

@@ -58,11 +58,7 @@ public partial class TutorialWelcomeViewModel : ViewModelBase
     private void SkipTutorial()
     {
         IsOpen = false;
-        TutorialService.Instance.CompleteWelcomeTutorial();
-        TutorialService.Instance.CompleteAppTour();
-        TutorialService.Instance.SkipTutorial();
-        TutorialService.Instance.HideSetupChecklist();
-        TutorialService.Instance.DisableFirstVisitHints();
+        TutorialService.Instance.SkipTour();
         TutorialSkipped?.Invoke(this, EventArgs.Empty);
     }
 }

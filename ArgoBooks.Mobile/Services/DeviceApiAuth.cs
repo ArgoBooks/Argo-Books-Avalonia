@@ -1,6 +1,3 @@
-using System;
-using System.Net.Http;
-using System.Threading.Tasks;
 using ArgoBooks.Core.Services;
 using ArgoBooks.Shared.Mobile;
 

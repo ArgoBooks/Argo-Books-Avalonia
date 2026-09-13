@@ -461,6 +461,33 @@ public static class ReportEnumExtensions
     };
 
     /// <summary>
+    /// Returns true if the chart type's values are counts, not money, so they are never converted
+    /// to the display currency or shown with a currency symbol.
+    /// </summary>
+    public static bool IsCount(this ChartDataType chartType) => chartType switch
+    {
+        ChartDataType.TotalTransactions => true,
+        ChartDataType.AccountantsTransactions => true,
+        ChartDataType.CustomerPaymentStatus => true,
+        ChartDataType.CustomerGrowth => true,
+        ChartDataType.CustomerLifetimeValue => true,
+        ChartDataType.ActiveVsInactiveCustomers => true,
+        ChartDataType.RentalsPerCustomer => true,
+        ChartDataType.ReturnsOverTime => true,
+        ChartDataType.ReturnReasons => true,
+        ChartDataType.ReturnsByCategory => true,
+        ChartDataType.ReturnsByProduct => true,
+        ChartDataType.ExpenseVsRevenueReturns => true,
+        ChartDataType.LossesOverTime => true,
+        ChartDataType.LossReasons => true,
+        ChartDataType.LossesByCategory => true,
+        ChartDataType.LossesByProduct => true,
+        ChartDataType.ExpenseVsRevenueLosses => true,
+        ChartDataType.TaxRateDistribution => true,
+        _ => false
+    };
+
+    /// <summary>
     /// Returns the high-level category name for a chart data type.
     /// </summary>
     public static string GetChartCategory(this ChartDataType chartType) => chartType switch

@@ -1,4 +1,4 @@
-﻿using System.Security.Cryptography;
+using System.Security.Cryptography;
 using System.Text;
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
@@ -372,6 +372,22 @@ public class CompanyManager : IDisposable
     public string? GetSupplierAvatarPath(Supplier supplier) => GetEntityAvatarPath(supplier);
 
     /// <summary>
+    /// Whether another running instance has <paramref name="filePath"/> open. False for the
+    /// company this instance has open.
+    /// </summary>
+    public bool IsOpenInAnotherInstance(string filePath) => _instanceLock.IsHeldByAnotherInstance(filePath);
+
+    /// <summary>
+    /// Whether the open company's file can be renamed to <paramref name="newPath"/>: a name it
+    /// doesn't already have, with no other file there. A change of capitalization alone counts as
+    /// free, since where file names ignore case the file found there is this one. Where they
+    /// don't and another file has that name, the move is refused and the save keeps the old name.
+    /// </summary>
+    public bool CanRenameTo(string newPath) =>
+        CurrentFilePath != null && CurrentFilePath != newPath
+        && (string.Equals(CurrentFilePath, newPath, StringComparison.OrdinalIgnoreCase) || !File.Exists(newPath));
+
+    /// <summary>
     /// Schedules a file rename to be applied on the next save.
     /// The rename is deferred so that closing without saving leaves the original file untouched.
     /// </summary>
@@ -509,7 +525,7 @@ public class CompanyManager : IDisposable
         try
         {
             // Create company directory inside temp
-            var companyDir = Path.Combine(_currentTempDirectory, companyName);
+            var companyDir = Path.Combine(_currentTempDirectory, ToCompanyFileName(companyName));
             Directory.CreateDirectory(companyDir);
 
             // Create default company data
@@ -521,6 +537,7 @@ public class CompanyManager : IDisposable
             if (companyInfo != null)
             {
                 CompanyData.Settings.Company = companyInfo;
+                StarterCategories.AddTo(CompanyData, companyInfo.Industry);
             }
 
             if (string.IsNullOrEmpty(CompanyData.Settings.Company.Name))
@@ -665,9 +682,10 @@ public class CompanyManager : IDisposable
             _currentPassword = password;
 
             // Sync the company name from the file name so that external renames
-            // (e.g., via the OS file explorer) are reflected in the app
+            // (e.g., via the OS file explorer) are reflected in the app. A file named for the
+            // company's own name leaves it alone, even where "/" and the like became "-".
             var fileBaseName = Path.GetFileNameWithoutExtension(filePath);
-            if (!string.IsNullOrEmpty(fileBaseName) && CompanyData.Settings.Company.Name != fileBaseName)
+            if (!string.IsNullOrEmpty(fileBaseName) && ToCompanyFileName(CompanyData.Settings.Company.Name) != fileBaseName)
             {
                 CompanyData.Settings.Company.Name = fileBaseName;
             }
@@ -720,7 +738,7 @@ public class CompanyManager : IDisposable
     /// Current version of the invoice-totals healing logic. Bump this when the
     /// healing rules change so the pass re-runs once on the next open.
     /// </summary>
-    public const string InvoiceTotalsHealVersion = "1";
+    public const string InvoiceTotalsHealVersion = "3";
 
     /// <summary>
     /// One-time recalc that heals any historic drift between Invoice totals and
@@ -767,9 +785,81 @@ public class CompanyManager : IDisposable
             }
         }
 
+        // Version 2: an invoice paid in full counts its revenue as collected. Payments recorded by
+        // hand never marked it, and a portal refund took a paid invoice's revenue out. Only ever
+        // upgrades, so nothing a user marked collected is taken out of the totals.
+        foreach (var revenue in data.Revenues)
+        {
+            if (string.IsNullOrEmpty(revenue.InvoiceId) || RevenueAggregator.IsCollected(revenue))
+                continue;
+
+            if (data.GetInvoice(revenue.InvoiceId) is { } invoice && InvoiceTotalsService.IsPaidInFull(invoice))
+            {
+                revenue.PaymentStatus = RevenuePaymentStatus.Paid;
+                healed = true;
+            }
+        }
+
+        // Version 3: a security deposit is held, not earned (Calculations.md §4). Revenue created from
+        // an invoice counted it, so it comes out, and past refunds record how much of them gave the
+        // deposit back, taken from the deposit first as a refund made in the provider's dashboard is.
+        foreach (var invoice in data.Invoices.Where(i => i.SecurityDeposit > 0))
+            healed |= TakeDepositOutOfRevenue(data, invoice) | SplitDepositOutOfRefunds(data, invoice);
+
         data.Settings.InvoiceTotalsHealedVersion = InvoiceTotalsHealVersion;
         if (healed)
             data.ChangesMade = true;
+    }
+
+    private static bool TakeDepositOutOfRevenue(CompanyData data, Invoice invoice)
+    {
+        var deposit = invoice.SecurityDeposit;
+        var pendingIds = new List<string>();
+        var changed = false;
+
+        // Only revenue still carrying the invoice's whole total counted the deposit. Revenue the user
+        // entered before making the invoice from it never did.
+        foreach (var revenue in data.Revenues.Where(r => r.InvoiceId == invoice.Id && !r.IsKeptDeposit
+                     && r.Total > 0 && Math.Abs(r.Total - invoice.Total) < 0.01m))
+        {
+            var total = revenue.Total - deposit;
+            var depositUSD = revenue.TotalUSD * deposit / revenue.Total;
+            revenue.TotalUSD = revenue.TotalUSD * total / revenue.Total;
+            revenue.FeeUSD = Math.Max(0m, revenue.FeeUSD - depositUSD);
+            revenue.Fee = Math.Max(0m, revenue.Fee - deposit);
+            revenue.Total = total;
+
+            // A revenue still waiting for its rate converts from its queue entry, not the row.
+            foreach (var pending in data.PendingConversions.Where(p => p.TransactionId == revenue.Id))
+            {
+                pending.Total = total;
+                pending.Fee = Math.Max(0m, pending.Fee - deposit);
+                pendingIds.Add(revenue.Id);
+            }
+            changed = true;
+        }
+
+        if (pendingIds.Count > 0)
+            _ = PendingConversionService.Instance?.MirrorAsync(data, pendingIds);
+        return changed;
+    }
+
+    private static bool SplitDepositOutOfRefunds(CompanyData data, Invoice invoice)
+    {
+        var refunds = data.Payments
+            .Where(p => p.IsRefund && p.InvoiceId == invoice.Id)
+            .OrderBy(p => p.Date)
+            .ToList();
+        if (refunds.Count == 0 || refunds.Any(p => p.DepositAmount > 0))
+            return false;
+
+        var held = invoice.SecurityDeposit;
+        foreach (var refund in refunds)
+        {
+            refund.DepositAmount = SecurityDeposits.RefundPortion(Math.Abs(refund.Amount), null, held);
+            held -= refund.DepositAmount;
+        }
+        return true;
     }
 
     public const string RevenuePaymentsMigrationVersion = "1";
@@ -919,6 +1009,9 @@ public class CompanyManager : IDisposable
             // Notify listeners to sync in-memory state before saving
             CompanySaving?.Invoke(this, EventArgs.Empty);
 
+            // An edit made during the awaits below may miss the file, so it must stay unsaved.
+            var changeCount = CompanyData!.ChangeCount;
+
             // Save data to temp directory
             var companyDir = GetCompanyDirectory(_currentTempDirectory);
             await _fileService.SaveCompanyDataAsync(companyDir, CompanyData!, cancellationToken);
@@ -938,6 +1031,13 @@ public class CompanyManager : IDisposable
                     // destination, so there's no TOCTOU window between the check and the move.
                     File.Move(CurrentFilePath, PendingRenamePath, overwrite: false);
                     CurrentFilePath = PendingRenamePath;
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+                                               or ArgumentException or NotSupportedException)
+                {
+                    // The file keeps its name. The data still gets saved, and the rename is dropped
+                    // below rather than left to fail every save after this one.
+                    _errorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to rename company file");
                 }
                 finally
                 {
@@ -970,7 +1070,7 @@ public class CompanyManager : IDisposable
                 AcquireFileLock(CurrentFilePath);
             }
 
-            CompanyData!.MarkAsSaved();
+            CompanyData!.MarkAsSaved(changeCount);
 
             // Now that the file at the new path contains the freshly-written footer
             // with the updated company name, listeners can refresh recent-company
@@ -1023,6 +1123,7 @@ public class CompanyManager : IDisposable
 
             // Notify listeners to sync in-memory state before saving
             CompanySaving?.Invoke(this, EventArgs.Empty);
+            var changeCount = CompanyData!.ChangeCount;
 
             // Determine password to use
             var passwordToUse = newPassword ?? _currentPassword;
@@ -1033,7 +1134,7 @@ public class CompanyManager : IDisposable
 
             // Sync company name with the new file name so they stay consistent
             var newName = Path.GetFileNameWithoutExtension(newFilePath);
-            if (!string.IsNullOrEmpty(newName) && CompanyData!.Settings.Company.Name != newName)
+            if (!string.IsNullOrEmpty(newName) && ToCompanyFileName(CompanyData!.Settings.Company.Name) != newName)
             {
                 CompanyData.Settings.Company.Name = newName;
             }
@@ -1062,7 +1163,7 @@ public class CompanyManager : IDisposable
                 AcquireFileLock(newFilePath);
             }
 
-            CompanyData!.MarkAsSaved();
+            CompanyData!.MarkAsSaved(changeCount);
 
             // Add to recent companies
             _settingsService.AddRecentCompany(newFilePath);
@@ -1198,6 +1299,24 @@ public class CompanyManager : IDisposable
     public Task RemoveSupplierAvatarAsync(Supplier supplier)
         => RemoveEntityAvatarAsync(supplier);
 
+    // Path.GetInvalidFileNameChars lists only this platform's, and a file made on a Mac is
+    // often copied to a PC, so Windows' list is always added.
+    private static readonly char[] UnsafeFileNameChars =
+        [.. Path.GetInvalidFileNameChars(), '<', '>', ':', '"', '/', '\\', '|', '?', '*'];
+
+    /// <summary>
+    /// The file name, without ".argo", for a company called <paramref name="companyName"/>.
+    /// Characters no file name can hold, such as "/", become "-". The company keeps the name as
+    /// typed; only its file is named this.
+    /// </summary>
+    public static string ToCompanyFileName(string companyName)
+    {
+        var fileName = new string(companyName
+            .Select(c => char.IsControl(c) || UnsafeFileNameChars.Contains(c) ? '-' : c)
+            .ToArray());
+        return string.IsNullOrWhiteSpace(fileName) ? "Company" : fileName;
+    }
+
     private static string SanitizeForFileName(string raw)
     {
         if (string.IsNullOrWhiteSpace(raw))
@@ -1220,7 +1339,7 @@ public class CompanyManager : IDisposable
         if (CompanyData == null || _currentTempDirectory == null)
             throw new InvalidOperationException("No company is currently open.");
 
-        var trimmed = newId?.Trim() ?? string.Empty;
+        var trimmed = newId.Trim();
         if (string.IsNullOrEmpty(trimmed))
             throw new ArgumentException("Customer ID cannot be empty.", nameof(newId));
 
@@ -1275,7 +1394,7 @@ public class CompanyManager : IDisposable
         if (CompanyData == null)
             throw new InvalidOperationException("No company is currently open.");
 
-        var trimmed = newId?.Trim() ?? string.Empty;
+        var trimmed = newId.Trim();
         if (string.IsNullOrEmpty(trimmed))
             throw new ArgumentException("Supplier ID cannot be empty.", nameof(newId));
 
@@ -1320,7 +1439,7 @@ public class CompanyManager : IDisposable
         if (CompanyData == null)
             throw new InvalidOperationException("No company is currently open.");
 
-        var trimmed = newId?.Trim() ?? string.Empty;
+        var trimmed = newId.Trim();
         if (string.IsNullOrEmpty(trimmed))
             throw new ArgumentException("Product ID cannot be empty.", nameof(newId));
 
@@ -1460,17 +1579,25 @@ public class CompanyManager : IDisposable
             // Determine password to use
             var passwordToUse = string.IsNullOrEmpty(newPassword) ? null : newPassword;
 
-            // Re-encrypt the file with the new password WITHOUT saving data changes
-            // This only packages the existing temp directory content with the new encryption
-            // Release file lock before saving (save uses exclusive access), then re-acquire
-            ReleaseFileLock();
+            // Re-encrypt what is saved, not the working folder. That already holds changes the user
+            // hasn't saved, such as a deleted logo, which quitting without saving could then not undo.
+            var savedCopy = await _fileService.OpenCompanyAsync(CurrentFilePath, _currentPassword, cancellationToken);
             try
             {
-                await _fileService.SaveCompanyAsync(CurrentFilePath, _currentTempDirectory, passwordToUse, cancellationToken);
+                // Release file lock before saving (save uses exclusive access), then re-acquire
+                ReleaseFileLock();
+                try
+                {
+                    await _fileService.SaveCompanyAsync(CurrentFilePath, savedCopy, passwordToUse, cancellationToken);
+                }
+                finally
+                {
+                    AcquireFileLock(CurrentFilePath);
+                }
             }
             finally
             {
-                AcquireFileLock(CurrentFilePath);
+                await _fileService.CloseCompanyAsync(savedCopy);
             }
 
             _currentPassword = passwordToUse;
@@ -1539,18 +1666,27 @@ public class CompanyManager : IDisposable
     /// to the temp directory and repackages the .argo file, without triggering a full company save
     /// workflow (no CompanySaving/CompanySaved events, no MarkAsSaved).
     /// </summary>
-    public async Task SavePaymentSyncAsync(CancellationToken cancellationToken = default)
+    /// <returns>
+    /// Whether <paramref name="companyData"/> was written to its file. False when it is no longer the
+    /// open company or no company file is open, in which case nothing was saved.
+    /// </returns>
+    public async Task<bool> SavePaymentSyncAsync(CompanyData companyData, CancellationToken cancellationToken = default)
     {
         await _saveLock.WaitAsync(cancellationToken);
         try
         {
-            if (!IsCompanyOpen || CurrentFilePath == null || _currentTempDirectory == null || CompanyData == null)
-                return;
+            // Opening or closing a company doesn't take the save lock, so the company the payments
+            // were synced into may have gone while this waited for it.
+            if (!IsCompanyOpen || CurrentFilePath == null || _currentTempDirectory == null || CompanyData == null
+                || !ReferenceEquals(CompanyData, companyData))
+                return false;
 
             // Merge deferred receipts before writing receipts.json (see SaveCompanyAsync).
             // This save path is auto-triggered by portal sync shortly after open, so the
             // gate here is what prevents an early sync from dropping receipts.
             await EnsureReceiptsLoadedAsync();
+            if (!ReferenceEquals(CompanyData, companyData) || CurrentFilePath == null || _currentTempDirectory == null)
+                return false;
 
             var companyDir = GetCompanyDirectory(_currentTempDirectory);
             await _fileService.SaveCompanyDataAsync(companyDir, CompanyData, cancellationToken);
@@ -1565,6 +1701,8 @@ public class CompanyManager : IDisposable
             {
                 AcquireFileLock(CurrentFilePath);
             }
+
+            return true;
         }
         finally
         {
@@ -1590,7 +1728,20 @@ public class CompanyManager : IDisposable
                 return;
 
             var companyDir = GetCompanyDirectory(_currentTempDirectory);
-            await _fileService.WriteJsonAsync(companyDir, "appSettings.json", CompanyData.Settings, cancellationToken);
+
+            // These markers record work done on the other files: the open-time repairs and the
+            // forecast backtest. This save writes none of those files, so the markers stay as the
+            // temp copy has them; writing the new ones would make the next open skip that work.
+            var onDisk = await _fileService.ReadJsonAsync<CompanySettings>(companyDir, "appSettings.json", cancellationToken);
+            var settings = JsonSerializer.Deserialize<CompanySettings>(
+                JsonSerializer.Serialize(CompanyData.Settings, FileService.JsonOptions),
+                FileService.JsonOptions)!;
+            settings.InvoiceTotalsHealedVersion = onDisk?.InvoiceTotalsHealedVersion;
+            settings.RevenuePaymentsMigratedVersion = onDisk?.RevenuePaymentsMigratedVersion;
+            settings.BacktestVersion = onDisk?.BacktestVersion;
+            settings.LastBacktestedMonth = onDisk?.LastBacktestedMonth;
+
+            await _fileService.WriteJsonAsync(companyDir, "appSettings.json", settings, cancellationToken);
 
             ReleaseFileLock();
             try
@@ -1746,7 +1897,7 @@ public class CompanyOpenedEventArgs(string companyName, string filePath, bool is
 /// <summary>
 /// Event args for password required event.
 /// </summary>
-public class PasswordRequiredEventArgs() : EventArgs
+public class PasswordRequiredEventArgs : EventArgs
 {
     public string? Password { get; set; }
     public bool IsCancelled { get; set; }

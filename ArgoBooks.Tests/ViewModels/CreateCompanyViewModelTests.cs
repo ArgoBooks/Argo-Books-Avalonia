@@ -8,12 +8,7 @@ namespace ArgoBooks.Tests.ViewModels;
 /// </summary>
 public class CreateCompanyViewModelTests
 {
-    private readonly CreateCompanyViewModel _viewModel;
-
-    public CreateCompanyViewModelTests()
-    {
-        _viewModel = new CreateCompanyViewModel();
-    }
+    private readonly CreateCompanyViewModel _viewModel = new();
 
     #region Step Computed Properties Tests
 

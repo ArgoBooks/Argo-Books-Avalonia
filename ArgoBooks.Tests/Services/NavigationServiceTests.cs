@@ -8,12 +8,7 @@ namespace ArgoBooks.Tests.Services;
 /// </summary>
 public class NavigationServiceTests
 {
-    private readonly NavigationService _navigationService;
-
-    public NavigationServiceTests()
-    {
-        _navigationService = new NavigationService();
-    }
+    private readonly NavigationService _navigationService = new();
 
     #region NavigateTo Tests
 

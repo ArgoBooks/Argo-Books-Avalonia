@@ -142,4 +142,20 @@ public class InventoryValuationServiceTests
         Assert.Equal(300m,
             InventoryValuationService.TotalValueAsOf(data, new DateTime(2024, 6, 15)));
     }
+
+    // Manual, rental and purchase-order adjustments are stamped in UTC, but the report date is a
+    // local day, so an adjustment belongs to the local day it was made on. A machine set to UTC has
+    // no gap between the two, so this only catches the difference in other time zones.
+    [Fact]
+    public void TotalValueAsOf_UtcTimestamp_CountsOnTheLocalDayItWasMade()
+    {
+        var lateOnSep11 = new DateTime(2024, 9, 11, 23, 30, 0, DateTimeKind.Local).ToUniversalTime();
+        var earlyOnSep12 = new DateTime(2024, 9, 12, 0, 30, 0, DateTimeKind.Local).ToUniversalTime();
+        var data = new CompanyData();
+        data.Inventory.Add(new InventoryItem { Id = "I1", InStock = 180, UnitCost = 1m });
+        data.StockAdjustments.Add(Adj("I1", AdjustmentType.Add, 50, 100, 150, lateOnSep11));
+        data.StockAdjustments.Add(Adj("I1", AdjustmentType.Add, 30, 150, 180, earlyOnSep12));
+
+        Assert.Equal(150m, InventoryValuationService.TotalValueAsOf(data, new DateTime(2024, 9, 11)));
+    }
 }

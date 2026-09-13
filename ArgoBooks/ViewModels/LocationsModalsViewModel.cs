@@ -6,6 +6,7 @@ using ArgoBooks.Core.Models.Entities;
 using ArgoBooks.Core.Models.Telemetry;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
+using ArgoBooks.Shared.Telemetry;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -236,10 +237,8 @@ public partial class LocationsModalsViewModel : ViewModelBase
         if (companyData == null)
             return;
 
-        // Generate new ID
-        companyData.IdCounters.Location++;
         var newId = string.IsNullOrWhiteSpace(ModalCode)
-            ? $"LOC-{companyData.IdCounters.Location:D3}"
+            ? new Core.Data.IdGenerator(companyData).NextLocationId()
             : ModalCode.Trim().ToUpperInvariant();
 
         // Check for duplicate ID

@@ -6,7 +6,7 @@ namespace ArgoBooks.Tests.Controls;
 /// <summary>
 /// Tests for the Products table column-width distribution, specifically that columns
 /// hidden in the UI are excluded from the proportional star distribution so they do
-/// not reserve empty space (the "gap on the right" bug).
+/// not reserve empty space.
 /// </summary>
 public class ProductsTableColumnWidthsTests
 {
@@ -15,7 +15,7 @@ public class ProductsTableColumnWidthsTests
     private const double Padding = 48;
 
     /// <summary>
-    /// Reproduces the bug: when the inventory columns are still considered visible by the
+    /// When the inventory columns are still considered visible by the
     /// width manager (the desync), they steal proportional width from the shown columns.
     /// </summary>
     [Fact]
@@ -39,7 +39,7 @@ public class ProductsTableColumnWidthsTests
     }
 
     /// <summary>
-    /// Verifies the fix: once the inventory columns are reported hidden (what
+    /// Once the inventory columns are reported hidden (what
     /// ProductsPageViewModel.SyncColumnVisibility does), the shown columns expand to fill
     /// the full table width with no gap.
     /// </summary>

@@ -78,7 +78,7 @@ public partial class TopCustomersWidgetViewModel : WidgetViewModelBase
             .ToDictionary(g => g.Key, g =>
             {
                 var complete = CurrencyService.TrySumDisplayFromUSD(
-                    g, p => Math.Abs(p.Amount), p => p.OriginalCurrency, p => Math.Abs(p.AmountUSD), p => p.Date, out var sum);
+                    g, p => Math.Abs(p.Amount) * p.RevenueShare, p => p.OriginalCurrency, p => Math.Abs(p.AmountUSD) * p.RevenueShare, p => p.Date, out var sum);
                 return (Sum: sum, Complete: complete);
             });
 

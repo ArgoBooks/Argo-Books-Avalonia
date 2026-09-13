@@ -91,6 +91,46 @@ public class CompanyDataTests
 
     #endregion
 
+    #region Lookup Cache Tests
+
+    // Deleting one record and adding another leaves the count unchanged, which the lookup once
+    // took to mean nothing had changed.
+    [Fact]
+    public void GetCategory_AfterDeleteThenAdd_FindsTheNewCategory()
+    {
+        var data = new CompanyData();
+        var deleted = new Category { Id = "CAT-001", Name = "Old" };
+        data.Categories.Add(deleted);
+        data.Categories.Add(new Category { Id = "CAT-002", Name = "Kept" });
+        Assert.Same(deleted, data.GetCategory("CAT-001"));
+
+        data.Categories.Remove(deleted);
+        var added = new Category { Id = "CAT-003", Name = "New" };
+        data.Categories.Add(added);
+
+        Assert.Same(added, data.GetCategory("CAT-003"));
+        Assert.Null(data.GetCategory("CAT-001"));
+    }
+
+    [Fact]
+    public void GetCustomer_AfterDeletingTheLastThenAdding_FindsTheNewCustomer()
+    {
+        var data = new CompanyData();
+        data.Customers.Add(new Customer { Id = "CUS-001", Name = "Kept" });
+        var deleted = new Customer { Id = "CUS-002", Name = "Old" };
+        data.Customers.Add(deleted);
+        Assert.Same(deleted, data.GetCustomer("CUS-002"));
+
+        data.Customers.Remove(deleted);
+        var added = new Customer { Id = "CUS-003", Name = "New" };
+        data.Customers.Add(added);
+
+        Assert.Same(added, data.GetCustomer("CUS-003"));
+        Assert.Null(data.GetCustomer("CUS-002"));
+    }
+
+    #endregion
+
     #region MarkAsModified / MarkAsSaved Tests
 
     [Fact]
@@ -110,6 +150,35 @@ public class CompanyDataTests
         data.MarkAsModified();
 
         data.MarkAsSaved();
+
+        Assert.False(data.ChangesMade);
+    }
+
+    /// <summary>
+    /// An edit that lands while a save is writing may not be in the file, so the save must not
+    /// clear the flag for it; otherwise the auto-save before locking skips it.
+    /// </summary>
+    [Fact]
+    public void MarkAsSaved_ChangeDuringSave_KeepsChangesMade()
+    {
+        var data = new CompanyData();
+        data.MarkAsModified();
+        var changeCount = data.ChangeCount;
+
+        data.Settings.ChangesMade = true;
+        data.MarkAsSaved(changeCount);
+
+        Assert.True(data.ChangesMade);
+    }
+
+    [Fact]
+    public void MarkAsSaved_NoChangeDuringSave_ClearsChangesMade()
+    {
+        var data = new CompanyData();
+        data.MarkAsModified();
+        var changeCount = data.ChangeCount;
+
+        data.MarkAsSaved(changeCount);
 
         Assert.False(data.ChangesMade);
     }

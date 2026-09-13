@@ -53,23 +53,9 @@
                 <StackPanel Margin="24" Spacing="24">
                     <!-- App Icon and Version -->
                     <StackPanel HorizontalAlignment="Center" Spacing="12">
-                        <Border Width="64" Height="64"
-                                CornerRadius="16"
-                                HorizontalAlignment="Center"
-                                ClipToBounds="True">
-                            <Border.Background>
-                                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
-                                    <GradientStop Color="{DynamicResource PrimaryColor}" Offset="0" />
-                                    <GradientStop Color="{DynamicResource AccentColor}" Offset="1" />
-                                </LinearGradientBrush>
-                            </Border.Background>
-                            <TextBlock Text="AB"
-                                       FontSize="24"
-                                       FontWeight="Bold"
-                                       Foreground="White"
-                                       HorizontalAlignment="Center"
-                                       VerticalAlignment="Center" />
-                        </Border>
+                        <Image Source="avares://ArgoBooks/Assets/argo-logo.png"
+                               Width="64" Height="64"
+                               HorizontalAlignment="Center" />
                         <TextBlock Text="{loc:Loc 'Argo Books'}"
                                    FontSize="16"
                                    FontWeight="SemiBold"

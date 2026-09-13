@@ -1,19 +1,10 @@
-using System;
-using System.IO;
-using System.Threading.Tasks;
-using Android.App;
-using Android.Content;
-using Android.Gms.Extensions;
-using Microsoft.Maui.ApplicationModel;
-using Net.Google.MLKit.Vision.DocumentScanner;
-
 namespace ArgoBooks.Mobile.Services;
 
 /// <summary>
 /// Launches Google ML Kit's Document Scanner (GmsDocumentScanning) full-screen UI: it edge-detects,
 /// crops, and straightens a photographed page live, then hands back a JPEG. Configured for a single
 /// page with gallery import allowed, so the same UI also serves as the "import from photos" path
-/// (Task 3's capture screen calls this from both the shutter and the "import from photos" button).
+/// (the capture screen calls this from both the shutter and the "import from photos" button).
 ///
 /// Unlike QrScanner's turnkey GmsBarcodeScanning (a coroutine-style API that returns the decoded
 /// result directly from StartScan()), the document scanner only exposes

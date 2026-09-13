@@ -20,7 +20,6 @@ public class PayrollRateService
     private const string ResourcePrefix = "ArgoBooks.Core.Resources.Payroll.";
 
     private readonly string _cacheDirectory;
-    private readonly Dictionary<string, PayrollRateTable> _loaded = new(StringComparer.OrdinalIgnoreCase);
     private List<PayrollRateTable>? _all;
 
     public PayrollRateService(IPlatformService? platformService = null)
@@ -59,7 +58,6 @@ public class PayrollRateService
     /// </summary>
     public void Invalidate()
     {
-        _loaded.Clear();
         _all = null;
     }
 
@@ -162,7 +160,6 @@ public class PayrollRateService
             return null;
         }
 
-        _loaded[table.EditionId] = table;
         return table;
     }
 }

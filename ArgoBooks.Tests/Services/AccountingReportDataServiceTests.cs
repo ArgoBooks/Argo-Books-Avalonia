@@ -132,6 +132,93 @@ public class AccountingReportDataServiceTests
         Assert.Equal(inventoryRow.Values[0], totalCurrentAssetsRow.Values[0]);
     }
 
+    // $500 rent + $65 tax + $200 deposit = $765, paid and refunded in full, deposit included. The
+    // $65 of tax is handed back; the deposit part of the refund carried none.
+    [Fact]
+    public void GetReportData_BalanceSheet_TaxPayableTakesOffTheTaxOnARefund()
+    {
+        var data = new CompanyData();
+        data.Invoices.Add(new Invoice
+        {
+            Id = "INV-D", InvoiceNumber = "INV-D", CustomerId = "C1", OriginalCurrency = "USD",
+            IssueDate = new DateTime(2024, 3, 1), Subtotal = 500m, TaxAmount = 65m, SecurityDeposit = 200m,
+            Total = 765m, TotalUSD = 765m, Status = InvoiceStatus.Refunded
+        });
+        data.Revenues.Add(new Revenue
+        {
+            Id = "REV-D", InvoiceId = "INV-D", Date = new DateTime(2024, 3, 1), OriginalCurrency = "USD",
+            Subtotal = 500m, TaxAmount = 65m, TaxAmountUSD = 65m, Total = 565m, TotalUSD = 565m
+        });
+        data.Payments.Add(new Payment
+        {
+            Id = "PAY-D1", InvoiceId = "INV-D", OriginalCurrency = "USD", Date = new DateTime(2024, 3, 1),
+            Amount = 765m, AmountUSD = 765m
+        });
+        data.Payments.Add(new Payment
+        {
+            Id = "PAY-D2", InvoiceId = "INV-D", OriginalCurrency = "USD", Date = new DateTime(2024, 3, 10),
+            Amount = -765m, AmountUSD = -765m, IsRefund = true, DepositAmount = 200m
+        });
+
+        var result = new AccountingReportDataService(data, CreateDefaultFilters())
+            .GetReportData(AccountingReportType.BalanceSheet);
+
+        Assert.Equal(0m, AmountOf(result, "TOTAL LIABILITIES"));
+    }
+
+    // $500 rent + $200 deposit = $700, paid Mar 1. The deposit is owed back to the customer until it
+    // is given back or kept, so only the $500 of rent is retained earnings.
+    [Theory]
+    [InlineData(null, false, 200, 500)]          // still held at the end date
+    [InlineData("2025-01-15", false, 200, 500)]  // given back after the end date, so held on it
+    [InlineData("2024-12-01", false, 0, 500)]    // given back before the end date
+    [InlineData("2024-12-01", true, 0, 700)]     // kept, which made it revenue
+    public void GetReportData_BalanceSheet_OwesBackTheSecurityDepositsItStillHolds(
+        string? settledOn, bool kept, int owed, int retained)
+    {
+        var data = new CompanyData();
+        var invoice = new Invoice
+        {
+            Id = "INV-S", InvoiceNumber = "INV-S", CustomerId = "C1", OriginalCurrency = "USD",
+            IssueDate = new DateTime(2024, 3, 1), Subtotal = 500m, SecurityDeposit = 200m,
+            Total = 700m, TotalUSD = 700m, Status = InvoiceStatus.Sent
+        };
+        data.Invoices.Add(invoice);
+        data.Revenues.Add(new Revenue
+        {
+            Id = "REV-S", InvoiceId = "INV-S", Date = new DateTime(2024, 3, 1), OriginalCurrency = "USD",
+            Subtotal = 500m, Total = 500m, TotalUSD = 500m
+        });
+        data.Payments.Add(new Payment
+        {
+            Id = "PAY-S1", InvoiceId = "INV-S", OriginalCurrency = "USD", Date = new DateTime(2024, 3, 1),
+            Amount = 700m, AmountUSD = 700m
+        });
+        if (settledOn != null && kept)
+        {
+            data.Revenues.Add(new Revenue
+            {
+                Id = "REV-K", InvoiceId = "INV-S", IsKeptDeposit = true, Date = DateTime.Parse(settledOn),
+                OriginalCurrency = "USD", Subtotal = 200m, Total = 200m, TotalUSD = 200m
+            });
+        }
+        else if (settledOn != null)
+        {
+            data.Payments.Add(new Payment
+            {
+                Id = "PAY-S2", InvoiceId = "INV-S", OriginalCurrency = "USD", Date = DateTime.Parse(settledOn),
+                Amount = -200m, AmountUSD = -200m, IsRefund = true, DepositAmount = 200m
+            });
+        }
+        InvoiceTotalsService.Recalculate(invoice, data.Payments);
+
+        var result = new AccountingReportDataService(data, CreateDefaultFilters())
+            .GetReportData(AccountingReportType.BalanceSheet);
+
+        Assert.Equal(owed, AmountOf(result, "TOTAL LIABILITIES"));
+        Assert.Equal(retained, AmountOf(result, "Retained Earnings"));
+    }
+
     [Fact]
     public void GetReportData_BalanceSheet_NoInventory_OmitsInventoryRow()
     {
@@ -277,8 +364,7 @@ public class AccountingReportDataServiceTests
     public void GetReportData_TaxSummary_CountsTransactionLevelTaxWhenLineItemsHaveNoRate()
     {
         // Regression: manually-entered transactions always carry a line item with TaxRate 0 but
-        // record their tax at the transaction level. The Tax Summary used to read tax only off line
-        // items whenever any existed, so it reported $0 for every UI-entered sale and expense.
+        // record their tax at the transaction level.
         var data = new CompanyData();
         data.Revenues.Add(new Revenue
         {
@@ -311,12 +397,73 @@ public class AccountingReportDataServiceTests
 
         var result = service.GetReportData(AccountingReportType.TaxSummary);
 
-        // The two subtotal rows are "Total Tax Collected" then "Total Tax Paid". Before the fix both
-        // formatted as $0.00 because the per-line-item tax is always 0 for manual entries.
+        // The two subtotal rows are "Total Tax Collected" then "Total Tax Paid".
         var subtotals = result.Rows.FindAll(r => r.RowType == AccountingRowType.SubtotalRow);
         Assert.Equal(2, subtotals.Count);
         Assert.Contains("8", subtotals[0].Values[0]);   // tax collected = $8
         Assert.Contains("5", subtotals[1].Values[0]);   // tax paid = $5
+    }
+
+    // docs/Calculations.md §8: $86.91 + $32.09 tax = $119, paid Mar 1 and refunded in full Mar 10.
+    private static CompanyData RefundedSale()
+    {
+        var data = new CompanyData();
+        data.Invoices.Add(new Invoice
+        {
+            Id = "INV-T", InvoiceNumber = "INV-T", CustomerId = "C1", OriginalCurrency = "USD",
+            IssueDate = new DateTime(2024, 3, 1), Subtotal = 86.91m, TaxAmount = 32.09m,
+            Total = 119m, TotalUSD = 119m, Status = InvoiceStatus.Refunded
+        });
+        data.Revenues.Add(new Revenue
+        {
+            Id = "REV-T", InvoiceId = "INV-T", Date = new DateTime(2024, 3, 1), OriginalCurrency = "USD",
+            Subtotal = 86.91m, TaxRate = 36.92m, TaxAmount = 32.09m, TaxAmountUSD = 32.09m, Total = 119m, TotalUSD = 119m
+        });
+        data.Payments.Add(new Payment
+        {
+            Id = "PAY-T1", InvoiceId = "INV-T", OriginalCurrency = "USD", Date = new DateTime(2024, 3, 1),
+            Amount = 119m, AmountUSD = 119m
+        });
+        data.Payments.Add(new Payment
+        {
+            Id = "PAY-T2", InvoiceId = "INV-T", OriginalCurrency = "USD", Date = new DateTime(2024, 3, 10),
+            Amount = -119m, AmountUSD = -119m, IsRefund = true
+        });
+        return data;
+    }
+
+    // Tax owed drops by the $32.09 handed back.
+    [Fact]
+    public void GetReportData_TaxSummary_TakesOffTheTaxOnARefund()
+    {
+        var result = new AccountingReportDataService(RefundedSale(), CreateDefaultFilters())
+            .GetReportData(AccountingReportType.TaxSummary);
+
+        Assert.Equal(0m, AmountOf(result, "NET TAX LIABILITY"));
+    }
+
+    // The $86.91 of revenue comes back off on the refund's date, so nothing is left as income.
+    [Fact]
+    public void GetReportData_IncomeStatement_TakesOffARefundBeforeTax()
+    {
+        var result = new AccountingReportDataService(RefundedSale(), CreateDefaultFilters())
+            .GetReportData(AccountingReportType.IncomeStatement);
+
+        Assert.Equal(0m, AmountOf(result, "Total Revenue"));
+        Assert.Equal(0m, AmountOf(result, "NET INCOME"));
+    }
+
+    [Fact]
+    public void GetReportData_GeneralLedger_TakesARefundBackOffRevenueBeforeTax()
+    {
+        var result = new AccountingReportDataService(RefundedSale(), CreateDefaultFilters())
+            .GetReportData(AccountingReportType.GeneralLedger);
+
+        var revenueRows = result.Rows
+            .SkipWhile(r => r.Label != "REVENUE").Skip(1)
+            .TakeWhile(r => r.RowType == AccountingRowType.DataRow)
+            .ToList();
+        Assert.Equal(0m, ParseAmount(revenueRows[^1].Values[4]));
     }
 
     #endregion
@@ -328,8 +475,7 @@ public class AccountingReportDataServiceTests
     {
         // AR on the Balance Sheet is an "as of the end date" balance, so an open invoice issued AFTER
         // the report end date must not be counted. Every other current-asset/liability line is date
-        // gated via IsOnOrBeforeEndDate; AR was the one that wasn't, so a future-dated open invoice
-        // inflated AR (and, since Retained Earnings is the balancing figure, equity too).
+        // gated via IsOnOrBeforeEndDate.
         static Invoice MakeInvoice(string id, DateTime issue, decimal amount) => new()
         {
             Id = id,
@@ -425,6 +571,100 @@ public class AccountingReportDataServiceTests
 
     #endregion
 
+    #region Receivables As Of The End Date
+
+    private static readonly ReportFilters January2024 = new()
+    {
+        StartDate = new DateTime(2024, 1, 1),
+        EndDate = new DateTime(2024, 1, 31)
+    };
+
+    // $1,000 invoiced Jan 10, $400 paid Jan 20, the other $600 Feb 5. Today it reads Paid with no
+    // balance, but at Jan 31 the customer still owed $600.
+    private static CompanyData InvoicePaidOffInFebruary()
+    {
+        var data = new CompanyData();
+        var invoice = new Invoice
+        {
+            Id = "INV-1", InvoiceNumber = "INV-1", CustomerId = "C1", OriginalCurrency = "USD",
+            IssueDate = new DateTime(2024, 1, 10), DueDate = new DateTime(2024, 2, 9),
+            Subtotal = 1000m, Total = 1000m, TotalUSD = 1000m, Status = InvoiceStatus.Sent
+        };
+        data.Invoices.Add(invoice);
+        data.Revenues.Add(new Revenue
+        {
+            Id = "REV-1", InvoiceId = "INV-1", CustomerId = "C1", Date = new DateTime(2024, 1, 10),
+            OriginalCurrency = "USD", Subtotal = 1000m, Total = 1000m, TotalUSD = 1000m
+        });
+        data.Payments.Add(new Payment
+        {
+            Id = "PAY-1", InvoiceId = "INV-1", CustomerId = "C1", OriginalCurrency = "USD",
+            Date = new DateTime(2024, 1, 20, 11, 0, 0), Amount = 400m, AmountUSD = 400m
+        });
+        data.Payments.Add(new Payment
+        {
+            Id = "PAY-2", InvoiceId = "INV-1", CustomerId = "C1", OriginalCurrency = "USD",
+            Date = new DateTime(2024, 2, 5, 11, 0, 0), Amount = 600m, AmountUSD = 600m
+        });
+        InvoiceTotalsService.Recalculate(invoice, data.Payments);
+        return data;
+    }
+
+    [Fact]
+    public void GetReportData_BalanceSheet_ReceivablesAreWhatWasOwedAtTheEndDate()
+    {
+        var data = InvoicePaidOffInFebruary();
+        Assert.Equal(InvoiceStatus.Paid, data.Invoices[0].Status);
+
+        var result = new AccountingReportDataService(data, January2024).GetReportData(AccountingReportType.BalanceSheet);
+
+        // Cash is the $400 received by Jan 31; the $600 still owed is a receivable.
+        Assert.Equal(600m, AmountOf(result, "Accounts Receivable"));
+        Assert.Equal(1000m, AmountOf(result, "TOTAL ASSETS"));
+    }
+
+    [Fact]
+    public void GetReportData_ARAging_AgesWhatWasOwedAtTheEndDate()
+    {
+        var result = new AccountingReportDataService(InvoicePaidOffInFebruary(), January2024)
+            .GetReportData(AccountingReportType.AccountsReceivableAging);
+
+        var total = result.Rows.Find(r => r.Label == "TOTAL")!;
+        Assert.Equal(600m, ParseAmount(total.Values[^1]));
+    }
+
+    [Fact]
+    public void GetReportData_ARAging_LeavesOutAFullyRefundedInvoice()
+    {
+        var data = new CompanyData();
+        var invoice = new Invoice
+        {
+            Id = "INV-R", InvoiceNumber = "INV-R", CustomerId = "C1", OriginalCurrency = "USD",
+            IssueDate = new DateTime(2024, 3, 1), DueDate = new DateTime(2024, 3, 31),
+            Total = 500m, TotalUSD = 500m, Status = InvoiceStatus.Sent
+        };
+        data.Invoices.Add(invoice);
+        data.Payments.Add(new Payment
+        {
+            Id = "PAY-R1", InvoiceId = "INV-R", CustomerId = "C1", OriginalCurrency = "USD",
+            Date = new DateTime(2024, 3, 5), Amount = 500m, AmountUSD = 500m
+        });
+        data.Payments.Add(new Payment
+        {
+            Id = "PAY-R2", InvoiceId = "INV-R", CustomerId = "C1", OriginalCurrency = "USD",
+            Date = new DateTime(2024, 3, 10), Amount = -500m, AmountUSD = -500m, IsRefund = true
+        });
+        InvoiceTotalsService.Recalculate(invoice, data.Payments);
+        Assert.Equal(InvoiceStatus.Refunded, invoice.Status);
+
+        var result = new AccountingReportDataService(data, CreateDefaultFilters())
+            .GetReportData(AccountingReportType.AccountsReceivableAging);
+
+        Assert.DoesNotContain(result.Rows, r => r.RowType == AccountingRowType.DataRow);
+    }
+
+    #endregion
+
     #region Payroll Remittance Tests
 
     private static ReportFilters PayrollFilters() => new()
@@ -465,8 +705,15 @@ public class AccountingReportDataServiceTests
     }
 
     private static decimal AmountOf(AccountingTableData data, string label) =>
-        decimal.Parse(new string(data.Rows.Find(r => r.Label == label)!.Values[0]
-            .Where(c => char.IsDigit(c) || c == '.').ToArray()), System.Globalization.CultureInfo.InvariantCulture);
+        ParseAmount(data.Rows.Find(r => r.Label == label)!.Values[0]);
+
+    // Formatted amounts show a negative in parentheses.
+    private static decimal ParseAmount(string formatted)
+    {
+        var value = decimal.Parse(new string(formatted.Where(c => char.IsDigit(c) || c == '.').ToArray()),
+            System.Globalization.CultureInfo.InvariantCulture);
+        return formatted.StartsWith('(') ? -value : value;
+    }
 
     [Fact]
     public void PayrollRemittance_OutsideQuebec_TotalsEverythingForCra()

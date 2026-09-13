@@ -98,7 +98,7 @@ public static class T4XmlWriter
     /// </summary>
     private static string SubmissionReference(T4Return t4)
     {
-        string digits = new((t4.PayrollAccountNumber ?? string.Empty).Where(char.IsAsciiDigit).ToArray());
+        string digits = new(t4.PayrollAccountNumber.Where(char.IsAsciiDigit).ToArray());
         string tail = digits.Length >= 4 ? digits[^4..] : digits.PadLeft(4, '0');
 
         return $"{t4.TaxYear.ToString(CultureInfo.InvariantCulture)}{tail}";
@@ -122,20 +122,6 @@ public static class T4XmlWriter
         using var writer = new Utf8StringWriter(builder);
         Build(t4).Save(writer, SaveOptions.None);
         return builder.ToString();
-    }
-
-    /// <summary>
-    /// A StringWriter that reports UTF-8, because the declaration is taken from the writer.
-    ///
-    /// Save(TextWriter) asks the writer what encoding it is, and a plain StringWriter answers
-    /// UTF-16 whatever is done with the characters afterwards. The export then wrote those
-    /// characters out as UTF-8 bytes, so the file announced an encoding it was not in. Nothing
-    /// in this app would notice; the parser at CRA's end is what notices.
-    /// </summary>
-    private sealed class Utf8StringWriter(StringBuilder builder)
-        : StringWriter(builder, CultureInfo.InvariantCulture)
-    {
-        public override Encoding Encoding => Encoding.UTF8;
     }
 
     private static XElement BuildSlip(T4Return t4, T4Slip slip)

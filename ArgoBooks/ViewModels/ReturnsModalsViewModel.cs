@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using ArgoBooks.Core.Models.Tracking;
+using ArgoBooks.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -245,40 +246,24 @@ public partial class ReturnsModalsViewModel : ViewModelBase
         var companyData = App.CompanyManager?.CompanyData;
         if (companyData == null) return;
 
-        // Remove the return record
-        companyData.Returns.Remove(_undoReturn);
-
-        // Restore the original transaction quantity
-        if (_undoReturn.ReturnType == "Expense")
-        {
-            var expense = companyData.Expenses.FirstOrDefault(e => e.Id == _undoReturn.OriginalTransactionId);
-            if (expense != null)
+        // Recording a return only adds this record (line quantities, stock and the transaction are
+        // left alone), so undoing it only removes the record.
+        var returnRecord = _undoReturn;
+        companyData.Returns.Remove(returnRecord);
+        App.UndoRedoManager.RecordAction(new DelegateAction(
+            $"Undo return '{returnRecord.Id}'",
+            () =>
             {
-                foreach (var returnedItem in _undoReturn.Items)
-                {
-                    var lineItem = expense.LineItems.FirstOrDefault(i => i.ProductId == returnedItem.ProductId);
-                    if (lineItem != null)
-                    {
-                        lineItem.Quantity += returnedItem.Quantity;
-                    }
-                }
-            }
-        }
-        else if (_undoReturn.ReturnType == "Customer")
-        {
-            var revenue = companyData.Revenues.FirstOrDefault(r => r.Id == _undoReturn.OriginalTransactionId);
-            if (revenue != null)
+                companyData.Returns.Add(returnRecord);
+                companyData.MarkAsModified();
+                ReturnUndone?.Invoke(this, EventArgs.Empty);
+            },
+            () =>
             {
-                foreach (var returnedItem in _undoReturn.Items)
-                {
-                    var lineItem = revenue.LineItems.FirstOrDefault(i => i.ProductId == returnedItem.ProductId);
-                    if (lineItem != null)
-                    {
-                        lineItem.Quantity += returnedItem.Quantity;
-                    }
-                }
-            }
-        }
+                companyData.Returns.Remove(returnRecord);
+                companyData.MarkAsModified();
+                ReturnUndone?.Invoke(this, EventArgs.Empty);
+            }));
 
         App.CompanyManager?.MarkAsChanged();
         CloseUndoReturnModal();

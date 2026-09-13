@@ -16,16 +16,6 @@ public static class PlatformKeys
     public static KeyModifiers Command { get; } =
         OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control;
 
-    /// <summary>
-    /// How the modifier is written in the UI: "Cmd+" on macOS, "Ctrl+" elsewhere.
-    ///
-    /// Spelled out rather than the conventional U+2318 glyph on purpose. The app loads
-    /// Inter as its default font, Inter has no glyph there, and the fallback on macOS is
-    /// what turned the sample banner's dismiss button into stacked bars. Three letters
-    /// always render.
-    /// </summary>
-    public static string CommandLabel { get; } = OperatingSystem.IsMacOS() ? "Cmd+" : "Ctrl+";
-
     /// <summary>True while the platform's shortcut modifier is held.</summary>
     public static bool HasCommand(this KeyModifiers modifiers) => modifiers.HasFlag(Command);
 

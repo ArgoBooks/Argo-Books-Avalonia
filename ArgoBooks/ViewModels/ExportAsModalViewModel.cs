@@ -120,9 +120,6 @@ public partial class ExportAsModalViewModel : ViewModelBase
         AddDataItem(new ExportDataItem { Name = "Inventory", Key = "Inventory", RecordCount = 0, IsSelected = true });
         AddDataItem(new ExportDataItem { Name = "Stock Adjustments", Key = "Stock Adjustments", RecordCount = 0, IsSelected = true });
         AddDataItem(new ExportDataItem { Name = "Purchase Orders", Key = "Purchase Orders", RecordCount = 0, IsSelected = true });
-
-        // The export service has always been able to write this sheet; it was simply never
-        // offered, so purchase orders exported with nothing on them.
         AddDataItem(new ExportDataItem { Name = "Purchase Order Line Items", Key = "Purchase Order Line Items", RecordCount = 0, IsSelected = true });
 
         // Rentals

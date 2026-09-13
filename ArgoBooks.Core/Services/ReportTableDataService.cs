@@ -72,12 +72,13 @@ public class ReportTableDataService(CompanyData? companyData, ReportFilters filt
             TransactionType = "Revenue",
             CompanyName = customer?.Name ?? "Unknown",
             ProductName = product?.Description ?? (revenue.LineItems.Count > 1 ? $"Multiple ({revenue.LineItems.Count} items)" : revenue.Description),
-            Quantity = (int)(revenue.LineItems.Sum(i => i.Quantity)),
+            Quantity = revenue.LineItems.Sum(i => i.Quantity),
             UnitPrice = primaryItem?.UnitPrice ?? revenue.UnitPrice,
             Total = revenue.EffectiveSubtotalUSD,
             Status = revenue.PaymentStatus.ToString(),
             AccountantName = accountant?.Name ?? "Unknown",
-            ShippingCost = revenue.ShippingCost,
+            // USD-normalized like Total; the renderer converts it at the row's date.
+            ShippingCost = revenue.EffectiveShippingCostUSD,
             Country = customer?.Address.Country ?? "",
             Notes = revenue.Notes
         };
@@ -139,20 +140,17 @@ public class ReportTableDataService(CompanyData? companyData, ReportFilters filt
             TransactionType = "Expense",
             CompanyName = supplier?.Name ?? "Unknown",
             ProductName = expense.Description,
-            Quantity = (int)expense.Quantity,
+            Quantity = expense.Quantity,
             UnitPrice = expense.UnitPrice,
             Total = expense.EffectiveSubtotalUSD,
             Status = "Completed",
             AccountantName = accountant?.Name ?? "Unknown",
-            ShippingCost = expense.ShippingCost,
+            // USD-normalized like Total; the renderer converts it at the row's date.
+            ShippingCost = expense.EffectiveShippingCostUSD,
             Country = supplier?.Address.Country ?? "",
             Notes = expense.Notes
         };
     }
-
-    #endregion
-
-    #region Combined Data
 
     #endregion
 
@@ -172,8 +170,8 @@ public class ReportTableDataService(CompanyData? companyData, ReportFilters filt
         {
             TableSortOrder.DateAscending => query.OrderBy(i => i.IssueDate),
             TableSortOrder.DateDescending => query.OrderByDescending(i => i.IssueDate),
-            TableSortOrder.AmountAscending => query.OrderBy(i => i.Total),
-            TableSortOrder.AmountDescending => query.OrderByDescending(i => i.Total),
+            TableSortOrder.AmountAscending => query.OrderBy(i => i.EffectiveTotalUSD),
+            TableSortOrder.AmountDescending => query.OrderByDescending(i => i.EffectiveTotalUSD),
             _ => query.OrderByDescending(i => i.IssueDate)
         };
 
@@ -195,7 +193,7 @@ public class ReportTableDataService(CompanyData? companyData, ReportFilters filt
                 Total = i.EffectiveTotalUSD,
                 AmountPaid = i.EffectiveTotalUSD - i.EffectiveBalanceUSD,
                 Balance = i.EffectiveBalanceUSD,
-                Status = i.Status.ToString()
+                Status = InvoiceTotalsService.DisplayStatus(i).ToString()
             };
         }).ToList();
     }
@@ -218,8 +216,8 @@ public class ReportTableDataService(CompanyData? companyData, ReportFilters filt
         {
             TableSortOrder.DateAscending => query.OrderBy(p => p.Date),
             TableSortOrder.DateDescending => query.OrderByDescending(p => p.Date),
-            TableSortOrder.AmountAscending => query.OrderBy(p => p.Amount),
-            TableSortOrder.AmountDescending => query.OrderByDescending(p => p.Amount),
+            TableSortOrder.AmountAscending => query.OrderBy(p => p.EffectiveAmountUSD),
+            TableSortOrder.AmountDescending => query.OrderByDescending(p => p.EffectiveAmountUSD),
             _ => query.OrderByDescending(p => p.Date)
         };
 
@@ -392,8 +390,8 @@ public class ReportTableDataService(CompanyData? companyData, ReportFilters filt
         {
             TableSortOrder.DateAscending => query.OrderBy(po => po.OrderDate),
             TableSortOrder.DateDescending => query.OrderByDescending(po => po.OrderDate),
-            TableSortOrder.AmountAscending => query.OrderBy(po => po.Total),
-            TableSortOrder.AmountDescending => query.OrderByDescending(po => po.Total),
+            TableSortOrder.AmountAscending => query.OrderBy(po => po.EffectiveTotalUSD),
+            TableSortOrder.AmountDescending => query.OrderByDescending(po => po.EffectiveTotalUSD),
             _ => query.OrderByDescending(po => po.OrderDate)
         };
 
@@ -738,6 +736,7 @@ public class ReportTableDataService(CompanyData? companyData, ReportFilters filt
             CategoryName = category?.Name ?? "Unknown",
             Quantity = returnRecord.Items.Sum(i => i.Quantity),
             RefundAmount = returnRecord.RefundAmount,
+            Currency = ReturnLossAmounts.CurrencyOf(companyData!, returnRecord),
             Reason = firstItem?.Reason ?? "Not specified",
             Status = returnRecord.Status.ToString(),
             Notes = returnRecord.Notes
@@ -792,6 +791,7 @@ public class ReportTableDataService(CompanyData? companyData, ReportFilters filt
             CategoryName = category?.Name ?? "Unknown",
             Quantity = lossRecord.Quantity,
             EstimatedValue = lossRecord.ValueLost,
+            Currency = ReturnLossAmounts.CurrencyOf(companyData!, lossRecord),
             Reason = lossRecord.Reason.ToString(),
             Location = "", // Not available in model
             Notes = lossRecord.Notes
@@ -1038,7 +1038,7 @@ public class TransactionTableRow
     public string TransactionType { get; set; } = string.Empty;
     public string CompanyName { get; set; } = string.Empty;
     public string ProductName { get; set; } = string.Empty;
-    public int Quantity { get; set; }
+    public decimal Quantity { get; set; }
     public decimal UnitPrice { get; set; }
     public decimal Total { get; set; }
     public string Status { get; set; } = string.Empty;
@@ -1060,7 +1060,9 @@ public class ReturnTableRow
     public string ProductName { get; set; } = string.Empty;
     public string CategoryName { get; set; } = string.Empty;
     public int Quantity { get; set; }
+    /// <summary>In <see cref="Currency"/>, the currency of the sale it came from; not USD-normalized.</summary>
     public decimal RefundAmount { get; set; }
+    public string Currency { get; set; } = "USD";
     public string Reason { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
     public string Notes { get; set; } = string.Empty;
@@ -1077,7 +1079,9 @@ public class LossTableRow
     public string ProductName { get; set; } = string.Empty;
     public string CategoryName { get; set; } = string.Empty;
     public int Quantity { get; set; }
+    /// <summary>In <see cref="Currency"/>, the currency of the sale or purchase it came from; not USD-normalized.</summary>
     public decimal EstimatedValue { get; set; }
+    public string Currency { get; set; } = "USD";
     public string Reason { get; set; } = string.Empty;
     public string Location { get; set; } = string.Empty;
     public string Notes { get; set; } = string.Empty;

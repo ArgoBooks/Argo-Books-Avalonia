@@ -370,12 +370,6 @@ public class PayrollInvariantTests
         // 62,400 divides evenly into all four frequencies, so any difference here is the
         // engine's rather than an artefact of an uneven period amount.
         //
-        // This test earned its keep. It first failed at a spread of $5.35, which looked like
-        // an acceptable tolerance question and was not: the K2 credit was projecting the
-        // year's CPP from the year-to-date figure, so the projection reached the annual
-        // maximum at a different point in the year for twelve periods than for fifty-two.
-        // PDOC settled it, the year-to-date term came out, and the spread fell to $0.36.
-        //
         // A dollar is the bound because that is what per-period rounding can produce across
         // fifty-two periods. Anything larger means the annualisation has become sensitive to
         // something it should not see.
@@ -542,6 +536,70 @@ public class PayrollInvariantTests
 
         Assert.Equal(withClaim.FederalTax, without.FederalTax);
         Assert.Equal(withClaim.ProvincialTax, without.ProvincialTax);
+    }
+
+    [Fact]
+    public void AZeroTd1Claim_TakesThePersonalAmountAwayRatherThanDefaultingToIt()
+    {
+        // Someone with a second job claims nothing here because the other employer applies their
+        // personal amount. Treating that zero as "no TD1" gave them the credit twice over.
+        PayrollRateTable rates = Rates();
+        ProvincialRates ab = rates.Provinces["AB"];
+
+        PayrollInput zero = Input(3000m);
+        zero.FederalClaimIsZero = true;
+        zero.ProvincialClaimIsZero = true;
+
+        PayrollDeductions claimsNothing = PayrollCalculator.Calculate(zero, new PayrollYearToDate(), rates);
+        PayrollDeductions noTd1 = PayrollCalculator.Calculate(Input(3000m), new PayrollYearToDate(), rates);
+
+        decimal federalCredit = rates.Federal.LowestRateForCredits * rates.Federal.BasicPersonalAmount.Maximum / 26m;
+        decimal provincialCredit = ab.Brackets[0].Rate * ab.BasicPersonalAmount.Maximum / 26m;
+
+        Assert.InRange(claimsNothing.FederalTax - noTd1.FederalTax, federalCredit - 0.01m, federalCredit + 0.01m);
+        Assert.InRange(claimsNothing.ProvincialTax - noTd1.ProvincialTax, provincialCredit - 0.01m, provincialCredit + 0.01m);
+    }
+
+    [Fact]
+    public void AZeroTd1Claim_TakesThePersonalAmountAwayInQuebecToo()
+    {
+        PayrollRateTable rates = Rates();
+        QuebecRates qc = rates.Quebec!;
+
+        PayrollInput zero = Input(3000m);
+        zero.Province = "QC";
+        zero.FederalClaimIsZero = true;
+        zero.ProvincialClaimIsZero = true;
+
+        PayrollInput noTd1 = Input(3000m);
+        noTd1.Province = "QC";
+
+        PayrollDeductions claimsNothing = PayrollCalculator.Calculate(zero, new PayrollYearToDate(), rates);
+        PayrollDeductions basic = PayrollCalculator.Calculate(noTd1, new PayrollYearToDate(), rates);
+
+        decimal federalCredit = rates.Federal.LowestRateForCredits * rates.Federal.BasicPersonalAmount.Maximum
+                                * (1 - qc.FederalAbatement) / 26m;
+        decimal quebecCredit = qc.CreditRate * qc.BasicPersonalAmount / 26m;
+
+        Assert.InRange(claimsNothing.FederalTax - basic.FederalTax, federalCredit - 0.01m, federalCredit + 0.01m);
+        Assert.InRange(claimsNothing.ProvincialTax - basic.ProvincialTax, quebecCredit - 0.01m, quebecCredit + 0.01m);
+    }
+
+    [Fact]
+    public void AnAmountOnTheTd1_WinsOverTheZeroFlag()
+    {
+        PayrollRateTable rates = Rates();
+
+        PayrollInput flagged = Input(3000m);
+        flagged.FederalClaimAmount = 20000m;
+        flagged.FederalClaimIsZero = true;
+
+        PayrollInput plain = Input(3000m);
+        plain.FederalClaimAmount = 20000m;
+
+        Assert.Equal(
+            PayrollCalculator.Calculate(plain, new PayrollYearToDate(), rates).FederalTax,
+            PayrollCalculator.Calculate(flagged, new PayrollYearToDate(), rates).FederalTax);
     }
 
     #endregion

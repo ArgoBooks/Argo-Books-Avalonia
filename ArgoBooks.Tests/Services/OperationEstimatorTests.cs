@@ -10,7 +10,7 @@ namespace ArgoBooks.Tests.Services;
 public class OperationEstimatorTests
 {
     private static TimingPriors PriorsWith(OperationPrior prior) =>
-        new() { Model = "test", Priors = new[] { prior } };
+        new() { Model = "test", Priors = [prior] };
 
     [Fact]
     public void Estimate_WithSeed_ReturnsPositiveAnchors()
@@ -110,7 +110,7 @@ public class OperationEstimatorTests
         {
             Model = "x",
             LoadFactor = 1.5,
-            Priors = new[] { new OperationPrior { Operation = OperationKind.ReceiptScan, P50Ms = 4000, P90Ms = 9000 } },
+            Priors = [new OperationPrior { Operation = OperationKind.ReceiptScan, P50Ms = 4000, P90Ms = 9000 }],
         });
 
         Assert.Equal(1.5, est.CurrentLoadFactor, 6);

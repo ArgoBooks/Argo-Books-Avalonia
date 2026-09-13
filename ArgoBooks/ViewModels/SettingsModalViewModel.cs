@@ -20,8 +20,8 @@ using ArgoBooks.Shared.Sync;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-
 using ArgoBooks.Core.Models.Telemetry;
+using ArgoBooks.Shared.Telemetry;
 
 namespace ArgoBooks.ViewModels;
 
@@ -799,14 +799,17 @@ public partial class SettingsModalViewModel : ViewModelBase
         var portalService = App.PaymentPortalService;
         if (portalService == null || !PortalSettings.IsConfigured) return;
 
+        var companyData = App.CompanyManager?.CompanyData;
+
         try
         {
             var result = await portalService.UpdatePreferencesAsync(
                 PortalSendPaymentReminders, PortalEmailOwnerOnPayment);
-            if (result.Success && result.Preferences != null)
+            if (result.Success && result.Preferences != null
+                && ReferenceEquals(App.CompanyManager?.CompanyData, companyData))
             {
                 ApplyPortalPreferences(result.Preferences);
-                SavePortalSettings();
+                SavePortalPreferences();
             }
         }
         catch
@@ -1326,7 +1329,7 @@ public partial class SettingsModalViewModel : ViewModelBase
                 }
 
                 // Persist changes to local settings immediately
-                SavePortalSettings();
+                SaveConnectedAccounts();
 
                 // Notify invoice views and other subscribers that provider state changed
                 PaymentProviderService.NotifyProvidersChanged();
@@ -1416,7 +1419,7 @@ public partial class SettingsModalViewModel : ViewModelBase
         _ = RefreshProviderStatusAsync();
     }
 
-    private async Task RefreshProviderStatusAsync()
+    internal async Task RefreshProviderStatusAsync()
     {
         var portalService = App.PaymentPortalService;
         if (portalService == null) return;
@@ -1433,13 +1436,19 @@ public partial class SettingsModalViewModel : ViewModelBase
 
             App.ErrorLogger?.LogWarning(
                 "Portal API key was missing from the process cache and was re-primed from the company file.",
-                nameof(SettingsModalViewModel), Core.Models.Telemetry.ErrorCategory.Api,
+                nameof(SettingsModalViewModel), ErrorCategory.Api,
                 "PortalKeyNotActivated");
         }
+
+        // The reply can take up to the client timeout, and describes the company whose key asked.
+        // If another company has been opened since, it must not be written into that one.
+        var companyData = App.CompanyManager?.CompanyData;
+        bool CompanyChanged() => !ReferenceEquals(App.CompanyManager?.CompanyData, companyData);
 
         try
         {
             var status = await portalService.CheckStatusAsync();
+            if (CompanyChanged()) return;
             if (status.Success && status.ConnectedProviders != null)
             {
                 // Connection is real once the server has a merchant/account ID stored;
@@ -1451,7 +1460,7 @@ public partial class SettingsModalViewModel : ViewModelBase
                 PaypalEmail = status.ConnectedProviders.PaypalEmail;
                 SquareConnected = status.ConnectedProviders.SquareConnected;
                 SquareEmail = status.ConnectedProviders.SquareEmail;
-                SavePortalSettings();
+                SaveConnectedAccounts();
 
                 // Persist PortalUrl so other pages (e.g. Invoices) see it immediately
                 if (!string.IsNullOrEmpty(status.PortalUrl))
@@ -1476,12 +1485,13 @@ public partial class SettingsModalViewModel : ViewModelBase
                 if (status.Preferences != null)
                 {
                     ApplyPortalPreferences(status.Preferences);
-                    SavePortalSettings();
+                    SavePortalPreferences();
                 }
 
                 // Mirror the authoritative owner email onto this device so a
                 // server-side change (e.g. the revert link) is reflected here.
                 await ReconcilePortalEmailFromStatusAsync(status);
+                if (CompanyChanged()) return;
 
                 if (!string.IsNullOrEmpty(status.Company?.Name))
                 {
@@ -1503,6 +1513,11 @@ public partial class SettingsModalViewModel : ViewModelBase
         var portalService = App.PaymentPortalService;
         if (portalService == null) return;
 
+        // Stop once another company is open: the Connect was for this one, and its replies
+        // must not be written into the other.
+        var companyData = App.CompanyManager?.CompanyData;
+        bool CompanyChanged() => !ReferenceEquals(App.CompanyManager?.CompanyData, companyData);
+
         // Poll every 3 seconds for up to 5 minutes
         const int intervalMs = 3000;
         const int maxAttempts = 100;
@@ -1510,10 +1525,12 @@ public partial class SettingsModalViewModel : ViewModelBase
         for (var i = 0; i < maxAttempts; i++)
         {
             await Task.Delay(intervalMs);
+            if (CompanyChanged()) return;
 
             try
             {
                 var status = await portalService.CheckStatusAsync();
+                if (CompanyChanged()) return;
                 if (status.Success && status.ConnectedProviders != null)
                 {
                     var connected = provider switch
@@ -1532,13 +1549,14 @@ public partial class SettingsModalViewModel : ViewModelBase
                         // Dispatch property updates to the UI thread to ensure bindings refresh
                         Dispatcher.UIThread.Post(() =>
                         {
+                            if (CompanyChanged()) return;
                             StripeConnected = status.ConnectedProviders.StripeConnected;
                             StripeEmail = status.ConnectedProviders.StripeEmail;
                             PaypalConnected = status.ConnectedProviders.PaypalConnected;
                             PaypalEmail = status.ConnectedProviders.PaypalEmail;
                             SquareConnected = status.ConnectedProviders.SquareConnected;
                             SquareEmail = status.ConnectedProviders.SquareEmail;
-                            SavePortalSettings();
+                            SaveConnectedAccounts();
 
                             // Persist PortalUrl so other pages (e.g. Invoices) see it immediately
                             if (!string.IsNullOrEmpty(status.PortalUrl))
@@ -1571,15 +1589,33 @@ public partial class SettingsModalViewModel : ViewModelBase
         // connected, so until then there is no portal record holding it.
         settings.CompanyName = PortalCompanyName;
         settings.NotifyOnPayment = PortalNotifyOnPayment;
-        settings.EmailOwnerOnPayment = PortalEmailOwnerOnPayment;
-        settings.SendPaymentReminders = PortalSendPaymentReminders;
-        settings.RemindersEnabledAt = PortalRemindersEnabledAt;
         settings.AutoSyncIntervalMinutes = PortalSyncInterval == "Manual"
             ? 0
             : int.TryParse(PortalSyncInterval, out var mins) ? mins : 5;
 
         // Track the saved sync interval for revert-on-auth
         _previousSyncInterval = PortalSyncInterval;
+
+        SavePortalPreferences();
+        SaveConnectedAccounts();
+    }
+
+    // These two write only what the server reports, so a server reply can store it without
+    // also committing the other portal fields, which the user may be editing and which apply on Save.
+    private void SavePortalPreferences()
+    {
+        var settings = App.CompanyManager?.CompanyData?.Settings.PaymentPortal;
+        if (settings == null) return;
+
+        settings.EmailOwnerOnPayment = PortalEmailOwnerOnPayment;
+        settings.SendPaymentReminders = PortalSendPaymentReminders;
+        settings.RemindersEnabledAt = PortalRemindersEnabledAt;
+    }
+
+    private void SaveConnectedAccounts()
+    {
+        var settings = App.CompanyManager?.CompanyData?.Settings.PaymentPortal;
+        if (settings == null) return;
 
         settings.ConnectedAccounts.StripeConnected = StripeConnected;
         settings.ConnectedAccounts.StripeEmail = StripeEmail;
@@ -2332,6 +2368,7 @@ public partial class SettingsModalViewModel : ViewModelBase
                     {
                         creation.Redo(data);
                         App.CompanyManager?.MarkAsChanged();
+                        _ = ReclaimAfterRedoAsync(svc, data, creation);
                     }));
             }
 
@@ -2354,6 +2391,27 @@ public partial class SettingsModalViewModel : ViewModelBase
             IsSyncingArgoApi = false;
             ArgoApiSyncStatus = string.Empty;
         }
+    }
+
+    /// <summary>
+    /// Claim a redone import's objects again. Undo handed them back to the queue, so without this
+    /// the next sync imports every one of them a second time. Same as the Revenue page's redo.
+    /// </summary>
+    private static async Task ReclaimAfterRedoAsync(ArgoApiSyncService svc, CompanyData data, ArgoApiImportCreation creation)
+    {
+        if (await svc.TryReclaimBatchAsync(data, creation) || creation.BatchId == null)
+            return;
+
+        // Redo re-recorded the old batch id, which names a batch the server has reverted.
+        data.Settings.Integrations.ArgoApi.ImportedBatches.Remove(creation.BatchId);
+        creation.BatchId = null;
+        App.CompanyManager?.MarkAsChanged();
+
+        await App.ShowWarningMessageBoxAsync(
+            "Argo Books API".Translate(),
+            ("The restored items are back in your books, but the server could not be told they were taken. " +
+             "They may still show as waiting on your next sync. Importing them again would create duplicates, " +
+             "so check before you do.").Translate());
     }
 
     private void RefreshArgoApiLastSynced(ArgoApiIntegrationSettings? api)
@@ -2956,6 +3014,31 @@ public partial class SettingsModalViewModel : ViewModelBase
 
     #region Commands
 
+    // The company the fields were loaded from. Save must not write them into any other.
+    private CompanyData? _loadedCompanyData;
+
+    /// <summary>
+    /// Closes the modal without saving when its company closes or another one opens. It stays
+    /// open through auto-lock and through a file opened from Finder, still showing the fields
+    /// of the company it was opened on.
+    /// </summary>
+    public void CloseForCompanyChange()
+    {
+        var pendingNameUpdate = _portalCompanyNameCts;
+        if (pendingNameUpdate != null)
+        {
+            pendingNameUpdate.Cancel();
+            pendingNameUpdate.Dispose();
+            _portalCompanyNameCts = null;
+        }
+
+        if (!IsOpen) return;
+
+        ClosePasswordModalInternal();
+        RevertChanges();
+        IsOpen = false;
+    }
+
     /// <summary>
     /// Opens the settings modal.
     /// </summary>
@@ -2976,6 +3059,7 @@ public partial class SettingsModalViewModel : ViewModelBase
     {
         // Reset portal authentication, require re-auth each time settings opens
         _isPortalAuthenticated = false;
+        _loadedCompanyData = App.CompanyManager?.CompanyData;
 
         // Sync with current ThemeService values
         SelectedTheme = ThemeService.Instance.CurrentThemeName;
@@ -3178,6 +3262,12 @@ public partial class SettingsModalViewModel : ViewModelBase
     [RelayCommand]
     private async Task SaveAsync()
     {
+        if (!ReferenceEquals(App.CompanyManager?.CompanyData, _loadedCompanyData))
+        {
+            CloseForCompanyChange();
+            return;
+        }
+
         // Block the save and surface the errors if any bank import rule is incomplete.
         if (!ValidateBankRules())
         {
@@ -3248,8 +3338,9 @@ public partial class SettingsModalViewModel : ViewModelBase
                 settings.BankCategoryRules.Add(row.Rule);
             }
 
-            // Restart the timer with new settings
+            // Restart the timers with new settings
             App.HeaderViewModel?.RestartUnsavedChangesReminderTimer();
+            App.ApplyPortalSyncInterval();
 
             // Persist ONLY the settings file (appSettings.json) to the .argo.
             // SaveSettingsOnlyAsync writes just the settings, leaving the other
@@ -3307,6 +3398,8 @@ public partial class SettingsModalViewModel : ViewModelBase
                 }
                 else
                 {
+                    var requestedLanguage = SelectedLanguage;
+
                     // Download failed - revert to previous language
                     SetLanguageWithoutNotify(previousLanguage);
                     _originalLanguage = previousLanguage;
@@ -3324,19 +3417,31 @@ public partial class SettingsModalViewModel : ViewModelBase
                         await App.SettingsService!.SaveGlobalSettingsAsync();
                     }
 
-                    // Show error message
+                    // Show error message. A debug build talks to the dev server, which usually has no
+                    // translation files; say so there, since "check your connection" sends a developer
+                    // looking in the wrong place. Never shown in a release build, so not translated.
+                    var missingOnDev = ApiConfig.IsSandbox && LanguageService.Instance.LastDownloadNotPublished;
                     var dialog = App.ConfirmationDialog;
                     if (dialog != null)
                     {
                         await dialog.ShowAsync(new ConfirmationDialogOptions
                         {
-                            Title = "Language Download Failed".Translate(),
-                            Message = "Could not download the language file from the server. Please check your internet connection and try again.".Translate(),
+                            Title = missingOnDev
+                                ? "No Translation Files on the Dev Server"
+                                : "Language Download Failed".Translate(),
+                            Message = missingOnDev
+                                ? $"The dev server has no {requestedLanguage} translation file for version {Core.Services.AppInfo.VersionNumber}. Use a production build, or upload the language files to the dev server."
+                                : "Could not download the language file from the server. Please check your internet connection and try again.".Translate(),
                             PrimaryButtonText = "OK".Translate(),
                             SecondaryButtonText = null,
                             CancelButtonText = null
                         });
                     }
+
+                    // Everything else is saved; stay open so the language can be retried or changed.
+                    // Bank rules are the one baseline Save doesn't refresh, since it normally closes.
+                    _originalBankRulesSignature = ComputeBankRulesSignature();
+                    return;
                 }
             }
             finally
@@ -3785,9 +3890,8 @@ public partial class SettingsModalViewModel : ViewModelBase
         var result = await refundService.SetInitialOwnerEmailAsync(email);
 
         // Recovery path: server says email is already set on the company,
-        // but the local .argo doesn't have it (likely because an earlier
-        // Set succeeded server-side before the local-persist fix landed).
-        // The 409 response now includes the existing email, if it matches
+        // but the local .argo doesn't have it.
+        // The 409 response includes the existing email, if it matches
         // what the user just typed, silently reconcile local state. If it
         // differs, surface the existing email so the user can act.
         if (!result.Ok && result.ErrorCode == "OWNER_EMAIL_ALREADY_SET")
@@ -3849,6 +3953,9 @@ public partial class SettingsModalViewModel : ViewModelBase
     /// </summary>
     private async Task ReconcileOwnerEmailAsync(CompanyData companyData, string serverEmail)
     {
+        // The save below writes whichever company is open, so skip it once that is another one.
+        if (!ReferenceEquals(App.CompanyManager?.CompanyData, companyData)) return;
+
         companyData.Settings.Company.Email = serverEmail;
         CompanyEmail = serverEmail;
         PendingOwnerEmail = string.Empty;

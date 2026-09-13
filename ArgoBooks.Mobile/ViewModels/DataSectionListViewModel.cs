@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.Linq;
 using ArgoBooks.Core.Services.Sync;
 
 namespace ArgoBooks.Mobile.ViewModels;

@@ -8,6 +8,7 @@ using ArgoBooks.Core.Models.Entities;
 using ArgoBooks.Core.Models.Tracking;
 using ArgoBooks.Core.Models.Transactions;
 using ArgoBooks.Core.Services;
+using ArgoBooks.Data;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
 using ArgoBooks.Utilities;
@@ -16,6 +17,7 @@ using CommunityToolkit.Mvvm.Input;
 using SkiaSharp;
 
 using ArgoBooks.Core.Models.Telemetry;
+using ArgoBooks.Shared.Telemetry;
 
 namespace ArgoBooks.ViewModels;
 
@@ -251,8 +253,9 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
     private string? _currentFileName;
     private bool _suppressAiSuggestions;
 
-    // Track entities created during receipt flow for undo
-    private Supplier? _createdSupplierForUndo;
+    // Track entities created during receipt flow for undo. A bulk review creates suppliers for
+    // several receipts, so every one is kept, not just the latest.
+    private readonly List<Supplier> _createdSuppliersForUndo = new();
     private Category? _createdCategoryForUndo;
     private readonly List<Product> _createdProductsForUndo = new();
 
@@ -347,8 +350,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
 
     /// <summary>
     /// Page images shown in the scan/bulk review preview (one entry per PDF page, single entry
-    /// for raster images). Replaces the old single ReceiptImagePath so multi-page PDFs render
-    /// all pages stacked.
+    /// for raster images), so multi-page PDFs render all pages stacked.
     /// </summary>
     public ObservableCollection<string> ScanPreviewPages { get; } = new();
 
@@ -394,27 +396,28 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         });
     }
 
-    private static async Task<List<string>> RenderPreviewPagesAsync(byte[] data, string fileName, bool isPdf, string tempSubdir)
+    internal static async Task<List<string>> RenderPreviewPagesAsync(byte[] data, string fileName, bool isPdf, string tempSubdir)
     {
         var tempDir = Path.Combine(Path.GetTempPath(), "ArgoBooks", tempSubdir);
         Directory.CreateDirectory(tempDir);
         var paths = new List<string>();
 
+        // Keyed by content as well as name: scanned files often share a name (Scan.pdf).
+        var key = ReceiptPageRenderer.ContentKey(fileName, data);
         if (isPdf)
         {
             var pages = await PdfThumbnailService.Instance.RenderPdfAllPagesAsync(data);
             if (pages == null) return paths;
-            var nameNoExt = Path.GetFileNameWithoutExtension(fileName);
             for (var i = 0; i < pages.Length; i++)
             {
-                var p = Path.Combine(tempDir, $"{nameNoExt}_p{i + 1}.jpg");
+                var p = Path.Combine(tempDir, $"{key}_p{i + 1}.jpg");
                 await File.WriteAllBytesAsync(p, pages[i]);
                 paths.Add(p);
             }
         }
         else
         {
-            var p = Path.Combine(tempDir, Path.ChangeExtension(fileName, ".jpg"));
+            var p = Path.Combine(tempDir, $"{key}.jpg");
             await File.WriteAllBytesAsync(p, data);
             paths.Add(p);
         }
@@ -465,6 +468,19 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _selectedPaymentMethod = "Cash";
+
+    /// <summary>
+    /// The currency the reviewed receipt is saved in. Starts on the scanned one (ReceiptCurrency),
+    /// so the user can correct it before saving.
+    /// </summary>
+    [ObservableProperty]
+    private string _selectedScanCurrency = string.Empty;
+
+    public IReadOnlyList<string> CurrencyOptions => Currencies.All;
+
+    private string ScanCurrencyCode => string.IsNullOrEmpty(SelectedScanCurrency)
+        ? CurrencyService.CurrentCurrencyCode
+        : CurrencyService.ParseCurrencyCode(SelectedScanCurrency);
 
     [ObservableProperty]
     private string _notes = string.Empty;
@@ -987,9 +1003,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
                 return;
             }
 
-            // A batch bigger than the allowance used to update this label and then scan
-            // everything anyway, so the monthly limit did not hold in the one case it
-            // exists for. Ask, then scan only what the allowance covers.
+            // Ask, then scan only what the allowance covers.
             if (usageCheck.Remaining < BulkItems.Count)
             {
                 ScansRemaining = usageCheck.Remaining;
@@ -1324,6 +1338,9 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         // Restore per-item state that isn't on ScanResult
         Notes = item.Notes;
 
+        if (item.CurrencyCode != null)
+            SelectedScanCurrency = CurrencyService.GetDisplayString(item.CurrencyCode);
+
         if (item.IsRevenueOverride.HasValue)
             IsRevenue = item.IsRevenueOverride.Value;
 
@@ -1430,6 +1447,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
 
         // Persist per-item state that isn't on ScanResult
         item.Notes = Notes;
+        item.CurrencyCode = ScanCurrencyCode;
         item.IsRevenueOverride = IsRevenue;
         item.SelectedSupplierId = SelectedSupplier?.Id;
         item.ShowCreateSupplierSuggestion = ShowCreateSupplierSuggestion;
@@ -1507,8 +1525,9 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             var shipping = scanResult.Shipping ?? 0;
             var supplierName = scanResult.SupplierName ?? string.Empty;
             var transactionDate = scanResult.TransactionDate ?? DateTime.Now;
+            var currency = item.CurrencyCode ?? ReceiptCurrency(scanResult.CurrencyCode);
             // Fetch this receipt's date rate up front so the row shows its amount, not "Pending".
-            await CurrencyService.WarmRateForDateAsync(transactionDate);
+            await CurrencyService.WarmRateForDateAsync(transactionDate, currency);
             var isRevenue = item.IsRevenueOverride ?? false;
             var notes = item.Notes ?? string.Empty;
             var paymentMethod = scanResult.PaymentMethod ?? "Cash";
@@ -1581,7 +1600,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
-                ApplyDisplayCurrency(companyData, revenue, "Revenue");
+                ApplyDisplayCurrency(companyData, revenue, "Revenue", currency);
 
                 receipt.TransactionId = revenueId;
                 companyData.Revenues.Add(revenue);
@@ -1613,7 +1632,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
-                ApplyDisplayCurrency(companyData, expense, "Expense");
+                ApplyDisplayCurrency(companyData, expense, "Expense", currency);
 
                 receipt.TransactionId = expenseId;
                 companyData.Expenses.Add(expense);
@@ -1624,6 +1643,11 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             createdReceipts.Add(receipt);
         }
 
+        RemoveCreatedEntitiesNotUsedBy(companyData, createdExpenses, createdRevenues);
+        var createdEntities = CaptureCreatedEntities();
+        var transactionIds = createdExpenses.Select(e => e.Id).Concat(createdRevenues.Select(r => r.Id)).ToHashSet();
+        List<PendingConversion> withdrawn = [];
+
         var action = new DelegateAction(
             $"Bulk scan {approvedItems.Count} receipts",
             () =>
@@ -1631,13 +1655,20 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
                 foreach (var e in createdExpenses) companyData.Expenses.Remove(e);
                 foreach (var r in createdRevenues) companyData.Revenues.Remove(r);
                 foreach (var r in createdReceipts) companyData.Receipts.Remove(r);
+                withdrawn = WithdrawPendingConversions(companyData, transactionIds);
+                createdEntities.Remove(companyData);
             },
             () =>
             {
+                createdEntities.Restore(companyData);
                 foreach (var e in createdExpenses) companyData.Expenses.Add(e);
                 foreach (var r in createdRevenues) companyData.Revenues.Add(r);
                 foreach (var r in createdReceipts) companyData.Receipts.Add(r);
+                RequeuePendingConversions(companyData, withdrawn);
             });
+
+        // The auto-created entities now belong to the undo action, so closing must not roll them back.
+        _createdEntitiesCommitted = true;
 
         App.UndoRedoManager.RecordAction(action);
         App.CompanyManager?.MarkAsChanged();
@@ -1654,6 +1685,12 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         _bulkSucceededItemsCache = null;
         BulkItems.Clear();
         CurrentBulkItem = null;
+
+        // As in the single scan, what the review created from suggestions only stays once the
+        // approved receipts are saved.
+        if (!_createdEntitiesCommitted)
+            RollbackUncommittedCreatedEntities();
+
         ResetScanModal();
     }
 
@@ -2158,6 +2195,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
     {
         try
         {
+            SelectedScanCurrency = CurrencyService.GetDisplayString(ReceiptCurrency(result.CurrencyCode));
             ExtractedSupplier = result.SupplierName ?? string.Empty;
             ExtractedDate = result.TransactionDate.HasValue
                 ? new DateTimeOffset(result.TransactionDate.Value)
@@ -2201,7 +2239,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
                 var lineItem = new ScannedLineItemViewModel
                 {
                     Description = CleanOcrText(item.Description),
-                    Quantity = ((int)item.Quantity).ToString(),
+                    Quantity = item.Quantity.ToString("0.####"),
                     UnitPrice = item.UnitPrice.ToString("F2"),
                     TotalPrice = item.TotalPrice.ToString("F2"),
                     Confidence = item.Confidence
@@ -2258,22 +2296,65 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         var companyData = App.CompanyManager?.CompanyData;
         if (companyData == null) return;
 
-        var removedAny = false;
+        if (CaptureCreatedEntities().Remove(companyData))
+            companyData.MarkAsModified();
+    }
 
-        foreach (var product in _createdProductsForUndo)
+    private CreatedEntities CaptureCreatedEntities()
+        => new(_createdSuppliersForUndo.ToList(), _createdCategoryForUndo, _createdProductsForUndo.ToList());
+
+    /// <summary>
+    /// Removes the suggestion-created supplier/products/category that no saved transaction uses, such
+    /// as ones created while viewing a receipt that was then skipped.
+    /// </summary>
+    private void RemoveCreatedEntitiesNotUsedBy(CompanyData companyData, List<Expense> expenses, List<Revenue> revenues)
+    {
+        var supplierIds = expenses.Select(e => e.SupplierId).OfType<string>().ToHashSet();
+        var productIds = expenses.SelectMany(e => e.LineItems).Concat(revenues.SelectMany(r => r.LineItems))
+            .Select(li => li.ProductId).OfType<string>().ToHashSet();
+
+        var unusedSuppliers = _createdSuppliersForUndo.Where(s => !supplierIds.Contains(s.Id)).ToList();
+        var unusedProducts = _createdProductsForUndo.Where(p => !productIds.Contains(p.Id)).ToList();
+        _createdSuppliersForUndo.RemoveAll(unusedSuppliers.Contains);
+        _createdProductsForUndo.RemoveAll(unusedProducts.Contains);
+
+        var unusedCategory = _createdCategoryForUndo is { } category
+                             && _createdProductsForUndo.All(p => p.CategoryId != category.Id)
+            ? category
+            : null;
+        if (unusedCategory != null) _createdCategoryForUndo = null;
+
+        new CreatedEntities(unusedSuppliers, unusedCategory, unusedProducts).Remove(companyData);
+    }
+
+    /// <summary>
+    /// The supplier/category/products auto-created from suggestions during a review, captured so
+    /// the undo of the transactions they were created for removes them and redo puts them back.
+    /// </summary>
+    private sealed record CreatedEntities(List<Supplier> Suppliers, Category? Category, List<Product> Products)
+    {
+        /// <summary>Returns true when anything was removed.</summary>
+        public bool Remove(CompanyData companyData)
         {
-            if (companyData.Products?.Remove(product) == true)
-                removedAny = true;
+            var removedAny = false;
+            foreach (var product in Products)
+                removedAny |= companyData.Products?.Remove(product) == true;
+            if (Category != null)
+                removedAny |= companyData.Categories.Remove(Category);
+            foreach (var supplier in Suppliers)
+                removedAny |= companyData.Suppliers.Remove(supplier);
+            return removedAny;
         }
 
-        if (_createdCategoryForUndo != null && companyData.Categories.Remove(_createdCategoryForUndo))
-            removedAny = true;
-
-        if (_createdSupplierForUndo != null && companyData.Suppliers.Remove(_createdSupplierForUndo))
-            removedAny = true;
-
-        if (removedAny)
-            companyData.MarkAsModified();
+        public void Restore(CompanyData companyData)
+        {
+            foreach (var supplier in Suppliers)
+                companyData.Suppliers.Add(supplier);
+            if (Category != null)
+                companyData.Categories.Add(Category);
+            foreach (var product in Products)
+                companyData.Products?.Add(product);
+        }
     }
 
     [RelayCommand]
@@ -2368,6 +2449,15 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             hasErrors = true;
         }
 
+        // A refund's negative lines were read as a discount, so it also has no line items. Saying
+        // it's a refund explains both, so the other field errors would only add noise.
+        if (total < 0)
+        {
+            TotalErrorMessage = RefundReceiptMessage;
+            HasValidationMessage = true;
+            return;
+        }
+
         // Supplier is required for expenses, optional for revenue
         if (!IsRevenue && SelectedSupplier == null)
         {
@@ -2448,7 +2538,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
 
         // Fetch the receipt-date rate up front (like manual entry) so the saved row shows its amount
         // immediately instead of a momentary "Pending".
-        await CurrencyService.WarmRateForDateAsync(ExtractedDate?.DateTime ?? DateTime.Now);
+        await CurrencyService.WarmRateForDateAsync(ExtractedDate?.DateTime ?? DateTime.Now, ScanCurrencyCode);
 
         if (IsRevenue)
         {
@@ -2474,17 +2564,29 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Tags a receipt-created transaction with the company's display currency and its USD total, like
-    /// the normal expense/revenue save, so a non-USD company's receipt rows show the amount instead of
-    /// "Pending". Receipt amounts are entered in the display currency, so the original currency IS the
-    /// display currency, which makes every row column show the amount directly. The USD total is
-    /// converted at the transaction's own date when the exact-date rate is cached; otherwise the row is
-    /// marked pending and queued for the self-heal, which fills the USD values once the rate is available.
+    /// The currency a scanned receipt's review starts on: the one the scan detected, unless the app doesn't
+    /// know it or it shares its symbol with the company's own ("$" is USD, CAD and AUD alike), when the
+    /// scan can't tell the two apart and the company currency stands.
+    /// </summary>
+    private static string ReceiptCurrency(string? detectedCode)
+    {
+        var companyCurrency = CurrencyService.CurrentCurrencyCode;
+        if (string.IsNullOrWhiteSpace(detectedCode)
+            || !CurrencyInfo.All.TryGetValue(detectedCode.Trim(), out var detected)
+            || detected.Symbol == CurrencyInfo.GetSymbol(companyCurrency))
+            return companyCurrency;
+        return detected.Code;
+    }
+
+    /// <summary>
+    /// Tags a receipt-created transaction with the receipt's currency and its USD amounts, like the
+    /// normal expense/revenue save. The USD amounts are converted at the transaction's own date when
+    /// the exact-date rate is cached; otherwise the row is marked pending and queued for the
+    /// self-heal, which fills them once the rate is available (Calculations.md Rule 3a).
     /// </summary>
     private static void ApplyDisplayCurrency(
-        CompanyData companyData, Transaction txn, string transactionType)
+        CompanyData companyData, Transaction txn, string transactionType, string currency)
     {
-        var currency = CurrencyService.CurrentCurrencyCode;
         txn.OriginalCurrency = currency;
 
         if (string.Equals(currency, "USD", StringComparison.OrdinalIgnoreCase))
@@ -2520,8 +2622,8 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             return;
         }
 
-        // Exact-date rate not cached: the display is already correct (original currency == display
-        // currency); defer all the USD amounts to the self-heal queue, exactly like the normal save.
+        // Exact-date rate not cached: defer all the USD amounts to the self-heal queue, exactly like
+        // the normal save.
         txn.IsPendingConversion = true;
         var entry = new PendingConversion
         {
@@ -2540,9 +2642,58 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         _ = PendingConversionService.Instance?.AddPendingConversionAsync(entry);
     }
 
+    /// <summary>
+    /// Takes an undone row's conversion out of the company's queue and the conversion service's copy.
+    /// Processing an entry whose row is gone drops it for good, so if it stayed queued while the row
+    /// was undone, redo would bring the row back pending with nothing left to convert it.
+    /// </summary>
+    private static List<PendingConversion> WithdrawPendingConversions(
+        CompanyData companyData, IReadOnlyCollection<string> transactionIds)
+    {
+        var withdrawn = companyData.PendingConversions.Where(p => transactionIds.Contains(p.TransactionId)).ToList();
+        if (withdrawn.Count == 0) return withdrawn;
+
+        companyData.PendingConversions.RemoveAll(withdrawn.Contains);
+        MirrorPendingQueue(companyData, transactionIds);
+        return withdrawn;
+    }
+
+    private static void RequeuePendingConversions(CompanyData companyData, List<PendingConversion> entries)
+    {
+        if (entries.Count == 0) return;
+
+        companyData.PendingConversions.AddRange(entries);
+        MirrorPendingQueue(companyData, entries.Select(p => p.TransactionId).ToList());
+    }
+
+    /// <summary>
+    /// Called on the UI thread: MirrorAsync reads the company file's rows before it first awaits.
+    /// </summary>
+    private static void MirrorPendingQueue(CompanyData companyData, IReadOnlyCollection<string> transactionIds)
+    {
+        var service = PendingConversionService.Instance;
+        if (service == null) return;
+
+        _ = MirrorPendingQueueAsync(service, companyData, transactionIds);
+    }
+
+    private static async Task MirrorPendingQueueAsync(
+        PendingConversionService service, CompanyData companyData, IReadOnlyCollection<string> transactionIds)
+    {
+        try
+        {
+            await service.MirrorAsync(companyData, transactionIds);
+        }
+        catch (Exception ex)
+        {
+            App.ErrorLogger?.LogWarning($"Failed to update queued conversions: {ex.Message}", "ReceiptScan");
+        }
+    }
+
     private void CreateExpenseTransaction(CompanyData companyData, string receiptId, string? fileData,
         decimal total, decimal subtotal, decimal taxAmount, decimal discount, decimal shipping, List<LineItem> lineItems)
     {
+        var currency = ScanCurrencyCode;
         companyData.IdCounters.Expense++;
         var expenseId = $"PUR-{DateTime.Now:yyyy}-{companyData.IdCounters.Expense:D5}";
 
@@ -2567,7 +2718,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
-        ApplyDisplayCurrency(companyData, expense, "Expense");
+        ApplyDisplayCurrency(companyData, expense, "Expense", currency);
 
         var receipt = new Receipt
         {
@@ -2589,9 +2740,8 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         // Capture auto-created entities for undo
         var capturedReceipt = receipt;
         var capturedExpense = expense;
-        var capturedSupplier = _createdSupplierForUndo;
-        var capturedCategory = _createdCategoryForUndo;
-        var capturedProducts = _createdProductsForUndo.ToList();
+        var createdEntities = CaptureCreatedEntities();
+        List<PendingConversion> withdrawn = [];
 
         var action = new DelegateAction(
             $"AI scan expense {expenseId}",
@@ -2599,27 +2749,15 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             {
                 companyData.Expenses.Remove(capturedExpense);
                 companyData.Receipts.Remove(capturedReceipt);
-
-                // Also undo auto-created entities
-                foreach (var product in capturedProducts)
-                    companyData.Products?.Remove(product);
-                if (capturedCategory != null)
-                    companyData.Categories.Remove(capturedCategory);
-                if (capturedSupplier != null)
-                    companyData.Suppliers.Remove(capturedSupplier);
+                withdrawn = WithdrawPendingConversions(companyData, [expenseId]);
+                createdEntities.Remove(companyData);
             },
             () =>
             {
-                // Re-add auto-created entities
-                if (capturedSupplier != null)
-                    companyData.Suppliers.Add(capturedSupplier);
-                if (capturedCategory != null)
-                    companyData.Categories.Add(capturedCategory);
-                foreach (var product in capturedProducts)
-                    companyData.Products?.Add(product);
-
+                createdEntities.Restore(companyData);
                 companyData.Expenses.Add(capturedExpense);
                 companyData.Receipts.Add(capturedReceipt);
+                RequeuePendingConversions(companyData, withdrawn);
             });
 
         companyData.Expenses.Add(expense);
@@ -2630,6 +2768,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
     private void CreateRevenueTransaction(CompanyData companyData, string receiptId, string? fileData,
         decimal total, decimal subtotal, decimal taxAmount, decimal discount, decimal shipping, List<LineItem> lineItems)
     {
+        var currency = ScanCurrencyCode;
         companyData.IdCounters.Revenue++;
         var revenueId = $"REV-{DateTime.Now:yyyy}-{companyData.IdCounters.Revenue:D5}";
 
@@ -2656,7 +2795,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
-        ApplyDisplayCurrency(companyData, revenue, "Revenue");
+        ApplyDisplayCurrency(companyData, revenue, "Revenue", currency);
 
         var receipt = new Receipt
         {
@@ -2678,9 +2817,8 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         // Capture auto-created entities for undo
         var capturedReceipt = receipt;
         var capturedRevenue = revenue;
-        var capturedSupplier = _createdSupplierForUndo;
-        var capturedCategory = _createdCategoryForUndo;
-        var capturedProducts = _createdProductsForUndo.ToList();
+        var createdEntities = CaptureCreatedEntities();
+        List<PendingConversion> withdrawn = [];
 
         var action = new DelegateAction(
             $"AI scan revenue {revenueId}",
@@ -2688,27 +2826,15 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             {
                 companyData.Revenues.Remove(capturedRevenue);
                 companyData.Receipts.Remove(capturedReceipt);
-
-                // Also undo auto-created entities
-                foreach (var product in capturedProducts)
-                    companyData.Products?.Remove(product);
-                if (capturedCategory != null)
-                    companyData.Categories.Remove(capturedCategory);
-                if (capturedSupplier != null)
-                    companyData.Suppliers.Remove(capturedSupplier);
+                withdrawn = WithdrawPendingConversions(companyData, [revenueId]);
+                createdEntities.Remove(companyData);
             },
             () =>
             {
-                // Re-add auto-created entities
-                if (capturedSupplier != null)
-                    companyData.Suppliers.Add(capturedSupplier);
-                if (capturedCategory != null)
-                    companyData.Categories.Add(capturedCategory);
-                foreach (var product in capturedProducts)
-                    companyData.Products?.Add(product);
-
+                createdEntities.Restore(companyData);
                 companyData.Revenues.Add(capturedRevenue);
                 companyData.Receipts.Add(capturedReceipt);
+                RequeuePendingConversions(companyData, withdrawn);
             });
 
         companyData.Revenues.Add(revenue);
@@ -2808,9 +2934,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             _createdCategoryForUndo = category;
         }
 
-        // Generate proper product ID
-        companyData.IdCounters.Product++;
-        var newId = $"PRD-{companyData.IdCounters.Product:D3}";
+        var newId = new Core.Data.IdGenerator(companyData).NextProductId();
 
         var newProduct = new Product
         {
@@ -3059,7 +3183,12 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         OnPropertyChanged(nameof(BulkIncompleteCount));
         OnPropertyChanged(nameof(HasBulkIncompleteItems));
 
-        if (hasErrors)
+        if (total < 0)
+        {
+            HasBulkIncompleteWarning = true;
+            BulkIncompleteWarningMessage = RefundReceiptMessage;
+        }
+        else if (hasErrors)
         {
             HasBulkIncompleteWarning = true;
             BulkIncompleteWarningMessage = string.Format(
@@ -3072,6 +3201,11 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             BulkIncompleteWarningMessage = string.Empty;
         }
     }
+
+    // A refund or return slip scans with a negative total. The review only creates new expenses and
+    // revenue, so it can't book one; saying so beats "enter a valid total".
+    private static string RefundReceiptMessage =>
+        "This receipt is a refund, so it can't be added as a new expense or revenue.".Translate();
 
     /// <summary>
     /// Determines if a line item is a discount rather than a product.
@@ -3287,9 +3421,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         var companyData = App.CompanyManager?.CompanyData;
         if (companyData == null) return;
 
-        // Generate ID
-        companyData.IdCounters.Supplier++;
-        var newId = $"SUP-{companyData.IdCounters.Supplier:D3}";
+        var newId = new Core.Data.IdGenerator(companyData).NextSupplierId();
 
         // Create supplier
         var newSupplier = new Supplier
@@ -3301,7 +3433,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
 
         companyData.Suppliers.Add(newSupplier);
         _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.SupplierCreated);
-        _createdSupplierForUndo = newSupplier;
+        _createdSuppliersForUndo.Add(newSupplier);
 
         // Add to options and select
         var option = new SupplierOption { Id = newId, Name = newSupplier.Name };
@@ -3352,6 +3484,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         ExtractedDiscount = string.Empty;
         ExtractedShipping = string.Empty;
         ExtractedTotal = string.Empty;
+        SelectedScanCurrency = string.Empty;
         ConfidenceScore = 0;
         ConfidenceText = string.Empty;
         IsHighConfidence = false;
@@ -3381,7 +3514,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         SuggestedSupplierName = string.Empty;
 
         // Reset undo tracking for auto-created entities
-        _createdSupplierForUndo = null;
+        _createdSuppliersForUndo.Clear();
         _createdCategoryForUndo = null;
         _createdProductsForUndo.Clear();
         _createdEntitiesCommitted = false;

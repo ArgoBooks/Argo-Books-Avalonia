@@ -165,21 +165,6 @@ public class ImportRescueTests
             var isClassify = systemPrompt.Contains("Decide ONE", StringComparison.Ordinal);
             return Task.FromResult<string?>(isClassify ? _classifyJson : _entitiesJson);
         }
-
-        public Task<string?> SendVisionChatAsync(
-            string systemPrompt, string userPrompt, string base64Image, string mimeType,
-            int maxTokens = 4000, double temperature = 0.1, string? model = null,
-            CancellationToken cancellationToken = default,
-            OperationKind operation = OperationKind.ReceiptScan)
-            => Task.FromResult<string?>(null);
-
-        public Task<SupplierCategorySuggestion?> GetSupplierCategorySuggestionAsync(
-            ReceiptAnalysisRequest request, CancellationToken cancellationToken = default)
-            => Task.FromResult<SupplierCategorySuggestion?>(null);
-
-        public Task<List<BankLineSuggestion>?> GetBankLineSuggestionsAsync(
-            BankLineCategorizationRequest request, CancellationToken cancellationToken = default)
-            => Task.FromResult<List<BankLineSuggestion>?>(null);
     }
 
     private static string RepoRoot()
@@ -435,17 +420,6 @@ public class ImportRescueTests
             // extraction: one entity, echoing a plausible transaction
             return Task.FromResult<string?>("""[{"id":"T1","date":"2026-06-09","description":"Item","total":100}]""");
         }
-
-        public Task<string?> SendVisionChatAsync(string systemPrompt, string userPrompt, string base64Image,
-            string mimeType, int maxTokens = 4000, double temperature = 0.1, string? model = null,
-            CancellationToken cancellationToken = default, OperationKind operation = OperationKind.ReceiptScan)
-            => Task.FromResult<string?>(null);
-        public Task<SupplierCategorySuggestion?> GetSupplierCategorySuggestionAsync(
-            ReceiptAnalysisRequest request, CancellationToken cancellationToken = default)
-            => Task.FromResult<SupplierCategorySuggestion?>(null);
-        public Task<List<BankLineSuggestion>?> GetBankLineSuggestionsAsync(
-            BankLineCategorizationRequest request, CancellationToken cancellationToken = default)
-            => Task.FromResult<List<BankLineSuggestion>?>(null);
     }
 
     [Fact]

@@ -193,6 +193,13 @@ public partial class Invoice : ObservableObject
     private InvoiceStatus _status = InvoiceStatus.Draft;
 
     /// <summary>
+    /// The lifecycle status (Draft, Sent, ...) the invoice had when a payment moved it to a payment
+    /// status, so it can go back there if every payment is removed. Null while no payment has.
+    /// </summary>
+    [JsonPropertyName("statusBeforePayment")]
+    public InvoiceStatus? StatusBeforePayment { get; set; }
+
+    /// <summary>
     /// Additional notes.
     /// </summary>
     [JsonPropertyName("notes")]
@@ -235,11 +242,14 @@ public partial class Invoice : ObservableObject
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     /// <summary>
-    /// Whether the invoice is overdue.
+    /// Whether the invoice is past due with something still owed. One paid in full and then
+    /// refunded, wholly or in part, owes nothing.
     /// </summary>
     [JsonIgnore]
     public bool IsOverdue => Status != InvoiceStatus.Paid &&
                              Status != InvoiceStatus.Cancelled &&
+                             Status != InvoiceStatus.Refunded &&
+                             !(AmountPaid > 0 && Balance <= 0) &&
                              DateTime.Today > DueDate.Date;
 
     #region Currency Support

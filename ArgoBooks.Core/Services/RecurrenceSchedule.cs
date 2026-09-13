@@ -9,7 +9,7 @@ namespace ArgoBooks.Core.Services;
 public static class RecurrenceSchedule
 {
     /// <summary>
-    /// Advances a date by one cadence step. For monthly/quarterly cadences an optional
+    /// Advances a date by one cadence step. For monthly, quarterly and annual cadences an optional
     /// <paramref name="anchorDay"/> (the schedule's original billing day-of-month) keeps the date
     /// pinned to that day: crossing a shorter month clamps to its last day, but the following month
     /// returns to the anchor instead of drifting earlier for the rest of the schedule's life. When
@@ -21,9 +21,21 @@ public static class RecurrenceSchedule
         Frequency.BiWeekly => date.AddDays(14),
         Frequency.Monthly => AddMonthsAnchored(date, 1, anchorDay ?? date.Day),
         Frequency.Quarterly => AddMonthsAnchored(date, 3, anchorDay ?? date.Day),
-        Frequency.Annually => date.AddYears(1),
+        Frequency.Annually => AddMonthsAnchored(date, 12, anchorDay ?? date.Day),
         _ => AddMonthsAnchored(date, 1, anchorDay ?? date.Day)
     };
+
+    /// <summary>
+    /// Steps <paramref name="date"/> forward until it falls on or after <paramref name="floor"/>,
+    /// landing on the same dates generation would.
+    /// </summary>
+    public static DateTime FirstOnOrAfter(DateTime date, Frequency frequency, int anchorDay, DateTime floor)
+    {
+        var next = date.Date;
+        while (next < floor.Date)
+            next = AdvanceDate(next, frequency, anchorDay);
+        return next;
+    }
 
     private static DateTime AddMonthsAnchored(DateTime date, int months, int anchorDay)
     {

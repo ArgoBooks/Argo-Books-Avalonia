@@ -19,6 +19,7 @@ public class ColumnVisibilitySyncTests
     {
         public ProductsTableColumnWidths ColumnWidths { get; } = new();
 
+        // ReSharper disable UnusedMember.Local
         public bool ShowNameColumn => true;
         public bool ShowTypeColumn => true;
         public bool ShowDescriptionColumn => true;
@@ -27,6 +28,7 @@ public class ColumnVisibilitySyncTests
         public bool ShowReorderColumn => false;
         public bool ShowOverstockColumn => false;
         public bool ShowTrackInventoryColumn => false;
+        // ReSharper restore UnusedMember.Local
     }
 
     [Fact]

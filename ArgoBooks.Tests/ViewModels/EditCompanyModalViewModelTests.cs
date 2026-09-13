@@ -8,12 +8,7 @@ namespace ArgoBooks.Tests.ViewModels;
 /// </summary>
 public class EditCompanyModalViewModelTests
 {
-    private readonly EditCompanyModalViewModel _viewModel;
-
-    public EditCompanyModalViewModelTests()
-    {
-        _viewModel = new EditCompanyModalViewModel();
-    }
+    private readonly EditCompanyModalViewModel _viewModel = new();
 
     #region HasChanges Tests
 

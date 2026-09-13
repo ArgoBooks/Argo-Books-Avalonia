@@ -77,7 +77,7 @@ public class BankMatchingServiceTests
         data.Expenses.Add(new Expense { Id = "EXP-1", Total = 50m, Date = date, Description = "x", BankMatched = true });
 
         var line = Line(-50m, date, "x");
-        var result = new BankMatchingService().MatchDeterministic([line], data, new BankMatchingOptions());
+        new BankMatchingService().MatchDeterministic([line], data, new BankMatchingOptions());
 
         Assert.Equal(BankLineMatchStatus.Unmatched, line.MatchStatus);
     }
@@ -118,5 +118,127 @@ public class BankMatchingServiceTests
         Assert.False(expense.BankMatched);
         Assert.Null(expense.BankMatchedLineId);
         Assert.Equal(BankLineMatchStatus.Unmatched, line.MatchStatus);
+    }
+
+    private static BankMatchCandidate Candidate(BankStatementLine line, string recordId) => new()
+    {
+        LineId = line.Id, RecordType = BookRecordType.Expense, RecordId = recordId, Confidence = 0.8
+    };
+
+    // One record backing two lines means unlinking either clears the flag the other still relies on.
+    [Fact]
+    public void ConfirmMatch_RecordAlreadyMatchedToAnotherLine_IsRefused()
+    {
+        var data = NewCompany();
+        var expense = new Expense { Id = "EXP-1", Total = 100m, Date = new DateTime(2025, 1, 1), Description = "x" };
+        data.Expenses.Add(expense);
+        var first = Line(-100m, new DateTime(2025, 1, 1), "x");
+        var second = Line(-100m, new DateTime(2025, 1, 2), "x");
+        var svc = new BankMatchingService();
+
+        Assert.True(svc.ConfirmMatch(first, Candidate(first, "EXP-1"), data));
+        var accepted = svc.ConfirmMatch(second, Candidate(second, "EXP-1"), data);
+
+        Assert.False(accepted);
+        Assert.NotEqual(BankLineMatchStatus.Matched, second.MatchStatus);
+        Assert.Null(second.MatchedRecordId);
+        Assert.Equal(first.Id, expense.BankMatchedLineId);
+    }
+
+    private static readonly DateTime RecordDate = new(2025, 3, 1);
+
+    private static BankStatementLine MatchedLine(string id, BookRecordType type, string recordId) => new()
+    {
+        Id = id,
+        Date = RecordDate,
+        Amount = -12.34m,
+        Description = "x",
+        MatchStatus = BankLineMatchStatus.Matched,
+        MatchedRecordType = type,
+        MatchedRecordId = recordId
+    };
+
+    // Amount 999 so a released line can't simply re-match the same record.
+    private static void AddRecord(CompanyData data, BookRecordType type, string id, bool matched, string? lineId)
+    {
+        switch (type)
+        {
+            case BookRecordType.Expense:
+                data.Expenses.Add(new Expense { Id = id, Total = 999m, Date = RecordDate, BankMatched = matched, BankMatchedLineId = lineId });
+                break;
+            case BookRecordType.Revenue:
+                data.Revenues.Add(new Revenue { Id = id, Total = 999m, Date = RecordDate, BankMatched = matched, BankMatchedLineId = lineId });
+                break;
+            case BookRecordType.Invoice:
+                data.Invoices.Add(new Invoice { Id = id, Total = 999m, IssueDate = RecordDate, BankMatched = matched, BankMatchedLineId = lineId });
+                break;
+            case BookRecordType.Payment:
+                data.Payments.Add(new Payment { Id = id, Amount = 999m, Date = RecordDate, BankMatched = matched, BankMatchedLineId = lineId });
+                break;
+        }
+    }
+
+    // Matching skips Matched lines, so a line whose record was deleted stays Matched forever
+    // unless matching notices the record is gone.
+    [Fact]
+    public void MatchDeterministic_MatchedLineWhoseRecordWasDeleted_GoesBackToUnmatched()
+    {
+        var line = MatchedLine("L1", BookRecordType.Expense, "EXP-GONE");
+
+        new BankMatchingService().MatchDeterministic([line], NewCompany(), new BankMatchingOptions());
+
+        Assert.Equal(BankLineMatchStatus.Unmatched, line.MatchStatus);
+        Assert.Null(line.MatchedRecordId);
+        Assert.Null(line.MatchedRecordType);
+    }
+
+    // Undoing an import restores the id counters, so the next new record can take the id a stale
+    // line still points at. That record isn't flagged to the line, so the line must be released.
+    [Theory]
+    [InlineData(BookRecordType.Expense)]
+    [InlineData(BookRecordType.Revenue)]
+    [InlineData(BookRecordType.Invoice)]
+    [InlineData(BookRecordType.Payment)]
+    public void MatchDeterministic_MatchedLineWhoseRecordIdWasReused_GoesBackToUnmatched(BookRecordType type)
+    {
+        var data = NewCompany();
+        AddRecord(data, type, "REC-1", matched: false, lineId: null);
+        var line = MatchedLine("L1", type, "REC-1");
+
+        new BankMatchingService().MatchDeterministic([line], data, new BankMatchingOptions());
+
+        Assert.Equal(BankLineMatchStatus.Unmatched, line.MatchStatus);
+        Assert.Null(line.MatchedRecordId);
+    }
+
+    [Theory]
+    [InlineData(BookRecordType.Expense)]
+    [InlineData(BookRecordType.Revenue)]
+    [InlineData(BookRecordType.Invoice)]
+    [InlineData(BookRecordType.Payment)]
+    public void MatchDeterministic_MatchedLineItsRecordPointsBackTo_StaysMatched(BookRecordType type)
+    {
+        var data = NewCompany();
+        AddRecord(data, type, "REC-1", matched: true, lineId: "L1");
+        var line = MatchedLine("L1", type, "REC-1");
+
+        new BankMatchingService().MatchDeterministic([line], data, new BankMatchingOptions());
+
+        Assert.Equal(BankLineMatchStatus.Matched, line.MatchStatus);
+        Assert.Equal("REC-1", line.MatchedRecordId);
+    }
+
+    [Fact]
+    public void MatchDeterministic_TwoLinesMatchedToOneRecord_ReleasesTheLineTheRecordDoesNotPointTo()
+    {
+        var data = NewCompany();
+        AddRecord(data, BookRecordType.Expense, "EXP-1", matched: true, lineId: "B");
+        var a = MatchedLine("A", BookRecordType.Expense, "EXP-1");
+        var b = MatchedLine("B", BookRecordType.Expense, "EXP-1");
+
+        new BankMatchingService().MatchDeterministic([a, b], data, new BankMatchingOptions());
+
+        Assert.Equal(BankLineMatchStatus.Unmatched, a.MatchStatus);
+        Assert.Equal(BankLineMatchStatus.Matched, b.MatchStatus);
     }
 }

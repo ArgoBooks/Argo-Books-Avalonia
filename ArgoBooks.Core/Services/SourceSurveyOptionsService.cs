@@ -1,5 +1,4 @@
 using System.Net.Http.Json;
-using ArgoBooks.Core.Models.Telemetry;
 
 namespace ArgoBooks.Core.Services;
 

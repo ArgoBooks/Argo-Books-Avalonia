@@ -1147,7 +1147,8 @@
                                                     Margin="0,0,0,4">
                                                 <Grid ColumnDefinitions="1.6*,12,*,8,40" RowDefinitions="Auto,Auto" VerticalAlignment="Center">
                                                     <!-- Pattern TextBox -->
-                                                    <TextBox Grid.Row="0" Grid.Column="0"
+                                                    <TextBox x:Name="PatternBox"
+                                                             Grid.Row="0" Grid.Column="0"
                                                              Text="{Binding Pattern, Mode=TwoWay}"
                                                              PlaceholderText="{loc:Loc 'e.g. AMAZON, UBER, NETFLIX'}"
                                                              Classes="form-input"
@@ -1166,12 +1167,14 @@
                                                         Classes="compact"
                                                         VerticalAlignment="Center" />
 
-                                                    <!-- Delete button -->
-                                                    <Button Grid.Row="0" Grid.Column="4" Grid.RowSpan="2"
+                                                    <!-- Delete button: top-aligned at the pattern box's own height, so the icon
+                                                         lines up with the inputs whatever else makes the row taller. -->
+                                                    <Button Grid.Row="0" Grid.Column="4"
                                                             Classes="icon-button"
                                                             Command="{Binding $parent[ItemsControl].((vm:SettingsModalViewModel)DataContext).DeleteBankRuleCommand}"
                                                             CommandParameter="{Binding}"
-                                                            VerticalAlignment="Center">
+                                                            VerticalAlignment="Top"
+                                                            Height="{Binding #PatternBox.Bounds.Height}">
                                                         <PathIcon Data="{x:Static icons:Icons.Delete}"
                                                                   Width="16" Height="16"
                                                                   Foreground="{DynamicResource ErrorBrush}" />

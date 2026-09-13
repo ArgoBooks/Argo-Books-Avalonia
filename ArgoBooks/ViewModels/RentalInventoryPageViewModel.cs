@@ -279,7 +279,7 @@ public partial class RentalInventoryPageViewModel : SortablePageViewModelBase
 
         TotalItems = totalInStock;
         AvailableItems = activeInStock;
-        RentedOutItems = 0; // Rented quantity is no longer tracked on the item
+        RentedOutItems = 0; // Rented quantity is not tracked on the item
         MaintenanceItems = maintenanceInStock;
     }
 

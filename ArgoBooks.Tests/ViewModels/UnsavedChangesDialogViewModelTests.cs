@@ -8,12 +8,7 @@ namespace ArgoBooks.Tests.ViewModels;
 /// </summary>
 public class UnsavedChangesDialogViewModelTests
 {
-    private readonly UnsavedChangesDialogViewModel _viewModel;
-
-    public UnsavedChangesDialogViewModelTests()
-    {
-        _viewModel = new UnsavedChangesDialogViewModel();
-    }
+    private readonly UnsavedChangesDialogViewModel _viewModel = new();
 
     #region Default State Tests
 
@@ -40,7 +35,7 @@ public class UnsavedChangesDialogViewModelTests
         category.Changes.Add(new ChangeItem { Description = "Added customer A", ChangeType = ChangeType.Added });
         category.Changes.Add(new ChangeItem { Description = "Modified customer B", ChangeType = ChangeType.Modified });
 
-        _viewModel.ShowAsync(new[] { category });
+        _viewModel.ShowAsync([category]);
 
         Assert.Single(_viewModel.Categories);
         Assert.Equal("Customers", _viewModel.Categories[0].Name);
@@ -53,7 +48,7 @@ public class UnsavedChangesDialogViewModelTests
         var category = new ChangeCategory { Name = "Products" };
         category.Changes.Add(new ChangeItem { Description = "New product" });
 
-        _viewModel.ShowAsync(new[] { category });
+        _viewModel.ShowAsync([category]);
 
         Assert.True(_viewModel.IsOpen);
     }
@@ -65,7 +60,7 @@ public class UnsavedChangesDialogViewModelTests
         var populatedCategory = new ChangeCategory { Name = "Customers" };
         populatedCategory.Changes.Add(new ChangeItem { Description = "Change 1" });
 
-        _viewModel.ShowAsync(new[] { emptyCategory, populatedCategory });
+        _viewModel.ShowAsync([emptyCategory, populatedCategory]);
 
         Assert.Single(_viewModel.Categories);
         Assert.Equal("Customers", _viewModel.Categories[0].Name);
@@ -103,7 +98,7 @@ public class UnsavedChangesDialogViewModelTests
         category2.Changes.Add(new ChangeItem { Description = "Change 4" });
         category2.Changes.Add(new ChangeItem { Description = "Change 5" });
 
-        _viewModel.ShowAsync(new[] { category1, category2 });
+        _viewModel.ShowAsync([category1, category2]);
 
         Assert.Equal(5, _viewModel.TotalChangeCount);
     }
@@ -114,7 +109,7 @@ public class UnsavedChangesDialogViewModelTests
         var category = new ChangeCategory { Name = "Invoices" };
         category.Changes.Add(new ChangeItem { Description = "Invoice 1" });
 
-        _viewModel.ShowAsync(new[] { category });
+        _viewModel.ShowAsync([category]);
 
         Assert.Equal(1, _viewModel.TotalChangeCount);
     }
@@ -154,7 +149,7 @@ public class UnsavedChangesDialogViewModelTests
         var category = new ChangeCategory { Name = "Customers" };
         category.Changes.Add(new ChangeItem { Description = "Added customer" });
 
-        _viewModel.ShowAsync(new[] { category });
+        _viewModel.ShowAsync([category]);
 
         Assert.True(_viewModel.HasChanges);
     }
@@ -162,7 +157,7 @@ public class UnsavedChangesDialogViewModelTests
     [Fact]
     public void HasChanges_WithNoCategories_ReturnsFalse()
     {
-        _viewModel.ShowAsync(Array.Empty<ChangeCategory>());
+        _viewModel.ShowAsync([]);
 
         Assert.False(_viewModel.HasChanges);
     }
@@ -184,7 +179,7 @@ public class UnsavedChangesDialogViewModelTests
     {
         var category = new ChangeCategory { Name = "Test" };
         category.Changes.Add(new ChangeItem { Description = "Change" });
-        _viewModel.ShowAsync(new[] { category });
+        _viewModel.ShowAsync([category]);
         Assert.True(_viewModel.IsOpen);
 
         _viewModel.Close();
@@ -197,7 +192,7 @@ public class UnsavedChangesDialogViewModelTests
     {
         var category = new ChangeCategory { Name = "Test" };
         category.Changes.Add(new ChangeItem { Description = "Change" });
-        var task = _viewModel.ShowAsync(new[] { category });
+        var task = _viewModel.ShowAsync([category]);
 
         _viewModel.Close();
 
@@ -214,7 +209,7 @@ public class UnsavedChangesDialogViewModelTests
     {
         var category = new ChangeCategory { Name = "Test" };
         category.Changes.Add(new ChangeItem { Description = "Change" });
-        var task = _viewModel.ShowAsync(new[] { category });
+        var task = _viewModel.ShowAsync([category]);
 
         _viewModel.SaveCommand.Execute(null);
 
@@ -228,7 +223,7 @@ public class UnsavedChangesDialogViewModelTests
     {
         var category = new ChangeCategory { Name = "Test" };
         category.Changes.Add(new ChangeItem { Description = "Change" });
-        var task = _viewModel.ShowAsync(new[] { category });
+        var task = _viewModel.ShowAsync([category]);
 
         _viewModel.DontSaveCommand.Execute(null);
 
@@ -242,7 +237,7 @@ public class UnsavedChangesDialogViewModelTests
     {
         var category = new ChangeCategory { Name = "Test" };
         category.Changes.Add(new ChangeItem { Description = "Change" });
-        var task = _viewModel.ShowAsync(new[] { category });
+        var task = _viewModel.ShowAsync([category]);
 
         _viewModel.CancelCommand.Execute(null);
 
@@ -286,7 +281,7 @@ public class UnsavedChangesDialogViewModelTests
     {
         var category = new ChangeCategory { Name = "Test", IsExpanded = true };
         category.Changes.Add(new ChangeItem { Description = "Change" });
-        _viewModel.ShowAsync(new[] { category });
+        _viewModel.ShowAsync([category]);
 
         _viewModel.ToggleCategoryCommand.Execute(category);
 
@@ -298,7 +293,7 @@ public class UnsavedChangesDialogViewModelTests
     {
         var category = new ChangeCategory { Name = "Test", IsExpanded = false };
         category.Changes.Add(new ChangeItem { Description = "Change" });
-        _viewModel.ShowAsync(new[] { category });
+        _viewModel.ShowAsync([category]);
 
         _viewModel.ToggleCategoryCommand.Execute(category);
 

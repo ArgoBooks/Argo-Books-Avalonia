@@ -189,13 +189,6 @@ public static class BoolConverters
         new FuncValueConverter<bool, Thickness>(value => value ? new Thickness(0, 0, 0, 1) : new Thickness(0));
 
     /// <summary>
-    /// Converts bool (isExpanded) to max height for collapsible content.
-    /// Expanded = large value to show content, Collapsed = 0 to hide.
-    /// </summary>
-    public static readonly IValueConverter ToExpandedMaxHeight =
-        new FuncValueConverter<bool, double>(value => value ? 500 : 0);
-
-    /// <summary>
     /// Converts bool (isCompleted) to circle border thickness.
     /// Completed = 0 (no border), Not completed = 2px border.
     /// </summary>

@@ -50,4 +50,10 @@ public class ErrorEvent : TelemetryEvent
     /// Method name where the error occurred.
     /// </summary>
     public string? MethodName { get; set; }
+
+    /// <summary>
+    /// What the call site was attempting ("Invoice usage check failed"). Written by us
+    /// rather than taken from an exception, so unlike Message it is safe on errors too.
+    /// </summary>
+    public string? Context { get; set; }
 }

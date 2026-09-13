@@ -11,7 +11,7 @@ public class TimeZoneItem
     public string Id { get; }
 
     /// <summary>
-    /// The display name shown to users (e.g., "(UTC-05:00) Eastern Time (US & Canada)").
+    /// The display name shown to users (e.g., "(UTC-05:00) Eastern Time (US &amp; Canada)").
     /// </summary>
     public string DisplayName { get; }
 

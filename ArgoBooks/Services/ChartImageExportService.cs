@@ -151,7 +151,7 @@ public static class ChartImageExportService
                 Width = width,
                 Height = height,
                 Background = SKColors.Transparent,
-                Series = chart.Series ?? [],
+                Series = chart.Series,
                 MapProjection = chart.MapProjection
             };
             using var chartImage = skChart.GetImage();

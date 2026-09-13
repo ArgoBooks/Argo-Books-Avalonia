@@ -6,8 +6,14 @@ namespace ArgoBooks.Core.Services.Integrations;
 /// <summary>Result of validating a pasted Stripe key.</summary>
 public record StripeValidationResult(bool Ok, string? AccountLabel, string? ErrorMessage);
 
-/// <summary>A Stripe payout (the net deposit that lands in the bank). DateUnix is the bank arrival date.</summary>
-public record StripePayoutSummary(string Id, long AmountCents, long DateUnix, string Status);
+/// <summary>
+/// A Stripe payout (the net deposit that lands in the bank). DateUnix is the bank arrival date.
+/// AmountCents is in the currency's smallest unit, which for JPY and the like is the whole unit.
+/// </summary>
+public record StripePayoutSummary(string Id, long AmountCents, long DateUnix, string Status, string? Currency = null);
+
+/// <summary>A charge's processing fee, in the balance transaction's (settlement) currency.</summary>
+public record StripeFee(long Cents, string? Currency);
 
 /// <summary>
 /// Minimal Stripe REST client. Validates a key by reading balance transactions
@@ -100,7 +106,8 @@ public class StripeApiClient
                     // arrival_date is when the deposit lands in the bank (best for matching); fall back to created.
                     var dateUnix = PropNum(el, "arrival_date");
                     if (dateUnix == 0) dateUnix = PropNum(el, "created");
-                    results.Add(new StripePayoutSummary(id, PropNum(el, "amount"), dateUnix, PropStr(el, "status")));
+                    results.Add(new StripePayoutSummary(
+                        id, PropNum(el, "amount"), dateUnix, PropStr(el, "status"), NullableStr(el, "currency")));
                     lastId = id;
                     count++;
                 }
@@ -164,8 +171,12 @@ public class StripeApiClient
     private static StripeChargeDetail ParseCharge(JsonElement el)
     {
         long fee = 0;
+        string? feeCurrency = null;
         if (el.TryGetProperty("balance_transaction", out var bt) && bt.ValueKind == JsonValueKind.Object)
+        {
             fee = PropNum(bt, "fee");
+            feeCurrency = NullableStr(bt, "currency");
+        }
 
         string? custName = null, custEmail = null;
         if (el.TryGetProperty("customer", out var cust) && cust.ValueKind == JsonValueKind.Object)
@@ -206,21 +217,22 @@ public class StripeApiClient
             ProductName: product,
             TaxCents: tax,
             DiscountCents: discount,
-            AmountRefundedCents: PropNum(el, "amount_refunded"));
+            AmountRefundedCents: PropNum(el, "amount_refunded"),
+            FeeCurrency: feeCurrency);
     }
 
     private static string? NullableStr(JsonElement e, string name) =>
         e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
 
     /// <summary>
-    /// Maps charge id -> processing-fee cents from the balance-transactions list. A charge's own
+    /// Maps charge id -> processing fee from the balance-transactions list. A charge's own
     /// expanded balance_transaction can come back unexpanded (a bare id string) depending on the
     /// key/settlement, silently yielding a zero fee; the balance-transactions list carries the fee
     /// reliably (its 'source' is the charge id), so this is the authoritative fee source.
     /// </summary>
-    public async Task<IReadOnlyDictionary<string, long>> FetchChargeFeesAsync(string apiKey, CancellationToken ct = default)
+    public async Task<IReadOnlyDictionary<string, StripeFee>> FetchChargeFeesAsync(string apiKey, CancellationToken ct = default)
     {
-        var map = new Dictionary<string, long>(StringComparer.Ordinal);
+        var map = new Dictionary<string, StripeFee>(StringComparer.Ordinal);
         string? after = null;
 
         for (var page = 0; page < MaxPages; page++)
@@ -242,7 +254,7 @@ public class StripeApiClient
                     count++;
                     var source = PropStr(el, "source"); // the charge id this balance transaction is for
                     if (!string.IsNullOrEmpty(source))
-                        map[source] = PropNum(el, "fee");
+                        map[source] = new StripeFee(PropNum(el, "fee"), NullableStr(el, "currency"));
                 }
             }
 

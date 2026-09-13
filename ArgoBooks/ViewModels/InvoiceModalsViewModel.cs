@@ -12,8 +12,8 @@ using ArgoBooks.Core.Services;
 using ArgoBooks.Core.Services.InvoiceTemplates;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-
 using ArgoBooks.Core.Models.Telemetry;
+using ArgoBooks.Shared.Telemetry;
 
 namespace ArgoBooks.ViewModels;
 
@@ -172,6 +172,13 @@ public partial class InvoiceModalsViewModel : ViewModelBase
 
     private string _editingInvoiceId = string.Empty;
 
+    /// <summary>
+    /// A new invoice whose send ended without an answer (a timeout, say). The portal may already have
+    /// published and emailed it, and it updates an invoice it holds rather than adding a second, so a
+    /// resend to the same customer keeps this number. Cleared when the form resets.
+    /// </summary>
+    private (string Id, string Number, string CustomerId)? _unansweredSend;
+
     [ObservableProperty]
     private CustomerOption? _selectedCustomer;
 
@@ -280,7 +287,7 @@ public partial class InvoiceModalsViewModel : ViewModelBase
     // Pulls a number out of a value that may carry a currency symbol / thousands separators.
     private static bool TryParsePaperNumber(string raw, out decimal result)
     {
-        var cleaned = new string((raw ?? string.Empty).Where(c => char.IsDigit(c) || c == '.' || c == '-').ToArray());
+        var cleaned = new string(raw.Where(c => char.IsDigit(c) || c == '.' || c == '-').ToArray());
         return decimal.TryParse(cleaned, System.Globalization.NumberStyles.Number,
             System.Globalization.CultureInfo.InvariantCulture, out result);
     }
@@ -311,6 +318,8 @@ public partial class InvoiceModalsViewModel : ViewModelBase
             {
                 symbol = InvoiceCurrencySymbol,
                 code = SelectedCurrencyCode,
+                // So the live recompute prints the currency's own decimals (none, for yen).
+                decimals = InvoiceCurrencyInfo.DecimalPlaces,
                 deposit = SecurityDeposit,
                 portal,
                 passFee = OptPassProcessingFee,
@@ -683,15 +692,16 @@ public partial class InvoiceModalsViewModel : ViewModelBase
     /// </summary>
     public string SelectedCurrencyCode => CurrencyService.ParseCurrencyCode(SelectedCurrency);
 
-    // Computed totals. Subtotal is the raw line-items sum (the base for a percentage discount/fee and
-    // the displayed Subtotal line). Tax applies to the subtotal AFTER the invoice-level discount and
-    // taxable custom fee, per industry standard and docs/Calculations.md §4.
+    // Computed totals. Subtotal is the line-items sum (the base for a percentage discount/fee and the
+    // displayed Subtotal line). Tax applies to the subtotal AFTER the invoice-level discount and
+    // taxable custom fee, per industry standard and docs/Calculations.md §4. InvoiceMath owns the
+    // formula so the form, the preview, the saved invoice and the rendered paper can't disagree.
     public decimal Subtotal => LineItems.Sum(i => i.Amount);
-    public decimal CustomFeeCalculated => CustomFeeIsPercent ? Subtotal * (CustomFeeAmount / 100m) : CustomFeeAmount;
-    public decimal DiscountCalculated => DiscountIsPercent ? Subtotal * (DiscountAmount / 100m) : DiscountAmount;
-    public decimal TaxableBase => Subtotal - DiscountCalculated + CustomFeeCalculated + ShippingAmount;
-    public decimal TaxAmount => TaxIsFixed ? TaxRate : TaxableBase * (TaxRate / 100m);
-    public decimal Total => TaxableBase + TaxAmount + SecurityDeposit;
+    public decimal CustomFeeCalculated => InvoiceMath.CustomFee(Subtotal, CustomFeeAmount, CustomFeeIsPercent);
+    public decimal DiscountCalculated => InvoiceMath.Discount(Subtotal, DiscountAmount, DiscountIsPercent);
+    public decimal TaxableBase => InvoiceMath.TaxableBase(Subtotal, DiscountCalculated, CustomFeeCalculated, ShippingAmount);
+    public decimal TaxAmount => InvoiceMath.Tax(TaxableBase, TaxRate, TaxIsFixed);
+    public decimal Total => InvoiceMath.Total(TaxableBase, TaxAmount, SecurityDeposit);
 
     // Format using the invoice's selected currency so modal totals match the picker.
     private CurrencyInfo InvoiceCurrencyInfo => CurrencyInfo.GetByCode(SelectedCurrencyCode);
@@ -1688,8 +1698,6 @@ public partial class InvoiceModalsViewModel : ViewModelBase
             template = defaultTemplates.FirstOrDefault(t => t.IsDefault) ?? defaultTemplates.First();
         }
 
-        var companySettings = App.CompanyManager?.CompanyData?.Settings ?? new();
-
         // Create a preview invoice from current form data
         var previewInvoice = new Invoice
         {
@@ -1723,12 +1731,13 @@ public partial class InvoiceModalsViewModel : ViewModelBase
 
         // Calculate totals. Less the line's own discount, per docs/Calculations.md §4, so the
         // preview shows the same subtotal the form does.
-        previewInvoice.Subtotal = previewInvoice.LineItems.Sum(li => li.Quantity * li.UnitPrice - li.Discount);
+        previewInvoice.Subtotal = InvoiceMath.Subtotal(previewInvoice.LineItems);
         previewInvoice.SecurityDeposit = SecurityDeposit;
         // Tax applies to the subtotal AFTER discount and the taxable fee plus shipping (docs/Calculations.md §4).
-        var previewTaxableBase = previewInvoice.Subtotal - DiscountCalculated + CustomFeeCalculated + ShippingAmount;
-        previewInvoice.TaxAmount = TaxIsFixed ? TaxRate : previewTaxableBase * (TaxRate / 100m);
-        previewInvoice.Total = previewTaxableBase + previewInvoice.TaxAmount + SecurityDeposit;
+        var previewTaxableBase = InvoiceMath.TaxableBase(
+            previewInvoice.Subtotal, DiscountCalculated, CustomFeeCalculated, ShippingAmount);
+        previewInvoice.TaxAmount = InvoiceMath.Tax(previewTaxableBase, TaxRate, TaxIsFixed);
+        previewInvoice.Total = InvoiceMath.Total(previewTaxableBase, previewInvoice.TaxAmount, SecurityDeposit);
         previewInvoice.Balance = previewInvoice.Total;
 
         // Render HTML using the same renderer as the template designer
@@ -1854,9 +1863,7 @@ public partial class InvoiceModalsViewModel : ViewModelBase
             return;
         }
 
-        // Every line item must reference a real product (rental/revenue-derived lines are exempt). The
-        // preview path already enforced this; the send path did not, so a line with amounts but no
-        // product selected would send with no warning (unlike a missing customer or a zero total).
+        // Every line item must reference a real product (rental/revenue-derived lines are exempt).
         if (!IsFromExternalSource && LineItems.Any(li =>
                 li.SelectedProduct == null
                 && string.IsNullOrEmpty(li.RentalRecordId)
@@ -1974,6 +1981,8 @@ public partial class InvoiceModalsViewModel : ViewModelBase
         var isContinuingDraft = !string.IsNullOrEmpty(_editingInvoiceId) && AllowPreview;
         Invoice invoice;
         Invoice? existingDraft;
+        Action? restoreDraft = null;
+        int? takenInvoiceCounter = null;
 
         if (isContinuingDraft)
         {
@@ -1984,6 +1993,10 @@ public partial class InvoiceModalsViewModel : ViewModelBase
                 await ShowSendErrorAsync("Could not find the draft invoice.".Translate());
                 return;
             }
+
+            // A failed send puts the draft back, so discarding afterwards drops the edits rather
+            // than leaving them in the draft for the next save to keep.
+            restoreDraft = CaptureDraft(existingDraft, companyData);
 
             // Update the existing invoice
             invoice = existingDraft;
@@ -2012,15 +2025,28 @@ public partial class InvoiceModalsViewModel : ViewModelBase
                 Description = i.Description,
                 Quantity = i.Quantity ?? 0,
                 UnitPrice = i.UnitPrice ?? 0,
-                TaxRate = 0
+
+                // Carried through as on a new invoice. An imported draft's lines can hold a
+                // discount, and dropping it here billed more than the total the user confirmed.
+                TaxRate = i.TaxRate,
+                Discount = i.Discount
             }).ToList();
         }
         else
         {
-            // Generate new invoice ID using IdGenerator
-            var idGenerator = new IdGenerator(companyData);
-            var invoiceId = idGenerator.NextInvoiceId();
-            var invoiceNumber = idGenerator.NextInvoiceNumber();
+            string invoiceId, invoiceNumber;
+            if (_unansweredSend is { } unanswered && unanswered.CustomerId == SelectedCustomer!.Id)
+            {
+                (invoiceId, invoiceNumber, _) = unanswered;
+            }
+            else
+            {
+                // Generate new invoice ID using IdGenerator
+                var idGenerator = new IdGenerator(companyData);
+                invoiceId = idGenerator.NextInvoiceId();
+                invoiceNumber = idGenerator.NextInvoiceNumber();
+                takenInvoiceCounter = companyData.IdCounters.Invoice;
+            }
 
             invoice = new Invoice
             {
@@ -2064,39 +2090,39 @@ public partial class InvoiceModalsViewModel : ViewModelBase
 
         // Calculate invoice totals (Subtotal / TaxAmount / Total, these are
         // invoice-level math, not Payment-derived).
-        invoice.Subtotal = invoice.LineItems.Sum(li => li.Quantity * li.UnitPrice - li.Discount);
-        var feeCalc = invoice.CustomFeeIsPercent ? invoice.Subtotal * (invoice.CustomFeeAmount / 100m) : invoice.CustomFeeAmount;
-        var discCalc = invoice.DiscountIsPercent ? invoice.Subtotal * (invoice.DiscountAmount / 100m) : invoice.DiscountAmount;
+        invoice.Subtotal = InvoiceMath.Subtotal(invoice.LineItems);
+        var feeCalc = InvoiceMath.CustomFee(invoice.Subtotal, invoice.CustomFeeAmount, invoice.CustomFeeIsPercent);
+        var discCalc = InvoiceMath.Discount(invoice.Subtotal, invoice.DiscountAmount, invoice.DiscountIsPercent);
         // Tax applies to the subtotal AFTER discount and the taxable fee plus shipping (docs/Calculations.md §4).
-        var taxableBase = invoice.Subtotal - discCalc + feeCalc + invoice.ShippingAmount;
-        invoice.TaxAmount = invoice.TaxIsFixed ? invoice.TaxRate : taxableBase * (invoice.TaxRate / 100m);
-        invoice.Total = taxableBase + invoice.TaxAmount + invoice.SecurityDeposit;
+        var taxableBase = InvoiceMath.TaxableBase(invoice.Subtotal, discCalc, feeCalc, invoice.ShippingAmount);
+        invoice.TaxAmount = InvoiceMath.Tax(taxableBase, invoice.TaxRate, invoice.TaxIsFixed);
+        invoice.Total = InvoiceMath.Total(taxableBase, invoice.TaxAmount, invoice.SecurityDeposit);
 
         // Set currency fields for multi-currency support
-        var invoiceCurrency = SelectedCurrencyCode;
-        invoice.OriginalCurrency = invoiceCurrency;
-        if (!string.Equals(invoiceCurrency, "USD", StringComparison.OrdinalIgnoreCase))
-        {
-            var exchangeService = ExchangeRateService.Instance;
-            if (exchangeService != null)
-            {
-                var rate = await exchangeService.GetExchangeRateAsync(invoiceCurrency, "USD", invoice.IssueDate);
-                if (rate > 0)
-                {
-                    // USD base stored full-precision (no 2dp round); display rounds. See Calculations.md Rule 3.
-                    invoice.TotalUSD = invoice.Total * rate;
-                }
-            }
-        }
-        else
-        {
-            invoice.TotalUSD = invoice.Total;
-        }
+        invoice.OriginalCurrency = SelectedCurrencyCode;
+        await ApplyUsdTotalAsync(companyData, invoice);
 
         // Payment-derived totals (AmountPaid / Balance / BalanceUSD) come
         // from InvoiceTotalsService so the rule "stored totals always match
         // the Payment list" is preserved. See docs/Calculations.md §5.
         InvoiceTotalsService.Recalculate(invoice, companyData.Payments);
+
+        // Undoes what this attempt changed and says why it failed. The number goes back only when the
+        // portal can't hold it: reusing one it published would put another invoice behind the link
+        // that customer was emailed.
+        async Task SendFailedAsync(string message, bool mayHavePublished)
+        {
+            restoreDraft?.Invoke();
+            if (!isContinuingDraft)
+            {
+                if (mayHavePublished)
+                    _unansweredSend = (invoice.Id, invoice.InvoiceNumber, invoice.CustomerId);
+                else if (takenInvoiceCounter is { } taken && companyData.IdCounters.Invoice == taken)
+                    companyData.IdCounters.Invoice = taken - 1;
+            }
+
+            await ShowSendErrorAsync(message);
+        }
 
         // Publish and send: portal handles both publishing and email delivery via sendEmail: true.
         // When portal is not configured, fall back to desktop email sending.
@@ -2133,16 +2159,18 @@ public partial class InvoiceModalsViewModel : ViewModelBase
                         var detail = !string.IsNullOrEmpty(publishResponse.Message)
                             ? publishResponse.Message
                             : "The payment portal did not return a payment link.";
-                        await ShowSendErrorAsync(
-                            $"{"Failed to publish invoice to payment portal:".Translate()} {detail}");
+                        await SendFailedAsync(
+                            $"{"Failed to publish invoice to payment portal:".Translate()} {detail}",
+                            publishResponse.MayHavePublished);
                         return;
                     }
                 }
             }
             catch (Exception ex)
             {
-                await ShowSendErrorAsync(
-                    $"{"Failed to publish invoice to payment portal:".Translate()} {ex.Message}");
+                await SendFailedAsync(
+                    $"{"Failed to publish invoice to payment portal:".Translate()} {ex.Message}",
+                    mayHavePublished: true);
                 return;
             }
         }
@@ -2165,17 +2193,18 @@ public partial class InvoiceModalsViewModel : ViewModelBase
 
                 if (!response.Success)
                 {
-                    await ShowSendErrorAsync(response.Message);
+                    await SendFailedAsync(response.Message, mayHavePublished: false);
                     return;
                 }
             }
             catch (Exception ex)
             {
-                await ShowSendErrorAsync($"{"Failed to send invoice:".Translate()} {ex.Message}");
+                await SendFailedAsync($"{"Failed to send invoice:".Translate()} {ex.Message}", mayHavePublished: true);
                 return;
             }
         }
 
+        _unansweredSend = null;
         invoice.Status = InvoiceStatus.Sent;
         invoice.History.Add(new InvoiceHistoryEntry
         {
@@ -2199,9 +2228,8 @@ public partial class InvoiceModalsViewModel : ViewModelBase
             LinkInvoiceToRevenue(invoice, companyData);
         }
 
-        // If "Repeat this invoice" was set, create the recurring schedule here too. Previously this
-        // only happened on save-as-draft, so a recurring invoice sent directly never showed up in the
-        // recurring tab. The helper no-ops if it isn't recurring or a schedule already exists (e.g. a
+        // If "Repeat this invoice" was set, create the recurring schedule here too.
+        // The helper no-ops if it isn't recurring or a schedule already exists (e.g. a
         // recurring draft that was scheduled on save and is now being sent).
         CreateRecurringScheduleIfNeeded(invoice, companyData, new IdGenerator(companyData));
 
@@ -2238,6 +2266,27 @@ public partial class InvoiceModalsViewModel : ViewModelBase
         IsShowingSuccess = true;
     }
 
+    /// <summary>
+    /// Returns an action that puts <paramref name="draft"/> back as it is now, with its entries in the
+    /// conversion queue. Every settable property is copied so nothing a send writes is missed; the send
+    /// replaces the line item list rather than editing it, so holding the old list is enough.
+    /// </summary>
+    private static Action CaptureDraft(Invoice draft, CompanyData companyData)
+    {
+        var properties = typeof(Invoice).GetProperties().Where(p => p.CanWrite).ToArray();
+        var values = properties.Select(p => p.GetValue(draft)).ToArray();
+        var conversions = companyData.PendingConversions.Where(p => p.TransactionId == draft.Id).ToList();
+
+        return () =>
+        {
+            for (var i = 0; i < properties.Length; i++)
+                properties[i].SetValue(draft, values[i]);
+            companyData.PendingConversions.RemoveAll(p => p.TransactionId == draft.Id);
+            companyData.PendingConversions.AddRange(conversions);
+            _ = PendingConversionService.Instance?.MirrorAsync(companyData, [draft.Id]);
+        };
+    }
+
     private string PeekNextInvoiceNumber()
     {
         var companyData = App.CompanyManager?.CompanyData;
@@ -2251,6 +2300,9 @@ public partial class InvoiceModalsViewModel : ViewModelBase
             if (draft != null)
                 return draft.InvoiceNumber;
         }
+
+        if (_unansweredSend is { } unanswered && unanswered.CustomerId == SelectedCustomer?.Id)
+            return unanswered.Number;
 
         var idGenerator = new IdGenerator(companyData);
         return idGenerator.PeekNextInvoice().Number;
@@ -2421,7 +2473,7 @@ public partial class InvoiceModalsViewModel : ViewModelBase
         {
             // Hide the editable WebView so the confirmation dialog renders above it. The native
             // WebView renders in its own airspace above Avalonia content, so it otherwise occludes
-            // the dialog (same fix as the create-customer/product flows).
+            // the dialog.
             IsNestedModalOpen = true;
 
             var confirmed = IsEditMode
@@ -2449,9 +2501,11 @@ public partial class InvoiceModalsViewModel : ViewModelBase
 
     /// <summary>
     /// If the user flipped "Repeat this invoice" and this invoice doesn't already have a schedule,
-    /// create the recurring schedule (this invoice is occurrence #1; the schedule's next date is one
-    /// cadence step after the start) and add it to the company data. Called from both the
+    /// create the recurring schedule and add it to the company data. Called from both the
     /// save-as-draft and create-and-send paths so a recurring invoice is scheduled either way.
+    /// The invoice being saved stands in for every occurrence up to its own issue date, so the
+    /// next one is the first date of the start date's series after it: a later start is itself
+    /// the next invoice, and an earlier one does not put a draft beside the invoice just saved.
     /// </summary>
     private void CreateRecurringScheduleIfNeeded(Invoice invoice, CompanyData companyData, IdGenerator idGenerator)
     {
@@ -2468,7 +2522,8 @@ public partial class InvoiceModalsViewModel : ViewModelBase
             Frequency = RecurringFrequency,
             StartDate = startDate,
             EndDate = RecurringEndDate?.Date,
-            NextInvoiceDate = RecurringInvoiceService.AdvanceDate(startDate, RecurringFrequency, startDate.Day),
+            NextInvoiceDate = RecurrenceSchedule.FirstOnOrAfter(
+                startDate, RecurringFrequency, startDate.Day, invoice.IssueDate.Date.AddDays(1)),
             // Inherit the terms the user set on this invoice (its issue->due span) instead of a fixed default.
             PaymentTerms = RecurringInvoiceService.FormatPaymentTerms(invoice.IssueDate, invoice.DueDate),
             Status = RecurringInvoiceStatus.Active,
@@ -2572,25 +2627,8 @@ public partial class InvoiceModalsViewModel : ViewModelBase
         invoice.Total = Total;
 
         // Set currency fields for multi-currency support
-        var draftCurrency = SelectedCurrencyCode;
-        invoice.OriginalCurrency = draftCurrency;
-        if (!string.Equals(draftCurrency, "USD", StringComparison.OrdinalIgnoreCase))
-        {
-            var exchangeService = ExchangeRateService.Instance;
-            if (exchangeService != null)
-            {
-                var rate = await exchangeService.GetExchangeRateAsync(draftCurrency, "USD", invoice.IssueDate);
-                if (rate > 0)
-                {
-                    // USD base stored full-precision (no 2dp round); display rounds. See Calculations.md Rule 3.
-                    invoice.TotalUSD = invoice.Total * rate;
-                }
-            }
-        }
-        else
-        {
-            invoice.TotalUSD = invoice.Total;
-        }
+        invoice.OriginalCurrency = SelectedCurrencyCode;
+        await ApplyUsdTotalAsync(companyData, invoice);
 
         InvoiceTotalsService.Recalculate(invoice, companyData.Payments);
 
@@ -2671,11 +2709,53 @@ public partial class InvoiceModalsViewModel : ViewModelBase
     }
 
     /// <summary>
+    /// The invoice's USD total at its issue date's rate, or pending when there is none (future
+    /// dated, offline, or no rate service) so the conversion queue prices it later. Keeping the
+    /// previous figure, 0 or another date's rate, dropped the invoice out of Outstanding Invoices
+    /// for good and priced its online payments at nothing (docs/Calculations.md Rule 3a).
+    /// </summary>
+    private static async Task ApplyUsdTotalAsync(CompanyData companyData, Invoice invoice)
+    {
+        companyData.PendingConversions.RemoveAll(p => p.TransactionId == invoice.Id);
+
+        if (string.Equals(invoice.OriginalCurrency, "USD", StringComparison.OrdinalIgnoreCase))
+        {
+            invoice.TotalUSD = invoice.Total;
+            invoice.IsPendingConversion = false;
+        }
+        else
+        {
+            var rate = ExchangeRateService.Instance is { } exchangeService
+                ? await exchangeService.GetExchangeRateAsync(invoice.OriginalCurrency, "USD", invoice.IssueDate)
+                : 0m;
+
+            // USD base stored full-precision (no 2dp round); display rounds. See Calculations.md Rule 3.
+            invoice.TotalUSD = rate > 0 ? invoice.Total * rate : 0m;
+            invoice.IsPendingConversion = rate <= 0;
+
+            if (invoice.IsPendingConversion)
+            {
+                companyData.PendingConversions.Add(new PendingConversion
+                {
+                    TransactionId = invoice.Id,
+                    TransactionType = "Invoice",
+                    OriginalCurrency = invoice.OriginalCurrency,
+                    TransactionDate = invoice.IssueDate,
+                    Total = invoice.Total,
+                    Balance = Math.Max(0, invoice.Total - invoice.AmountPaid)
+                });
+            }
+        }
+
+        _ = PendingConversionService.Instance?.MirrorAsync(companyData, [invoice.Id]);
+    }
+
+    /// <summary>
     /// Creates a Revenue transaction automatically from a sent invoice.
     /// This handles the "Invoice → Revenue" path so the revenue table stays
     /// the single source of truth for all financial data.
     /// </summary>
-    private static void CreateRevenueFromInvoice(Invoice invoice, CompanyData companyData)
+    internal static void CreateRevenueFromInvoice(Invoice invoice, CompanyData companyData)
     {
         companyData.IdCounters.Revenue++;
         var revenueId = $"REV-{DateTime.Now:yyyy}-{companyData.IdCounters.Revenue:D5}";
@@ -2698,6 +2778,10 @@ public partial class InvoiceModalsViewModel : ViewModelBase
             ? invoice.Subtotal * (invoice.DiscountAmount / 100m)
             : invoice.DiscountAmount;
 
+        // The deposit is held for the customer, not earned, so it stays out of the revenue
+        // (docs/Calculations.md §4). A deposit kept when the rental comes back is added then.
+        var total = invoice.Total - invoice.SecurityDeposit;
+
         var revenue = new Revenue
         {
             Id = revenueId,
@@ -2719,9 +2803,9 @@ public partial class InvoiceModalsViewModel : ViewModelBase
             Amount = invoice.Subtotal,
             TaxRate = invoice.TaxRate,
             TaxAmount = invoice.TaxAmount,
-            Fee = feeAmount + invoice.SecurityDeposit + invoice.ShippingAmount,
+            Fee = feeAmount + invoice.ShippingAmount,
             Discount = discountAmount,
-            Total = invoice.Total,
+            Total = total,
             PaymentMethod = PaymentMethod.Other,
             PaymentStatus = RevenuePaymentStatus.Unpaid,
             Notes = $"Auto-created from invoice {invoice.InvoiceNumber}",
@@ -2734,19 +2818,43 @@ public partial class InvoiceModalsViewModel : ViewModelBase
             OriginalCurrency = invoice.OriginalCurrency,
             // USD base fields stored full-precision (no 2dp round) so they stay consistent with the
             // unrounded TotalUSD above; display rounds at the boundary. See docs/Calculations.md Rule 3.
-            TotalUSD = invoice.EffectiveTotalUSD,
+            TotalUSD = invoice.Total > 0 ? invoice.EffectiveTotalUSD * total / invoice.Total : 0,
             TaxAmountUSD = invoice.EffectiveTotalUSD > 0 && invoice.Total > 0
                 ? invoice.TaxAmount * (invoice.EffectiveTotalUSD / invoice.Total)
                 : string.Equals(invoice.OriginalCurrency, "USD", StringComparison.OrdinalIgnoreCase) ? invoice.TaxAmount : 0,
             FeeUSD = invoice.EffectiveTotalUSD > 0 && invoice.Total > 0
-                ? (feeAmount + invoice.SecurityDeposit + invoice.ShippingAmount) * (invoice.EffectiveTotalUSD / invoice.Total)
-                : string.Equals(invoice.OriginalCurrency, "USD", StringComparison.OrdinalIgnoreCase) ? feeAmount + invoice.SecurityDeposit + invoice.ShippingAmount : 0,
+                ? (feeAmount + invoice.ShippingAmount) * (invoice.EffectiveTotalUSD / invoice.Total)
+                : string.Equals(invoice.OriginalCurrency, "USD", StringComparison.OrdinalIgnoreCase) ? feeAmount + invoice.ShippingAmount : 0,
             DiscountUSD = invoice.EffectiveTotalUSD > 0 && invoice.Total > 0
                 ? discountAmount * (invoice.EffectiveTotalUSD / invoice.Total)
-                : string.Equals(invoice.OriginalCurrency, "USD", StringComparison.OrdinalIgnoreCase) ? discountAmount : 0
+                : string.Equals(invoice.OriginalCurrency, "USD", StringComparison.OrdinalIgnoreCase) ? discountAmount : 0,
+
+            // An invoice still waiting for its rate hands the wait on to its revenue, which the
+            // queue then converts from the same amounts. Otherwise the revenue counted as 0 for good.
+            IsPendingConversion = invoice.IsPendingConversion
         };
 
         companyData.Revenues.Add(revenue);
+
+        if (revenue.IsPendingConversion)
+        {
+            var pendingEntry = new PendingConversion
+            {
+                TransactionId = revenue.Id,
+                TransactionType = "Revenue",
+                OriginalCurrency = revenue.OriginalCurrency,
+                TransactionDate = revenue.Date,
+                Total = revenue.Total,
+                TaxAmount = revenue.TaxAmount,
+                ShippingCost = revenue.ShippingCost,
+                Discount = revenue.Discount,
+                Fee = revenue.Fee,
+                UnitPrice = revenue.UnitPrice
+            };
+            companyData.PendingConversions.RemoveAll(p => p.TransactionId == revenue.Id);
+            companyData.PendingConversions.Add(pendingEntry);
+            _ = PendingConversionService.Instance?.AddPendingConversionAsync(pendingEntry);
+        }
     }
 
     /// <summary>
@@ -2785,6 +2893,7 @@ public partial class InvoiceModalsViewModel : ViewModelBase
     private void ResetForm()
     {
         _editingInvoiceId = string.Empty;
+        _unansweredSend = null;
         _paperLogo = null;
         IsFromRental = false;
         IsFromRevenue = false;
@@ -2867,11 +2976,6 @@ public partial class LineItemDisplayModel : ObservableObject
     /// Discount and a Tax Rate column for every invoice line, and the exporter writes both, so
     /// a sheet edited by hand or produced by another system can bring in values this form has
     /// nowhere to show.
-    ///
-    /// Before they were carried, opening such an invoice and pressing Save wrote the lines back
-    /// with both fields zeroed, so the discount vanished with nothing said. Round-tripping a
-    /// file through the exporter and the importer is the normal way to bulk-edit, and it was
-    /// losing data every time.
     /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(Amount))]
@@ -2891,17 +2995,18 @@ public partial class LineItemDisplayModel : ObservableObject
 
     /// <summary>
     /// The line's contribution to the invoice subtotal: quantity times price, less the line's
-    /// own discount. That is docs/Calculations.md §4 verbatim, and it matches
-    /// <see cref="Core.Models.Common.LineItem.Subtotal"/>.
+    /// own discount, floored at zero. That is docs/Calculations.md §4, and it matches
+    /// <see cref="Core.Models.Common.LineItem.Subtotal"/> exactly, so what the form totals and what
+    /// the saved invoice totals are the same number. A discount larger than the line it sits on
+    /// zeroes that line; it does not come off the rest of the invoice.
     ///
     /// The per-line tax rate is deliberately NOT added. §4 is explicit that the invoice header
     /// rate is what produces the stored tax, and adding a line's own tax here would have the
     /// invoice-level rate charged on top of it.
     ///
-    /// Discount is zero on every line this form creates, so for an invoice made in the app this
-    /// is exactly what it always was.
+    /// Discount is zero on every line this form creates.
     /// </summary>
-    public decimal Amount => (Quantity ?? 0) * (UnitPrice ?? 0) - Discount;
+    public decimal Amount => LineItem.SubtotalOf(Quantity ?? 0, UnitPrice ?? 0, Discount);
 
     public string AmountFormatted => CurrencyInfo.GetByCode(InvoiceCurrencyCode).Format(Amount);
 

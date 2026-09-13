@@ -55,6 +55,7 @@ public class RefundAggregatorTests
         {
             Id = "INV-1",
             Subtotal = 86.91m,
+            TaxAmount = 32.09m,
             Total = 119m
         };
         var refund = new Payment

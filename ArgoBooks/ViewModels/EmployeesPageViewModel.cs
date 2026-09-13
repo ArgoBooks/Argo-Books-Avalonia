@@ -2,7 +2,6 @@ using System.Collections.ObjectModel;
 using ArgoBooks.Controls.ColumnWidths;
 using ArgoBooks.Core.Models.Payroll;
 using ArgoBooks.Core.Services.Payroll;
-using ArgoBooks.Localization;
 using ArgoBooks.Services;
 using ArgoBooks.Helpers;
 using ArgoBooks.Utilities;
@@ -189,15 +188,12 @@ public partial class EmployeesPageViewModel : SortablePageViewModelBase
     }
 
     /// <summary>
-    /// Opens the Record of Employment worksheet for keying into ROE Web.
+    /// Opens the Record of Employment form: the worksheet to key into ROE Web, or the payroll
+    /// extract XML to upload instead of keying anything.
     ///
     /// Offered per employee rather than at year end because an ROE is due five calendar days
     /// after the pay period in which someone stops being paid, which has nothing to do with
     /// December.
-    ///
-    /// Shown in the receipt viewer rather than saved straight to disk, because the usual thing
-    /// to do with it is read a figure off it while ROE Web is open in a browser, not file it.
-    /// Saving is still a button away.
     /// </summary>
     [RelayCommand]
     private async Task RecordOfEmploymentAsync(EmployeeDisplayItem? item)
@@ -210,12 +206,7 @@ public partial class EmployeesPageViewModel : SortablePageViewModelBase
         try
         {
             RoeWorksheet sheet = new RoeService().Build(data, item.Id);
-            byte[] bytes = await Task.Run(() => RoePdfRenderer.Render(sheet));
-
-            App.ReceiptViewerModal?.ShowDocument(
-                "Record of Employment: {0}".TranslateFormat(sheet.EmployeeName),
-                bytes,
-                $"ROE-worksheet-{ExportFolderHelper.Sanitize(sheet.EmployeeName)}.pdf");
+            App.PayrollModalsViewModel?.Roe.Show(sheet);
         }
         catch (Exception ex)
         {
@@ -346,8 +337,7 @@ public partial class EmployeesPageViewModel : SortablePageViewModelBase
                 || e.EmployeeNumber.Contains(q, StringComparison.OrdinalIgnoreCase));
         }
 
-        // Name unless a header says otherwise. The six sortable headers on this page updated the
-        // arrow and did nothing else, because the sort state was never read here.
+        // Name unless a header says otherwise.
         IEnumerable<Employee> sorted = SortDirection == Controls.SortDirection.None
             ? filtered.OrderBy(e => e.Name, StringComparer.CurrentCultureIgnoreCase)
             : filtered.ApplySort(
@@ -396,6 +386,10 @@ public partial class EmployeeDisplayItem : ObservableObject
     [ObservableProperty]
     private string _employeeNumber = string.Empty;
 
+    /// <summary>Chosen beside ArchiveTooltip so the arrow and the words cannot disagree.</summary>
+    [ObservableProperty]
+    private string _archiveIcon = Icons.Archive;
+
     [ObservableProperty]
     private string _province = string.Empty;
 
@@ -435,5 +429,6 @@ public partial class EmployeeDisplayItem : ObservableObject
         Status = e.IsArchived ? "Archived" : "Active",
         IsArchived = e.IsArchived,
         ArchiveTooltip = e.IsArchived ? "Restore" : "Archive",
+        ArchiveIcon = e.IsArchived ? Icons.Unarchive : Icons.Archive,
     };
 }

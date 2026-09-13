@@ -1,8 +1,3 @@
-using System;
-using System.Globalization;
-using Avalonia.Data.Converters;
-using Avalonia.Media;
-
 namespace ArgoBooks.Mobile.Converters;
 
 /// <summary>Converts a bottom-nav "is active" bool into an accent brush (active) or a dim brush (inactive).</summary>

@@ -151,7 +151,7 @@ public class TutorialServiceTests
         var eventRaised = false;
         _service.ChecklistItemCompleted += (_, _) => eventRaised = true;
 
-        _service.CompleteChecklistItem(TutorialService.ChecklistItems.CreateCategory);
+        _service.CompleteChecklistItem(TutorialService.ChecklistItems.ScanReceipt);
 
         Assert.True(eventRaised);
     }

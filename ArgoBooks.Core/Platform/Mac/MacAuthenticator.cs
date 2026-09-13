@@ -180,7 +180,15 @@ internal static class MacAuthenticator
             // The prompt has no deadline of its own and sits until answered. This one exists so
             // a reply that never arrives cannot strand the unlock screen forever.
             var finished = await Task.WhenAny(completion.Task, Task.Delay(TimeSpan.FromMinutes(2)));
-            return finished == completion.Task && completion.Task.Result;
+            if (finished != completion.Task)
+            {
+                // Dismisses the prompt. LocalAuthentication answers that with a cancel, which
+                // OnReply then ignores because the call is no longer pending.
+                SendMessage(context, sel_registerName("invalidate"));
+                return false;
+            }
+
+            return completion.Task.Result;
         }
         catch (Exception)
         {
@@ -188,14 +196,13 @@ internal static class MacAuthenticator
         }
         finally
         {
+            // The block and its descriptor are deliberately never freed. LocalAuthentication keeps
+            // the block until it replies and releases it afterwards on its own queue, so nothing on
+            // this side runs provably after its last use. Freeing it here let an answer that came
+            // after the timeout call into freed memory, and even an on-time answer raced the
+            // release. It is 48 bytes per prompt, and a global block is meant to live that long.
             if (block != IntPtr.Zero)
-            {
                 Pending.TryRemove(block, out _);
-                Marshal.FreeHGlobal(block);
-            }
-
-            if (descriptor != IntPtr.Zero)
-                Marshal.FreeHGlobal(descriptor);
 
             if (context != IntPtr.Zero)
                 Release(context);

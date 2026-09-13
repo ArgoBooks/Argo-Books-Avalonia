@@ -1,10 +1,4 @@
-using System;
-using System.Collections.ObjectModel;
-using System.Globalization;
-using System.Linq;
 using ArgoBooks.Core.Services.Sync;
-using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
 
 namespace ArgoBooks.Mobile.ViewModels;
 

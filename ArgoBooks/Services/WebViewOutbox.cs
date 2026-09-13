@@ -62,7 +62,7 @@ internal static class WebViewOutbox
     /// Reads the JSON array the page hands back. InvokeScript returns the JS value already
     /// JSON encoded, and it has been observed handing back the array bare; a platform that
     /// quotes it one level deeper has to be read too, because getting that wrong yields zero
-    /// messages and looks exactly like the bug this replaced.
+    /// messages and looks exactly like postMessage not arriving.
     ///
     /// Anything unreadable counts as "no messages" rather than throwing: a drain runs on a
     /// timer beside live work, and throwing would take down the thing it is reporting on.

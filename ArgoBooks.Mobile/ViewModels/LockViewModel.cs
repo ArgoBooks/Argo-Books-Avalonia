@@ -1,8 +1,4 @@
-using System;
-using System.Threading.Tasks;
 using ArgoBooks.Mobile.Services;
-using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
 
 namespace ArgoBooks.Mobile.ViewModels;
 

@@ -240,6 +240,191 @@ public class CompanyManagerTests : IDisposable
 
     #endregion
 
+    #region SaveSettingsOnly Tests
+
+    /// <summary>
+    /// The open-time repairs change invoices and payments in memory and stamp their markers in the
+    /// settings. A settings-only save must not write those markers while the repaired rows stay
+    /// unsaved, or the next open skips the repair and the file is never fixed.
+    /// </summary>
+    [Fact]
+    public async Task SaveSettingsOnly_AfterOpenTimeRepair_RepairStillRunsOnNextOpen()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"argo-cm-{Guid.NewGuid():N}.argo");
+        try
+        {
+            await _manager.CreateCompanyAsync(path, "Acme");
+            var data = _manager.CompanyData!;
+            data.Invoices.Add(new Invoice { Id = "INV-1", Total = 100m, OriginalCurrency = "USD" });
+            data.Payments.Add(new Payment { Id = "PAY-1", InvoiceId = "INV-1", Amount = 40m, OriginalCurrency = "USD" });
+            data.Revenues.Add(new Revenue { Id = "REV-1", PaymentStatus = RevenuePaymentStatus.Pending });
+            data.Payments.Add(new Payment { Id = "PAY-2", RevenueId = "REV-1", Amount = 10m, OriginalCurrency = "USD" });
+            await _manager.SaveCompanyAsync();
+            await _manager.CloseCompanyAsync();
+
+            await _manager.OpenCompanyAsync(path);
+            Assert.Equal(40m, _manager.CompanyData!.Invoices[0].AmountPaid);
+            _manager.CompanyData.Settings.Notifications.UnsavedChangesReminderMinutes = 17;
+            await _manager.SaveSettingsOnlyAsync();
+            await _manager.CloseCompanyAsync();
+
+            await _manager.OpenCompanyAsync(path);
+            var reopened = _manager.CompanyData!;
+            Assert.Equal(40m, reopened.Invoices[0].AmountPaid);
+            Assert.DoesNotContain(reopened.Payments, p => p.Id == "PAY-2");
+            Assert.Equal(17, reopened.Settings.Notifications.UnsavedChangesReminderMinutes);
+        }
+        finally
+        {
+            await _manager.CloseCompanyAsync();
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    #endregion
+
+    #region ChangePassword Tests
+
+    /// <summary>
+    /// A password change rewrites the file without saving. It must not take along a change the
+    /// user hasn't saved, such as a removed logo, which quitting without saving would then not undo.
+    /// </summary>
+    [Fact]
+    public async Task ChangePassword_UnsavedLogoRemoval_IsNotWrittenToFile()
+    {
+        var footerService = new FooterService();
+        using var manager = new CompanyManager(
+            new FileService(new CompressionService(), footerService, new EncryptionService()),
+            new GlobalSettingsService(new MockPlatformService()),
+            footerService);
+        var path = Path.Combine(Path.GetTempPath(), $"argo-cm-{Guid.NewGuid():N}.argo");
+        var logo = Path.Combine(Path.GetTempPath(), $"argo-cm-{Guid.NewGuid():N}.png");
+        try
+        {
+            await File.WriteAllBytesAsync(logo, [1, 2, 3]);
+            await manager.CreateCompanyAsync(path, "Acme");
+            await manager.SetCompanyLogoAsync(logo);
+            await manager.SaveCompanyAsync();
+
+            await manager.RemoveCompanyLogoAsync();
+            await manager.ChangePasswordAsync("CorrectHorse#1");
+            await manager.CloseCompanyAsync();
+
+            Assert.True(await manager.OpenCompanyAsync(path, "CorrectHorse#1"));
+            Assert.NotNull(manager.CurrentCompanyLogoPath);
+        }
+        finally
+        {
+            await manager.CloseCompanyAsync();
+            foreach (var p in new[] { path, logo })
+                if (File.Exists(p)) File.Delete(p);
+        }
+    }
+
+    #endregion
+
+    #region Company File Name Tests
+
+    /// <summary>
+    /// A company name can hold characters a file name can't, such as "/". The file gets a safe
+    /// name, and the name the user typed is what the company is still called after reopening.
+    /// </summary>
+    [Fact]
+    public async Task CreateCompany_NameWithSlash_KeepsNameAfterReopen()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), $"argo-cm-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(dir);
+        var path = Path.Combine(dir, CompanyManager.ToCompanyFileName("Smith/Jones: Books?") + ".argo");
+        try
+        {
+            Assert.DoesNotContain(Path.GetFileName(path), c => "<>:\"/\\|?*".Contains(c));
+
+            await _manager.CreateCompanyAsync(path, "Smith/Jones: Books?");
+            await _manager.SaveCompanyAsync();
+            await _manager.CloseCompanyAsync();
+
+            Assert.True(await _manager.OpenCompanyAsync(path));
+            Assert.Equal("Smith/Jones: Books?", _manager.CompanyData!.Settings.Company.Name);
+        }
+        finally
+        {
+            await _manager.CloseCompanyAsync();
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// A rename that can't be done must not stop the data being saved, or leave itself pending so
+    /// that every later save fails the same way.
+    /// </summary>
+    [Fact]
+    public async Task Save_RenameCannotBeApplied_SavesAtCurrentPath()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"argo-cm-{Guid.NewGuid():N}.argo");
+        try
+        {
+            await _manager.CreateCompanyAsync(path, "Acme");
+            _manager.SetPendingRename(Path.Combine(path + "-missing", "Acme West.argo"));
+            _manager.CompanyData!.Customers.Add(new Customer { Id = "CUST-1", Name = "Kept" });
+
+            await _manager.SaveCompanyAsync();
+
+            Assert.Null(_manager.PendingRenamePath);
+            Assert.Equal(path, _manager.CurrentFilePath);
+            await _manager.CloseCompanyAsync();
+            await _manager.OpenCompanyAsync(path);
+            Assert.Single(_manager.CompanyData!.Customers);
+        }
+        finally
+        {
+            await _manager.CloseCompanyAsync();
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    #endregion
+
+    #region Capitalization Rename Tests
+
+    /// <summary>
+    /// Changing only the capitalization of the name renames the same file. On Windows and macOS the
+    /// new name looks taken, because it finds that very file, so the rename was skipped and the
+    /// next open took the old name back from the file.
+    /// </summary>
+    [Fact]
+    public async Task Rename_CapitalizationOnly_RenamesFileAndKeepsName()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), $"argo-cm-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(dir);
+        var newPath = Path.Combine(dir, "Acme.argo");
+        var otherPath = Path.Combine(dir, "Beta.argo");
+        try
+        {
+            await File.WriteAllTextAsync(otherPath, "another company");
+            await _manager.CreateCompanyAsync(Path.Combine(dir, "acme.argo"), "acme");
+            _manager.CompanyData!.Settings.Company.Name = "Acme";
+
+            Assert.False(_manager.CanRenameTo(otherPath));
+            Assert.True(_manager.CanRenameTo(newPath));
+            _manager.SetPendingRename(newPath);
+            await _manager.SaveCompanyAsync();
+            await _manager.CloseCompanyAsync();
+
+            var names = Directory.GetFiles(dir).Select(Path.GetFileName).ToList();
+            Assert.Contains("Acme.argo", names);
+            Assert.DoesNotContain("acme.argo", names);
+            await _manager.OpenCompanyAsync(newPath);
+            Assert.Equal("Acme", _manager.CompanyData!.Settings.Company.Name);
+        }
+        finally
+        {
+            await _manager.CloseCompanyAsync();
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    #endregion
+
     #region ChangeCustomerId Cascade Tests
 
     [Fact]

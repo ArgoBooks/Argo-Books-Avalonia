@@ -81,6 +81,25 @@ public class ForecastAccuracyServiceTests
         Assert.Equal(80.0, companyData.ForecastRecords[0].ConfidenceScore);
     }
 
+    /// <summary>
+    /// A forecast saved by an older build ends at 23:59:59, and the same month now ends at the day's
+    /// last tick. It is still the same period, so saving must update it rather than add a second
+    /// record that Past Predictions and the accuracy average would count twice.
+    /// </summary>
+    [Fact]
+    public void SaveForecast_SamePeriodEndingAtADifferentTimeOfDay_UpdatesExistingRecord()
+    {
+        var companyData = new CompanyData();
+        _service.SaveForecast(companyData, new ForecastData { ForecastedRevenue = 10000m },
+            new AnalysisDateRange { StartDate = new DateTime(2025, 1, 1), EndDate = new DateTime(2025, 1, 31, 23, 59, 59) });
+
+        _service.SaveForecast(companyData, new ForecastData { ForecastedRevenue = 12000m },
+            new AnalysisDateRange { StartDate = new DateTime(2025, 1, 1), EndDate = new DateTime(2025, 2, 1).AddTicks(-1) });
+
+        Assert.Single(companyData.ForecastRecords);
+        Assert.Equal(12000m, companyData.ForecastRecords[0].ForecastedRevenue);
+    }
+
     [Fact]
     public void SaveForecast_MultiplePeriods_StoresMultipleRecords()
     {
@@ -485,6 +504,45 @@ public class ForecastAccuracyServiceTests
         var record = companyData.ForecastRecords[0];
         Assert.True(record.IsValidated);
         Assert.Equal(110m, record.ActualRevenue);
+    }
+
+    #endregion
+
+    #region RunBacktestAsync Tests
+
+    // Backtests are scored and weighted alongside live forecasts, so they have to use the same
+    // yardstick: gross collected revenue and gross expenses.
+    [Fact]
+    public async Task RunBacktestAsync_MeasuresGrossCollectedRevenueAndGrossExpenses()
+    {
+        var companyData = new CompanyData();
+        for (var month = 1; month <= 5; month++)
+        {
+            var date = new DateTime(2024, month, 15);
+            companyData.Revenues.Add(new Revenue
+            {
+                Id = $"REV-{month}", Date = date, OriginalCurrency = "USD",
+                Total = 110m, TaxAmount = 10m, PaymentStatus = RevenuePaymentStatus.Paid
+            });
+            companyData.Revenues.Add(new Revenue
+            {
+                Id = $"REV-UNPAID-{month}", Date = date, OriginalCurrency = "USD",
+                Total = 500m, PaymentStatus = RevenuePaymentStatus.Unpaid
+            });
+            companyData.Expenses.Add(new Expense
+            {
+                Id = $"EXP-{month}", Date = date, OriginalCurrency = "USD", Total = 55m, TaxAmount = 5m
+            });
+        }
+
+        await _service.RunBacktestAsync(companyData, new CompanySettings(), new LocalMLForecastingService());
+
+        Assert.NotEmpty(companyData.ForecastRecords);
+        Assert.All(companyData.ForecastRecords, r =>
+        {
+            Assert.Equal(110m, r.ActualRevenue);
+            Assert.Equal(55m, r.ActualExpenses);
+        });
     }
 
     #endregion

@@ -9,8 +9,13 @@ public class StripePayoutRecord
     [JsonPropertyName("payoutId")]
     public string StripePayoutId { get; set; } = string.Empty;
 
+    /// <summary>In the smallest unit of <see cref="Currency"/>: cents for USD, whole yen for JPY.</summary>
     [JsonPropertyName("amountCents")]
     public long AmountCents { get; set; }
+
+    /// <summary>Null on payouts saved before the currency was recorded.</summary>
+    [JsonPropertyName("currency")]
+    public string? Currency { get; set; }
 
     [JsonPropertyName("date")]
     public DateTime Date { get; set; }

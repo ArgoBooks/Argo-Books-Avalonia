@@ -10,6 +10,7 @@ using CommunityToolkit.Mvvm.Input;
 
 using ArgoBooks.Core.Models.Telemetry;
 using ArgoBooks.Core.Services;
+using ArgoBooks.Shared.Telemetry;
 
 namespace ArgoBooks.ViewModels;
 
@@ -366,8 +367,7 @@ public partial class ProductModalsViewModel : ViewModelBase
         }
         else
         {
-            companyData.IdCounters.Product++;
-            newId = $"PRD-{companyData.IdCounters.Product:D3}";
+            newId = new Core.Data.IdGenerator(companyData).NextProductId();
         }
 
         var reorderPoint = int.TryParse(ModalReorderPoint, out var rp) ? rp : 0;
@@ -414,9 +414,6 @@ public partial class ProductModalsViewModel : ViewModelBase
 
         LastSavedProductId = newProduct.Id;
         ProductSaved?.Invoke(this, EventArgs.Empty);
-
-        // Mark the setup checklist item as complete
-        TutorialService.Instance.CompleteChecklistItem(TutorialService.ChecklistItems.AddProduct);
 
         CloseAddModal();
     }

@@ -130,10 +130,7 @@ public static class CurrencyInputBehavior
         string digits = new(text.Where(char.IsDigit).ToArray());
 
         // The decimal separator, which may be the one the machine uses rather than the one the
-        // box was written with. Only '.' was recognised, and every other non-digit was dropped,
-        // so a French or German machine typing "1234,56" had the comma swallowed and the digits
-        // landed as "123,456": a hundredfold error on the way in, which TryParse then read back
-        // faithfully.
+        // box was written with.
         //
         // The first separator with no more trailing digits than the currency has decimals. A
         // grouping separator always has exactly three after it, so this tells them apart without

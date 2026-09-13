@@ -90,11 +90,106 @@ public partial class InsightsPageViewModel : ViewModelBase, ICleanupViewModel
     /// <summary>
     /// Shows the teaser overlay when the user doesn't have premium.
     /// </summary>
-    public bool ShowTeaser => !HasPremium;
+    public bool ShowTeaser => !HasPremium && !ShowsSampleSnapshot;
+
+    // The sample company's insights, worked out once from the sample as it opened. Held here rather
+    // than recalculated from the open company, so edits, an import or a Save As can't feed it the
+    // user's own figures: on the free plan that would be premium insights for nothing.
+    private static InsightsData? _sampleInsights;
+    private static ForecastData? _sampleForecast;
+    private static string _sampleAnalysisPeriod = string.Empty;
+
+    /// <summary>A free user seeing the sample company's frozen insights instead of the teaser.</summary>
+    public bool ShowsSampleSnapshot => !HasPremium && _sampleInsights != null;
+
+    /// <summary>A frozen snapshot can't answer a different period, so the picker is locked.</summary>
+    public bool CanChangeInsightsPeriod => !ShowsSampleSnapshot;
+
+    /// <summary>
+    /// Works out the sample company's insights at the page's default periods. Call once, as the
+    /// sample opens, before anything in it can have been changed.
+    /// </summary>
+    public static async Task CaptureSampleSnapshotAsync(Core.Data.CompanyData companyData, IInsightsService? service = null)
+    {
+        service ??= new InsightsService();
+
+        const string insightsPeriod = "Last 3 Months";
+        var insights = await service.GenerateInsightsAsync(companyData, AnalysisDateRange.FromPreset(insightsPeriod, companyData.GetEarliestDate()));
+
+        var (forecastStart, forecastEnd) = DatePresetNames.GetDateRange(DatePresetNames.NextMonth);
+        var forecast = await service.GenerateForecastAsync(companyData, AnalysisDateRange.Custom(forecastStart, forecastEnd));
+
+        _sampleInsights = insights;
+        _sampleForecast = forecast;
+        _sampleAnalysisPeriod = $"Based on {insightsPeriod.ToLowerInvariant()} of data";
+    }
+
+    /// <summary>Drops the sample's insights. Only on closing the company, never on Save As.</summary>
+    public static void ClearSampleSnapshot()
+    {
+        _sampleInsights = null;
+        _sampleForecast = null;
+        _sampleAnalysisPeriod = string.Empty;
+    }
+
+    /// <summary>For a page built before the snapshot finished, so it switches from the teaser.</summary>
+    public void OnSampleSnapshotChanged()
+    {
+        OnPropertyChanged(nameof(ShowTeaser));
+        OnPropertyChanged(nameof(ShowsSampleSnapshot));
+        OnPropertyChanged(nameof(CanChangeInsightsPeriod));
+        if (!HasPremium)
+            ShowFreeContent();
+    }
+
+    private void ShowFreeContent()
+    {
+        if (ShowsSampleSnapshot)
+            ApplySampleSnapshot();
+        else
+            PopulateSampleData();
+    }
+
+    private void ApplySampleSnapshot()
+    {
+        if (_sampleInsights is not { } insights)
+            return;
+
+        InsightsAnalysisPeriod = _sampleAnalysisPeriod;
+
+        if (!insights.HasSufficientData)
+        {
+            HasInsufficientData = true;
+            InsufficientDataMessage = insights.InsufficientDataMessage ?? "Insufficient data for analysis.";
+            ClearInsights();
+            return;
+        }
+
+        HasInsufficientData = false;
+        ApplyInsights(insights);
+        if (_sampleForecast != null)
+            UpdateForecastDisplay(_sampleForecast);
+    }
+
+    private void ApplyInsights(InsightsData insights)
+    {
+        TotalInsights = insights.Summary.TotalInsights.ToString();
+        TrendsDetected = insights.Summary.TrendsDetected.ToString();
+        AnomaliesDetected = insights.Summary.AnomaliesDetected.ToString();
+        Opportunities = insights.Summary.Opportunities.ToString();
+
+        // Update insight collections (these don't change with date range)
+        UpdateInsightCollection(RevenueTrends, insights.RevenueTrends);
+        UpdateInsightCollection(Anomalies, insights.Anomalies);
+        UpdateInsightCollection(Forecasts, insights.Forecasts);
+        UpdateInsightCollection(Recommendations, insights.Recommendations);
+    }
 
     partial void OnHasPremiumChanged(bool value)
     {
         OnPropertyChanged(nameof(ShowTeaser));
+        OnPropertyChanged(nameof(ShowsSampleSnapshot));
+        OnPropertyChanged(nameof(CanChangeInsightsPeriod));
         if (value)
         {
             // Switched to premium, load real data
@@ -102,8 +197,7 @@ public partial class InsightsPageViewModel : ViewModelBase, ICleanupViewModel
         }
         else
         {
-            // Switched to free, populate sample data for teaser
-            PopulateSampleData();
+            ShowFreeContent();
         }
     }
 
@@ -653,7 +747,7 @@ public partial class InsightsPageViewModel : ViewModelBase, ICleanupViewModel
         if (HasPremium)
             _ = RefreshInsightsAsync();
         else
-            PopulateSampleData();
+            ShowFreeContent();
     }
 
     /// <summary>
@@ -675,7 +769,7 @@ public partial class InsightsPageViewModel : ViewModelBase, ICleanupViewModel
         if (HasPremium)
             _ = RefreshInsightsAsync();
         else
-            PopulateSampleData();
+            ShowFreeContent();
     }
 
     private void OnPlanStatusChanged(object? sender, PlanStatusChangedEventArgs e)
@@ -690,7 +784,7 @@ public partial class InsightsPageViewModel : ViewModelBase, ICleanupViewModel
         if (HasPremium)
             _ = RefreshInsightsAsync();
         else
-            PopulateSampleData();
+            ShowFreeContent();
     }
 
     /// <summary>
@@ -768,8 +862,7 @@ public partial class InsightsPageViewModel : ViewModelBase, ICleanupViewModel
             await RunBacktestIfNeededAsync(companyData, companySettings);
 
             // Use the selected historical date range for insights
-            var (insightsStartDate, insightsEndDate) = DatePresetNames.GetDateRange(SelectedInsightsDateRange, companyData.GetEarliestDate());
-            var insightsDateRange = AnalysisDateRange.Custom(insightsStartDate, insightsEndDate);
+            var insightsDateRange = AnalysisDateRange.FromPreset(SelectedInsightsDateRange, companyData.GetEarliestDate());
 
             // Update the analysis period description
             InsightsAnalysisPeriod = SelectedInsightsDateRange == DateRangePreset.AllTime.GetDisplayName()
@@ -787,17 +880,7 @@ public partial class InsightsPageViewModel : ViewModelBase, ICleanupViewModel
                 return;
             }
 
-            // Update summary statistics
-            TotalInsights = insights.Summary.TotalInsights.ToString();
-            TrendsDetected = insights.Summary.TrendsDetected.ToString();
-            AnomaliesDetected = insights.Summary.AnomaliesDetected.ToString();
-            Opportunities = insights.Summary.Opportunities.ToString();
-
-            // Update insight collections (these don't change with date range)
-            UpdateInsightCollection(RevenueTrends, insights.RevenueTrends);
-            UpdateInsightCollection(Anomalies, insights.Anomalies);
-            UpdateInsightCollection(Forecasts, insights.Forecasts);
-            UpdateInsightCollection(Recommendations, insights.Recommendations);
+            ApplyInsights(insights);
 
             // Now update forecast based on selected date range
             var forecastDateRange = AnalysisDateRange.Custom(StartDate, EndDate);
@@ -939,7 +1022,7 @@ public partial class InsightsPageViewModel : ViewModelBase, ICleanupViewModel
     /// precision on a projection). Forecasts are "as of now", so they convert at today's rate (warmed
     /// by the caller); shows the pending marker if that rate isn't cached yet.
     /// </summary>
-    private static string FormatForecastAmount(decimal amountUSD) =>
+    internal static string FormatForecastAmount(decimal amountUSD) =>
         CurrencyService.TryGetDisplayFromUSD(amountUSD, DateTime.Today, out var amount)
             ? CurrencyService.CurrentSymbol + amount.ToString("N0", System.Globalization.CultureInfo.InvariantCulture)
             : CurrencyService.PendingMarker;

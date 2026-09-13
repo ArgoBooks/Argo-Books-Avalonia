@@ -278,35 +278,37 @@ public partial class StatCardWidgetViewModel : WidgetViewModelBase
         SecondaryText = lowStock > 0 ? $"{lowStock} low stock" : $"{data.Inventory.Count} items";
     }
 
+    private void LoadPayrollRemittance(CompanyData data) =>
+        (Value, SecondaryText) = PayrollRemittanceCard(data, DateTime.Today);
+
     /// <summary>
-    /// What is owed to CRA for last month's payroll, and the date it is due.
+    /// What is owed to CRA next, and the date it is due: the Pay runs page's own figure from the
+    /// same call, so the two cannot disagree. It follows the company's remitter type because an
+    /// accelerated remitter's deadline comes before the 15th and a quarterly one owes three
+    /// months at once. Once the deadline passes the card rolls on by itself.
     ///
-    /// Last month rather than the current one, because a regular remitter pays for the month
-    /// just ended. Once that is paid the card rolls forward on its own, so there is nothing to
-    /// mark off. Everything but drafts counts: a voided run and its reversal are both included
-    /// and cancel to zero.
+    /// Quebec income tax, QPP and QPIP are a separate payment to Revenu Quebec, so they are named
+    /// beside the CRA figure rather than added to it.
     /// </summary>
-    private void LoadPayrollRemittance(CompanyData data)
+    internal static (string Value, string SecondaryText) PayrollRemittanceCard(CompanyData data, DateTime today)
     {
-        DateTime firstOfThisMonth = new(DateTime.Today.Year, DateTime.Today.Month, 1);
-        DateTime firstOfLastMonth = firstOfThisMonth.AddMonths(-1);
+        (decimal cra, decimal quebec, DateTime due) = PayrollService.NextRemittanceByAgency(
+            data.PayRuns, today, data.Settings.Company.RemitterType);
 
-        decimal owing = data.PayRuns
-            .Where(r => r.Status != Core.Models.Payroll.PayRunStatus.Draft
-                        && r.PayDate >= firstOfLastMonth
-                        && r.PayDate < firstOfThisMonth)
-            .Sum(r => r.TotalRemittance);
+        string secondary = cra <= 0 && quebec <= 0
+            ? "Nothing owing"
+            : quebec <= 0
+                ? $"Due {due:d MMM}"
+                : $"Due {due:d MMM}, plus {CurrencyService.Format(quebec)} to Revenu Quebec";
 
-        Value = CurrencyService.Format(owing);
-        SecondaryText = owing > 0
-            ? $"Due {firstOfThisMonth.AddDays(14):d MMM}"
-            : "Nothing owing";
+        return (CurrencyService.Format(cra), secondary);
     }
 
     private void LoadOverdueInvoices(CompanyData data)
     {
+        // Overdue is worked out from the due date, and nothing stores the Overdue status.
         var overdue = data.Invoices
-            .Where(i => i.Status == InvoiceStatus.Overdue)
+            .Where(i => (i.IsOverdue || i.Status == InvoiceStatus.Overdue) && i.Status != InvoiceStatus.Draft && i.Balance > 0)
             .ToList();
         // Convert each invoice balance at its OWN issue date before summing (Calculations.md §3a Phase 2).
         Value = CurrencyService.FormatSumDisplayFromUSD(

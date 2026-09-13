@@ -38,7 +38,7 @@ public static class PlatformTypefaces
 
         // A miss returns the system default rather than null, so a name that did not resolve
         // is spotted by comparing families rather than by a null check.
-        if (typeface != null && !IsSystemFallback(typeface))
+        if (typeface != null && IsResolvedMatch(familyName, typeface.FamilyName, SKTypeface.Default.FamilyName))
             return typeface;
 
         return style != null ? Resolve(style) : Default;
@@ -52,7 +52,7 @@ public static class PlatformTypefaces
                 ? SKTypeface.FromFamilyName(candidate, style)
                 : SKTypeface.FromFamilyName(candidate);
 
-            if (typeface != null && !IsSystemFallback(typeface))
+            if (typeface != null && IsResolvedMatch(candidate, typeface.FamilyName, SKTypeface.Default.FamilyName))
                 return typeface;
         }
 
@@ -61,6 +61,13 @@ public static class PlatformTypefaces
             : SKTypeface.Default;
     }
 
-    private static bool IsSystemFallback(SKTypeface typeface) =>
-        typeface.FamilyName == SKTypeface.Default.FamilyName;
+    /// <summary>
+    /// Whether a font asked for by name was really found. A miss comes back as the system default,
+    /// but on Windows the default is Segoe UI itself, so landing on the default only means a miss
+    /// when the default is not what was asked for. macOS aliases like .AppleSystemUIFont report
+    /// another name, which is why anything other than the default also counts.
+    /// </summary>
+    internal static bool IsResolvedMatch(string requested, string resolvedFamily, string systemDefaultFamily) =>
+        string.Equals(resolvedFamily, requested, StringComparison.OrdinalIgnoreCase)
+        || resolvedFamily != systemDefaultFamily;
 }

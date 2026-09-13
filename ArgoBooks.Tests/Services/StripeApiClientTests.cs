@@ -7,20 +7,16 @@ namespace ArgoBooks.Tests.Services;
 
 public class StripeApiClientTests
 {
-    private sealed class StubHandler : HttpMessageHandler
+    private sealed class StubHandler(HttpStatusCode status, string body) : HttpMessageHandler
     {
-        private readonly HttpStatusCode _status;
-        private readonly string _body;
         public HttpRequestMessage? LastRequest { get; private set; }
-
-        public StubHandler(HttpStatusCode status, string body) { _status = status; _body = body; }
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
             LastRequest = request;
-            return Task.FromResult(new HttpResponseMessage(_status)
+            return Task.FromResult(new HttpResponseMessage(status)
             {
-                Content = new StringContent(_body, Encoding.UTF8, "application/json")
+                Content = new StringContent(body, Encoding.UTF8, "application/json")
             });
         }
     }
@@ -79,5 +75,20 @@ public class StripeApiClientTests
 
         Assert.False(result.Ok);
         Assert.Contains("Read access", result.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task FetchPayoutsAsync_ReadsEachPayoutsCurrency()
+    {
+        var handler = new StubHandler(HttpStatusCode.OK,
+            "{\"has_more\":false,\"data\":[" +
+            "{\"id\":\"po_1\",\"amount\":10000,\"currency\":\"jpy\",\"arrival_date\":1700000900,\"status\":\"paid\"}" +
+            "]}");
+        var client = new StripeApiClient(new HttpClient(handler));
+
+        var payout = Assert.Single(await client.FetchPayoutsAsync("rk_test_abc"));
+
+        Assert.Equal(10000, payout.AmountCents);
+        Assert.Equal("jpy", payout.Currency);
     }
 }

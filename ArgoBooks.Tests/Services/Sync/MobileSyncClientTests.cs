@@ -7,25 +7,17 @@ namespace ArgoBooks.Tests.Services.Sync;
 
 public class MobileSyncClientTests
 {
-    private sealed class CannedHandler : HttpMessageHandler
+    private sealed class CannedHandler(string json, HttpStatusCode statusCode = HttpStatusCode.OK) : HttpMessageHandler
     {
-        private readonly string _json;
-        private readonly HttpStatusCode _statusCode;
         public HttpRequestMessage? Last;
         public string? LastRequestBody;
-
-        public CannedHandler(string json, HttpStatusCode statusCode = HttpStatusCode.OK)
-        {
-            _json = json;
-            _statusCode = statusCode;
-        }
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
             Last = request;
             LastRequestBody = request.Content?.ReadAsStringAsync(ct).GetAwaiter().GetResult();
-            return Task.FromResult(new HttpResponseMessage(_statusCode)
-            { Content = new StringContent(_json, Encoding.UTF8, "application/json") });
+            return Task.FromResult(new HttpResponseMessage(statusCode)
+            { Content = new StringContent(json, Encoding.UTF8, "application/json") });
         }
     }
 

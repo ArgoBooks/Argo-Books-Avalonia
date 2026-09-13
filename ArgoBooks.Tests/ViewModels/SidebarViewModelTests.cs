@@ -8,12 +8,7 @@ namespace ArgoBooks.Tests.ViewModels;
 /// </summary>
 public class SidebarViewModelTests
 {
-    private readonly SidebarViewModel _viewModel;
-
-    public SidebarViewModelTests()
-    {
-        _viewModel = new SidebarViewModel();
-    }
+    private readonly SidebarViewModel _viewModel = new();
 
     #region Constants Tests
 

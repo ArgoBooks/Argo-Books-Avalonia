@@ -7,13 +7,9 @@ namespace ArgoBooks.Tests.Importer;
 /// Track A fake: returns a canned response whose key substring appears in the user prompt.
 /// Deterministic and order/parallelism independent (matches by content, not call order).
 /// </summary>
-public sealed class ScriptedGeminiService : IGeminiService
+public sealed class ScriptedGeminiService(IReadOnlyDictionary<string, string> responsesByKey) : IGeminiService
 {
-    private readonly IReadOnlyDictionary<string, string> _responsesByKey;
     private readonly object _lock = new();
-
-    public ScriptedGeminiService(IReadOnlyDictionary<string, string> responsesByKey)
-        => _responsesByKey = responsesByKey;
 
     public bool IsConfigured => true;
     public int CallCount { get; private set; }
@@ -37,7 +33,7 @@ public sealed class ScriptedGeminiService : IGeminiService
         lock (_lock)
         {
             CallCount++;
-            foreach (var (key, value) in _responsesByKey)
+            foreach (var (key, value) in responsesByKey)
             {
                 if (userPrompt.Contains(key, StringComparison.Ordinal))
                     return Task.FromResult<string?>(value);

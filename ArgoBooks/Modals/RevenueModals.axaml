@@ -128,20 +128,23 @@
                                         CornerRadius="6"
                                         Padding="12,8"
                                         IsVisible="{Binding LineItems.Count, Converter={x:Static local:IntConverters.IsPositive}}">
-                                    <Grid ColumnDefinitions="*,80,90,100,40">
+                                    <Grid ColumnDefinitions="*,150,70,90,100,40">
                                         <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,8,0">
-                                            <TextBlock Text="{loc:Loc 'Product / Service'}" FontSize="12" FontWeight="Medium"
+                                            <TextBlock Text="{loc:Loc 'Item'}" FontSize="12" FontWeight="Medium"
                                                        Foreground="{DynamicResource TextTertiaryBrush}" />
                                             <TextBlock Text=" *" FontSize="12" FontWeight="Medium"
                                                        Foreground="{DynamicResource DangerBrush}" />
                                         </StackPanel>
-                                        <TextBlock Grid.Column="1" Text="{loc:Loc 'Qty'}" FontSize="12" FontWeight="Medium"
+                                        <TextBlock Grid.Column="1" Text="{loc:Loc 'Category'}" FontSize="12" FontWeight="Medium"
                                                    Foreground="{DynamicResource TextTertiaryBrush}"
                                                    HorizontalAlignment="Left" />
-                                        <TextBlock Grid.Column="2" Text="{loc:Loc 'Price'}" FontSize="12" FontWeight="Medium"
+                                        <TextBlock Grid.Column="2" Text="{loc:Loc 'Qty'}" FontSize="12" FontWeight="Medium"
                                                    Foreground="{DynamicResource TextTertiaryBrush}"
                                                    HorizontalAlignment="Left" />
-                                        <TextBlock Grid.Column="3" Text="{loc:Loc 'Amount'}" FontSize="12" FontWeight="Medium"
+                                        <TextBlock Grid.Column="3" Text="{loc:Loc 'Price'}" FontSize="12" FontWeight="Medium"
+                                                   Foreground="{DynamicResource TextTertiaryBrush}"
+                                                   HorizontalAlignment="Left" />
+                                        <TextBlock Grid.Column="4" Text="{loc:Loc 'Amount'}" FontSize="12" FontWeight="Medium"
                                                    Foreground="{DynamicResource TextTertiaryBrush}"
                                                    HorizontalAlignment="Right"
                                                    Margin="0,0,12,0" />
@@ -155,25 +158,40 @@
                                             <Border Padding="12,8"
                                                     BorderBrush="{DynamicResource BorderBrush}"
                                                     BorderThickness="0,0,0,1">
-                                                <Grid ColumnDefinitions="*,80,90,100,40">
+                                                <Grid ColumnDefinitions="*,150,70,90,100,40">
                                                     <controls:SearchableDropdown Grid.Column="0"
                                                              Classes="compact"
                                                              Margin="0,0,8,0"
                                                              ItemsSource="{Binding $parent[ItemsControl].((vm:RevenueModalsViewModel)DataContext).ProductOptions}"
                                                              SelectedItem="{Binding SelectedProduct, Mode=TwoWay}"
+                                                             SearchText="{Binding ItemText, Mode=TwoWay}"
                                                              DisplayMemberPath="Name"
-                                                             Placeholder="{loc:Loc 'Search for a product...'}"
+                                                             Placeholder="{loc:Loc 'Type a new product, or pick one'}"
                                                              ShowAddNew="True"
                                                              AddNewText="{loc:Loc 'Create new product'}"
                                                              AddNewCommand="{Binding $parent[ItemsControl].((vm:RevenueModalsViewModel)DataContext).OpenCreateProductCommand}"
                                                              AddNewCommandParameter="{Binding}"
-                                                             EmptyMessage="{loc:Loc 'No products found'}"
-                                                             EmptyCreateLinkText="{loc:Loc 'Create one'}"
-                                                             EmptyCreateCommand="{Binding $parent[ItemsControl].((vm:RevenueModalsViewModel)DataContext).OpenCreateProductCommand}"
-                                                             EmptyCreateCommandParameter="{Binding}"
                                                              HasError="{Binding HasProductError}"
-                                                             ErrorMessage="{loc:Loc 'Please select a product.'}" />
-                                                    <NumericUpDown Grid.Column="1"
+                                                             ErrorMessage="{loc:Loc 'Type a new product, or pick one'}" />
+                                                    <!-- Shows a picked product's category, and takes the category for a typed one.
+                                                         Neither box sets an empty-state link: it replaces the text box, and a
+                                                         new company has no products or categories, so nothing could be typed.
+                                                         Creating one stays available at the bottom of each list. -->
+                                                    <Panel Grid.Column="1" Margin="0,0,8,0">
+                                                        <controls:SearchableDropdown Classes="compact"
+                                                                 ItemsSource="{Binding $parent[ItemsControl].((vm:RevenueModalsViewModel)DataContext).CategoryOptions}"
+                                                                 SelectedItem="{Binding SelectedCategory, Mode=TwoWay}"
+                                                                 SearchText="{Binding CategoryText, Mode=TwoWay}"
+                                                                 DisplayMemberPath="Name"
+                                                                 Placeholder="{loc:Loc 'Category'}"
+                                                                 ShowAddNew="True"
+                                                                 AddNewText="{loc:Loc 'Create new category'}"
+                                                                 AddNewCommand="{Binding $parent[ItemsControl].((vm:RevenueModalsViewModel)DataContext).OpenCreateCategoryCommand}"
+                                                                 AddNewCommandParameter="{Binding}"
+                                                                 HasError="{Binding HasCategoryError}"
+                                                                 ErrorMessage="{loc:Loc 'Pick a category'}" />
+                                                    </Panel>
+                                                    <NumericUpDown Grid.Column="2"
                                                                    Value="{Binding Quantity, Mode=TwoWay, TargetNullValue=1}"
                                                                    Minimum="1"
                                                                    Maximum="999999"
@@ -183,7 +201,7 @@
                                                                    HorizontalAlignment="Stretch"
                                                                    VerticalAlignment="Top"
                                                                    Margin="0,0,8,0" />
-                                                    <NumericUpDown Grid.Column="2"
+                                                    <NumericUpDown Grid.Column="3"
                                                                    Value="{Binding UnitPrice, Mode=TwoWay, TargetNullValue=0}"
                                                                    Minimum="0"
                                                                    Maximum="999999999"
@@ -193,7 +211,7 @@
                                                                    HorizontalAlignment="Stretch"
                                                                    VerticalAlignment="Top"
                                                                    Margin="0,0,8,0" />
-                                                    <TextBlock Grid.Column="3"
+                                                    <TextBlock Grid.Column="4"
                                                                Text="{Binding AmountFormatted}"
                                                                FontSize="14"
                                                                FontWeight="Medium"
@@ -201,7 +219,7 @@
                                                                VerticalAlignment="Center"
                                                                HorizontalAlignment="Right"
                                                                Margin="0,0,12,0" />
-                                                    <Button Grid.Column="4"
+                                                    <Button Grid.Column="5"
                                                             Classes="icon-button danger"
                                                             VerticalAlignment="Center"
                                                             HorizontalAlignment="Center"
@@ -234,7 +252,7 @@
                             <Grid ColumnDefinitions="*,16,*,16,*,16,*">
                                 <!-- Tax -->
                                 <StackPanel Grid.Column="0" Spacing="6">
-                                    <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}"><Run Text="{loc:Loc 'Tax'}" /><Run Text=" ($)" /></TextBlock>
+                                    <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}"><Run Text="{loc:Loc 'Tax'}" /><Run Text="{Binding TaxCurrencyLabel}" /></TextBlock>
                                     <TextBox Text="{Binding ModalTaxAmount, Mode=TwoWay, Converter={x:Static local:NullableDecimalConverter.Instance}}"
                                              Classes="form-input"
                                              HorizontalAlignment="Stretch"

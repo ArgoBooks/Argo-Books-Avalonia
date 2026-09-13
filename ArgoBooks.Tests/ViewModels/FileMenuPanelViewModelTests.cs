@@ -8,12 +8,7 @@ namespace ArgoBooks.Tests.ViewModels;
 /// </summary>
 public class FileMenuPanelViewModelTests
 {
-    private readonly FileMenuPanelViewModel _viewModel;
-
-    public FileMenuPanelViewModelTests()
-    {
-        _viewModel = new FileMenuPanelViewModel();
-    }
+    private readonly FileMenuPanelViewModel _viewModel = new();
 
     #region Default State Tests
 

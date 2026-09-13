@@ -109,19 +109,7 @@ public partial class EditCompanyModalViewModel : ViewModelBase
     /// <summary>
     /// Available industries (shared data source).
     /// </summary>
-    public static string[] Industries { get; } =
-    [
-        "Retail",
-        "Services",
-        "Manufacturing",
-        "Technology",
-        "Healthcare",
-        "Food & Beverage",
-        "Construction",
-        "Transportation",
-        "Real Estate",
-        "Other"
-    ];
+    public static string[] Industries { get; } = Core.Models.IndustryNames.All;
 
     // Store original values for detecting changes
     private string _originalCompanyName = "";
@@ -650,6 +638,9 @@ public partial class EditCompanyModalViewModel : ViewModelBase
             {
                 dates.AddRange(companyData.Expenses.Select(e => e.Date));
                 dates.AddRange(companyData.Revenues.Select(r => r.Date));
+                dates.AddRange(companyData.Invoices.Select(i => i.IssueDate));
+                dates.AddRange(companyData.Payments.Select(p => p.Date));
+                dates.AddRange(companyData.PurchaseOrders.Select(o => o.OrderDate));
             }
             // Map PreloadRatesAsync progress (0-100) into our 30-100 range
             var progress = new Progress<int>(p => CurrencyLoadingProgress = 30 + (p * 70 / 100));

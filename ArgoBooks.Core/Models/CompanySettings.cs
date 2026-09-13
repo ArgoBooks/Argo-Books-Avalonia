@@ -13,11 +13,29 @@ public class CompanySettings
     [JsonPropertyName("appVersion")]
     public string AppVersion { get; set; } = "1.0.0";
 
+    private bool _changesMade;
+
     /// <summary>
     /// Runtime-only flag to track unsaved changes. Not persisted to JSON.
     /// </summary>
     [JsonIgnore]
-    public bool ChangesMade { get; set; } = false;
+    public bool ChangesMade
+    {
+        get => _changesMade;
+        set
+        {
+            _changesMade = value;
+            if (value)
+                ChangeCount++;
+        }
+    }
+
+    /// <summary>
+    /// Counts the times <see cref="ChangesMade"/> was set, so a save can tell whether an edit
+    /// arrived while it was writing. Runtime only.
+    /// </summary>
+    [JsonIgnore]
+    public long ChangeCount { get; private set; }
 
     /// <summary>
     /// Tracks the newest month of data when backtesting was last run.

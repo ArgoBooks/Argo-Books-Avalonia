@@ -84,8 +84,7 @@ public class QuebecPayrollCalculatorTests
     ///
     /// These are what the rest of Canada's PDOC fixtures are, and Quebec had none: PDOC
     /// deliberately excludes Quebec, so nothing gathered for the other provinces said anything
-    /// here. Until these were taken, every Quebec figure this app produced rested on the
-    /// formulas alone with no second opinion anywhere.
+    /// here.
     ///
     /// Two incomes, deliberately in different tax brackets: $2,400 lands in Quebec's 19% band
     /// once annualised and $5,000 in the 24% band, so a wrong bracket constant cannot pass both.

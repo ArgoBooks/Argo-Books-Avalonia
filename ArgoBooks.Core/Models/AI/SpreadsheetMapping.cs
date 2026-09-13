@@ -153,4 +153,10 @@ public class LlmProcessedData
     /// Warnings generated during processing.
     /// </summary>
     public List<string> Warnings { get; set; } = [];
+
+    /// <summary>
+    /// Source rows (their cell text) that produced nothing because the AI call for them failed,
+    /// so the import can report them instead of losing them.
+    /// </summary>
+    public List<string> FailedRows { get; set; } = [];
 }

@@ -481,6 +481,144 @@ public class PayrollBonusTests
         Assert.True(asVacation.Lines[0].FederalTax > asBonus.Lines[0].FederalTax);
     }
 
+    #endregion
+
+    #region A bonus paid in a run of its own
+
+    /// <summary>
+    /// The tax a bonus adds when it is paid alongside the regular pay: the difference between a
+    /// run with both and a run with the regular pay alone.
+    /// </summary>
+    private static (decimal Federal, decimal Provincial) TaxTheBonusAdds(
+        CompanyData data, decimal regular, decimal bonus)
+    {
+        var service = new PayrollService();
+
+        PayRun alone = service.CreateDraft(data, new DateTime(2026, 8, 14),
+            new DateTime(2026, 8, 1), new DateTime(2026, 8, 14))!;
+        alone.Lines[0].BasePay = regular;
+        service.Recalculate(data, alone);
+
+        PayRun together = service.CreateDraft(data, new DateTime(2026, 8, 14),
+            new DateTime(2026, 8, 1), new DateTime(2026, 8, 14))!;
+        together.Lines[0].BasePay = regular;
+        together.Lines[0].Bonus = bonus;
+        service.Recalculate(data, together);
+
+        return (together.Lines[0].FederalTax - alone.Lines[0].FederalTax,
+                together.Lines[0].ProvincialTax - alone.Lines[0].ProvincialTax);
+    }
+
+    [Fact]
+    public void ABonusPaidInARunOfItsOwn_IsTaxedOnTopOfTheSalary()
+    {
+        // $10,000 to an Alberta employee on $62,400 a year, paid on its own cheque. With no
+        // regular pay in the run there was nothing to annualise, so the bonus was taxed as though
+        // it were the whole year's income and fell under the personal amount: nothing withheld,
+        // against roughly $2,900 when the same bonus rides on a regular pay.
+        CompanyData data = CompanyWithEmployee();
+        var service = new PayrollService();
+
+        PayRun bonusOnly = service.CreateDraft(data, new DateTime(2026, 8, 14),
+            new DateTime(2026, 8, 1), new DateTime(2026, 8, 14))!;
+        bonusOnly.Lines[0].BasePay = 0m;
+        bonusOnly.Lines[0].Bonus = 10_000m;
+        service.Recalculate(data, bonusOnly);
+
+        (decimal federal, decimal provincial) = TaxTheBonusAdds(data, 2400m, 10_000m);
+        PayRunLine line = bonusOnly.Lines[0];
+
+        Assert.True(federal + provincial > 2_500m);
+        Assert.Equal(federal, line.FederalTax);
+        Assert.Equal(provincial, line.ProvincialTax);
+    }
+
+    [Fact]
+    public void AnHourlyEmployeesBonusOnItsOwn_IsTaxedOnTopOfTheirLastRegularPay()
+    {
+        // An hourly employee has no salary to read, so their normal pay is the regular part of
+        // the last pay run they were actually paid.
+        CompanyData data = CompanyWithEmployee();
+        Employee employee = data.Employees[0];
+        employee.PayType = PayType.Hourly;
+        employee.PayRate = 30m;
+
+        var service = new PayrollService();
+
+        PayRun earlier = service.CreateDraft(data, new DateTime(2026, 7, 31),
+            new DateTime(2026, 7, 18), new DateTime(2026, 7, 31))!;
+        earlier.Lines[0].HoursWorked = 80m;
+        service.Recalculate(data, earlier);
+        service.Approve(earlier);
+        data.PayRuns.Add(earlier);
+
+        PayRun bonusOnly = service.CreateDraft(data, new DateTime(2026, 8, 14),
+            new DateTime(2026, 8, 1), new DateTime(2026, 8, 14))!;
+        bonusOnly.Lines[0].HoursWorked = 0m;
+        bonusOnly.Lines[0].Bonus = 10_000m;
+        service.Recalculate(data, bonusOnly);
+
+        PayrollRateTable rates = Rates();
+        PayrollYearToDate ytd = service.YearToDateFor(data, employee.Id, bonusOnly);
+        PayrollInput Hourly(decimal gross, decimal bonus) => new()
+        {
+            GrossPay = gross,
+            NonPeriodicPay = bonus,
+            Province = "AB",
+            PayPeriodsPerYear = 26,
+        };
+
+        PayrollDeductions alone = PayrollCalculator.Calculate(Hourly(2400m, 0m), ytd, rates);
+        PayrollDeductions together = PayrollCalculator.Calculate(Hourly(12_400m, 10_000m), ytd, rates);
+
+        Assert.Equal(together.FederalTax - alone.FederalTax, bonusOnly.Lines[0].FederalTax);
+        Assert.Equal(together.ProvincialTax - alone.ProvincialTax, bonusOnly.Lines[0].ProvincialTax);
+    }
+
+    [Fact]
+    public void AQuebecBonusOnItsOwn_IsTaxedOnTopOfTheRegularPayOnBothSides()
+    {
+        PayrollRateTable rates = Rates();
+        var ytd = new PayrollYearToDate();
+        PayrollInput Qc(decimal gross, decimal bonus, decimal usual = 0m) => new()
+        {
+            GrossPay = gross,
+            NonPeriodicPay = bonus,
+            RegularPayPerPeriod = usual,
+            Province = "QC",
+            PayPeriodsPerYear = 26,
+        };
+
+        PayrollDeductions bonusOnly = PayrollCalculator.Calculate(Qc(10_000m, 10_000m, usual: 2400m), ytd, rates);
+        PayrollDeductions alone = PayrollCalculator.Calculate(Qc(2400m, 0m), ytd, rates);
+        PayrollDeductions together = PayrollCalculator.Calculate(Qc(12_400m, 10_000m), ytd, rates);
+
+        Assert.True(bonusOnly.ProvincialTax > 1_500m);
+        Assert.Equal(together.FederalTax - alone.FederalTax, bonusOnly.FederalTax);
+        Assert.Equal(together.ProvincialTax - alone.ProvincialTax, bonusOnly.ProvincialTax);
+    }
+
+    [Fact]
+    public void ABonusRunStillChargesCppAndEiOnTheBonusAlone()
+    {
+        // Only income tax borrows the regular pay. The contributions are on what this run
+        // actually pays, or the employee would be charged twice for the same salary.
+        PayrollRateTable rates = Rates();
+        var ytd = new PayrollYearToDate();
+
+        PayrollDeductions borrowed = PayrollCalculator.Calculate(
+            new PayrollInput { GrossPay = 10_000m, NonPeriodicPay = 10_000m, RegularPayPerPeriod = 2400m, Province = "AB" },
+            ytd, rates);
+        PayrollDeductions plain = PayrollCalculator.Calculate(
+            new PayrollInput { GrossPay = 10_000m, NonPeriodicPay = 10_000m, Province = "AB" },
+            ytd, rates);
+
+        Assert.Equal(plain.CppEmployee, borrowed.CppEmployee);
+        Assert.Equal(plain.Cpp2Employee, borrowed.Cpp2Employee);
+        Assert.Equal(plain.EiEmployee, borrowed.EiEmployee);
+        Assert.Equal(10_000m, borrowed.GrossPay);
+    }
+
     private static CompanyData CompanyWithEmployee()
     {
         var data = new CompanyData();

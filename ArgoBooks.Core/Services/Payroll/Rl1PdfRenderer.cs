@@ -308,7 +308,7 @@ public static class Rl1PdfRenderer
 
     private static string FormatSin(string sin)
     {
-        string digits = new((sin ?? string.Empty).Where(char.IsAsciiDigit).ToArray());
+        string digits = new((sin).Where(char.IsAsciiDigit).ToArray());
         return digits.Length == 9 ? $"{digits[..3]} {digits[3..6]} {digits[6..]}" : "not provided";
     }
 

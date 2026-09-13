@@ -44,18 +44,22 @@ public class GlobalSettingsService : IGlobalSettingsService
         };
     }
 
-    /// <inheritdoc />
     public GlobalSettings GlobalSettings { get; private set; } = new();
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Whether this install had no settings file when it loaded, i.e. it has never run before.
+    /// A file that fails to parse does not count: those settings are someone's, just unreadable.
+    /// </summary>
+    public bool IsFirstRun { get; private set; }
+
     public CompanySettings? CompanySettings { get; private set; }
 
-    /// <inheritdoc />
     public async Task LoadGlobalSettingsAsync(CancellationToken cancellationToken = default)
     {
         var settingsPath = GetGlobalSettingsPath();
 
-        if (!File.Exists(settingsPath))
+        IsFirstRun = !File.Exists(settingsPath);
+        if (IsFirstRun)
         {
             GlobalSettings = new GlobalSettings();
             return;
@@ -88,7 +92,8 @@ public class GlobalSettingsService : IGlobalSettingsService
     {
         var settingsPath = GetGlobalSettingsPath();
 
-        if (!File.Exists(settingsPath))
+        IsFirstRun = !File.Exists(settingsPath);
+        if (IsFirstRun)
         {
             GlobalSettings = new GlobalSettings();
             return;
@@ -107,7 +112,6 @@ public class GlobalSettingsService : IGlobalSettingsService
         }
     }
 
-    /// <inheritdoc />
     public async Task SaveGlobalSettingsAsync(CancellationToken cancellationToken = default)
     {
         await _saveLock.WaitAsync(cancellationToken);
@@ -163,7 +167,6 @@ public class GlobalSettingsService : IGlobalSettingsService
         }
     }
 
-    /// <inheritdoc />
     public async Task LoadCompanySettingsAsync(string tempDirectory, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(tempDirectory);
@@ -193,7 +196,6 @@ public class GlobalSettingsService : IGlobalSettingsService
         }
     }
 
-    /// <inheritdoc />
     public async Task SaveCompanySettingsAsync(string tempDirectory, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(tempDirectory);
@@ -212,7 +214,6 @@ public class GlobalSettingsService : IGlobalSettingsService
             cancellationToken);
     }
 
-    /// <inheritdoc />
     public void ClearCompanySettings()
     {
         CompanySettings = null;
@@ -267,7 +268,6 @@ public class GlobalSettingsService : IGlobalSettingsService
         }
     }
 
-    /// <inheritdoc />
     public string GetAppDataPath()
     {
         return _platformService.GetAppDataPath();

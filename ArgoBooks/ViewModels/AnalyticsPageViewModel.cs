@@ -12,11 +12,9 @@ using ArgoBooks.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LiveChartsCore;
-using LiveChartsCore.Measure;
 using LiveChartsCore.Geo;
 using LiveChartsCore.SkiaSharpView;
 using LiveChartsCore.SkiaSharpView.Drawing.Geometries;
-using LiveChartsCore.SkiaSharpView.Painting;
 using LiveChartsCore.SkiaSharpView.VisualElements;
 
 namespace ArgoBooks.ViewModels;
@@ -1192,6 +1190,12 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
     private bool _showFinancialDateRangeMessage;
 
     /// <summary>
+    /// True when the company has no income or expenses at all, so every chart is empty.
+    /// </summary>
+    [ObservableProperty]
+    private bool _hasNoTransactions;
+
+    /// <summary>
     /// True when return data exists in all time but the current date range filter is excluding it.
     /// </summary>
     [ObservableProperty]
@@ -1457,7 +1461,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
             var chartTitle = SelectedChartDataType?.GetDisplayName() ?? chartExportData?.ChartTitle ?? "Chart";
 
             // Use Pie chart type for distribution charts, match chart style for time-based charts
-            ArgoBooks.Core.Services.GoogleSheetsService.ChartType chartType;
+            GoogleSheetsService.ChartType chartType;
             if (chartExportData?.ChartType == ChartType.Distribution)
             {
                 chartType = GoogleSheetsService.ChartType.Pie;
@@ -1476,7 +1480,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
 
             cts.Token.ThrowIfCancellationRequested();
 
-            var googleSheetsService = new GoogleSheetsService(App.ErrorLogger, App.TelemetryManager);
+            var googleSheetsService = new GoogleSheetsService(App.ErrorLogger);
             var url = await googleSheetsService.ExportFormattedDataToGoogleSheetsAsync(
                 exportData,
                 chartTitle,
@@ -1528,7 +1532,6 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
                 IsSuccess = false,
                 ErrorMessage = null // Cancelled by user, no error message needed
             });
-            return;
         }
         catch (InvalidOperationException ex)
         {
@@ -1723,6 +1726,13 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         LoadAllCharts();
     }
 
+    [RelayCommand]
+    private void AddExpense()
+    {
+        App.NavigationService?.NavigateTo("Expenses");
+        App.ExpenseModalsViewModel?.OpenAddModal();
+    }
+
     #endregion
 
     #region Chart Loading
@@ -1759,6 +1769,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
             ShowRentalDateRangeMessage = isFiltered && data.Rentals.Count > 0;
             ShowTaxDateRangeMessage = isFiltered && (data.Revenues.Any(r => r.TaxAmount > 0 || r.TaxAmountUSD > 0) ||
                                                       data.Expenses.Any(e => e.TaxAmount > 0 || e.TaxAmountUSD > 0));
+            HasNoTransactions = data.Expenses.Count == 0 && data.Revenues.Count == 0;
 
             // Load statistics for stat cards
             LoadAllStatistics(data);
@@ -2201,6 +2212,9 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         LoadTaxesStatistics(data);
     }
 
+    private (DateTime Start, DateTime End) ComparisonRange() =>
+        ComparisonPeriod.For(DateRangePresetExtensions.ParseDateRange(SelectedDateRange), StartDate, EndDate);
+
     private void LoadDashboardStatistics(CompanyData data)
     {
         // Revenue stat uses gross-of-tax (Total) per Calculations.md §2 Rule 1,
@@ -2215,11 +2229,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         var margin = totalRevenuePreTaxUSD > 0 ? (netProfitUSD / totalRevenuePreTaxUSD) * 100 : 0;
 
         // Calculate previous period for comparison (guard against overflow for very large date ranges like "All Time")
-        var periodLength = EndDate - StartDate;
-        var prevStartDate = periodLength.TotalDays < StartDate.Subtract(DateTime.MinValue).TotalDays
-            ? StartDate - periodLength
-            : DateTime.MinValue;
-        var prevEndDate = StartDate > DateTime.MinValue ? StartDate.AddDays(-1) : DateTime.MinValue;
+        var (prevStartDate, prevEndDate) = ComparisonRange();
 
         var prevPurchasesUSD = ExpenseAggregator.SumExpensesUSD(data.Expenses, prevStartDate, prevEndDate);
         var prevGrossRevenueUSD = RevenueAggregator.SumCollectedRevenueUSD(data.Revenues, prevStartDate, prevEndDate);
@@ -2274,11 +2284,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         var totalTransactions = purchases.Count + sales.Count;
 
         // Calculate previous period for comparison
-        var periodLength = EndDate - StartDate;
-        var prevStartDate = periodLength.TotalDays < StartDate.Subtract(DateTime.MinValue).TotalDays
-            ? StartDate - periodLength
-            : DateTime.MinValue;
-        var prevEndDate = StartDate > DateTime.MinValue ? StartDate.AddDays(-1) : DateTime.MinValue;
+        var (prevStartDate, prevEndDate) = ComparisonRange();
 
         var prevPurchasesCount = data.Expenses.Count(p => p.Date >= prevStartDate && p.Date <= prevEndDate);
         var prevSalesCount = data.Revenues.Count(s => s.Date >= prevStartDate && s.Date <= prevEndDate);
@@ -2323,15 +2329,17 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         var transactionsValueDisplay = salesSumDisplay + purchasesSumDisplay;
         var avgTransactionValueDisplay = totalTransactionsCount > 0 ? transactionsValueDisplay / totalTransactionsCount : 0;
 
-        // Shipping costs from purchases
-        var avgShipping = purchases.Count > 0 ? purchases.Average(p => p.ShippingCost) : 0;
+        // Shipping on collected sales and on expenses, as the Average Shipping Costs chart counts it,
+        // each converted at its own date.
+        var avgShipping = totalTransactionsCount > 0
+            ? (sales.Sum(s => s.EffectiveShippingCostUSD) + purchases.Sum(p => p.EffectiveShippingCostUSD)) / totalTransactionsCount
+            : 0;
+        var salesShippingComplete = CurrencyService.TrySumDisplayFromUSD(sales, s => s.ShippingCost, s => s.OriginalCurrency, s => s.EffectiveShippingCostUSD, s => s.Date, out var salesShippingDisplay);
+        var purchasesShippingComplete = CurrencyService.TrySumDisplayFromUSD(purchases, p => p.ShippingCost, p => p.OriginalCurrency, p => p.EffectiveShippingCostUSD, p => p.Date, out var purchasesShippingDisplay);
+        var avgShippingDisplay = totalTransactionsCount > 0 ? (salesShippingDisplay + purchasesShippingDisplay) / totalTransactionsCount : 0;
 
         // Calculate previous period for comparison
-        var periodLength = EndDate - StartDate;
-        var prevStartDate = periodLength.TotalDays < StartDate.Subtract(DateTime.MinValue).TotalDays
-            ? StartDate - periodLength
-            : DateTime.MinValue;
-        var prevEndDate = StartDate > DateTime.MinValue ? StartDate.AddDays(-1) : DateTime.MinValue;
+        var (prevStartDate, prevEndDate) = ComparisonRange();
 
         var prevSales = data.Revenues
             .Where(s => s.Date >= prevStartDate && s.Date <= prevEndDate)
@@ -2342,14 +2350,18 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         var prevTotalTransactionsCount = prevSales.Count + prevPurchases.Count;
         var prevAllTransactionValues = prevSales.Select(s => s.EffectiveTotalUSD).Concat(prevPurchases.Select(p => p.EffectiveTotalUSD)).ToList();
         var prevAvgTransactionValue = prevAllTransactionValues.Count > 0 ? prevAllTransactionValues.Average() : 0;
-        var prevAvgShipping = prevPurchases.Count > 0 ? prevPurchases.Average(p => p.ShippingCost) : 0;
+        var prevAvgShipping = prevTotalTransactionsCount > 0
+            ? (prevSales.Sum(s => s.EffectiveShippingCostUSD) + prevPurchases.Sum(p => p.EffectiveShippingCostUSD)) / prevTotalTransactionsCount
+            : 0;
 
         // Check if there's any previous period data
         var hasPrevPeriodData = prevTotalTransactionsCount > 0;
 
-        // Revenue growth (period over period)
-        var currentRevenueTotal = sales.Sum(s => s.EffectiveTotalUSD);
-        var prevRevenueTotal = prevSales.Sum(s => s.EffectiveTotalUSD);
+        // Revenue growth (period over period), net of refunds on their own dates as the Revenue card counts it
+        var currentRevenueTotal = RevenueAggregator.SumCollectedRevenueUSD(data.Revenues, StartDate, EndDate)
+            - RefundAggregator.GetRefundedInDateRangeUSD(data.Payments, StartDate, EndDate);
+        var prevRevenueTotal = RevenueAggregator.SumCollectedRevenueUSD(data.Revenues, prevStartDate, prevEndDate)
+            - RefundAggregator.GetRefundedInDateRangeUSD(data.Payments, prevStartDate, prevEndDate);
         var revenueGrowthValue = prevRevenueTotal > 0 ? ((currentRevenueTotal - prevRevenueTotal) / prevRevenueTotal) * 100 : 0;
 
         var transactionsChange = prevTotalTransactionsCount > 0 ? ((double)(totalTransactionsCount - prevTotalTransactionsCount) / prevTotalTransactionsCount) * 100 : 0;
@@ -2368,7 +2380,9 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         AvgTransactionChangeValue = hasPrevPeriodData && prevAvgTransactionValue > 0 ? (double)avgTransactionChange : null;
         AvgTransactionChangeText = hasPrevPeriodData && prevAvgTransactionValue > 0 ? $"{(avgTransactionChange >= 0 ? "+" : "")}{avgTransactionChange:F1}%" : null;
 
-        AvgShippingCost = CurrencyService.Format(avgShipping);
+        AvgShippingCost = salesShippingComplete && purchasesShippingComplete
+            ? CurrencyService.Format(avgShippingDisplay)
+            : CurrencyService.PendingMarker;
         AvgShippingChangeValue = hasPrevPeriodData && prevAvgShipping > 0 ? (double)shippingChange : null;
         AvgShippingChangeText = hasPrevPeriodData && prevAvgShipping > 0 ? $"{(shippingChange >= 0 ? "+" : "")}{shippingChange:F1}%" : null;
     }
@@ -2383,11 +2397,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         NewCustomers = newCustomersCount.ToString("N0");
 
         // Calculate previous period for comparison
-        var periodLength = EndDate - StartDate;
-        var prevStartDate = periodLength.TotalDays < StartDate.Subtract(DateTime.MinValue).TotalDays
-            ? StartDate - periodLength
-            : DateTime.MinValue;
-        var prevEndDate = StartDate > DateTime.MinValue ? StartDate.AddDays(-1) : DateTime.MinValue;
+        var (prevStartDate, prevEndDate) = ComparisonRange();
 
         // Previous new customers
         var prevNewCustomers = data.Customers.Count(c => c.CreatedAt >= prevStartDate && c.CreatedAt <= prevEndDate);
@@ -2427,22 +2437,23 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         var returns = data.Returns.Where(r => r.ReturnDate >= StartDate && r.ReturnDate <= EndDate).ToList();
 
         var totalReturnsCount = returns.Count;
-        var financialImpact = returns.Sum(r => r.RefundAmount);
+        // Refund amounts are in their sale's own currency, so each converts from it at the return's date.
+        var impactComplete = ReturnLossAmounts.TrySumDisplay(returns, r => r.RefundAmount,
+            r => ReturnLossAmounts.CurrencyOf(data, r), r => r.ReturnDate,
+            CurrencyService.GetDisplayAmountFromNative, out var financialImpact);
 
         // Calculate return rate (returns / total sales transactions)
         var salesTransactions = data.Revenues.Count(s => s.Date >= StartDate && s.Date <= EndDate);
         var returnRate = salesTransactions > 0 ? ((double)totalReturnsCount / salesTransactions) * 100 : 0;
 
         // Calculate previous period for comparison
-        var periodLength = EndDate - StartDate;
-        var prevStartDate = periodLength.TotalDays < StartDate.Subtract(DateTime.MinValue).TotalDays
-            ? StartDate - periodLength
-            : DateTime.MinValue;
-        var prevEndDate = StartDate > DateTime.MinValue ? StartDate.AddDays(-1) : DateTime.MinValue;
+        var (prevStartDate, prevEndDate) = ComparisonRange();
 
         var prevReturns = data.Returns.Where(r => r.ReturnDate >= prevStartDate && r.ReturnDate <= prevEndDate).ToList();
         var prevReturnsCount = prevReturns.Count;
-        var prevFinancialImpact = prevReturns.Sum(r => r.RefundAmount);
+        ReturnLossAmounts.TrySumDisplay(prevReturns, r => r.RefundAmount,
+            r => ReturnLossAmounts.CurrencyOf(data, r), r => r.ReturnDate,
+            CurrencyService.GetDisplayAmountFromNative, out var prevFinancialImpact);
         var prevSalesTransactions = data.Revenues.Count(s => s.Date >= prevStartDate && s.Date <= prevEndDate);
         var prevReturnRate = prevSalesTransactions > 0 ? ((double)prevReturnsCount / prevSalesTransactions) * 100 : 0;
 
@@ -2461,7 +2472,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         ReturnRateChangeValue = hasPrevPeriodData && prevSalesTransactions > 0 ? returnRateChange : null;
         ReturnRateChangeText = hasPrevPeriodData && prevSalesTransactions > 0 ? $"{(returnRateChange >= 0 ? "+" : "")}{returnRateChange:F1}%" : null;
 
-        ReturnsFinancialImpact = CurrencyService.Format(financialImpact);
+        ReturnsFinancialImpact = impactComplete ? CurrencyService.Format(financialImpact) : CurrencyService.PendingMarker;
         ReturnsImpactChangeValue = hasPrevPeriodData && prevFinancialImpact > 0 ? (double)impactChange : null;
         ReturnsImpactChangeText = hasPrevPeriodData && prevFinancialImpact > 0 ? $"{(impactChange >= 0 ? "+" : "")}{impactChange:F1}%" : null;
 
@@ -2477,7 +2488,10 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         var losses = data.LostDamaged.Where(l => l.DateDiscovered >= StartDate && l.DateDiscovered <= EndDate).ToList();
 
         var totalLossesCount = losses.Count;
-        var financialImpact = losses.Sum(l => l.ValueLost);
+        // Loss values are in their sale's or purchase's own currency, so each converts from it at the loss's date.
+        var impactComplete = ReturnLossAmounts.TrySumDisplay(losses, l => l.ValueLost,
+            l => ReturnLossAmounts.CurrencyOf(data, l), l => l.DateDiscovered,
+            CurrencyService.GetDisplayAmountFromNative, out var financialImpact);
 
         // Calculate loss rate (losses / total transactions)
         var totalTransactions = data.Revenues.Count(s => s.Date >= StartDate && s.Date <= EndDate) +
@@ -2488,15 +2502,13 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         var insuranceClaimsCount = losses.Count(l => l.InsuranceClaim);
 
         // Calculate previous period for comparison
-        var periodLength = EndDate - StartDate;
-        var prevStartDate = periodLength.TotalDays < StartDate.Subtract(DateTime.MinValue).TotalDays
-            ? StartDate - periodLength
-            : DateTime.MinValue;
-        var prevEndDate = StartDate > DateTime.MinValue ? StartDate.AddDays(-1) : DateTime.MinValue;
+        var (prevStartDate, prevEndDate) = ComparisonRange();
 
         var prevLosses = data.LostDamaged.Where(l => l.DateDiscovered >= prevStartDate && l.DateDiscovered <= prevEndDate).ToList();
         var prevLossesCount = prevLosses.Count;
-        var prevFinancialImpact = prevLosses.Sum(l => l.ValueLost);
+        ReturnLossAmounts.TrySumDisplay(prevLosses, l => l.ValueLost,
+            l => ReturnLossAmounts.CurrencyOf(data, l), l => l.DateDiscovered,
+            CurrencyService.GetDisplayAmountFromNative, out var prevFinancialImpact);
         var prevTotalTransactions = data.Revenues.Count(s => s.Date >= prevStartDate && s.Date <= prevEndDate) +
                                     data.Expenses.Count(p => p.Date >= prevStartDate && p.Date <= prevEndDate);
         var prevLossRate = prevTotalTransactions > 0 ? ((double)prevLossesCount / prevTotalTransactions) * 100 : 0;
@@ -2518,7 +2530,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         LossRateChangeValue = hasPrevPeriodData && prevTotalTransactions > 0 ? lossRateChange : null;
         LossRateChangeText = hasPrevPeriodData && prevTotalTransactions > 0 ? $"{(lossRateChange >= 0 ? "+" : "")}{lossRateChange:F1}%" : null;
 
-        LossesFinancialImpact = CurrencyService.Format(financialImpact);
+        LossesFinancialImpact = impactComplete ? CurrencyService.Format(financialImpact) : CurrencyService.PendingMarker;
         LossesImpactChangeValue = hasPrevPeriodData && prevFinancialImpact > 0 ? (double)impactChange : null;
         LossesImpactChangeText = hasPrevPeriodData && prevFinancialImpact > 0 ? $"{(impactChange >= 0 ? "+" : "")}{impactChange:F1}%" : null;
 
@@ -2534,10 +2546,8 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         var expenses = data.Expenses.Where(e => e.Date >= StartDate && e.Date <= EndDate).ToList();
 
         // EffectiveTaxAmountUSD, not a hand-rolled "USD if we have it, native otherwise".
-        // docs/Calculations.md §3 forbids summing native fields into a USD total, and the two
-        // differ in exactly the cases that matter: a foreign row whose TaxAmountUSD was never
-        // written contributed its EURO tax to a dollar sum, and a pending-conversion row (which
-        // has no rate at all) did the same. The Effective property derives the missing figure
+        // docs/Calculations.md §3 forbids summing native fields into a USD total. The Effective
+        // property derives the missing figure
         // from the row's own Total/TotalUSD ratio and yields 0 when there is nothing to derive
         // it from, so a rate that never arrived reads as nothing rather than as dollars.
         var taxCollectedUSD = revenues.Sum(r => r.EffectiveTaxAmountUSD);
@@ -2550,11 +2560,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         var effectiveRate = totalPreTax > 0 ? (totalTax / totalPreTax) * 100 : 0;
 
         // Calculate previous period for comparison
-        var periodLength = EndDate - StartDate;
-        var prevStartDate = periodLength.TotalDays < StartDate.Subtract(DateTime.MinValue).TotalDays
-            ? StartDate - periodLength
-            : DateTime.MinValue;
-        var prevEndDate = StartDate > DateTime.MinValue ? StartDate.AddDays(-1) : DateTime.MinValue;
+        var (prevStartDate, prevEndDate) = ComparisonRange();
 
         var prevRevenues = data.Revenues.Where(r => r.Date >= prevStartDate && r.Date <= prevEndDate).ToList();
         var prevExpenses = data.Expenses.Where(e => e.Date >= prevStartDate && e.Date <= prevEndDate).ToList();

@@ -86,6 +86,38 @@ public class GlobalSettingsServiceTests : IDisposable
         Assert.Empty(settings.RecentCompanies);
     }
 
+    // IsFirstRun is what decides whether the machine's own language is adopted, so it has to mean
+    // "this install has never run", not "the settings didn't load".
+    [Fact]
+    public void IsFirstRun_WithNoSettingsFile_IsTrue()
+    {
+        _settingsService.LoadGlobalSettings();
+
+        Assert.True(_settingsService.IsFirstRun);
+    }
+
+    [Fact]
+    public async Task IsFirstRun_AfterSettingsHaveBeenSavedOnce_IsFalse()
+    {
+        IGlobalSettingsService globalService = _settingsService;
+        await globalService.SaveAsync(new GlobalSettings());
+
+        _settingsService.LoadGlobalSettings();
+
+        Assert.False(_settingsService.IsFirstRun);
+    }
+
+    [Fact]
+    public async Task IsFirstRun_WithACorruptedFile_IsFalse()
+    {
+        var settingsPath = Path.Combine(_testDirectory, "settings.json");
+        await File.WriteAllTextAsync(settingsPath, "{ this is not valid json }}}");
+
+        _settingsService.LoadGlobalSettings();
+
+        Assert.False(_settingsService.IsFirstRun);
+    }
+
     #endregion
 
     #region SaveAsync Tests

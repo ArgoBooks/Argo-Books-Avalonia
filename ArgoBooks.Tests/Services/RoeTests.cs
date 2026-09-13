@@ -1,4 +1,5 @@
 using ArgoBooks.Core.Data;
+using ArgoBooks.Core.Models;
 using ArgoBooks.Core.Models.Payroll;
 using ArgoBooks.Core.Services.Payroll;
 using Xunit;
@@ -340,6 +341,142 @@ public class RoeTests
         finalRun.Lines[0].VacationPay = 2400m;
 
         Assert.Equal(2400m, Built(data).VacationPay);
+    }
+
+    #endregion
+
+    #region The final pay period
+
+    private static PayRun OneRun(string id, DateTime periodEnd, decimal gross, decimal hours) => new()
+    {
+        Id = id,
+        PayDate = periodEnd.AddDays(5),
+        PeriodStart = periodEnd.AddDays(-13),
+        PeriodEnd = periodEnd,
+        Status = PayRunStatus.Approved,
+        Lines =
+        {
+            new PayRunLine
+            {
+                EmployeeId = "EMP-001",
+                EmployeeName = "Dana Smith",
+                Province = "AB",
+                GrossPay = gross,
+                HoursWorked = hours,
+                NetPay = gross,
+            },
+        },
+    };
+
+    /// <summary>
+    /// Someone who left without an end date is still ticked on the next pay run, and approving
+    /// it at nil hours records a period that paid nothing. Taken as the final period, it moves
+    /// blocks 11 and 12 past the last pay and shifts all of block 15C by one.
+    /// </summary>
+    [Fact]
+    public void ALaterRunThatPaidNothing_IsNotTheFinalPayPeriod()
+    {
+        Employee person = Person(PayType.Hourly);
+        person.EndDate = null;
+        CompanyData data = Data(person);
+        AddRuns(data, 5);
+        data.PayRuns.Add(OneRun("PR-NIL", new DateTime(2026, 7, 24), gross: 0m, hours: 0m));
+
+        RoeWorksheet sheet = Built(data);
+
+        Assert.Equal(new DateTime(2026, 7, 10), sheet.FinalPeriodEnd);
+        Assert.Equal(new DateTime(2026, 7, 10), sheet.LastDayPaid);
+        Assert.Equal(new DateTime(2026, 7, 10), sheet.Periods[0].PeriodEnd);
+        Assert.Equal(5, sheet.Periods.Count);
+    }
+
+    [Fact]
+    public void AVoidedFinalRun_IsNotTheFinalPayPeriod()
+    {
+        Employee person = Person(PayType.Hourly);
+        person.EndDate = null;
+        CompanyData data = Data(person);
+        AddRuns(data, 5);
+
+        PayRun voided = OneRun("PR-LAST", new DateTime(2026, 7, 24), gross: 2000m, hours: 80m);
+        voided.Status = PayRunStatus.Void;
+        data.PayRuns.Add(voided);
+        data.PayRuns.Add(OneRun("PR-LAST-R", new DateTime(2026, 7, 24), gross: -2000m, hours: -80m));
+
+        RoeWorksheet sheet = Built(data);
+
+        Assert.Equal(new DateTime(2026, 7, 10), sheet.FinalPeriodEnd);
+        Assert.Equal(5, sheet.Periods.Count);
+    }
+
+    /// <summary>Only the nil periods after the last pay go. One in the middle is part of the history.</summary>
+    [Fact]
+    public void ANilPeriodBeforeTheLastPay_StaysInBlock15C()
+    {
+        CompanyData data = Data(Person(PayType.Hourly));
+        AddRuns(data, 5);
+        PayRunLine unpaid = data.PayRuns.Single(r => r.PeriodEnd == new DateTime(2026, 6, 26)).Lines[0];
+        unpaid.GrossPay = 0m;
+        unpaid.HoursWorked = 0m;
+
+        RoeWorksheet sheet = Built(data);
+
+        Assert.Equal(5, sheet.Periods.Count);
+        Assert.Equal(0m, sheet.Periods[1].InsurableEarnings);
+    }
+
+    #endregion
+
+    #region The contact
+
+    [Fact]
+    public void TheContact_KeepsEveryGivenName()
+    {
+        CompanyData data = Data(Person());
+        data.Settings.Company.PayrollContactName = "Mary Ann Smith";
+        AddRuns(data, 3);
+
+        RoeWorksheet sheet = Built(data);
+
+        Assert.Equal("Mary Ann", sheet.ContactFirstName);
+        Assert.Equal("Smith", sheet.ContactLastName);
+    }
+
+    /// <summary>
+    /// The T4 screen keeps the phone as typed. The ROE's phone box holds ten digits, and fed the
+    /// typed text it counted brackets and dashes toward the ten and cut the number short.
+    /// </summary>
+    [Theory]
+    [InlineData("(403) 555-1234")]
+    [InlineData("1-403-555-1234")]
+    [InlineData("403.555.1234")]
+    public void TheContactPhone_ArrivesAsTheTenDigitNumber(string stored)
+    {
+        CompanyData data = Data(Person());
+        data.Settings.Company.PayrollContactPhone = stored;
+        AddRuns(data, 3);
+
+        Assert.Equal("4035551234", Built(data).ContactPhone);
+    }
+
+    [Fact]
+    public void ExportingTheContactAsSeeded_LeavesTheStoredOneAlone()
+    {
+        var company = new CompanyInfo { PayrollContactName = "Mary Ann Smith", PayrollContactPhone = "(403) 555-1234" };
+
+        Assert.False(RoeService.ApplyContact(company, "Mary Ann", "Smith", "4035551234"));
+        Assert.Equal("Mary Ann Smith", company.PayrollContactName);
+        Assert.Equal("(403) 555-1234", company.PayrollContactPhone);
+    }
+
+    [Fact]
+    public void AContactChangedOnTheRoe_IsKeptForTheNextOne()
+    {
+        var company = new CompanyInfo { PayrollContactName = "Mary Ann Smith", PayrollContactPhone = "(403) 555-1234" };
+
+        Assert.True(RoeService.ApplyContact(company, "Pat", "Owner", "3065550000"));
+        Assert.Equal("Pat Owner", company.PayrollContactName);
+        Assert.Equal("3065550000", company.PayrollContactPhone);
     }
 
     #endregion

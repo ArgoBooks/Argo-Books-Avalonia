@@ -49,10 +49,7 @@ public class CategoryRuleServiceTests
     }
 
     // Regression test for match-precedence fix: Exact must beat Contains for the same pattern
-    // regardless of which rule appears first in the list. Old code relied on clause 2 alone
-    // (rule.MatchType == Exact && best.MatchType != Exact); the new code also adds a MatchType
-    // guard to clause 3 so a same-length or longer Contains can never displace an already-found
-    // Exact via the length comparison path. This test places Contains first so best=Contains
+    // regardless of which rule appears first in the list. This test places Contains first so best=Contains
     // initially, then Exact is processed second. Clause 2 promotes Exact; the fix ensures clause 3
     // cannot later demote it if another Contains with equal length is evaluated.
     [Fact]

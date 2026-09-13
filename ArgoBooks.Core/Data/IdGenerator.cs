@@ -60,6 +60,32 @@ public class IdGenerator(CompanyData companyData)
         return $"REC-TXN-{companyData.IdCounters.RecurringTransaction:D5}";
     }
 
+    /// <summary>Generates a new customer ID (CUS-001) that no customer has.</summary>
+    public string NextCustomerId() =>
+        NextFreeId("CUS", () => ++companyData.IdCounters.Customer, id => companyData.Customers.Any(c => c.Id == id));
+
+    /// <summary>Generates a new supplier ID (SUP-001) that no supplier has.</summary>
+    public string NextSupplierId() =>
+        NextFreeId("SUP", () => ++companyData.IdCounters.Supplier, id => companyData.Suppliers.Any(s => s.Id == id));
+
+    /// <summary>Generates a new product ID (PRD-001) that no product has.</summary>
+    public string NextProductId() =>
+        NextFreeId("PRD", () => ++companyData.IdCounters.Product, id => companyData.Products.Any(p => p.Id == id));
+
+    /// <summary>Generates a new location code (LOC-001) that no location has.</summary>
+    public string NextLocationId() =>
+        NextFreeId("LOC", () => ++companyData.IdCounters.Location, id => companyData.Locations.Any(l => l.Id == id));
+
+    // An ID typed by hand or given in a rename doesn't move the counter, so the counter can
+    // reach one that is already taken.
+    private static string NextFreeId(string prefix, Func<int> advance, Func<string, bool> isTaken)
+    {
+        string id;
+        do id = $"{prefix}-{advance():D3}";
+        while (isTaken(id));
+        return id;
+    }
+
     /// <summary>
     /// Peeks at what the next invoice ID and number would be without incrementing the counter.
     /// </summary>

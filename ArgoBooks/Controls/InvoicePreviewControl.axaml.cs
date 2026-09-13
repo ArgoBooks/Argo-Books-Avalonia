@@ -191,7 +191,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
     }
 
     // Restrict a numeric field to digits and a single decimal point, blocking the keystroke or paste
-    // outright so junk never lands in a price box in the first place (Preview no longer has to scrub it).
+    // outright so junk never lands in a price box in the first place.
     function attachNumericFilter(el) {
         el.addEventListener('beforeinput', function(e) {
             if (!e.inputType || e.inputType.indexOf('insert') !== 0) return; // deletions/formatting: allow
@@ -477,9 +477,11 @@ window.__totalsConfig = __TOTALS_CONFIG__;
         var portal = !!cfg.portal;
         var passFee = cfg.passFee !== false;
         var paid = Number(cfg.paid) || 0;
+        // The currency's decimals, not a fixed two: yen has no subunit.
+        var dec = (typeof cfg.decimals === 'number') ? cfg.decimals : 2;
 
         function num(el) { return el ? (parseFloat((el.textContent || '').replace(/[^0-9.\-]/g, '')) || 0) : 0; }
-        function money(a) { return sym + a.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+        function money(a) { return sym + a.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec }); }
         function due(a) { return money(a) + (code ? ' ' + code : ''); }
         function setOut(name, text) {
             document.querySelectorAll('[data-out=""' + name + '""]').forEach(function(o) { o.textContent = text; });
@@ -498,9 +500,12 @@ window.__totalsConfig = __TOTALS_CONFIG__;
             document.querySelectorAll('[data-field=""rate""]').forEach(function(rateEl) {
                 var idx = rateEl.dataset.lineIndex;
                 var qtyEl = document.querySelector('[data-field=""quantity""][data-line-index=""' + idx + '""]');
-                var amt = num(qtyEl) * num(rateEl);
-                subtotal += amt;
                 var amtOut = document.querySelector('[data-out=""lineAmount""][data-line-index=""' + idx + '""]');
+                // The line's own discount has no editor on the paper, so it rides along on the amount
+                // cell. Floored at zero to match LineItem.Subtotal, which is what gets saved.
+                var lineDiscount = amtOut ? (parseFloat(amtOut.dataset.lineDiscount) || 0) : 0;
+                var amt = Math.round(Math.max(0, num(qtyEl) * num(rateEl) - lineDiscount) * 100) / 100;
+                subtotal += amt;
                 if (amtOut) amtOut.textContent = money(amt);
             });
 
@@ -509,15 +514,17 @@ window.__totalsConfig = __TOTALS_CONFIG__;
             var shipping = totalVal('shipping');
             var tax = totalVal('tax'), taxMode = totalMode('tax');
 
+            // Mirrors InvoiceMath: the discount is worth at most the subtotal it comes off, so no
+            // figure on the paper can go negative however large a discount is typed.
             var discountCalc = discMode === 'percent' ? subtotal * discount / 100 : discount;
-            var feeCalc = feeMode === 'percent' ? subtotal * fee / 100 : fee;
-            var taxableBase = subtotal - discountCalc + feeCalc + shipping;
-            var taxAmount = taxMode === 'fixed' ? tax : taxableBase * tax / 100;
-            var total = taxableBase + taxAmount + deposit;
+            discountCalc = Math.min(Math.max(0, discountCalc), Math.max(0, subtotal));
+            var feeCalc = Math.max(0, feeMode === 'percent' ? subtotal * fee / 100 : fee);
+            var taxableBase = Math.max(0, subtotal - discountCalc + feeCalc + shipping);
+            var taxAmount = Math.max(0, taxMode === 'fixed' ? tax : taxableBase * tax / 100);
+            var total = Math.max(0, taxableBase + taxAmount + deposit);
 
-            // Less whatever has already been paid. This was 'balance = total', so editing a
-            // part-paid invoice showed Amount to Pay as the full total sitting right beneath the
-            // Amount Paid row. Floored at zero so an overpayment does not render a negative.
+            // Less whatever has already been paid. Floored at zero so an overpayment does not
+            // render a negative.
             var balance = Math.max(0, total - paid);
             var procFee = (portal && passFee && balance > 0) ? Math.round((balance * 2.9 / 100 + 0.30) * 100) / 100 : 0;
 
@@ -978,7 +985,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
     // Horizontal centering: when the scaled wrapper is narrower than the
     // viewport, shift it right by half the empty space. Without this,
     // transform-origin: 0 0 leaves zoomed-out content pinned to the
-    // viewport's left edge, the bug the user hit with fit-to-window.
+    // viewport's left edge.
     function centerOffsetX(scale) {
         var wrapper = document.getElementById('__zoomWrapper');
         if (!wrapper) return 0;
@@ -1139,9 +1146,9 @@ window.__totalsConfig = __TOTALS_CONFIG__;
         runInitialFit();
     }
 
-    // Zoom handling (Ctrl+Scroll)
+    // Zoom handling (Ctrl+Scroll, or Cmd+Scroll on a Mac, where Cmd arrives as metaKey)
     document.addEventListener('wheel', function(e) {
-        if (e.ctrlKey) {
+        if (e.ctrlKey || e.metaKey) {
             e.preventDefault();
             var wrapper = document.getElementById('__zoomWrapper');
             var currentScale = parseFloat(wrapper.dataset.scale || '1');

@@ -178,7 +178,7 @@ public class RecurringTransactionServiceTests
         RecurringTransactionService.GenerateDue(data, new DateTime(2026, 3, 15));
         data.Expenses[0].BankMatched = true;
 
-        var correctable = RecurringTransactionService.FindCorrectableOccurrences(data, schedule);
+        var correctable = RecurringTransactionService.FindCorrectableOccurrences(data, schedule, oldAmount: 2000m);
 
         Assert.Equal(2, correctable.Count);
         Assert.DoesNotContain(data.Expenses[0], correctable);
@@ -191,20 +191,19 @@ public class RecurringTransactionServiceTests
         RecurringTransactionService.GenerateDue(data, new DateTime(2026, 1, 15));
         data.Expenses.Add(new Expense { Id = "PUR-2026-09999", RecurringScheduleId = "REC-TXN-00002" });
 
-        Assert.Single(RecurringTransactionService.FindCorrectableOccurrences(data, schedule));
+        Assert.Single(RecurringTransactionService.FindCorrectableOccurrences(data, schedule, oldAmount: 2000m));
     }
 
     [Fact]
-    public void ApplyTemplateAmounts_UpdatesOnlyTheGivenEntries()
+    public void CorrectOccurrences_UpdatesOnlyTheGivenEntries()
     {
         var (data, schedule) = WithMonthlyRent(new DateTime(2026, 1, 1));
         RecurringTransactionService.GenerateDue(data, new DateTime(2026, 3, 15));
         data.Expenses[0].BankMatched = true;
-        schedule.ExpenseTemplate!.Amount = 2200m;
-        schedule.ExpenseTemplate.Total = 2200m;
 
-        var correctable = RecurringTransactionService.FindCorrectableOccurrences(data, schedule);
-        RecurringTransactionService.ApplyTemplateAmounts(schedule, correctable);
+        var correctable = RecurringTransactionService.FindCorrectableOccurrences(data, schedule, oldAmount: 2000m);
+        EditTemplateAmount(schedule, 2200m);
+        RecurringTransactionService.CorrectOccurrences(data, schedule, correctable);
 
         Assert.Equal(2000m, data.Expenses[0].Total);
         Assert.Equal(2200m, data.Expenses[1].Total);
@@ -227,7 +226,7 @@ public class RecurringTransactionServiceTests
 
         // A rate that moves by month, so a stale template value would be visible.
         RecurringTransactionService.GenerateDue(data, new DateTime(2026, 3, 15),
-            (decimal amount, string _, DateTime date, out decimal usd) =>
+            (amount, _, date, out usd) =>
             {
                 usd = amount * (0.70m + date.Month * 0.01m);
                 return true;
@@ -246,7 +245,7 @@ public class RecurringTransactionServiceTests
         var (data, _) = WithForeignMonthlyRent(new DateTime(2026, 1, 1));
 
         RecurringTransactionService.GenerateDue(data, new DateTime(2026, 1, 15),
-            (decimal _, string _, DateTime _, out decimal usd) =>
+            (_, _, _, out usd) =>
             {
                 usd = 0m;
                 return false;
@@ -269,7 +268,7 @@ public class RecurringTransactionServiceTests
         var (data, _) = WithMonthlyRent(new DateTime(2026, 1, 1));
 
         RecurringTransactionService.GenerateDue(data, new DateTime(2026, 1, 15),
-            (decimal _, string _, DateTime _, out decimal usd) =>
+            (_, _, _, out usd) =>
             {
                 usd = 0m;
                 return false;
@@ -279,6 +278,179 @@ public class RecurringTransactionServiceTests
         Assert.False(entry.IsPendingConversion);
         Assert.Empty(data.PendingConversions);
     }
+
+    #region Correcting past entries
+
+    private static decimal RateFor(DateTime date) => 0.70m + date.Month * 0.01m;
+
+    /// <summary>A rate that moves by month, so an entry converted at the wrong date shows it.</summary>
+    private static bool MonthlyRate(decimal amount, string currency, DateTime date, out decimal usd)
+    {
+        usd = amount * RateFor(date);
+        return true;
+    }
+
+    private static bool NoRate(decimal amount, string currency, DateTime date, out decimal usd)
+    {
+        usd = 0m;
+        return false;
+    }
+
+    /// <summary>What the schedule editor does on save: a new amount, and its own USD figure.</summary>
+    private static void EditTemplateAmount(RecurringTransaction schedule, decimal amount, decimal staleUsd = 0m)
+    {
+        var template = schedule.Template!;
+        template.Amount = amount;
+        template.Total = amount;
+        template.UnitPrice = amount;
+        template.TotalUSD = staleUsd;
+        template.UnitPriceUSD = staleUsd;
+        if (template.LineItems.Count > 0)
+            template.LineItems = [new LineItem { Description = template.Description, Quantity = 1, UnitPrice = amount }];
+    }
+
+    [Fact]
+    public void FindCorrectableOccurrences_LeavesOutEntriesNoLongerAtTheOldAmount()
+    {
+        var (data, schedule) = WithMonthlyRent(new DateTime(2026, 1, 1));
+        RecurringTransactionService.GenerateDue(data, new DateTime(2026, 3, 15));
+        data.Expenses[1].Amount = 1800m;
+
+        var correctable = RecurringTransactionService.FindCorrectableOccurrences(data, schedule, oldAmount: 2000m);
+
+        Assert.Equal(2, correctable.Count);
+        Assert.DoesNotContain(data.Expenses[1], correctable);
+    }
+
+    [Fact]
+    public void CorrectOccurrences_KeepsTheEntrysOwnTaxShippingDiscountAndFee()
+    {
+        var (data, schedule) = WithMonthlyRent(new DateTime(2026, 1, 1));
+        RecurringTransactionService.GenerateDue(data, new DateTime(2026, 1, 15));
+        var entry = Assert.Single(data.Expenses);
+        entry.TaxAmount = 100m;
+        entry.ShippingCost = 20m;
+        entry.Discount = 5m;
+        entry.Fee = 3m;
+        entry.Total = 2000m + 100m + 20m + 3m - 5m;
+
+        EditTemplateAmount(schedule, 2200m);
+        RecurringTransactionService.CorrectOccurrences(data, schedule, [entry]);
+
+        Assert.Equal(2200m, entry.Amount);
+        Assert.Equal((100m, 20m, 5m, 3m), (entry.TaxAmount, entry.ShippingCost, entry.Discount, entry.Fee));
+        Assert.Equal(2200m + 100m + 20m + 3m - 5m, entry.Total);
+    }
+
+    [Fact]
+    public void CorrectOccurrences_UpdatesTheLineItemTheEditFormReadsTheSubtotalFrom()
+    {
+        var (data, schedule) = WithMonthlyRent(new DateTime(2026, 1, 1));
+        schedule.ExpenseTemplate!.LineItems = [new LineItem { Description = "Rent", Quantity = 1, UnitPrice = 2000m }];
+        RecurringTransactionService.GenerateDue(data, new DateTime(2026, 1, 15));
+        var entry = Assert.Single(data.Expenses);
+
+        EditTemplateAmount(schedule, 2200m);
+        RecurringTransactionService.CorrectOccurrences(data, schedule, [entry]);
+
+        var line = Assert.Single(entry.LineItems);
+        Assert.Equal(2200m, line.UnitPrice);
+        Assert.Equal(entry.Amount, entry.LineItems.Sum(li => li.Amount));
+    }
+
+    [Fact]
+    public void CorrectOccurrences_ConvertsEachEntryAtItsOwnDate()
+    {
+        var (data, schedule) = WithForeignMonthlyRent(new DateTime(2026, 1, 1));
+        RecurringTransactionService.GenerateDue(data, new DateTime(2026, 3, 15), MonthlyRate);
+
+        EditTemplateAmount(schedule, 2200m, staleUsd: 2200m * RateFor(new DateTime(2026, 1, 1)));
+        RecurringTransactionService.CorrectOccurrences(data, schedule, data.Expenses.ToList(), MonthlyRate);
+
+        Assert.All(data.Expenses, e => Assert.Equal(2200m * RateFor(e.Date), e.TotalUSD));
+    }
+
+    [Fact]
+    public void CorrectOccurrences_NoRateForTheEntrysDate_QueuesItInsteadOfCopyingTheTemplateFigure()
+    {
+        var (data, schedule) = WithForeignMonthlyRent(new DateTime(2026, 1, 1));
+        RecurringTransactionService.GenerateDue(data, new DateTime(2026, 1, 15), MonthlyRate);
+        var entry = Assert.Single(data.Expenses);
+
+        // Edited offline: the editor could not convert, so the template holds the raw amount.
+        EditTemplateAmount(schedule, 2200m, staleUsd: 2200m);
+        RecurringTransactionService.CorrectOccurrences(data, schedule, [entry], NoRate);
+
+        Assert.True(entry.IsPendingConversion);
+        Assert.Equal(0m, entry.EffectiveTotalUSD);
+        var queued = Assert.Single(data.PendingConversions);
+        Assert.Equal((entry.Id, 2200m), (queued.TransactionId, queued.Total));
+    }
+
+    [Fact]
+    public void CorrectOccurrences_PendingEntry_ReplacesItsQueuedAmount()
+    {
+        var (data, schedule) = WithForeignMonthlyRent(new DateTime(2026, 1, 1));
+        RecurringTransactionService.GenerateDue(data, new DateTime(2026, 1, 15), NoRate);
+        var entry = Assert.Single(data.Expenses);
+
+        EditTemplateAmount(schedule, 2200m, staleUsd: 2200m);
+        RecurringTransactionService.CorrectOccurrences(data, schedule, [entry], NoRate);
+
+        Assert.Equal(2200m, Assert.Single(data.PendingConversions).Total);
+    }
+
+    [Fact]
+    public void CorrectOccurrences_Revert_RestoresTheUsdFiguresTheBooksRead()
+    {
+        var (data, schedule) = WithForeignMonthlyRent(new DateTime(2026, 1, 1));
+        RecurringTransactionService.GenerateDue(data, new DateTime(2026, 1, 15), MonthlyRate);
+        var entry = Assert.Single(data.Expenses);
+        var original = (entry.Amount, entry.Total, entry.TotalUSD, entry.UnitPriceUSD, entry.EffectiveTotalUSD);
+
+        EditTemplateAmount(schedule, 2200m, staleUsd: 1650m);
+        var correction = RecurringTransactionService.CorrectOccurrences(data, schedule, [entry], MonthlyRate);
+        correction.Revert(data);
+
+        Assert.Equal(original, (entry.Amount, entry.Total, entry.TotalUSD, entry.UnitPriceUSD, entry.EffectiveTotalUSD));
+    }
+
+    [Fact]
+    public void CorrectOccurrences_UndoThenRedo_MovesTheQueuedAmountWithTheEntry()
+    {
+        var (data, schedule) = WithForeignMonthlyRent(new DateTime(2026, 1, 1));
+        RecurringTransactionService.GenerateDue(data, new DateTime(2026, 1, 15), NoRate);
+        var entry = Assert.Single(data.Expenses);
+        EditTemplateAmount(schedule, 2200m, staleUsd: 2200m);
+        var correction = RecurringTransactionService.CorrectOccurrences(data, schedule, [entry], NoRate);
+
+        correction.Revert(data);
+        Assert.Equal(2000m, Assert.Single(data.PendingConversions).Total);
+        Assert.True(entry.IsPendingConversion);
+
+        correction.Reapply(data);
+        Assert.Equal(2200m, Assert.Single(data.PendingConversions).Total);
+    }
+
+    /// <summary>Tax on a USD entry falls back to TotalUSD over Total, so both must move together.</summary>
+    [Fact]
+    public void CorrectOccurrences_UsdEntryWithTax_ReportsTheTaxItCarries()
+    {
+        var (data, schedule) = WithMonthlyRent(new DateTime(2026, 1, 1));
+        schedule.ExpenseTemplate!.TotalUSD = 2000m;
+        RecurringTransactionService.GenerateDue(data, new DateTime(2026, 1, 15));
+        var entry = Assert.Single(data.Expenses);
+        entry.TaxAmount = 100m;
+        entry.Total = 2100m;
+
+        EditTemplateAmount(schedule, 2200m, staleUsd: 2200m);
+        RecurringTransactionService.CorrectOccurrences(data, schedule, [entry]);
+
+        Assert.Equal(100m, entry.EffectiveTaxAmountUSD);
+        Assert.Equal(entry.Total, entry.EffectiveTotalUSD);
+    }
+
+    #endregion
 
     #region In-use checks
 

@@ -1,4 +1,5 @@
 using ArgoBooks.Core.Data;
+using ArgoBooks.Core.Models;
 using ArgoBooks.Core.Models.Payroll;
 
 namespace ArgoBooks.Core.Services.Payroll;
@@ -62,6 +63,64 @@ public class RoeService
         _ => weeklyHours * 2m,
     };
 
+    /// <summary>
+    /// The payroll contact split for block 16: every word but the last is the given name and
+    /// the last is the surname. A single word is a surname, which is the half Service Canada
+    /// matches on.
+    /// </summary>
+    private static (string? Given, string? Surname) SplitContactName(string? name)
+    {
+        string[] parts = (name ?? string.Empty).Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        return parts.Length switch
+        {
+            0 => (null, null),
+            1 => (null, parts[0]),
+            _ => (string.Join(' ', parts[..^1]), parts[^1]),
+        };
+    }
+
+    private static string CollapseSpaces(string? text) =>
+        string.Join(' ', (text ?? string.Empty).Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+
+    /// <summary>
+    /// Keeps the contact from an exported ROE for the next one, in the same fields the T4 reads.
+    ///
+    /// Only what actually changed is written. The form is seeded from these fields split into
+    /// two names and reduced to ten digits, so comparing the text as typed would rewrite a
+    /// contact nobody edited, and a name with a middle name used to come back without it.
+    /// </summary>
+    /// <returns>True when anything was written.</returns>
+    public static bool ApplyContact(CompanyInfo company, string? firstName, string? lastName, string? phone)
+    {
+        ArgumentNullException.ThrowIfNull(company);
+
+        string name = CollapseSpaces($"{firstName} {lastName}");
+        string number = (phone ?? string.Empty).Trim();
+
+        if (name.Length == 0 || number.Length == 0)
+        {
+            return false;
+        }
+
+        bool nameChanged = CollapseSpaces(company.PayrollContactName) != name;
+
+        string? storedDigits = RoeXmlWriter.NationalPhone(company.PayrollContactPhone);
+        bool phoneChanged = storedDigits == null || storedDigits != RoeXmlWriter.NationalPhone(number);
+
+        if (nameChanged)
+        {
+            company.PayrollContactName = name;
+        }
+
+        if (phoneChanged)
+        {
+            company.PayrollContactPhone = number;
+        }
+
+        return nameChanged || phoneChanged;
+    }
+
     public RoeWorksheet Build(CompanyData data, string employeeId)
     {
         ArgumentNullException.ThrowIfNull(data);
@@ -70,6 +129,7 @@ public class RoeService
                             ?? throw new ArgumentException($"No employee with id {employeeId}.", nameof(employeeId));
 
         var company = data.Settings.Company;
+        (string? contactGiven, string? contactSurname) = SplitContactName(company.PayrollContactName);
 
         var worksheet = new RoeWorksheet
         {
@@ -83,6 +143,16 @@ public class RoeService
             FirstDayWorked = employee.StartDate,
             HoursPeriodCount = HoursPeriodCount(employee.PayFrequency),
             EarningsPeriodCount = EarningsPeriodCount(employee.PayFrequency),
+
+            // Block 16's contact, seeded from the payroll contact already held for the T4 so it
+            // is confirmed rather than retyped. Block 16 itself stays null: see RoeReason.
+            //
+            // The T4 screen keeps the phone as typed, and the form's phone box holds ten digits,
+            // so it gets the ten digits. Given the typed text, it counted brackets and dashes
+            // toward the ten and cut the number short.
+            ContactPhone = RoeXmlWriter.NationalPhone(company.PayrollContactPhone) ?? company.PayrollContactPhone,
+            ContactFirstName = contactGiven,
+            ContactLastName = contactSurname,
         };
 
         // Everything except drafts, so a voided run and its reversal cancel. Ordered most
@@ -109,6 +179,17 @@ public class RoeService
                 Lines = g.SelectMany(r => r.Lines).Where(l => l.EmployeeId == employeeId).ToList(),
             })
             .ToList();
+
+        // A later period that paid nothing is not the final one. It is what someone who left
+        // without an end date looks like on the next run, where they are still ticked, or a
+        // voided final run netting out against its reversal. Taken as final, it moves blocks 11
+        // and 12 past the last pay and shifts every period in block 15C by one. Nil periods
+        // before the last pay are part of the history and stay.
+        int lastPaid = periods.FindIndex(p => p.Lines.Sum(l => l.GrossPay) != 0m || p.Lines.Sum(l => l.HoursWorked) != 0m);
+        if (lastPaid > 0)
+        {
+            periods.RemoveRange(0, lastPaid);
+        }
 
         worksheet.LastDayPaid = employee.EndDate ?? periods[0].PeriodEnd;
         worksheet.FinalPeriodEnd = periods[0].PeriodEnd;

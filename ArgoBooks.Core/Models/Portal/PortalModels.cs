@@ -50,6 +50,13 @@ public class PortalPublishResponse
 
     [JsonPropertyName("errorCode")]
     public string? ErrorCode { get; set; }
+
+    /// <summary>
+    /// A failed publish that leaves open whether the portal saved the invoice and emailed the
+    /// customer: a timeout, a dropped connection, a server fault. Not part of the response body.
+    /// </summary>
+    [JsonIgnore]
+    public bool MayHavePublished { get; set; }
 }
 
 /// <summary>
@@ -180,6 +187,13 @@ public class PortalPaymentRecord
     /// </summary>
     [JsonPropertyName("refundReason")]
     public string? RefundReason { get; set; }
+
+    /// <summary>
+    /// For a refund made in Argo Books, the part that gave back the invoice's security deposit.
+    /// Null for refunds made in the provider's dashboard, and from servers that don't send it.
+    /// </summary>
+    [JsonPropertyName("depositAmount")]
+    public decimal? DepositAmount { get; set; }
 }
 
 /// <summary>

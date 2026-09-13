@@ -304,7 +304,7 @@ public class SampleCompanyService
     private static void RemoveAutoCreatedInvoiceRevenues(CompanyData data)
     {
         data.Revenues.RemoveAll(r =>
-            r.Notes != null && r.Notes.Contains("Auto-created from imported invoice"));
+            r.Notes.Contains("Auto-created from imported invoice"));
     }
 
     /// <summary>
@@ -460,8 +460,6 @@ public class SampleCompanyService
         foreach (var rental in newRentals)
         {
             data.Rentals.Add(rental);
-
-            // Stock is now tracked via the linked InventoryItem, no local quantity fields on RentalItem
         }
 
         // Update the ID counter
