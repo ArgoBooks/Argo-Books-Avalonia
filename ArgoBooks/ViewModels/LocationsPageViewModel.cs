@@ -29,7 +29,7 @@ public partial class LocationsPageViewModel : SortablePageViewModelBase
     private int _totalLocations;
 
     [ObservableProperty]
-    private int _totalStockItems;
+    private decimal _totalStockItems;
 
     [ObservableProperty]
     private string _totalInventoryValue = "$0";

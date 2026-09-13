@@ -218,12 +218,12 @@
                                         </table:ArgoTableCell>
 
                                         <!-- Previous Stock -->
-                                        <table:ArgoTableCell Text="{Binding PreviousStock}"
+                                        <table:ArgoTableCell Text="{Binding PreviousStockText}"
                                                                  ColumnWidth="{Binding $parent[ItemsControl].((vm:StockAdjustmentsPageViewModel)DataContext).ColumnWidths.PreviousColumnWidth}"
                                                                  IsColumnVisible="{Binding $parent[ItemsControl].((vm:StockAdjustmentsPageViewModel)DataContext).ShowPreviousColumn}" />
 
                                         <!-- New Stock -->
-                                        <table:ArgoTableCell Text="{Binding NewStock}"
+                                        <table:ArgoTableCell Text="{Binding NewStockText}"
                                                                  ColumnWidth="{Binding $parent[ItemsControl].((vm:StockAdjustmentsPageViewModel)DataContext).ColumnWidths.NewColumnWidth}"
                                                                  IsColumnVisible="{Binding $parent[ItemsControl].((vm:StockAdjustmentsPageViewModel)DataContext).ShowNewColumn}" />
 

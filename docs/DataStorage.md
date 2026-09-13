@@ -49,11 +49,16 @@ begin decrypting.
 |---|---|
 | **1** | The archive is encrypted directly with the password-derived key |
 | **2** | Envelope encryption. A random data key encrypts the archive, and that key is stored wrapped under the password and, separately, under the recovery key |
+| **3** | Version 2's layout. Stock quantities can hold decimals, which an older build cannot read |
 
 Version 2 arrived in 2.0.11. Version 1 files still open on their original code path and are
 upgraded the next time they are saved. Files written at version 2 cannot be opened by older
 builds, so `FileService` checks the footer's format version **before** attempting any decryption
 and reports an out-of-date app rather than a misleading wrong-password error.
+
+Version 3 arrived with decimal stock quantities and cost of goods sold. It opens on the same code
+path as version 2; the bump exists so an older build reports itself out of date instead of failing
+on a stock quantity like 2.5 that it can only read as a whole number.
 
 See [Security](Security.md) for the key derivation and envelope details, and
 [Password recovery](../tools/ArgoBooks.Recovery/README.md) for the support-side unlock path.

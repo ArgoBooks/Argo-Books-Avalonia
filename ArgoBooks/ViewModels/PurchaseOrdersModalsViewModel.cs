@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using ArgoBooks.Core.Services;
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Entities;
@@ -494,7 +495,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
                     li.HasProductError = true;
                     hasErrors = true;
                 }
-                if (!int.TryParse(li.Quantity, out var qty) || qty <= 0)
+                if (!decimal.TryParse(li.Quantity, out var qty) || qty <= 0)
                 {
                     AddModalError = "Please enter valid quantities for all line items.".Translate();
                     hasErrors = true;
@@ -537,7 +538,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
         var lineItems = LineItems.Select(li => new PurchaseOrderLineItem
         {
             ProductId = li.ProductId,
-            Quantity = int.Parse(li.Quantity),
+            Quantity = decimal.Parse(li.Quantity),
             UnitCost = decimal.Parse(li.UnitCost),
             QuantityReceived = 0
         }).ToList();
@@ -659,7 +660,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
         order.LineItems = LineItems.Select(li => new PurchaseOrderLineItem
         {
             ProductId = li.ProductId,
-            Quantity = int.Parse(li.Quantity),
+            Quantity = decimal.Parse(li.Quantity),
             UnitCost = decimal.Parse(li.UnitCost),
             QuantityReceived = 0
         }).ToList();
@@ -857,7 +858,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
         // Validate quantities
         foreach (var li in ReceiveLineItems)
         {
-            if (!int.TryParse(li.ReceivingQuantity, out var qty) || qty < 0)
+            if (!decimal.TryParse(li.ReceivingQuantity, out var qty) || qty < 0)
             {
                 ReceiveModalError = "Please enter valid quantities.".Translate();
                 return;
@@ -870,7 +871,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
         }
 
         // Nothing to do if no quantities were entered; skip work and undo record.
-        if (ReceiveLineItems.All(li => !int.TryParse(li.ReceivingQuantity, out var q) || q == 0))
+        if (ReceiveLineItems.All(li => !decimal.TryParse(li.ReceivingQuantity, out var q) || q == 0))
         {
             CloseReceiveModal();
             return;
@@ -889,7 +890,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
         // Apply received quantities
         for (var i = 0; i < ReceiveLineItems.Count && i < order.LineItems.Count; i++)
         {
-            if (int.TryParse(ReceiveLineItems[i].ReceivingQuantity, out var qty) && qty > 0)
+            if (decimal.TryParse(ReceiveLineItems[i].ReceivingQuantity, out var qty) && qty > 0)
             {
                 order.LineItems[i].QuantityReceived += qty;
 
@@ -965,15 +966,15 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
         CloseReceiveModal();
     }
 
-    private sealed record ReceivedStockChange(InventoryItem Item, int OldStock, StockAdjustment Adjustment, bool WasCreated);
+    private sealed record ReceivedStockChange(InventoryItem Item, decimal OldStock, StockAdjustment Adjustment, bool WasCreated);
 
     /// <summary>
     /// Adds received units to stock and records them in the stock ledger, which historical inventory
     /// valuations roll back from. A tracked product with no inventory row gets one, as an expense does.
     /// </summary>
-    private static ReceivedStockChange? ReceiveIntoStock(CompanyData companyData, PurchaseOrderLineItem line, int qty, string reference)
+    private static ReceivedStockChange? ReceiveIntoStock(CompanyData companyData, PurchaseOrderLineItem line, decimal qty, string reference)
     {
-        var inventoryItem = companyData.Inventory.FirstOrDefault(inv => inv.ProductId == line.ProductId);
+        var inventoryItem = InventoryStockService.FindStockItem(companyData, line.ProductId, null);
         var wasCreated = false;
         if (inventoryItem == null)
         {
@@ -986,7 +987,8 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
                 Id = $"INV-ITM-{companyData.IdCounters.InventoryItem:D5}",
                 ProductId = product.Id,
                 Sku = product.Sku,
-                LocationId = "default",
+                LocationId = companyData.Locations.FirstOrDefault()?.Id ?? InventoryStockService.NoLocationId,
+                UnitOfMeasure = product.UnitOfMeasure,
                 UnitCost = line.UnitCost,
                 LastUpdated = DateTime.UtcNow
             };
@@ -1731,7 +1733,7 @@ public partial class OrderLineItemViewModel : ObservableObject
     {
         get
         {
-            if (int.TryParse(Quantity, out var qty) && decimal.TryParse(UnitCost, out var cost))
+            if (decimal.TryParse(Quantity, out var qty) && decimal.TryParse(UnitCost, out var cost))
                 return qty * cost;
             return 0;
         }
@@ -1762,13 +1764,13 @@ public class ViewLineItemDisplay
 {
     public string ProductName { get; set; } = string.Empty;
     public string ProductSku { get; set; } = string.Empty;
-    public int Quantity { get; set; }
-    public int QuantityReceived { get; set; }
+    public decimal Quantity { get; set; }
+    public decimal QuantityReceived { get; set; }
     public decimal UnitCost { get; set; }
     public decimal Total { get; set; }
     public string UnitCostDisplay => CurrencyService.Format(UnitCost);
     public string TotalDisplay => CurrencyService.Format(Total);
-    public string QuantityDisplay => $"{QuantityReceived}/{Quantity}";
+    public string QuantityDisplay => $"{StockUnits.Format(QuantityReceived)}/{StockUnits.Format(Quantity)}";
 }
 
 /// <summary>
@@ -1783,13 +1785,13 @@ public partial class ReceiveLineItemViewModel : ObservableObject
     private string _productName = string.Empty;
 
     [ObservableProperty]
-    private int _ordered;
+    private decimal _ordered;
 
     [ObservableProperty]
-    private int _received;
+    private decimal _received;
 
     [ObservableProperty]
-    private int _remaining;
+    private decimal _remaining;
 
     [ObservableProperty]
     private string _receivingQuantity = "0";

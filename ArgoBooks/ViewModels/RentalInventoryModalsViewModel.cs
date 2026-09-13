@@ -751,7 +751,7 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
 
         RentOutItemName = item.Name;
         RentOutItemId = rentalItem.Id;
-        RentOutAvailableQuantity = inventoryItem.InStock;
+        RentOutAvailableQuantity = (int)inventoryItem.InStock;
         RentOutCustomer = null;
         RentOutAccountant = null;
         RentOutQuantity = "1";
@@ -930,7 +930,7 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
                 Id = invItem.Id,
                 ProductName = productName,
                 LocationName = locationName,
-                InStock = invItem.InStock,
+                InStock = (int)invItem.InStock,
                 DisplayText = $"{productName} @ {locationName} ({invItem.InStock} in stock)"
             });
         }

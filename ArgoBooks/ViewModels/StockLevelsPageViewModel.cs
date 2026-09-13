@@ -150,7 +150,7 @@ public partial class StockLevelsPageViewModel : SortablePageViewModelBase
     #region Statistics
 
     [ObservableProperty]
-    private int _totalItems;
+    private decimal _totalItems;
 
     [ObservableProperty]
     private int _inStockCount;
@@ -471,6 +471,7 @@ public partial class StockLevelsPageViewModel : SortablePageViewModelBase
                 Sku = item.Sku,
                 CategoryName = category?.Name ?? "-",
                 LocationName = location?.Name ?? "Default",
+                UnitOfMeasure = product?.UnitOfMeasure ?? StockUnits.Each,
                 InStock = item.InStock,
                 Reserved = item.Reserved,
                 Available = item.Available,
@@ -584,6 +585,16 @@ public partial class StockLevelsPageViewModel : SortablePageViewModelBase
         App.StockLevelsModalsViewModel?.OpenAdjustStockModal(item.Id, item.ProductName, item.InStock);
     }
 
+    /// <summary>
+    /// Opens the transfer modal to move this row's stock to another location.
+    /// </summary>
+    [RelayCommand]
+    private void OpenTransferStockModal(StockLevelDisplayItem? item)
+    {
+        if (item == null) return;
+        App.StockLevelsModalsViewModel?.OpenTransferStockModal(item.Id);
+    }
+
     #endregion
 
     #region Filter Modal
@@ -642,16 +653,24 @@ public partial class StockLevelDisplayItem : ObservableObject
     private string _locationName = string.Empty;
 
     [ObservableProperty]
-    private int _inStock;
+    private decimal _inStock;
 
     [ObservableProperty]
-    private int _reserved;
+    private decimal _reserved;
 
     [ObservableProperty]
-    private int _available;
+    private decimal _available;
 
     [ObservableProperty]
-    private int _reorderPoint;
+    private decimal _reorderPoint;
+
+    [ObservableProperty]
+    private string _unitOfMeasure = StockUnits.Each;
+
+    public string InStockText => StockUnits.Format(InStock, UnitOfMeasure);
+    public string ReservedText => StockUnits.Format(Reserved);
+    public string AvailableText => StockUnits.Format(Available, UnitOfMeasure);
+    public string ReorderPointText => StockUnits.Format(ReorderPoint);
 
     [ObservableProperty]
     private InventoryStatus _status;

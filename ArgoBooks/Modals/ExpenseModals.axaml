@@ -141,9 +141,8 @@
                                                     BorderBrush="{DynamicResource BorderBrush}"
                                                     BorderThickness="0,0,0,1">
                                                 <Grid ColumnDefinitions="*,150,70,90,100,40">
-                                                    <controls:SearchableDropdown Grid.Column="0"
-                                                             Classes="compact"
-                                                             Margin="0,0,8,0"
+                                                    <StackPanel Grid.Column="0" Margin="0,0,8,0" Spacing="4">
+                                                    <controls:SearchableDropdown Classes="compact"
                                                              ItemsSource="{Binding $parent[ItemsControl].((vm:ExpenseModalsViewModel)DataContext).ProductOptions}"
                                                              SelectedItem="{Binding SelectedProduct, Mode=TwoWay}"
                                                              SearchText="{Binding ItemText, Mode=TwoWay}"
@@ -155,6 +154,19 @@
                                                              AddNewCommandParameter="{Binding}"
                                                              HasError="{Binding HasProductError}"
                                                              ErrorMessage="{loc:Loc 'Type a new product, or pick one'}" />
+                                                        <ComboBox ItemsSource="{Binding LocationOptions}"
+                                                                  SelectedItem="{Binding SelectedLocation, Mode=TwoWay}"
+                                                                  IsVisible="{Binding ShowLocationPicker}"
+                                                                  Classes="form-combobox"
+                                                                  HorizontalAlignment="Stretch"
+                                                                  ToolTip.Tip="{loc:Loc 'Location to take stock from or add it to'}">
+                                                            <ComboBox.ItemTemplate>
+                                                                <DataTemplate DataType="vm:LocationOption">
+                                                                    <TextBlock Text="{Binding DisplayText}" />
+                                                                </DataTemplate>
+                                                            </ComboBox.ItemTemplate>
+                                                        </ComboBox>
+                                                    </StackPanel>
                                                     <!-- Shows a picked product's category, and takes the category for a typed one.
                                                          Neither box sets an empty-state link: it replaces the text box, and a
                                                          new company has no products or categories, so nothing could be typed.
@@ -175,9 +187,9 @@
                                                     </Panel>
                                                     <NumericUpDown Grid.Column="2"
                                                                    Value="{Binding Quantity, Mode=TwoWay, TargetNullValue=1}"
-                                                                   Minimum="1"
+                                                                   Minimum="0.001"
                                                                    Maximum="999999"
-                                                                   FormatString="0"
+                                                                   FormatString="0.###"
                                                                    Classes="line-item-input"
                                                                    ShowButtonSpinner="False"
                                                                    HorizontalAlignment="Stretch"

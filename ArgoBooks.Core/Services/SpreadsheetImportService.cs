@@ -3833,9 +3833,9 @@ Respond with ONLY a JSON array, one entry per product in the same order:
 
             // Handle Reorder Point and Overstock Threshold
             if (Set("Reorder Point"))
-                product.ReorderPoint = GetInt(row, headers, "Reorder Point");
+                product.ReorderPoint = GetDecimal(row, headers, "Reorder Point");
             if (Set("Overstock Threshold"))
-                product.OverstockThreshold = GetInt(row, headers, "Overstock Threshold");
+                product.OverstockThreshold = GetDecimal(row, headers, "Overstock Threshold");
 
             // Set TrackInventory based on whether reorder/overstock values are set
             if (product.ReorderPoint > 0 || product.OverstockThreshold > 0)
@@ -3887,11 +3887,11 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             if (Set("Location ID"))
                 item.LocationId = locationId;
             if (Set("In Stock"))
-                item.InStock = GetInt(row, headers, "In Stock");
+                item.InStock = GetDecimal(row, headers, "In Stock");
             if (Set("Reserved"))
-                item.Reserved = GetInt(row, headers, "Reserved");
+                item.Reserved = GetDecimal(row, headers, "Reserved");
             if (Set("Reorder Point"))
-                item.ReorderPoint = GetInt(row, headers, "Reorder Point");
+                item.ReorderPoint = GetDecimal(row, headers, "Reorder Point");
             if (Set("Unit Cost"))
                 item.UnitCost = GetDecimal(row, headers, "Unit Cost");
             if (Set("Last Updated"))
@@ -4518,7 +4518,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
                             {
                                 Id = $"INV-ITM-{nextNum:D3}",
                                 ProductId = productId,
-                                InStock = GetInt(row, headers, "Total Qty")
+                                InStock = GetDecimal(row, headers, "Total Qty")
                             };
                             data.Inventory.Add(newInv);
                             inventoryItemId = newInv.Id;
@@ -4830,11 +4830,11 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             if (Set("Type"))
                 adjustment.AdjustmentType = ParseEnum(GetString(row, headers, "Type"), AdjustmentType.Set);
             if (Set("Quantity"))
-                adjustment.Quantity = GetInt(row, headers, "Quantity");
+                adjustment.Quantity = GetDecimal(row, headers, "Quantity");
             if (Set("Previous Stock"))
-                adjustment.PreviousStock = GetInt(row, headers, "Previous Stock");
+                adjustment.PreviousStock = GetDecimal(row, headers, "Previous Stock");
             if (Set("New Stock"))
-                adjustment.NewStock = GetInt(row, headers, "New Stock");
+                adjustment.NewStock = GetDecimal(row, headers, "New Stock");
             if (Set("Reason"))
                 adjustment.Reason = GetString(row, headers, "Reason");
             if (Set("Reference Number"))
@@ -4999,9 +4999,9 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             var lineItem = new PurchaseOrderLineItem
             {
                 ProductId = GetString(row, headers, "Product ID"),
-                Quantity = GetInt(row, headers, "Quantity"),
+                Quantity = GetDecimal(row, headers, "Quantity"),
                 UnitCost = GetDecimal(row, headers, "Unit Cost"),
-                QuantityReceived = GetInt(row, headers, "Quantity Received")
+                QuantityReceived = GetDecimal(row, headers, "Quantity Received")
             };
 
             if (!lineItemsByPo.ContainsKey(poId))

@@ -885,7 +885,7 @@ public partial class App : Application
     /// lowered stock into a new status. Transactions call this on every stock change, so without the
     /// check each sale from an already-low item would repeat the same alert.
     /// </summary>
-    public static void CheckAndNotifyStockStatus(InventoryItem item, int previousStock)
+    public static void CheckAndNotifyStockStatus(InventoryItem item, decimal previousStock)
     {
         if (item.InStock >= previousStock || item.CalculateStatus(previousStock) == item.CalculateStatus())
             return;

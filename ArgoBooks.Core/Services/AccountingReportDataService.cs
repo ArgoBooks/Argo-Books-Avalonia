@@ -305,6 +305,49 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         return result;
     }
 
+    /// <summary>
+    /// <see cref="GroupTransactionsByCategory"/> for expenses, leaving out tracked stock bought: it is
+    /// stock until it sells, when it shows as cost of goods sold (docs/Calculations.md §14). The rest of
+    /// such an expense, shipping and fees included, is spread over its other lines, or kept under its
+    /// first line's category when every line bought stock. Expenses that bought no stock group exactly
+    /// as before.
+    /// </summary>
+    private Dictionary<string, decimal> GroupExpensesByCategory(IEnumerable<Expense> expenses)
+    {
+        var result = new Dictionary<string, decimal>();
+
+        void Add(string category, decimal amount) => result[category] = result.GetValueOrDefault(category) + amount;
+
+        foreach (var expense in expenses)
+        {
+            if (!expense.LineItems.Any(li => li.IsStockPurchase))
+            {
+                foreach (var kvp in GroupTransactionsByCategory([expense]))
+                    Add(kvp.Key, kvp.Value);
+                continue;
+            }
+
+            var remainingUSD = expense.EffectiveSubtotalUSD - CostOfGoodsAggregator.StockPurchaseUSD(expense);
+            var otherLines = expense.LineItems.Where(li => !li.IsStockPurchase).ToList();
+            var otherTotal = otherLines.Sum(li => li.Subtotal);
+
+            if (otherLines.Count > 0 && otherTotal != 0)
+            {
+                foreach (var line in otherLines)
+                {
+                    var lineUSD = Math.Round(line.Subtotal / otherTotal * remainingUSD, 2);
+                    Add(GetCategoryNameForProduct(line.ProductId), ToDisplay(lineUSD, expense.Date));
+                }
+            }
+            else if (remainingUSD != 0)
+            {
+                Add(GetCategoryNameForProduct(expense.LineItems[0].ProductId), ToDisplay(remainingUSD, expense.Date));
+            }
+        }
+
+        return result;
+    }
+
     #region Income Statement
 
     /// <summary>
@@ -337,7 +380,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             .ToList();
 
         var revenueByCategory = GroupTransactionsByCategory(revenues);
-        var expenseByCategory = GroupTransactionsByCategory(expenses);
+        var expenseByCategory = GroupExpensesByCategory(expenses);
 
         // Refunds come off revenue on their own date, before tax (docs/Calculations.md §8).
         var refunds = companyData.Payments
@@ -346,7 +389,8 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
 
         var totalRevenue = revenueByCategory.Values.Sum() - refunds;
         var totalExpenses = expenseByCategory.Values.Sum();
-        var netIncome = totalRevenue - totalExpenses;
+        var costOfGoods = revenues.Sum(r => ToDisplay(CostOfGoodsAggregator.CostOfGoodsSoldUSD(r), r.Date));
+        var netIncome = totalRevenue - costOfGoods - totalExpenses;
 
         // Revenue section
         data.Rows.Add(new AccountingRow
@@ -384,6 +428,24 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             Values = [FormatCurrencyWithSign(totalRevenue)],
             RowType = AccountingRowType.SubtotalRow
         });
+
+        if (costOfGoods != 0)
+        {
+            data.Rows.Add(new AccountingRow
+            {
+                Label = "Cost of Goods Sold",
+                Values = [FormatCurrencyWithSign(-costOfGoods)],
+                IndentLevel = 1,
+                RowType = AccountingRowType.DataRow
+            });
+
+            data.Rows.Add(new AccountingRow
+            {
+                Label = "Gross Profit",
+                Values = [FormatCurrencyWithSign(totalRevenue - costOfGoods)],
+                RowType = AccountingRowType.SubtotalRow
+            });
+        }
 
         data.Rows.Add(new AccountingRow { RowType = AccountingRowType.BlankRow, Values = [""] });
 

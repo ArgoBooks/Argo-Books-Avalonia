@@ -441,7 +441,7 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
 
         // Build line items and check availability
         var lineItems = new List<RentalLineItem>();
-        var inventoryChanges = new List<(InventoryItem InvItem, int OldInStock, int QtyChange)>();
+        var inventoryChanges = new List<(InventoryItem InvItem, decimal OldInStock, int QtyChange)>();
 
         var hasAvailabilityIssue = false;
         var requestedByInvItem = new Dictionary<string, int>();
@@ -462,7 +462,7 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
             var alreadyRequested = inventoryItem != null ? requestedByInvItem.GetValueOrDefault(inventoryItem.Id) : 0;
             if (rentalItem == null || inventoryItem == null || inventoryItem.InStock - alreadyRequested < rentQty)
             {
-                li.QuantityError = inventoryItem == null ? "Item not found." : $"Only {Math.Max(0, inventoryItem.InStock - alreadyRequested)} available.";
+                li.QuantityError = inventoryItem == null ? "Item not found." : $"Only {Math.Max(0, (int)inventoryItem.InStock - alreadyRequested)} available.";
                 hasAvailabilityIssue = true;
                 continue;
             }
@@ -750,7 +750,7 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
 
         // Collect all affected InventoryItem IDs
         var allInvItemIds = oldQtyByInvItem.Keys.Union(newQtyByInvItem.Keys).ToList();
-        var oldInStockSnapshot = new Dictionary<string, int>();
+        var oldInStockSnapshot = new Dictionary<string, decimal>();
         var editAdjustments = new List<StockAdjustment>();
 
         // Guard before mutating anything: raising a rental's quantity must not drive an inventory item
@@ -948,7 +948,7 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
                 var wasActive = rentalRecord.Status == RentalStatus.Active || rentalRecord.Status == RentalStatus.Overdue;
 
                 // Capture inventory state and restore InStock if active
-                var invSnapshot = new Dictionary<string, int>();
+                var invSnapshot = new Dictionary<string, decimal>();
                 var deleteAdjustments = new List<StockAdjustment>();
                 if (wasActive)
                 {
@@ -1154,7 +1154,7 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
             AddKeptDeposit(companyData, keptDeposit);
 
         // Update inventory for all line items via InventoryItem.InStock
-        var returnInvSnapshot = new Dictionary<string, int>();
+        var returnInvSnapshot = new Dictionary<string, decimal>();
         var returnAdjustments = new List<StockAdjustment>();
         var effectiveItems = GetEffectiveLineItems(_returningRecord);
         foreach (var li in effectiveItems)
@@ -1540,7 +1540,7 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
             {
                 Id = rentalItem.Id,
                 Name = displayName,
-                AvailableQuantity = invItem?.InStock ?? 0
+                AvailableQuantity = (int)(invItem?.InStock ?? 0)
             });
         }
         // Sort by name after building
@@ -1638,7 +1638,7 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
                     // what the lines above it left.
                     var alreadyRequested = requestedByInvItem.GetValueOrDefault(inventoryItem.Id);
                     requestedByInvItem[inventoryItem.Id] = alreadyRequested + qty;
-                    var available = Math.Max(0, inventoryItem.InStock - alreadyRequested);
+                    var available = Math.Max(0, (int)inventoryItem.InStock - alreadyRequested);
                     if (qty > available)
                     {
                         li.QuantityError = $"Only {available} available.";

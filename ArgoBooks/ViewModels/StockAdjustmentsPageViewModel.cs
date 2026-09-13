@@ -25,13 +25,13 @@ public partial class StockAdjustmentsPageViewModel : SortablePageViewModelBase
     private int _totalAdjustments;
 
     [ObservableProperty]
-    private int _totalAdded;
+    private decimal _totalAdded;
 
     [ObservableProperty]
-    private int _totalRemoved;
+    private decimal _totalRemoved;
 
     [ObservableProperty]
-    private int _netChange;
+    private decimal _netChange;
 
     #endregion
 
@@ -669,13 +669,13 @@ public partial class StockAdjustmentDisplayItem : ObservableObject
     private string _typeDisplay = string.Empty;
 
     [ObservableProperty]
-    private int _quantity;
+    private decimal _quantity;
 
     [ObservableProperty]
-    private int _previousStock;
+    private decimal _previousStock;
 
     [ObservableProperty]
-    private int _newStock;
+    private decimal _newStock;
 
     [ObservableProperty]
     private string _reason = string.Empty;
@@ -719,10 +719,14 @@ public partial class StockAdjustmentDisplayItem : ObservableObject
     /// </summary>
     public string QuantityDisplay => AdjustmentType switch
     {
-        AdjustmentType.Add => $"+{Quantity}",
-        AdjustmentType.Remove => $"-{Quantity}",
-        _ => Quantity.ToString()
+        AdjustmentType.Add => $"+{StockUnits.Format(Quantity)}",
+        AdjustmentType.Remove => $"-{StockUnits.Format(Quantity)}",
+        _ => StockUnits.Format(Quantity)
     };
+
+    public string PreviousStockText => StockUnits.Format(PreviousStock);
+
+    public string NewStockText => StockUnits.Format(NewStock);
 
     /// <summary>
     /// Gets the quantity display color.

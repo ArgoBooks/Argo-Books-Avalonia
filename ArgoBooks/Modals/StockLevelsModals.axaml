@@ -67,7 +67,7 @@
                                             CornerRadius="6"
                                             Padding="12,10"
                                             MinHeight="{StaticResource FormControlHeight}">
-                                        <TextBlock Text="{Binding CurrentStock}"
+                                        <TextBlock Text="{Binding CurrentStockText}"
                                                    Foreground="{DynamicResource TextSecondaryBrush}"
                                                    VerticalAlignment="Center" />
                                     </Border>
@@ -81,7 +81,7 @@
                                     <TextBox Text="{Binding AdjustmentQuantity, Mode=TwoWay}"
                                              Classes="form-input"
                                              PlaceholderText="{loc:Loc 'Enter quantity'}"
-                                             behaviors:NumericInputBehavior.IsIntegerOnly="True"
+                                             behaviors:NumericInputBehavior.IsDecimalOnly="True"
                                              MaxLength="7" />
                                     <TextBlock Text="{loc:Loc 'Please enter a valid quantity.'}"
                                                FontSize="12"
@@ -129,6 +129,111 @@
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12">
                             <Button Classes="secondary-button" Content="{loc:Loc Cancel}" Command="{Binding CloseAdjustStockModalCommand}" />
                             <Button Classes="primary-button" Content="{loc:Loc 'Apply Adjustment'}" Command="{Binding SaveAdjustmentCommand}" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+                </Border>
+            </controls:ModalOverlay.ModalContent>
+        </controls:ModalOverlay>
+
+        <!-- Transfer Stock Modal -->
+        <controls:ModalOverlay IsOpen="{Binding IsTransferStockModalOpen}"
+                               ClosingCommand="{Binding CloseTransferStockModalCommand}">
+            <controls:ModalOverlay.ModalContent>
+                <Border Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="1" CornerRadius="12" Width="550"
+                    HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Grid RowDefinitions="Auto,*,Auto">
+                    <Border Grid.Row="0" Padding="24,20" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="{loc:Loc 'Transfer Stock'}"
+                                           FontSize="18" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                                <TextBlock Text="{Binding TransferProductName}"
+                                           FontSize="13"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                            </StackPanel>
+                            <Button Grid.Column="1" Classes="icon-button" Command="{Binding CloseTransferStockModalCommand}">
+                                <PathIcon Data="{x:Static local:Icons.Close}" Width="20" Height="20" />
+                            </Button>
+                        </Grid>
+                    </Border>
+
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Margin="24" Spacing="16">
+                            <Grid ColumnDefinitions="*,16,*">
+                                <StackPanel Grid.Column="0" Spacing="6">
+                                    <TextBlock Text="{loc:Loc From}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                    <Border Background="{DynamicResource SurfaceAltBrush}"
+                                            CornerRadius="6"
+                                            Padding="12,10"
+                                            MinHeight="{StaticResource FormControlHeight}">
+                                        <TextBlock Text="{Binding TransferFromLocationName}"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                                   VerticalAlignment="Center" />
+                                    </Border>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Spacing="6">
+                                    <TextBlock Text="{loc:Loc 'In Stock'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                    <Border Background="{DynamicResource SurfaceAltBrush}"
+                                            CornerRadius="6"
+                                            Padding="12,10"
+                                            MinHeight="{StaticResource FormControlHeight}">
+                                        <TextBlock Text="{Binding TransferAvailableText}"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                                   VerticalAlignment="Center" />
+                                    </Border>
+                                </StackPanel>
+                            </Grid>
+
+                            <Grid ColumnDefinitions="*,16,*">
+                                <StackPanel Grid.Column="0" Spacing="6">
+                                    <controls:SearchableDropdown
+                                        Label="{loc:Loc To}"
+                                        IsRequired="True"
+                                        ItemsSource="{Binding TransferLocations}"
+                                        SelectedItem="{Binding TransferToLocation}"
+                                        DisplayMemberPath="Name"
+                                        Placeholder="{loc:Loc 'Select a location...'}"
+                                        ShowAddNew="False"
+                                        EmptyMessage="{loc:Loc 'No other locations'}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Spacing="6">
+                                    <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}">
+                                        <Run Text="{loc:Loc Quantity}" /><Run Text=" *" Foreground="{DynamicResource ErrorBrush}" />
+                                    </TextBlock>
+                                    <TextBox Text="{Binding TransferQuantity, Mode=TwoWay}"
+                                             Classes="form-input"
+                                             PlaceholderText="{loc:Loc 'Enter quantity'}"
+                                             behaviors:NumericInputBehavior.IsDecimalOnly="True"
+                                             MaxLength="10" />
+                                </StackPanel>
+                            </Grid>
+
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="{loc:Loc 'Reason/Notes'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                <TextBox Text="{Binding TransferNotes, Mode=TwoWay}"
+                                         Classes="form-input"
+                                         AcceptsReturn="True"
+                                         TextWrapping="Wrap"
+                                         MinHeight="80"
+                                         MaxHeight="120"
+                                         MaxLength="500" />
+                            </StackPanel>
+
+                            <TextBlock TextWrapping="Wrap" Text="{Binding TransferError}"
+                                       FontSize="12"
+                                       Foreground="{DynamicResource ErrorBrush}"
+                                       IsVisible="{Binding TransferError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <Border Grid.Row="2" Padding="24,16" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12">
+                            <Button Classes="secondary-button" Content="{loc:Loc Cancel}" Command="{Binding CloseTransferStockModalCommand}" />
+                            <Button Classes="primary-button" Content="{loc:Loc Transfer}" Command="{Binding SaveTransferCommand}" />
                         </StackPanel>
                     </Border>
                 </Grid>
@@ -213,7 +318,7 @@
                                     <TextBox Text="{Binding AddItemQuantity, Mode=TwoWay}"
                                              Classes="form-input"
                                              PlaceholderText="0"
-                                             behaviors:NumericInputBehavior.IsIntegerOnly="True"
+                                             behaviors:NumericInputBehavior.IsDecimalOnly="True"
                                              MaxLength="7" />
                                     <TextBlock Text="{loc:Loc 'Please enter a valid quantity.'}"
                                                FontSize="12"
@@ -226,7 +331,7 @@
                                     <TextBox Text="{Binding AddItemReorderPoint, Mode=TwoWay}"
                                              Classes="form-input"
                                              PlaceholderText="10"
-                                             behaviors:NumericInputBehavior.IsIntegerOnly="True"
+                                             behaviors:NumericInputBehavior.IsDecimalOnly="True"
                                              MaxLength="7" />
                                 </StackPanel>
                             </Grid>
@@ -237,7 +342,7 @@
                                 <TextBox Text="{Binding AddItemOverstockThreshold, Mode=TwoWay}"
                                          Classes="form-input"
                                          PlaceholderText="100"
-                                         behaviors:NumericInputBehavior.IsIntegerOnly="True"
+                                         behaviors:NumericInputBehavior.IsDecimalOnly="True"
                                          MaxLength="7" />
                             </StackPanel>
 

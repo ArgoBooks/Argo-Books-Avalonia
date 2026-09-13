@@ -92,14 +92,14 @@ public partial class StockAdjustmentsModalsViewModel : ViewModelBase
         get
         {
             if (SelectedInventoryItem == null) return "0";
-            if (!int.TryParse(AdjustmentQuantity, out var qty)) return SelectedInventoryItem.InStock.ToString();
+            if (!decimal.TryParse(AdjustmentQuantity, out var qty)) return StockUnits.Format(SelectedInventoryItem.InStock);
 
             return AdjustmentType switch
             {
-                "Add" => (SelectedInventoryItem.InStock + qty).ToString(),
-                "Remove" => (SelectedInventoryItem.InStock - qty).ToString(),
-                "Set" => qty.ToString(),
-                _ => SelectedInventoryItem.InStock.ToString()
+                "Add" => StockUnits.Format(SelectedInventoryItem.InStock + qty),
+                "Remove" => StockUnits.Format(SelectedInventoryItem.InStock - qty),
+                "Set" => StockUnits.Format(qty),
+                _ => StockUnits.Format(SelectedInventoryItem.InStock)
             };
         }
     }
@@ -107,7 +107,7 @@ public partial class StockAdjustmentsModalsViewModel : ViewModelBase
     /// <summary>
     /// Current stock of selected item.
     /// </summary>
-    public int CurrentStock => SelectedInventoryItem?.InStock ?? 0;
+    public decimal CurrentStock => SelectedInventoryItem?.InStock ?? 0;
 
     partial void OnAdjustmentQuantityChanged(string value)
     {
@@ -239,7 +239,7 @@ public partial class StockAdjustmentsModalsViewModel : ViewModelBase
             hasErrors = true;
         }
 
-        if (!int.TryParse(AdjustmentQuantity, out var quantity) || quantity < 0)
+        if (!decimal.TryParse(AdjustmentQuantity, out var quantity) || quantity < 0)
         {
             HasQuantityError = true;
             hasErrors = true;
@@ -681,7 +681,7 @@ public class InventoryItemDisplayOption
     public string DisplayText { get; set; } = string.Empty;
     public string ProductName { get; set; } = string.Empty;
     public string LocationName { get; set; } = string.Empty;
-    public int CurrentStock { get; set; }
+    public decimal CurrentStock { get; set; }
 
     public override string ToString() => DisplayText;
 }

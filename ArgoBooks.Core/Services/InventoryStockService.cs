@@ -1,0 +1,475 @@
+using ArgoBooks.Core.Data;
+using ArgoBooks.Core.Enums;
+using ArgoBooks.Core.Models.Common;
+using ArgoBooks.Core.Models.Entities;
+using ArgoBooks.Core.Models.Inventory;
+using ArgoBooks.Core.Models.Transactions;
+
+namespace ArgoBooks.Core.Services;
+
+/// <summary>
+/// Moves stock when a purchase, sale or transfer is saved, and fixes what sold stock cost at the
+/// moment of the sale. The forms and the imports all go through here so they move stock the same
+/// way. See docs/Calculations.md §14.
+/// </summary>
+public static class InventoryStockService
+{
+    /// <summary>The location id stock is given when the company has no locations yet.</summary>
+    public const string NoLocationId = "default";
+
+    /// <summary>
+    /// Applies a newly saved purchase or sale to stock. Only lines whose product tracks inventory
+    /// move stock.
+    /// </summary>
+    public static List<StockChange> Apply(
+        CompanyData data, IReadOnlyList<LineItem> lines, Transaction transaction, bool isPurchase) =>
+        ApplyEdit(data, [], lines, transaction, isPurchase, isPurchase ? "Expense transaction" : "Revenue transaction");
+
+    /// <summary>
+    /// Replaces what <paramref name="oldLines"/> did to stock with what <paramref name="newLines"/>
+    /// do, recording one adjustment per stock record for the net change. Pass no new lines to undo a
+    /// deleted transaction's stock.
+    /// </summary>
+    public static List<StockChange> ApplyEdit(
+        CompanyData data, IReadOnlyList<LineItem> oldLines, IReadOnlyList<LineItem> newLines,
+        Transaction transaction, bool isPurchase, string reason)
+    {
+        var touched = new List<StockChange.Builder>();
+        var byItem = new Dictionary<InventoryItem, StockChange.Builder>();
+        var costPriceChanged = new HashSet<Product>();
+
+        StockChange.Builder Track(InventoryItem item, Product product, bool wasCreated)
+        {
+            if (!byItem.TryGetValue(item, out var builder))
+            {
+                builder = new StockChange.Builder(item, product, wasCreated);
+                byItem[item] = builder;
+                touched.Add(builder);
+            }
+            return builder;
+        }
+
+        // Give back what the old lines did, before the new lines take anything.
+        foreach (var line in oldLines)
+        {
+            var product = TrackedProduct(data, line);
+            if (product == null || line.Quantity == 0) continue;
+
+            var item = FindStockItem(data, product.Id, line.LocationId);
+            if (item == null) continue;
+
+            Track(item, product, wasCreated: false);
+            item.InStock += isPurchase ? -line.Quantity : line.Quantity;
+            item.OpeningUnits += line.OpeningUnitsUsed;
+        }
+
+        var usdPerNative = UsdPerNative(transaction);
+        var inCompanyCurrency = string.Equals(
+            OriginalCurrency(transaction), data.Settings.Localization.Currency, StringComparison.OrdinalIgnoreCase);
+
+        // A purchase or sale saved before cost of goods sold began was expensed, or sold at no cost, and
+        // its stock is part of the opening units. Editing it moves stock as before and nothing more, or
+        // that stock would come off profit twice.
+        var savedBeforeCostOfGoods =
+            oldLines.Any(l => l.Quantity != 0 && TrackedProduct(data, l) != null) &&
+            !oldLines.Any(l => l.IsStockPurchase || l.CostOfGoodsUSD != null);
+
+        foreach (var line in newLines)
+        {
+            line.CostOfGoodsUSD = null;
+            line.OpeningUnitsUsed = 0;
+            line.IsStockPurchase = false;
+
+            var product = TrackedProduct(data, line);
+            if (product == null || line.Quantity == 0) continue;
+
+            var item = FindStockItem(data, product.Id, line.LocationId);
+            var builder = item == null
+                ? Track(item = CreateStockItem(data, product, line.LocationId), product, wasCreated: true)
+                : Track(item, product, wasCreated: false);
+            line.LocationId = item.LocationId;
+
+            if (isPurchase)
+            {
+                item.InStock += line.Quantity;
+                if (savedBeforeCostOfGoods) continue;
+                line.IsStockPurchase = true;
+
+                if (line.Quantity > 0 && usdPerNative is { } rate)
+                    item.UnitCost = line.Subtotal / line.Quantity * rate;
+
+                if (inCompanyCurrency && costPriceChanged.Add(product))
+                {
+                    builder.RecordCostPrice(product);
+                    product.CostPrice = line.UnitPrice;
+                }
+            }
+            else if (savedBeforeCostOfGoods)
+            {
+                item.InStock -= line.Quantity;
+            }
+            else
+            {
+                var openingUsed = line.Quantity > 0 ? Math.Min(Math.Max(item.OpeningUnits, 0), line.Quantity) : 0;
+                item.OpeningUnits -= openingUsed;
+                line.OpeningUnitsUsed = openingUsed;
+                line.CostOfGoodsUSD = (line.Quantity - openingUsed) * item.UnitCost;
+                item.InStock -= line.Quantity;
+            }
+        }
+
+        var changes = new List<StockChange>(touched.Count);
+        foreach (var builder in touched)
+        {
+            var item = builder.Item;
+            item.Status = item.CalculateStatus();
+            item.LastUpdated = DateTime.UtcNow;
+
+            var net = item.InStock - builder.OldStock;
+            StockAdjustment? adjustment = null;
+            if (net != 0)
+            {
+                adjustment = new StockAdjustment
+                {
+                    Id = NextAdjustmentId(data),
+                    InventoryItemId = item.Id,
+                    AdjustmentType = net > 0 ? AdjustmentType.Add : AdjustmentType.Remove,
+                    Quantity = Math.Abs(net),
+                    PreviousStock = builder.OldStock,
+                    NewStock = item.InStock,
+                    Reason = reason,
+                    ReferenceNumber = transaction.Id,
+                    Timestamp = DateTime.UtcNow,
+                    IsAutoGenerated = true
+                };
+                data.StockAdjustments.Add(adjustment);
+            }
+
+            changes.Add(builder.Build(adjustment));
+        }
+
+        return changes;
+    }
+
+    /// <summary>
+    /// Puts stock back as it was before <paramref name="changes"/>: stock, opening units, unit cost and
+    /// cost price restored, adjustments removed, and stock records the change created removed.
+    /// </summary>
+    public static void Revert(CompanyData data, IReadOnlyList<StockChange> changes)
+    {
+        for (var i = changes.Count - 1; i >= 0; i--)
+        {
+            var change = changes[i];
+            var item = change.Item;
+            item.InStock = change.OldStock;
+            item.OpeningUnits = change.OldOpeningUnits;
+            item.UnitCost = change.OldUnitCost;
+            item.Status = item.CalculateStatus();
+            item.LastUpdated = DateTime.UtcNow;
+
+            if (change.CostPriceProduct != null)
+                change.CostPriceProduct.CostPrice = change.OldCostPrice;
+
+            if (change.Adjustment != null)
+                data.StockAdjustments.Remove(change.Adjustment);
+
+            if (change.WasCreated)
+                data.Inventory.Remove(item);
+        }
+    }
+
+    /// <summary>
+    /// The stock record a line takes from or adds to: the one at the line's location when it has one,
+    /// otherwise the product's first.
+    /// </summary>
+    public static InventoryItem? FindStockItem(CompanyData data, string productId, string? locationId)
+    {
+        if (!string.IsNullOrEmpty(locationId))
+        {
+            var atLocation = data.Inventory.FirstOrDefault(i => i.ProductId == productId && i.LocationId == locationId);
+            if (atLocation != null)
+                return atLocation;
+        }
+
+        return data.Inventory.FirstOrDefault(i => i.ProductId == productId);
+    }
+
+    /// <summary>Stock records for a product, one per location it is stocked at.</summary>
+    public static List<InventoryItem> StockItemsFor(CompanyData data, string productId) =>
+        data.Inventory.Where(i => i.ProductId == productId).ToList();
+
+    /// <summary>
+    /// Moves stock from one location to another, recording the transfer and a matching adjustment at
+    /// each end. Opening units move in proportion, so the stock keeps its cost basis.
+    /// </summary>
+    public static StockTransferResult Transfer(
+        CompanyData data, InventoryItem source, string destinationLocationId, decimal quantity, string notes)
+    {
+        if (quantity <= 0)
+            throw new ArgumentOutOfRangeException(nameof(quantity), "A transfer moves a positive quantity.");
+        if (source.LocationId == destinationLocationId)
+            throw new ArgumentException("A transfer needs a different destination.", nameof(destinationLocationId));
+
+        var product = data.GetProduct(source.ProductId);
+        var destination = data.Inventory.FirstOrDefault(i =>
+            i.ProductId == source.ProductId && i.LocationId == destinationLocationId);
+        var destinationCreated = destination == null;
+        if (destination == null)
+        {
+            destination = product != null
+                ? CreateStockItem(data, product, destinationLocationId)
+                : CreateStockItem(data, source, destinationLocationId);
+            destination.UnitCost = source.UnitCost;
+        }
+
+        var result = new StockTransferResult
+        {
+            Source = source,
+            Destination = destination,
+            DestinationCreated = destinationCreated,
+            SourceOldStock = source.InStock,
+            SourceOldOpeningUnits = source.OpeningUnits,
+            DestinationOldStock = destination.InStock,
+            DestinationOldOpeningUnits = destination.OpeningUnits
+        };
+
+        var openingMoved = source.InStock > 0
+            ? Math.Min(source.OpeningUnits, source.OpeningUnits * quantity / source.InStock)
+            : 0;
+        openingMoved = Math.Max(openingMoved, 0);
+
+        source.InStock -= quantity;
+        source.OpeningUnits -= openingMoved;
+        destination.InStock += quantity;
+        destination.OpeningUnits += openingMoved;
+
+        foreach (var item in new[] { source, destination })
+        {
+            item.Status = item.CalculateStatus();
+            item.LastUpdated = DateTime.UtcNow;
+        }
+
+        var transfer = new StockTransfer
+        {
+            Id = NextTransferId(data),
+            InventoryItemId = source.Id,
+            SourceLocationId = source.LocationId,
+            DestinationLocationId = destinationLocationId,
+            Quantity = quantity,
+            TransferDate = DateTime.Now,
+            Status = TransferStatus.Completed,
+            Notes = notes,
+            CreatedAt = DateTime.UtcNow,
+            CompletedAt = DateTime.UtcNow
+        };
+        data.StockTransfers.Add(transfer);
+
+        var sourceName = data.GetLocation(source.LocationId)?.Name ?? source.LocationId;
+        var destinationName = data.GetLocation(destinationLocationId)?.Name ?? destinationLocationId;
+
+        var outAdjustment = new StockAdjustment
+        {
+            Id = NextAdjustmentId(data),
+            InventoryItemId = source.Id,
+            AdjustmentType = AdjustmentType.Remove,
+            Quantity = quantity,
+            PreviousStock = result.SourceOldStock,
+            NewStock = source.InStock,
+            Reason = $"Transfer to {destinationName}",
+            ReferenceNumber = transfer.Id,
+            Timestamp = DateTime.UtcNow,
+            IsAutoGenerated = true
+        };
+        data.StockAdjustments.Add(outAdjustment);
+
+        var inAdjustment = new StockAdjustment
+        {
+            Id = NextAdjustmentId(data),
+            InventoryItemId = destination.Id,
+            AdjustmentType = AdjustmentType.Add,
+            Quantity = quantity,
+            PreviousStock = result.DestinationOldStock,
+            NewStock = destination.InStock,
+            Reason = $"Transfer from {sourceName}",
+            ReferenceNumber = transfer.Id,
+            Timestamp = DateTime.UtcNow,
+            IsAutoGenerated = true
+        };
+        data.StockAdjustments.Add(inAdjustment);
+
+        result.Transfer = transfer;
+        result.OutAdjustment = outAdjustment;
+        result.InAdjustment = inAdjustment;
+        return result;
+    }
+
+    public static void RevertTransfer(CompanyData data, StockTransferResult result)
+    {
+        result.Source.InStock = result.SourceOldStock;
+        result.Source.OpeningUnits = result.SourceOldOpeningUnits;
+        result.Destination.InStock = result.DestinationOldStock;
+        result.Destination.OpeningUnits = result.DestinationOldOpeningUnits;
+
+        foreach (var item in new[] { result.Source, result.Destination })
+        {
+            item.Status = item.CalculateStatus();
+            item.LastUpdated = DateTime.UtcNow;
+        }
+
+        data.StockAdjustments.Remove(result.OutAdjustment);
+        data.StockAdjustments.Remove(result.InAdjustment);
+        data.StockTransfers.Remove(result.Transfer);
+
+        if (result.DestinationCreated)
+            data.Inventory.Remove(result.Destination);
+    }
+
+    /// <summary>
+    /// USD per unit of the transaction's own currency, or null while its rate is not known yet, in
+    /// which case a purchase leaves the stock's unit cost as it was.
+    /// </summary>
+    public static decimal? UsdPerNative(Transaction transaction)
+    {
+        if (string.Equals(OriginalCurrency(transaction), "USD", StringComparison.OrdinalIgnoreCase))
+            return 1m;
+        if (transaction.IsPendingConversion || transaction.Total == 0 || transaction.TotalUSD == 0)
+            return null;
+        return transaction.TotalUSD / transaction.Total;
+    }
+
+    private static string OriginalCurrency(Transaction transaction) =>
+        string.IsNullOrEmpty(transaction.OriginalCurrency) ? "USD" : transaction.OriginalCurrency;
+
+    private static Product? TrackedProduct(CompanyData data, LineItem line)
+    {
+        if (string.IsNullOrEmpty(line.ProductId)) return null;
+        var product = data.GetProduct(line.ProductId);
+        return product is { TrackInventory: true } ? product : null;
+    }
+
+    private static InventoryItem CreateStockItem(CompanyData data, Product product, string? locationId)
+    {
+        var item = NewStockItem(data, product.Id, product.Sku, locationId);
+        item.UnitOfMeasure = product.UnitOfMeasure;
+        item.ReorderPoint = product.ReorderPoint;
+        item.OverstockThreshold = product.OverstockThreshold;
+        item.UnitCost = product.CostPrice;
+        item.Status = item.CalculateStatus();
+        return item;
+    }
+
+    private static InventoryItem CreateStockItem(CompanyData data, InventoryItem like, string locationId)
+    {
+        var item = NewStockItem(data, like.ProductId, like.Sku, locationId);
+        item.UnitOfMeasure = like.UnitOfMeasure;
+        item.ReorderPoint = like.ReorderPoint;
+        item.OverstockThreshold = like.OverstockThreshold;
+        item.Status = item.CalculateStatus();
+        return item;
+    }
+
+    private static InventoryItem NewStockItem(CompanyData data, string productId, string sku, string? locationId)
+    {
+        string id;
+        do
+        {
+            data.IdCounters.InventoryItem++;
+            id = $"INV-ITM-{data.IdCounters.InventoryItem:D5}";
+        } while (data.Inventory.Any(i => i.Id == id));
+
+        var item = new InventoryItem
+        {
+            Id = id,
+            ProductId = productId,
+            Sku = sku,
+            LocationId = !string.IsNullOrEmpty(locationId)
+                ? locationId
+                : data.Locations.FirstOrDefault()?.Id ?? NoLocationId,
+            LastUpdated = DateTime.UtcNow
+        };
+        data.Inventory.Add(item);
+        return item;
+    }
+
+    private static string NextAdjustmentId(CompanyData data)
+    {
+        string id;
+        do
+        {
+            data.IdCounters.StockAdjustment++;
+            id = $"ADJ-{data.IdCounters.StockAdjustment:D5}";
+        } while (data.StockAdjustments.Any(a => a.Id == id));
+        return id;
+    }
+
+    private static string NextTransferId(CompanyData data)
+    {
+        string id;
+        do
+        {
+            data.IdCounters.StockTransfer++;
+            id = $"TRF-{data.IdCounters.StockTransfer:D5}";
+        } while (data.StockTransfers.Any(t => t.Id == id));
+        return id;
+    }
+}
+
+/// <summary>What one save did to one stock record, kept so the save can be undone.</summary>
+public sealed class StockChange
+{
+    public required InventoryItem Item { get; init; }
+    public required string ProductName { get; init; }
+    public decimal OldStock { get; init; }
+    public decimal NewStock { get; init; }
+    public decimal OldOpeningUnits { get; init; }
+    public decimal OldUnitCost { get; init; }
+    public Product? CostPriceProduct { get; init; }
+    public decimal OldCostPrice { get; init; }
+    public StockAdjustment? Adjustment { get; init; }
+    public bool WasCreated { get; init; }
+
+    internal sealed class Builder(InventoryItem item, Product product, bool wasCreated)
+    {
+        public InventoryItem Item { get; } = item;
+        public decimal OldStock { get; } = item.InStock;
+        private readonly decimal _oldOpeningUnits = item.OpeningUnits;
+        private readonly decimal _oldUnitCost = item.UnitCost;
+        private Product? _costPriceProduct;
+        private decimal _oldCostPrice;
+
+        public void RecordCostPrice(Product costProduct)
+        {
+            _costPriceProduct = costProduct;
+            _oldCostPrice = costProduct.CostPrice;
+        }
+
+        public StockChange Build(StockAdjustment? adjustment) => new()
+        {
+            Item = Item,
+            ProductName = product.Name,
+            OldStock = OldStock,
+            NewStock = Item.InStock,
+            OldOpeningUnits = _oldOpeningUnits,
+            OldUnitCost = _oldUnitCost,
+            CostPriceProduct = _costPriceProduct,
+            OldCostPrice = _oldCostPrice,
+            Adjustment = adjustment,
+            WasCreated = wasCreated
+        };
+    }
+}
+
+/// <summary>What a stock transfer did, kept so it can be undone.</summary>
+public sealed class StockTransferResult
+{
+    public required InventoryItem Source { get; init; }
+    public required InventoryItem Destination { get; init; }
+    public bool DestinationCreated { get; init; }
+    public decimal SourceOldStock { get; init; }
+    public decimal SourceOldOpeningUnits { get; init; }
+    public decimal DestinationOldStock { get; init; }
+    public decimal DestinationOldOpeningUnits { get; init; }
+    public StockTransfer Transfer { get; set; } = null!;
+    public StockAdjustment OutAdjustment { get; set; } = null!;
+    public StockAdjustment InAdjustment { get; set; } = null!;
+}

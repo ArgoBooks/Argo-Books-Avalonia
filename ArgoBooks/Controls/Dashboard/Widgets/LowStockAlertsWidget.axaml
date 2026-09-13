@@ -73,7 +73,7 @@
                                                 Spacing="4"
                                                 VerticalAlignment="Center"
                                                 Margin="12,0,0,0">
-                                        <TextBlock Text="{Binding CurrentStock}"
+                                        <TextBlock Text="{Binding CurrentStockText}"
                                                    FontSize="13"
                                                    FontWeight="SemiBold"
                                                    Foreground="{DynamicResource DangerBrush}" />

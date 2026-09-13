@@ -99,7 +99,7 @@
                                     <TextBox Text="{Binding AdjustmentQuantity, Mode=TwoWay}"
                                              Classes="form-input"
                                              PlaceholderText="{loc:Loc 'Enter quantity'}"
-                                             behaviors:NumericInputBehavior.IsIntegerOnly="True"
+                                             behaviors:NumericInputBehavior.IsDecimalOnly="True"
                                              MaxLength="7" />
                                     <TextBlock Text="{loc:Loc 'Please enter a valid quantity.'}"
                                                FontSize="12"

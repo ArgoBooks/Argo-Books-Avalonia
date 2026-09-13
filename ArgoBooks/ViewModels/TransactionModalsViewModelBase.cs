@@ -405,6 +405,9 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
             sender is TLineItem { SelectedProduct: { } product } lineItem)
             lineItem.SelectedCategory = CategoryOptionFor(product);
 
+        if (e.PropertyName == nameof(TransactionLineItemBase.SelectedProduct) && sender is TLineItem changedLine)
+            RefreshLocationOptions(changedLine);
+
         UpdateTotals();
     }
 
@@ -563,10 +566,11 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         {
             var category = companyData.Categories?.FirstOrDefault(c => c.Id == product.CategoryId);
 
-            // Skip products that don't match our category type
-            if (CategoryTypeFilter == CategoryType.Expense && category?.Type == CategoryType.Revenue)
+            // Skip products of the other type, except ones tracking inventory: those are bought and
+            // sold as one item with one stock count, so both forms offer them.
+            if (CategoryTypeFilter == CategoryType.Expense && category?.Type == CategoryType.Revenue && !product.TrackInventory)
                 continue;
-            if (CategoryTypeFilter == CategoryType.Revenue && category?.Type == CategoryType.Expense)
+            if (CategoryTypeFilter == CategoryType.Revenue && category?.Type == CategoryType.Expense && !product.TrackInventory)
                 continue;
 
             ProductOptions.Add(new ProductOption
@@ -676,6 +680,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
                 // on which of its two bindings the dropdown applies first.
                 lineItem.ItemText = selectedProduct?.Name ?? li.Description;
                 lineItem.CategoryText = lineItem.SelectedCategory?.Name;
+                RefreshLocationOptions(lineItem, li.LocationId);
                 lineItem.PropertyChanged += OnLineItemPropertyChanged;
                 LineItems.Add(lineItem);
             }
@@ -1116,6 +1121,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         return LineItems.Select(li => new LineItem
         {
             ProductId = li.SelectedProduct?.Id,
+            LocationId = li.SelectedLocation?.Id,
             Description = li.Description,
             Quantity = li.Quantity ?? 0,
             UnitPrice = li.UnitPrice ?? 0,
@@ -1636,210 +1642,82 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     #region Inventory Helpers
 
     /// <summary>
-    /// Finds or auto-creates an InventoryItem for a product.
+    /// Fills a line's location picker with the locations its product is stocked at, selecting
+    /// <paramref name="selectedLocationId"/> when it is one of them.
     /// </summary>
-    private static (InventoryItem item, bool wasCreated) FindOrCreateInventoryItem(
-        CompanyData companyData, Product product, decimal unitPrice)
+    private static void RefreshLocationOptions(TransactionLineItemBase lineItem, string? selectedLocationId = null)
     {
-        var inventoryItem = companyData.Inventory.FirstOrDefault(inv => inv.ProductId == product.Id);
-        if (inventoryItem != null) return (inventoryItem, false);
-
-        companyData.IdCounters.InventoryItem++;
-        inventoryItem = new InventoryItem
+        lineItem.LocationOptions.Clear();
+        var companyData = App.CompanyManager?.CompanyData;
+        var productId = lineItem.SelectedProduct?.Id;
+        if (companyData != null && !string.IsNullOrEmpty(productId) && companyData.GetProduct(productId) is { TrackInventory: true })
         {
-            Id = $"INV-ITM-{companyData.IdCounters.InventoryItem:D5}",
-            ProductId = product.Id,
-            Sku = product.Sku,
-            LocationId = "default",
-            InStock = 0,
-            Status = InventoryStatus.OutOfStock,
-            UnitCost = unitPrice,
-            LastUpdated = DateTime.UtcNow
-        };
-        companyData.Inventory.Add(inventoryItem);
-        return (inventoryItem, true);
-    }
-
-    /// <summary>
-    /// Adjusts inventory for each line item whose product has TrackInventory enabled.
-    /// Creates StockAdjustment audit records and auto-creates InventoryItems when missing.
-    /// </summary>
-    protected static List<InventoryAdjustmentResult> AdjustInventoryForLineItems(
-        CompanyData companyData, List<LineItem> lineItems, string transactionId, bool isExpense)
-    {
-        var results = new List<InventoryAdjustmentResult>();
-
-        foreach (var lineItem in lineItems)
-        {
-            if (string.IsNullOrEmpty(lineItem.ProductId)) continue;
-
-            var product = companyData.Products.FirstOrDefault(p => p.Id == lineItem.ProductId);
-            if (product is not { TrackInventory: true }) continue;
-
-            var qty = (int)Math.Round(lineItem.Quantity, MidpointRounding.AwayFromZero);
-            if (qty == 0) continue;
-
-            var (inventoryItem, wasCreated) = FindOrCreateInventoryItem(companyData, product, lineItem.UnitPrice);
-
-            var oldStock = inventoryItem.InStock;
-            inventoryItem.InStock += isExpense ? qty : -qty;
-            inventoryItem.Status = inventoryItem.CalculateStatus();
-            inventoryItem.LastUpdated = DateTime.UtcNow;
-            App.CheckAndNotifyStockStatus(inventoryItem, oldStock);
-
-            // Create audit record
-            companyData.IdCounters.StockAdjustment++;
-            var adjustment = new StockAdjustment
+            foreach (var item in InventoryStockService.StockItemsFor(companyData, productId))
             {
-                Id = $"ADJ-{companyData.IdCounters.StockAdjustment:D5}",
-                InventoryItemId = inventoryItem.Id,
-                AdjustmentType = isExpense ? AdjustmentType.Add : AdjustmentType.Remove,
-                Quantity = qty,
-                PreviousStock = oldStock,
-                NewStock = inventoryItem.InStock,
-                Reason = isExpense ? "Expense transaction" : "Revenue transaction",
-                ReferenceNumber = transactionId,
-                Timestamp = DateTime.UtcNow,
-                IsAutoGenerated = true
-            };
-            companyData.StockAdjustments.Add(adjustment);
-
-            results.Add(new InventoryAdjustmentResult
-            {
-                ProductName = product.Name,
-                InventoryItemId = inventoryItem.Id,
-                AdjustmentId = adjustment.Id,
-                OldStock = oldStock,
-                NewStock = inventoryItem.InStock,
-                WasCreated = wasCreated
-            });
-        }
-
-        return results;
-    }
-
-    /// <summary>
-    /// Adjusts inventory for an edited transaction by computing the net quantity diff per product.
-    /// Creates a single StockAdjustment per product instead of revert+reapply.
-    /// </summary>
-    protected static List<InventoryAdjustmentResult> AdjustInventoryForEdit(
-        CompanyData companyData, List<LineItem> oldLineItems, List<LineItem> newLineItems,
-        string transactionId, bool isExpense, string? reason = null)
-    {
-        // Build per-product quantity maps
-        var oldQtyByProduct = new Dictionary<string, int>();
-        var newQtyByProduct = new Dictionary<string, int>();
-
-        foreach (var li in oldLineItems)
-        {
-            if (string.IsNullOrEmpty(li.ProductId)) continue;
-            var qty = (int)Math.Round(li.Quantity, MidpointRounding.AwayFromZero);
-            oldQtyByProduct[li.ProductId] = oldQtyByProduct.GetValueOrDefault(li.ProductId) + qty;
-        }
-
-        foreach (var li in newLineItems)
-        {
-            if (string.IsNullOrEmpty(li.ProductId)) continue;
-            var qty = (int)Math.Round(li.Quantity, MidpointRounding.AwayFromZero);
-            newQtyByProduct[li.ProductId] = newQtyByProduct.GetValueOrDefault(li.ProductId) + qty;
-        }
-
-        // Union of all product IDs
-        var allProductIds = oldQtyByProduct.Keys.Union(newQtyByProduct.Keys).Distinct().ToList();
-
-        var results = new List<InventoryAdjustmentResult>();
-
-        foreach (var productId in allProductIds)
-        {
-            var product = companyData.Products.FirstOrDefault(p => p.Id == productId);
-            if (product is not { TrackInventory: true }) continue;
-
-            var oldQty = oldQtyByProduct.GetValueOrDefault(productId);
-            var newQty = newQtyByProduct.GetValueOrDefault(productId);
-            var diff = newQty - oldQty; // positive = more items, negative = fewer items
-            if (diff == 0) continue;
-
-            // For expenses: +diff means more purchased (add stock), -diff means less (remove stock)
-            // For revenue: +diff means more sold (remove stock), -diff means less (add stock)
-            var stockChange = isExpense ? diff : -diff;
-
-            var unitPrice = newLineItems.FirstOrDefault(li => li.ProductId == productId)?.UnitPrice
-                         ?? oldLineItems.FirstOrDefault(li => li.ProductId == productId)?.UnitPrice ?? 0;
-            var (inventoryItem, wasCreated) = FindOrCreateInventoryItem(companyData, product, unitPrice);
-
-            var oldStock = inventoryItem.InStock;
-            inventoryItem.InStock += stockChange;
-            inventoryItem.Status = inventoryItem.CalculateStatus();
-            inventoryItem.LastUpdated = DateTime.UtcNow;
-            App.CheckAndNotifyStockStatus(inventoryItem, oldStock);
-
-            companyData.IdCounters.StockAdjustment++;
-            var adjustment = new StockAdjustment
-            {
-                Id = $"ADJ-{companyData.IdCounters.StockAdjustment:D5}",
-                InventoryItemId = inventoryItem.Id,
-                AdjustmentType = stockChange > 0 ? AdjustmentType.Add : AdjustmentType.Remove,
-                Quantity = Math.Abs(stockChange),
-                PreviousStock = oldStock,
-                NewStock = inventoryItem.InStock,
-                Reason = reason ?? (isExpense ? "Expense edited" : "Revenue edited"),
-                ReferenceNumber = transactionId,
-                Timestamp = DateTime.UtcNow,
-                IsAutoGenerated = true
-            };
-            companyData.StockAdjustments.Add(adjustment);
-
-            results.Add(new InventoryAdjustmentResult
-            {
-                ProductName = product.Name,
-                InventoryItemId = inventoryItem.Id,
-                AdjustmentId = adjustment.Id,
-                OldStock = oldStock,
-                NewStock = inventoryItem.InStock,
-                WasCreated = wasCreated
-            });
-        }
-
-        return results;
-    }
-
-    /// <summary>
-    /// Reverts inventory adjustments (for undo). Restores stock, removes audit records,
-    /// and removes auto-created InventoryItems.
-    /// </summary>
-    protected static void RevertInventoryAdjustments(CompanyData companyData, List<InventoryAdjustmentResult> adjustments)
-    {
-        // Newest first: when several lines adjusted the same item, each OldStock is the stock before
-        // that line, so only the earliest one holds the true original and it must be applied last.
-        for (var i = adjustments.Count - 1; i >= 0; i--)
-        {
-            var result = adjustments[i];
-            if (result.WasCreated)
-            {
-                companyData.Inventory.RemoveAll(inv => inv.Id == result.InventoryItemId);
-            }
-            else
-            {
-                var inventoryItem = companyData.Inventory.FirstOrDefault(inv => inv.Id == result.InventoryItemId);
-                if (inventoryItem != null)
+                lineItem.LocationOptions.Add(new LocationOption
                 {
-                    var stockBeforeRevert = inventoryItem.InStock;
-                    inventoryItem.InStock = result.OldStock;
-                    inventoryItem.Status = inventoryItem.CalculateStatus();
-                    inventoryItem.LastUpdated = DateTime.UtcNow;
-                    App.CheckAndNotifyStockStatus(inventoryItem, stockBeforeRevert);
-                }
+                    Id = item.LocationId,
+                    Name = companyData.GetLocation(item.LocationId)?.Name ?? "Default".Translate(),
+                    StockText = StockUnits.Format(item.InStock, item.UnitOfMeasure)
+                });
             }
-
-            companyData.StockAdjustments.RemoveAll(a => a.Id == result.AdjustmentId);
         }
+
+        lineItem.ShowLocationPicker = lineItem.LocationOptions.Count > 1;
+        lineItem.SelectedLocation = lineItem.LocationOptions.FirstOrDefault(o => o.Id == selectedLocationId)
+                                    ?? lineItem.LocationOptions.FirstOrDefault();
+    }
+
+    /// <summary>
+    /// Applies a newly saved transaction's lines to stock and alerts on any that ran low.
+    /// </summary>
+    protected static List<StockChange> AdjustInventoryForLineItems(
+        CompanyData companyData, Transaction transaction, List<LineItem> lineItems, bool isExpense)
+    {
+        var changes = InventoryStockService.Apply(companyData, lineItems, transaction, isExpense);
+        NotifyStockStatus(changes);
+        return changes;
+    }
+
+    /// <summary>
+    /// Replaces what a transaction's old lines did to stock with what its new lines do. Pass no new
+    /// lines when the transaction is deleted.
+    /// </summary>
+    protected static List<StockChange> AdjustInventoryForEdit(
+        CompanyData companyData, Transaction transaction, List<LineItem> oldLineItems, List<LineItem> newLineItems,
+        bool isExpense, string? reason = null)
+    {
+        var changes = InventoryStockService.ApplyEdit(
+            companyData, oldLineItems, newLineItems, transaction, isExpense,
+            reason ?? (isExpense ? "Expense edited" : "Revenue edited"));
+        NotifyStockStatus(changes);
+        return changes;
+    }
+
+    /// <summary>
+    /// Puts stock back as it was before the changes, for undo.
+    /// </summary>
+    protected static void RevertInventoryAdjustments(CompanyData companyData, List<StockChange> changes)
+    {
+        var stockBefore = changes.Select(c => c.Item.InStock).ToList();
+        InventoryStockService.Revert(companyData, changes);
+        for (var i = 0; i < changes.Count; i++)
+        {
+            if (!changes[i].WasCreated)
+                App.CheckAndNotifyStockStatus(changes[i].Item, stockBefore[i]);
+        }
+    }
+
+    private static void NotifyStockStatus(List<StockChange> changes)
+    {
+        foreach (var change in changes)
+            App.CheckAndNotifyStockStatus(change.Item, change.OldStock);
     }
 
     /// <summary>
     /// Shows notifications for inventory adjustments (auto-created items, low stock warnings).
     /// </summary>
-    protected static void ShowInventoryNotifications(
-        List<InventoryAdjustmentResult> results, bool isExpense)
+    protected static void ShowInventoryNotifications(List<StockChange> results, bool isExpense)
     {
         var created = results.Where(r => r.WasCreated).ToList();
         if (created.Count > 0)
@@ -1857,7 +1735,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
             if (lowStock.Count > 0)
             {
                 var warnings = string.Join("; ", lowStock.Select(r =>
-                    $"{r.ProductName} ({r.OldStock} available, sold {r.OldStock - r.NewStock})"));
+                    $"{r.ProductName} ({StockUnits.Format(r.OldStock)} available, sold {StockUnits.Format(r.OldStock - r.NewStock)})"));
                 App.AddNotification(
                     "Insufficient Stock".Translate(),
                     string.Format("Insufficient stock: {0}".Translate(), warnings),
@@ -1869,12 +1747,13 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     /// <summary>
     /// Shows notifications for inventory changes from editing a transaction.
     /// </summary>
-    protected static void ShowEditInventoryNotifications(List<InventoryAdjustmentResult> results)
+    protected static void ShowEditInventoryNotifications(List<StockChange> results)
     {
-        if (results.Count == 0) return;
+        var moved = results.Where(r => r.OldStock != r.NewStock).ToList();
+        if (moved.Count == 0) return;
 
-        var changes = string.Join("; ", results.Select(r =>
-            $"{r.ProductName}: {r.OldStock} → {r.NewStock}"));
+        var changes = string.Join("; ", moved.Select(r =>
+            $"{r.ProductName}: {StockUnits.Format(r.OldStock)} → {StockUnits.Format(r.NewStock)}"));
         App.AddNotification(
             "Inventory Updated".Translate(),
             string.Format("Inventory updated: {0}".Translate(), changes),
@@ -1882,19 +1761,6 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     }
 
     #endregion
-}
-
-/// <summary>
-/// Result of a single inventory adjustment for a line item.
-/// </summary>
-public class InventoryAdjustmentResult
-{
-    public string ProductName { get; init; } = string.Empty;
-    public string InventoryItemId { get; init; } = string.Empty;
-    public string AdjustmentId { get; init; } = string.Empty;
-    public int OldStock { get; init; }
-    public int NewStock { get; init; }
-    public bool WasCreated { get; init; }
 }
 
 /// <summary>
@@ -1943,6 +1809,18 @@ public abstract partial class TransactionLineItemBase : ObservableObject
 
     /// <summary>The currency of an entry being edited in another currency than the company's, otherwise null.</summary>
     public string? CurrencyCode { get; init; }
+
+    /// <summary>
+    /// Locations this line's product is stocked at. The picker only shows when there are two or more;
+    /// with one, the line uses it without asking.
+    /// </summary>
+    public ObservableCollection<LocationOption> LocationOptions { get; } = [];
+
+    [ObservableProperty]
+    private LocationOption? _selectedLocation;
+
+    [ObservableProperty]
+    private bool _showLocationPicker;
 
     public decimal Amount => (Quantity ?? 0) * (UnitPrice ?? 0);
     public string AmountFormatted => CurrencyCode == null
@@ -2016,4 +1894,16 @@ public class ProductOption
     public string? SupplierId { get; set; }
     public string? CategoryId { get; set; }
     public override string ToString() => Name;
+}
+
+/// <summary>
+/// A location a line's product is stocked at, with how much is there.
+/// </summary>
+public class LocationOption
+{
+    public string Id { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string StockText { get; set; } = string.Empty;
+    public string DisplayText => $"{Name} ({StockText})";
+    public override string ToString() => DisplayText;
 }

@@ -6,7 +6,8 @@ namespace ArgoBooks.Core.Services;
 /// <summary>
 /// Single source of truth for net profit and net profit by day.
 ///
-/// Profit = pre-tax revenue (collected) − total expenses − pre-tax refunds.
+/// Profit = pre-tax revenue (collected) − expenses other than tracked stock bought − cost of
+/// goods sold − pre-tax refunds.
 /// Sales tax we collect is owed to the government, so it isn't profit;
 /// tax we paid suppliers is real cash out, so expenses stay gross. See
 /// docs/Calculations.md §2 and §8 for the full rules.
@@ -23,10 +24,11 @@ public static class ProfitCalculator
     {
         var revenuePreTax = RevenueAggregator.SumCollectedRevenuePreTaxUSD(
             data.Revenues, start, end);
-        var expenses = ExpenseAggregator.SumExpensesUSD(data.Expenses, start, end);
+        var expenses = CostOfGoodsAggregator.SumOperatingExpensesUSD(data.Expenses, start, end);
+        var costOfGoods = CostOfGoodsAggregator.SumCostOfGoodsSoldUSD(data.Revenues, start, end, collectedOnly: true);
         var refundsPreTax = RefundAggregator.GetRefundedPreTaxInDateRangeUSD(
             data.Payments, BuildInvoiceLookup(data.Invoices), start, end);
-        return revenuePreTax - expenses - refundsPreTax;
+        return revenuePreTax - expenses - costOfGoods - refundsPreTax;
     }
 
     /// <summary>
@@ -40,10 +42,12 @@ public static class ProfitCalculator
     {
         var revenuePreTax = RevenueAggregator.SumCollectedRevenuePreTaxDisplay(
             data.Revenues, start, end, toDisplay);
-        var expenses = ExpenseAggregator.SumExpensesDisplay(data.Expenses, start, end, toDisplay);
+        var expenses = CostOfGoodsAggregator.SumOperatingExpensesDisplay(data.Expenses, start, end, toDisplay);
+        var costOfGoods = CostOfGoodsAggregator.SumCostOfGoodsSoldDisplay(
+            data.Revenues, start, end, collectedOnly: true, toDisplay);
         var refundsPreTax = RefundAggregator.GetRefundedPreTaxInDateRangeDisplay(
             data.Payments, BuildInvoiceLookup(data.Invoices), start, end, toDisplay);
-        return revenuePreTax - expenses - refundsPreTax;
+        return revenuePreTax - expenses - costOfGoods - refundsPreTax;
     }
 
     /// <summary>
@@ -63,20 +67,28 @@ public static class ProfitCalculator
         var expensesByDay = data.Expenses
             .Where(p => p.Date >= start && p.Date <= end)
             .GroupBy(p => p.Date.Date)
-            .ToDictionary(g => g.Key, g => g.Sum(p => p.EffectiveTotalUSD));
+            .ToDictionary(g => g.Key, g => g.Sum(CostOfGoodsAggregator.OperatingExpenseUSD));
 
         var refundsByDay = BuildPreTaxRefundsByDay(data, start, end);
 
+        var costOfGoodsByDay = data.Revenues
+            .Where(s => s.Date >= start && s.Date <= end)
+            .Where(RevenueAggregator.IsCollected)
+            .GroupBy(s => s.Date.Date)
+            .ToDictionary(g => g.Key, g => g.Sum(CostOfGoodsAggregator.CostOfGoodsSoldUSD));
+
         var allDays = revenueByDay.Keys
             .Union(expensesByDay.Keys)
-            .Union(refundsByDay.Keys);
+            .Union(refundsByDay.Keys)
+            .Union(costOfGoodsByDay.Keys);
 
         return allDays.ToDictionary(
             day => day,
             day =>
                 revenueByDay.GetValueOrDefault(day, 0m)
                 - refundsByDay.GetValueOrDefault(day, 0m)
-                - expensesByDay.GetValueOrDefault(day, 0m));
+                - expensesByDay.GetValueOrDefault(day, 0m)
+                - costOfGoodsByDay.GetValueOrDefault(day, 0m));
     }
 
     internal static Dictionary<string, Invoice> BuildInvoiceLookup(IEnumerable<Invoice> invoices)

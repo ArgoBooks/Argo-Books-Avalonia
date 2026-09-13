@@ -25,6 +25,33 @@ public class LineItem
     public string? RevenueRecordId { get; set; }
 
     /// <summary>
+    /// The location whose stock this line moved, for a product that tracks inventory.
+    /// </summary>
+    [JsonPropertyName("locationId")]
+    public string? LocationId { get; set; }
+
+    /// <summary>
+    /// What the tracked stock this sale line took cost, in USD, fixed when the sale was saved.
+    /// Null on a line that sold no tracked stock. See docs/Calculations.md §14.
+    /// </summary>
+    [JsonPropertyName("costOfGoodsUSD")]
+    public decimal? CostOfGoodsUSD { get; set; }
+
+    /// <summary>
+    /// Opening units this sale line used up, which carry no cost. Given back when the sale
+    /// is edited or deleted.
+    /// </summary>
+    [JsonPropertyName("openingUnitsUsed")]
+    public decimal OpeningUnitsUsed { get; set; }
+
+    /// <summary>
+    /// True when this purchase line bought tracked stock, so its amount counts as stock
+    /// rather than an expense.
+    /// </summary>
+    [JsonPropertyName("isStockPurchase")]
+    public bool IsStockPurchase { get; set; }
+
+    /// <summary>
     /// Description of the item or service.
     /// </summary>
     [JsonPropertyName("description")]

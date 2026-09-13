@@ -74,16 +74,22 @@ public class Product
     public bool TrackInventory { get; set; }
 
     /// <summary>
+    /// What one unit of stock is: each, kg, L and so on. See <see cref="Inventory.StockUnits"/>.
+    /// </summary>
+    [JsonPropertyName("unitOfMeasure")]
+    public string UnitOfMeasure { get; set; } = Inventory.StockUnits.Each;
+
+    /// <summary>
     /// Minimum stock level before reordering (for physical products).
     /// </summary>
     [JsonPropertyName("reorderPoint")]
-    public int ReorderPoint { get; set; }
+    public decimal ReorderPoint { get; set; }
 
     /// <summary>
     /// Maximum stock level threshold (for physical products).
     /// </summary>
     [JsonPropertyName("overstockThreshold")]
-    public int OverstockThreshold { get; set; }
+    public decimal OverstockThreshold { get; set; }
 
     /// <summary>
     /// Primary supplier ID.

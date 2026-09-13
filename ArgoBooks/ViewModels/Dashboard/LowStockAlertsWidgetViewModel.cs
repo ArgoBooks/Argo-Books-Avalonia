@@ -1,11 +1,15 @@
 using System.Collections.ObjectModel;
+using ArgoBooks.Core.Models.Inventory;
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Models.Dashboard;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace ArgoBooks.ViewModels.Dashboard;
 
-public record LowStockItem(string Name, int CurrentStock, int Threshold);
+public record LowStockItem(string Name, decimal CurrentStock, int Threshold)
+{
+    public string CurrentStockText => StockUnits.Format(CurrentStock);
+}
 
 public partial class LowStockAlertsWidgetViewModel : WidgetViewModelBase
 {

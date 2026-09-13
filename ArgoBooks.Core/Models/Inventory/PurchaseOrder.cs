@@ -17,13 +17,13 @@ public class PurchaseOrderLineItem
     /// Quantity ordered.
     /// </summary>
     [JsonPropertyName("quantity")]
-    public int Quantity { get; set; }
+    public decimal Quantity { get; set; }
 
     /// <summary>
     /// Quantity received so far.
     /// </summary>
     [JsonPropertyName("quantityReceived")]
-    public int QuantityReceived { get; set; }
+    public decimal QuantityReceived { get; set; }
 
     /// <summary>
     /// Unit cost.

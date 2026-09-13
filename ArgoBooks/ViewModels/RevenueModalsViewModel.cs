@@ -254,7 +254,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
         }
 
         // Put back the stock this sale took, as editing its lines down to nothing would
-        var deleteResults = AdjustInventoryForEdit(companyData, revenue.LineItems, [], revenue.Id, isExpense: false, reason: "Revenue deleted");
+        var deleteResults = AdjustInventoryForEdit(companyData, revenue, revenue.LineItems, [], isExpense: false, reason: "Revenue deleted");
 
         var deletedRevenue = revenue;
         var capturedReceipt = deletedReceipt;
@@ -273,7 +273,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
                 companyData.Revenues.Remove(deletedRevenue);
                 if (capturedReceipt != null)
                     companyData.Receipts.Remove(capturedReceipt);
-                deleteResults = AdjustInventoryForEdit(companyData, deletedRevenue.LineItems, [], deletedRevenue.Id, isExpense: false, reason: "Revenue deleted");
+                deleteResults = AdjustInventoryForEdit(companyData, deletedRevenue, deletedRevenue.LineItems, [], isExpense: false, reason: "Revenue deleted");
                 RaiseTransactionDeleted();
             });
 
@@ -588,7 +588,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
         _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.RevenueCreated);
 
         // Adjust inventory for tracked products
-        var inventoryResults = AdjustInventoryForLineItems(companyData, modelLineItems, revenueId, isExpense: false);
+        var inventoryResults = AdjustInventoryForLineItems(companyData, revenue, modelLineItems, isExpense: false);
 
         var capturedReceipt = receipt;
         var action = new DelegateAction(
@@ -606,7 +606,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
                 companyData.Revenues.Add(revenue);
                 if (capturedReceipt != null)
                     companyData.Receipts.Add(capturedReceipt);
-                inventoryResults = AdjustInventoryForLineItems(companyData, modelLineItems, revenueId, isExpense: false);
+                inventoryResults = AdjustInventoryForLineItems(companyData, revenue, modelLineItems, isExpense: false);
                 RaiseTransactionSaved();
             });
 
@@ -704,7 +704,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
         }
 
         // Adjust inventory with net diff (single adjustment per product)
-        var editResults = AdjustInventoryForEdit(companyData, original.LineItems, modelLineItems, revenue.Id, isExpense: false);
+        var editResults = AdjustInventoryForEdit(companyData, revenue, original.LineItems, modelLineItems, isExpense: false);
 
         var capturedNewReceipt = newReceipt;
         // Snapshot the NEW state so redo restores the edit itself.
@@ -732,7 +732,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
                     companyData.Receipts.Remove(replacedReceipt);
                 if (capturedNewReceipt != null && !companyData.Receipts.Contains(capturedNewReceipt))
                     companyData.Receipts.Add(capturedNewReceipt);
-                editResults = AdjustInventoryForEdit(companyData, original.LineItems, modelLineItems, revenue.Id, isExpense: false);
+                editResults = AdjustInventoryForEdit(companyData, revenue, original.LineItems, modelLineItems, isExpense: false);
                 RaiseTransactionSaved();
             });
 

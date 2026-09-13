@@ -678,6 +678,10 @@ public class CompanyManager : IDisposable
             // totals and the Payment rows that drive them.
             HealInvoiceTotalsIfNeeded(CompanyData);
 
+            // Stock already on hand was expensed when bought, so it must not count as cost of
+            // goods sold again when it sells.
+            StartCostOfGoodsIfNeeded(CompanyData);
+
             CurrentFilePath = filePath;
             _currentPassword = password;
 
@@ -915,6 +919,36 @@ public class CompanyManager : IDisposable
         }
 
         data.Settings.RevenuePaymentsMigratedVersion = RevenuePaymentsMigrationVersion;
+    }
+
+    /// <summary>
+    /// Version of <see cref="StartCostOfGoodsIfNeeded"/>. Changing it sets opening units again.
+    /// </summary>
+    public const string CostOfGoodsStartVersion = "1";
+
+    /// <summary>
+    /// Stock on hand before cost of goods sold began was counted as an expense when it was bought.
+    /// Recording it as opening units lets sales use it up at no cost rather than counting it twice
+    /// (docs/Calculations.md §14).
+    ///
+    /// Same version-marker approach as <see cref="HealInvoiceTotalsIfNeeded"/>. Only a company
+    /// holding stock is flagged for a full save; one without stock has nothing to set aside, so
+    /// running the pass again on a later open changes nothing until it has stock.
+    /// </summary>
+    public static void StartCostOfGoodsIfNeeded(CompanyData data)
+    {
+        ArgumentNullException.ThrowIfNull(data);
+
+        if (data.Settings.CostOfGoodsStartedVersion == CostOfGoodsStartVersion)
+            return;
+
+        foreach (var item in data.Inventory.Where(i => i.InStock > 0))
+        {
+            item.OpeningUnits = item.InStock;
+            data.ChangesMade = true;
+        }
+
+        data.Settings.CostOfGoodsStartedVersion = CostOfGoodsStartVersion;
     }
 
     /// <summary>
@@ -1738,6 +1772,7 @@ public class CompanyManager : IDisposable
                 FileService.JsonOptions)!;
             settings.InvoiceTotalsHealedVersion = onDisk?.InvoiceTotalsHealedVersion;
             settings.RevenuePaymentsMigratedVersion = onDisk?.RevenuePaymentsMigratedVersion;
+            settings.CostOfGoodsStartedVersion = onDisk?.CostOfGoodsStartedVersion;
             settings.BacktestVersion = onDisk?.BacktestVersion;
             settings.LastBacktestedMonth = onDisk?.LastBacktestedMonth;
 

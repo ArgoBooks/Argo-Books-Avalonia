@@ -1,4 +1,5 @@
 using ArgoBooks.Core.Data;
+using ArgoBooks.Core.Models.Inventory;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Charts;
 using ArgoBooks.Core.Models.Common;
@@ -2860,9 +2861,9 @@ public class ReportRenderer : IDisposable
                         "Product" => r.ProductName,
                         "SKU" => r.Sku,
                         "Location" => r.LocationName,
-                        "In Stock" => r.InStock.ToString("N0"),
-                        "Reserved" => r.Reserved.ToString("N0"),
-                        "Available" => r.Available.ToString("N0"),
+                        "In Stock" => StockUnits.Format(r.InStock),
+                        "Reserved" => StockUnits.Format(r.Reserved),
+                        "Available" => StockUnits.Format(r.Available),
                         "Unit Cost" => FormatCurrency(r.UnitCost),
                         "Total" => FormatCurrency(r.TotalValue),
                         "Status" => r.Status,
@@ -2890,9 +2891,9 @@ public class ReportRenderer : IDisposable
                         "Date" => r.Timestamp.ToString("MM/dd/yyyy"),
                         "Product" => r.ProductName,
                         "Type" => r.AdjustmentType,
-                        "Qty" => r.Quantity.ToString("N0"),
-                        "Previous" => r.PreviousStock.ToString("N0"),
-                        "New" => r.NewStock.ToString("N0"),
+                        "Qty" => StockUnits.Format(r.Quantity),
+                        "Previous" => StockUnits.Format(r.PreviousStock),
+                        "New" => StockUnits.Format(r.NewStock),
                         "Reason" => r.Reason,
                         _ => ""
                     }).ToList());
@@ -2905,7 +2906,7 @@ public class ReportRenderer : IDisposable
                         "Product" => r.ProductName,
                         "From" => r.SourceLocation,
                         "To" => r.DestinationLocation,
-                        "Qty" => r.Quantity.ToString("N0"),
+                        "Qty" => StockUnits.Format(r.Quantity),
                         "Status" => r.Status,
                         _ => ""
                     }).ToList());
@@ -2918,7 +2919,7 @@ public class ReportRenderer : IDisposable
                         "ID" => r.OriginalTransactionId,
                         "Product" => r.ProductName,
                         "Category" => r.CategoryName,
-                        "Qty" => r.Quantity.ToString("N0"),
+                        "Qty" => StockUnits.Format(r.Quantity),
                         "Total" => FormatRecordedAmount(r.RefundAmount, r.Currency, r.ReturnDate),
                         "Reason" => r.Reason,
                         "Status" => r.Status,
@@ -2932,7 +2933,7 @@ public class ReportRenderer : IDisposable
                         "Date" => r.ReportedDate.ToString("MM/dd/yyyy"),
                         "Product" => r.ProductName,
                         "Category" => r.CategoryName,
-                        "Qty" => r.Quantity.ToString("N0"),
+                        "Qty" => StockUnits.Format(r.Quantity),
                         "Total" => FormatRecordedAmount(r.EstimatedValue, r.Currency, r.ReportedDate),
                         "Reason" => r.Reason,
                         _ => ""

@@ -35,7 +35,7 @@ public class StockTransfer
     /// Quantity being transferred.
     /// </summary>
     [JsonPropertyName("quantity")]
-    public int Quantity { get; set; }
+    public decimal Quantity { get; set; }
 
     /// <summary>
     /// Date of transfer.

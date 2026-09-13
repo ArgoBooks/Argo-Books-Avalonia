@@ -16,7 +16,7 @@ public static class InventoryValuationService
     /// The signed change in stock this adjustment represents:
     /// Add is positive, Remove is negative, Set is (new - previous).
     /// </summary>
-    public static int SignedDelta(StockAdjustment adjustment) => adjustment.AdjustmentType switch
+    public static decimal SignedDelta(StockAdjustment adjustment) => adjustment.AdjustmentType switch
     {
         AdjustmentType.Add => adjustment.Quantity,
         AdjustmentType.Remove => -adjustment.Quantity,
@@ -33,7 +33,7 @@ public static class InventoryValuationService
     /// DateTime.UtcNow) made on the as-of day itself is INCLUDED, matching the
     /// inclusive end-date semantics of every other report filter. See docs/Calculations.md §10.
     /// </summary>
-    public static int StockOnHandAsOf(
+    public static decimal StockOnHandAsOf(
         InventoryItem item,
         IEnumerable<StockAdjustment> itemAdjustments,
         Func<StockAdjustment, DateTime> effectiveDate,

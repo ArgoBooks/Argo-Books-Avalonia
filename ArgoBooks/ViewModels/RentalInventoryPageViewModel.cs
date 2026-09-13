@@ -269,7 +269,7 @@ public partial class RentalInventoryPageViewModel : SortablePageViewModelBase
 
         foreach (var item in _allItems)
         {
-            var inStock = inventoryLookup.TryGetValue(item.InventoryItemId, out var inv) ? inv.InStock : 0;
+            var inStock = inventoryLookup.TryGetValue(item.InventoryItemId, out var inv) ? (int)inv.InStock : 0;
             totalInStock += inStock;
             if (item.Status == EntityStatus.Inactive)
                 maintenanceInStock += inStock;
@@ -306,7 +306,7 @@ public partial class RentalInventoryPageViewModel : SortablePageViewModelBase
 
         // Helper to get InStock from linked InventoryItem
         int ResolveInStock(RentalItem item) =>
-            inventoryLookup.TryGetValue(item.InventoryItemId, out var inv) ? inv.InStock : 0;
+            inventoryLookup.TryGetValue(item.InventoryItemId, out var inv) ? (int)inv.InStock : 0;
 
         // Helper to get SupplierId from linked Product
         string? ResolveSupplierId(RentalItem item)

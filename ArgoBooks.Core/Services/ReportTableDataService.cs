@@ -817,11 +817,14 @@ public class ReportTableDataService(CompanyData? companyData, ReportFilters filt
         };
 
         // Calculate revenue statistics (using USD-converted pre-tax amounts)
+        decimal costOfGoods = 0, operatingExpenses = 0;
+
         if (companyData?.Revenues != null &&
             filters.TransactionType is TransactionType.Revenue)
         {
             var sales = companyData.Revenues.Where(s => s.Date >= startDate && s.Date <= endDate).ToList();
             stats.TotalRevenue = sales.Sum(s => s.EffectiveSubtotalUSD);
+            costOfGoods = sales.Sum(CostOfGoodsAggregator.CostOfGoodsSoldUSD);
             stats.RevenueTransactionCount = sales.Count;
             stats.AverageRevenueTransaction = sales.Count > 0 ? stats.TotalRevenue / sales.Count : 0;
             stats.LargestRevenue = sales.Count > 0 ? sales.Max(s => s.EffectiveSubtotalUSD) : 0;
@@ -837,6 +840,7 @@ public class ReportTableDataService(CompanyData? companyData, ReportFilters filt
         {
             var purchases = companyData.Expenses.Where(p => p.Date >= startDate && p.Date <= endDate).ToList();
             stats.TotalExpenses = purchases.Sum(p => p.EffectiveTotalUSD);
+            operatingExpenses = purchases.Sum(CostOfGoodsAggregator.OperatingExpenseUSD);
             stats.ExpenseTransactionCount = purchases.Count;
             stats.AverageExpenseTransaction = purchases.Count > 0 ? stats.TotalExpenses / purchases.Count : 0;
             stats.LargestExpense = purchases.Count > 0 ? purchases.Max(p => p.EffectiveTotalUSD) : 0;
@@ -844,7 +848,8 @@ public class ReportTableDataService(CompanyData? companyData, ReportFilters filt
         }
 
         // Calculate profit
-        stats.NetProfit = stats.TotalRevenue - stats.TotalExpenses;
+        // Tracked stock bought is not an expense until it sells, as cost of goods sold (Calculations.md §14).
+        stats.NetProfit = stats.TotalRevenue - operatingExpenses - costOfGoods;
         stats.ProfitMargin = stats.TotalRevenue > 0 ? (stats.NetProfit / stats.TotalRevenue) * 100 : 0;
 
         // Calculate returns statistics
@@ -1156,9 +1161,9 @@ public class InventoryTableRow
     public string ProductName { get; set; } = string.Empty;
     public string Sku { get; set; } = string.Empty;
     public string LocationName { get; set; } = string.Empty;
-    public int InStock { get; set; }
-    public int Reserved { get; set; }
-    public int Available { get; set; }
+    public decimal InStock { get; set; }
+    public decimal Reserved { get; set; }
+    public decimal Available { get; set; }
     public decimal UnitCost { get; set; }
     public decimal TotalValue { get; set; }
     public string Status { get; set; } = string.Empty;
@@ -1186,9 +1191,9 @@ public class StockAdjustmentTableRow
     public string Id { get; set; } = string.Empty;
     public string ProductName { get; set; } = string.Empty;
     public string AdjustmentType { get; set; } = string.Empty;
-    public int Quantity { get; set; }
-    public int PreviousStock { get; set; }
-    public int NewStock { get; set; }
+    public decimal Quantity { get; set; }
+    public decimal PreviousStock { get; set; }
+    public decimal NewStock { get; set; }
     public string Reason { get; set; } = string.Empty;
     public DateTime Timestamp { get; set; }
 }
@@ -1202,7 +1207,7 @@ public class StockTransferTableRow
     public string ProductName { get; set; } = string.Empty;
     public string SourceLocation { get; set; } = string.Empty;
     public string DestinationLocation { get; set; } = string.Empty;
-    public int Quantity { get; set; }
+    public decimal Quantity { get; set; }
     public DateTime TransferDate { get; set; }
     public string Status { get; set; } = string.Empty;
 }

@@ -216,7 +216,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
         }
 
         // Take back the stock this expense added, as editing its lines down to nothing would
-        var deleteResults = AdjustInventoryForEdit(companyData, expense.LineItems, [], expense.Id, isExpense: true, reason: "Expense deleted");
+        var deleteResults = AdjustInventoryForEdit(companyData, expense, expense.LineItems, [], isExpense: true, reason: "Expense deleted");
 
         var deletedExpense = expense;
         var capturedReceipt = deletedReceipt;
@@ -235,7 +235,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
                 companyData.Expenses.Remove(deletedExpense);
                 if (capturedReceipt != null)
                     companyData.Receipts.Remove(capturedReceipt);
-                deleteResults = AdjustInventoryForEdit(companyData, deletedExpense.LineItems, [], deletedExpense.Id, isExpense: true, reason: "Expense deleted");
+                deleteResults = AdjustInventoryForEdit(companyData, deletedExpense, deletedExpense.LineItems, [], isExpense: true, reason: "Expense deleted");
                 RaiseTransactionDeleted();
             });
 
@@ -557,7 +557,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
         _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ExpenseCreated);
 
         // Adjust inventory for tracked products
-        var inventoryResults = AdjustInventoryForLineItems(companyData, modelLineItems, expenseId, isExpense: true);
+        var inventoryResults = AdjustInventoryForLineItems(companyData, expense, modelLineItems, isExpense: true);
 
         var capturedReceipt = receipt;
         var action = new DelegateAction(
@@ -575,7 +575,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
                 companyData.Expenses.Add(expense);
                 if (capturedReceipt != null)
                     companyData.Receipts.Add(capturedReceipt);
-                inventoryResults = AdjustInventoryForLineItems(companyData, modelLineItems, expenseId, isExpense: true);
+                inventoryResults = AdjustInventoryForLineItems(companyData, expense, modelLineItems, isExpense: true);
                 RaiseTransactionSaved();
             });
 
@@ -672,7 +672,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
         }
 
         // Adjust inventory with net diff (single adjustment per product)
-        var editResults = AdjustInventoryForEdit(companyData, original.LineItems, modelLineItems, expense.Id, isExpense: true);
+        var editResults = AdjustInventoryForEdit(companyData, expense, original.LineItems, modelLineItems, isExpense: true);
 
         var capturedNewReceipt = newReceipt;
         // Snapshot the NEW state so redo restores the edit itself.
@@ -700,7 +700,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
                     companyData.Receipts.Remove(replacedReceipt);
                 if (capturedNewReceipt != null && !companyData.Receipts.Contains(capturedNewReceipt))
                     companyData.Receipts.Add(capturedNewReceipt);
-                editResults = AdjustInventoryForEdit(companyData, original.LineItems, modelLineItems, expense.Id, isExpense: true);
+                editResults = AdjustInventoryForEdit(companyData, expense, original.LineItems, modelLineItems, isExpense: true);
                 RaiseTransactionSaved();
             });
 
