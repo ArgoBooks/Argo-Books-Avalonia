@@ -1316,12 +1316,13 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
         if (!revenue.IsPendingConversion)
             return;
 
+        // Dated on the return, but the money came in with the invoice, so it waits for the invoice's rate.
         var entry = new PendingConversion
         {
             TransactionId = revenue.Id,
             TransactionType = "Revenue",
             OriginalCurrency = revenue.OriginalCurrency,
-            TransactionDate = revenue.Date,
+            TransactionDate = companyData.GetInvoice(revenue.InvoiceId ?? "")?.IssueDate ?? revenue.Date,
             Total = revenue.Total,
             UnitPrice = revenue.UnitPrice
         };

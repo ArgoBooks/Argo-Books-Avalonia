@@ -140,6 +140,29 @@ public class RentalRecordsModalsViewModelTests : ModalViewModelTestBase
         Assert.Empty(Company.Revenues);
     }
 
+    // The deposit came in with the invoice, so it is priced at the invoice's rate. When that rate
+    // isn't in yet, the kept deposit waits for the same date rather than taking the return day's.
+    [Fact]
+    public void ReturnRental_KeepingADepositOnAnInvoiceWaitingForItsRate_WaitsForTheInvoicesDate()
+    {
+        var record = SeedActiveRental();
+        var issued = DateTime.Today.AddMonths(-3);
+        Company.Invoices.Add(new Invoice
+        {
+            Id = "INV-1", InvoiceNumber = "INV-1", CustomerId = "CUST-1", OriginalCurrency = "EUR",
+            IssueDate = issued, Subtotal = 50m, SecurityDeposit = 20m, Total = 70m,
+            AmountPaid = 70m, Status = InvoiceStatus.Paid, IsPendingConversion = true
+        });
+        record.InvoiceIds.Add("INV-1");
+
+        Return(new RentalRecordsModalsViewModel(), refundDeposit: false);
+
+        var kept = Assert.Single(Company.Revenues);
+        Assert.True(kept.IsPendingConversion);
+        var queued = Assert.Single(Company.PendingConversions);
+        Assert.Equal((kept.Id, issued), (queued.TransactionId, queued.TransactionDate));
+    }
+
     private InventoryItem SeedRentableStock(int inStock)
     {
         Company.Customers.Add(new Customer { Id = "CUST-1", Name = "Bob" });
