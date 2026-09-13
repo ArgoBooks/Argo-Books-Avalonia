@@ -5,9 +5,7 @@ using Xunit;
 namespace ArgoBooks.Tests.Services;
 
 /// <summary>
-/// This month, quarter or year covers only the days so far. The dashboard compared it with the
-/// whole previous period (about -65% "from last month" on Sep 11 with steady sales), and Analytics
-/// with the same number of days just before, under the same label.
+/// This month, quarter or year covers only the days so far.
 /// </summary>
 public class ComparisonPeriodTests
 {

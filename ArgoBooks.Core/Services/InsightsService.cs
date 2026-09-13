@@ -988,7 +988,7 @@ public class InsightsService(
             .ToList();
 
         // First inventory row per product, computed once, so the velocity loop below doesn't
-        // rescan all Inventory for each product (matches the previous FirstOrDefault semantics).
+        // rescan all Inventory for each product.
         var inventoryByProductId = companyData.Inventory
             .Where(i => !string.IsNullOrEmpty(i.ProductId))
             .GroupBy(i => i.ProductId)
@@ -1408,9 +1408,7 @@ public class InsightsService(
 
     private static int GetWeekNumber(DateTime date)
     {
-        // ISO 8601 weeks are always a full 7 days. The previous date.DayOfYear / 7 produced uneven
-        // buckets (a 1-6 day "week 0" at the start of each year and a short final bucket), which
-        // skewed the weekly anomaly baseline near year boundaries. GetYear is the ISO week-year so the
+        // ISO 8601 weeks are always a full 7 days. GetYear is the ISO week-year so the
         // key stays consistent for dates that ISO-belong to an adjacent calendar year.
         return System.Globalization.ISOWeek.GetYear(date) * 100 + System.Globalization.ISOWeek.GetWeekOfYear(date);
     }

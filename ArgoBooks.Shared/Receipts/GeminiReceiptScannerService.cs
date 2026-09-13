@@ -31,7 +31,7 @@ public class GeminiReceiptScannerService(
     /// photo, occasionally followed by a second verification pass. Observed successful scans
     /// reach 85 seconds, so HttpClient's 100-second default sat barely above the working
     /// range and gave up on calls that would have completed. Every other client in the app
-    /// picks its own timeout; this one was the last inheriting the default by accident.
+    /// picks its own timeout.
     /// </summary>
     private static readonly TimeSpan ScanTimeout = TimeSpan.FromSeconds(180);
 
@@ -146,9 +146,7 @@ Rules:
             var result = ParseResponse(response.Content);
 
             // A scan can come back unusable without anything throwing, which is why these
-            // report themselves. Until now every one of them looked identical on the
-            // dashboard: a single success=false with no reason attached, indistinguishable
-            // from a timeout or a dead upstream.
+            // report themselves.
             if (!result.IsSuccess)
             {
                 // Covers both "the model says this is not a receipt" and "the response would
@@ -192,7 +190,7 @@ Rules:
         {
             // One exception type, two very different events. A user who pressed Cancel is
             // not a failure and must not be reported as one; only the client giving up on
-            // its own is worth knowing about, and that one used to vanish silently.
+            // its own is worth knowing about.
             if (cancellationToken.IsCancellationRequested)
             {
                 return ReceiptScanResult.Failed("Scan cancelled.");
@@ -472,9 +470,7 @@ If nothing was missed, return: {{""missingItems"": []}}";
             return new VisionResponse(contentProp.GetString(), null, null);
         }
 
-        // A 200 that still says no. This used to return null without logging anything at all,
-        // so the one failure mode with no HTTP status to point at was also the only one that
-        // left no trace.
+        // A 200 that still says no.
         (string? message, string? code) = ReadServerError(responseBody);
 
         errorLogger?.LogError(
@@ -517,8 +513,7 @@ If nothing was missed, return: {{""missingItems"": []}}";
     /// <summary>
     /// What the proxy said: the content on success, or the reason it refused.
     ///
-    /// A plain string cannot carry a refusal, which is how the server's explanation was being
-    /// lost. <see cref="Code"/> is separate from <see cref="Message"/> because the caller shows
+    /// A plain string cannot carry a refusal. <see cref="Code"/> is separate from <see cref="Message"/> because the caller shows
     /// one and branches on the other.
     /// </summary>
     private sealed record VisionResponse(string? Content, string? Message, string? Code);

@@ -150,9 +150,7 @@ public class TypedLineItemTests : ModalViewModelTestBase
     }
 
     /// <summary>
-    /// Product names are unique across both sides, which the product form enforces. The expense
-    /// form only lists expense products, so a revenue product's name matched nothing there and
-    /// was created a second time, after which neither product could be edited.
+    /// Product names are unique across both sides, which the product form enforces.
     /// </summary>
     [Fact]
     public async Task ANameAlreadyUsedByARevenueProduct_IsNotCreatedTwice()

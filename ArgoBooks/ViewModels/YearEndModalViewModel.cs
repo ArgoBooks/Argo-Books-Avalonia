@@ -675,7 +675,7 @@ public partial class YearEndModalViewModel : ViewModelBase
     ///
     /// Every field has to be carried across. A field left off is not a compile error and not
     /// visible anywhere in the app: it is an element CRA rejects the submission over, months
-    /// later. The contact email was missing from here once, which rejected every filing.
+    /// later.
     /// </summary>
     public T4Return? BuildFilingReturn() => _return == null ? null : new T4Return
     {

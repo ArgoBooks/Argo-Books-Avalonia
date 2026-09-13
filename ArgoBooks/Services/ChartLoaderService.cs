@@ -440,10 +440,6 @@ public class ChartLoaderService
     }
 
     /// <summary>
-    /// Creates X-axis configuration for a cartesian chart with proportional date spacing.
-    /// Uses LiveCharts' native label stepping for smooth resize behavior.
-    /// </summary>
-    /// <summary>
     /// Creates the date X-axis for a time-series chart. For 2+ points the axis is left to AUTO-FIT
     /// (null limits): pinning explicit MinLimit/MaxLimit made LiveCharts (with ZoomMode enabled)
     /// render a stale/wrong visible range on load that only "Reset Zoom" (which nulls the limits)

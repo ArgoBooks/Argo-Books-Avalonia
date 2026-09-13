@@ -234,8 +234,7 @@ public class ReportChartDataServiceTests
     private static double SumOf(List<Core.Models.Charts.ChartSeriesData> series, string name) =>
         series.Where(s => s.Name == name).SelectMany(s => s.DataPoints).Sum(p => p.Value);
 
-    // A sale entered in the afternoon of a month's last day belongs to that month. The month buckets
-    // ended at midnight that morning, so it was left out of every one of them.
+    // A sale entered in the afternoon of a month's last day belongs to that month.
     [Fact]
     public void MonthBuckets_IncludeTheWholeLastDayOfTheMonth()
     {

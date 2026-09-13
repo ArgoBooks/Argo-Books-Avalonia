@@ -9,7 +9,7 @@ using Xunit;
 namespace ArgoBooks.Tests.Services;
 
 /// <summary>
-/// Task 2B-2: when a transaction references a customer/supplier by NAME (not an existing id),
+/// When a transaction references a customer/supplier by NAME (not an existing id),
 /// the importer links to the matching existing record instead of creating a placeholder stub.
 /// Ambiguous/unmatched references keep the placeholder behavior but are reported as warnings,
 /// and are never mis-linked to a guess.

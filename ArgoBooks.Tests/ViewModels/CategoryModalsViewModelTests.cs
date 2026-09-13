@@ -40,8 +40,6 @@ public class CategoryModalsViewModelTests : ModalViewModelTestBase
         }
     }
 
-    // "Delete All" removed the subcategories without checking them, so a product filed under one
-    // pointed at a category that no longer existed and dropped off the Products page.
     [Fact]
     public void DeleteAll_SubcategoryUsedByAProduct_IsRefused()
     {

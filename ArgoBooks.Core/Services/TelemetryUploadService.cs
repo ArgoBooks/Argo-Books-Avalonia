@@ -317,7 +317,7 @@ public class TelemetryUploadService : ITelemetryUploadService
             // It does not strip file names: a message naming D:\Books\Acme.argo, or
             // C:\Users\<user>\Books\Acme.argo, arrives with Acme.argo intact, and
             // customers name company files after the business. Every uploaded Error
-            // carries a message, not just the warnings this was added for.
+            // carries a message.
             // Warnings need it: their code alone rarely says what actually happened.
             message = err.Message,
             sourceFile = err.SourceFile,

@@ -10,9 +10,7 @@ using Xunit;
 namespace ArgoBooks.Tests.Services;
 
 /// <summary>
-/// A security deposit is held for the customer, not earned (docs/Calculations.md §4). Revenue from
-/// an invoice counted it, so a $500 rental with a $200 deposit showed $700 of revenue and profit,
-/// and nothing took it back off when the deposit was returned.
+/// A security deposit is held for the customer, not earned (docs/Calculations.md §4).
 /// </summary>
 public class SecurityDepositTests
 {

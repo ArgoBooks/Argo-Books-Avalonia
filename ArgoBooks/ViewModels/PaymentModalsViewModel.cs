@@ -364,8 +364,7 @@ public partial class PaymentModalsViewModel : ViewModelBase
 
     /// <summary>
     /// The payment's USD figure at its own date's rate, or pending when there is none: future
-    /// dated, offline, or no rate service. The foreign amount used to stand in as the USD figure,
-    /// so a ¥50,000 payment counted as $50,000 (docs/Calculations.md Rule 3a).
+    /// dated, offline, or no rate service (docs/Calculations.md Rule 3a).
     /// </summary>
     private static async Task<(decimal AmountUSD, bool IsPending)> ConvertToUsdAsync(decimal amount, string currency, DateTime date)
     {

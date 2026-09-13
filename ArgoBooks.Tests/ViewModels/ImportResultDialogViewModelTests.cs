@@ -5,7 +5,7 @@ using Xunit;
 namespace ArgoBooks.Tests.ViewModels;
 
 /// <summary>
-/// Tests for ImportResultDialogViewModel focusing on the unimported-rows surface (Task 1A-2).
+/// Tests for ImportResultDialogViewModel focusing on the unimported-rows surface.
 /// </summary>
 public class ImportResultDialogViewModelTests
 {

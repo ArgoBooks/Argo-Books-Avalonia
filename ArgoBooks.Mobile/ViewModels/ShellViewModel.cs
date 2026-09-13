@@ -271,7 +271,7 @@ public partial class ShellViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Task 6's offline-capture follow-up, review-gated: walks the receipts captured while offline
+    /// Offline-capture follow-up, review-gated: walks the receipts captured while offline
     /// through the SAME scan -> review -> confirm flow as an online capture, one at a time, so no
     /// unreviewed AI extraction is ever posted to the books. Invoked from the Capture tab's "Review
     /// now" prompt once connectivity is back (CaptureViewModel gates on network first).

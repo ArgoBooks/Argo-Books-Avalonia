@@ -8,9 +8,7 @@ namespace ArgoBooks.Tests.Services;
 /// <summary>
 /// Employees and pay runs survive a save and a reopen.
 ///
-/// Both lists were on CompanyData and every payroll screen read and wrote them happily, but
-/// neither was ever written to the .argo file. Nothing failed and nothing warned: the data was
-/// simply gone on the next open. A round trip is the only shape of test that catches an absent
+/// A round trip is the only shape of test that catches an absent
 /// write, because every in-memory assertion passes without it.
 /// </summary>
 public class PayrollPersistenceTests : IDisposable

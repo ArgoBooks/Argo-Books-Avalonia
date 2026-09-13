@@ -7,11 +7,10 @@ namespace ArgoBooks.Core.Services;
 /// Single point of truth for recomputing the stored totals on an
 /// <see cref="Invoice"/> from its <see cref="Payment"/> rows.
 ///
-/// Historically these fields were updated inline by every code path that
-/// added a payment (portal sync, spreadsheet import, manual entry). That
-/// scattering let stored totals drift if any path forgot to update one of
-/// the fields. Anything that mutates an invoice's payments should now
-/// call <see cref="RecalculateFromPayments"/> followed by
+/// Payments are added from several places (portal sync, spreadsheet import,
+/// manual entry), and a path that updates the fields itself can miss one and
+/// let the stored totals drift. Anything that mutates an invoice's payments
+/// should call <see cref="RecalculateFromPayments"/> followed by
 /// <see cref="RecalculateStatus"/>.
 ///
 /// See docs/Calculations.md §5 for the field semantics.

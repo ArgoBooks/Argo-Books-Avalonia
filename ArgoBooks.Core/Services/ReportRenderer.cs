@@ -2697,9 +2697,7 @@ public class ReportRenderer : IDisposable
                         continue;
                     }
                     // Strip the company's actual currency symbol (plus the common ones) and grouping
-                    // separators, then parse invariantly. The old code only stripped $, €, and £, so a
-                    // company on any other currency (¥, ₹, CHF, ...) produced an unparseable string and
-                    // every total showed 0.
+                    // separators, then parse invariantly.
                     var cleanText = text
                         .Replace(_currencySymbol, "")
                         .Replace("$", "").Replace("€", "").Replace("£", "")

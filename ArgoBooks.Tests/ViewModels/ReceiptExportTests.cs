@@ -5,8 +5,7 @@ using Xunit;
 namespace ArgoBooks.Tests.ViewModels;
 
 /// <summary>
-/// Export writes the stored receipt file. A PDF used to be exported as its rendered page-1 JPEG
-/// under a .pdf name, which PDF readers can't open and which dropped every other page.
+/// Export writes the stored receipt file.
 /// </summary>
 public class ReceiptExportTests
 {

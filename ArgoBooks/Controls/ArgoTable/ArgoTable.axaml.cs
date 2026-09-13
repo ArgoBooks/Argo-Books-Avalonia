@@ -33,7 +33,7 @@ public partial class ArgoTable : UserControl, INotifyPropertyChanged
     /// search box rather than trailing the title.
     ///
     /// For a status a page wants visible without it becoming a control: a count, an allowance, a
-    /// last-synced time. The column already existed and was empty, so this costs no layout.
+    /// last-synced time.
     /// </summary>
     public static readonly StyledProperty<object?> HeaderInfoContentProperty =
         AvaloniaProperty.Register<ArgoTable, object?>(nameof(HeaderInfoContent));

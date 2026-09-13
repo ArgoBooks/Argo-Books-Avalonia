@@ -7,9 +7,7 @@ using Xunit;
 namespace ArgoBooks.Tests.Services;
 
 /// <summary>
-/// An expenses sheet with no ID column must still import every distinct row. Before the fix, a blank
-/// ID matched every other blank-ID row, so the first imported and the rest were skipped as "already
-/// exists" (or collapsed via update) — leaving only one expense.
+/// An expenses sheet with no ID column must still import every distinct row.
 /// </summary>
 public class ExpenseImportIdGenerationTests
 {

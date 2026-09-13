@@ -168,7 +168,7 @@ public static class ImportSchemaDefinition
                 // Two different values. ID is what payments and line items point at; Invoice # is
                 // what the customer sees on the paperwork, and in this app it is the id with a
                 // hash in front. A sheet that only has Invoice # still works: the importer falls
-                // back to it for the id, which is what it always used to do.
+                // back to it for the id.
                 new("ID", "string", "Unique identifier (e.g., INV-2024-00001)", JsonName: "id"),
                 new("Invoice #", "string", "Invoice number shown on the invoice (e.g., #INV-2024-00001). Used as the identifier when there is no ID column", Required: true, JsonName: "invoiceNumber"),
                 new("Customer ID", "string", "Customer identifier", Required: true, JsonName: "customerId"),

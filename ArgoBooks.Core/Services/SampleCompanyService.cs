@@ -460,8 +460,6 @@ public class SampleCompanyService
         foreach (var rental in newRentals)
         {
             data.Rentals.Add(rental);
-
-            // Stock is now tracked via the linked InventoryItem, no local quantity fields on RentalItem
         }
 
         // Update the ID counter

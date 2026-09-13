@@ -84,7 +84,7 @@ public class InvoiceModalsViewModelTests : ModalViewModelTestBase
         var vm = new InvoiceModalsViewModel();
         vm.OpenCreateModal();
         vm.SelectedCustomer = vm.CustomerOptions.First(c => c.Id == "CUST-1");
-        // Issue Jan 1, due Jan 16 -> a 15-day term, not the old hardcoded Net 30.
+        // Issue Jan 1, due Jan 16 -> a 15-day term.
         vm.ModalIssueDate = new DateTimeOffset(new DateTime(2026, 1, 1), TimeSpan.Zero);
         vm.ModalDueDate = new DateTimeOffset(new DateTime(2026, 1, 16), TimeSpan.Zero);
         vm.IsRecurring = true;

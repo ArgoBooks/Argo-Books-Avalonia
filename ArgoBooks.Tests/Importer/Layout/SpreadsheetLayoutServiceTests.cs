@@ -10,7 +10,7 @@ namespace ArgoBooks.Tests.Importer.Layout;
 /// service's JSON parsing and the end-to-end deterministic half (descriptor ->
 /// <see cref="GridExtractor"/>) using a fake <see cref="IGeminiService"/> that
 /// returns a canned <see cref="LayoutDescriptor"/> JSON. The real AI quality is
-/// judged separately behind a feature flag (Task 5); these tests only validate
+/// judged separately behind a feature flag; these tests only validate
 /// that a well-formed model answer is parsed and applied correctly, and that
 /// null/empty/malformed answers fall back to a null descriptor.
 /// </summary>

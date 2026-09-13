@@ -83,8 +83,7 @@ public class ReportTableDataServiceTests
     #region Multi-currency amount tests
 
     // Report tables store USD-normalized amounts (the renderer converts them to the display currency
-    // at each row's date). Previously the foreign-currency native amount was stored and rendered with
-    // the display symbol stamped on it, so e.g. a 100 EUR invoice read as "$100.00".
+    // at each row's date).
 
     [Fact]
     public void GetInvoicesTableData_ForeignCurrencyInvoice_StoresUsdNormalizedAmounts()
@@ -307,7 +306,6 @@ public class ReportTableDataServiceTests
     #region Shipping
 
     // The Shipping cell sits beside Total, which is converted from the USD base at the row's date.
-    // Shipping was kept in the native currency and shown with the company's symbol.
 
     [Fact]
     public void GetRevenueTableData_ForeignCurrencyShipping_StoresUsdNormalizedShipping()

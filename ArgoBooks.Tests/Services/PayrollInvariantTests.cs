@@ -370,12 +370,6 @@ public class PayrollInvariantTests
         // 62,400 divides evenly into all four frequencies, so any difference here is the
         // engine's rather than an artefact of an uneven period amount.
         //
-        // This test earned its keep. It first failed at a spread of $5.35, which looked like
-        // an acceptable tolerance question and was not: the K2 credit was projecting the
-        // year's CPP from the year-to-date figure, so the projection reached the annual
-        // maximum at a different point in the year for twelve periods than for fifty-two.
-        // PDOC settled it, the year-to-date term came out, and the spread fell to $0.36.
-        //
         // A dollar is the bound because that is what per-period rounding can produce across
         // fifty-two periods. Anything larger means the annualisation has become sensitive to
         // something it should not see.

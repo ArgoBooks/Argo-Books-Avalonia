@@ -10,8 +10,6 @@ namespace ArgoBooks.Tests.Services;
 ///
 /// BuildSummary writes the company's province, postal code and country into the same coded
 /// fields it writes an employee's, and CRA rejects a two-letter code that is not a province.
-/// Only the slips were being checked, so a company that typed "Alberta" into a free-text box
-/// saw no problems, filed, and had the whole submission rejected on a province code of "AL".
 /// </summary>
 public class T4EmployerAddressTests
 {

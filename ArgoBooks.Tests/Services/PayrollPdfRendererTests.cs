@@ -12,7 +12,7 @@ namespace ArgoBooks.Tests.Services;
 /// These exist because a QuestPDF composition error is a runtime exception, not a compile error.
 /// An unbalanced column, a negative width, a text span outside its container: all of it builds
 /// fine and throws the first time somebody clicks Download, which for the T4 is once a year at
-/// the filing deadline. Both renderers had no test at all and sat at zero coverage.
+/// the filing deadline.
 ///
 /// Deliberately shallow. They assert that a document composes and produces bytes, not what it
 /// looks like. The figures on the page come from the stored pay run line and are pinned by the
@@ -182,7 +182,7 @@ public class PayrollPdfRendererTests
     [Fact]
     public void AT4SlipWithNoSinAndNoAddress_Renders()
     {
-        // Both are formatted conditionally, and a missing SIN no longer blocks filing, so this
+        // Both are formatted conditionally, and a missing SIN does not block filing, so this
         // slip really does get produced.
         CompanyData data = Company();
         T4Return t4 = BuiltT4(data);

@@ -39,8 +39,7 @@ public partial class EmployeesTableColumnWidths : TableColumnWidthsBase
         RegisterColumn("PayRate", new ColumnDef { StarValue = 0.9, MinWidth = 110, PreferredWidth = 130 }, w => PayRateColumnWidth = w);
         RegisterColumn("Frequency", new ColumnDef { StarValue = 0.9, MinWidth = 110, PreferredWidth = 130 }, w => FrequencyColumnWidth = w);
         RegisterColumn("Status", new ColumnDef { StarValue = 0.7, MinWidth = 90, PreferredWidth = 110 }, w => StatusColumnWidth = w);
-        // Three: edit, Record of Employment, archive. Sized for two, the archive button was
-        // clipped off the end of the row with nothing to show it was there.
+        // Three: edit, Record of Employment, archive.
         RegisterColumn("Actions", new ColumnDef { IsFixed = true, FixedWidth = ActionsWidth(3), MinWidth = ActionsWidth(3) }, w => ActionsColumnWidth = w);
     }
 }

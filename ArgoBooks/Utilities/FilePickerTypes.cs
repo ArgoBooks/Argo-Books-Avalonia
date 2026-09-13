@@ -23,8 +23,7 @@ public static class FilePickerTypes
     ///
     /// <para>
     /// The one place this is written down. The picker filters, the drag and drop validation,
-    /// the content type sent with a scan and the wording on screen are all derived from it,
-    /// because they were four separate lists and HEIC reached three of them.
+    /// the content type sent with a scan and the wording on screen are all derived from it.
     /// </para>
     /// </summary>
     private static readonly ReceiptFormat[] ReceiptFormats =

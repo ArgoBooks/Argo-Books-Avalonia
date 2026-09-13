@@ -2663,8 +2663,8 @@ public partial class App : Application
         var importService = new SpreadsheetImportService(ErrorLogger, TelemetryManager, geminiService);
 
         // Drive the analysis bar from the learned duration estimate (smooth easing toward the pooled
-        // p50/p90, asymptoting near the ceiling and completing when the call returns) instead of the
-        // old fake timer that crawled to 95% and stalled. The service reports only the status detail.
+        // p50/p90, asymptoting near the ceiling and completing when the call returns).
+        // The service reports only the status detail.
         var analysisDetail = "Reading file...".Translate();
         using var analysisTicker = new EstimatedProgressTicker(
             OperationKind.SpreadsheetAnalysis,

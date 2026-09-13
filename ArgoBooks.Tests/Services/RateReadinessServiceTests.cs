@@ -75,8 +75,7 @@ public class RateReadinessServiceTests
 
         Assert.Equal(RateReadinessStatus.Unavailable, result.Status);
         Assert.Equal(RateUnavailableReason.RateLimited, result.Reason);
-        // The whole fix: a 429 makes exactly ONE request (the batch) and stops. Before the fix this
-        // batch failure fanned out to per-date requests (1 + 3 retries here), worsening the lockout.
+        // A 429 makes exactly ONE request (the batch) and stops.
         Assert.Equal(1, handler.RequestCount);
     }
 

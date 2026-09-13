@@ -226,10 +226,7 @@ public partial class PayRunsPageViewModel : SortablePageViewModelBase
     /// <summary>
     /// Opens the run's stubs in the viewer, one employee at a time, picked by name.
     ///
-    /// Each stub is composed only when it is selected. Rendering the whole run up front meant a
-    /// hundred employees produced a hundred PDF pages and a hundred rasterised images before
-    /// anything appeared, to fill a scroll bar nobody could navigate. Opening a run of a hundred
-    /// now costs the same as opening a run of one.
+    /// Each stub is composed only when it is selected.
     ///
     /// Still separate from downloading. This is for checking a figure on screen; the download
     /// writes one file per person, because that is what gets handed over and nobody should

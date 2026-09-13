@@ -3890,9 +3890,8 @@ public partial class SettingsModalViewModel : ViewModelBase
         var result = await refundService.SetInitialOwnerEmailAsync(email);
 
         // Recovery path: server says email is already set on the company,
-        // but the local .argo doesn't have it (likely because an earlier
-        // Set succeeded server-side before the local-persist fix landed).
-        // The 409 response now includes the existing email, if it matches
+        // but the local .argo doesn't have it.
+        // The 409 response includes the existing email, if it matches
         // what the user just typed, silently reconcile local state. If it
         // differs, surface the existing email so the user can act.
         if (!result.Ok && result.ErrorCode == "OWNER_EMAIL_ALREADY_SET")

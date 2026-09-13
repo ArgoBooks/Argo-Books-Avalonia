@@ -7,8 +7,7 @@ namespace ArgoBooks.Tests.Services;
 /// <summary>
 /// Regression: every stock adjustment in the sample company must resolve to a real product
 /// through InventoryItemId -> InventoryItem.ProductId -> Product. Guards against the importer
-/// collapsing two real, distinctly-id'd products that happen to share a name (which used to
-/// overwrite the first product's id and orphan inventory pointing at it).
+/// collapsing two real, distinctly-id'd products that happen to share a name.
 /// </summary>
 public class SampleInventoryResolutionTests
 {

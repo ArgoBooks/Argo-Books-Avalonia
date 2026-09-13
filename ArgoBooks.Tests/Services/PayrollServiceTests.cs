@@ -143,7 +143,7 @@ public class PayrollServiceTests
         // Note this goes through Void() rather than setting the status by hand. The reversal
         // is half the mechanism: the voided run still counts, and the reversal's negative
         // amounts are what cancel it. A Void status on its own is not a state the service can
-        // produce, and testing it in isolation was what hid the double subtraction.
+        // produce.
         CompanyData data = DataWithEmployee();
         data.PayRuns.Add(ApprovedRun("PR-0001", new DateTime(2026, 1, 9), "EMP-001", 2000m, 110.99m, 32.60m));
 

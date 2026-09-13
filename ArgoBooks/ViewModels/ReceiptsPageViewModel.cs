@@ -43,8 +43,7 @@ public partial class ReceiptsPageViewModel : ViewModelBase, ICleanupViewModel
     ///
     /// Distinct from the AI Scanned stat card, which counts receipts in this company file that
     /// were scanned at any time. This is the monthly allowance the server meters, which is what
-    /// actually decides whether the next scan works, and until now the only place it appeared was
-    /// inside the bulk scan modal after the file picker.
+    /// actually decides whether the next scan works.
     ///
     /// Empty rather than "0 of 0" while it is unknown, and the label hides itself: an offline
     /// moment showing zero remaining would read as an exhausted allowance.
@@ -522,8 +521,7 @@ public partial class ReceiptsPageViewModel : ViewModelBase, ICleanupViewModel
 
             // Every failure path in CheckUsageAsync returns a zero limit, so a hidden label and a
             // genuine "no allowance configured" look identical from here. Recorded rather than
-            // swallowed, because a label that silently never appears is the same trap the receipt
-            // scanner's "No response from the AI service" was.
+            // swallowed.
             App.ErrorLogger?.LogWarning(
                 $"Scan usage unavailable: {usage.ErrorMessage ?? "no limit returned"}",
                 "ReceiptsPageViewModel.RefreshScanUsageAsync",

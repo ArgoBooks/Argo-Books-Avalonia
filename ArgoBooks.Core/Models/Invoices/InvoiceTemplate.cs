@@ -161,9 +161,7 @@ public class InvoiceTemplate
     [JsonPropertyName("showItemDescriptions")]
     public bool ShowItemDescriptions { get; set; } = true;
 
-    // No "show notes" setting: the customer message renders in the invoice footer, always. A
-    // template-level toggle for it was saved and shown in the designer for a while but never
-    // reached the rendered invoice either way.
+    // No "show notes" setting: the customer message renders in the invoice footer, always.
 
     /// <summary>
     /// Whether to show payment instructions.
@@ -176,9 +174,6 @@ public class InvoiceTemplate
     /// </summary>
     [JsonPropertyName("showDueDateProminent")]
     public bool ShowDueDateProminent { get; set; } = true;
-
-    // "Pass processing fee" is now a per-invoice setting on the invoice itself (chosen in the create
-    // invoice modal), not a template setting. Old templates' passProcessingFee JSON is ignored on load.
 
     /// <summary>
     /// When this template was created.

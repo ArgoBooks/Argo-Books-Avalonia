@@ -10,8 +10,7 @@ namespace ArgoBooks.Tests.ViewModels;
 /// (RentalItemId/Quantity/RateType/RateAmount/SecurityDeposit) and leave LineItems empty. Every
 /// return-cost / inventory-restore / display path funnels through GetEffectiveLineItems, so that
 /// helper must fall back to the top-level fields when LineItems is empty (mirroring
-/// RentalAvailabilityModalViewModel.QuantitiesForItem). Before the fix it returned the empty list,
-/// so returning such a rental restored no stock and showed a $0 cost / blank item name.
+/// RentalAvailabilityModalViewModel.QuantitiesForItem).
 /// </summary>
 public class RentalEffectiveLineItemsTests
 {

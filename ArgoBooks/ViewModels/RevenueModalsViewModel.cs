@@ -707,9 +707,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
         var editResults = AdjustInventoryForEdit(companyData, original.LineItems, modelLineItems, revenue.Id, isExpense: false);
 
         var capturedNewReceipt = newReceipt;
-        // Snapshot the NEW state so redo restores the edit itself. The old redo re-read live ViewModel
-        // fields (amount, notes, paid status), so once the modal had been reused or cleared, redo
-        // wrote zeros/blank values and could flip the paid status.
+        // Snapshot the NEW state so redo restores the edit itself.
         var edited = CaptureTransactionState(revenue);
         var action = new DelegateAction(
             $"Edit revenue {EditingTransactionId}",

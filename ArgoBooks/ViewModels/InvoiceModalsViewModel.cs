@@ -1863,9 +1863,7 @@ public partial class InvoiceModalsViewModel : ViewModelBase
             return;
         }
 
-        // Every line item must reference a real product (rental/revenue-derived lines are exempt). The
-        // preview path already enforced this; the send path did not, so a line with amounts but no
-        // product selected would send with no warning (unlike a missing customer or a zero total).
+        // Every line item must reference a real product (rental/revenue-derived lines are exempt).
         if (!IsFromExternalSource && LineItems.Any(li =>
                 li.SelectedProduct == null
                 && string.IsNullOrEmpty(li.RentalRecordId)
@@ -2230,9 +2228,8 @@ public partial class InvoiceModalsViewModel : ViewModelBase
             LinkInvoiceToRevenue(invoice, companyData);
         }
 
-        // If "Repeat this invoice" was set, create the recurring schedule here too. Previously this
-        // only happened on save-as-draft, so a recurring invoice sent directly never showed up in the
-        // recurring tab. The helper no-ops if it isn't recurring or a schedule already exists (e.g. a
+        // If "Repeat this invoice" was set, create the recurring schedule here too.
+        // The helper no-ops if it isn't recurring or a schedule already exists (e.g. a
         // recurring draft that was scheduled on save and is now being sent).
         CreateRecurringScheduleIfNeeded(invoice, companyData, new IdGenerator(companyData));
 
@@ -2476,7 +2473,7 @@ public partial class InvoiceModalsViewModel : ViewModelBase
         {
             // Hide the editable WebView so the confirmation dialog renders above it. The native
             // WebView renders in its own airspace above Avalonia content, so it otherwise occludes
-            // the dialog (same fix as the create-customer/product flows).
+            // the dialog.
             IsNestedModalOpen = true;
 
             var confirmed = IsEditMode
@@ -2979,11 +2976,6 @@ public partial class LineItemDisplayModel : ObservableObject
     /// Discount and a Tax Rate column for every invoice line, and the exporter writes both, so
     /// a sheet edited by hand or produced by another system can bring in values this form has
     /// nowhere to show.
-    ///
-    /// Before they were carried, opening such an invoice and pressing Save wrote the lines back
-    /// with both fields zeroed, so the discount vanished with nothing said. Round-tripping a
-    /// file through the exporter and the importer is the normal way to bulk-edit, and it was
-    /// losing data every time.
     /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(Amount))]
@@ -3012,8 +3004,7 @@ public partial class LineItemDisplayModel : ObservableObject
     /// rate is what produces the stored tax, and adding a line's own tax here would have the
     /// invoice-level rate charged on top of it.
     ///
-    /// Discount is zero on every line this form creates, so for an invoice made in the app this
-    /// is exactly what it always was.
+    /// Discount is zero on every line this form creates.
     /// </summary>
     public decimal Amount => LineItem.SubtotalOf(Quantity ?? 0, UnitPrice ?? 0, Discount);
 

@@ -9,9 +9,7 @@ namespace ArgoBooks.Tests.Services;
 /// <summary>
 /// The customer message on an invoice always reaches the customer.
 ///
-/// It renders in the footer of the HTML invoice, unconditionally. The template designer used to
-/// carry a "Show notes section" toggle that could not affect that, but did silence the message in
-/// the plain-text copy emailed as a fallback, so the same invoice said two different things.
+/// It renders in the footer of the HTML invoice, unconditionally.
 /// </summary>
 public class InvoiceNotesRenderTests
 {

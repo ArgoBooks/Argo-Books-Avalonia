@@ -432,10 +432,6 @@ public class SpreadsheetExportService
         // import schema does not carry a name column, so a re-imported export is unchanged.
         var supplierNames = NameLookup(data.Suppliers, s => s.Id, s => s.Name);
 
-        // Quantity, Shipping, Reference and Currency were all missing. Quantity mattered most:
-        // the Unit Price column was being fed Amount, which is quantity times unit price, so on
-        // any row with more than one unit the columns visibly failed to add up to the total and
-        // a re-import turned three units into one.
         var headers = new[] { "ID", "Date", "Supplier ID", "Supplier Name", "Product", "Quantity", "Unit Price", "Tax", "Shipping", "Total", "Reference", "Payment Method", "Currency" };
         var filtered = data.Expenses.Where(p => IsInDateRange(p.Date, startDate, endDate));
         var rows = filtered.Select(p => new object[]
@@ -795,7 +791,7 @@ public class SpreadsheetExportService
             e.ProvincialClaimIsZero,
 
             // Ontario only, and zero everywhere else. Exported so a sheet round trip does not
-            // quietly drop it, the way the per-line invoice discount was being dropped.
+            // quietly drop it.
             e.OntarioDependants,
             e.IsCppExempt,
             e.IsEiExempt,

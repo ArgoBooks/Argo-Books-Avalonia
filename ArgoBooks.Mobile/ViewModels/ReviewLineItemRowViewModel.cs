@@ -4,7 +4,7 @@ namespace ArgoBooks.Mobile.ViewModels;
 
 /// <summary>
 /// One read-only line-item row on the review screen: quantity/price/total are display-only (rows
-/// can't be added/removed/edited per the brief), but the product chip opens a picker via
+/// can't be added/removed/edited), but the product chip opens a picker via
 /// <see cref="OpenPickerCommand"/> (wired to <see cref="ReviewViewModel"/>). Wraps a
 /// <see cref="ReviewLineItem"/> so picking a product writes straight back into the model
 /// <see cref="ReviewModelMapper.BuildCapturedTransaction"/> reads at confirm time.

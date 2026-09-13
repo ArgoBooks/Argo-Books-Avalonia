@@ -7,8 +7,8 @@ using CommunityToolkit.Mvvm.Input;
 namespace ArgoBooks.Mobile.ViewModels;
 
 /// <summary>
-/// Settings tab. Paired company label + last synced + manual refresh (Task 6), the biometric app
-/// lock toggle (Task 7), and the Companies section (Task 8): list every paired company with the
+/// Settings tab. Paired company label + last synced + manual refresh, the biometric app
+/// lock toggle, and the Companies section: list every paired company with the
 /// active one marked, switch between them, pair another, or unpair this phone from the active one.
 /// </summary>
 public partial class SettingsViewModel : ViewModelBase

@@ -122,6 +122,16 @@ public partial class MainWindow : Window
     private WindowState _preFullScreenState = WindowState.Maximized;
 
     /// <summary>
+    /// Runs ahead of every key press and click purely to timestamp it. Deliberately does
+    /// nothing else and never marks the event handled, so it cannot alter what the input
+    /// actually does.
+    /// </summary>
+    private static void OnAnyInput(object? sender, RoutedEventArgs e)
+    {
+        App.TelemetryManager?.MarkActivity();
+    }
+
+    /// <summary>
     /// F11 toggles fullscreen; Escape leaves it, but only when nothing else wanted the
     /// key first.
     ///
@@ -135,16 +145,6 @@ public partial class MainWindow : Window
     /// holds focus, so focus sitting elsewhere would otherwise let Escape drop the
     /// window out of fullscreen with a dialog still on screen.
     /// </summary>
-    /// <summary>
-    /// Runs ahead of every key press and click purely to timestamp it. Deliberately does
-    /// nothing else and never marks the event handled, so it cannot alter what the input
-    /// actually does.
-    /// </summary>
-    private static void OnAnyInput(object? sender, RoutedEventArgs e)
-    {
-        App.TelemetryManager?.MarkActivity();
-    }
-
     protected override void OnKeyDown(KeyEventArgs e)
     {
         if (e.Key == Key.F11)

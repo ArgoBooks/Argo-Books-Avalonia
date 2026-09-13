@@ -8,8 +8,7 @@ namespace ArgoBooks.Core.Models.Telemetry;
 /// which industries and currencies people actually run on is worth more than any number of
 /// feature counters. A sole trader's company name is frequently their own name, so treat
 /// everything here as personal data. It is disclosed in /legal/privacy.php under "Business
-/// Profile Data", which is also why that page no longer describes desktop telemetry as
-/// anonymous. Adding a field here means changing that page in the same commit, and adding
+/// Profile Data". Adding a field here means changing that page in the same commit, and adding
 /// it to the allowlist in api/data/telemetry_filter.php, which drops anything it does not
 /// recognise.
 /// </para>

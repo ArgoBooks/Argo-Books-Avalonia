@@ -33,7 +33,7 @@ public partial class ReportsPage : UserControl
     // Element panel collapse animation
     private Border? _elementToolbox;
 
-    // Preview zoom level (managed here since we're not using binding anymore)
+    // Preview zoom level
     private double _previewZoomLevel = 1.0;
 
     // Rubberband overscroll effect for preview

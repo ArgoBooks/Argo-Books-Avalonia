@@ -674,7 +674,7 @@ public class SpreadsheetImportService
             var naturalKey = NaturalKey(chunkEntityType, entityJson);
             if (naturalKey == null)
             {
-                // Not enough fields to form a meaningful key. Keep TODAY's behavior: do not
+                // Not enough fields to form a meaningful key. Do not
                 // invent an opaque id that could collide arbitrarily. The row is recorded as
                 // unimported below (never silently dropped) by passing it through with the
                 // SkipImport flag so the existing "missing/empty ID" reporting path fires.
@@ -1741,7 +1741,7 @@ public class SpreadsheetImportService
 
                 // Either column can identify the invoice, and each fills in for the other.
                 // Sheets from elsewhere usually carry only an invoice number, and this app's own
-                // export now carries both, so neither can be assumed present.
+                // export carries both, so neither can be assumed present.
                 if (invoice != null)
                 {
                     if (string.IsNullOrEmpty(invoice.Id))

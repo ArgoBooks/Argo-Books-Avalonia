@@ -16,7 +16,7 @@ namespace ArgoBooks.Mobile.ViewModels;
 /// desktop queue, ShellViewModel records it here so the user has some visible confirmation - the
 /// phone has no ledger of its own and can't poll for the desktop's ingest, so this is local-only
 /// and never checked back against what actually landed on the desktop.
-/// Task 6 edge states: once the local free-scan counter (<see cref="ScanUsageStore"/>/
+/// Edge states: once the local free-scan counter (<see cref="ScanUsageStore"/>/
 /// <see cref="ScanQuota"/>) reaches the monthly limit, <see cref="IsOverLimit"/> flips and the view
 /// swaps to an upgrade prompt (<see cref="UpgradeCommand"/> opens the marketing site in the system
 /// browser - no in-app purchase). If a capture happens with no network, the cropped image is

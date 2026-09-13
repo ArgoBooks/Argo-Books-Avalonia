@@ -113,8 +113,7 @@ public class PayRunWizardStateTests : ModalViewModelTestBase
     }
 
     /// <summary>
-    /// A period that ends before it starts is refused once, beside the control. It used to be
-    /// restated as a second blocking error underneath, so one mistake read as two.
+    /// A period that ends before it starts is refused once, beside the control.
     /// </summary>
     [Fact]
     public void APeriodEndingBeforeItStarts_IsRefusedOnceAndBlocksNext()

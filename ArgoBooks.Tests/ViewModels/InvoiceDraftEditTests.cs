@@ -14,8 +14,7 @@ namespace ArgoBooks.Tests.ViewModels;
 public class InvoiceDraftEditTests : ModalViewModelTestBase
 {
     // "Continue" an existing draft, then click "Save as draft". This should update the same invoice,
-    // not create a second one. Bug: SaveAsDraft always mints a new id and adds a new invoice, ignoring
-    // the invoice being edited, so the user ends up with a duplicate draft.
+    // not create a second one.
     [Fact]
     public async Task SaveAsDraft_WhenContinuingAnExistingDraft_DoesNotCreateADuplicate()
     {

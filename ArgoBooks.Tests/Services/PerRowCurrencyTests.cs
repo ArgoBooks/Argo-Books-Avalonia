@@ -11,7 +11,7 @@ using Xunit;
 namespace ArgoBooks.Tests.Services;
 
 /// <summary>
-/// Phase 4, Task 4B-1: a spreadsheet with a per-row currency column converts each row at its
+/// A spreadsheet with a per-row currency column converts each row at its
 /// transaction-date rate (the same mechanism manual entry uses), instead of assuming every
 /// amount is already in the company currency. When no currency column is mapped, behavior is
 /// unchanged: OriginalCurrency = company currency and the USD-equivalent = the raw amount.

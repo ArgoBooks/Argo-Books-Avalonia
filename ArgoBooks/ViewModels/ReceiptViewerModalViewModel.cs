@@ -86,7 +86,7 @@ public partial class ReceiptViewerModalViewModel : ViewModelBase
 
     /// <summary>
     /// What to call the thing on screen while it loads or fails. The viewer shows generated
-    /// documents as well as receipts now, and a Record of Employment announcing itself as a
+    /// documents as well as receipts, and a Record of Employment announcing itself as a
     /// receipt is just wrong.
     /// </summary>
     [ObservableProperty]

@@ -2546,10 +2546,8 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         var expenses = data.Expenses.Where(e => e.Date >= StartDate && e.Date <= EndDate).ToList();
 
         // EffectiveTaxAmountUSD, not a hand-rolled "USD if we have it, native otherwise".
-        // docs/Calculations.md §3 forbids summing native fields into a USD total, and the two
-        // differ in exactly the cases that matter: a foreign row whose TaxAmountUSD was never
-        // written contributed its EURO tax to a dollar sum, and a pending-conversion row (which
-        // has no rate at all) did the same. The Effective property derives the missing figure
+        // docs/Calculations.md §3 forbids summing native fields into a USD total. The Effective
+        // property derives the missing figure
         // from the row's own Total/TotalUSD ratio and yields 0 when there is nothing to derive
         // it from, so a rate that never arrived reads as nothing rather than as dollars.
         var taxCollectedUSD = revenues.Sum(r => r.EffectiveTaxAmountUSD);

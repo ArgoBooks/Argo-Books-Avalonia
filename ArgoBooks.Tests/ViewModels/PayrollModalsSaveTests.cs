@@ -568,9 +568,7 @@ public class PayrollModalsSaveTests : ModalViewModelTestBase
     #region Standard hours
 
     /// <summary>
-    /// Standard hours per week are part of the undo snapshot. They were the one field left out,
-    /// so undoing an employee edit put every other field back and kept the new hours, leaving a
-    /// record nobody had approved. Block 15A of a record of employment is calculated from this
+    /// Standard hours per week are part of the undo snapshot. Block 15A of a record of employment is calculated from this
     /// for a salaried employee, and an EI claim is calculated from block 15A.
     /// </summary>
     [Fact]

@@ -191,7 +191,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
     }
 
     // Restrict a numeric field to digits and a single decimal point, blocking the keystroke or paste
-    // outright so junk never lands in a price box in the first place (Preview no longer has to scrub it).
+    // outright so junk never lands in a price box in the first place.
     function attachNumericFilter(el) {
         el.addEventListener('beforeinput', function(e) {
             if (!e.inputType || e.inputType.indexOf('insert') !== 0) return; // deletions/formatting: allow
@@ -523,9 +523,8 @@ window.__totalsConfig = __TOTALS_CONFIG__;
             var taxAmount = Math.max(0, taxMode === 'fixed' ? tax : taxableBase * tax / 100);
             var total = Math.max(0, taxableBase + taxAmount + deposit);
 
-            // Less whatever has already been paid. This was 'balance = total', so editing a
-            // part-paid invoice showed Amount to Pay as the full total sitting right beneath the
-            // Amount Paid row. Floored at zero so an overpayment does not render a negative.
+            // Less whatever has already been paid. Floored at zero so an overpayment does not
+            // render a negative.
             var balance = Math.max(0, total - paid);
             var procFee = (portal && passFee && balance > 0) ? Math.round((balance * 2.9 / 100 + 0.30) * 100) / 100 : 0;
 
@@ -986,7 +985,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
     // Horizontal centering: when the scaled wrapper is narrower than the
     // viewport, shift it right by half the empty space. Without this,
     // transform-origin: 0 0 leaves zoomed-out content pinned to the
-    // viewport's left edge, the bug the user hit with fit-to-window.
+    // viewport's left edge.
     function centerOffsetX(scale) {
         var wrapper = document.getElementById('__zoomWrapper');
         if (!wrapper) return 0;

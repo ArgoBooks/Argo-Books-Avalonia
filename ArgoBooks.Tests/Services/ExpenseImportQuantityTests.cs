@@ -8,9 +8,7 @@ namespace ArgoBooks.Tests.Services;
 
 /// <summary>
 /// A sheet with a separate quantity column must import the quantity so the line-item subtotal
-/// (Quantity * UnitPrice) reconciles with the stored Total. Before the fix the importer hardcoded
-/// quantity to 1 and set Amount to the unit price, so a 2 x $176.87 + $28.30 = $382.04 row showed a
-/// $176.87 subtotal and tripped the "values may be incorrect" mismatch warning.
+/// (Quantity * UnitPrice) reconciles with the stored Total.
 /// </summary>
 public class ExpenseImportQuantityTests
 {
@@ -70,7 +68,7 @@ public class ExpenseImportQuantityTests
     [Fact]
     public async Task ImportExpenses_NoQuantityColumn_DefaultsToOne()
     {
-        // No Qty column: unit price is the whole pre-tax amount, quantity defaults to 1 (unchanged behavior).
+        // No Qty column: unit price is the whole pre-tax amount, quantity defaults to 1.
         var csv = "Date,Item,Unit Cost,Tax,Total\n" +
                   "2024-01-05,Widget,100.00,13.00,113.00\n";
         var path = Path.Combine(Path.GetTempPath(), $"expq_{Guid.NewGuid():N}.csv");

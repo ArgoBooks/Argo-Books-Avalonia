@@ -6,7 +6,7 @@ namespace ArgoBooks.Tests.Services;
 /// <summary>
 /// Tests for the text rules CRA's XML parser enforces.
 ///
-/// Every case here is one the app used to let through and CRA would have rejected, which is a
+/// Every case here is one CRA would have rejected, which is a
 /// failure that surfaces months later at the filing deadline rather than at the keyboard. The
 /// postal code one is the most ordinary of them: a space is how almost every Canadian writes it,
 /// and CRA's format has no room for one.
@@ -42,9 +42,7 @@ public class CraFormatTests
         Assert.Equal(expected, CraFormat.NormalizePostalCode(typed, "United States"));
 
     /// <summary>
-    /// The previous behaviour truncated the country NAME to three characters. Canada and Mexico
-    /// happen to survive that; nothing else reliably does, and a wrong code is rejected while an
-    /// absent one is not.
+    /// A wrong code is rejected while an absent one is not.
     /// </summary>
     [Theory]
     [InlineData("Canada", "CAN")]

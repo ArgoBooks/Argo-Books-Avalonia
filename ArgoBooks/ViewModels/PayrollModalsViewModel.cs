@@ -129,8 +129,7 @@ public partial class PayrollModalsViewModel : ViewModelBase
     ///
     /// Asked for rather than assumed, because CRA reads the province box differently depending on
     /// it: a Canadian address carries a province code, a US address carries a state, and anywhere
-    /// else must carry ZZ. Without a country the app was writing whatever was typed and calling
-    /// every address Canadian.
+    /// else must carry ZZ.
     ///
     /// Defaults to Canada, which is where an employee on a Canadian payroll almost always lives.
     /// </summary>
@@ -189,10 +188,6 @@ public partial class PayrollModalsViewModel : ViewModelBase
     /// <summary>
     /// Set only when no rate edition covers today, in which case no province can be calculated
     /// for and the employer needs to know before entering an employee.
-    ///
-    /// There is deliberately no note about partial coverage any more. Every province and
-    /// territory is supported, so a list of them told the reader nothing and, because Quebec is
-    /// held outside the provinces table, it read as though Quebec were missing.
     /// </summary>
     [ObservableProperty]
     private string _provinceSupportNote = string.Empty;
@@ -292,7 +287,7 @@ public partial class PayrollModalsViewModel : ViewModelBase
 
     /// <summary>
     /// Closing with unsaved work asks first, as every other entity modal does. Clicking the
-    /// backdrop is the easiest way to lose a half-filled form, and it was silent here.
+    /// backdrop is the easiest way to lose a half-filled form.
     /// </summary>
     [RelayCommand]
     private async Task RequestCloseEmployeeModalAsync()

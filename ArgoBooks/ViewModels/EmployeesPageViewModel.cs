@@ -337,8 +337,7 @@ public partial class EmployeesPageViewModel : SortablePageViewModelBase
                 || e.EmployeeNumber.Contains(q, StringComparison.OrdinalIgnoreCase));
         }
 
-        // Name unless a header says otherwise. The six sortable headers on this page updated the
-        // arrow and did nothing else, because the sort state was never read here.
+        // Name unless a header says otherwise.
         IEnumerable<Employee> sorted = SortDirection == Controls.SortDirection.None
             ? filtered.OrderBy(e => e.Name, StringComparer.CurrentCultureIgnoreCase)
             : filtered.ApplySort(

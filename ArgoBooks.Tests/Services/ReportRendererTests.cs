@@ -22,7 +22,7 @@ public class ReportRendererTests
         var data = new CompanyData();
         data.Revenues.Add(new Revenue { Id = "C1", Date = new DateTime(2024, 1, 15), Total = 200m, OriginalCurrency = "USD" });
         // Previous-period revenue totalling the same $200; Dec 1 lands in the correct window but
-        // not the buggy Dec 2-31 one.
+        // not the Dec 2-31 one.
         data.Revenues.Add(new Revenue { Id = "P1", Date = new DateTime(2023, 12, 1), Total = 100m, OriginalCurrency = "USD" });
         data.Revenues.Add(new Revenue { Id = "P2", Date = new DateTime(2023, 12, 15), Total = 100m, OriginalCurrency = "USD" });
 

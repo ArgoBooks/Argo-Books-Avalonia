@@ -127,8 +127,6 @@ public class SpreadsheetRoundTripFidelityTests : IDisposable
     [Fact]
     public async Task AnInvoiceKeepsItsIdInsteadOfGainingAHash()
     {
-        // The export wrote only InvoiceNumber (#INV-...), the importer read that column as the
-        // id, so every round trip prefixed the id with a hash and orphaned its payments.
         CompanyData target = await RoundTripAsync(Source());
 
         Invoice invoice = Assert.Single(target.Invoices);
@@ -150,8 +148,6 @@ public class SpreadsheetRoundTripFidelityTests : IDisposable
     [Fact]
     public async Task AnInvoiceKeepsItsLines()
     {
-        // Before the Invoice Line Items sheet existed this came back as a set of totals with
-        // nothing behind them, so the invoice could no longer be reprinted or edited.
         CompanyData target = await RoundTripAsync(Source());
 
         Invoice invoice = Assert.Single(target.Invoices);
@@ -187,8 +183,7 @@ public class SpreadsheetRoundTripFidelityTests : IDisposable
     [Fact]
     public async Task ASheetThatOnlyHasAnInvoiceNumber_StillImports()
     {
-        // Spreadsheets from other systems have no ID column, and that is how this app's own
-        // export used to look. The number has to keep working as the identifier.
+        // Spreadsheets from other systems have no ID column. The number has to keep working as the identifier.
         var source = new CompanyData();
         source.Settings.Localization.Currency = "USD";
         source.Customers.Add(new Customer { Id = "CUS-003", Name = "Jane Doe" });
@@ -272,8 +267,6 @@ public class SpreadsheetRoundTripFidelityTests : IDisposable
     [MemberData(nameof(SheetOrders))]
     public async Task APaidInvoicesRevenue_ComesBackLinkedAndIsNotCountedTwice(string[] sheets)
     {
-        // The Revenue sheet had no Invoice ID column, so the invoice's own revenue came back as a
-        // stray sale and the importer then created a second revenue for the same paid invoice.
         CompanyData target = await RoundTripAsync(PaidInvoiceSource(withLinkedRevenue: true), sheets);
 
         Assert.Equal(["REV-2025-00001", "REV-2025-00002"], target.Revenues.Select(r => r.Id).Order().ToArray());
@@ -310,9 +303,7 @@ public class SpreadsheetRoundTripFidelityTests : IDisposable
     [Fact]
     public async Task ARevenueCreatedForAPaidInvoice_NeverTakesAnImportedRevenuesId()
     {
-        // The id counter is only brought up to date after every sheet is in, so the revenue made
-        // for a paid invoice was numbered from a stale counter and landed on an imported sale,
-        // which then overwrote it and inherited the invoice.
+        // The id counter is only brought up to date after every sheet is in.
         CompanyData source = PaidInvoiceSource(withLinkedRevenue: false);
         string clash = $"REV-{DateTime.UtcNow:yyyy}-00001";
         source.Revenues.Single().Id = clash;
@@ -389,8 +380,7 @@ public class SpreadsheetRoundTripFidelityTests : IDisposable
     [Fact]
     public async Task ThePaidInvoicesRevenueMadeOnImport_TakesTheInvoicesLines()
     {
-        // With no Revenue sheet the importer makes the paid invoice's revenue itself. Made with no
-        // lines, it counted in Total Revenue but Sales by Product skipped it.
+        // With no Revenue sheet the importer makes the paid invoice's revenue itself.
         CompanyData source = PaidInvoiceSource(withLinkedRevenue: false);
         source.Revenues.Clear();
         source.Products.Add(new Product { Id = "PRD-001", Name = "Widget" });
@@ -718,8 +708,6 @@ public class SpreadsheetRoundTripFidelityTests : IDisposable
     [Fact]
     public async Task APurchaseOrderKeepsItsLines()
     {
-        // The export service could always write this sheet. It was simply never offered in the
-        // export modal, so in practice purchase orders exported with nothing on them.
         CompanyData source = Source();
         source.PurchaseOrders.Add(new PurchaseOrder
         {

@@ -143,8 +143,7 @@ public class PayrollGuardTests
         string province, bool expected)
     {
         // The calculator throws for a province it has no table for, which is right for a pure
-        // function and useless as a way to find out. That throw used to travel out of the pay
-        // run modal and take the window with it, and it is reachable without touching the
+        // function and useless as a way to find out. That throw is reachable without touching the
         // province dropdown: the spreadsheet importer stores whatever is in the cell, so an
         // employee imported as "Ontario" is upper-cased to ONTARIO and can never be paid.
         //

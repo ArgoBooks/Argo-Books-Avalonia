@@ -250,10 +250,6 @@ public class TransactionEditCurrencyTests : ModalViewModelTestBase
         return (entry?.OriginalCurrency, entry?.Total);
     }
 
-    /// <summary>
-    /// Undo put the row back but left the edited amount queued, and the queued amount is what the
-    /// conversion uses, so the restored row later converted at the edited figure.
-    /// </summary>
     [Fact]
     public async Task UndoingAnEditToAPendingExpense_QueuesItsOriginalAmountAgain()
     {

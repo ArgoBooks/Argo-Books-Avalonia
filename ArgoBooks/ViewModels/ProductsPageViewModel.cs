@@ -383,9 +383,7 @@ public partial class ProductsPageViewModel : SortablePageViewModelBase
     private bool _needsRefresh;
 
     /// <summary>
-    /// The sidebar opens this page on a tab, under its own page name, so matching only the bare
-    /// name left every navigation here unrecognised and the page never reloaded. Products a
-    /// receipt scan created stayed invisible until the company was reopened.
+    /// The sidebar opens this page on a tab, under its own page name.
     /// </summary>
     private static bool IsThisPage(string? pageName) =>
         pageName is PageNames.Products or PageNames.ExpenseProducts or PageNames.RevenueProducts;

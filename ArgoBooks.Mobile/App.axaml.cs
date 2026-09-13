@@ -23,7 +23,7 @@ public partial class App : Application
     private Control? _contentBeforeLock;
     private bool _isLockShowing;
 
-    // Kept so MainActivity.OnResume (via NotifyForegrounded) can trigger draining Task 6's
+    // Kept so MainActivity.OnResume (via NotifyForegrounded) can trigger draining the
     // offline-capture outbox without rebuilding the shell - null until ShowShellAsync completes.
     private ShellViewModel? _shellViewModel;
 
@@ -91,7 +91,7 @@ public partial class App : Application
         // revocation (which drops back to the pairing screen) without waiting for a manual pull.
         _ = _current?._shellViewModel?.RefreshCommand.ExecuteAsync(null);
 
-        // Task 6: refresh the "captured while offline" review prompt as soon as the app comes back
+        // Refresh the "captured while offline" review prompt as soon as the app comes back
         // to the foreground, rather than waiting for the user to pull-to-refresh. Nothing is
         // auto-posted - the user reviews each queued receipt (see ShellViewModel.StartOfflineReviewAsync).
         _ = _current?._shellViewModel?.RefreshOfflineQueueAsync();
@@ -228,9 +228,8 @@ public partial class App : Application
 
         // Navigate to the shell first so a successful pairing always lands on the dashboard. The
         // shell has its own loading / "waiting for first sync" states, so the initial snapshot load
-        // running (or failing) after this no longer strands the user on the pairing screen with a
-        // "Connected" label - which is what happened when an exception from InitializeAsync was
-        // swallowed by the fire-and-forget caller.
+        // running (or failing) after this doesn't strand the user on the pairing screen with a
+        // "Connected" label.
         Dispatcher.UIThread.Post(() =>
         {
             try

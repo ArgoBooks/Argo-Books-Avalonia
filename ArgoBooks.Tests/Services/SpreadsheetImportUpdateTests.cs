@@ -15,9 +15,7 @@ namespace ArgoBooks.Tests.Services;
 
 /// <summary>
 /// Importing over existing records (with "Skip existing records" off) changes only what the sheet
-/// carries. A column the sheet does not have leaves the stored value alone; before, it was read
-/// as blank and overwrote it, so a sheet of ids and notes wiped addresses, zeroed totals, reset
-/// payment methods to Cash and marked unpaid revenue as paid.
+/// carries. A column the sheet does not have leaves the stored value alone.
 /// </summary>
 public class SpreadsheetImportUpdateTests : IDisposable
 {

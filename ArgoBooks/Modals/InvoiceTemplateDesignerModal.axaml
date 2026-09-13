@@ -561,8 +561,6 @@
                                                           Content="{loc:Loc 'Show tax breakdown'}" />
                                                 <CheckBox IsChecked="{Binding ShowPaymentInstructions}"
                                                           Content="{loc:Loc 'Show payment instructions'}" />
-
-                                                <!-- "Pass processing fee" moved to the Create Invoice modal (it's a per-invoice choice). -->
                                             </StackPanel>
                                         </StackPanel>
                                     </ScrollViewer>

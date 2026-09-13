@@ -56,7 +56,7 @@ public class ProfitCalculatorTests
     [Fact]
     public void CalculateNetProfitUSD_FullRefundOfTaxedInvoice_NetsToZero()
     {
-        // Regression for the just-fixed bug: full refund of a tax-bearing
+        // Full refund of a tax-bearing
         // invoice should net to $0, not negative tax.
         // $86.91 pre-tax revenue − $86.91 pre-tax refund = $0.
         var data = new CompanyData();
@@ -131,8 +131,7 @@ public class ProfitCalculatorTests
     public void CalculateNetProfitByDayUSD_SumMatchesTotalProfit()
     {
         // The chart title is computed by summing per-day values, so the
-        // sum of per-day must equal the total. Regression for the
-        // "Total Profits chart title showed $119 but bar showed $86.91" bug.
+        // sum of per-day must equal the total.
         var data = new CompanyData();
         data.Revenues.Add(new Revenue
         {

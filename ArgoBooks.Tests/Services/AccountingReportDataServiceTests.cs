@@ -364,8 +364,7 @@ public class AccountingReportDataServiceTests
     public void GetReportData_TaxSummary_CountsTransactionLevelTaxWhenLineItemsHaveNoRate()
     {
         // Regression: manually-entered transactions always carry a line item with TaxRate 0 but
-        // record their tax at the transaction level. The Tax Summary used to read tax only off line
-        // items whenever any existed, so it reported $0 for every UI-entered sale and expense.
+        // record their tax at the transaction level.
         var data = new CompanyData();
         data.Revenues.Add(new Revenue
         {
@@ -398,8 +397,7 @@ public class AccountingReportDataServiceTests
 
         var result = service.GetReportData(AccountingReportType.TaxSummary);
 
-        // The two subtotal rows are "Total Tax Collected" then "Total Tax Paid". Before the fix both
-        // formatted as $0.00 because the per-line-item tax is always 0 for manual entries.
+        // The two subtotal rows are "Total Tax Collected" then "Total Tax Paid".
         var subtotals = result.Rows.FindAll(r => r.RowType == AccountingRowType.SubtotalRow);
         Assert.Equal(2, subtotals.Count);
         Assert.Contains("8", subtotals[0].Values[0]);   // tax collected = $8
@@ -477,8 +475,7 @@ public class AccountingReportDataServiceTests
     {
         // AR on the Balance Sheet is an "as of the end date" balance, so an open invoice issued AFTER
         // the report end date must not be counted. Every other current-asset/liability line is date
-        // gated via IsOnOrBeforeEndDate; AR was the one that wasn't, so a future-dated open invoice
-        // inflated AR (and, since Retained Earnings is the balancing figure, equity too).
+        // gated via IsOnOrBeforeEndDate.
         static Invoice MakeInvoice(string id, DateTime issue, decimal amount) => new()
         {
             Id = id,

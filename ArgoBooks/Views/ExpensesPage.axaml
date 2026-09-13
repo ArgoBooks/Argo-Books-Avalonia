@@ -294,7 +294,7 @@
                                                                  ColumnWidth="{Binding $parent[ItemsControl].((vm:ExpensesPageViewModel)DataContext).ColumnWidths.QuantityColumnWidth}"
                                                                  IsColumnVisible="{Binding $parent[ItemsControl].((vm:ExpensesPageViewModel)DataContext).ShowQuantityColumn}" />
 
-                                        <!-- Unit Price (was Amount) -->
+                                        <!-- Unit Price -->
                                         <table:ArgoTableCell Text="{Binding AmountFormatted}"
                                                                  ColumnWidth="{Binding $parent[ItemsControl].((vm:ExpensesPageViewModel)DataContext).ColumnWidths.AmountColumnWidth}"
                                                                  IsColumnVisible="{Binding $parent[ItemsControl].((vm:ExpensesPageViewModel)DataContext).ShowAmountColumn}" />

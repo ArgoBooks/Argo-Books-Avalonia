@@ -83,7 +83,7 @@ public partial class App
             if (companySettings != null)
             {
                 // Hooked here rather than at the create-company screen so it also covers
-                // companies made before this shipped, and companies opened on a second
+                // existing companies, and companies opened on a second
                 // machine. TrackCompanyProfileAsync ignores repeats within a session.
                 //
                 // The sample company is skipped outright: its name, industry, country and

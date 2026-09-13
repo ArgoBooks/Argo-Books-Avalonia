@@ -672,9 +672,6 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
         companyData.MarkAsModified();
 
         // Record undo action. Capture the NEW values as locals so redo restores the edit itself.
-        // The previous redo read live ViewModel fields (SelectedSupplier!.Id threw a NullReference and
-        // crashed the app once the modal was reset) and read order.Subtotal/order.Total back from the
-        // same object undo had just reverted (self-referential), so the new totals were lost.
         var editedOrder = order;
         var newLineItems = order.LineItems.ToList();
         var newSupplierId = order.SupplierId;

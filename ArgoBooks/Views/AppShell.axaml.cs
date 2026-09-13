@@ -181,18 +181,13 @@ public partial class AppShell : UserControl
             // when nothing did. Saving is never silent, which is the point: a shortcut
             // that does nothing visible reads as a shortcut that did not work.
             //
-            // The File menu has advertised Ctrl+S since before this handler existed, with
-            // nothing outside the reports designer implementing it, so the key really did
-            // nothing anywhere else in the app.
-            //
             // Shift is excluded so Ctrl+Shift+S stays available for Save As.
             case Key.S when e.KeyModifiers.HasCommand() && !e.KeyModifiers.HasFlag(KeyModifiers.Shift):
                 vm.HeaderViewModel.SaveCommand.Execute(null);
                 e.Handled = true;
                 break;
 
-            // Save As, the other shortcut the File menu advertises without anything
-            // implementing it. Routed through the menu's own command so it shares the sample
+            // Save As, the other shortcut the File menu advertises. Routed through the menu's own command so it shares the sample
             // company redirect and the save-location dialog.
             case Key.S when e.KeyModifiers.HasCommand() && e.KeyModifiers.HasFlag(KeyModifiers.Shift):
                 vm.FileMenuPanelViewModel.SaveAsCommand.Execute(null);

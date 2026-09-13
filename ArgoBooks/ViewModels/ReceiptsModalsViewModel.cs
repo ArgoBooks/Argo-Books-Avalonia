@@ -350,8 +350,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
 
     /// <summary>
     /// Page images shown in the scan/bulk review preview (one entry per PDF page, single entry
-    /// for raster images). Replaces the old single ReceiptImagePath so multi-page PDFs render
-    /// all pages stacked.
+    /// for raster images), so multi-page PDFs render all pages stacked.
     /// </summary>
     public ObservableCollection<string> ScanPreviewPages { get; } = new();
 
@@ -1004,9 +1003,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
                 return;
             }
 
-            // A batch bigger than the allowance used to update this label and then scan
-            // everything anyway, so the monthly limit did not hold in the one case it
-            // exists for. Ask, then scan only what the allowance covers.
+            // Ask, then scan only what the allowance covers.
             if (usageCheck.Remaining < BulkItems.Count)
             {
                 ScansRemaining = usageCheck.Remaining;

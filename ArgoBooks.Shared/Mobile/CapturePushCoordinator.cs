@@ -5,7 +5,7 @@ using ArgoBooks.Shared.Sync;
 namespace ArgoBooks.Shared.Mobile;
 
 /// <summary>
-/// Task 5: encrypts a confirmed <see cref="CapturedTransaction"/> with the active paired company's
+/// Encrypts a confirmed <see cref="CapturedTransaction"/> with the active paired company's
 /// sync key and pushes it onto the desktop's capture queue (<see cref="MobileSyncClient.PushCaptureAsync"/>),
 /// mirroring what <see cref="SnapshotStore"/> does in reverse for downloading a snapshot. Pure logic
 /// with no UI/device dependency beyond the injected <see cref="MobileSyncClient"/>/

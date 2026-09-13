@@ -153,9 +153,7 @@ public class BankLineImportService(UsdConverter? convert = null)
     {
         var creation = new BankImportCreation();
 
-        // Bank statements carry no currency, so amounts are in the company's currency. (Previously
-        // every imported transaction was hardcoded to USD, which mislabeled amounts for non-USD
-        // companies.)
+        // Bank statements carry no currency, so amounts are in the company's currency.
         var companyCurrency = string.IsNullOrWhiteSpace(data.Settings.Localization.Currency)
             ? "USD"
             : data.Settings.Localization.Currency;

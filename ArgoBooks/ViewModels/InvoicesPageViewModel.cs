@@ -510,7 +510,7 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
         // Server returns monthly_limit = -1 as a sentinel for Premium /
         // unlimited. If we update SendCount but not the limit, the UI ends
         // up with SendCount > stale-default-limit and falsely flags
-        // "limit reached", exactly what bit us before. Treat the sentinel
+        // "limit reached". Treat the sentinel
         // as a Premium-equivalent: mark HasPremium so RemainingInvoices is
         // ignored downstream.
         if (result.MonthlyLimit < 0 || string.Equals(result.Tier, "premium", StringComparison.OrdinalIgnoreCase))

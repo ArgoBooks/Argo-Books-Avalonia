@@ -1202,7 +1202,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         var plan = new List<TypedLine>();
 
         // Where each product starts the save. Every line is compared with this rather than with a
-        // move an earlier line asked for, which is how two lines of one product undid each other.
+        // move an earlier line asked for.
         string? StartingCategory(ProductOption option) =>
             companyData.GetProduct(option.Id ?? string.Empty)?.CategoryId ?? option.CategoryId;
 

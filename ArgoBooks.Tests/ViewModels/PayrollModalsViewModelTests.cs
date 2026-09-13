@@ -111,8 +111,6 @@ public class PayrollModalsViewModelTests
     [Fact]
     public void WithRatesLoaded_ThereIsNoProvinceNote()
     {
-        // The old note listed the supported provinces. Every one is supported now, so it said
-        // nothing, and it omitted Quebec, so what it did say was wrong.
         var vm = new PayrollModalsViewModel();
 
         Assert.Empty(vm.ProvinceSupportNote);
@@ -186,7 +184,6 @@ public class PayrollModalsDiscardTests
         var vm = new PayrollModalsViewModel();
         vm.OpenEditEmployeeModal(Person());
 
-        // Contract hours arrived with the Record of Employment, after this form was written.
         // A per-field original list is exactly what would have missed it.
         vm.StandardHoursPerWeek = "37.5";
 

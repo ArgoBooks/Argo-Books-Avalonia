@@ -25,7 +25,7 @@ public partial class PayRunModalsViewModel : ViewModelBase
     /// One rate service for the whole modal, shared with the payroll service rather than
     /// constructed wherever a table is wanted.
     ///
-    /// It matters now that an edition can be downloaded mid-session. Each instance parses and
+    /// It matters because an edition can be downloaded mid-session. Each instance parses and
     /// caches the editions it finds, so a second instance would keep serving the editions that
     /// existed when it was built and quietly disagree with the one that just fetched a new one.
     /// </summary>
@@ -169,9 +169,7 @@ public partial class PayRunModalsViewModel : ViewModelBase
         PayDate = DateTimeOffset.Now;
         BlockingError = string.Empty;
 
-        // Nothing from the last run may survive into this one. The amount rows in particular
-        // outlived a close, so a second open began with rows already present and the discard
-        // guard fired on a run nobody had touched yet.
+        // Nothing from the last run may survive into this one.
         ResetRunState();
 
         RefreshRateEdition();
@@ -404,8 +402,7 @@ public partial class PayRunModalsViewModel : ViewModelBase
         DateTime payDate = PayDate?.DateTime.Date ?? DateTime.Today;
 
         // Asked before the draft is built, not after. The calculator throws for a province it
-        // has no table for, and that throw used to travel all the way out of this method and
-        // close the app. The province dropdown cannot produce a bad code, but the spreadsheet
+        // has no table for. The province dropdown cannot produce a bad code, but the spreadsheet
         // importer takes whatever is in the cell and upper-cases it, so "Ontario" gets stored
         // and every pay run afterwards is unrunnable.
         List<string> unsupported = data.Employees

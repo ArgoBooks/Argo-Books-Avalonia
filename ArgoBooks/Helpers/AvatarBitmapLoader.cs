@@ -5,9 +5,7 @@ namespace ArgoBooks.Helpers;
 
 /// <summary>
 /// Loads a customer's or supplier's avatar bitmap from the company temp directory,
-/// returning null if there's no avatar or the file fails to decode. Centralizes the
-/// path resolution + Bitmap construction that was otherwise duplicated across the
-/// list view models (Customers / Invoices / Revenue / Suppliers).
+/// returning null if there's no avatar or the file fails to decode.
 /// </summary>
 public static class AvatarBitmapLoader
 {

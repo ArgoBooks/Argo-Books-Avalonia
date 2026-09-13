@@ -41,8 +41,8 @@ public static class CraFormat
     /// The three letter ISO 3166 code CRA wants, from whatever the app happens to be holding.
     ///
     /// The app stores a country NAME, because that is what every other address in it stores and
-    /// what the country picker produces. Truncating that name to three characters was the
-    /// previous behaviour and is right only by coincidence: Canada gives CAN and Mexico gives
+    /// what the country picker produces. Truncating that name to three characters is right
+    /// only by coincidence: Canada gives CAN and Mexico gives
     /// MEX, but Germany gives GER where ISO says DEU, and the United States gives UNI.
     ///
     /// Returns null rather than a guess when the country cannot be identified, because the

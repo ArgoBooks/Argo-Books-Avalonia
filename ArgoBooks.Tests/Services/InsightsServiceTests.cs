@@ -68,9 +68,7 @@ public class InsightsServiceTests
 
     #region Trends for a future range
 
-    // "Next Month" on Sep 11 analyses this month so far against the same days of last month. It
-    // used to compare Sep 1-10 with Aug 1-30 (the whole month, less each end day's entries, since
-    // the bounds were midnight), so steady sales read as a two-thirds drop.
+    // "Next Month" on Sep 11 analyses this month so far against the same days of last month.
     private static readonly DateTime TrendsToday = new(2026, 9, 11);
 
     [Fact]

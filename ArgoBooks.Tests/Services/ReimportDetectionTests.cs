@@ -8,7 +8,7 @@ using Xunit;
 namespace ArgoBooks.Tests.Services;
 
 /// <summary>
-/// Task 2C: id-less Tier 2 rows become importable via a deterministic natural-key id, and
+/// Id-less Tier 2 rows become importable via a deterministic natural-key id, and
 /// re-importing the same file UPDATES instead of duplicating. The safety invariant is
 /// "no silent drops / never collapse two genuinely-distinct rows": two legitimately-identical
 /// rows in ONE import are both kept (disambiguated by ordinal); a row that has no usable
@@ -85,7 +85,7 @@ public class ReimportDetectionTests
         var data = new CompanyData();
         var svc = new SpreadsheetImportService();
 
-        // Previously dropped (no id). Now imports via a deterministic natural-key id.
+        // Imports via a deterministic natural-key id.
         var expense = Json("""{ "date": "2026-03-10", "amount": 99.95, "total": 99.95, "description": "Hosting" }""");
 
         var result = svc.ImportProcessedEntities(

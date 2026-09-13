@@ -306,8 +306,7 @@ public partial class StatCardWidgetViewModel : WidgetViewModelBase
 
     private void LoadOverdueInvoices(CompanyData data)
     {
-        // Overdue is worked out from the due date, and nothing stores the Overdue status, so
-        // counting only that status read "0 overdue" beside the Invoices page's overdue list.
+        // Overdue is worked out from the due date, and nothing stores the Overdue status.
         var overdue = data.Invoices
             .Where(i => (i.IsOverdue || i.Status == InvoiceStatus.Overdue) && i.Status != InvoiceStatus.Draft && i.Balance > 0)
             .ToList();
