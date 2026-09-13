@@ -28,9 +28,6 @@ public partial class CheckForUpdateModalViewModel : ViewModelBase
     private string _newVersion = "";
 
     [ObservableProperty]
-    private string _lastChecked = "";
-
-    [ObservableProperty]
     private bool _isChecking;
 
     [ObservableProperty]
@@ -147,7 +144,6 @@ public partial class CheckForUpdateModalViewModel : ViewModelBase
                 // No update service, always report up-to-date
                 await Task.Delay(1000);
                 IsUpToDate = true;
-                LastChecked = TimeZoneService.FormatDateTime(DateTime.Now);
                 return;
             }
 
@@ -173,7 +169,6 @@ public partial class CheckForUpdateModalViewModel : ViewModelBase
                 IsUpToDate = true;
             }
 
-            LastChecked = TimeZoneService.FormatDateTime(DateTime.Now);
         }
         catch
         {
@@ -256,7 +251,6 @@ public partial class CheckForUpdateModalViewModel : ViewModelBase
         NewVersion = $"V.{update.Version}";
         ResetStates();
         HasUpdate = true;
-        LastChecked = TimeZoneService.FormatDateTime(DateTime.Now);
     }
 
     /// <summary>

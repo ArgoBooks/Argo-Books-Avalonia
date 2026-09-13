@@ -110,10 +110,6 @@
                                            FontWeight="Medium"
                                            Foreground="{DynamicResource TextPrimaryBrush}"
                                            HorizontalAlignment="Center" />
-                                <TextBlock Text="{Binding LastChecked, StringFormat='Last checked: {0}'}"
-                                           FontSize="12"
-                                           Foreground="{DynamicResource TextTertiaryBrush}"
-                                           HorizontalAlignment="Center" />
                             </StackPanel>
 
                             <!-- Update Available State -->
