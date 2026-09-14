@@ -154,20 +154,18 @@ public partial class ProductModalsViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isExpensesTab = true;
 
-    // Original values for change detection in edit mode
-    private string _originalId = string.Empty;
-    private string _originalProductName = string.Empty;
-    private string _originalDescription = string.Empty;
-    private string _originalItemType = "Product";
-    private string? _originalCategoryId;
-    private string? _originalSupplierId;
-    private bool _originalTrackInventory;
-    private string _originalReorderPoint = string.Empty;
-    private string _originalUnitOfMeasure = StockUnits.Each;
-    private string _originalOverstockThreshold = string.Empty;
-    private string _originalUnitPrice = string.Empty;
-    private string _originalCostPrice = string.Empty;
-    private string _originalSku = string.Empty;
+    private sealed record EditState(
+        string Id, string Name, string Description, string ItemType, string? CategoryId, string? SupplierId,
+        bool TrackInventory, string UnitOfMeasure, string ReorderPoint, string OverstockThreshold,
+        string UnitPrice, string CostPrice, string Sku);
+
+    // The form as the edit modal opened, for change detection.
+    private EditState? _original;
+
+    private EditState Capture() => new(
+        ModalId.Trim(), ModalProductName, ModalDescription, ModalItemType, ModalCategory?.Id, ModalSupplier?.Id,
+        ModalTrackInventory, ModalUnitOfMeasure, ModalReorderPoint, ModalOverstockThreshold,
+        ModalUnitPrice, ModalCostPrice, ModalSku);
 
     /// <summary>
     /// Returns true if any data has been entered in the Add modal.
@@ -186,20 +184,7 @@ public partial class ProductModalsViewModel : ViewModelBase
     /// <summary>
     /// Returns true if any changes have been made in the Edit modal.
     /// </summary>
-    public bool HasEditModalChanges =>
-        ModalId.Trim() != _originalId ||
-        ModalProductName != _originalProductName ||
-        ModalDescription != _originalDescription ||
-        ModalItemType != _originalItemType ||
-        ModalCategory?.Id != _originalCategoryId ||
-        ModalSupplier?.Id != _originalSupplierId ||
-        ModalTrackInventory != _originalTrackInventory ||
-        ModalUnitOfMeasure != _originalUnitOfMeasure ||
-        ModalReorderPoint != _originalReorderPoint ||
-        ModalOverstockThreshold != _originalOverstockThreshold ||
-        ModalUnitPrice != _originalUnitPrice ||
-        ModalCostPrice != _originalCostPrice ||
-        ModalSku != _originalSku;
+    public bool HasEditModalChanges => Capture() != _original;
 
     #endregion
 
@@ -446,7 +431,6 @@ public partial class ProductModalsViewModel : ViewModelBase
         UpdateDropdownOptions();
 
         ModalId = product.Id;
-        _originalId = product.Id;
         ModalProductName = product.Name;
         ModalDescription = product.Description;
         ModalSku = product.Sku;
@@ -474,19 +458,7 @@ public partial class ProductModalsViewModel : ViewModelBase
         ModalReorderPoint = product.ReorderPoint > 0 ? product.ReorderPoint.ToString() : string.Empty;
         ModalOverstockThreshold = product.OverstockThreshold > 0 ? product.OverstockThreshold.ToString() : string.Empty;
 
-        // Store original values for change detection
-        _originalProductName = ModalProductName;
-        _originalDescription = ModalDescription;
-        _originalItemType = ModalItemType;
-        _originalCategoryId = ModalCategory?.Id;
-        _originalSupplierId = ModalSupplier?.Id;
-        _originalTrackInventory = ModalTrackInventory;
-        _originalUnitOfMeasure = ModalUnitOfMeasure;
-        _originalReorderPoint = ModalReorderPoint;
-        _originalOverstockThreshold = ModalOverstockThreshold;
-        _originalUnitPrice = ModalUnitPrice;
-        _originalCostPrice = ModalCostPrice;
-        _originalSku = ModalSku;
+        _original = Capture();
 
         ModalError = null;
         IsEditModalOpen = true;
@@ -684,85 +656,39 @@ public partial class ProductModalsViewModel : ViewModelBase
             if (item == null)
                 return;
 
-            // Check if product is in use
-            var cd = App.CompanyManager?.CompanyData;
-            if (cd != null)
-            {
-                var usages = new List<string>();
-                if (cd.Revenues.Any(r => r.LineItems.Any(li => li.ProductId == item.Id)))
-                    usages.Add("Revenue".Translate());
-                if (cd.Expenses.Any(e => e.LineItems.Any(li => li.ProductId == item.Id)))
-                    usages.Add("Expense".Translate());
-                if (cd.Invoices.Any(i => i.LineItems.Any(li => li.ProductId == item.Id)))
-                    usages.Add("Invoice".Translate());
-                if (cd.Inventory.Any(i => i.ProductId == item.Id))
-                    usages.Add("Inventory".Translate());
-                if (cd.PurchaseOrders.Any(po => po.LineItems.Any(li => li.ProductId == item.Id)))
-                    usages.Add("Purchase Order".Translate());
-                if (cd.Returns.Any(r => r.Items.Any(ri => ri.ProductId == item.Id)))
-                    usages.Add("Return".Translate());
-                if (cd.LostDamaged.Any(ld => ld.ProductId == item.Id))
-                    usages.Add("Lost / Damaged".Translate());
-                // Both kinds of schedule clone their template's line items into every
-                // occurrence, so a product either of them names is still in use.
-                if (cd.RecurringInvoices.Any(ri => ri.Template != null
-                        && ri.Template.LineItems.Any(li => li.ProductId == item.Id)))
-                    usages.Add("Recurring Invoice".Translate());
-                if (RecurringTransactionService.IsProductInUse(cd, item.Id))
-                    usages.Add("Recurring Transaction".Translate());
-                if (usages.Count > 0)
-                {
-                    await App.ShowWarningMessageBoxAsync(
-                        "Cannot Delete".Translate(),
-                        "This product cannot be deleted because it is referenced by one or more: {0}.".TranslateFormat(string.Join(", ", usages)));
-                    return;
-                }
-            }
-
-            var dialog = App.ConfirmationDialog;
-            if (dialog == null)
-                return;
-
-            var result = await dialog.ShowAsync(new ConfirmationDialogOptions
-            {
-                Title = "Delete Product".Translate(),
-                Message = "Are you sure you want to delete this product?\n\n{0}".TranslateFormat(item.Name),
-                PrimaryButtonText = "Delete".Translate(),
-                CancelButtonText = "Cancel".Translate(),
-                IsPrimaryDestructive = true
-            });
-
-            if (result != ConfirmationResult.Primary)
-                return;
-
             var companyData = App.CompanyManager?.CompanyData;
             if (companyData == null)
                 return;
 
-            var product = companyData.Products.FirstOrDefault(p => p.Id == item.Id);
-            if (product != null)
-            {
-                var deletedProduct = product;
-                companyData.Products.Remove(product);
-                companyData.MarkAsModified();
+            if (await BlockIfInUseAsync(
+                    usages => "This product cannot be deleted because it is referenced by one or more: {0}.".TranslateFormat(usages),
+                    (companyData.Revenues.Any(r => r.LineItems.Any(li => li.ProductId == item.Id)), "Revenue".Translate()),
+                    (companyData.Expenses.Any(e => e.LineItems.Any(li => li.ProductId == item.Id)), "Expense".Translate()),
+                    (companyData.Invoices.Any(i => i.LineItems.Any(li => li.ProductId == item.Id)), "Invoice".Translate()),
+                    (companyData.Inventory.Any(i => i.ProductId == item.Id), "Inventory".Translate()),
+                    (companyData.PurchaseOrders.Any(po => po.LineItems.Any(li => li.ProductId == item.Id)), "Purchase Order".Translate()),
+                    (companyData.Returns.Any(r => r.Items.Any(ri => ri.ProductId == item.Id)), "Return".Translate()),
+                    (companyData.LostDamaged.Any(ld => ld.ProductId == item.Id), "Lost / Damaged".Translate()),
+                    // Both kinds of schedule clone their template's line items into every
+                    // occurrence, so a product either of them names is still in use.
+                    (companyData.RecurringInvoices.Any(ri => ri.Template != null
+                        && ri.Template.LineItems.Any(li => li.ProductId == item.Id)), "Recurring Invoice".Translate()),
+                    (RecurringTransactionService.IsProductInUse(companyData, item.Id), "Recurring Transaction".Translate())))
+                return;
 
-                App.UndoRedoManager.RecordAction(new DelegateAction(
-                    $"Delete product '{deletedProduct.Name}'",
-                    () =>
-                    {
-                        companyData.Products.Add(deletedProduct);
-                        companyData.MarkAsModified();
-                        ProductDeleted?.Invoke(this, EventArgs.Empty);
-                    },
-                    () =>
-                    {
-                        companyData.Products.Remove(deletedProduct);
-                        companyData.MarkAsModified();
-                        ProductDeleted?.Invoke(this, EventArgs.Empty);
-                    }));
+            if (!await ConfirmDeleteAsync("Delete Product".Translate(),
+                    "Are you sure you want to delete this product?\n\n{0}".TranslateFormat(item.Name)))
+                return;
+
+            var product = companyData.Products.FirstOrDefault(p => p.Id == item.Id);
+            if (product == null)
+            {
+                ProductDeleted?.Invoke(this, EventArgs.Empty);
+                return;
             }
 
-            ProductDeleted?.Invoke(this, EventArgs.Empty);
+            RemoveWithUndo(companyData, companyData.Products, product, $"Delete product '{product.Name}'",
+                () => ProductDeleted?.Invoke(this, EventArgs.Empty));
         }
         catch (Exception ex)
         {
@@ -846,35 +772,17 @@ public partial class ProductModalsViewModel : ViewModelBase
         if (companyData == null)
             return;
 
-        AvailableCategories.Clear();
-        var targetType = IsExpensesTab ? CategoryType.Expense : CategoryType.Revenue;
-        var categories = companyData.Categories
-            .Where(c => c.Type == targetType)
-            .OrderBy(c => c.Name);
-
-        foreach (var cat in categories)
-        {
-            AvailableCategories.Add(new CategoryOption { Id = cat.Id, Name = cat.Name });
-        }
-
-        CategoryItems.Clear();
-        foreach (var cat in categories)
-        {
-            CategoryItems.Add(new CategoryItem { Id = cat.Id, Name = cat.Name });
-        }
+        var categories = OptionLoader.Categories(companyData, IsExpensesTab ? CategoryType.Expense : CategoryType.Revenue).ToList();
+        OptionLoader.Fill(AvailableCategories, categories.AsOptions<CategoryOption>());
+        OptionLoader.Fill(CategoryItems, categories.Select(cat => new CategoryItem { Id = cat.Id, Name = cat.Name }));
         OnPropertyChanged(nameof(HasCategories));
 
-        AvailableSuppliers.Clear();
-        foreach (var supplier in companyData.Suppliers.OrderBy(s => s.Name))
-        {
-            AvailableSuppliers.Add(new SupplierOption { Id = supplier.Id, Name = supplier.Name });
-        }
+        OptionLoader.Fill(AvailableSuppliers, OptionLoader.Suppliers(companyData).AsOptions<SupplierOption>());
     }
 
     private void ClearModalFields()
     {
         ModalId = string.Empty;
-        _originalId = string.Empty;
         ModalIdError = null;
         ModalProductName = string.Empty;
         ModalDescription = string.Empty;

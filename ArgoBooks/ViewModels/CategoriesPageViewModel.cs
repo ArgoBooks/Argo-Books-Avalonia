@@ -53,17 +53,8 @@ public partial class CategoriesPageViewModel : SortablePageViewModelBase
 
     #region Pagination
 
-    [ObservableProperty]
-    private string _paginationText = "0 categories";
-
     /// <inheritdoc />
     protected override void OnSortOrPageChanged() => FilterCategories();
-
-    private void UpdatePaginationText(int totalCount)
-    {
-        PaginationText = PaginationTextHelper.FormatPaginationText(
-            totalCount, CurrentPage, PageSize, TotalPages, "category", "categories");
-    }
 
     #endregion
 
@@ -99,28 +90,23 @@ public partial class CategoriesPageViewModel : SortablePageViewModelBase
     /// </summary>
     public CategoriesTableColumnWidths ColumnWidths => App.CategoriesColumnWidths;
 
-    [ObservableProperty]
-    private bool _showNameColumn = ColumnVisibilityHelper.Load("Categories", "Name", true);
-
-    [ObservableProperty]
-    private bool _showDescriptionColumn = ColumnVisibilityHelper.Load("Categories", "Description", true);
-
-    [ObservableProperty]
-    private bool _showProductCountColumn = ColumnVisibilityHelper.Load("Categories", "ProductCount", true);
-
-    partial void OnShowNameColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Name", value); ColumnVisibilityHelper.Save("Categories", "Name", value); }
-    partial void OnShowDescriptionColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Description", value); ColumnVisibilityHelper.Save("Categories", "Description", value); }
-    partial void OnShowProductCountColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("ProductCount", value); ColumnVisibilityHelper.Save("Categories", "ProductCount", value); }
-
-    [RelayCommand]
-    private void ResetColumnVisibility()
+    private static readonly ColumnVisibilityDefaults ColumnDefaults = new("Categories", new Dictionary<string, bool>
     {
-        ColumnWidths.ResetWidths();
-        ColumnVisibilityHelper.ResetPage("Categories");
-        ShowNameColumn = true;
-        ShowDescriptionColumn = true;
-        ShowProductCountColumn = true;
-    }
+        ["Name"] = true,
+        ["Description"] = true,
+        ["ProductCount"] = true,
+    });
+
+    protected override ColumnVisibilityDefaults ColumnVisibility => ColumnDefaults;
+
+    [ObservableProperty]
+    private bool _showNameColumn = ColumnDefaults.Load("Name");
+
+    [ObservableProperty]
+    private bool _showDescriptionColumn = ColumnDefaults.Load("Description");
+
+    [ObservableProperty]
+    private bool _showProductCountColumn = ColumnDefaults.Load("ProductCount");
 
     #endregion
 
@@ -133,10 +119,7 @@ public partial class CategoriesPageViewModel : SortablePageViewModelBase
     {
         LoadCategories();
 
-        // Subscribe to undo/redo state changes to refresh UI
-        App.UndoRedoManager.StateChanged += OnUndoRedoStateChanged;
-        if (App.NavigationService != null)
-            App.NavigationService.Navigated += OnNavigated;
+        EnableDeferredUndoRefresh(IsThisPage, LoadCategories);
 
         // Subscribe to shared modal events to refresh data
         if (App.CategoryModalsViewModel != null)
@@ -153,9 +136,6 @@ public partial class CategoriesPageViewModel : SortablePageViewModelBase
     public override void Cleanup()
     {
         base.Cleanup();
-        App.UndoRedoManager.StateChanged -= OnUndoRedoStateChanged;
-        if (App.NavigationService != null)
-            App.NavigationService.Navigated -= OnNavigated;
         if (App.CategoryModalsViewModel != null)
         {
             App.CategoryModalsViewModel.CategorySaved -= OnCategoryModalClosed;
@@ -172,34 +152,10 @@ public partial class CategoriesPageViewModel : SortablePageViewModelBase
     }
 
     /// <summary>
-    /// Handles undo/redo state changes by refreshing the categories.
-    /// </summary>
-    private bool _needsRefresh;
-
-    /// <summary>
     /// The sidebar opens this page on a tab, under its own page name.
     /// </summary>
     private static bool IsThisPage(string? pageName) =>
         pageName is PageNames.Categories or PageNames.ExpenseCategories or PageNames.RevenueCategories;
-
-    private void OnUndoRedoStateChanged(object? sender, EventArgs e)
-    {
-        if (!IsThisPage(App.NavigationService?.CurrentPageName))
-        {
-            _needsRefresh = true;
-            return;
-        }
-        LoadCategories();
-    }
-
-    private void OnNavigated(object? sender, NavigationEventArgs e)
-    {
-        if (IsThisPage(e.PageName) && _needsRefresh)
-        {
-            _needsRefresh = false;
-            LoadCategories();
-        }
-    }
 
     #endregion
 
@@ -295,18 +251,7 @@ public partial class CategoriesPageViewModel : SortablePageViewModelBase
                 });
         }
 
-        // Calculate pagination
-        var totalCount = displayItems.Count;
-        TotalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / PageSize));
-        if (CurrentPage > TotalPages)
-            CurrentPage = TotalPages;
-
-        UpdatePaginationText(totalCount);
-
-        // Apply pagination
-        var pagedItems = displayItems
-            .Skip((CurrentPage - 1) * PageSize)
-            .Take(PageSize);
+        var pagedItems = Paginate(displayItems, "category", "categories");
 
         targetCollection.ReplaceAll(pagedItems);
 

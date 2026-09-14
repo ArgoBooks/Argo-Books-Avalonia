@@ -3,16 +3,12 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:ArgoBooks.ViewModels"
-             xmlns:local="using:ArgoBooks"
+             xmlns:modals="using:ArgoBooks.Modals"
              xmlns:conv="using:ArgoBooks.Converters"
              mc:Ignorable="d" d:DesignWidth="1280" d:DesignHeight="800"
-             x:Class="ArgoBooks.Modals.ProductsTutorialOverlay"
-             x:DataType="vm:ProductsTutorialViewModel"
+             x:Class="ArgoBooks.Modals.PageTutorialOverlay"
+             x:DataType="vm:PageTutorialViewModel"
              IsVisible="{Binding IsOpen}">
-
-    <Design.DataContext>
-        <vm:ProductsTutorialViewModel />
-    </Design.DataContext>
 
     <Panel Background="Transparent">
         <!-- Semi-transparent backdrop with cutout for highlighted area -->
@@ -54,7 +50,7 @@
                                 CornerRadius="28"
                                 Background="{DynamicResource PrimaryLightBrush}"
                                 HorizontalAlignment="Center">
-                            <PathIcon Data="{x:Static local:Icons.Products}"
+                            <PathIcon Data="{Binding $parent[modals:PageTutorialOverlay].Icon}"
                                       Width="28" Height="28"
                                       Foreground="{DynamicResource PrimaryBrush}" />
                         </Border>

@@ -89,68 +89,55 @@ public partial class RentalRecordsPageViewModel : SortablePageViewModelBase
     /// </summary>
     public RentalRecordsTableColumnWidths ColumnWidths => App.RentalRecordsColumnWidths;
 
-    [ObservableProperty]
-    private bool _showIdColumn = ColumnVisibilityHelper.Load("RentalRecords", "Id", true);
-
-    [ObservableProperty]
-    private bool _showItemColumn = ColumnVisibilityHelper.Load("RentalRecords", "Item", true);
-
-    [ObservableProperty]
-    private bool _showCustomerColumn = ColumnVisibilityHelper.Load("RentalRecords", "Customer", true);
-
-    [ObservableProperty]
-    private bool _showQuantityColumn = ColumnVisibilityHelper.Load("RentalRecords", "Quantity", true);
-
-    [ObservableProperty]
-    private bool _showStartDateColumn = ColumnVisibilityHelper.Load("RentalRecords", "StartDate", true);
-
-    [ObservableProperty]
-    private bool _showDueDateColumn = ColumnVisibilityHelper.Load("RentalRecords", "DueDate", true);
-
-    [ObservableProperty]
-    private bool _showStatusColumn = ColumnVisibilityHelper.Load("RentalRecords", "Status", true);
-
-    [ObservableProperty]
-    private bool _showTotalColumn = ColumnVisibilityHelper.Load("RentalRecords", "Total", true);
-
-    [ObservableProperty]
-    private bool _showDepositColumn = ColumnVisibilityHelper.Load("RentalRecords", "Deposit", true);
-
-    [ObservableProperty]
-    private bool _showPaidColumn = ColumnVisibilityHelper.Load("RentalRecords", "Paid", true);
-
-    [ObservableProperty]
-    private bool _showInvoiceColumn = ColumnVisibilityHelper.Load("RentalRecords", "Invoice", true);
-
-    partial void OnShowIdColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Id", value); ColumnVisibilityHelper.Save("RentalRecords", "Id", value); }
-    partial void OnShowItemColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Item", value); ColumnVisibilityHelper.Save("RentalRecords", "Item", value); }
-    partial void OnShowCustomerColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Customer", value); ColumnVisibilityHelper.Save("RentalRecords", "Customer", value); }
-    partial void OnShowQuantityColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Quantity", value); ColumnVisibilityHelper.Save("RentalRecords", "Quantity", value); }
-    partial void OnShowStartDateColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("StartDate", value); ColumnVisibilityHelper.Save("RentalRecords", "StartDate", value); }
-    partial void OnShowDueDateColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("DueDate", value); ColumnVisibilityHelper.Save("RentalRecords", "DueDate", value); }
-    partial void OnShowStatusColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Status", value); ColumnVisibilityHelper.Save("RentalRecords", "Status", value); }
-    partial void OnShowTotalColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Total", value); ColumnVisibilityHelper.Save("RentalRecords", "Total", value); }
-    partial void OnShowDepositColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Deposit", value); ColumnVisibilityHelper.Save("RentalRecords", "Deposit", value); }
-    partial void OnShowPaidColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Paid", value); ColumnVisibilityHelper.Save("RentalRecords", "Paid", value); }
-    partial void OnShowInvoiceColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Invoice", value); ColumnVisibilityHelper.Save("RentalRecords", "Invoice", value); }
-
-    [RelayCommand]
-    private void ResetColumnVisibility()
+    private static readonly ColumnVisibilityDefaults ColumnDefaults = new("RentalRecords", new Dictionary<string, bool>
     {
-        ColumnWidths.ResetWidths();
-        ColumnVisibilityHelper.ResetPage("RentalRecords");
-        ShowIdColumn = true;
-        ShowItemColumn = true;
-        ShowCustomerColumn = true;
-        ShowQuantityColumn = true;
-        ShowStartDateColumn = true;
-        ShowDueDateColumn = true;
-        ShowStatusColumn = true;
-        ShowTotalColumn = true;
-        ShowDepositColumn = true;
-        ShowPaidColumn = true;
-        ShowInvoiceColumn = true;
-    }
+        ["Id"] = true,
+        ["Item"] = true,
+        ["Customer"] = true,
+        ["Quantity"] = true,
+        ["StartDate"] = true,
+        ["DueDate"] = true,
+        ["Status"] = true,
+        ["Total"] = true,
+        ["Deposit"] = true,
+        ["Paid"] = true,
+        ["Invoice"] = true,
+    });
+
+    protected override ColumnVisibilityDefaults ColumnVisibility => ColumnDefaults;
+
+    [ObservableProperty]
+    private bool _showIdColumn = ColumnDefaults.Load("Id");
+
+    [ObservableProperty]
+    private bool _showItemColumn = ColumnDefaults.Load("Item");
+
+    [ObservableProperty]
+    private bool _showCustomerColumn = ColumnDefaults.Load("Customer");
+
+    [ObservableProperty]
+    private bool _showQuantityColumn = ColumnDefaults.Load("Quantity");
+
+    [ObservableProperty]
+    private bool _showStartDateColumn = ColumnDefaults.Load("StartDate");
+
+    [ObservableProperty]
+    private bool _showDueDateColumn = ColumnDefaults.Load("DueDate");
+
+    [ObservableProperty]
+    private bool _showStatusColumn = ColumnDefaults.Load("Status");
+
+    [ObservableProperty]
+    private bool _showTotalColumn = ColumnDefaults.Load("Total");
+
+    [ObservableProperty]
+    private bool _showDepositColumn = ColumnDefaults.Load("Deposit");
+
+    [ObservableProperty]
+    private bool _showPaidColumn = ColumnDefaults.Load("Paid");
+
+    [ObservableProperty]
+    private bool _showInvoiceColumn = ColumnDefaults.Load("Invoice");
 
     #endregion
 
@@ -165,9 +152,6 @@ public partial class RentalRecordsPageViewModel : SortablePageViewModelBase
     #endregion
 
     #region Pagination
-
-    [ObservableProperty]
-    private string _paginationText = "0 records";
 
     /// <inheritdoc />
     protected override void OnSortOrPageChanged() => FilterRecords();
@@ -184,10 +168,7 @@ public partial class RentalRecordsPageViewModel : SortablePageViewModelBase
 
         LoadRecords();
 
-        // Subscribe to undo/redo state changes to refresh UI
-        App.UndoRedoManager.StateChanged += OnUndoRedoStateChanged;
-        if (App.NavigationService != null)
-            App.NavigationService.Navigated += OnNavigated;
+        EnableDeferredUndoRefresh(p => p == PageNames.RentalRecords, LoadRecords);
 
         if (App.RentalRecordsModalsViewModel != null)
         {
@@ -216,9 +197,6 @@ public partial class RentalRecordsPageViewModel : SortablePageViewModelBase
     public override void Cleanup()
     {
         base.Cleanup();
-        App.UndoRedoManager.StateChanged -= OnUndoRedoStateChanged;
-        if (App.NavigationService != null)
-            App.NavigationService.Navigated -= OnNavigated;
         if (App.RentalRecordsModalsViewModel != null)
         {
             App.RentalRecordsModalsViewModel.RecordSaved -= OnRecordSaved;
@@ -231,27 +209,6 @@ public partial class RentalRecordsPageViewModel : SortablePageViewModelBase
             App.RentalInventoryModalsViewModel.RentalCreated -= OnRentalCreated;
         if (App.InvoiceModalsViewModel != null)
             App.InvoiceModalsViewModel.InvoiceSaved -= OnInvoiceSaved;
-    }
-
-    private bool _needsRefresh;
-
-    private void OnUndoRedoStateChanged(object? sender, EventArgs e)
-    {
-        if (App.NavigationService?.CurrentPageName != PageNames.RentalRecords)
-        {
-            _needsRefresh = true;
-            return;
-        }
-        LoadRecords();
-    }
-
-    private void OnNavigated(object? sender, NavigationEventArgs e)
-    {
-        if (e.PageName == PageNames.RentalRecords && _needsRefresh)
-        {
-            _needsRefresh = false;
-            LoadRecords();
-        }
     }
 
     private void OnRecordSaved(object? sender, EventArgs e)
@@ -497,26 +454,9 @@ public partial class RentalRecordsPageViewModel : SortablePageViewModelBase
         // Navigate to highlighted item if set (from dashboard click)
         NavigateToHighlightedItem(displayItems, x => x.Id);
 
-        // Calculate pagination
-        var totalCount = displayItems.Count;
-        TotalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / PageSize));
-        if (CurrentPage > TotalPages)
-            CurrentPage = TotalPages;
-
-        UpdatePaginationText(totalCount);
-
-        // Apply pagination
-        var pagedRecords = displayItems
-            .Skip((CurrentPage - 1) * PageSize)
-            .Take(PageSize);
+        var pagedRecords = Paginate(displayItems, "record");
 
         Records.ReplaceAll(pagedRecords);
-    }
-
-    private void UpdatePaginationText(int totalCount)
-    {
-        PaginationText = PaginationTextHelper.FormatPaginationText(
-            totalCount, CurrentPage, PageSize, TotalPages, "record");
     }
 
     #endregion

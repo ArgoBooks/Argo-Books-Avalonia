@@ -3522,14 +3522,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
 
     private void LoadSupplierOptions()
     {
-        SupplierOptions.Clear();
-        var companyData = App.CompanyManager?.CompanyData;
-        if (companyData?.Suppliers == null) return;
-
-        foreach (var supplier in companyData.Suppliers.OrderBy(s => s.Name))
-        {
-            SupplierOptions.Add(new SupplierOption { Id = supplier.Id, Name = supplier.Name });
-        }
+        OptionLoader.Fill(SupplierOptions, OptionLoader.Suppliers(App.CompanyManager?.CompanyData).AsOptions<SupplierOption>());
     }
 
     private void LoadProductOptions()

@@ -67,13 +67,19 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
 
     private RentalRecord? _editingRecord;
 
-    // Original values for change detection in edit mode
-    private CustomerOption? _originalCustomer;
-    private AccountantOption? _originalAccountant;
-    private DateTimeOffset? _originalStartDate;
-    private DateTimeOffset? _originalDueDate;
-    private string _originalNotes = string.Empty;
-    private List<(string? ItemId, string Quantity, string RateType, string RateAmount, string SecurityDeposit)> _originalLineItems = [];
+    private sealed record LineState(string? ItemId, string Quantity, string RateType, string RateAmount, string SecurityDeposit);
+
+    private sealed record EditState(
+        string? CustomerId, string? AccountantId, DateTimeOffset? StartDate, DateTimeOffset? DueDate,
+        string Notes, Helpers.EquatableArray<LineState> LineItems);
+
+    // The form as the edit modal opened, for change detection.
+    private EditState? _original;
+
+    private EditState Capture() => new(
+        ModalCustomer?.Id, ModalAccountant?.Id, ModalStartDate, ModalDueDate, ModalNotes,
+        new Helpers.EquatableArray<LineState>(RentalLineItems.Select(li =>
+            new LineState(li.SelectedItem?.Id, li.Quantity, li.RateType, li.RateAmount, li.SecurityDeposit))));
 
     /// <summary>
     /// Line items in the Add/Edit modal.
@@ -104,35 +110,7 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
     /// <summary>
     /// Returns true if any changes have been made in the Edit modal.
     /// </summary>
-    public bool HasEditModalChanges
-    {
-        get
-        {
-            if (ModalCustomer?.Id != _originalCustomer?.Id ||
-                ModalAccountant?.Id != _originalAccountant?.Id ||
-                ModalStartDate != _originalStartDate ||
-                ModalDueDate != _originalDueDate ||
-                ModalNotes != _originalNotes)
-                return true;
-
-            if (RentalLineItems.Count != _originalLineItems.Count)
-                return true;
-
-            for (int i = 0; i < RentalLineItems.Count; i++)
-            {
-                var current = RentalLineItems[i];
-                var original = _originalLineItems[i];
-                if (current.SelectedItem?.Id != original.ItemId ||
-                    current.Quantity != original.Quantity ||
-                    current.RateType != original.RateType ||
-                    current.RateAmount != original.RateAmount ||
-                    current.SecurityDeposit != original.SecurityDeposit)
-                    return true;
-            }
-
-            return false;
-        }
-    }
+    public bool HasEditModalChanges => Capture() != _original;
 
     partial void OnModalCustomerChanged(CustomerOption? value)
     {
@@ -645,13 +623,7 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
         UpdateLineItemTotals();
 
         // Store original values for change detection
-        _originalCustomer = ModalCustomer;
-        _originalAccountant = ModalAccountant;
-        _originalStartDate = ModalStartDate;
-        _originalDueDate = ModalDueDate;
-        _originalNotes = ModalNotes;
-        _originalLineItems = RentalLineItems.Select(li =>
-            (li.SelectedItem?.Id, li.Quantity, li.RateType, li.RateAmount, li.SecurityDeposit)).ToList();
+        _original = Capture();
 
         ClearModalErrors();
         IsEditModalOpen = true;
@@ -921,20 +893,8 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
             if (record == null)
                 return;
 
-            var dialog = App.ConfirmationDialog;
-            if (dialog == null)
-                return;
-
-            var result = await dialog.ShowAsync(new ConfirmationDialogOptions
-            {
-                Title = "Delete Rental Record".Translate(),
-                Message = "Are you sure you want to delete this rental record?\n\nRecord ID: {0}".TranslateFormat(record.Id),
-                PrimaryButtonText = "Delete".Translate(),
-                CancelButtonText = "Cancel".Translate(),
-                IsPrimaryDestructive = true
-            });
-
-            if (result != ConfirmationResult.Primary)
+            if (!await ConfirmDeleteAsync("Delete Rental Record".Translate(),
+                    "Are you sure you want to delete this rental record?\n\nRecord ID: {0}".TranslateFormat(record.Id)))
                 return;
 
             var companyData = App.CompanyManager?.CompanyData;
@@ -942,106 +902,75 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
                 return;
 
             var rentalRecord = companyData.Rentals.FirstOrDefault(r => r.Id == record.Id);
-            if (rentalRecord != null)
+            if (rentalRecord == null)
             {
-                var deletedRecord = rentalRecord;
-                var wasActive = rentalRecord.Status == RentalStatus.Active || rentalRecord.Status == RentalStatus.Overdue;
+                RecordDeleted?.Invoke(this, EventArgs.Empty);
+                return;
+            }
 
-                // Capture inventory state and restore InStock if active
-                var invSnapshot = new Dictionary<string, decimal>();
-                var deleteAdjustments = new List<StockAdjustment>();
-                if (wasActive)
+            // Units still out go back into stock. The first removal records the stock each item
+            // started from and writes the adjustments; a redo reapplies the same adjustments.
+            var wasActive = rentalRecord.Status == RentalStatus.Active || rentalRecord.Status == RentalStatus.Overdue;
+            var stockBefore = new Dictionary<string, decimal>();
+            var adjustments = new List<StockAdjustment>();
+            var isRedo = false;
+
+            RemoveWithUndo(companyData, companyData.Rentals, rentalRecord, $"Delete rental '{rentalRecord.Id}'",
+                () => RecordDeleted?.Invoke(this, EventArgs.Empty),
+                onRemove: () =>
                 {
-                    var effectiveItems = GetEffectiveLineItems(rentalRecord);
-                    foreach (var li in effectiveItems)
+                    if (!wasActive) return;
+
+                    foreach (var li in GetEffectiveLineItems(rentalRecord))
                     {
                         var ri = companyData.RentalInventory.FirstOrDefault(i => i.Id == li.RentalItemId);
                         var invItem = ri != null ? companyData.Inventory.FirstOrDefault(inv => inv.Id == ri.InventoryItemId) : null;
-                        if (invItem != null)
-                        {
-                            if (!invSnapshot.ContainsKey(invItem.Id))
-                                invSnapshot[invItem.Id] = invItem.InStock;
-                            var previousStock = invItem.InStock;
-                            invItem.InStock += li.Quantity;
-                            invItem.Status = invItem.CalculateStatus();
-                            invItem.LastUpdated = DateTime.UtcNow;
+                        if (invItem == null) continue;
 
-                            companyData.IdCounters.StockAdjustment++;
-                            var adj = new StockAdjustment
-                            {
-                                Id = $"ADJ-{companyData.IdCounters.StockAdjustment:D5}",
-                                InventoryItemId = invItem.Id,
-                                AdjustmentType = AdjustmentType.Add,
-                                Quantity = li.Quantity,
-                                PreviousStock = previousStock,
-                                NewStock = invItem.InStock,
-                                Reason = "Rental deleted",
-                                ReferenceNumber = rentalRecord.Id,
-                                Timestamp = DateTime.UtcNow,
-                                IsAutoGenerated = true
-                            };
-                            deleteAdjustments.Add(adj);
-                            companyData.StockAdjustments.Add(adj);
-                        }
+                        var previousStock = invItem.InStock;
+                        invItem.InStock += li.Quantity;
+                        invItem.Status = invItem.CalculateStatus();
+                        invItem.LastUpdated = DateTime.UtcNow;
+                        if (isRedo) continue;
+
+                        stockBefore.TryAdd(invItem.Id, previousStock);
+                        companyData.IdCounters.StockAdjustment++;
+                        adjustments.Add(new StockAdjustment
+                        {
+                            Id = $"ADJ-{companyData.IdCounters.StockAdjustment:D5}",
+                            InventoryItemId = invItem.Id,
+                            AdjustmentType = AdjustmentType.Add,
+                            Quantity = li.Quantity,
+                            PreviousStock = previousStock,
+                            NewStock = invItem.InStock,
+                            Reason = "Rental deleted",
+                            ReferenceNumber = rentalRecord.Id,
+                            Timestamp = DateTime.UtcNow,
+                            IsAutoGenerated = true
+                        });
                     }
-                }
 
-                companyData.Rentals.Remove(rentalRecord);
-                companyData.MarkAsModified();
+                    companyData.StockAdjustments.AddRange(adjustments);
+                    isRedo = true;
+                },
+                onRestore: () =>
+                {
+                    if (!wasActive) return;
 
-                var savedInvSnapshot = invSnapshot;
-                var savedDeleteAdjustments = deleteAdjustments;
-                App.UndoRedoManager.RecordAction(new DelegateAction(
-                    $"Delete rental '{deletedRecord.Id}'",
-                    () =>
+                    foreach (var (id, oldStock) in stockBefore)
                     {
-                        companyData.Rentals.Add(deletedRecord);
-                        if (wasActive)
-                        {
-                            foreach (var (id, oldStock) in savedInvSnapshot)
-                            {
-                                var invItem = companyData.Inventory.FirstOrDefault(i => i.Id == id);
-                                if (invItem != null)
-                                {
-                                    var stockBeforeUndo = invItem.InStock;
-                                    invItem.InStock = oldStock;
-                                    invItem.Status = invItem.CalculateStatus();
-                                    invItem.LastUpdated = DateTime.UtcNow;
-                                    App.CheckAndNotifyStockStatus(invItem, stockBeforeUndo);
-                                }
-                            }
-                            foreach (var adj in savedDeleteAdjustments)
-                                companyData.StockAdjustments.RemoveAll(a => a.Id == adj.Id);
-                        }
-                        companyData.MarkAsModified();
-                        RecordDeleted?.Invoke(this, EventArgs.Empty);
-                    },
-                    () =>
-                    {
-                        companyData.Rentals.Remove(deletedRecord);
-                        if (wasActive)
-                        {
-                            var effectiveItems = GetEffectiveLineItems(deletedRecord);
-                            foreach (var li in effectiveItems)
-                            {
-                                var ri = companyData.RentalInventory.FirstOrDefault(i => i.Id == li.RentalItemId);
-                                var invItem = ri != null ? companyData.Inventory.FirstOrDefault(inv => inv.Id == ri.InventoryItemId) : null;
-                                if (invItem != null)
-                                {
-                                    invItem.InStock += li.Quantity;
-                                    invItem.Status = invItem.CalculateStatus();
-                                    invItem.LastUpdated = DateTime.UtcNow;
-                                }
-                            }
-                            foreach (var adj in savedDeleteAdjustments)
-                                companyData.StockAdjustments.Add(adj);
-                        }
-                        companyData.MarkAsModified();
-                        RecordDeleted?.Invoke(this, EventArgs.Empty);
-                    }));
-            }
+                        var invItem = companyData.Inventory.FirstOrDefault(i => i.Id == id);
+                        if (invItem == null) continue;
 
-            RecordDeleted?.Invoke(this, EventArgs.Empty);
+                        var stockBeforeUndo = invItem.InStock;
+                        invItem.InStock = oldStock;
+                        invItem.Status = invItem.CalculateStatus();
+                        invItem.LastUpdated = DateTime.UtcNow;
+                        App.CheckAndNotifyStockStatus(invItem, stockBeforeUndo);
+                    }
+                    foreach (var adj in adjustments)
+                        companyData.StockAdjustments.RemoveAll(a => a.Id == adj.Id);
+                });
         }
         catch (Exception ex)
         {
@@ -1548,17 +1477,8 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
         foreach (var item in sorted)
             AvailableItems.Add(item);
 
-        AvailableCustomers.Clear();
-        foreach (var customer in companyData.Customers.Where(c => c.Status == EntityStatus.Active).OrderBy(c => c.Name))
-        {
-            AvailableCustomers.Add(new CustomerOption { Id = customer.Id, Name = customer.Name });
-        }
-
-        AvailableAccountants.Clear();
-        foreach (var accountant in companyData.Accountants.OrderBy(a => a.Name))
-        {
-            AvailableAccountants.Add(new AccountantOption { Id = accountant.Id, Name = accountant.Name });
-        }
+        OptionLoader.Fill(AvailableCustomers, OptionLoader.Customers(companyData, activeOnly: true).AsOptions<CustomerOption>());
+        OptionLoader.Fill(AvailableAccountants, OptionLoader.Accountants(companyData).AsOptions<AccountantOption>());
     }
 
     private void ClearModalFields()

@@ -56,33 +56,27 @@ public partial class LocationsPageViewModel : SortablePageViewModelBase
     [ObservableProperty]
     private double _columnMenuY;
 
-    [ObservableProperty]
-    private bool _showLocationColumn = ColumnVisibilityHelper.Load("Locations", "Location", true);
-
-    [ObservableProperty]
-    private bool _showTypeColumn = ColumnVisibilityHelper.Load("Locations", "Type", true);
-
-    [ObservableProperty]
-    private bool _showAddressColumn = ColumnVisibilityHelper.Load("Locations", "Address", true);
-
-    [ObservableProperty]
-    private bool _showManagerColumn = ColumnVisibilityHelper.Load("Locations", "Manager", true);
-
-    partial void OnShowLocationColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Location", value); ColumnVisibilityHelper.Save("Locations", "Location", value); }
-    partial void OnShowTypeColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Type", value); ColumnVisibilityHelper.Save("Locations", "Type", value); }
-    partial void OnShowAddressColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Address", value); ColumnVisibilityHelper.Save("Locations", "Address", value); }
-    partial void OnShowManagerColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Manager", value); ColumnVisibilityHelper.Save("Locations", "Manager", value); }
-
-    [RelayCommand]
-    private void ResetColumnVisibility()
+    private static readonly ColumnVisibilityDefaults ColumnDefaults = new("Locations", new Dictionary<string, bool>
     {
-        ColumnWidths.ResetWidths();
-        ColumnVisibilityHelper.ResetPage("Locations");
-        ShowLocationColumn = true;
-        ShowTypeColumn = true;
-        ShowAddressColumn = true;
-        ShowManagerColumn = true;
-    }
+        ["Location"] = true,
+        ["Type"] = true,
+        ["Address"] = true,
+        ["Manager"] = true,
+    });
+
+    protected override ColumnVisibilityDefaults ColumnVisibility => ColumnDefaults;
+
+    [ObservableProperty]
+    private bool _showLocationColumn = ColumnDefaults.Load("Location");
+
+    [ObservableProperty]
+    private bool _showTypeColumn = ColumnDefaults.Load("Type");
+
+    [ObservableProperty]
+    private bool _showAddressColumn = ColumnDefaults.Load("Address");
+
+    [ObservableProperty]
+    private bool _showManagerColumn = ColumnDefaults.Load("Manager");
 
     #endregion
 
@@ -132,9 +126,6 @@ public partial class LocationsPageViewModel : SortablePageViewModelBase
 
     #region Pagination
 
-    [ObservableProperty]
-    private string _paginationText = "0 locations";
-
     /// <inheritdoc />
     protected override void OnSortOrPageChanged() => FilterLocations();
 
@@ -149,10 +140,7 @@ public partial class LocationsPageViewModel : SortablePageViewModelBase
     {
         LoadLocations();
 
-        // Subscribe to undo/redo state changes to refresh UI
-        App.UndoRedoManager.StateChanged += OnUndoRedoStateChanged;
-        if (App.NavigationService != null)
-            App.NavigationService.Navigated += OnNavigated;
+        EnableDeferredUndoRefresh(p => p == PageNames.Locations, LoadLocations);
 
         // Subscribe to modal events to refresh when locations are saved
         if (App.LocationsModalsViewModel != null)
@@ -170,9 +158,6 @@ public partial class LocationsPageViewModel : SortablePageViewModelBase
     public override void Cleanup()
     {
         base.Cleanup();
-        App.UndoRedoManager.StateChanged -= OnUndoRedoStateChanged;
-        if (App.NavigationService != null)
-            App.NavigationService.Navigated -= OnNavigated;
         if (App.LocationsModalsViewModel != null)
         {
             App.LocationsModalsViewModel.LocationSaved -= OnModalLocationSaved;
@@ -190,30 +175,6 @@ public partial class LocationsPageViewModel : SortablePageViewModelBase
         FilterStatus = e.Status;
         CurrentPage = 1;
         FilterLocations();
-    }
-
-    /// <summary>
-    /// Handles undo/redo state changes by refreshing the locations.
-    /// </summary>
-    private bool _needsRefresh;
-
-    private void OnUndoRedoStateChanged(object? sender, EventArgs e)
-    {
-        if (App.NavigationService?.CurrentPageName != PageNames.Locations)
-        {
-            _needsRefresh = true;
-            return;
-        }
-        LoadLocations();
-    }
-
-    private void OnNavigated(object? sender, NavigationEventArgs e)
-    {
-        if (e.PageName == PageNames.Locations && _needsRefresh)
-        {
-            _needsRefresh = false;
-            LoadLocations();
-        }
     }
 
     /// <summary>
@@ -370,18 +331,7 @@ public partial class LocationsPageViewModel : SortablePageViewModelBase
                 l => l.Name);
         }
 
-        // Calculate pagination
-        var totalCount = displayItems.Count;
-        TotalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / PageSize));
-        if (CurrentPage > TotalPages)
-            CurrentPage = TotalPages;
-
-        UpdatePaginationText(totalCount);
-
-        // Apply pagination and add to collection
-        var pagedLocations = displayItems
-            .Skip((CurrentPage - 1) * PageSize)
-            .Take(PageSize);
+        var pagedLocations = Paginate(displayItems, "location");
 
         Locations.ReplaceAll(pagedLocations);
     }
@@ -398,12 +348,6 @@ public partial class LocationsPageViewModel : SortablePageViewModelBase
         if (name.Contains("retail") || name.Contains("store")) return "Retail Store";
         if (name.Contains("distribution")) return "Distribution Center";
         return "Warehouse"; // Default
-    }
-
-    private void UpdatePaginationText(int totalCount)
-    {
-        PaginationText = PaginationTextHelper.FormatPaginationText(
-            totalCount, CurrentPage, PageSize, TotalPages, "location");
     }
 
     #endregion

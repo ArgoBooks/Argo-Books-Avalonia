@@ -417,10 +417,9 @@ public partial class StockAdjustmentsModalsViewModel : ViewModelBase
             var companyData = App.CompanyManager?.CompanyData;
 
             var adjustment = companyData?.StockAdjustments.FirstOrDefault(a => a.Id == item.Id);
-            if (adjustment == null) return;
+            if (companyData == null || adjustment == null) return;
 
-            // Find the inventory item and reverse the adjustment
-            var inventoryItem = companyData?.Inventory.FirstOrDefault(i => i.Id == adjustment.InventoryItemId);
+            var inventoryItem = companyData.Inventory.FirstOrDefault(i => i.Id == adjustment.InventoryItemId);
 
             // Adding an adjustment can't leave stock below zero, so taking one back can't either.
             var stockAfterDelete = inventoryItem?.InStock - (adjustment.NewStock - adjustment.PreviousStock);
@@ -432,70 +431,33 @@ public partial class StockAdjustmentsModalsViewModel : ViewModelBase
                 return;
             }
 
-            var dialog = App.ConfirmationDialog;
-            if (dialog == null) return;
+            if (!await ConfirmDeleteAsync("Delete Stock Adjustment".Translate(),
+                    "Are you sure you want to delete this stock adjustment?\n\nProduct: {0}\nQuantity: {1}".TranslateFormat(item.ProductName, item.Quantity)))
+                return;
 
-            var result = await dialog.ShowAsync(new ConfirmationDialogOptions
-            {
-                Title = "Delete Stock Adjustment".Translate(),
-                Message = "Are you sure you want to delete this stock adjustment?\n\nProduct: {0}\nQuantity: {1}".TranslateFormat(item.ProductName, item.Quantity),
-                PrimaryButtonText = "Delete".Translate(),
-                CancelButtonText = "Cancel".Translate(),
-                IsPrimaryDestructive = true
-            });
-
-            if (result != ConfirmationResult.Primary) return;
-
-            // Store values for undo
             var oldInventoryStock = inventoryItem?.InStock;
             var oldInventoryStatus = inventoryItem?.Status;
 
-            // Reverse the adjustment on inventory if item still exists
-            if (inventoryItem != null)
-            {
-                // Reverse the adjustment's net effect from the live stock. Setting InStock to
-                // PreviousStock is only correct if this is the most recent adjustment for the item;
-                // with later adjustments present, that snapshot leaves stock and the ledger inconsistent.
-                inventoryItem.InStock -= adjustment.NewStock - adjustment.PreviousStock;
-                inventoryItem.Status = inventoryItem.CalculateStatus();
-                inventoryItem.LastUpdated = DateTime.UtcNow;
-            }
-
-            // Remove the adjustment record
-            companyData?.StockAdjustments.Remove(adjustment);
-            companyData?.MarkAsModified();
-
-            // Record undo action
-            var adjustmentProductName = item.ProductName;
-            App.UndoRedoManager.RecordAction(new DelegateAction(
-                $"Delete adjustment for '{adjustmentProductName}'",
-                () =>
+            RemoveWithUndo(companyData, companyData.StockAdjustments, adjustment, $"Delete adjustment for '{item.ProductName}'",
+                () => AdjustmentDeleted?.Invoke(this, EventArgs.Empty),
+                onRemove: () =>
                 {
-                    // Undo: restore the adjustment
-                    companyData?.StockAdjustments.Add(adjustment);
-                    if (inventoryItem != null && oldInventoryStock.HasValue)
-                    {
-                        inventoryItem.InStock = oldInventoryStock.Value;
-                        inventoryItem.Status = oldInventoryStatus ?? inventoryItem.CalculateStatus();
-                    }
-                    companyData?.MarkAsModified();
-                    AdjustmentDeleted?.Invoke(this, EventArgs.Empty);
+                    if (inventoryItem == null) return;
+
+                    // Reverse the adjustment's net effect from the live stock. Setting InStock to
+                    // PreviousStock is only correct if this is the most recent adjustment for the item;
+                    // with later adjustments present, that snapshot leaves stock and the ledger inconsistent.
+                    inventoryItem.InStock -= adjustment.NewStock - adjustment.PreviousStock;
+                    inventoryItem.Status = inventoryItem.CalculateStatus();
+                    inventoryItem.LastUpdated = DateTime.UtcNow;
                 },
-                () =>
+                onRestore: () =>
                 {
-                    // Redo: delete again
-                    companyData?.StockAdjustments.Remove(adjustment);
-                    if (inventoryItem != null)
-                    {
-                        inventoryItem.InStock -= adjustment.NewStock - adjustment.PreviousStock;
-                        inventoryItem.Status = inventoryItem.CalculateStatus();
-                    }
-                    companyData?.MarkAsModified();
-                    AdjustmentDeleted?.Invoke(this, EventArgs.Empty);
-                }));
+                    if (inventoryItem == null || !oldInventoryStock.HasValue) return;
 
-            // Notify
-            AdjustmentDeleted?.Invoke(this, EventArgs.Empty);
+                    inventoryItem.InStock = oldInventoryStock.Value;
+                    inventoryItem.Status = oldInventoryStatus ?? inventoryItem.CalculateStatus();
+                });
         }
         catch (Exception ex)
         {

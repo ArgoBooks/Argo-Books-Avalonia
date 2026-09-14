@@ -89,83 +89,67 @@ public partial class RevenuePageViewModel : SortablePageViewModelBase
     [ObservableProperty]
     private double _columnMenuY;
 
-    [ObservableProperty]
-    private bool _showIdColumn = ColumnVisibilityHelper.Load("Revenue", "Id", true);
-
-    [ObservableProperty]
-    private bool _showAccountantColumn = ColumnVisibilityHelper.Load("Revenue", "Accountant", false);
-
-    [ObservableProperty]
-    private bool _showCustomerColumn = ColumnVisibilityHelper.Load("Revenue", "Customer", true);
-
-    [ObservableProperty]
-    private bool _showProductColumn = ColumnVisibilityHelper.Load("Revenue", "Product", true);
-
-    [ObservableProperty]
-    private bool _showDateColumn = ColumnVisibilityHelper.Load("Revenue", "Date", true);
-
-    [ObservableProperty]
-    private bool _showQuantityColumn = ColumnVisibilityHelper.Load("Revenue", "Quantity", false);
-
-    [ObservableProperty]
-    private bool _showAmountColumn = ColumnVisibilityHelper.Load("Revenue", "Amount", false);
-
-    [ObservableProperty]
-    private bool _showTaxColumn = ColumnVisibilityHelper.Load("Revenue", "Tax", false);
-
-    [ObservableProperty]
-    private bool _showShippingColumn = ColumnVisibilityHelper.Load("Revenue", "Shipping", false);
-
-    [ObservableProperty]
-    private bool _showDiscountColumn = ColumnVisibilityHelper.Load("Revenue", "Discount", false);
-
-    [ObservableProperty]
-    private bool _showTotalColumn = ColumnVisibilityHelper.Load("Revenue", "Total", true);
-
-    [ObservableProperty]
-    private bool _showStatusColumn = ColumnVisibilityHelper.Load("Revenue", "Status", true);
-
-    [ObservableProperty]
-    private bool _showReceiptColumn = ColumnVisibilityHelper.Load("Revenue", "Receipt", true);
-
-    [ObservableProperty]
-    private bool _showInvoiceColumn = ColumnVisibilityHelper.Load("Revenue", "Invoice", true);
-
-    partial void OnShowIdColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Id", value); ColumnVisibilityHelper.Save("Revenue", "Id", value); }
-    partial void OnShowAccountantColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Accountant", value); ColumnVisibilityHelper.Save("Revenue", "Accountant", value); }
-    partial void OnShowCustomerColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Customer", value); ColumnVisibilityHelper.Save("Revenue", "Customer", value); }
-    partial void OnShowProductColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Product", value); ColumnVisibilityHelper.Save("Revenue", "Product", value); }
-    partial void OnShowDateColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Date", value); ColumnVisibilityHelper.Save("Revenue", "Date", value); }
-    partial void OnShowQuantityColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Quantity", value); ColumnVisibilityHelper.Save("Revenue", "Quantity", value); }
-    partial void OnShowAmountColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Amount", value); ColumnVisibilityHelper.Save("Revenue", "Amount", value); }
-    partial void OnShowTaxColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Tax", value); ColumnVisibilityHelper.Save("Revenue", "Tax", value); }
-    partial void OnShowShippingColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Shipping", value); ColumnVisibilityHelper.Save("Revenue", "Shipping", value); }
-    partial void OnShowDiscountColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Discount", value); ColumnVisibilityHelper.Save("Revenue", "Discount", value); }
-    partial void OnShowTotalColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Total", value); ColumnVisibilityHelper.Save("Revenue", "Total", value); }
-    partial void OnShowReceiptColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Receipt", value); ColumnVisibilityHelper.Save("Revenue", "Receipt", value); }
-    partial void OnShowStatusColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Status", value); ColumnVisibilityHelper.Save("Revenue", "Status", value); }
-    partial void OnShowInvoiceColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Invoice", value); ColumnVisibilityHelper.Save("Revenue", "Invoice", value); }
-
-    [RelayCommand]
-    private void ResetColumnVisibility()
+    private static readonly ColumnVisibilityDefaults ColumnDefaults = new("Revenue", new Dictionary<string, bool>
     {
-        ColumnWidths.ResetWidths();
-        ColumnVisibilityHelper.ResetPage("Revenue");
-        ShowIdColumn = true;
-        ShowAccountantColumn = false;
-        ShowCustomerColumn = true;
-        ShowProductColumn = true;
-        ShowDateColumn = true;
-        ShowQuantityColumn = false;
-        ShowAmountColumn = false;
-        ShowTaxColumn = false;
-        ShowShippingColumn = false;
-        ShowDiscountColumn = false;
-        ShowTotalColumn = true;
-        ShowReceiptColumn = true;
-        ShowStatusColumn = true;
-        ShowInvoiceColumn = true;
-    }
+        ["Id"] = true,
+        ["Accountant"] = false,
+        ["Customer"] = true,
+        ["Product"] = true,
+        ["Date"] = true,
+        ["Quantity"] = false,
+        ["Amount"] = false,
+        ["Tax"] = false,
+        ["Shipping"] = false,
+        ["Discount"] = false,
+        ["Total"] = true,
+        ["Status"] = true,
+        ["Receipt"] = true,
+        ["Invoice"] = true,
+    });
+
+    protected override ColumnVisibilityDefaults ColumnVisibility => ColumnDefaults;
+
+    [ObservableProperty]
+    private bool _showIdColumn = ColumnDefaults.Load("Id");
+
+    [ObservableProperty]
+    private bool _showAccountantColumn = ColumnDefaults.Load("Accountant");
+
+    [ObservableProperty]
+    private bool _showCustomerColumn = ColumnDefaults.Load("Customer");
+
+    [ObservableProperty]
+    private bool _showProductColumn = ColumnDefaults.Load("Product");
+
+    [ObservableProperty]
+    private bool _showDateColumn = ColumnDefaults.Load("Date");
+
+    [ObservableProperty]
+    private bool _showQuantityColumn = ColumnDefaults.Load("Quantity");
+
+    [ObservableProperty]
+    private bool _showAmountColumn = ColumnDefaults.Load("Amount");
+
+    [ObservableProperty]
+    private bool _showTaxColumn = ColumnDefaults.Load("Tax");
+
+    [ObservableProperty]
+    private bool _showShippingColumn = ColumnDefaults.Load("Shipping");
+
+    [ObservableProperty]
+    private bool _showDiscountColumn = ColumnDefaults.Load("Discount");
+
+    [ObservableProperty]
+    private bool _showTotalColumn = ColumnDefaults.Load("Total");
+
+    [ObservableProperty]
+    private bool _showStatusColumn = ColumnDefaults.Load("Status");
+
+    [ObservableProperty]
+    private bool _showReceiptColumn = ColumnDefaults.Load("Receipt");
+
+    [ObservableProperty]
+    private bool _showInvoiceColumn = ColumnDefaults.Load("Invoice");
 
     #endregion
 
@@ -178,9 +162,6 @@ public partial class RevenuePageViewModel : SortablePageViewModelBase
     #endregion
 
     #region Pagination
-
-    [ObservableProperty]
-    private string _paginationText = "0 sales";
 
     /// <inheritdoc />
     protected override void OnSortOrPageChanged() => FilterRevenue();
@@ -294,13 +275,17 @@ public RevenuePageViewModel()
         SortColumn = "Date";
         SortDirection = SortDirection.Descending;
 
-        InitializeColumnVisibility();
         LoadRevenue();
 
-        // Subscribe to undo/redo state changes to refresh UI
-        App.UndoRedoManager.StateChanged += OnUndoRedoStateChanged;
-        if (App.NavigationService != null)
-            App.NavigationService.Navigated += OnNavigated;
+        EnableDeferredUndoRefresh(
+            p => p == PageNames.Revenue,
+            LoadRevenue,
+            beforeCheck: RefreshReviewBanner,
+            onNavigatedHere: () =>
+            {
+                _ = CheckStripePendingAsync();
+                _ = CheckArgoApiPendingAsync();
+            });
 
         // Subscribe to revenue modal events to refresh data
         if (App.RevenueModalsViewModel != null)
@@ -336,9 +321,6 @@ public RevenuePageViewModel()
         base.Cleanup();
         RecurringTransactionService.RevenuesGenerated -= OnRecurringGenerated;
         RecurringSchedules.Cleanup();
-        App.UndoRedoManager.StateChanged -= OnUndoRedoStateChanged;
-        if (App.NavigationService != null)
-            App.NavigationService.Navigated -= OnNavigated;
         if (App.RevenueModalsViewModel != null)
         {
             App.RevenueModalsViewModel.RevenueSaved -= OnRevenueSaved;
@@ -350,56 +332,6 @@ public RevenuePageViewModel()
             App.InvoiceModalsViewModel.InvoiceSaved -= OnInvoiceSaved;
         DateFormatService.DateFormatChanged -= OnDateFormatChanged;
         CurrencyService.CurrencyChanged -= OnCurrencyChanged;
-    }
-
-    private void InitializeColumnVisibility()
-    {
-        // Set initial visibility for columns
-        ColumnWidths.SetColumnVisibility("Id", ShowIdColumn);
-        ColumnWidths.SetColumnVisibility("Accountant", ShowAccountantColumn);
-        ColumnWidths.SetColumnVisibility("Customer", ShowCustomerColumn);
-        ColumnWidths.SetColumnVisibility("Product", ShowProductColumn);
-        ColumnWidths.SetColumnVisibility("Date", ShowDateColumn);
-        ColumnWidths.SetColumnVisibility("Quantity", ShowQuantityColumn);
-        ColumnWidths.SetColumnVisibility("Amount", ShowAmountColumn);
-        ColumnWidths.SetColumnVisibility("Tax", ShowTaxColumn);
-        ColumnWidths.SetColumnVisibility("Shipping", ShowShippingColumn);
-        ColumnWidths.SetColumnVisibility("Discount", ShowDiscountColumn);
-        ColumnWidths.SetColumnVisibility("Total", ShowTotalColumn);
-        ColumnWidths.SetColumnVisibility("Receipt", ShowReceiptColumn);
-        ColumnWidths.SetColumnVisibility("Status", ShowStatusColumn);
-        ColumnWidths.SetColumnVisibility("Invoice", ShowInvoiceColumn);
-        ColumnWidths.SetColumnVisibility("Actions", true);
-
-        ColumnWidths.RecalculateWidths();
-    }
-
-    private bool _needsRefresh;
-
-    private void OnUndoRedoStateChanged(object? sender, EventArgs e)
-    {
-        RefreshReviewBanner();
-
-        if (App.NavigationService?.CurrentPageName != PageNames.Revenue)
-        {
-            _needsRefresh = true;
-            return;
-        }
-        LoadRevenue();
-    }
-
-    private void OnNavigated(object? sender, NavigationEventArgs e)
-    {
-        if (e.PageName != PageNames.Revenue) return;
-
-        if (_needsRefresh)
-        {
-            _needsRefresh = false;
-            LoadRevenue();
-        }
-
-        _ = CheckStripePendingAsync();
-        _ = CheckArgoApiPendingAsync();
     }
 
     private void OnRevenueSaved(object? sender, EventArgs e)
@@ -685,18 +617,7 @@ public RevenuePageViewModel()
         // Navigate to highlighted item if set (from dashboard click)
         NavigateToHighlightedItem(displayItems, x => x.Id);
 
-        // Calculate pagination
-        var totalCount = displayItems.Count;
-        TotalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / PageSize));
-        if (CurrentPage > TotalPages)
-            CurrentPage = TotalPages;
-
-        UpdatePaginationText(totalCount);
-
-        // Apply pagination and add to collection
-        var pagedRevenue = displayItems
-            .Skip((CurrentPage - 1) * PageSize)
-            .Take(PageSize);
+        var pagedRevenue = Paginate(displayItems, "revenue");
 
         Revenue.ReplaceAll(pagedRevenue);
     }
@@ -726,12 +647,6 @@ public RevenuePageViewModel()
         }
         if (!RevenueAggregator.IsCollected(revenue)) return "Unpaid";
         return "Completed";
-    }
-
-    private void UpdatePaginationText(int totalCount)
-    {
-        PaginationText = PaginationTextHelper.FormatPaginationText(
-            totalCount, CurrentPage, PageSize, TotalPages, "revenue");
     }
 
     #endregion
@@ -1311,22 +1226,8 @@ public partial class RevenueDisplayItem : ObservableObject
     /// <summary>Friendly explanation for the info tooltip next to the "Pending" status badge.</summary>
     public string PendingConversionHint => CurrencyService.BuildPendingConversionHint(Total, OriginalCurrency, Date);
 
-    public string CustomerInitials
-    {
-        get
-        {
-            if (string.IsNullOrWhiteSpace(CustomerName) || CustomerName == "-")
-                return "?";
-
-            var parts = CustomerName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length >= 2)
-                return $"{parts[0][0]}{parts[^1][0]}".ToUpperInvariant();
-
-            return parts.Length > 0 && parts[0].Length > 0
-                ? parts[0][..Math.Min(2, parts[0].Length)].ToUpperInvariant()
-                : "?";
-        }
-    }
+    // "-" stands in for a missing customer.
+    public string CustomerInitials => CustomerName == "-" ? "?" : Helpers.InitialsHelper.From(CustomerName);
 
     public bool IsReturned => StatusDisplay == "Returned";
     public bool IsPartialReturn => StatusDisplay == "Partial Return";

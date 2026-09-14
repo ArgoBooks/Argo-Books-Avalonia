@@ -516,10 +516,7 @@ public partial class HeaderViewModel : ViewModelBase
         // Generate initials from display name
         if (!string.IsNullOrWhiteSpace(displayName))
         {
-            var parts = displayName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            UserInitials = parts.Length >= 2
-                ? $"{parts[0][0]}{parts[^1][0]}".ToUpper()
-                : displayName[..Math.Min(2, displayName.Length)].ToUpper();
+            UserInitials = Helpers.InitialsHelper.From(displayName);
             ShowUserInitials = !HasUserAvatar;
         }
         else

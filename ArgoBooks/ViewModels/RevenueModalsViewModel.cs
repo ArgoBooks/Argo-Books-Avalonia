@@ -139,23 +139,8 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
 
     #region Data Loading
 
-    protected override void LoadCounterpartyOptions()
-    {
-        CounterpartyOptions.Clear();
-        LoadCounterpartyOptionsInternal();
-    }
-
-    protected override void LoadCounterpartyOptionsInternal()
-    {
-        var companyData = App.CompanyManager?.CompanyData;
-        if (companyData?.Customers == null)
-            return;
-
-        foreach (var customer in companyData.Customers.OrderBy(c => c.Name))
-        {
-            CounterpartyOptions.Add(new CounterpartyOption { Id = customer.Id, Name = customer.Name });
-        }
-    }
+    protected override IEnumerable<CounterpartyOption> GetCounterpartyOptions() =>
+        OptionLoader.Customers(App.CompanyManager?.CompanyData).AsOptions<CounterpartyOption>();
 
     #endregion
 
@@ -216,16 +201,9 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
                 }
             }
 
-            var result = await dialog.ShowAsync(new ConfirmationDialogOptions
-            {
-                Title = "Delete Revenue",
-                Message = $"Are you sure you want to delete this revenue?\n\nID: {item.Id}\nProduct: {item.ProductDescription}\nAmount: {item.TotalFormatted}",
-                PrimaryButtonText = "Delete",
-                CancelButtonText = "Cancel",
-                IsPrimaryDestructive = true
-            });
-
-            if (result != ConfirmationResult.Primary) return;
+            if (!await ConfirmDeleteAsync("Delete Revenue".Translate(),
+                    "Are you sure you want to delete this revenue?\n\nID: {0}\nProduct: {1}\nAmount: {2}".TranslateFormat(item.Id, item.ProductDescription, item.TotalFormatted)))
+                return;
 
             DeleteRevenue(item.Id);
         }
@@ -242,46 +220,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
         var revenue = companyData?.Revenues.FirstOrDefault(s => s.Id == revenueId);
         if (companyData == null || revenue == null) return;
 
-        // Find and remove associated receipt
-        Receipt? deletedReceipt = null;
-        if (!string.IsNullOrEmpty(revenue.ReceiptId))
-        {
-            deletedReceipt = companyData.Receipts.FirstOrDefault(r => r.Id == revenue.ReceiptId);
-            if (deletedReceipt != null)
-            {
-                companyData.Receipts.Remove(deletedReceipt);
-            }
-        }
-
-        // Put back the stock this sale took, as editing its lines down to nothing would
-        var deleteResults = AdjustInventoryForEdit(companyData, revenue, revenue.LineItems, [], isExpense: false, reason: "Revenue deleted");
-
-        var deletedRevenue = revenue;
-        var capturedReceipt = deletedReceipt;
-        var action = new DelegateAction(
-            $"Delete revenue {revenue.Id}",
-            () =>
-            {
-                companyData.Revenues.Add(deletedRevenue);
-                if (capturedReceipt != null)
-                    companyData.Receipts.Add(capturedReceipt);
-                RevertInventoryAdjustments(companyData, deleteResults);
-                RaiseTransactionDeleted();
-            },
-            () =>
-            {
-                companyData.Revenues.Remove(deletedRevenue);
-                if (capturedReceipt != null)
-                    companyData.Receipts.Remove(capturedReceipt);
-                deleteResults = AdjustInventoryForEdit(companyData, deletedRevenue, deletedRevenue.LineItems, [], isExpense: false, reason: "Revenue deleted");
-                RaiseTransactionDeleted();
-            });
-
-        companyData.Revenues.Remove(revenue);
-        App.UndoRedoManager.RecordAction(action);
-        App.CompanyManager?.MarkAsChanged();
-
-        RaiseTransactionDeleted();
+        DeleteTransactionWithUndo(companyData, companyData.Revenues, revenue, isExpense: false);
     }
 
     #endregion

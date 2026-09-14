@@ -51,3 +51,20 @@ public static class PaginationTextHelper
         return totalCount == 1 ? $"1 {singular}" : $"{totalCount} {plural}";
     }
 }
+
+/// <summary>
+/// Page arithmetic for tables that page an in-memory list.
+/// </summary>
+public static class PaginationMath
+{
+    /// <summary>
+    /// Pages needed for the items. Never less than one, so an empty table still shows page 1.
+    /// </summary>
+    public static int TotalPages(int totalCount, int pageSize) =>
+        Math.Max(1, (int)Math.Ceiling((double)totalCount / pageSize));
+
+    public static int ClampPage(int page, int totalPages) => Math.Clamp(page, 1, totalPages);
+
+    public static IEnumerable<T> Slice<T>(IEnumerable<T> items, int page, int pageSize) =>
+        items.Skip((page - 1) * pageSize).Take(pageSize);
+}

@@ -281,28 +281,17 @@ public partial class LostDamagedModalsViewModel : ViewModelBase
         }
 
         var lostDamagedRecord = companyData.LostDamaged.FirstOrDefault(ld => ld.Id == _undoItem.Id);
-        if (lostDamagedRecord != null)
+        if (lostDamagedRecord == null)
         {
-            companyData.LostDamaged.Remove(lostDamagedRecord);
-            App.UndoRedoManager.RecordAction(new DelegateAction(
-                $"Undo lost/damaged '{lostDamagedRecord.Id}'",
-                () =>
-                {
-                    companyData.LostDamaged.Add(lostDamagedRecord);
-                    companyData.MarkAsModified();
-                    ItemUndone?.Invoke(this, EventArgs.Empty);
-                },
-                () =>
-                {
-                    companyData.LostDamaged.Remove(lostDamagedRecord);
-                    companyData.MarkAsModified();
-                    ItemUndone?.Invoke(this, EventArgs.Empty);
-                }));
-            App.CompanyManager?.MarkAsChanged();
+            CloseUndoItemModal();
+            ItemUndone?.Invoke(this, EventArgs.Empty);
+            return;
         }
 
+        RemoveWithUndo(companyData, companyData.LostDamaged, lostDamagedRecord, $"Undo lost/damaged '{lostDamagedRecord.Id}'",
+            () => ItemUndone?.Invoke(this, EventArgs.Empty));
+        App.CompanyManager?.MarkAsChanged();
         CloseUndoItemModal();
-        ItemUndone?.Invoke(this, EventArgs.Empty);
     }
 
     #endregion

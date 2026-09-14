@@ -20,7 +20,7 @@ namespace ArgoBooks.ViewModels;
 /// <summary>
 /// ViewModel for the Receipts page displaying receipt archive management.
 /// </summary>
-public partial class ReceiptsPageViewModel : ViewModelBase, ICleanupViewModel
+public partial class ReceiptsPageViewModel : SortablePageViewModelBase
 {
     public ResponsiveHeaderHelper ResponsiveHeader { get; } = new();
 
@@ -176,54 +176,8 @@ public partial class ReceiptsPageViewModel : ViewModelBase, ICleanupViewModel
 
     #region Pagination
 
-    [ObservableProperty]
-    private int _currentPage = 1;
-
-    [ObservableProperty]
-    private int _totalPages = 1;
-
-    [ObservableProperty]
-    private int _pageSize = 25; // Default to match ArgoTable's PageSizeOptions
-
-    partial void OnPageSizeChanged(int value)
-    {
-        CurrentPage = 1;
-        FilterReceipts();
-    }
-
-    [ObservableProperty]
-    private string _paginationText = "0 receipts";
-
-    public bool CanGoToPreviousPage => CurrentPage > 1;
-    public bool CanGoToNextPage => CurrentPage < TotalPages;
-
-    partial void OnCurrentPageChanged(int value)
-    {
-        OnPropertyChanged(nameof(CanGoToPreviousPage));
-        OnPropertyChanged(nameof(CanGoToNextPage));
-        FilterReceipts();
-    }
-
-    [RelayCommand]
-    private void GoToPreviousPage()
-    {
-        if (CanGoToPreviousPage)
-            CurrentPage--;
-    }
-
-    [RelayCommand]
-    private void GoToNextPage()
-    {
-        if (CanGoToNextPage)
-            CurrentPage++;
-    }
-
-    [RelayCommand]
-    private void GoToPage(int page)
-    {
-        if (page >= 1 && page <= TotalPages)
-            CurrentPage = page;
-    }
+    /// <inheritdoc />
+    protected override void OnSortOrPageChanged() => FilterReceipts();
 
     #endregion
 
@@ -246,9 +200,6 @@ public partial class ReceiptsPageViewModel : ViewModelBase, ICleanupViewModel
     #region Column Management
 
     [ObservableProperty]
-    private bool _isColumnMenuOpen;
-
-    [ObservableProperty]
     private double _columnMenuX;
 
     [ObservableProperty]
@@ -256,74 +207,31 @@ public partial class ReceiptsPageViewModel : ViewModelBase, ICleanupViewModel
 
     public ReceiptsTableColumnWidths ColumnWidths => App.ReceiptsColumnWidths;
 
+    private static readonly ColumnVisibilityDefaults ColumnDefaults = new("Receipts", new Dictionary<string, bool>
+    {
+        ["Id"] = true,
+        ["Supplier"] = true,
+        ["Date"] = true,
+        ["Type"] = true,
+        ["Amount"] = true,
+    });
+
+    protected override ColumnVisibilityDefaults ColumnVisibility => ColumnDefaults;
+
     [ObservableProperty]
-    private bool _showIdColumn = ColumnVisibilityHelper.Load("Receipts", "Id", true);
+    private bool _showIdColumn = ColumnDefaults.Load("Id");
 
     [ObservableProperty]
-    private bool _showSupplierColumn = ColumnVisibilityHelper.Load("Receipts", "Supplier", true);
+    private bool _showSupplierColumn = ColumnDefaults.Load("Supplier");
 
     [ObservableProperty]
-    private bool _showDateColumn = ColumnVisibilityHelper.Load("Receipts", "Date", true);
+    private bool _showDateColumn = ColumnDefaults.Load("Date");
 
     [ObservableProperty]
-    private bool _showTypeColumn = ColumnVisibilityHelper.Load("Receipts", "Type", true);
+    private bool _showTypeColumn = ColumnDefaults.Load("Type");
 
     [ObservableProperty]
-    private bool _showAmountColumn = ColumnVisibilityHelper.Load("Receipts", "Amount", true);
-
-    partial void OnShowIdColumnChanged(bool value)
-    {
-        ColumnWidths.SetColumnVisibility("Id", value);
-        ColumnVisibilityHelper.Save("Receipts", "Id", value);
-    }
-
-    partial void OnShowSupplierColumnChanged(bool value)
-    {
-        ColumnWidths.SetColumnVisibility("Supplier", value);
-        ColumnVisibilityHelper.Save("Receipts", "Supplier", value);
-    }
-
-    partial void OnShowDateColumnChanged(bool value)
-    {
-        ColumnWidths.SetColumnVisibility("Date", value);
-        ColumnVisibilityHelper.Save("Receipts", "Date", value);
-    }
-
-    partial void OnShowTypeColumnChanged(bool value)
-    {
-        ColumnWidths.SetColumnVisibility("Type", value);
-        ColumnVisibilityHelper.Save("Receipts", "Type", value);
-    }
-
-    partial void OnShowAmountColumnChanged(bool value)
-    {
-        ColumnWidths.SetColumnVisibility("Amount", value);
-        ColumnVisibilityHelper.Save("Receipts", "Amount", value);
-    }
-
-    [RelayCommand]
-    private void ToggleColumnMenu()
-    {
-        IsColumnMenuOpen = !IsColumnMenuOpen;
-    }
-
-    [RelayCommand]
-    private void CloseColumnMenu()
-    {
-        IsColumnMenuOpen = false;
-    }
-
-    [RelayCommand]
-    private void ResetColumnVisibility()
-    {
-        ColumnWidths.ResetWidths();
-        ColumnVisibilityHelper.ResetPage("Receipts");
-        ShowIdColumn = true;
-        ShowSupplierColumn = true;
-        ShowDateColumn = true;
-        ShowTypeColumn = true;
-        ShowAmountColumn = true;
-    }
+    private bool _showAmountColumn = ColumnDefaults.Load("Amount");
 
     #endregion
 
@@ -384,14 +292,12 @@ public partial class ReceiptsPageViewModel : ViewModelBase, ICleanupViewModel
 
     public ReceiptsPageViewModel()
     {
-        ColumnVisibilityHelper.SyncToManager(this);
+        // Default to match ArgoTable's PageSizeOptions
+        PageSize = 25;
         LoadReceipts();
         CheckScannerConfiguration();
 
-        // Subscribe to undo/redo state changes to refresh UI
-        App.UndoRedoManager.StateChanged += OnUndoRedoStateChanged;
-        if (App.NavigationService != null)
-            App.NavigationService.Navigated += OnNavigated;
+        EnableDeferredUndoRefresh(p => p == PageNames.Receipts, LoadReceipts);
 
         // Subscribe to filter modal events
         if (App.ReceiptsModalsViewModel != null)
@@ -406,12 +312,9 @@ public partial class ReceiptsPageViewModel : ViewModelBase, ICleanupViewModel
     /// so this page VM can be garbage collected when the company is switched. Called by
     /// ClearPageCaches via <see cref="ICleanupViewModel"/>.
     /// </summary>
-    public void Cleanup()
+    public override void Cleanup()
     {
-        CancelPendingSearch();
-        App.UndoRedoManager.StateChanged -= OnUndoRedoStateChanged;
-        if (App.NavigationService != null)
-            App.NavigationService.Navigated -= OnNavigated;
+        base.Cleanup();
         if (App.ReceiptsModalsViewModel != null)
         {
             App.ReceiptsModalsViewModel.FiltersApplied -= OnFiltersApplied;
@@ -432,27 +335,6 @@ public partial class ReceiptsPageViewModel : ViewModelBase, ICleanupViewModel
         SearchQuery = null;
         CurrentPage = 1;
         FilterReceipts();
-    }
-
-    private bool _needsRefresh;
-
-    private void OnUndoRedoStateChanged(object? sender, EventArgs e)
-    {
-        if (App.NavigationService?.CurrentPageName != PageNames.Receipts)
-        {
-            _needsRefresh = true;
-            return;
-        }
-        LoadReceipts();
-    }
-
-    private void OnNavigated(object? sender, NavigationEventArgs e)
-    {
-        if (e.PageName == PageNames.Receipts && _needsRefresh)
-        {
-            _needsRefresh = false;
-            LoadReceipts();
-        }
     }
 
     #endregion
@@ -607,19 +489,8 @@ public partial class ReceiptsPageViewModel : ViewModelBase, ICleanupViewModel
         // Sort by date descending (newest first), materialize for .Count and pagination
         var sortedFiltered = filtered.OrderByDescending(r => r.Date).ToList();
 
-        // Calculate pagination on raw receipts (before creating display items)
-        var totalCount = sortedFiltered.Count;
-        TotalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / PageSize));
-        if (CurrentPage > TotalPages)
-            CurrentPage = TotalPages;
-
-        UpdatePaginationText(totalCount);
-
         // Paginate BEFORE creating display items, only process the visible page
-        var pagedReceipts = sortedFiltered
-            .Skip((CurrentPage - 1) * PageSize)
-            .Take(PageSize)
-            .ToList();
+        var pagedReceipts = Paginate(sortedFiltered, "receipt");
 
         // Create display items with cached image paths (no file I/O for cache hits)
         var displayItems = pagedReceipts.Select(receipt => new ReceiptDisplayItem
@@ -673,12 +544,6 @@ public partial class ReceiptsPageViewModel : ViewModelBase, ICleanupViewModel
                fileType.EndsWith("png", StringComparison.OrdinalIgnoreCase) ||
                fileType.EndsWith("gif", StringComparison.OrdinalIgnoreCase) ||
                fileType.EndsWith("webp", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private void UpdatePaginationText(int totalCount)
-    {
-        PaginationText = PaginationTextHelper.FormatPaginationText(
-            totalCount, CurrentPage, PageSize, TotalPages, "receipt");
     }
 
     private void UpdateSelectionState()
@@ -988,94 +853,59 @@ public partial class ReceiptsPageViewModel : ViewModelBase, ICleanupViewModel
 
         try
         {
-            var companyData = App.CompanyManager?.CompanyData;
-            if (companyData == null) return;
-
-            var receipt = companyData.Receipts.FirstOrDefault(r => r.Id == item.Id);
-            if (receipt == null) return;
-
-            var dialog = App.ConfirmationDialog;
-            if (dialog == null) return;
-
-            var isLinked = !string.IsNullOrEmpty(receipt.TransactionId);
-            var message = "Are you sure you want to delete this receipt?\n\nID: {0}\nSupplier: {1}".TranslateFormat(item.Id, item.Supplier);
-            if (isLinked)
-            {
-                message += "\n\n" + "This receipt is linked to a {0} transaction ({1}). The receipt will be removed from the transaction.".TranslateFormat(
-                    receipt.TransactionType, receipt.TransactionId);
-            }
-
-            var result = await dialog.ShowAsync(new ConfirmationDialogOptions
-            {
-                Title = "Delete Receipt".Translate(),
-                Message = message,
-                PrimaryButtonText = "Delete".Translate(),
-                CancelButtonText = "Cancel".Translate(),
-                IsPrimaryDestructive = true
-            });
-
-            if (result != ConfirmationResult.Primary) return;
-
-            string? linkedTransactionId = null;
-            string? linkedTransactionType = null;
-            if (isLinked)
-            {
-                linkedTransactionId = receipt.TransactionId;
-                linkedTransactionType = receipt.TransactionType;
-
-                if (receipt.TransactionType == "Expense")
-                {
-                    var expense = companyData.Expenses.FirstOrDefault(e => e.Id == receipt.TransactionId);
-                    if (expense != null) expense.ReceiptId = null;
-                }
-                else if (receipt.TransactionType == "Revenue")
-                {
-                    var revenue = companyData.Revenues.FirstOrDefault(r => r.Id == receipt.TransactionId);
-                    if (revenue != null) revenue.ReceiptId = null;
-                }
-            }
-
-            companyData.Receipts.Remove(receipt);
-
-            var deletedReceipt = receipt;
-            var action = new DelegateAction(
-                $"Delete receipt {deletedReceipt.Id}",
-                () =>
-                {
-                    companyData.Receipts.Add(deletedReceipt);
-                    if (linkedTransactionType == "Expense")
-                    {
-                        var expense = companyData.Expenses.FirstOrDefault(e => e.Id == linkedTransactionId);
-                        if (expense != null) expense.ReceiptId = deletedReceipt.Id;
-                    }
-                    else if (linkedTransactionType == "Revenue")
-                    {
-                        var revenue = companyData.Revenues.FirstOrDefault(r => r.Id == linkedTransactionId);
-                        if (revenue != null) revenue.ReceiptId = deletedReceipt.Id;
-                    }
-                },
-                () =>
-                {
-                    companyData.Receipts.Remove(deletedReceipt);
-                    if (linkedTransactionType == "Expense")
-                    {
-                        var expense = companyData.Expenses.FirstOrDefault(e => e.Id == linkedTransactionId);
-                        if (expense != null) expense.ReceiptId = null;
-                    }
-                    else if (linkedTransactionType == "Revenue")
-                    {
-                        var revenue = companyData.Revenues.FirstOrDefault(r => r.Id == linkedTransactionId);
-                        if (revenue != null) revenue.ReceiptId = null;
-                    }
-                });
-
-            App.UndoRedoManager.RecordAction(action);
-            App.CompanyManager?.MarkAsChanged();
+            await ConfirmAndDeleteReceiptAsync(item.Id);
         }
         catch (Exception ex)
         {
             App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.Validation, "Receipt.DeleteReceipt");
         }
+    }
+
+    /// <summary>
+    /// Asks, then deletes a receipt and unlinks it from its transaction, with undo. Shared by the
+    /// receipts list and the receipt viewer. Returns true when the receipt was deleted.
+    /// </summary>
+    internal static async Task<bool> ConfirmAndDeleteReceiptAsync(string receiptId)
+    {
+        var companyData = App.CompanyManager?.CompanyData;
+        var receipt = companyData?.Receipts.FirstOrDefault(r => r.Id == receiptId);
+        if (companyData == null || receipt == null) return false;
+
+        var isLinked = !string.IsNullOrEmpty(receipt.TransactionId);
+        var message = "Are you sure you want to delete this receipt?\n\nID: {0}\nSupplier: {1}".TranslateFormat(receipt.Id, receipt.Supplier);
+        if (isLinked)
+        {
+            message += "\n\n" + "This receipt is linked to a {0} transaction ({1}). The receipt will be removed from the transaction.".TranslateFormat(
+                receipt.TransactionType, receipt.TransactionId);
+        }
+
+        if (!await ConfirmDeleteAsync("Delete Receipt".Translate(), message)) return false;
+
+        RemoveWithUndo(companyData, companyData.Receipts, receipt, $"Delete receipt {receipt.Id}", notify: null,
+            onRemove: () =>
+            {
+                if (isLinked) SetTransactionReceiptId(companyData, receipt.TransactionType, receipt.TransactionId, null);
+            },
+            onRestore: () =>
+            {
+                if (isLinked) SetTransactionReceiptId(companyData, receipt.TransactionType, receipt.TransactionId, receipt.Id);
+            });
+
+        App.CompanyManager?.MarkAsChanged();
+        return true;
+    }
+
+    private static void SetTransactionReceiptId(Core.Data.CompanyData companyData, string transactionType, string? transactionId, string? receiptId)
+    {
+        Core.Models.Transactions.Transaction? transaction = transactionType switch
+        {
+            "Expense" => companyData.Expenses.FirstOrDefault(e => e.Id == transactionId),
+            "Revenue" => companyData.Revenues.FirstOrDefault(r => r.Id == transactionId),
+            _ => null
+        };
+
+        if (transaction != null)
+            transaction.ReceiptId = receiptId;
     }
 
     [RelayCommand]
@@ -1117,9 +947,6 @@ public partial class ReceiptsPageViewModel : ViewModelBase, ICleanupViewModel
 
         try
         {
-            var dialog = App.ConfirmationDialog;
-            if (dialog == null) return;
-
             var companyData = App.CompanyManager?.CompanyData;
             if (companyData == null) return;
 
@@ -1135,97 +962,36 @@ public partial class ReceiptsPageViewModel : ViewModelBase, ICleanupViewModel
                 message += "\n\n" + "{0} of the selected receipts are linked to transactions. The receipts will be removed from those transactions.".TranslateFormat(linkedCount);
             }
 
-            var result = await dialog.ShowAsync(new ConfirmationDialogOptions
+            if (!await ConfirmDeleteAsync("Delete Receipts".Translate(), message)) return;
+
+            var receiptsToDelete = selectedReceipts
+                .Select(displayItem => companyData.Receipts.FirstOrDefault(r => r.Id == displayItem.Id))
+                .OfType<Receipt>()
+                .ToList();
+            if (receiptsToDelete.Count == 0) return;
+
+            void Remove()
             {
-                Title = "Delete Receipts".Translate(),
-                Message = message,
-                PrimaryButtonText = "Delete".Translate(),
-                CancelButtonText = "Cancel".Translate(),
-                IsPrimaryDestructive = true
-            });
-
-            if (result != ConfirmationResult.Primary) return;
-
-            // Find actual Receipt objects to delete and track transaction links for undo
-            var receiptsToDelete = new List<Receipt>();
-            var transactionLinks = new List<(string TransactionId, string TransactionType, string ReceiptId)>();
-
-            foreach (var displayItem in selectedReceipts)
-            {
-                var receipt = companyData.Receipts.FirstOrDefault(r => r.Id == displayItem.Id);
-                if (receipt == null) continue;
-
-                receiptsToDelete.Add(receipt);
-
-                // Unlink from transaction
-                if (!string.IsNullOrEmpty(receipt.TransactionId))
+                foreach (var receipt in receiptsToDelete)
                 {
-                    transactionLinks.Add((receipt.TransactionId, receipt.TransactionType, receipt.Id));
-
-                    if (receipt.TransactionType == "Expense")
-                    {
-                        var expense = companyData.Expenses.FirstOrDefault(e => e.Id == receipt.TransactionId);
-                        if (expense != null) expense.ReceiptId = null;
-                    }
-                    else if (receipt.TransactionType == "Revenue")
-                    {
-                        var revenue = companyData.Revenues.FirstOrDefault(r => r.Id == receipt.TransactionId);
-                        if (revenue != null) revenue.ReceiptId = null;
-                    }
+                    companyData.Receipts.Remove(receipt);
+                    if (!string.IsNullOrEmpty(receipt.TransactionId))
+                        SetTransactionReceiptId(companyData, receipt.TransactionType, receipt.TransactionId, null);
                 }
             }
 
-            if (receiptsToDelete.Count == 0) return;
-
-            // Remove all receipts
-            foreach (var receipt in receiptsToDelete)
+            void Restore()
             {
-                companyData.Receipts.Remove(receipt);
+                foreach (var receipt in receiptsToDelete)
+                {
+                    companyData.Receipts.Add(receipt);
+                    if (!string.IsNullOrEmpty(receipt.TransactionId))
+                        SetTransactionReceiptId(companyData, receipt.TransactionType, receipt.TransactionId, receipt.Id);
+                }
             }
 
-            // Record undo/redo action
-            var capturedReceipts = receiptsToDelete.ToList();
-            var capturedLinks = transactionLinks.ToList();
-            var action = new DelegateAction(
-                $"Delete {capturedReceipts.Count} receipt(s)",
-                () =>
-                {
-                    foreach (var r in capturedReceipts)
-                        companyData.Receipts.Add(r);
-                    foreach (var link in capturedLinks)
-                    {
-                        if (link.TransactionType == "Expense")
-                        {
-                            var expense = companyData.Expenses.FirstOrDefault(e => e.Id == link.TransactionId);
-                            if (expense != null) expense.ReceiptId = link.ReceiptId;
-                        }
-                        else if (link.TransactionType == "Revenue")
-                        {
-                            var revenue = companyData.Revenues.FirstOrDefault(r => r.Id == link.TransactionId);
-                            if (revenue != null) revenue.ReceiptId = link.ReceiptId;
-                        }
-                    }
-                },
-                () =>
-                {
-                    foreach (var r in capturedReceipts)
-                        companyData.Receipts.Remove(r);
-                    foreach (var link in capturedLinks)
-                    {
-                        if (link.TransactionType == "Expense")
-                        {
-                            var expense = companyData.Expenses.FirstOrDefault(e => e.Id == link.TransactionId);
-                            if (expense != null) expense.ReceiptId = null;
-                        }
-                        else if (link.TransactionType == "Revenue")
-                        {
-                            var revenue = companyData.Revenues.FirstOrDefault(r => r.Id == link.TransactionId);
-                            if (revenue != null) revenue.ReceiptId = null;
-                        }
-                    }
-                });
-
-            App.UndoRedoManager.RecordAction(action);
+            Remove();
+            App.UndoRedoManager.RecordAction(new DelegateAction($"Delete {receiptsToDelete.Count} receipt(s)", Restore, Remove));
             App.CompanyManager?.MarkAsChanged();
 
             // Exit selection mode and reload

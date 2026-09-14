@@ -52,43 +52,35 @@ public partial class RentalInventoryPageViewModel : SortablePageViewModelBase
     /// </summary>
     public RentalInventoryTableColumnWidths ColumnWidths => App.RentalInventoryColumnWidths;
 
-    [ObservableProperty]
-    private bool _showItemColumn = ColumnVisibilityHelper.Load("RentalInventory", "Item", true);
-
-    [ObservableProperty]
-    private bool _showStatusColumn = ColumnVisibilityHelper.Load("RentalInventory", "Status", true);
-
-    [ObservableProperty]
-    private bool _showInStockColumn = ColumnVisibilityHelper.Load("RentalInventory", "InStock", true);
-
-    [ObservableProperty]
-    private bool _showDailyRateColumn = ColumnVisibilityHelper.Load("RentalInventory", "DailyRate", true);
-
-    [ObservableProperty]
-    private bool _showWeeklyRateColumn = ColumnVisibilityHelper.Load("RentalInventory", "WeeklyRate", true);
-
-    [ObservableProperty]
-    private bool _showDepositColumn = ColumnVisibilityHelper.Load("RentalInventory", "Deposit", true);
-
-    partial void OnShowItemColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Item", value); ColumnVisibilityHelper.Save("RentalInventory", "Item", value); }
-    partial void OnShowStatusColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Status", value); ColumnVisibilityHelper.Save("RentalInventory", "Status", value); }
-    partial void OnShowInStockColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("InStock", value); ColumnVisibilityHelper.Save("RentalInventory", "InStock", value); }
-    partial void OnShowDailyRateColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("DailyRate", value); ColumnVisibilityHelper.Save("RentalInventory", "DailyRate", value); }
-    partial void OnShowWeeklyRateColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("WeeklyRate", value); ColumnVisibilityHelper.Save("RentalInventory", "WeeklyRate", value); }
-    partial void OnShowDepositColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Deposit", value); ColumnVisibilityHelper.Save("RentalInventory", "Deposit", value); }
-
-    [RelayCommand]
-    private void ResetColumnVisibility()
+    private static readonly ColumnVisibilityDefaults ColumnDefaults = new("RentalInventory", new Dictionary<string, bool>
     {
-        ColumnWidths.ResetWidths();
-        ColumnVisibilityHelper.ResetPage("RentalInventory");
-        ShowItemColumn = true;
-        ShowStatusColumn = true;
-        ShowInStockColumn = true;
-        ShowDailyRateColumn = true;
-        ShowWeeklyRateColumn = true;
-        ShowDepositColumn = true;
-    }
+        ["Item"] = true,
+        ["Status"] = true,
+        ["InStock"] = true,
+        ["DailyRate"] = true,
+        ["WeeklyRate"] = true,
+        ["Deposit"] = true,
+    });
+
+    protected override ColumnVisibilityDefaults ColumnVisibility => ColumnDefaults;
+
+    [ObservableProperty]
+    private bool _showItemColumn = ColumnDefaults.Load("Item");
+
+    [ObservableProperty]
+    private bool _showStatusColumn = ColumnDefaults.Load("Status");
+
+    [ObservableProperty]
+    private bool _showInStockColumn = ColumnDefaults.Load("InStock");
+
+    [ObservableProperty]
+    private bool _showDailyRateColumn = ColumnDefaults.Load("DailyRate");
+
+    [ObservableProperty]
+    private bool _showWeeklyRateColumn = ColumnDefaults.Load("WeeklyRate");
+
+    [ObservableProperty]
+    private bool _showDepositColumn = ColumnDefaults.Load("Deposit");
 
     #endregion
 
@@ -135,9 +127,6 @@ public partial class RentalInventoryPageViewModel : SortablePageViewModelBase
 
     #region Pagination
 
-    [ObservableProperty]
-    private string _paginationText = "0 items";
-
     /// <inheritdoc />
     protected override void OnSortOrPageChanged() => FilterItems();
 
@@ -149,10 +138,7 @@ public partial class RentalInventoryPageViewModel : SortablePageViewModelBase
     {
         LoadItems();
 
-        // Subscribe to undo/redo state changes to refresh UI
-        App.UndoRedoManager.StateChanged += OnUndoRedoStateChanged;
-        if (App.NavigationService != null)
-            App.NavigationService.Navigated += OnNavigated;
+        EnableDeferredUndoRefresh(p => p == PageNames.RentalInventory, LoadItems);
 
         if (App.RentalInventoryModalsViewModel != null)
         {
@@ -170,36 +156,12 @@ public partial class RentalInventoryPageViewModel : SortablePageViewModelBase
     public override void Cleanup()
     {
         base.Cleanup();
-        App.UndoRedoManager.StateChanged -= OnUndoRedoStateChanged;
-        if (App.NavigationService != null)
-            App.NavigationService.Navigated -= OnNavigated;
         if (App.RentalInventoryModalsViewModel != null)
         {
             App.RentalInventoryModalsViewModel.ItemSaved -= OnItemSaved;
             App.RentalInventoryModalsViewModel.ItemDeleted -= OnItemDeleted;
             App.RentalInventoryModalsViewModel.FiltersApplied -= OnFiltersApplied;
             App.RentalInventoryModalsViewModel.FiltersCleared -= OnFiltersCleared;
-        }
-    }
-
-    private bool _needsRefresh;
-
-    private void OnUndoRedoStateChanged(object? sender, EventArgs e)
-    {
-        if (App.NavigationService?.CurrentPageName != PageNames.RentalInventory)
-        {
-            _needsRefresh = true;
-            return;
-        }
-        LoadItems();
-    }
-
-    private void OnNavigated(object? sender, NavigationEventArgs e)
-    {
-        if (e.PageName == PageNames.RentalInventory && _needsRefresh)
-        {
-            _needsRefresh = false;
-            LoadItems();
         }
     }
 
@@ -414,26 +376,9 @@ public partial class RentalInventoryPageViewModel : SortablePageViewModelBase
                 i => i.Name);
         }
 
-        // Calculate pagination
-        var totalCount = displayItems.Count;
-        TotalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / PageSize));
-        if (CurrentPage > TotalPages)
-            CurrentPage = TotalPages;
-
-        UpdatePaginationText(totalCount);
-
-        // Apply pagination
-        var pagedItems = displayItems
-            .Skip((CurrentPage - 1) * PageSize)
-            .Take(PageSize);
+        var pagedItems = Paginate(displayItems, "item");
 
         Items.ReplaceAll(pagedItems);
-    }
-
-    private void UpdatePaginationText(int totalCount)
-    {
-        PaginationText = PaginationTextHelper.FormatPaginationText(
-            totalCount, CurrentPage, PageSize, TotalPages, "item");
     }
 
     #endregion

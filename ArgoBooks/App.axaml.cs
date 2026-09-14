@@ -295,12 +295,12 @@ public partial class App : Application
     /// <summary>
     /// Gets the categories tutorial view model for first-visit tutorial.
     /// </summary>
-    public static CategoriesTutorialViewModel? CategoriesTutorialViewModel => _mainWindowViewModel?.CategoriesTutorialViewModel;
+    public static PageTutorialViewModel? CategoriesTutorialViewModel => _mainWindowViewModel?.CategoriesTutorialViewModel;
 
     /// <summary>
     /// Gets the products tutorial view model for first-visit tutorial.
     /// </summary>
-    public static ProductsTutorialViewModel? ProductsTutorialViewModel => _mainWindowViewModel?.ProductsTutorialViewModel;
+    public static PageTutorialViewModel? ProductsTutorialViewModel => _mainWindowViewModel?.ProductsTutorialViewModel;
 
     /// <summary>
     /// Adds a notification to the notification panel.
@@ -1558,8 +1558,8 @@ public partial class App : Application
             // Initialize tutorial ViewModels for first-time user experience
             _mainWindowViewModel.TutorialWelcomeViewModel = new TutorialWelcomeViewModel();
             _mainWindowViewModel.AppTourViewModel = new AppTourViewModel();
-            _mainWindowViewModel.CategoriesTutorialViewModel = new CategoriesTutorialViewModel();
-            _mainWindowViewModel.ProductsTutorialViewModel = new ProductsTutorialViewModel();
+            _mainWindowViewModel.CategoriesTutorialViewModel = new PageTutorialViewModel(TutorialService.Pages.Categories, PageTutorialViewModel.CategoriesSteps);
+            _mainWindowViewModel.ProductsTutorialViewModel = new PageTutorialViewModel(TutorialService.Pages.Products, PageTutorialViewModel.ProductsSteps);
 
             // Wire up tutorial flow: Welcome -> App Tour
             _mainWindowViewModel.TutorialWelcomeViewModel.StartTourRequested += (_, _) =>

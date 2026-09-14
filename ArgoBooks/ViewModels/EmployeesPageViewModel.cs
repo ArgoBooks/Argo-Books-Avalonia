@@ -93,6 +93,17 @@ public partial class EmployeesPageViewModel : SortablePageViewModelBase
         }
     }
 
+    public override void Cleanup()
+    {
+        base.Cleanup();
+        if (App.PayrollModalsViewModel is { } modals)
+        {
+            modals.EmployeeSaved -= OnEmployeeSaved;
+            modals.FiltersApplied -= OnFiltersApplied;
+            modals.FiltersCleared -= OnFiltersCleared;
+        }
+    }
+
     private void OnEmployeeSaved(object? sender, EventArgs e) => Load();
 
     private void OnFiltersApplied(object? sender, EventArgs e)
@@ -124,46 +135,35 @@ public partial class EmployeesPageViewModel : SortablePageViewModelBase
 
     #region Column visibility
 
-    [ObservableProperty]
-    private string _paginationText = "0 employees";
-
-    [ObservableProperty]
-    private bool _showEmployeeColumn = ColumnVisibilityHelper.Load("Employees", "Employee", true);
-
-    [ObservableProperty]
-    private bool _showProvinceColumn = ColumnVisibilityHelper.Load("Employees", "Province", true);
-
-    [ObservableProperty]
-    private bool _showPayTypeColumn = ColumnVisibilityHelper.Load("Employees", "PayType", true);
-
-    [ObservableProperty]
-    private bool _showPayRateColumn = ColumnVisibilityHelper.Load("Employees", "PayRate", true);
-
-    [ObservableProperty]
-    private bool _showFrequencyColumn = ColumnVisibilityHelper.Load("Employees", "Frequency", true);
-
-    [ObservableProperty]
-    private bool _showStatusColumn = ColumnVisibilityHelper.Load("Employees", "Status", true);
-
-    partial void OnShowEmployeeColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Employee", value); ColumnVisibilityHelper.Save("Employees", "Employee", value); }
-    partial void OnShowProvinceColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Province", value); ColumnVisibilityHelper.Save("Employees", "Province", value); }
-    partial void OnShowPayTypeColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("PayType", value); ColumnVisibilityHelper.Save("Employees", "PayType", value); }
-    partial void OnShowPayRateColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("PayRate", value); ColumnVisibilityHelper.Save("Employees", "PayRate", value); }
-    partial void OnShowFrequencyColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Frequency", value); ColumnVisibilityHelper.Save("Employees", "Frequency", value); }
-    partial void OnShowStatusColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Status", value); ColumnVisibilityHelper.Save("Employees", "Status", value); }
-
-    [RelayCommand]
-    private void ResetColumnVisibility()
+    private static readonly ColumnVisibilityDefaults ColumnDefaults = new("Employees", new Dictionary<string, bool>
     {
-        ColumnWidths.ResetWidths();
-        ColumnVisibilityHelper.ResetPage("Employees");
-        ShowEmployeeColumn = true;
-        ShowProvinceColumn = true;
-        ShowPayTypeColumn = true;
-        ShowPayRateColumn = true;
-        ShowFrequencyColumn = true;
-        ShowStatusColumn = true;
-    }
+        ["Employee"] = true,
+        ["Province"] = true,
+        ["PayType"] = true,
+        ["PayRate"] = true,
+        ["Frequency"] = true,
+        ["Status"] = true,
+    });
+
+    protected override ColumnVisibilityDefaults ColumnVisibility => ColumnDefaults;
+
+    [ObservableProperty]
+    private bool _showEmployeeColumn = ColumnDefaults.Load("Employee");
+
+    [ObservableProperty]
+    private bool _showProvinceColumn = ColumnDefaults.Load("Province");
+
+    [ObservableProperty]
+    private bool _showPayTypeColumn = ColumnDefaults.Load("PayType");
+
+    [ObservableProperty]
+    private bool _showPayRateColumn = ColumnDefaults.Load("PayRate");
+
+    [ObservableProperty]
+    private bool _showFrequencyColumn = ColumnDefaults.Load("Frequency");
+
+    [ObservableProperty]
+    private bool _showStatusColumn = ColumnDefaults.Load("Status");
 
     #endregion
 
@@ -355,21 +355,11 @@ public partial class EmployeesPageViewModel : SortablePageViewModelBase
 
         List<Employee> ordered = sorted.ToList();
 
-        TotalPages = Math.Max(1, (int)Math.Ceiling((double)ordered.Count / PageSize));
-        if (CurrentPage > TotalPages)
-        {
-            CurrentPage = TotalPages;
-        }
-
-        foreach (Employee e in ordered.Skip((CurrentPage - 1) * PageSize).Take(PageSize))
+        foreach (Employee e in Paginate(ordered, "employee", "employees"))
         {
             Employees.Add(EmployeeDisplayItem.From(e));
         }
 
-        PaginationText = PaginationTextHelper.FormatPaginationText(
-            ordered.Count, CurrentPage, PageSize, TotalPages, "employee", "employees");
-
-        NotifyPaginationChanged();
         OnPropertyChanged(nameof(HasNoMatches));
     }
 }

@@ -61,53 +61,43 @@ public partial class StockAdjustmentsPageViewModel : SortablePageViewModelBase
     [ObservableProperty]
     private double _columnMenuY;
 
-    [ObservableProperty]
-    private bool _showDateColumn = ColumnVisibilityHelper.Load("StockAdjustments", "Date", true);
-
-    [ObservableProperty]
-    private bool _showReferenceColumn = ColumnVisibilityHelper.Load("StockAdjustments", "Reference", true);
-
-    [ObservableProperty]
-    private bool _showProductColumn = ColumnVisibilityHelper.Load("StockAdjustments", "Product", true);
-
-    [ObservableProperty]
-    private bool _showLocationColumn = ColumnVisibilityHelper.Load("StockAdjustments", "Location", true);
-
-    [ObservableProperty]
-    private bool _showQuantityColumn = ColumnVisibilityHelper.Load("StockAdjustments", "Quantity", true);
-
-    [ObservableProperty]
-    private bool _showPreviousColumn = ColumnVisibilityHelper.Load("StockAdjustments", "Previous", true);
-
-    [ObservableProperty]
-    private bool _showNewColumn = ColumnVisibilityHelper.Load("StockAdjustments", "New", true);
-
-    [ObservableProperty]
-    private bool _showReasonColumn = ColumnVisibilityHelper.Load("StockAdjustments", "Reason", true);
-
-    partial void OnShowDateColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Date", value); ColumnVisibilityHelper.Save("StockAdjustments", "Date", value); }
-    partial void OnShowReferenceColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Reference", value); ColumnVisibilityHelper.Save("StockAdjustments", "Reference", value); }
-    partial void OnShowProductColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Product", value); ColumnVisibilityHelper.Save("StockAdjustments", "Product", value); }
-    partial void OnShowLocationColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Location", value); ColumnVisibilityHelper.Save("StockAdjustments", "Location", value); }
-    partial void OnShowQuantityColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Quantity", value); ColumnVisibilityHelper.Save("StockAdjustments", "Quantity", value); }
-    partial void OnShowPreviousColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Previous", value); ColumnVisibilityHelper.Save("StockAdjustments", "Previous", value); }
-    partial void OnShowNewColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("New", value); ColumnVisibilityHelper.Save("StockAdjustments", "New", value); }
-    partial void OnShowReasonColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Reason", value); ColumnVisibilityHelper.Save("StockAdjustments", "Reason", value); }
-
-    [RelayCommand]
-    private void ResetColumnVisibility()
+    private static readonly ColumnVisibilityDefaults ColumnDefaults = new("StockAdjustments", new Dictionary<string, bool>
     {
-        ColumnWidths.ResetWidths();
-        ColumnVisibilityHelper.ResetPage("StockAdjustments");
-        ShowDateColumn = true;
-        ShowReferenceColumn = true;
-        ShowProductColumn = true;
-        ShowLocationColumn = true;
-        ShowQuantityColumn = true;
-        ShowPreviousColumn = true;
-        ShowNewColumn = true;
-        ShowReasonColumn = true;
-    }
+        ["Date"] = true,
+        ["Reference"] = true,
+        ["Product"] = true,
+        ["Location"] = true,
+        ["Quantity"] = true,
+        ["Previous"] = true,
+        ["New"] = true,
+        ["Reason"] = true,
+    });
+
+    protected override ColumnVisibilityDefaults ColumnVisibility => ColumnDefaults;
+
+    [ObservableProperty]
+    private bool _showDateColumn = ColumnDefaults.Load("Date");
+
+    [ObservableProperty]
+    private bool _showReferenceColumn = ColumnDefaults.Load("Reference");
+
+    [ObservableProperty]
+    private bool _showProductColumn = ColumnDefaults.Load("Product");
+
+    [ObservableProperty]
+    private bool _showLocationColumn = ColumnDefaults.Load("Location");
+
+    [ObservableProperty]
+    private bool _showQuantityColumn = ColumnDefaults.Load("Quantity");
+
+    [ObservableProperty]
+    private bool _showPreviousColumn = ColumnDefaults.Load("Previous");
+
+    [ObservableProperty]
+    private bool _showNewColumn = ColumnDefaults.Load("New");
+
+    [ObservableProperty]
+    private bool _showReasonColumn = ColumnDefaults.Load("Reason");
 
     #endregion
 
@@ -196,9 +186,6 @@ public partial class StockAdjustmentsPageViewModel : SortablePageViewModelBase
 
     #region Pagination
 
-    [ObservableProperty]
-    private string _paginationText = "0 adjustments";
-
     /// <inheritdoc />
     protected override void OnSortOrPageChanged() => FilterAdjustments();
 
@@ -217,10 +204,7 @@ public partial class StockAdjustmentsPageViewModel : SortablePageViewModelBase
 
         LoadAdjustments();
 
-        // Subscribe to undo/redo state changes to refresh UI
-        App.UndoRedoManager.StateChanged += OnUndoRedoStateChanged;
-        if (App.NavigationService != null)
-            App.NavigationService.Navigated += OnNavigated;
+        EnableDeferredUndoRefresh(p => p == PageNames.StockAdjustments, LoadAdjustments);
 
         // Subscribe to modal events to refresh when adjustments are made
         if (App.StockLevelsModalsViewModel != null)
@@ -251,9 +235,6 @@ public partial class StockAdjustmentsPageViewModel : SortablePageViewModelBase
     public override void Cleanup()
     {
         base.Cleanup();
-        App.UndoRedoManager.StateChanged -= OnUndoRedoStateChanged;
-        if (App.NavigationService != null)
-            App.NavigationService.Navigated -= OnNavigated;
         if (App.StockLevelsModalsViewModel != null)
             App.StockLevelsModalsViewModel.ItemSaved -= OnAdjustmentMade;
         if (App.StockAdjustmentsModalsViewModel != null)
@@ -276,30 +257,6 @@ public partial class StockAdjustmentsPageViewModel : SortablePageViewModelBase
         // Note: FilterType maps to adjustment type filter
         CurrentPage = 1;
         FilterAdjustments();
-    }
-
-    /// <summary>
-    /// Handles undo/redo state changes by refreshing the adjustments.
-    /// </summary>
-    private bool _needsRefresh;
-
-    private void OnUndoRedoStateChanged(object? sender, EventArgs e)
-    {
-        if (App.NavigationService?.CurrentPageName != PageNames.StockAdjustments)
-        {
-            _needsRefresh = true;
-            return;
-        }
-        LoadAdjustments();
-    }
-
-    private void OnNavigated(object? sender, NavigationEventArgs e)
-    {
-        if (e.PageName == PageNames.StockAdjustments && _needsRefresh)
-        {
-            _needsRefresh = false;
-            LoadAdjustments();
-        }
     }
 
     /// <summary>
@@ -512,26 +469,9 @@ public partial class StockAdjustmentsPageViewModel : SortablePageViewModelBase
                 a => a.Date);
         }
 
-        // Calculate pagination
-        var totalCount = displayItems.Count;
-        TotalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / PageSize));
-        if (CurrentPage > TotalPages)
-            CurrentPage = TotalPages;
-
-        UpdatePaginationText(totalCount);
-
-        // Apply pagination and add to collection
-        var pagedAdjustments = displayItems
-            .Skip((CurrentPage - 1) * PageSize)
-            .Take(PageSize);
+        var pagedAdjustments = Paginate(displayItems, "adjustment");
 
         Adjustments.ReplaceAll(pagedAdjustments);
-    }
-
-    private void UpdatePaginationText(int totalCount)
-    {
-        PaginationText = PaginationTextHelper.FormatPaginationText(
-            totalCount, CurrentPage, PageSize, TotalPages, "adjustment");
     }
 
     #endregion

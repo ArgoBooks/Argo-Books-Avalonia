@@ -53,38 +53,31 @@ public partial class CustomersPageViewModel : SortablePageViewModelBase
 
     #region Column Visibility
 
-    [ObservableProperty]
-    private bool _showCustomerColumn = ColumnVisibilityHelper.Load("Customers", "Customer", true);
-
-    [ObservableProperty]
-    private bool _showEmailColumn = ColumnVisibilityHelper.Load("Customers", "Email", true);
-
-    [ObservableProperty]
-    private bool _showPhoneColumn = ColumnVisibilityHelper.Load("Customers", "Phone", true);
-
-    [ObservableProperty]
-    private bool _showAddressColumn = ColumnVisibilityHelper.Load("Customers", "Address", true);
-
-    [ObservableProperty]
-    private bool _showCountryColumn = ColumnVisibilityHelper.Load("Customers", "Country", true);
-
-    partial void OnShowCustomerColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Customer", value); ColumnVisibilityHelper.Save("Customers", "Customer", value); }
-    partial void OnShowEmailColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Email", value); ColumnVisibilityHelper.Save("Customers", "Email", value); }
-    partial void OnShowPhoneColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Phone", value); ColumnVisibilityHelper.Save("Customers", "Phone", value); }
-    partial void OnShowAddressColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Address", value); ColumnVisibilityHelper.Save("Customers", "Address", value); }
-    partial void OnShowCountryColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Country", value); ColumnVisibilityHelper.Save("Customers", "Country", value); }
-
-    [RelayCommand]
-    private void ResetColumnVisibility()
+    private static readonly ColumnVisibilityDefaults ColumnDefaults = new("Customers", new Dictionary<string, bool>
     {
-        ColumnWidths.ResetWidths();
-        ColumnVisibilityHelper.ResetPage("Customers");
-        ShowCustomerColumn = true;
-        ShowEmailColumn = true;
-        ShowPhoneColumn = true;
-        ShowAddressColumn = true;
-        ShowCountryColumn = true;
-    }
+        ["Customer"] = true,
+        ["Email"] = true,
+        ["Phone"] = true,
+        ["Address"] = true,
+        ["Country"] = true,
+    });
+
+    protected override ColumnVisibilityDefaults ColumnVisibility => ColumnDefaults;
+
+    [ObservableProperty]
+    private bool _showCustomerColumn = ColumnDefaults.Load("Customer");
+
+    [ObservableProperty]
+    private bool _showEmailColumn = ColumnDefaults.Load("Email");
+
+    [ObservableProperty]
+    private bool _showPhoneColumn = ColumnDefaults.Load("Phone");
+
+    [ObservableProperty]
+    private bool _showAddressColumn = ColumnDefaults.Load("Address");
+
+    [ObservableProperty]
+    private bool _showCountryColumn = ColumnDefaults.Load("Country");
 
     #endregion
 
@@ -127,9 +120,6 @@ public partial class CustomersPageViewModel : SortablePageViewModelBase
 
     #region Pagination
 
-    [ObservableProperty]
-    private string _paginationText = "0 customers";
-
     /// <inheritdoc />
     protected override void OnSortOrPageChanged() => FilterCustomers();
 
@@ -144,10 +134,7 @@ public partial class CustomersPageViewModel : SortablePageViewModelBase
     {
         LoadCustomers();
 
-        // Subscribe to undo/redo state changes to refresh UI
-        App.UndoRedoManager.StateChanged += OnUndoRedoStateChanged;
-        if (App.NavigationService != null)
-            App.NavigationService.Navigated += OnNavigated;
+        EnableDeferredUndoRefresh(p => p == PageNames.Customers, LoadCustomers);
 
         // Subscribe to customer modal events to refresh data
         if (App.CustomerModalsViewModel != null)
@@ -166,39 +153,12 @@ public partial class CustomersPageViewModel : SortablePageViewModelBase
     public override void Cleanup()
     {
         base.Cleanup();
-        App.UndoRedoManager.StateChanged -= OnUndoRedoStateChanged;
-        if (App.NavigationService != null)
-            App.NavigationService.Navigated -= OnNavigated;
         if (App.CustomerModalsViewModel != null)
         {
             App.CustomerModalsViewModel.CustomerSaved -= OnCustomerSaved;
             App.CustomerModalsViewModel.CustomerDeleted -= OnCustomerDeleted;
             App.CustomerModalsViewModel.FiltersApplied -= OnFiltersApplied;
             App.CustomerModalsViewModel.FiltersCleared -= OnFiltersCleared;
-        }
-    }
-
-    /// <summary>
-    /// Handles undo/redo state changes by refreshing the customers.
-    /// </summary>
-    private bool _needsRefresh;
-
-    private void OnUndoRedoStateChanged(object? sender, EventArgs e)
-    {
-        if (App.NavigationService?.CurrentPageName != PageNames.Customers)
-        {
-            _needsRefresh = true;
-            return;
-        }
-        LoadCustomers();
-    }
-
-    private void OnNavigated(object? sender, NavigationEventArgs e)
-    {
-        if (e.PageName == PageNames.Customers && _needsRefresh)
-        {
-            _needsRefresh = false;
-            LoadCustomers();
         }
     }
 
@@ -364,26 +324,9 @@ public partial class CustomersPageViewModel : SortablePageViewModelBase
 
         NavigateToHighlightedItem(displayItems, x => x.Id);
 
-        // Calculate pagination
-        var totalCount = displayItems.Count;
-        TotalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / PageSize));
-        if (CurrentPage > TotalPages)
-            CurrentPage = TotalPages;
-
-        UpdatePaginationText(totalCount);
-
-        // Apply pagination and add to collection
-        var pagedCustomers = displayItems
-            .Skip((CurrentPage - 1) * PageSize)
-            .Take(PageSize);
+        var pagedCustomers = Paginate(displayItems, "customer");
 
         Customers.ReplaceAll(pagedCustomers);
-    }
-
-    private void UpdatePaginationText(int totalCount)
-    {
-        PaginationText = PaginationTextHelper.FormatPaginationText(
-            totalCount, CurrentPage, PageSize, TotalPages, "customer");
     }
 
     #endregion
@@ -489,20 +432,7 @@ public partial class CustomerDisplayItem : ObservableObject
     /// <summary>
     /// Gets the initials from the customer name for avatar display.
     /// </summary>
-    public string Initials
-    {
-        get
-        {
-            var parts = Name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length >= 2)
-                return $"{parts[0][0]}{parts[1][0]}".ToUpperInvariant();
-            if (parts is [{ Length: >= 2 }])
-                return parts[0][..2].ToUpperInvariant();
-            if (parts is [{ Length: 1 }])
-                return parts[0].ToUpperInvariant();
-            return "?";
-        }
-    }
+    public string Initials => Helpers.InitialsHelper.From(Name);
 
     [ObservableProperty]
     private bool _isHighlighted;

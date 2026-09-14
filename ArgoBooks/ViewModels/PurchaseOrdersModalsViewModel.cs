@@ -81,13 +81,18 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
     [ObservableProperty]
     private bool _hasSupplierError;
 
-    // Original values for change detection in edit mode
-    private Supplier? _originalSupplier;
-    private DateTimeOffset? _originalOrderDate;
-    private DateTimeOffset? _originalExpectedDeliveryDate;
-    private string _originalShippingCost = "0";
-    private string _originalNotes = string.Empty;
-    private List<(string ProductId, string Quantity, string UnitCost)> _originalLineItems = [];
+    private sealed record LineState(string ProductId, string Quantity, string UnitCost);
+
+    private sealed record EditState(
+        string? SupplierId, DateTimeOffset? OrderDate, DateTimeOffset? ExpectedDeliveryDate,
+        string ShippingCost, string Notes, Helpers.EquatableArray<LineState> LineItems);
+
+    // The form as the edit modal opened, for change detection.
+    private EditState? _original;
+
+    private EditState Capture() => new(
+        SelectedSupplier?.Id, OrderDate, ExpectedDeliveryDate, ShippingCost, Notes,
+        new Helpers.EquatableArray<LineState>(LineItems.Select(li => new LineState(li.ProductId, li.Quantity, li.UnitCost))));
 
     /// <summary>
     /// Returns true if any data has been entered in the Add modal (when not in edit mode).
@@ -102,33 +107,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
     /// <summary>
     /// Returns true if any changes have been made in the Edit modal.
     /// </summary>
-    public bool HasEditModalChanges
-    {
-        get
-        {
-            if (!IsEditMode) return false;
-
-            if (SelectedSupplier?.Id != _originalSupplier?.Id) return true;
-            if (OrderDate != _originalOrderDate) return true;
-            if (ExpectedDeliveryDate != _originalExpectedDeliveryDate) return true;
-            if (ShippingCost != _originalShippingCost) return true;
-            if (Notes != _originalNotes) return true;
-
-            // Compare line items
-            if (LineItems.Count != _originalLineItems.Count) return true;
-            for (int i = 0; i < LineItems.Count; i++)
-            {
-                var current = LineItems[i];
-                var original = _originalLineItems[i];
-                if (current.ProductId != original.ProductId ||
-                    current.Quantity != original.Quantity ||
-                    current.UnitCost != original.UnitCost)
-                    return true;
-            }
-
-            return false;
-        }
-    }
+    public bool HasEditModalChanges => IsEditMode && Capture() != _original;
 
     /// <summary>
     /// Line items for the order being created/edited.
@@ -301,13 +280,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
         }
         UpdateCalculatedTotals();
 
-        // Store original values for change detection
-        _originalSupplier = SelectedSupplier;
-        _originalOrderDate = OrderDate;
-        _originalExpectedDeliveryDate = ExpectedDeliveryDate;
-        _originalShippingCost = ShippingCost;
-        _originalNotes = Notes;
-        _originalLineItems = LineItems.Select(li => (li.ProductId, li.Quantity, li.UnitCost)).ToList();
+        _original = Capture();
 
         IsAddModalOpen = true;
     }
@@ -731,14 +704,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
 
     private void LoadSuppliers()
     {
-        AvailableSuppliers.Clear();
-        var companyData = App.CompanyManager?.CompanyData;
-        if (companyData?.Suppliers == null) return;
-
-        foreach (var supplier in companyData.Suppliers.OrderBy(s => s.Name))
-        {
-            AvailableSuppliers.Add(supplier);
-        }
+        OptionLoader.Fill(AvailableSuppliers, OptionLoader.Suppliers(App.CompanyManager?.CompanyData));
     }
 
     private void LoadProducts()
@@ -1055,46 +1021,16 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
     {
         try
         {
-            var dialog = App.ConfirmationDialog;
-            if (dialog == null) return;
-
-            var result = await dialog.ShowAsync(new ConfirmationDialogOptions
-            {
-                Title = "Delete Purchase Order".Translate(),
-                Message = "Are you sure you want to delete this purchase order?\n\nPO #: {0}\nTotal: {1}".TranslateFormat(item.PoNumber, item.TotalDisplay),
-                PrimaryButtonText = "Delete".Translate(),
-                CancelButtonText = "Cancel".Translate(),
-                IsPrimaryDestructive = true
-            });
-
-            if (result != ConfirmationResult.Primary) return;
+            if (!await ConfirmDeleteAsync("Delete Purchase Order".Translate(),
+                    "Are you sure you want to delete this purchase order?\n\nPO #: {0}\nTotal: {1}".TranslateFormat(item.PoNumber, item.TotalDisplay)))
+                return;
 
             var companyData = App.CompanyManager?.CompanyData;
-
             var order = companyData?.PurchaseOrders.FirstOrDefault(o => o.Id == item.Id);
-            if (order == null) return;
+            if (companyData == null || order == null) return;
 
-            companyData?.PurchaseOrders.Remove(order);
-            companyData?.MarkAsModified();
-
-            // Record undo action
-            var orderPoNumber = item.PoNumber;
-            App.UndoRedoManager.RecordAction(new DelegateAction(
-                $"Delete order '{orderPoNumber}'",
-                () =>
-                {
-                    companyData?.PurchaseOrders.Add(order);
-                    companyData?.MarkAsModified();
-                    OrderDeleted?.Invoke(this, EventArgs.Empty);
-                },
-                () =>
-                {
-                    companyData?.PurchaseOrders.Remove(order);
-                    companyData?.MarkAsModified();
-                    OrderDeleted?.Invoke(this, EventArgs.Empty);
-                }));
-
-            OrderDeleted?.Invoke(this, EventArgs.Empty);
+            RemoveWithUndo(companyData, companyData.PurchaseOrders, order, $"Delete order '{item.PoNumber}'",
+                () => OrderDeleted?.Invoke(this, EventArgs.Empty));
         }
         catch (Exception ex)
         {
@@ -1666,16 +1602,8 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
 
     private void LoadFilterSupplierOptions()
     {
-        FilterSupplierOptions.Clear();
-        FilterSupplierOptions.Add("All");
-
-        var companyData = App.CompanyManager?.CompanyData;
-        if (companyData?.Suppliers == null) return;
-
-        foreach (var supplier in companyData.Suppliers.OrderBy(s => s.Name))
-        {
-            FilterSupplierOptions.Add(supplier.Name);
-        }
+        OptionLoader.Fill(FilterSupplierOptions,
+            OptionLoader.Suppliers(App.CompanyManager?.CompanyData).Select(s => s.Name), "All");
     }
 
     #endregion

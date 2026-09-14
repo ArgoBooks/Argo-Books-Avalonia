@@ -121,23 +121,8 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
 
     #region Data Loading
 
-    protected override void LoadCounterpartyOptions()
-    {
-        CounterpartyOptions.Clear();
-        LoadCounterpartyOptionsInternal();
-    }
-
-    protected override void LoadCounterpartyOptionsInternal()
-    {
-        var companyData = App.CompanyManager?.CompanyData;
-        if (companyData?.Suppliers == null)
-            return;
-
-        foreach (var supplier in companyData.Suppliers.OrderBy(s => s.Name))
-        {
-            CounterpartyOptions.Add(new CounterpartyOption { Id = supplier.Id, Name = supplier.Name });
-        }
-    }
+    protected override IEnumerable<CounterpartyOption> GetCounterpartyOptions() =>
+        OptionLoader.Suppliers(App.CompanyManager?.CompanyData).AsOptions<CounterpartyOption>();
 
     #endregion
 
@@ -175,19 +160,9 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
         {
             if (item == null) return;
 
-            var dialog = App.ConfirmationDialog;
-            if (dialog == null) return;
-
-            var result = await dialog.ShowAsync(new ConfirmationDialogOptions
-            {
-                Title = "Delete Expense".Translate(),
-                Message = "Are you sure you want to delete this expense?\n\nID: {0}\nProduct: {1}\nAmount: {2}".TranslateFormat(item.Id, item.ProductDescription, item.TotalFormatted),
-                PrimaryButtonText = "Delete".Translate(),
-                CancelButtonText = "Cancel".Translate(),
-                IsPrimaryDestructive = true
-            });
-
-            if (result != ConfirmationResult.Primary) return;
+            if (!await ConfirmDeleteAsync("Delete Expense".Translate(),
+                    "Are you sure you want to delete this expense?\n\nID: {0}\nProduct: {1}\nAmount: {2}".TranslateFormat(item.Id, item.ProductDescription, item.TotalFormatted)))
+                return;
 
             DeleteExpense(item.Id);
         }
@@ -204,46 +179,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
         var expense = companyData?.Expenses.FirstOrDefault(p => p.Id == expenseId);
         if (companyData == null || expense == null) return;
 
-        // Find and remove associated receipt
-        Receipt? deletedReceipt = null;
-        if (!string.IsNullOrEmpty(expense.ReceiptId))
-        {
-            deletedReceipt = companyData.Receipts.FirstOrDefault(r => r.Id == expense.ReceiptId);
-            if (deletedReceipt != null)
-            {
-                companyData.Receipts.Remove(deletedReceipt);
-            }
-        }
-
-        // Take back the stock this expense added, as editing its lines down to nothing would
-        var deleteResults = AdjustInventoryForEdit(companyData, expense, expense.LineItems, [], isExpense: true, reason: "Expense deleted");
-
-        var deletedExpense = expense;
-        var capturedReceipt = deletedReceipt;
-        var action = new DelegateAction(
-            $"Delete expense {expense.Id}",
-            () =>
-            {
-                companyData.Expenses.Add(deletedExpense);
-                if (capturedReceipt != null)
-                    companyData.Receipts.Add(capturedReceipt);
-                RevertInventoryAdjustments(companyData, deleteResults);
-                RaiseTransactionDeleted();
-            },
-            () =>
-            {
-                companyData.Expenses.Remove(deletedExpense);
-                if (capturedReceipt != null)
-                    companyData.Receipts.Remove(capturedReceipt);
-                deleteResults = AdjustInventoryForEdit(companyData, deletedExpense, deletedExpense.LineItems, [], isExpense: true, reason: "Expense deleted");
-                RaiseTransactionDeleted();
-            });
-
-        companyData.Expenses.Remove(expense);
-        App.UndoRedoManager.RecordAction(action);
-        App.CompanyManager?.MarkAsChanged();
-
-        RaiseTransactionDeleted();
+        DeleteTransactionWithUndo(companyData, companyData.Expenses, expense, isExpense: true);
     }
 
     #endregion

@@ -144,25 +144,7 @@ public partial class CustomerModalsViewModel : ViewModelBase
     /// driven from ModalFirstName + ModalLastName so the avatar circle in the
     /// modal updates as the user types.
     /// </summary>
-    public string ModalInitialsPreview
-    {
-        get
-        {
-            var first = ModalFirstName?.Trim() ?? string.Empty;
-            var last = ModalLastName?.Trim() ?? string.Empty;
-            if (first.Length > 0 && last.Length > 0)
-                return $"{char.ToUpperInvariant(first[0])}{char.ToUpperInvariant(last[0])}";
-            if (first.Length >= 2)
-                return first[..2].ToUpperInvariant();
-            if (first.Length == 1)
-                return first.ToUpperInvariant();
-            if (last.Length >= 2)
-                return last[..2].ToUpperInvariant();
-            if (last.Length == 1)
-                return last.ToUpperInvariant();
-            return "?";
-        }
-    }
+    public string ModalInitialsPreview => Helpers.InitialsHelper.From(ModalFirstName, ModalLastName);
 
     partial void OnModalFirstNameChanged(string value)
     {
@@ -199,19 +181,18 @@ public partial class CustomerModalsViewModel : ViewModelBase
     /// </summary>
     private CustomerDisplayItem? _historyCustomer;
 
-    // Original values for change detection in edit mode
-    private string _originalId = string.Empty;
-    private string _originalFirstName = string.Empty;
-    private string _originalLastName = string.Empty;
-    private string _originalCompanyName = string.Empty;
-    private string _originalEmail = string.Empty;
-    private string _originalPhone = string.Empty;
-    private string _originalStreetAddress = string.Empty;
-    private string _originalCity = string.Empty;
-    private string _originalStateProvince = string.Empty;
-    private string _originalZipCode = string.Empty;
-    private string _originalCountry = string.Empty;
-    private string _originalNotes = string.Empty;
+    private sealed record EditState(
+        string Id, string FirstName, string LastName, string CompanyName, string Email, string Phone,
+        string StreetAddress, string City, string StateProvince, string ZipCode, string Country, string Notes,
+        bool AvatarChanged);
+
+    // The form as the edit modal opened, for change detection.
+    private EditState? _original;
+
+    private EditState Capture() => new(
+        ModalId.Trim(), ModalFirstName, ModalLastName, ModalCompanyName, ModalEmail, ModalPhone,
+        ModalStreetAddress, ModalCity, ModalStateProvince, ModalZipCode, ModalCountry, ModalNotes,
+        _pendingAvatarSourcePath != null || _shouldRemoveAvatarOnSave);
 
     /// <summary>
     /// Returns true if any data has been entered in the Add modal.
@@ -233,21 +214,7 @@ public partial class CustomerModalsViewModel : ViewModelBase
     /// <summary>
     /// Returns true if any changes have been made in the Edit modal.
     /// </summary>
-    public bool HasEditModalChanges =>
-        ModalId.Trim() != _originalId ||
-        ModalFirstName != _originalFirstName ||
-        ModalLastName != _originalLastName ||
-        ModalCompanyName != _originalCompanyName ||
-        ModalEmail != _originalEmail ||
-        ModalPhone != _originalPhone ||
-        ModalStreetAddress != _originalStreetAddress ||
-        ModalCity != _originalCity ||
-        ModalStateProvince != _originalStateProvince ||
-        ModalZipCode != _originalZipCode ||
-        ModalCountry != _originalCountry ||
-        ModalNotes != _originalNotes ||
-        _pendingAvatarSourcePath != null ||
-        _shouldRemoveAvatarOnSave;
+    public bool HasEditModalChanges => Capture() != _original;
 
     #endregion
 
@@ -566,20 +533,6 @@ public partial class CustomerModalsViewModel : ViewModelBase
             _ => "Active"
         };
 
-        // Store original values for change detection
-        _originalId = ModalId;
-        _originalFirstName = ModalFirstName;
-        _originalLastName = ModalLastName;
-        _originalCompanyName = ModalCompanyName;
-        _originalEmail = ModalEmail;
-        _originalPhone = ModalPhone;
-        _originalStreetAddress = ModalStreetAddress;
-        _originalCity = ModalCity;
-        _originalStateProvince = ModalStateProvince;
-        _originalZipCode = ModalZipCode;
-        _originalCountry = ModalCountry;
-        _originalNotes = ModalNotes;
-
         // Load existing avatar (if any) into the modal preview.
         // _originalHasAvatar tracks the persisted state (used for change detection so
         // a missing/corrupt file can still be cleared on save). HasModalAvatar drives
@@ -606,6 +559,7 @@ public partial class CustomerModalsViewModel : ViewModelBase
         }
         OnPropertyChanged(nameof(ModalInitialsPreview));
 
+        _original = Capture();
         ClearModalErrors();
         IsEditModalOpen = true;
     }
@@ -835,99 +789,54 @@ public partial class CustomerModalsViewModel : ViewModelBase
             if (item == null)
                 return;
 
-            // Check if customer is in use
-            var cd = App.CompanyManager?.CompanyData;
-            if (cd != null)
-            {
-                var usages = new List<string>();
-                if (cd.Invoices.Any(i => i.CustomerId == item.Id))
-                    usages.Add("Invoice".Translate());
-                if (cd.Revenues.Any(r => r.CustomerId == item.Id))
-                    usages.Add("Revenue".Translate());
-                if (cd.Rentals.Any(r => r.CustomerId == item.Id))
-                    usages.Add("Rental".Translate());
-                if (cd.RecurringInvoices.Any(ri => ri.CustomerId == item.Id))
-                    usages.Add("Recurring Invoice".Translate());
-                if (RecurringTransactionService.IsCustomerInUse(cd, item.Id))
-                    usages.Add("Recurring Revenue".Translate());
-                if (cd.Payments.Any(p => p.CustomerId == item.Id))
-                    usages.Add("Payment".Translate());
-                if (cd.Returns.Any(r => r.CustomerId == item.Id))
-                    usages.Add("Return".Translate());
-                if (usages.Count > 0)
-                {
-                    await App.ShowWarningMessageBoxAsync(
-                        "Cannot Delete".Translate(),
-                        "This customer cannot be deleted because it is referenced by one or more: {0}.".TranslateFormat(string.Join(", ", usages)));
-                    return;
-                }
-            }
-
-            var dialog = App.ConfirmationDialog;
-            if (dialog == null)
-                return;
-
-            var result = await dialog.ShowAsync(new ConfirmationDialogOptions
-            {
-                Title = "Delete Customer".Translate(),
-                Message = "Are you sure you want to delete this customer?\n\n{0}".TranslateFormat(item.Name),
-                PrimaryButtonText = "Delete".Translate(),
-                CancelButtonText = "Cancel".Translate(),
-                IsPrimaryDestructive = true
-            });
-
-            if (result != ConfirmationResult.Primary)
-                return;
-
             var companyData = App.CompanyManager?.CompanyData;
             if (companyData == null)
                 return;
 
+            if (await BlockIfInUseAsync(
+                    usages => "This customer cannot be deleted because it is referenced by one or more: {0}.".TranslateFormat(usages),
+                    (companyData.Invoices.Any(i => i.CustomerId == item.Id), "Invoice".Translate()),
+                    (companyData.Revenues.Any(r => r.CustomerId == item.Id), "Revenue".Translate()),
+                    (companyData.Rentals.Any(r => r.CustomerId == item.Id), "Rental".Translate()),
+                    (companyData.RecurringInvoices.Any(ri => ri.CustomerId == item.Id), "Recurring Invoice".Translate()),
+                    (RecurringTransactionService.IsCustomerInUse(companyData, item.Id), "Recurring Revenue".Translate()),
+                    (companyData.Payments.Any(p => p.CustomerId == item.Id), "Payment".Translate()),
+                    (companyData.Returns.Any(r => r.CustomerId == item.Id), "Return".Translate())))
+                return;
+
+            if (!await ConfirmDeleteAsync("Delete Customer".Translate(),
+                    "Are you sure you want to delete this customer?\n\n{0}".TranslateFormat(item.Name)))
+                return;
+
             var customer = companyData.Customers.FirstOrDefault(c => c.Id == item.Id);
-            if (customer != null)
+            if (customer == null)
             {
-                var deletedCustomer = customer;
-
-                // Snapshot the avatar bytes BEFORE deleting so undo can restore the
-                // file alongside the customer record. The customer's AvatarFileName is
-                // also captured implicitly, the customer object stays alive in the
-                // closure and is mutated in place by RestoreCustomerAvatar.
-                var deletedAvatarBytes = App.CompanyManager?.ReadCustomerAvatarBytes(deletedCustomer);
-                var savedAvatarFileName = deletedCustomer.AvatarFileName;
-
-                // Clean up the avatar file before removing the customer. This avoids
-                // bloat (and retention of deleted-customer images) inside the .argo
-                // archive on next save.
-                if (App.CompanyManager != null && !string.IsNullOrEmpty(savedAvatarFileName))
-                {
-                    try { await App.CompanyManager.RemoveCustomerAvatarAsync(deletedCustomer); }
-                    catch (Exception ex) { App.ErrorLogger?.LogWarning($"Failed to remove customer avatar on delete: {ex.Message}", "Customer.Delete"); }
-                }
-
-                companyData.Customers.Remove(customer);
-                companyData.MarkAsModified();
-
-                App.UndoRedoManager.RecordAction(new DelegateAction(
-                    $"Delete customer '{deletedCustomer.Name}'",
-                    () =>
-                    {
-                        companyData.Customers.Add(deletedCustomer);
-                        if (deletedAvatarBytes != null)
-                            App.CompanyManager?.RestoreCustomerAvatar(deletedCustomer, deletedAvatarBytes);
-                        companyData.MarkAsModified();
-                        CustomerDeleted?.Invoke(this, EventArgs.Empty);
-                    },
-                    () =>
-                    {
-                        if (deletedAvatarBytes != null)
-                            App.CompanyManager?.RestoreCustomerAvatar(deletedCustomer, null);
-                        companyData.Customers.Remove(deletedCustomer);
-                        companyData.MarkAsModified();
-                        CustomerDeleted?.Invoke(this, EventArgs.Empty);
-                    }));
+                CustomerDeleted?.Invoke(this, EventArgs.Empty);
+                return;
             }
 
-            CustomerDeleted?.Invoke(this, EventArgs.Empty);
+            // Snapshot the avatar bytes before deleting so undo can restore the file with the
+            // record, then remove the file so a deleted customer's image isn't kept in the .argo archive.
+            var avatarBytes = App.CompanyManager?.ReadCustomerAvatarBytes(customer);
+            if (App.CompanyManager != null && !string.IsNullOrEmpty(customer.AvatarFileName))
+            {
+                try { await App.CompanyManager.RemoveCustomerAvatarAsync(customer); }
+                catch (Exception ex) { App.ErrorLogger?.LogWarning($"Failed to remove customer avatar on delete: {ex.Message}", "Customer.Delete"); }
+            }
+
+            RemoveWithUndo(companyData, companyData.Customers, customer, $"Delete customer '{customer.Name}'",
+                () => CustomerDeleted?.Invoke(this, EventArgs.Empty),
+                onRemove: () =>
+                {
+                    // Only a redo finds the file back; the first removal deleted it above.
+                    if (!string.IsNullOrEmpty(customer.AvatarFileName))
+                        App.CompanyManager?.RestoreCustomerAvatar(customer, null);
+                },
+                onRestore: () =>
+                {
+                    if (avatarBytes != null)
+                        App.CompanyManager?.RestoreCustomerAvatar(customer, avatarBytes);
+                });
         }
         catch (Exception ex)
         {
@@ -975,22 +884,8 @@ public partial class CustomerModalsViewModel : ViewModelBase
 
     private void UpdateCountryOptions()
     {
-        CountryOptions.Clear();
-        CountryOptions.Add("All");
-
-        var companyData = App.CompanyManager?.CompanyData;
-        if (companyData == null) return;
-
-        var countries = companyData.Customers
-            .Select(c => c.Address.Country)
-            .Where(c => !string.IsNullOrWhiteSpace(c))
-            .Distinct()
-            .OrderBy(c => c);
-
-        foreach (var country in countries)
-        {
-            CountryOptions.Add(country);
-        }
+        var addresses = App.CompanyManager?.CompanyData?.Customers.Select(c => c.Address) ?? Enumerable.Empty<Address>();
+        OptionLoader.Fill(CountryOptions, OptionLoader.Countries(addresses), "All");
     }
 
     [RelayCommand]
@@ -1267,7 +1162,6 @@ public partial class CustomerModalsViewModel : ViewModelBase
     private void ClearModalFields()
     {
         ModalId = string.Empty;
-        _originalId = string.Empty;
         ModalFirstName = string.Empty;
         ModalLastName = string.Empty;
         ModalCompanyName = string.Empty;

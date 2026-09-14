@@ -37,53 +37,43 @@ public partial class ProductsPageViewModel : SortablePageViewModelBase
 
     #region Column Visibility
 
-    [ObservableProperty]
-    private bool _showNameColumn = ColumnVisibilityHelper.Load("Products", "Name", true);
-
-    [ObservableProperty]
-    private bool _showTypeColumn = ColumnVisibilityHelper.Load("Products", "Type", true);
-
-    [ObservableProperty]
-    private bool _showDescriptionColumn = ColumnVisibilityHelper.Load("Products", "Description", true);
-
-    [ObservableProperty]
-    private bool _showCategoryColumn = ColumnVisibilityHelper.Load("Products", "Category", true);
-
-    [ObservableProperty]
-    private bool _showSupplierColumn = ColumnVisibilityHelper.Load("Products", "Supplier", true);
-
-    [ObservableProperty]
-    private bool _showReorderColumn = ColumnVisibilityHelper.Load("Products", "Reorder", false);
-
-    [ObservableProperty]
-    private bool _showOverstockColumn = ColumnVisibilityHelper.Load("Products", "Overstock", false);
-
-    [ObservableProperty]
-    private bool _showTrackInventoryColumn = ColumnVisibilityHelper.Load("Products", "TrackInventory", false);
-
-    partial void OnShowNameColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Name", value); ColumnVisibilityHelper.Save("Products", "Name", value); }
-    partial void OnShowTypeColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Type", value); ColumnVisibilityHelper.Save("Products", "Type", value); }
-    partial void OnShowDescriptionColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Description", value); ColumnVisibilityHelper.Save("Products", "Description", value); }
-    partial void OnShowCategoryColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Category", value); ColumnVisibilityHelper.Save("Products", "Category", value); }
-    partial void OnShowSupplierColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Supplier", value); ColumnVisibilityHelper.Save("Products", "Supplier", value); }
-    partial void OnShowReorderColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Reorder", value); ColumnVisibilityHelper.Save("Products", "Reorder", value); }
-    partial void OnShowOverstockColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Overstock", value); ColumnVisibilityHelper.Save("Products", "Overstock", value); }
-    partial void OnShowTrackInventoryColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("TrackInventory", value); ColumnVisibilityHelper.Save("Products", "TrackInventory", value); }
-
-    [RelayCommand]
-    private void ResetColumnVisibility()
+    private static readonly ColumnVisibilityDefaults ColumnDefaults = new("Products", new Dictionary<string, bool>
     {
-        ColumnWidths.ResetWidths();
-        ColumnVisibilityHelper.ResetPage("Products");
-        ShowNameColumn = true;
-        ShowTypeColumn = true;
-        ShowDescriptionColumn = true;
-        ShowCategoryColumn = true;
-        ShowSupplierColumn = true;
-        ShowReorderColumn = false;
-        ShowOverstockColumn = false;
-        ShowTrackInventoryColumn = false;
-    }
+        ["Name"] = true,
+        ["Type"] = true,
+        ["Description"] = true,
+        ["Category"] = true,
+        ["Supplier"] = true,
+        ["Reorder"] = false,
+        ["Overstock"] = false,
+        ["TrackInventory"] = false,
+    });
+
+    protected override ColumnVisibilityDefaults ColumnVisibility => ColumnDefaults;
+
+    [ObservableProperty]
+    private bool _showNameColumn = ColumnDefaults.Load("Name");
+
+    [ObservableProperty]
+    private bool _showTypeColumn = ColumnDefaults.Load("Type");
+
+    [ObservableProperty]
+    private bool _showDescriptionColumn = ColumnDefaults.Load("Description");
+
+    [ObservableProperty]
+    private bool _showCategoryColumn = ColumnDefaults.Load("Category");
+
+    [ObservableProperty]
+    private bool _showSupplierColumn = ColumnDefaults.Load("Supplier");
+
+    [ObservableProperty]
+    private bool _showReorderColumn = ColumnDefaults.Load("Reorder");
+
+    [ObservableProperty]
+    private bool _showOverstockColumn = ColumnDefaults.Load("Overstock");
+
+    [ObservableProperty]
+    private bool _showTrackInventoryColumn = ColumnDefaults.Load("TrackInventory");
 
     #endregion
 
@@ -182,9 +172,6 @@ public partial class ProductsPageViewModel : SortablePageViewModelBase
 
     #region Pagination
 
-    [ObservableProperty]
-    private string _paginationText = "0 products";
-
     /// <inheritdoc />
     protected override void OnSortOrPageChanged() => FilterProducts();
 
@@ -199,10 +186,7 @@ public partial class ProductsPageViewModel : SortablePageViewModelBase
     {
         LoadProducts();
 
-        // Subscribe to undo/redo state changes to refresh UI
-        App.UndoRedoManager.StateChanged += OnUndoRedoStateChanged;
-        if (App.NavigationService != null)
-            App.NavigationService.Navigated += OnNavigated;
+        EnableDeferredUndoRefresh(IsThisPage, LoadProducts);
 
         // Subscribe to product modal events to refresh data
         if (App.ProductModalsViewModel != null)
@@ -221,9 +205,6 @@ public partial class ProductsPageViewModel : SortablePageViewModelBase
     public override void Cleanup()
     {
         base.Cleanup();
-        App.UndoRedoManager.StateChanged -= OnUndoRedoStateChanged;
-        if (App.NavigationService != null)
-            App.NavigationService.Navigated -= OnNavigated;
         if (App.ProductModalsViewModel != null)
         {
             App.ProductModalsViewModel.ProductSaved -= OnProductSaved;
@@ -234,34 +215,10 @@ public partial class ProductsPageViewModel : SortablePageViewModelBase
     }
 
     /// <summary>
-    /// Handles undo/redo state changes by refreshing the products.
-    /// </summary>
-    private bool _needsRefresh;
-
-    /// <summary>
     /// The sidebar opens this page on a tab, under its own page name.
     /// </summary>
     private static bool IsThisPage(string? pageName) =>
         pageName is PageNames.Products or PageNames.ExpenseProducts or PageNames.RevenueProducts;
-
-    private void OnUndoRedoStateChanged(object? sender, EventArgs e)
-    {
-        if (!IsThisPage(App.NavigationService?.CurrentPageName))
-        {
-            _needsRefresh = true;
-            return;
-        }
-        LoadProducts();
-    }
-
-    private void OnNavigated(object? sender, NavigationEventArgs e)
-    {
-        if (IsThisPage(e.PageName) && _needsRefresh)
-        {
-            _needsRefresh = false;
-            LoadProducts();
-        }
-    }
 
     private void OnProductSaved(object? sender, EventArgs e)
     {
@@ -327,28 +284,13 @@ public partial class ProductsPageViewModel : SortablePageViewModelBase
         if (companyData == null)
             return;
 
-        // Update categories
-        AvailableCategories.Clear();
-        AvailableCategories.Add(new CategoryOption { Id = null, Name = "All Categories" });
-
         var targetType = IsExpensesTabSelected ? CategoryType.Expense : CategoryType.Revenue;
-        var categories = companyData.Categories
-            .Where(c => c.Type == targetType)
-            .OrderBy(c => c.Name);
-
-        foreach (var cat in categories)
-        {
-            AvailableCategories.Add(new CategoryOption { Id = cat.Id, Name = cat.Name });
-        }
-
-        // Update suppliers
-        AvailableSuppliers.Clear();
-        AvailableSuppliers.Add(new SupplierOption { Id = null, Name = "All Suppliers" });
-
-        foreach (var supplier in companyData.Suppliers.OrderBy(s => s.Name))
-        {
-            AvailableSuppliers.Add(new SupplierOption { Id = supplier.Id, Name = supplier.Name });
-        }
+        OptionLoader.Fill(AvailableCategories,
+            OptionLoader.Categories(companyData, targetType).AsOptions<CategoryOption>(),
+            new CategoryOption { Name = "All Categories" });
+        OptionLoader.Fill(AvailableSuppliers,
+            OptionLoader.Suppliers(companyData).AsOptions<SupplierOption>(),
+            new SupplierOption { Name = "All Suppliers" });
     }
 
     /// <summary>
@@ -450,28 +392,11 @@ public partial class ProductsPageViewModel : SortablePageViewModelBase
 
         NavigateToHighlightedItem(displayItems, x => x.Id);
 
-        // Calculate pagination
-        var totalCount = displayItems.Count;
-        TotalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / PageSize));
-        if (CurrentPage > TotalPages)
-            CurrentPage = TotalPages;
-
-        UpdatePaginationText(totalCount);
-
-        // Apply pagination and add to collection
-        var pagedProducts = displayItems
-            .Skip((CurrentPage - 1) * PageSize)
-            .Take(PageSize);
+        var pagedProducts = Paginate(displayItems, "product");
 
         targetCollection.ReplaceAll(pagedProducts);
 
         OnPropertyChanged(nameof(CurrentProducts));
-    }
-
-    private void UpdatePaginationText(int totalCount)
-    {
-        PaginationText = PaginationTextHelper.FormatPaginationText(
-            totalCount, CurrentPage, PageSize, TotalPages, "product");
     }
 
     #endregion
@@ -577,21 +502,13 @@ public partial class ProductDisplayItem : ObservableObject
 /// <summary>
 /// Category option for dropdown.
 /// </summary>
-public class CategoryOption
+public class CategoryOption : NamedOption
 {
-    public string? Id { get; set; }
-    public string Name { get; set; } = string.Empty;
-
-    public override string ToString() => Name;
 }
 
 /// <summary>
 /// Supplier option for dropdown.
 /// </summary>
-public class SupplierOption
+public class SupplierOption : NamedOption
 {
-    public string? Id { get; set; }
-    public string Name { get; set; } = string.Empty;
-
-    public override string ToString() => Name;
 }

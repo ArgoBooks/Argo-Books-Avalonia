@@ -27,43 +27,35 @@ public partial class SuppliersPageViewModel : SortablePageViewModelBase
 
     #region Column Visibility
 
-    [ObservableProperty]
-    private bool _showSupplierColumn = ColumnVisibilityHelper.Load("Suppliers", "Supplier", true);
-
-    [ObservableProperty]
-    private bool _showEmailColumn = ColumnVisibilityHelper.Load("Suppliers", "Email", true);
-
-    [ObservableProperty]
-    private bool _showPhoneColumn = ColumnVisibilityHelper.Load("Suppliers", "Phone", true);
-
-    [ObservableProperty]
-    private bool _showAddressColumn = ColumnVisibilityHelper.Load("Suppliers", "Address", true);
-
-    [ObservableProperty]
-    private bool _showCountryColumn = ColumnVisibilityHelper.Load("Suppliers", "Country", true);
-
-    [ObservableProperty]
-    private bool _showProductsColumn = ColumnVisibilityHelper.Load("Suppliers", "Products", true);
-
-    partial void OnShowSupplierColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Supplier", value); ColumnVisibilityHelper.Save("Suppliers", "Supplier", value); }
-    partial void OnShowEmailColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Email", value); ColumnVisibilityHelper.Save("Suppliers", "Email", value); }
-    partial void OnShowPhoneColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Phone", value); ColumnVisibilityHelper.Save("Suppliers", "Phone", value); }
-    partial void OnShowAddressColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Address", value); ColumnVisibilityHelper.Save("Suppliers", "Address", value); }
-    partial void OnShowCountryColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Country", value); ColumnVisibilityHelper.Save("Suppliers", "Country", value); }
-    partial void OnShowProductsColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Products", value); ColumnVisibilityHelper.Save("Suppliers", "Products", value); }
-
-    [RelayCommand]
-    private void ResetColumnVisibility()
+    private static readonly ColumnVisibilityDefaults ColumnDefaults = new("Suppliers", new Dictionary<string, bool>
     {
-        ColumnWidths.ResetWidths();
-        ColumnVisibilityHelper.ResetPage("Suppliers");
-        ShowSupplierColumn = true;
-        ShowEmailColumn = true;
-        ShowPhoneColumn = true;
-        ShowAddressColumn = true;
-        ShowCountryColumn = true;
-        ShowProductsColumn = true;
-    }
+        ["Supplier"] = true,
+        ["Email"] = true,
+        ["Phone"] = true,
+        ["Address"] = true,
+        ["Country"] = true,
+        ["Products"] = true,
+    });
+
+    protected override ColumnVisibilityDefaults ColumnVisibility => ColumnDefaults;
+
+    [ObservableProperty]
+    private bool _showSupplierColumn = ColumnDefaults.Load("Supplier");
+
+    [ObservableProperty]
+    private bool _showEmailColumn = ColumnDefaults.Load("Email");
+
+    [ObservableProperty]
+    private bool _showPhoneColumn = ColumnDefaults.Load("Phone");
+
+    [ObservableProperty]
+    private bool _showAddressColumn = ColumnDefaults.Load("Address");
+
+    [ObservableProperty]
+    private bool _showCountryColumn = ColumnDefaults.Load("Country");
+
+    [ObservableProperty]
+    private bool _showProductsColumn = ColumnDefaults.Load("Products");
 
     #endregion
 
@@ -98,19 +90,8 @@ public partial class SuppliersPageViewModel : SortablePageViewModelBase
 
     #region Pagination
 
-    [ObservableProperty]
-    private string _paginationText = "0 suppliers";
-
     /// <inheritdoc />
     protected override void OnSortOrPageChanged() => FilterSuppliers();
-
-    /// <summary>
-    /// Updates the pagination text to display item count.
-    /// </summary>
-    private void UpdatePaginationText(int totalItems)
-    {
-        PaginationText = PaginationTextHelper.FormatSimpleCount(totalItems, "supplier");
-    }
 
     #endregion
 
@@ -153,10 +134,7 @@ public partial class SuppliersPageViewModel : SortablePageViewModelBase
     {
         LoadSuppliers();
 
-        // Subscribe to undo/redo state changes to refresh UI
-        App.UndoRedoManager.StateChanged += OnUndoRedoStateChanged;
-        if (App.NavigationService != null)
-            App.NavigationService.Navigated += OnNavigated;
+        EnableDeferredUndoRefresh(p => p == PageNames.Suppliers, LoadSuppliers);
 
         // Subscribe to shared modal events to refresh data
         if (App.SupplierModalsViewModel != null)
@@ -175,9 +153,6 @@ public partial class SuppliersPageViewModel : SortablePageViewModelBase
     public override void Cleanup()
     {
         base.Cleanup();
-        App.UndoRedoManager.StateChanged -= OnUndoRedoStateChanged;
-        if (App.NavigationService != null)
-            App.NavigationService.Navigated -= OnNavigated;
         if (App.SupplierModalsViewModel != null)
         {
             App.SupplierModalsViewModel.SupplierSaved -= OnSupplierModalClosed;
@@ -217,30 +192,6 @@ public partial class SuppliersPageViewModel : SortablePageViewModelBase
         FilterStatus = "All";
         SearchQuery = null;
         FilterSuppliers();
-    }
-
-    /// <summary>
-    /// Handles undo/redo state changes by refreshing the suppliers.
-    /// </summary>
-    private bool _needsRefresh;
-
-    private void OnUndoRedoStateChanged(object? sender, EventArgs e)
-    {
-        if (App.NavigationService?.CurrentPageName != PageNames.Suppliers)
-        {
-            _needsRefresh = true;
-            return;
-        }
-        LoadSuppliers();
-    }
-
-    private void OnNavigated(object? sender, NavigationEventArgs e)
-    {
-        if (e.PageName == PageNames.Suppliers && _needsRefresh)
-        {
-            _needsRefresh = false;
-            LoadSuppliers();
-        }
     }
 
     #endregion
@@ -366,7 +317,7 @@ public partial class SuppliersPageViewModel : SortablePageViewModelBase
                 Address = addressString,
                 Country = string.IsNullOrWhiteSpace(supplier.Address.Country) ? "-" : supplier.Address.Country,
                 ProductCount = productCount,
-                Initials = GetInitials(supplier.Name),
+                Initials = Helpers.InitialsHelper.From(supplier.Name),
                 AvatarBitmap = avatarBitmap,
                 HasAvatar = avatarBitmap != null,
                 IsHighlighted = supplier.Id == HighlightTransactionId
@@ -393,41 +344,9 @@ public partial class SuppliersPageViewModel : SortablePageViewModelBase
 
         NavigateToHighlightedItem(displayItems, x => x.Id);
 
-        // Calculate pagination
-        var totalItems = displayItems.Count;
-        TotalPages = Math.Max(1, (int)Math.Ceiling(totalItems / (double)PageSize));
+        var pagedItems = Paginate(displayItems, "supplier");
 
-        // Ensure current page is valid
-        if (CurrentPage > TotalPages)
-            CurrentPage = TotalPages;
-        if (CurrentPage < 1)
-            CurrentPage = 1;
-
-        UpdatePaginationText(totalItems);
-        OnPropertyChanged(nameof(CanGoToPreviousPage));
-        OnPropertyChanged(nameof(CanGoToNextPage));
-
-        // Apply pagination
-        var pagedItems = displayItems
-            .Skip((CurrentPage - 1) * PageSize)
-            .Take(PageSize);
-
-        // Replace all items in collection
         Suppliers.ReplaceAll(pagedItems);
-    }
-
-    private static string GetInitials(string name)
-    {
-        if (string.IsNullOrWhiteSpace(name))
-            return "?";
-
-        var words = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (words.Length >= 2)
-            return $"{words[0][0]}{words[1][0]}".ToUpperInvariant();
-
-        return name.Length >= 2
-            ? name[..2].ToUpperInvariant()
-            : name.ToUpperInvariant();
     }
 
     #endregion

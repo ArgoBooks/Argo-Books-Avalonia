@@ -98,16 +98,16 @@ public partial class LocationsModalsViewModel : ViewModelBase
     /// </summary>
     private Location? _editingLocation;
 
-    // Original values for change detection in edit mode
-    private string _originalName = string.Empty;
-    private string _originalCode = string.Empty;
-    private string _originalType = "Warehouse";
-    private string _originalStreetAddress = string.Empty;
-    private string _originalCity = string.Empty;
-    private string _originalStateProvince = string.Empty;
-    private string _originalPostalCode = string.Empty;
-    private string _originalCountry = string.Empty;
-    private string _originalNotes = string.Empty;
+    private sealed record EditState(
+        string Name, string Code, string Type, string StreetAddress, string City,
+        string StateProvince, string PostalCode, string Country, string Notes);
+
+    // The form as the edit modal opened, for change detection.
+    private EditState? _original;
+
+    private EditState Capture() => new(
+        ModalName, ModalCode, ModalType, ModalStreetAddress, ModalCity,
+        ModalStateProvince, ModalPostalCode, ModalCountry, ModalNotes);
 
     /// <summary>
     /// Returns true if any data has been entered in the Add modal.
@@ -126,16 +126,7 @@ public partial class LocationsModalsViewModel : ViewModelBase
     /// <summary>
     /// Returns true if any changes have been made in the Edit modal.
     /// </summary>
-    public bool HasEditModalChanges =>
-        ModalName != _originalName ||
-        ModalCode != _originalCode ||
-        ModalType != _originalType ||
-        ModalStreetAddress != _originalStreetAddress ||
-        ModalCity != _originalCity ||
-        ModalStateProvince != _originalStateProvince ||
-        ModalPostalCode != _originalPostalCode ||
-        ModalCountry != _originalCountry ||
-        ModalNotes != _originalNotes;
+    public bool HasEditModalChanges => Capture() != _original;
 
     #endregion
 
@@ -321,16 +312,7 @@ public partial class LocationsModalsViewModel : ViewModelBase
         ModalNameError = null;
         ModalError = null;
 
-        // Store original values for change detection
-        _originalName = ModalName;
-        _originalCode = ModalCode;
-        _originalType = ModalType;
-        _originalStreetAddress = ModalStreetAddress;
-        _originalCity = ModalCity;
-        _originalStateProvince = ModalStateProvince;
-        _originalPostalCode = ModalPostalCode;
-        _originalCountry = ModalCountry;
-        _originalNotes = ModalNotes;
+        _original = Capture();
 
         IsEditModalOpen = true;
     }
@@ -443,66 +425,28 @@ public partial class LocationsModalsViewModel : ViewModelBase
         {
             if (item == null) return;
 
-            // Check if location is in use
-            var cd = App.CompanyManager?.CompanyData;
-            if (cd != null)
-            {
-                var usages = new List<string>();
-                if (cd.Inventory.Any(i => i.LocationId == item.Id))
-                    usages.Add("Inventory".Translate());
-                if (cd.StockTransfers.Any(t => t.SourceLocationId == item.Id || t.DestinationLocationId == item.Id))
-                    usages.Add("Stock Transfer".Translate());
-                if (usages.Count > 0)
-                {
-                    await App.ShowWarningMessageBoxAsync(
-                        "Cannot Delete".Translate(),
-                        "This location cannot be deleted because it is referenced by one or more: {0}.".TranslateFormat(string.Join(", ", usages)));
-                    return;
-                }
-            }
-
-            var dialog = App.ConfirmationDialog;
-            if (dialog == null) return;
-
-            var result = await dialog.ShowAsync(new ConfirmationDialogOptions
-            {
-                Title = "Delete Location".Translate(),
-                Message = "Are you sure you want to delete this location?\n\n{0}".TranslateFormat(item.Name),
-                PrimaryButtonText = "Delete".Translate(),
-                CancelButtonText = "Cancel".Translate(),
-                IsPrimaryDestructive = true
-            });
-
-            if (result != ConfirmationResult.Primary) return;
-
             var companyData = App.CompanyManager?.CompanyData;
-            if (companyData == null)
+            if (companyData == null) return;
+
+            if (await BlockIfInUseAsync(
+                    usages => "This location cannot be deleted because it is referenced by one or more: {0}.".TranslateFormat(usages),
+                    (companyData.Inventory.Any(i => i.LocationId == item.Id), "Inventory".Translate()),
+                    (companyData.StockTransfers.Any(t => t.SourceLocationId == item.Id || t.DestinationLocationId == item.Id), "Stock Transfer".Translate())))
+                return;
+
+            if (!await ConfirmDeleteAsync("Delete Location".Translate(),
+                    "Are you sure you want to delete this location?\n\n{0}".TranslateFormat(item.Name)))
                 return;
 
             var location = companyData.Locations.FirstOrDefault(l => l.Id == item.Id);
-            if (location != null)
+            if (location == null)
             {
-                var deletedLocation = location;
-                companyData.Locations.Remove(location);
-                companyData.MarkAsModified();
-
-                App.UndoRedoManager.RecordAction(new DelegateAction(
-                    $"Delete location '{deletedLocation.Name}'",
-                    () =>
-                    {
-                        companyData.Locations.Add(deletedLocation);
-                        companyData.MarkAsModified();
-                        LocationDeleted?.Invoke(this, EventArgs.Empty);
-                    },
-                    () =>
-                    {
-                        companyData.Locations.Remove(deletedLocation);
-                        companyData.MarkAsModified();
-                        LocationDeleted?.Invoke(this, EventArgs.Empty);
-                    }));
+                LocationDeleted?.Invoke(this, EventArgs.Empty);
+                return;
             }
 
-            LocationDeleted?.Invoke(this, EventArgs.Empty);
+            RemoveWithUndo(companyData, companyData.Locations, location, $"Delete location '{location.Name}'",
+                () => LocationDeleted?.Invoke(this, EventArgs.Empty));
         }
         catch (Exception ex)
         {

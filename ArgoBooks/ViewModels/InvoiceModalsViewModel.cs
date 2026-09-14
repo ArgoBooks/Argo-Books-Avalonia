@@ -589,80 +589,30 @@ public partial class InvoiceModalsViewModel : ViewModelBase
               DiscountAmount > 0 ||
               LineItems.Any(i => !string.IsNullOrWhiteSpace(i.Description) || i.SelectedProduct != null || (i.UnitPrice ?? 0) > 0);
 
-    // Original values for change detection in edit mode
-    private string? _originalCustomerId;
-    private DateTimeOffset? _originalIssueDate;
-    private DateTimeOffset? _originalDueDate;
-    private string _originalStatus = "Draft";
-    private string _originalNotes = string.Empty;
-    private decimal _originalTaxRate;
-    private bool _originalTaxIsFixed;
-    private decimal _originalSecurityDeposit;
-    private decimal _originalShippingAmount;
-    private decimal _originalCustomFeeAmount;
-    private bool _originalCustomFeeIsPercent;
-    private decimal _originalDiscountAmount;
-    private bool _originalDiscountIsPercent;
-    private List<(string? ProductId, string Description, decimal? Quantity, decimal? UnitPrice)> _originalLineItems = [];
+    private sealed record LineState(string? ProductId, string Description, decimal? Quantity, decimal? UnitPrice);
+
+    private sealed record EditState(
+        string? CustomerId, DateTimeOffset? IssueDate, DateTimeOffset? DueDate, string Status, string Notes,
+        decimal TaxRate, bool TaxIsFixed, decimal SecurityDeposit, decimal ShippingAmount,
+        decimal CustomFeeAmount, bool CustomFeeIsPercent, decimal DiscountAmount, bool DiscountIsPercent,
+        Helpers.EquatableArray<LineState> LineItems);
+
+    // The form as the edit modal opened, for change detection.
+    private EditState? _original;
+
+    private EditState Capture() => new(
+        SelectedCustomer?.Id, ModalIssueDate, ModalDueDate, ModalStatus, ModalNotes,
+        TaxRate, TaxIsFixed, SecurityDeposit, ShippingAmount,
+        CustomFeeAmount, CustomFeeIsPercent, DiscountAmount, DiscountIsPercent,
+        new Helpers.EquatableArray<LineState>(LineItems.Select(li =>
+            new LineState(li.SelectedProduct?.Id, li.Description, li.Quantity, li.UnitPrice))));
 
     /// <summary>
     /// Returns true if any changes have been made in the Edit modal compared to original values.
     /// </summary>
-    public bool HasEditModalChanges
-    {
-        get
-        {
-            if (SelectedCustomer?.Id != _originalCustomerId) return true;
-            if (ModalIssueDate != _originalIssueDate) return true;
-            if (ModalDueDate != _originalDueDate) return true;
-            if (ModalStatus != _originalStatus) return true;
-            if (ModalNotes != _originalNotes) return true;
-            if (TaxRate != _originalTaxRate) return true;
-            if (TaxIsFixed != _originalTaxIsFixed) return true;
-            if (SecurityDeposit != _originalSecurityDeposit) return true;
-            if (ShippingAmount != _originalShippingAmount) return true;
-            if (CustomFeeAmount != _originalCustomFeeAmount) return true;
-            if (CustomFeeIsPercent != _originalCustomFeeIsPercent) return true;
-            if (DiscountAmount != _originalDiscountAmount) return true;
-            if (DiscountIsPercent != _originalDiscountIsPercent) return true;
+    public bool HasEditModalChanges => Capture() != _original;
 
-            // Compare line items
-            if (LineItems.Count != _originalLineItems.Count) return true;
-            for (int i = 0; i < LineItems.Count; i++)
-            {
-                var current = LineItems[i];
-                var original = _originalLineItems[i];
-                if (current.SelectedProduct?.Id != original.ProductId ||
-                    current.Description != original.Description ||
-                    current.Quantity != original.Quantity ||
-                    current.UnitPrice != original.UnitPrice)
-                    return true;
-            }
-
-            return false;
-        }
-    }
-
-    /// <summary>
-    /// Captures the current form state as original values for change detection.
-    /// </summary>
-    private void CaptureOriginalValues()
-    {
-        _originalCustomerId = SelectedCustomer?.Id;
-        _originalIssueDate = ModalIssueDate;
-        _originalDueDate = ModalDueDate;
-        _originalStatus = ModalStatus;
-        _originalNotes = ModalNotes;
-        _originalTaxRate = TaxRate;
-        _originalTaxIsFixed = TaxIsFixed;
-        _originalSecurityDeposit = SecurityDeposit;
-        _originalShippingAmount = ShippingAmount;
-        _originalCustomFeeAmount = CustomFeeAmount;
-        _originalCustomFeeIsPercent = CustomFeeIsPercent;
-        _originalDiscountAmount = DiscountAmount;
-        _originalDiscountIsPercent = DiscountIsPercent;
-        _originalLineItems = LineItems.Select(li => (li.SelectedProduct?.Id, li.Description, li.Quantity, li.UnitPrice)).ToList();
-    }
+    private void CaptureOriginalValues() => _original = Capture();
 
     public ObservableCollection<CustomerOption> CustomerOptions { get; } = [];
 
@@ -1044,21 +994,9 @@ public partial class InvoiceModalsViewModel : ViewModelBase
 
     private void LoadCustomerOptions(bool includeAllOption = false)
     {
-        CustomerOptions.Clear();
-
-        if (includeAllOption)
-        {
-            CustomerOptions.Add(new CustomerOption { Id = null, Name = "All Customers" });
-        }
-
-        var companyData = App.CompanyManager?.CompanyData;
-        if (companyData?.Customers == null)
-            return;
-
-        foreach (var customer in companyData.Customers.OrderBy(c => c.Name))
-        {
-            CustomerOptions.Add(new CustomerOption { Id = customer.Id, Name = customer.Name });
-        }
+        OptionLoader.Fill(CustomerOptions,
+            OptionLoader.Customers(App.CompanyManager?.CompanyData).AsOptions<CustomerOption>(),
+            includeAllOption ? new CustomerOption { Name = "All Customers" } : null);
     }
 
     private void LoadProductOptions()
@@ -1452,19 +1390,9 @@ public partial class InvoiceModalsViewModel : ViewModelBase
         {
             if (item == null) return;
 
-            var dialog = App.ConfirmationDialog;
-            if (dialog == null) return;
-
-            var result = await dialog.ShowAsync(new ConfirmationDialogOptions
-            {
-                Title = "Delete Invoice".Translate(),
-                Message = "Are you sure you want to delete this invoice?\n\nInvoice: {0}\nAmount: {1}".TranslateFormat(item.Id, item.TotalFormatted),
-                PrimaryButtonText = "Delete".Translate(),
-                CancelButtonText = "Cancel".Translate(),
-                IsPrimaryDestructive = true
-            });
-
-            if (result != ConfirmationResult.Primary) return;
+            if (!await ConfirmDeleteAsync("Delete Invoice".Translate(),
+                    "Are you sure you want to delete this invoice?\n\nInvoice: {0}\nAmount: {1}".TranslateFormat(item.Id, item.TotalFormatted)))
+                return;
 
             var companyData = App.CompanyManager?.CompanyData;
 

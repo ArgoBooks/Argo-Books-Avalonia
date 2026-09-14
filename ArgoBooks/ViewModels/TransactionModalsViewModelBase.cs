@@ -255,17 +255,28 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     public ObservableCollection<string> PaymentMethodOptions { get; } = new(PaymentMethodExtensions.GetCommonOptions());
     public ObservableCollection<TLineItem> LineItems { get; } = [];
 
-    // Original values for change detection in edit mode
-    private DateTimeOffset? _originalModalDate;
-    private string? _originalCounterpartyId;
-    private string? _originalCategoryId;
-    private decimal _originalTaxAmount;
-    private decimal _originalShipping;
-    private decimal _originalDiscount;
-    private decimal _originalFee;
-    private string _originalPaymentMethod = "Cash";
-    private string _originalNotes = string.Empty;
-    private List<(string? ProductId, string? CategoryId, string Description, decimal? Quantity, decimal? UnitPrice, string? ItemText, string? CategoryText)> _originalLineItems = [];
+    /// <summary>
+    /// Typed text counts as a change even though it moves no selection: typing over a picked
+    /// product changes only the box's text, and that text is what the save acts on. It is
+    /// compared trimmed.
+    /// </summary>
+    private sealed record LineState(
+        string? ProductId, string? CategoryId, string Description, decimal? Quantity, decimal? UnitPrice,
+        string ItemText, string CategoryText);
+
+    private sealed record EditState(
+        DateTimeOffset? Date, string? CounterpartyId, string? CategoryId, decimal TaxAmount, decimal Shipping,
+        decimal Discount, decimal Fee, string PaymentMethod, string Notes, Helpers.EquatableArray<LineState> LineItems);
+
+    // The form as the edit modal opened, for change detection.
+    private EditState? _original;
+
+    private EditState Capture() => new(
+        ModalDate, SelectedCounterparty?.Id, SelectedCategory?.Id, ModalTaxAmount, ModalShipping,
+        ModalDiscount, ModalFee, SelectedPaymentMethod, ModalNotes,
+        new Helpers.EquatableArray<LineState>(LineItems.Select(li => new LineState(
+            li.SelectedProduct?.Id, li.SelectedCategory?.Id, li.Description, li.Quantity, li.UnitPrice,
+            li.ItemText?.Trim() ?? string.Empty, li.CategoryText?.Trim() ?? string.Empty))));
 
     /// <summary>
     /// Returns true if any data has been entered in the Add modal.
@@ -282,65 +293,14 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
                             !string.IsNullOrWhiteSpace(li.ItemText) || !string.IsNullOrWhiteSpace(li.CategoryText));
 
     /// <summary>
-    /// Typed text counts as a change even though it moves no selection: typing over a picked
-    /// product changes only the box's text, and that text is what the save acts on.
-    /// </summary>
-    private static bool SameText(string? a, string? b) =>
-        string.Equals(a?.Trim() ?? string.Empty, b?.Trim() ?? string.Empty, StringComparison.Ordinal);
-
-    /// <summary>
     /// Returns true if any changes have been made in the Edit modal compared to original values.
     /// </summary>
-    public bool HasEditModalChanges
-    {
-        get
-        {
-            if (ModalDate != _originalModalDate) return true;
-            if (SelectedCounterparty?.Id != _originalCounterpartyId) return true;
-            if (SelectedCategory?.Id != _originalCategoryId) return true;
-            if (ModalTaxAmount != _originalTaxAmount) return true;
-            if (ModalShipping != _originalShipping) return true;
-            if (ModalDiscount != _originalDiscount) return true;
-            if (ModalFee != _originalFee) return true;
-            if (SelectedPaymentMethod != _originalPaymentMethod) return true;
-            if (ModalNotes != _originalNotes) return true;
-
-            // Compare line items
-            if (LineItems.Count != _originalLineItems.Count) return true;
-            for (int i = 0; i < LineItems.Count; i++)
-            {
-                var current = LineItems[i];
-                var original = _originalLineItems[i];
-                if (current.SelectedProduct?.Id != original.ProductId ||
-                    current.SelectedCategory?.Id != original.CategoryId ||
-                    current.Description != original.Description ||
-                    current.Quantity != original.Quantity ||
-                    current.UnitPrice != original.UnitPrice ||
-                    !SameText(current.ItemText, original.ItemText) ||
-                    !SameText(current.CategoryText, original.CategoryText))
-                    return true;
-            }
-
-            return false;
-        }
-    }
+    public bool HasEditModalChanges => Capture() != _original;
 
     /// <summary>
     /// Captures the current form state as original values for change detection.
     /// </summary>
-    protected void CaptureOriginalValues()
-    {
-        _originalModalDate = ModalDate;
-        _originalCounterpartyId = SelectedCounterparty?.Id;
-        _originalCategoryId = SelectedCategory?.Id;
-        _originalTaxAmount = ModalTaxAmount;
-        _originalShipping = ModalShipping;
-        _originalDiscount = ModalDiscount;
-        _originalFee = ModalFee;
-        _originalPaymentMethod = SelectedPaymentMethod;
-        _originalNotes = ModalNotes;
-        _originalLineItems = LineItems.Select(li => (li.SelectedProduct?.Id, li.SelectedCategory?.Id, li.Description, li.Quantity, li.UnitPrice, li.ItemText, li.CategoryText)).ToList();
-    }
+    protected void CaptureOriginalValues() => _original = Capture();
 
     // Computed totals
     public decimal Subtotal => LineItems.Count > 0
@@ -536,25 +496,14 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
 
     #region Data Loading
 
-    protected abstract void LoadCounterpartyOptions();
+    /// <summary>The suppliers or customers the counterparty box offers.</summary>
+    protected abstract IEnumerable<CounterpartyOption> GetCounterpartyOptions();
 
-    protected void LoadCategoryOptions()
-    {
-        CategoryOptions.Clear();
+    protected void LoadCounterpartyOptions() => OptionLoader.Fill(CounterpartyOptions, GetCounterpartyOptions());
 
-        var companyData = App.CompanyManager?.CompanyData;
-        if (companyData?.Categories == null)
-            return;
-
-        var categories = companyData.Categories
-            .Where(c => c.Type == CategoryTypeFilter)
-            .OrderBy(c => c.Name);
-
-        foreach (var category in categories)
-        {
-            CategoryOptions.Add(new CategoryOption { Id = category.Id, Name = category.Name });
-        }
-    }
+    protected void LoadCategoryOptions() =>
+        OptionLoader.Fill(CategoryOptions,
+            OptionLoader.Categories(App.CompanyManager?.CompanyData, CategoryTypeFilter).AsOptions<CategoryOption>());
 
     protected void LoadProductOptions()
     {
@@ -587,34 +536,14 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         }
     }
 
-    protected void LoadCounterpartyOptionsForFilter()
-    {
-        CounterpartyOptions.Clear();
-        CounterpartyOptions.Add(new CounterpartyOption { Id = null, Name = $"All {CounterpartyName}s" });
+    protected void LoadCounterpartyOptionsForFilter() =>
+        OptionLoader.Fill(CounterpartyOptions, GetCounterpartyOptions(),
+            new CounterpartyOption { Name = $"All {CounterpartyName}s" });
 
-        LoadCounterpartyOptionsInternal();
-    }
-
-    protected abstract void LoadCounterpartyOptionsInternal();
-
-    protected void LoadCategoryOptionsForFilter()
-    {
-        CategoryOptions.Clear();
-        CategoryOptions.Add(new CategoryOption { Id = null, Name = "All Categories" });
-
-        var companyData = App.CompanyManager?.CompanyData;
-        if (companyData?.Categories == null)
-            return;
-
-        var categories = companyData.Categories
-            .Where(c => c.Type == CategoryTypeFilter)
-            .OrderBy(c => c.Name);
-
-        foreach (var category in categories)
-        {
-            CategoryOptions.Add(new CategoryOption { Id = category.Id, Name = category.Name });
-        }
-    }
+    protected void LoadCategoryOptionsForFilter() =>
+        OptionLoader.Fill(CategoryOptions,
+            OptionLoader.Categories(App.CompanyManager?.CompanyData, CategoryTypeFilter).AsOptions<CategoryOption>(),
+            new CategoryOption { Name = "All Categories" });
 
     #endregion
 
@@ -1723,6 +1652,38 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         }
     }
 
+    /// <summary>
+    /// Deletes an expense or revenue with its receipt, taking back the stock it moved the way
+    /// editing its lines down to nothing would, and records the undo.
+    /// </summary>
+    protected void DeleteTransactionWithUndo<T>(CompanyData companyData, List<T> list, T transaction, bool isExpense)
+        where T : Transaction
+    {
+        var receipt = string.IsNullOrEmpty(transaction.ReceiptId)
+            ? null
+            : companyData.Receipts.FirstOrDefault(r => r.Id == transaction.ReceiptId);
+        var reason = isExpense ? "Expense deleted" : "Revenue deleted";
+        List<StockChange> stockChanges = [];
+
+        RemoveWithUndo(companyData, list, transaction,
+            $"Delete {(isExpense ? "expense" : "revenue")} {transaction.Id}",
+            () => RaiseTransactionDeleted(),
+            onRemove: () =>
+            {
+                if (receipt != null)
+                    companyData.Receipts.Remove(receipt);
+                stockChanges = AdjustInventoryForEdit(companyData, transaction, transaction.LineItems, [], isExpense, reason);
+            },
+            onRestore: () =>
+            {
+                if (receipt != null)
+                    companyData.Receipts.Add(receipt);
+                RevertInventoryAdjustments(companyData, stockChanges);
+            });
+
+        App.CompanyManager?.MarkAsChanged();
+    }
+
     private static void NotifyStockStatus(List<StockChange> changes)
     {
         foreach (var change in changes)
@@ -1905,11 +1866,8 @@ public abstract partial class TransactionLineItemBase : ObservableObject
 /// <summary>
 /// Generic option class for counterparty (Supplier or Customer) selection.
 /// </summary>
-public class CounterpartyOption
+public class CounterpartyOption : NamedOption
 {
-    public string? Id { get; set; }
-    public string Name { get; set; } = string.Empty;
-    public override string ToString() => Name;
 }
 
 /// <summary>

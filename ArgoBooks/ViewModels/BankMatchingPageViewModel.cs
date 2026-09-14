@@ -111,9 +111,6 @@ public partial class BankMatchingPageViewModel : SortablePageViewModelBase
     [ObservableProperty]
     private int _unmatchedBookCount;
 
-    [ObservableProperty]
-    private string _paginationText = "0 lines";
-
     public bool HasUnmatchedBook => UnmatchedBookCount > 0;
 
     partial void OnUnmatchedBookCountChanged(int value) => OnPropertyChanged(nameof(HasUnmatchedBook));
@@ -334,12 +331,12 @@ public partial class BankMatchingPageViewModel : SortablePageViewModelBase
             r => r.Date);
 
         var totalCount = filtered.Count;
-        MissingTotalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / MissingPageSize));
-        if (MissingCurrentPage > MissingTotalPages) MissingCurrentPage = MissingTotalPages;
+        MissingTotalPages = PaginationMath.TotalPages(totalCount, MissingPageSize);
+        MissingCurrentPage = PaginationMath.ClampPage(MissingCurrentPage, MissingTotalPages);
         MissingPaginationText = PaginationTextHelper.FormatPaginationText(totalCount, MissingCurrentPage, MissingPageSize, MissingTotalPages, "record");
 
         UnmatchedBookRecords.Clear();
-        foreach (var r in filtered.Skip((MissingCurrentPage - 1) * MissingPageSize).Take(MissingPageSize))
+        foreach (var r in PaginationMath.Slice(filtered, MissingCurrentPage, MissingPageSize))
             UnmatchedBookRecords.Add(r);
     }
 
@@ -381,14 +378,10 @@ public partial class BankMatchingPageViewModel : SortablePageViewModelBase
             },
             r => r.Line.Date);
 
-        var totalCount = filtered.Count;
-        TotalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / PageSize));
-        if (CurrentPage > TotalPages) CurrentPage = TotalPages;
-
-        PaginationText = PaginationTextHelper.FormatPaginationText(totalCount, CurrentPage, PageSize, TotalPages, "line");
+        var pageRows = Paginate(filtered, "line");
 
         Lines.Clear();
-        foreach (var row in filtered.Skip((CurrentPage - 1) * PageSize).Take(PageSize))
+        foreach (var row in pageRows)
             Lines.Add(row);
     }
 

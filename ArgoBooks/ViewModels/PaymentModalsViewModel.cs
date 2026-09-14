@@ -73,12 +73,12 @@ public partial class PaymentModalsViewModel : ViewModelBase
     /// </summary>
     private Payment? _editingPayment;
 
-    // Original values for change detection in edit mode
-    private string? _originalInvoiceId;
-    private string _originalAmount = string.Empty;
-    private string _originalPaymentMethod = "Cash";
-    private string _originalReferenceNumber = string.Empty;
-    private string _originalNotes = string.Empty;
+    private sealed record EditState(string? InvoiceId, string Amount, string PaymentMethod, string ReferenceNumber, string Notes);
+
+    // The form as the edit modal opened, for change detection.
+    private EditState? _original;
+
+    private EditState Capture() => new(ModalInvoiceId, ModalAmount, ModalPaymentMethod, ModalReferenceNumber, ModalNotes);
 
     /// <summary>
     /// Returns true if any data has been entered in the Add modal.
@@ -92,12 +92,7 @@ public partial class PaymentModalsViewModel : ViewModelBase
     /// <summary>
     /// Returns true if any changes have been made in the Edit modal.
     /// </summary>
-    public bool HasEditModalChanges =>
-        ModalInvoiceId != _originalInvoiceId ||
-        ModalAmount != _originalAmount ||
-        ModalPaymentMethod != _originalPaymentMethod ||
-        ModalReferenceNumber != _originalReferenceNumber ||
-        ModalNotes != _originalNotes;
+    public bool HasEditModalChanges => Capture() != _original;
 
     #endregion
 
@@ -405,12 +400,7 @@ public partial class PaymentModalsViewModel : ViewModelBase
         ModalReferenceNumber = payment.ReferenceNumber ?? string.Empty;
         ModalNotes = payment.Notes;
 
-        // Store original values for change detection
-        _originalInvoiceId = ModalInvoiceId;
-        _originalAmount = ModalAmount;
-        _originalPaymentMethod = ModalPaymentMethod;
-        _originalReferenceNumber = ModalReferenceNumber;
-        _originalNotes = ModalNotes;
+        _original = Capture();
 
         ClearModalErrors();
         IsEditModalOpen = true;
@@ -619,20 +609,8 @@ public partial class PaymentModalsViewModel : ViewModelBase
             if (item == null)
                 return;
 
-            var dialog = App.ConfirmationDialog;
-            if (dialog == null)
-                return;
-
-            var result = await dialog.ShowAsync(new ConfirmationDialogOptions
-            {
-                Title = "Delete Payment".Translate(),
-                Message = "Are you sure you want to delete this payment?\n\nPayment ID: {0}\nAmount: {1}".TranslateFormat(item.Id, item.AmountFormatted),
-                PrimaryButtonText = "Delete".Translate(),
-                CancelButtonText = "Cancel".Translate(),
-                IsPrimaryDestructive = true
-            });
-
-            if (result != ConfirmationResult.Primary)
+            if (!await ConfirmDeleteAsync("Delete Payment".Translate(),
+                    "Are you sure you want to delete this payment?\n\nPayment ID: {0}\nAmount: {1}".TranslateFormat(item.Id, item.AmountFormatted)))
                 return;
 
             var companyData = App.CompanyManager?.CompanyData;
@@ -640,36 +618,25 @@ public partial class PaymentModalsViewModel : ViewModelBase
                 return;
 
             var payment = companyData.Payments.FirstOrDefault(p => p.Id == item.Id);
-            if (payment != null)
+            if (payment == null)
             {
-                var deletedPayment = payment;
-                var invoiceIdForRecalc = deletedPayment.InvoiceId;
-                companyData.Payments.Remove(payment);
-                ForgetConversion(companyData, payment);
-                RecalcInvoiceTotals(companyData, invoiceIdForRecalc);
-                companyData.MarkAsModified();
-
-                App.UndoRedoManager.RecordAction(new DelegateAction(
-                    $"Delete payment '{deletedPayment.Id}'",
-                    () =>
-                    {
-                        companyData.Payments.Add(deletedPayment);
-                        QueueConversion(companyData, deletedPayment);
-                        RecalcInvoiceTotals(companyData, invoiceIdForRecalc);
-                        companyData.MarkAsModified();
-                        PaymentDeleted?.Invoke(this, EventArgs.Empty);
-                    },
-                    () =>
-                    {
-                        companyData.Payments.Remove(deletedPayment);
-                        ForgetConversion(companyData, deletedPayment);
-                        RecalcInvoiceTotals(companyData, invoiceIdForRecalc);
-                        companyData.MarkAsModified();
-                        PaymentDeleted?.Invoke(this, EventArgs.Empty);
-                    }));
+                PaymentDeleted?.Invoke(this, EventArgs.Empty);
+                return;
             }
 
-            PaymentDeleted?.Invoke(this, EventArgs.Empty);
+            var invoiceIdForRecalc = payment.InvoiceId;
+            RemoveWithUndo(companyData, companyData.Payments, payment, $"Delete payment '{payment.Id}'",
+                () => PaymentDeleted?.Invoke(this, EventArgs.Empty),
+                onRemove: () =>
+                {
+                    ForgetConversion(companyData, payment);
+                    RecalcInvoiceTotals(companyData, invoiceIdForRecalc);
+                },
+                onRestore: () =>
+                {
+                    QueueConversion(companyData, payment);
+                    RecalcInvoiceTotals(companyData, invoiceIdForRecalc);
+                });
         }
         catch (Exception ex)
         {

@@ -192,16 +192,16 @@ public partial class MainWindowViewModel : ViewModelBase
     private AppTourViewModel? _appTourViewModel;
 
     /// <summary>
-    /// Gets or sets the CategoriesTutorialViewModel for the Categories page tutorial.
+    /// Gets or sets the Categories page tutorial.
     /// </summary>
     [ObservableProperty]
-    private CategoriesTutorialViewModel? _categoriesTutorialViewModel;
+    private PageTutorialViewModel? _categoriesTutorialViewModel;
 
     /// <summary>
-    /// Gets or sets the ProductsTutorialViewModel for the Products page tutorial.
+    /// Gets or sets the Products page tutorial.
     /// </summary>
     [ObservableProperty]
-    private ProductsTutorialViewModel? _productsTutorialViewModel;
+    private PageTutorialViewModel? _productsTutorialViewModel;
 
     /// <summary>
     /// Whether to show the welcome screen (when no company is open).

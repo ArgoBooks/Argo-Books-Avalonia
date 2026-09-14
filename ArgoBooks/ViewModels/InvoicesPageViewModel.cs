@@ -344,48 +344,39 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
 
     public RecurringTableColumnWidths RecurringColumnWidths => App.RecurringColumnWidths;
 
-    [ObservableProperty]
-    private bool _showIdColumn = ColumnVisibilityHelper.Load("Invoices", "Id", true);
-
-    [ObservableProperty]
-    private bool _showAccountantColumn = ColumnVisibilityHelper.Load("Invoices", "Accountant", true);
-
-    [ObservableProperty]
-    private bool _showCustomerColumn = ColumnVisibilityHelper.Load("Invoices", "Customer", true);
-
-    [ObservableProperty]
-    private bool _showIssueDateColumn = ColumnVisibilityHelper.Load("Invoices", "IssueDate", true);
-
-    [ObservableProperty]
-    private bool _showDueDateColumn = ColumnVisibilityHelper.Load("Invoices", "DueDate", true);
-
-    [ObservableProperty]
-    private bool _showAmountColumn = ColumnVisibilityHelper.Load("Invoices", "Amount", true);
-
-    [ObservableProperty]
-    private bool _showStatusColumn = ColumnVisibilityHelper.Load("Invoices", "Status", true);
-
-    partial void OnShowIdColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Id", value); ColumnVisibilityHelper.Save("Invoices", "Id", value); }
-    partial void OnShowAccountantColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Accountant", value); ColumnVisibilityHelper.Save("Invoices", "Accountant", value); }
-    partial void OnShowCustomerColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Customer", value); ColumnVisibilityHelper.Save("Invoices", "Customer", value); }
-    partial void OnShowIssueDateColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("IssueDate", value); ColumnVisibilityHelper.Save("Invoices", "IssueDate", value); }
-    partial void OnShowDueDateColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("DueDate", value); ColumnVisibilityHelper.Save("Invoices", "DueDate", value); }
-    partial void OnShowAmountColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Amount", value); ColumnVisibilityHelper.Save("Invoices", "Amount", value); }
-    partial void OnShowStatusColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Status", value); ColumnVisibilityHelper.Save("Invoices", "Status", value); }
-
-    [RelayCommand]
-    private void ResetColumnVisibility()
+    private static readonly ColumnVisibilityDefaults ColumnDefaults = new("Invoices", new Dictionary<string, bool>
     {
-        ColumnWidths.ResetWidths();
-        ColumnVisibilityHelper.ResetPage("Invoices");
-        ShowIdColumn = true;
-        ShowAccountantColumn = true;
-        ShowCustomerColumn = true;
-        ShowIssueDateColumn = true;
-        ShowDueDateColumn = true;
-        ShowAmountColumn = true;
-        ShowStatusColumn = true;
-    }
+        ["Id"] = true,
+        ["Accountant"] = true,
+        ["Customer"] = true,
+        ["IssueDate"] = true,
+        ["DueDate"] = true,
+        ["Amount"] = true,
+        ["Status"] = true,
+    });
+
+    protected override ColumnVisibilityDefaults ColumnVisibility => ColumnDefaults;
+
+    [ObservableProperty]
+    private bool _showIdColumn = ColumnDefaults.Load("Id");
+
+    [ObservableProperty]
+    private bool _showAccountantColumn = ColumnDefaults.Load("Accountant");
+
+    [ObservableProperty]
+    private bool _showCustomerColumn = ColumnDefaults.Load("Customer");
+
+    [ObservableProperty]
+    private bool _showIssueDateColumn = ColumnDefaults.Load("IssueDate");
+
+    [ObservableProperty]
+    private bool _showDueDateColumn = ColumnDefaults.Load("DueDate");
+
+    [ObservableProperty]
+    private bool _showAmountColumn = ColumnDefaults.Load("Amount");
+
+    [ObservableProperty]
+    private bool _showStatusColumn = ColumnDefaults.Load("Status");
 
     #endregion
 
@@ -427,9 +418,6 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
 
     #region Pagination
 
-    [ObservableProperty]
-    private string _paginationText = "0 invoices";
-
     /// <inheritdoc />
     protected override void OnSortOrPageChanged() => FilterInvoices();
 
@@ -450,10 +438,7 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
         UpdateOnlineStatistics();
         _ = CheckPortalStatusAsync();
 
-        // Subscribe to undo/redo state changes to refresh UI
-        App.UndoRedoManager.StateChanged += OnUndoRedoStateChanged;
-        if (App.NavigationService != null)
-            App.NavigationService.Navigated += OnNavigated;
+        EnableDeferredUndoRefresh(p => p == PageNames.Invoices, LoadInvoices);
 
         // Subscribe to invoice modal events to refresh data
         if (App.InvoiceModalsViewModel != null)
@@ -552,9 +537,6 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
     public override void Cleanup()
     {
         base.Cleanup();
-        App.UndoRedoManager.StateChanged -= OnUndoRedoStateChanged;
-        if (App.NavigationService != null)
-            App.NavigationService.Navigated -= OnNavigated;
         if (_paymentSavedHandler != null && App.PaymentModalsViewModel != null)
         {
             App.PaymentModalsViewModel.PaymentSaved -= _paymentSavedHandler;
@@ -573,27 +555,6 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
             App.CompanyManager.CompanyDataChanged -= OnCompanyDataChanged;
         App.PlanStatusChanged -= OnPlanStatusChanged;
         RecurringInvoiceService.InvoicesGenerated -= OnRecurringInvoicesGenerated;
-    }
-
-    private bool _needsRefresh;
-
-    private void OnUndoRedoStateChanged(object? sender, EventArgs e)
-    {
-        if (App.NavigationService?.CurrentPageName != PageNames.Invoices)
-        {
-            _needsRefresh = true;
-            return;
-        }
-        LoadInvoices();
-    }
-
-    private void OnNavigated(object? sender, NavigationEventArgs e)
-    {
-        if (e.PageName == PageNames.Invoices && _needsRefresh)
-        {
-            _needsRefresh = false;
-            LoadInvoices();
-        }
     }
 
     private void OnInvoiceSaved(object? sender, EventArgs e)
@@ -682,7 +643,7 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
                     InvoiceNumber = invoice.InvoiceNumber,
                     CustomerId = invoice.CustomerId,
                     CustomerName = customer?.Name ?? "Unknown Customer",
-                    CustomerInitials = GetInitials(customer?.Name ?? "?"),
+                    CustomerInitials = Helpers.InitialsHelper.From(customer?.Name),
                     IssueDate = invoice.IssueDate,
                     DueDate = invoice.DueDate,
                     Total = invoice.Total,
@@ -700,17 +661,9 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
 
     private void LoadCustomerOptions()
     {
-        CustomerOptions.Clear();
-        CustomerOptions.Add(new CustomerOption { Id = string.Empty, Name = "All Customers" });
-
-        var companyData = App.CompanyManager?.CompanyData;
-        if (companyData?.Customers == null)
-            return;
-
-        foreach (var customer in companyData.Customers.OrderBy(c => c.Name))
-        {
-            CustomerOptions.Add(new CustomerOption { Id = customer.Id, Name = customer.Name });
-        }
+        OptionLoader.Fill(CustomerOptions,
+            OptionLoader.Customers(App.CompanyManager?.CompanyData).AsOptions<CustomerOption>(),
+            new CustomerOption { Name = "All Customers" });
     }
 
     private void UpdateStatistics()
@@ -868,7 +821,7 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
                 AccountantName = accountant?.Name ?? "System",
                 CustomerId = invoice.CustomerId,
                 CustomerName = customer?.Name ?? "Unknown Customer",
-                CustomerInitials = GetInitials(customer?.Name ?? "?"),
+                CustomerInitials = Helpers.InitialsHelper.From(customer?.Name),
                 CustomerAvatarBitmap = avatarBitmap,
                 HasCustomerAvatar = avatarBitmap != null,
                 IssueDate = invoice.IssueDate,
@@ -912,18 +865,7 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
 
         NavigateToHighlightedItem(displayItems, x => x.Id);
 
-        // Calculate pagination
-        var totalCount = displayItems.Count;
-        TotalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / PageSize));
-        if (CurrentPage > TotalPages)
-            CurrentPage = TotalPages;
-
-        UpdatePaginationText(totalCount);
-
-        // Apply pagination and add to collection
-        var pagedInvoices = displayItems
-            .Skip((CurrentPage - 1) * PageSize)
-            .Take(PageSize);
+        var pagedInvoices = Paginate(displayItems, "invoice");
 
         Invoices.ReplaceAll(pagedInvoices);
     }
@@ -960,19 +902,6 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
         };
     }
 
-    private static string GetInitials(string name)
-    {
-        if (string.IsNullOrEmpty(name))
-            return "?";
-
-        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length >= 2)
-            return $"{parts[0][0]}{parts[^1][0]}".ToUpper();
-        if (parts is [{ Length: >= 1 }])
-            return parts[0][0].ToString().ToUpper();
-        return "?";
-    }
-
     /// <summary>
     /// True when the row's Refund icon button should be visible.
     /// Returns true when either money is still refundable OR a past refund
@@ -1006,12 +935,6 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
             if (p.Amount - refunded > 0.01m) return true;
         }
         return false;
-    }
-
-    private void UpdatePaginationText(int totalCount)
-    {
-        PaginationText = PaginationTextHelper.FormatPaginationText(
-            totalCount, CurrentPage, PageSize, TotalPages, "invoice");
     }
 
     #endregion
@@ -1094,13 +1017,10 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
     private void RefreshSchedulesPage()
     {
         var totalCount = _allSchedules.Count;
-        ScheduleTotalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / SchedulePageSize));
-        if (ScheduleCurrentPage > ScheduleTotalPages) ScheduleCurrentPage = ScheduleTotalPages;
-        if (ScheduleCurrentPage < 1) ScheduleCurrentPage = 1;
+        ScheduleTotalPages = PaginationMath.TotalPages(totalCount, SchedulePageSize);
+        ScheduleCurrentPage = PaginationMath.ClampPage(ScheduleCurrentPage, ScheduleTotalPages);
 
-        Schedules.ReplaceAll(_allSchedules
-            .Skip((ScheduleCurrentPage - 1) * SchedulePageSize)
-            .Take(SchedulePageSize));
+        Schedules.ReplaceAll(PaginationMath.Slice(_allSchedules, ScheduleCurrentPage, SchedulePageSize));
         SchedulePaginationText = PaginationTextHelper.FormatPaginationText(
             totalCount, ScheduleCurrentPage, SchedulePageSize, ScheduleTotalPages, "schedule");
         OnPropertyChanged(nameof(HasSchedules));
@@ -1805,10 +1725,6 @@ public partial class RecurringScheduleDisplayItem : ObservableObject
 /// <summary>
 /// Customer option for dropdown.
 /// </summary>
-public class CustomerOption
+public class CustomerOption : NamedOption
 {
-    public string? Id { get; set; }
-    public string Name { get; set; } = string.Empty;
-
-    public override string ToString() => Name;
 }

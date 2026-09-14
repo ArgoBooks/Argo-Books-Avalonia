@@ -68,14 +68,16 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
 
     private RentalItem? _editingItem;
 
-    // Original values for change detection in edit mode
-    private InventoryItemOption? _originalInventoryItem;
-    private string _originalDailyRate = string.Empty;
-    private string _originalWeeklyRate = string.Empty;
-    private string _originalMonthlyRate = string.Empty;
-    private string _originalSecurityDeposit = string.Empty;
-    private string _originalNotes = string.Empty;
-    private string _originalStatus = "Active";
+    private sealed record EditState(
+        string? InventoryItemId, string DailyRate, string WeeklyRate, string MonthlyRate,
+        string SecurityDeposit, string Notes, string Status);
+
+    // The form as the edit modal opened, for change detection.
+    private EditState? _original;
+
+    private EditState Capture() => new(
+        ModalInventoryItem?.Id, ModalDailyRate, ModalWeeklyRate, ModalMonthlyRate,
+        ModalSecurityDeposit, ModalNotes, ModalStatus);
 
     /// <summary>
     /// Returns true if any data has been entered in the Add modal.
@@ -92,14 +94,7 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
     /// <summary>
     /// Returns true if any changes have been made in the Edit modal.
     /// </summary>
-    public bool HasEditModalChanges =>
-        ModalInventoryItem?.Id != _originalInventoryItem?.Id ||
-        ModalDailyRate != _originalDailyRate ||
-        ModalWeeklyRate != _originalWeeklyRate ||
-        ModalMonthlyRate != _originalMonthlyRate ||
-        ModalSecurityDeposit != _originalSecurityDeposit ||
-        ModalNotes != _originalNotes ||
-        ModalStatus != _originalStatus;
+    public bool HasEditModalChanges => Capture() != _original;
 
     /// <summary>
     /// Returns true if any filter has been changed from the state when the modal was opened.
@@ -461,13 +456,7 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
         ModalStatus = rentalItem.Status == EntityStatus.Inactive ? "In Maintenance" : "Active";
         ModalNotes = rentalItem.Notes;
 
-        _originalInventoryItem = ModalInventoryItem;
-        _originalDailyRate = ModalDailyRate;
-        _originalWeeklyRate = ModalWeeklyRate;
-        _originalMonthlyRate = ModalMonthlyRate;
-        _originalSecurityDeposit = ModalSecurityDeposit;
-        _originalNotes = ModalNotes;
-        _originalStatus = ModalStatus;
+        _original = Capture();
 
         ClearModalErrors();
         IsEditModalOpen = true;
@@ -609,67 +598,28 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
             if (item == null)
                 return;
 
-            // Check if rental item is in use
-            var cd = App.CompanyManager?.CompanyData;
-            if (cd != null)
-            {
-                var usages = new List<string>();
-                if (cd.Rentals.Any(r => r.RentalItemId == item.Id || r.LineItems.Any(li => li.RentalItemId == item.Id)))
-                    usages.Add("Rental Record".Translate());
-                if (usages.Count > 0)
-                {
-                    await App.ShowWarningMessageBoxAsync(
-                        "Cannot Delete".Translate(),
-                        "This rental item cannot be deleted because it is referenced by one or more: {0}.".TranslateFormat(string.Join(", ", usages)));
-                    return;
-                }
-            }
-
-            var dialog = App.ConfirmationDialog;
-            if (dialog == null)
-                return;
-
-            var result = await dialog.ShowAsync(new ConfirmationDialogOptions
-            {
-                Title = "Delete Rental Item".Translate(),
-                Message = "Are you sure you want to delete this rental item?\n\n{0}".TranslateFormat(item.Name),
-                PrimaryButtonText = "Delete".Translate(),
-                CancelButtonText = "Cancel".Translate(),
-                IsPrimaryDestructive = true
-            });
-
-            if (result != ConfirmationResult.Primary)
-                return;
-
             var companyData = App.CompanyManager?.CompanyData;
             if (companyData == null)
                 return;
 
-            var rentalItem = companyData.RentalInventory.FirstOrDefault(i => i.Id == item.Id);
-            if (rentalItem != null)
-            {
-                var deletedItem = rentalItem;
-                var deletedName = item.Name;
-                companyData.RentalInventory.Remove(rentalItem);
-                companyData.MarkAsModified();
+            if (await BlockIfInUseAsync(
+                    usages => "This rental item cannot be deleted because it is referenced by one or more: {0}.".TranslateFormat(usages),
+                    (companyData.Rentals.Any(r => r.RentalItemId == item.Id || r.LineItems.Any(li => li.RentalItemId == item.Id)), "Rental Record".Translate())))
+                return;
 
-                App.UndoRedoManager.RecordAction(new DelegateAction(
-                    $"Delete rental item '{deletedName}'",
-                    () =>
-                    {
-                        companyData.RentalInventory.Add(deletedItem);
-                        companyData.MarkAsModified();
-                        ItemDeleted?.Invoke(this, EventArgs.Empty);
-                    },
-                    () =>
-                    {
-                        companyData.RentalInventory.Remove(deletedItem);
-                        companyData.MarkAsModified();
-                        ItemDeleted?.Invoke(this, EventArgs.Empty);
-                    }));
+            if (!await ConfirmDeleteAsync("Delete Rental Item".Translate(),
+                    "Are you sure you want to delete this rental item?\n\n{0}".TranslateFormat(item.Name)))
+                return;
+
+            var rentalItem = companyData.RentalInventory.FirstOrDefault(i => i.Id == item.Id);
+            if (rentalItem == null)
+            {
+                ItemDeleted?.Invoke(this, EventArgs.Empty);
+                return;
             }
 
-            ItemDeleted?.Invoke(this, EventArgs.Empty);
+            RemoveWithUndo(companyData, companyData.RentalInventory, rentalItem, $"Delete rental item '{item.Name}'",
+                () => ItemDeleted?.Invoke(this, EventArgs.Empty));
         }
         catch (Exception ex)
         {
@@ -935,17 +885,8 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
             });
         }
 
-        AvailableCustomers.Clear();
-        foreach (var customer in companyData.Customers.Where(c => c.Status == EntityStatus.Active).OrderBy(c => c.Name))
-        {
-            AvailableCustomers.Add(new CustomerOption { Id = customer.Id, Name = customer.Name });
-        }
-
-        AvailableAccountants.Clear();
-        foreach (var accountant in companyData.Accountants.OrderBy(a => a.Name))
-        {
-            AvailableAccountants.Add(new AccountantOption { Id = accountant.Id, Name = accountant.Name });
-        }
+        OptionLoader.Fill(AvailableCustomers, OptionLoader.Customers(companyData, activeOnly: true).AsOptions<CustomerOption>());
+        OptionLoader.Fill(AvailableAccountants, OptionLoader.Accountants(companyData).AsOptions<AccountantOption>());
     }
 
     private void ClearModalFields()
@@ -1043,10 +984,6 @@ public class InventoryItemOption
 /// <summary>
 /// Option model for accountant dropdown.
 /// </summary>
-public class AccountantOption
+public class AccountantOption : NamedOption
 {
-    public string Id { get; set; } = string.Empty;
-    public string Name { get; set; } = string.Empty;
-
-    public override string ToString() => Name;
 }

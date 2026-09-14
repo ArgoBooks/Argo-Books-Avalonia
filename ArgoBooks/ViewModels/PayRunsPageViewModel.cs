@@ -158,46 +158,35 @@ public partial class PayRunsPageViewModel : SortablePageViewModelBase
 
     #region Column visibility
 
-    [ObservableProperty]
-    private string _paginationText = "0 pay runs";
-
-    [ObservableProperty]
-    private bool _showPayDateColumn = ColumnVisibilityHelper.Load("PayRuns", "PayDate", true);
-
-    [ObservableProperty]
-    private bool _showPeriodColumn = ColumnVisibilityHelper.Load("PayRuns", "Period", true);
-
-    [ObservableProperty]
-    private bool _showEmployeesColumn = ColumnVisibilityHelper.Load("PayRuns", "Employees", true);
-
-    [ObservableProperty]
-    private bool _showGrossColumn = ColumnVisibilityHelper.Load("PayRuns", "Gross", true);
-
-    [ObservableProperty]
-    private bool _showNetColumn = ColumnVisibilityHelper.Load("PayRuns", "Net", true);
-
-    [ObservableProperty]
-    private bool _showStatusColumn = ColumnVisibilityHelper.Load("PayRuns", "Status", true);
-
-    partial void OnShowPayDateColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("PayDate", value); ColumnVisibilityHelper.Save("PayRuns", "PayDate", value); }
-    partial void OnShowPeriodColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Period", value); ColumnVisibilityHelper.Save("PayRuns", "Period", value); }
-    partial void OnShowEmployeesColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Employees", value); ColumnVisibilityHelper.Save("PayRuns", "Employees", value); }
-    partial void OnShowGrossColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Gross", value); ColumnVisibilityHelper.Save("PayRuns", "Gross", value); }
-    partial void OnShowNetColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Net", value); ColumnVisibilityHelper.Save("PayRuns", "Net", value); }
-    partial void OnShowStatusColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Status", value); ColumnVisibilityHelper.Save("PayRuns", "Status", value); }
-
-    [RelayCommand]
-    private void ResetColumnVisibility()
+    private static readonly ColumnVisibilityDefaults ColumnDefaults = new("PayRuns", new Dictionary<string, bool>
     {
-        ColumnWidths.ResetWidths();
-        ColumnVisibilityHelper.ResetPage("PayRuns");
-        ShowPayDateColumn = true;
-        ShowPeriodColumn = true;
-        ShowEmployeesColumn = true;
-        ShowGrossColumn = true;
-        ShowNetColumn = true;
-        ShowStatusColumn = true;
-    }
+        ["PayDate"] = true,
+        ["Period"] = true,
+        ["Employees"] = true,
+        ["Gross"] = true,
+        ["Net"] = true,
+        ["Status"] = true,
+    });
+
+    protected override ColumnVisibilityDefaults ColumnVisibility => ColumnDefaults;
+
+    [ObservableProperty]
+    private bool _showPayDateColumn = ColumnDefaults.Load("PayDate");
+
+    [ObservableProperty]
+    private bool _showPeriodColumn = ColumnDefaults.Load("Period");
+
+    [ObservableProperty]
+    private bool _showEmployeesColumn = ColumnDefaults.Load("Employees");
+
+    [ObservableProperty]
+    private bool _showGrossColumn = ColumnDefaults.Load("Gross");
+
+    [ObservableProperty]
+    private bool _showNetColumn = ColumnDefaults.Load("Net");
+
+    [ObservableProperty]
+    private bool _showStatusColumn = ColumnDefaults.Load("Status");
 
     #endregion
 
@@ -567,21 +556,10 @@ public partial class PayRunsPageViewModel : SortablePageViewModelBase
             .ThenByDescending(r => r.Id, StringComparer.Ordinal)
             .ToList();
 
-        TotalPages = Math.Max(1, (int)Math.Ceiling((double)ordered.Count / PageSize));
-        if (CurrentPage > TotalPages)
-        {
-            CurrentPage = TotalPages;
-        }
-
-        foreach (PayRun run in ordered.Skip((CurrentPage - 1) * PageSize).Take(PageSize))
+        foreach (PayRun run in Paginate(ordered, "pay run", "pay runs"))
         {
             PayRuns.Add(PayRunDisplayItem.From(run));
         }
-
-        PaginationText = PaginationTextHelper.FormatPaginationText(
-            ordered.Count, CurrentPage, PageSize, TotalPages, "pay run", "pay runs");
-
-        NotifyPaginationChanged();
     }
 
 }

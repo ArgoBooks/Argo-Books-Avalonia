@@ -244,30 +244,20 @@ public partial class ReturnsModalsViewModel : ViewModelBase
         if (_undoReturn == null) return;
 
         var companyData = App.CompanyManager?.CompanyData;
-        if (companyData == null) return;
+        if (companyData == null)
+        {
+            CloseUndoReturnModal();
+            return;
+        }
 
         // Recording a return only adds this record (line quantities, stock and the transaction are
         // left alone), so undoing it only removes the record.
         var returnRecord = _undoReturn;
-        companyData.Returns.Remove(returnRecord);
-        App.UndoRedoManager.RecordAction(new DelegateAction(
-            $"Undo return '{returnRecord.Id}'",
-            () =>
-            {
-                companyData.Returns.Add(returnRecord);
-                companyData.MarkAsModified();
-                ReturnUndone?.Invoke(this, EventArgs.Empty);
-            },
-            () =>
-            {
-                companyData.Returns.Remove(returnRecord);
-                companyData.MarkAsModified();
-                ReturnUndone?.Invoke(this, EventArgs.Empty);
-            }));
+        RemoveWithUndo(companyData, companyData.Returns, returnRecord, $"Undo return '{returnRecord.Id}'",
+            () => ReturnUndone?.Invoke(this, EventArgs.Empty));
 
         App.CompanyManager?.MarkAsChanged();
         CloseUndoReturnModal();
-        ReturnUndone?.Invoke(this, EventArgs.Empty);
     }
 
     #endregion

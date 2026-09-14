@@ -45,58 +45,47 @@ public partial class StockLevelsPageViewModel : SortablePageViewModelBase
     [ObservableProperty]
     private double _columnMenuY;
 
-    [ObservableProperty]
-    private bool _showProductColumn = ColumnVisibilityHelper.Load("StockLevels", "Product", true);
-
-    [ObservableProperty]
-    private bool _showSkuColumn = ColumnVisibilityHelper.Load("StockLevels", "Sku", true);
-
-    [ObservableProperty]
-    private bool _showCategoryColumn = ColumnVisibilityHelper.Load("StockLevels", "Category", true);
-
-    [ObservableProperty]
-    private bool _showLocationColumn = ColumnVisibilityHelper.Load("StockLevels", "Location", true);
-
-    [ObservableProperty]
-    private bool _showInStockColumn = ColumnVisibilityHelper.Load("StockLevels", "InStock", true);
-
-    [ObservableProperty]
-    private bool _showReservedColumn = ColumnVisibilityHelper.Load("StockLevels", "Reserved", true);
-
-    [ObservableProperty]
-    private bool _showAvailableColumn = ColumnVisibilityHelper.Load("StockLevels", "Available", true);
-
-    [ObservableProperty]
-    private bool _showReorderPointColumn = ColumnVisibilityHelper.Load("StockLevels", "ReorderPoint", true);
-
-    [ObservableProperty]
-    private bool _showStatusColumn = ColumnVisibilityHelper.Load("StockLevels", "Status", true);
-
-    partial void OnShowProductColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Product", value); ColumnVisibilityHelper.Save("StockLevels", "Product", value); }
-    partial void OnShowSkuColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Sku", value); ColumnVisibilityHelper.Save("StockLevels", "Sku", value); }
-    partial void OnShowCategoryColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Category", value); ColumnVisibilityHelper.Save("StockLevels", "Category", value); }
-    partial void OnShowLocationColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Location", value); ColumnVisibilityHelper.Save("StockLevels", "Location", value); }
-    partial void OnShowInStockColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("InStock", value); ColumnVisibilityHelper.Save("StockLevels", "InStock", value); }
-    partial void OnShowReservedColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Reserved", value); ColumnVisibilityHelper.Save("StockLevels", "Reserved", value); }
-    partial void OnShowAvailableColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Available", value); ColumnVisibilityHelper.Save("StockLevels", "Available", value); }
-    partial void OnShowReorderPointColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("ReorderPoint", value); ColumnVisibilityHelper.Save("StockLevels", "ReorderPoint", value); }
-    partial void OnShowStatusColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Status", value); ColumnVisibilityHelper.Save("StockLevels", "Status", value); }
-
-    [RelayCommand]
-    private void ResetColumnVisibility()
+    private static readonly ColumnVisibilityDefaults ColumnDefaults = new("StockLevels", new Dictionary<string, bool>
     {
-        ColumnWidths.ResetWidths();
-        ColumnVisibilityHelper.ResetPage("StockLevels");
-        ShowProductColumn = true;
-        ShowSkuColumn = true;
-        ShowCategoryColumn = true;
-        ShowLocationColumn = true;
-        ShowInStockColumn = true;
-        ShowReservedColumn = true;
-        ShowAvailableColumn = true;
-        ShowReorderPointColumn = true;
-        ShowStatusColumn = true;
-    }
+        ["Product"] = true,
+        ["Sku"] = true,
+        ["Category"] = true,
+        ["Location"] = true,
+        ["InStock"] = true,
+        ["Reserved"] = true,
+        ["Available"] = true,
+        ["ReorderPoint"] = true,
+        ["Status"] = true,
+    });
+
+    protected override ColumnVisibilityDefaults ColumnVisibility => ColumnDefaults;
+
+    [ObservableProperty]
+    private bool _showProductColumn = ColumnDefaults.Load("Product");
+
+    [ObservableProperty]
+    private bool _showSkuColumn = ColumnDefaults.Load("Sku");
+
+    [ObservableProperty]
+    private bool _showCategoryColumn = ColumnDefaults.Load("Category");
+
+    [ObservableProperty]
+    private bool _showLocationColumn = ColumnDefaults.Load("Location");
+
+    [ObservableProperty]
+    private bool _showInStockColumn = ColumnDefaults.Load("InStock");
+
+    [ObservableProperty]
+    private bool _showReservedColumn = ColumnDefaults.Load("Reserved");
+
+    [ObservableProperty]
+    private bool _showAvailableColumn = ColumnDefaults.Load("Available");
+
+    [ObservableProperty]
+    private bool _showReorderPointColumn = ColumnDefaults.Load("ReorderPoint");
+
+    [ObservableProperty]
+    private bool _showStatusColumn = ColumnDefaults.Load("Status");
 
     #endregion
 
@@ -220,9 +209,6 @@ public partial class StockLevelsPageViewModel : SortablePageViewModelBase
 
     #region Pagination
 
-    [ObservableProperty]
-    private string _paginationText = "0 items";
-
     /// <inheritdoc />
     protected override void OnSortOrPageChanged() => FilterItems();
 
@@ -237,10 +223,7 @@ public partial class StockLevelsPageViewModel : SortablePageViewModelBase
     {
         LoadItems();
 
-        // Subscribe to undo/redo state changes to refresh UI
-        App.UndoRedoManager.StateChanged += OnUndoRedoStateChanged;
-        if (App.NavigationService != null)
-            App.NavigationService.Navigated += OnNavigated;
+        EnableDeferredUndoRefresh(p => p == PageNames.StockLevels, LoadItems);
 
         // Subscribe to modal events to refresh when items are saved
         if (App.StockLevelsModalsViewModel != null)
@@ -257,9 +240,6 @@ public partial class StockLevelsPageViewModel : SortablePageViewModelBase
     public override void Cleanup()
     {
         base.Cleanup();
-        App.UndoRedoManager.StateChanged -= OnUndoRedoStateChanged;
-        if (App.NavigationService != null)
-            App.NavigationService.Navigated -= OnNavigated;
         if (App.StockLevelsModalsViewModel != null)
         {
             App.StockLevelsModalsViewModel.ItemSaved -= OnModalItemSaved;
@@ -285,30 +265,6 @@ public partial class StockLevelsPageViewModel : SortablePageViewModelBase
     private void OnModalItemSaved(object? sender, EventArgs e)
     {
         LoadItems();
-    }
-
-    /// <summary>
-    /// Handles undo/redo state changes by refreshing the items.
-    /// </summary>
-    private bool _needsRefresh;
-
-    private void OnUndoRedoStateChanged(object? sender, EventArgs e)
-    {
-        if (App.NavigationService?.CurrentPageName != PageNames.StockLevels)
-        {
-            _needsRefresh = true;
-            return;
-        }
-        LoadItems();
-    }
-
-    private void OnNavigated(object? sender, NavigationEventArgs e)
-    {
-        if (e.PageName == PageNames.StockLevels && _needsRefresh)
-        {
-            _needsRefresh = false;
-            LoadItems();
-        }
     }
 
     #endregion
@@ -515,26 +471,9 @@ public partial class StockLevelsPageViewModel : SortablePageViewModelBase
 
         NavigateToHighlightedItem(displayItems, x => x.Id);
 
-        // Calculate pagination
-        var totalCount = displayItems.Count;
-        TotalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / PageSize));
-        if (CurrentPage > TotalPages)
-            CurrentPage = TotalPages;
-
-        UpdatePaginationText(totalCount);
-
-        // Apply pagination and add to collection
-        var pagedItems = displayItems
-            .Skip((CurrentPage - 1) * PageSize)
-            .Take(PageSize);
+        var pagedItems = Paginate(displayItems, "item");
 
         DisplayItems.ReplaceAll(pagedItems);
-    }
-
-    private void UpdatePaginationText(int totalCount)
-    {
-        PaginationText = PaginationTextHelper.FormatPaginationText(
-            totalCount, CurrentPage, PageSize, TotalPages, "item");
     }
 
     private static string GetStatusText(InventoryStatus status) => status switch

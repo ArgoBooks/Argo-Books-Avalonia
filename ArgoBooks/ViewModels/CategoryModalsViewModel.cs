@@ -58,10 +58,12 @@ public partial class CategoryModalsViewModel : ViewModelBase
     private CategoryDisplayItem? _movingCategory;
     private bool _isExpensesTab = true;
 
-    // Original values for change detection in edit mode
-    private string _originalCategoryName = string.Empty;
-    private string _originalDescription = string.Empty;
-    private string? _originalIconOption;
+    private sealed record EditState(string Name, string Description, string Icon);
+
+    // The form as the edit modal opened, for change detection.
+    private EditState? _original;
+
+    private EditState Capture() => new(ModalCategoryName, ModalDescription, ModalSelectedIcon);
 
     /// <summary>
     /// Returns true if any data has been entered in the Add modal.
@@ -74,10 +76,7 @@ public partial class CategoryModalsViewModel : ViewModelBase
     /// <summary>
     /// Returns true if any changes have been made in the Edit modal.
     /// </summary>
-    public bool HasEditModalChanges =>
-        ModalCategoryName != _originalCategoryName ||
-        ModalDescription != _originalDescription ||
-        ModalSelectedIcon != _originalIconOption;
+    public bool HasEditModalChanges => Capture() != _original;
 
     #endregion
 
@@ -255,10 +254,7 @@ public partial class CategoryModalsViewModel : ViewModelBase
         ModalDescription = category.Description ?? string.Empty;
         ModalSelectedIcon = category.Icon;
 
-        // Store original values for change detection
-        _originalCategoryName = ModalCategoryName;
-        _originalDescription = ModalDescription;
-        _originalIconOption = ModalSelectedIcon;
+        _original = Capture();
 
         ModalError = null;
         IsEditModalOpen = true;
@@ -346,39 +342,30 @@ public partial class CategoryModalsViewModel : ViewModelBase
             if (item == null) return;
 
             var companyData = App.CompanyManager?.CompanyData;
+            if (companyData == null) return;
 
-            // Check if category is in use by products
-            if (companyData != null)
-            {
-                var usages = new List<string>();
-                if (companyData.Products.Any(p => p.CategoryId == item.Id))
-                    usages.Add("Product".Translate());
-                if (usages.Count > 0)
-                {
-                    await App.ShowWarningMessageBoxAsync(
-                        "Cannot Delete".Translate(),
-                        "This category cannot be deleted because it is referenced by one or more: {0}.".TranslateFormat(string.Join(", ", usages)));
-                    return;
-                }
-            }
+            if (await BlockIfInUseAsync(
+                    usages => "This category cannot be deleted because it is referenced by one or more: {0}.".TranslateFormat(usages),
+                    (companyData.Products.Any(p => p.CategoryId == item.Id), "Product".Translate()),
+                    (companyData.BankCategoryRules.Any(r => r.CategoryId == item.Id), "Bank Rule".Translate())))
+                return;
 
-            var category = companyData?.GetCategory(item.Id);
+            var category = companyData.GetCategory(item.Id);
             if (category == null) return;
 
-            var children = companyData?.Categories.Where(c => c.ParentId == category.Id).ToList();
-            var hasChildren = children?.Count > 0;
+            var children = companyData.Categories.Where(c => c.ParentId == category.Id).ToList();
 
-            var dialog = App.ConfirmationDialog;
-            if (dialog == null) return;
-
-            // If category has children, ask about subcategories
+            // A category with children asks whether they go too or move to the top level.
             var deleteSubcategories = false;
-            if (hasChildren)
+            if (children.Count > 0)
             {
+                var dialog = App.ConfirmationDialog;
+                if (dialog == null) return;
+
                 var subResult = await dialog.ShowAsync(new ConfirmationDialogOptions
                 {
                     Title = "Delete Category".Translate(),
-                    Message = "This category has {0} subcategories.\n\nDo you want to delete them as well, or move them to the top level?".TranslateFormat(children?.Count ?? 0),
+                    Message = "This category has {0} subcategories.\n\nDo you want to delete them as well, or move them to the top level?".TranslateFormat(children.Count),
                     PrimaryButtonText = "Delete All".Translate(),
                     SecondaryButtonText = "Move to Top Level".Translate(),
                     CancelButtonText = "Cancel".Translate(),
@@ -390,73 +377,52 @@ public partial class CategoryModalsViewModel : ViewModelBase
 
                 deleteSubcategories = subResult == ConfirmationResult.Primary;
 
-                var childIds = children!.Select(c => c.Id).ToHashSet();
+                var childIds = children.Select(c => c.Id).ToHashSet();
                 if (deleteSubcategories &&
-                    companyData!.Products.Any(p => p.CategoryId != null && childIds.Contains(p.CategoryId)))
+                    companyData.Products.Any(p => p.CategoryId != null && childIds.Contains(p.CategoryId)))
                 {
                     await App.ShowWarningMessageBoxAsync(
                         "Cannot Delete".Translate(),
                         "A subcategory of this category is used by one or more products, so it cannot be deleted. Choose Move to Top Level instead.".Translate());
                     return;
                 }
-            }
-            else
-            {
-                var result = await dialog.ShowAsync(new ConfirmationDialogOptions
-                {
-                    Title = "Delete Category".Translate(),
-                    Message = "Are you sure you want to delete this category?\n\n{0}".TranslateFormat(item.Name),
-                    PrimaryButtonText = "Delete".Translate(),
-                    CancelButtonText = "Cancel".Translate(),
-                    IsPrimaryDestructive = true
-                });
 
-                if (result != ConfirmationResult.Primary)
+                if (deleteSubcategories && companyData.BankCategoryRules.Any(r => childIds.Contains(r.CategoryId)))
+                {
+                    await App.ShowWarningMessageBoxAsync(
+                        "Cannot Delete".Translate(),
+                        "A subcategory of this category is used by one or more bank rules, so it cannot be deleted. Choose Move to Top Level instead.".Translate());
                     return;
+                }
             }
-
-            var childOriginalParents = children?.ToDictionary(c => c.Id, c => c.ParentId);
-            var deletedChildren = new List<Category>();
-            var shouldDeleteSubcategories = deleteSubcategories;
-
-            if (shouldDeleteSubcategories)
+            else if (!await ConfirmDeleteAsync("Delete Category".Translate(),
+                         "Are you sure you want to delete this category?\n\n{0}".TranslateFormat(item.Name)))
             {
-                deletedChildren.AddRange(children ?? []);
-                foreach (var child in children ?? []) companyData?.Categories.Remove(child);
-            }
-            else
-            {
-                foreach (var child in children ?? []) child.ParentId = null;
+                return;
             }
 
-            var deletedCategory = category;
-            companyData?.Categories.Remove(category);
-            companyData?.MarkAsModified();
-
-            App.UndoRedoManager.RecordAction(new DelegateAction(
-                $"Delete category '{deletedCategory.Name}'",
-                () =>
+            RemoveWithUndo(companyData, companyData.Categories, category, $"Delete category '{category.Name}'",
+                () => CategoryDeleted?.Invoke(this, EventArgs.Empty),
+                onRemove: () =>
                 {
-                    companyData?.Categories.Add(deletedCategory);
-                    if (shouldDeleteSubcategories) { foreach (var child in deletedChildren) companyData?.Categories.Add(child); }
-                    else { foreach (var kvp in childOriginalParents ?? []) { var child = companyData?.GetCategory(kvp.Key);
-                        child?.ParentId = kvp.Value;
-                    } }
-                    companyData?.MarkAsModified();
-                    CategoryDeleted?.Invoke(this, EventArgs.Empty);
+                    foreach (var child in children)
+                    {
+                        if (deleteSubcategories)
+                            companyData.Categories.Remove(child);
+                        else
+                            child.ParentId = null;
+                    }
                 },
-                () =>
+                onRestore: () =>
                 {
-                    if (shouldDeleteSubcategories) { foreach (var child in deletedChildren) companyData?.Categories.Remove(child); }
-                    else { foreach (var kvp in childOriginalParents ?? []) { var child = companyData?.GetCategory(kvp.Key);
-                        child?.ParentId = null;
-                    } }
-                    companyData?.Categories.Remove(deletedCategory);
-                    companyData?.MarkAsModified();
-                    CategoryDeleted?.Invoke(this, EventArgs.Empty);
-                }));
-
-            CategoryDeleted?.Invoke(this, EventArgs.Empty);
+                    foreach (var child in children)
+                    {
+                        if (deleteSubcategories)
+                            companyData.Categories.Add(child);
+                        else
+                            child.ParentId = category.Id;
+                    }
+                });
         }
         catch (Exception ex)
         {

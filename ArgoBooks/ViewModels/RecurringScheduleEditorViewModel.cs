@@ -77,7 +77,7 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
     private EventHandler? _productSavedHandler;
     private CategoryType _side = CategoryType.Expense;
     private string? _editingId;
-    private string _originalSnapshot = string.Empty;
+    private EditState? _originalSnapshot;
 
     public void ShowNew(CategoryType side)
     {
@@ -140,12 +140,9 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
             : "Create new supplier").Translate();
         ProductAddNewText = "Create new product".Translate();
 
-        var options = side == CategoryType.Revenue
-            ? data.Customers.Select(c => new CounterpartyOption { Id = c.Id, Name = c.Name })
-            : data.Suppliers.Select(sup => new CounterpartyOption { Id = sup.Id, Name = sup.Name });
-
-        foreach (var option in options.OrderBy(o => o.Name))
-            CounterpartyOptions.Add(option);
+        OptionLoader.Fill(CounterpartyOptions, side == CategoryType.Revenue
+            ? OptionLoader.Customers(data).AsOptions<CounterpartyOption>()
+            : OptionLoader.Suppliers(data).AsOptions<CounterpartyOption>());
     }
 
     /// <summary>
@@ -238,8 +235,11 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
         }
     }
 
-    private string Snapshot() =>
-        $"{Amount}|{FrequencyIndex}|{StartDate?.Date:d}|{EndDate?.Date:d}|{SelectedCounterparty?.Id}|{SelectedProduct?.Id}";
+    private sealed record EditState(
+        string Amount, int FrequencyIndex, DateTime? StartDate, DateTime? EndDate, string? CounterpartyId, string? ProductId);
+
+    private EditState Snapshot() =>
+        new(Amount, FrequencyIndex, StartDate?.Date, EndDate?.Date, SelectedCounterparty?.Id, SelectedProduct?.Id);
 
     private bool IsDirty => Snapshot() != _originalSnapshot;
 

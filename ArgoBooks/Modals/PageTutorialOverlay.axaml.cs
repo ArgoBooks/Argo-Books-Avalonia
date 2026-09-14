@@ -7,45 +7,69 @@ using ArgoBooks.ViewModels;
 
 namespace ArgoBooks.Modals;
 
-public partial class CategoriesTutorialOverlay : UserControl
+/// <summary>
+/// Overlay for a page's first-visit tutorial. The page's icon is the only visual difference.
+/// </summary>
+public partial class PageTutorialOverlay : UserControl
 {
-    private CategoriesTutorialViewModel? _viewModel;
-    private Avalonia.Controls.Shapes.Path? _backdropPath;
+    public static readonly StyledProperty<string?> IconProperty =
+        AvaloniaProperty.Register<PageTutorialOverlay, string?>(nameof(Icon));
 
-    public CategoriesTutorialOverlay()
+    /// <summary>Path data for the icon shown above the step title.</summary>
+    public string? Icon
+    {
+        get => GetValue(IconProperty);
+        set => SetValue(IconProperty, value);
+    }
+
+    private PageTutorialViewModel? _viewModel;
+    private readonly Avalonia.Controls.Shapes.Path? _backdropPath;
+
+    public PageTutorialOverlay()
     {
         InitializeComponent();
 
         _backdropPath = this.FindControl<Avalonia.Controls.Shapes.Path>("BackdropPath");
+    }
 
-        DataContextChanged += OnDataContextChanged;
-        PropertyChanged += OnPropertyChanged;
+    protected override void OnLoaded(RoutedEventArgs e)
+    {
+        base.OnLoaded(e);
+        AttachViewModel(DataContext as PageTutorialViewModel);
     }
 
     protected override void OnUnloaded(RoutedEventArgs e)
     {
         base.OnUnloaded(e);
-
-        if (_viewModel != null)
-        {
-            _viewModel.HighlightAreaChanged -= OnHighlightAreaChanged;
-            _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
-            _viewModel = null;
-        }
-
-        DataContextChanged -= OnDataContextChanged;
-        PropertyChanged -= OnPropertyChanged;
+        AttachViewModel(null);
     }
 
-    private void OnDataContextChanged(object? sender, EventArgs e)
+    protected override void OnDataContextChanged(EventArgs e)
     {
+        base.OnDataContextChanged(e);
+        AttachViewModel(DataContext as PageTutorialViewModel);
+    }
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+
+        if (change.Property == BoundsProperty && _viewModel?.IsOpen == true)
+            UpdateHighlightBounds();
+    }
+
+    private void AttachViewModel(PageTutorialViewModel? viewModel)
+    {
+        if (ReferenceEquals(_viewModel, viewModel))
+            return;
+
         if (_viewModel != null)
         {
             _viewModel.HighlightAreaChanged -= OnHighlightAreaChanged;
             _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
         }
 
-        _viewModel = DataContext as CategoriesTutorialViewModel;
+        _viewModel = viewModel;
         if (_viewModel != null)
         {
             _viewModel.HighlightAreaChanged += OnHighlightAreaChanged;
@@ -55,17 +79,9 @@ public partial class CategoriesTutorialOverlay : UserControl
 
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(CategoriesTutorialViewModel.IsOpen) && _viewModel?.IsOpen == true)
+        if (e.PropertyName == nameof(PageTutorialViewModel.IsOpen) && _viewModel?.IsOpen == true)
         {
             Dispatcher.UIThread.Post(UpdateHighlightBounds, DispatcherPriority.Loaded);
-        }
-    }
-
-    private void OnPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
-    {
-        if (e.Property == BoundsProperty && _viewModel?.IsOpen == true)
-        {
-            UpdateHighlightBounds();
         }
     }
 
@@ -79,41 +95,32 @@ public partial class CategoriesTutorialOverlay : UserControl
         if (_viewModel == null || !_viewModel.IsOpen)
             return;
 
-        var highlightArea = _viewModel.CurrentHighlightArea;
-
-        if (highlightArea == "none")
+        if (_viewModel.CurrentHighlightArea == "none" || TopLevel.GetTopLevel(this) is not Window window)
         {
-            _viewModel.HideHighlight();
-            UpdateBackdropGeometry(null, new CornerRadius(0));
+            HideHighlight();
             return;
         }
-
-        var window = TopLevel.GetTopLevel(this) as Window;
-        if (window == null)
-        {
-            _viewModel.HideHighlight();
-            UpdateBackdropGeometry(null, new CornerRadius(0));
-            return;
-        }
-
-        Rect? bounds;
-        CornerRadius cornerRadius;
 
         var element = TutorialHighlightHelper.FindElementByName<Control>(window, "AppContent");
-        bounds = element != null
+        var bounds = element != null
             ? TutorialHighlightHelper.GetHighlightBounds(this, element)
             : null;
-        cornerRadius = new CornerRadius(8);
 
         if (bounds == null)
         {
-            _viewModel.HideHighlight();
-            UpdateBackdropGeometry(null, new CornerRadius(0));
+            HideHighlight();
             return;
         }
 
+        var cornerRadius = new CornerRadius(8);
         _viewModel.SetHighlightBounds(bounds.Value, cornerRadius);
         UpdateBackdropGeometry(bounds.Value, cornerRadius);
+    }
+
+    private void HideHighlight()
+    {
+        _viewModel?.HideHighlight();
+        UpdateBackdropGeometry(null, new CornerRadius(0));
     }
 
     private void UpdateBackdropGeometry(Rect? highlightBounds, CornerRadius cornerRadius)
