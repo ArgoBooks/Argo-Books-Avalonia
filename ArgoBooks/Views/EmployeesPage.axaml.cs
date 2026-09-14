@@ -1,5 +1,4 @@
 using Avalonia.Controls;
-using ArgoBooks.ViewModels;
 
 namespace ArgoBooks.Views;
 
@@ -11,13 +10,5 @@ public partial class EmployeesPage : UserControl
     public EmployeesPage()
     {
         InitializeComponent();
-    }
-
-    private void OnHeaderSizeChanged(object? sender, SizeChangedEventArgs e)
-    {
-        if (DataContext is EmployeesPageViewModel viewModel && e.WidthChanged)
-        {
-            viewModel.ResponsiveHeader.HeaderWidth = e.NewSize.Width;
-        }
     }
 }

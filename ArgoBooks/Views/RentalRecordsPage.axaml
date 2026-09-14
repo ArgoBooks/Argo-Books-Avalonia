@@ -46,14 +46,6 @@
                                 ItemsSource="{Binding Records}"
                                 SearchQuery="{Binding SearchQuery, Mode=TwoWay}"
                                 SearchPlaceholder="{loc:Loc 'Search rentals...'}"
-                                SearchBoxWidth="{Binding ResponsiveHeader.SearchBoxWidth}"
-                                SearchBoxMinHeight="{Binding ResponsiveHeader.SearchBoxMinHeight}"
-                                SearchIconMargin="{Binding ResponsiveHeader.SearchIconMargin}"
-                                HeaderPadding="{Binding ResponsiveHeader.HeaderPadding}"
-                                HeaderSpacing="{Binding ResponsiveHeader.HeaderSpacing}"
-                                IsCompactMode="{Binding ResponsiveHeader.IsCompactMode}"
-                                IsMediumMode="{Binding ResponsiveHeader.IsMediumMode}"
-                                ShowButtonText="{Binding ResponsiveHeader.ShowButtonText}"
                                 FilterCommand="{Binding OpenFilterModalCommand}"
                                 AddCommand="{Binding OpenAddModalCommand}"
                                 AddButtonText="{loc:Loc 'New Rental'}"
@@ -69,8 +61,7 @@
                                 ToggleColumnMenuCommand="{Binding ToggleColumnMenuCommand}"
                                 EmptyIcon="{x:Static icons:Icons.RentalRecords}"
                                 EmptyTitle="{loc:Loc 'No rental records found'}"
-                                EmptyMessage="{loc:Loc 'Create your first rental record to start tracking rentals.'}"
-                                BorderSizeChanged="OnHeaderSizeChanged">
+                                EmptyMessage="{loc:Loc 'Create your first rental record to start tracking rentals.'}">
 
                 <!-- Table Header Content - Using ArgoTableHeader for reduced boilerplate -->
                 <table:ArgoTable.HeaderContent>
@@ -218,11 +209,11 @@
                                                         HorizontalAlignment="Left"
                                                         Padding="8,4"
                                                         CornerRadius="4"
-                                                        Background="{Binding Status, Converter={x:Static local:StringConverters.ToRentalStatusBackground}}">
+                                                        Background="{Binding Status, Converter={x:Static local:StatusConverters.RentalStatusBackground}}">
                                                     <TextBlock Text="{Binding Status, Converter={StaticResource TranslateConverter}}"
                                                                FontSize="12"
                                                                FontWeight="Medium"
-                                                               Foreground="{Binding Status, Converter={x:Static local:StringConverters.ToRentalStatusForeground}}" />
+                                                               Foreground="{Binding Status, Converter={x:Static local:StatusConverters.RentalStatusForeground}}" />
                                                 </Border>
                                             </table:ArgoTableCell.CellContent>
                                         </table:ArgoTableCell>

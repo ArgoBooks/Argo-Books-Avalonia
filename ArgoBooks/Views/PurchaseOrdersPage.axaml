@@ -61,14 +61,6 @@
                                     ItemsSource="{Binding Orders}"
                                     SearchQuery="{Binding SearchQuery, Mode=TwoWay}"
                                     SearchPlaceholder="{loc:Loc 'Search orders...'}"
-                                    SearchBoxWidth="{Binding ResponsiveHeader.SearchBoxWidth}"
-                                    SearchBoxMinHeight="{Binding ResponsiveHeader.SearchBoxMinHeight}"
-                                    SearchIconMargin="{Binding ResponsiveHeader.SearchIconMargin}"
-                                    HeaderPadding="{Binding ResponsiveHeader.HeaderPadding}"
-                                    HeaderSpacing="{Binding ResponsiveHeader.HeaderSpacing}"
-                                    IsCompactMode="{Binding ResponsiveHeader.IsCompactMode}"
-                                    IsMediumMode="{Binding ResponsiveHeader.IsMediumMode}"
-                                    ShowButtonText="{Binding ResponsiveHeader.ShowButtonText}"
                                     FilterCommand="{Binding OpenFilterModalCommand}"
                                     AddCommand="{Binding OpenAddModalCommand}"
                                     AddButtonText="{loc:Loc 'New Order'}"
@@ -84,8 +76,7 @@
                                     ToggleColumnMenuCommand="{Binding ToggleColumnMenuCommand}"
                                     EmptyIcon="{x:Static icons:Icons.PurchaseOrders}"
                                     EmptyTitle="{loc:Loc 'No purchase orders found'}"
-                                    EmptyMessage="{loc:Loc 'Purchase orders will appear here when you create orders for your suppliers.'}"
-                                    BorderSizeChanged="OnHeaderSizeChanged">
+                                    EmptyMessage="{loc:Loc 'Purchase orders will appear here when you create orders for your suppliers.'}">
 
                     <!-- Table Header Content - Using ArgoTableHeader for reduced boilerplate -->
                     <table:ArgoTable.HeaderContent>

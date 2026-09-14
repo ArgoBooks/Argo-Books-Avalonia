@@ -1,5 +1,4 @@
 using Avalonia.Controls;
-using ArgoBooks.ViewModels;
 
 namespace ArgoBooks.Views;
 
@@ -17,13 +16,5 @@ public partial class CategoriesPage : UserControl
     private void OnLoaded(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         App.CategoriesTutorialViewModel?.ShowIfFirstVisit();
-    }
-
-    private void OnHeaderSizeChanged(object? sender, SizeChangedEventArgs e)
-    {
-        if (DataContext is CategoriesPageViewModel viewModel && e.WidthChanged)
-        {
-            viewModel.ResponsiveHeader.HeaderWidth = e.NewSize.Width;
-        }
     }
 }

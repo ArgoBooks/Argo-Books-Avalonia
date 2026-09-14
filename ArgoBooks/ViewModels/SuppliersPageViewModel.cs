@@ -59,15 +59,6 @@ public partial class SuppliersPageViewModel : SortablePageViewModelBase
 
     #endregion
 
-    #region Responsive Header
-
-    /// <summary>
-    /// Helper for responsive header layout.
-    /// </summary>
-    public ResponsiveHeaderHelper ResponsiveHeader { get; } = new();
-
-    #endregion
-
     #region Search and Filter
 
     [ObservableProperty]

@@ -41,14 +41,6 @@
                              ItemsSource="{Binding Employees}"
                              SearchQuery="{Binding SearchQuery, Mode=TwoWay}"
                              SearchPlaceholder="{loc:Loc 'Search employees...'}"
-                             SearchBoxWidth="{Binding ResponsiveHeader.SearchBoxWidth}"
-                             SearchBoxMinHeight="{Binding ResponsiveHeader.SearchBoxMinHeight}"
-                             SearchIconMargin="{Binding ResponsiveHeader.SearchIconMargin}"
-                             HeaderPadding="{Binding ResponsiveHeader.HeaderPadding}"
-                             HeaderSpacing="{Binding ResponsiveHeader.HeaderSpacing}"
-                             IsCompactMode="{Binding ResponsiveHeader.IsCompactMode}"
-                             IsMediumMode="{Binding ResponsiveHeader.IsMediumMode}"
-                             ShowButtonText="{Binding ResponsiveHeader.ShowButtonText}"
                              FilterCommand="{Binding OpenFilterModalCommand}"
                              AddCommand="{Binding AddEmployeeCommand}"
                              AddButtonText="{loc:Loc 'Add employee'}"
@@ -64,8 +56,7 @@
                              ToggleColumnMenuCommand="{Binding ToggleColumnMenuCommand}"
                              EmptyIcon="{x:Static icons:Icons.Customers}"
                              EmptyTitle="{loc:Loc 'No employees yet'}"
-                             EmptyMessage="{loc:Loc 'Add the people you pay, then run payroll to work out their deductions.'}"
-                             BorderSizeChanged="OnHeaderSizeChanged">
+                             EmptyMessage="{loc:Loc 'Add the people you pay, then run payroll to work out their deductions.'}">
 
                 <table:ArgoTable.HeaderContent>
                     <StackPanel Orientation="Horizontal">

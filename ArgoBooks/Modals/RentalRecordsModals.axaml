@@ -676,10 +676,10 @@
                         <Grid ColumnDefinitions="*,Auto">
                             <StackPanel Orientation="Horizontal" Spacing="12">
                                 <TextBlock Text="{loc:Loc 'Rental Details'}" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
-                                <Border Background="{Binding ViewStatus, Converter={x:Static conv:StringConverters.ToRentalStatusBackground}}"
+                                <Border Background="{Binding ViewStatus, Converter={x:Static conv:StatusConverters.RentalStatusBackground}}"
                                         CornerRadius="4" Padding="8,4" VerticalAlignment="Center">
                                     <TextBlock Text="{Binding ViewStatus}"
-                                               Foreground="{Binding ViewStatus, Converter={x:Static conv:StringConverters.ToRentalStatusForeground}}"
+                                               Foreground="{Binding ViewStatus, Converter={x:Static conv:StatusConverters.RentalStatusForeground}}"
                                                FontSize="12" FontWeight="Medium" />
                                 </Border>
                             </StackPanel>

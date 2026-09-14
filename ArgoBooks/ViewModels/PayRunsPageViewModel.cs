@@ -30,8 +30,6 @@ public partial class PayRunsPageViewModel : SortablePageViewModelBase
     private readonly List<PayRun> _all = [];
     private readonly PayrollService _payroll = new();
 
-    public ResponsiveHeaderHelper ResponsiveHeader { get; } = new();
-
     public PayRunsTableColumnWidths ColumnWidths => App.PayRunsColumnWidths;
 
     public ObservableCollection<PayRunDisplayItem> PayRuns { get; } = [];

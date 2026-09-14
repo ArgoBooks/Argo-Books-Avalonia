@@ -45,14 +45,6 @@
                                 ItemsSource="{Binding Locations}"
                                 SearchQuery="{Binding SearchQuery, Mode=TwoWay}"
                                 SearchPlaceholder="{loc:Loc 'Search locations...'}"
-                                SearchBoxWidth="{Binding ResponsiveHeader.SearchBoxWidth}"
-                                SearchBoxMinHeight="{Binding ResponsiveHeader.SearchBoxMinHeight}"
-                                SearchIconMargin="{Binding ResponsiveHeader.SearchIconMargin}"
-                                HeaderPadding="{Binding ResponsiveHeader.HeaderPadding}"
-                                HeaderSpacing="{Binding ResponsiveHeader.HeaderSpacing}"
-                                IsCompactMode="{Binding ResponsiveHeader.IsCompactMode}"
-                                IsMediumMode="{Binding ResponsiveHeader.IsMediumMode}"
-                                ShowButtonText="{Binding ResponsiveHeader.ShowButtonText}"
                                 FilterCommand="{Binding OpenFilterModalCommand}"
                                 AddCommand="{Binding OpenAddModalCommand}"
                                 AddButtonText="{loc:Loc 'Add Location'}"
@@ -68,8 +60,7 @@
                                 ToggleColumnMenuCommand="{Binding ToggleColumnMenuCommand}"
                                 EmptyIcon="{x:Static icons:Icons.Locations}"
                                 EmptyTitle="{loc:Loc 'No locations found'}"
-                                EmptyMessage="{loc:Loc 'Add your first location to start managing your warehouses and storage facilities.'}"
-                                BorderSizeChanged="OnHeaderSizeChanged">
+                                EmptyMessage="{loc:Loc 'Add your first location to start managing your warehouses and storage facilities.'}">
 
                 <!-- Table Header Content - Using ArgoTableHeader for reduced boilerplate -->
                 <table:ArgoTable.HeaderContent>

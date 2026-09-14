@@ -64,14 +64,6 @@
                                     ItemsSource="{Binding DisplayItems}"
                                     SearchQuery="{Binding SearchQuery, Mode=TwoWay}"
                                     SearchPlaceholder="{loc:Loc 'Search inventory...'}"
-                                    SearchBoxWidth="{Binding ResponsiveHeader.SearchBoxWidth}"
-                                    SearchBoxMinHeight="{Binding ResponsiveHeader.SearchBoxMinHeight}"
-                                    SearchIconMargin="{Binding ResponsiveHeader.SearchIconMargin}"
-                                    HeaderPadding="{Binding ResponsiveHeader.HeaderPadding}"
-                                    HeaderSpacing="{Binding ResponsiveHeader.HeaderSpacing}"
-                                    IsCompactMode="{Binding ResponsiveHeader.IsCompactMode}"
-                                    IsMediumMode="{Binding ResponsiveHeader.IsMediumMode}"
-                                    ShowButtonText="{Binding ResponsiveHeader.ShowButtonText}"
                                     FilterCommand="{Binding OpenFilterModalCommand}"
                                     AddCommand="{Binding OpenAddItemModalCommand}"
                                     AddButtonText="{loc:Loc 'Add Item'}"
@@ -88,8 +80,7 @@
                                     EmptyIcon="{x:Static icons:Icons.StockLevels}"
                                     EmptyTitle="{Binding EmptyStateTitle}"
                                     EmptyMessage="{Binding EmptyStateMessage}"
-                                    ShowEmptyAddButton="{Binding IsAllItemsTabSelected}"
-                                    BorderSizeChanged="OnHeaderSizeChanged">
+                                    ShowEmptyAddButton="{Binding IsAllItemsTabSelected}">
 
                     <!-- Table Header Content - Using ArgoTableHeader for reduced boilerplate -->
                     <table:ArgoTable.HeaderContent>

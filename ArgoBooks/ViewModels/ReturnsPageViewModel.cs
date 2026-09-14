@@ -15,15 +15,6 @@ namespace ArgoBooks.ViewModels;
 /// </summary>
 public partial class ReturnsPageViewModel : SortablePageViewModelBase
 {
-    #region Responsive Header
-
-    /// <summary>
-    /// Helper for responsive header layout calculations.
-    /// </summary>
-    public ResponsiveHeaderHelper ResponsiveHeader { get; } = new();
-
-    #endregion
-
     #region Table Column Widths
 
     /// <summary>

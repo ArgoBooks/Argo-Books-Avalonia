@@ -35,15 +35,6 @@ public partial class StockAdjustmentsPageViewModel : SortablePageViewModelBase
 
     #endregion
 
-    #region Responsive Header
-
-    /// <summary>
-    /// Responsive header helper for adaptive layout.
-    /// </summary>
-    public ResponsiveHeaderHelper ResponsiveHeader { get; } = new();
-
-    #endregion
-
     #region Table Column Widths
 
     /// <summary>

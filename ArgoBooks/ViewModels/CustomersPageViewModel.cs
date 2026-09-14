@@ -36,15 +36,6 @@ public partial class CustomersPageViewModel : SortablePageViewModelBase
 
     #endregion
 
-    #region Responsive Header
-
-    /// <summary>
-    /// Helper for responsive header layout.
-    /// </summary>
-    public ResponsiveHeaderHelper ResponsiveHeader { get; } = new();
-
-    #endregion
-
     #region Table Column Widths
 
     /// <summary>

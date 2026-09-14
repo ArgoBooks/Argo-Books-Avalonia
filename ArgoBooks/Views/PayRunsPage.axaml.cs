@@ -56,12 +56,4 @@ public partial class PayRunsPage : UserControl
     }
 
     private void UpdateBlur(bool showTeaser) => ContentRoot.Effect = showTeaser ? BlurEffect : null;
-
-    private void OnHeaderSizeChanged(object? sender, SizeChangedEventArgs e)
-    {
-        if (DataContext is PayRunsPageViewModel viewModel && e.WidthChanged)
-        {
-            viewModel.ResponsiveHeader.HeaderWidth = e.NewSize.Width;
-        }
-    }
 }

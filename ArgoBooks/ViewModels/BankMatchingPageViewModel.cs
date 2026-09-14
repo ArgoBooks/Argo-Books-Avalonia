@@ -5,7 +5,6 @@ using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.BankMatching;
 using ArgoBooks.Core.Services;
-using ArgoBooks.Helpers;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
 using ArgoBooks.Shared.Telemetry;
@@ -96,8 +95,6 @@ public partial class BankMatchingPageViewModel : SortablePageViewModelBase
 
     /// <summary>Resizable column widths for the missing-records table.</summary>
     public Controls.ColumnWidths.MissingRecordsTableColumnWidths MissingColumns { get; } = new();
-
-    public ResponsiveHeaderHelper ResponsiveHeader { get; } = new();
 
     [ObservableProperty]
     private bool _hasSession;

@@ -20,8 +20,6 @@ public partial class EmployeesPageViewModel : SortablePageViewModelBase
 {
     private readonly List<Employee> _all = [];
 
-    public ResponsiveHeaderHelper ResponsiveHeader { get; } = new();
-
     public EmployeesTableColumnWidths ColumnWidths => App.EmployeesColumnWidths;
 
     public ObservableCollection<EmployeeDisplayItem> Employees { get; } = [];

@@ -528,8 +528,8 @@
                                             <StackPanel Grid.Column="0" Width="16">
                                                 <Border Width="12" Height="12"
                                                         CornerRadius="6"
-                                                        Background="{Binding ActionType, Converter={x:Static local:StringConverters.ToHistoryTypeBadgeBackground}}"
-                                                        BorderBrush="{Binding ActionType, Converter={x:Static local:StringConverters.ToHistoryTypeBadgeForeground}}"
+                                                        Background="{Binding ActionType, Converter={x:Static local:StatusConverters.HistoryTypeBadgeBackground}}"
+                                                        BorderBrush="{Binding ActionType, Converter={x:Static local:StatusConverters.HistoryTypeBadgeForeground}}"
                                                         BorderThickness="2" />
                                                 <Border Width="2"
                                                         Height="40"

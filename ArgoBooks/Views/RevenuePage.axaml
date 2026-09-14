@@ -81,14 +81,6 @@
                                 ItemsSource="{Binding Revenue}"
                                 SearchQuery="{Binding SearchQuery, Mode=TwoWay}"
                                 SearchPlaceholder="{loc:Loc 'Search revenue...'}"
-                                SearchBoxWidth="{Binding ResponsiveHeader.SearchBoxWidth}"
-                                SearchBoxMinHeight="{Binding ResponsiveHeader.SearchBoxMinHeight}"
-                                SearchIconMargin="{Binding ResponsiveHeader.SearchIconMargin}"
-                                HeaderPadding="{Binding ResponsiveHeader.HeaderPadding}"
-                                HeaderSpacing="{Binding ResponsiveHeader.HeaderSpacing}"
-                                IsCompactMode="{Binding ResponsiveHeader.IsCompactMode}"
-                                IsMediumMode="{Binding ResponsiveHeader.IsMediumMode}"
-                                ShowButtonText="{Binding ResponsiveHeader.ShowButtonText}"
                                 FilterCommand="{Binding OpenFilterModalCommand}"
                                 AddCommand="{Binding OpenAddModalCommand}"
                                 AddButtonText="{loc:Loc 'Add Revenue'}"
@@ -104,8 +96,7 @@
                                 ToggleColumnMenuCommand="{Binding ToggleColumnMenuCommand}"
                                 EmptyIcon="{x:Static icons:Icons.Revenue}"
                                 EmptyTitle="{loc:Loc 'No revenue found'}"
-                                EmptyMessage="{loc:Loc 'Add your first sale to start tracking your revenue.'}"
-                                BorderSizeChanged="OnHeaderSizeChanged">
+                                EmptyMessage="{loc:Loc 'Add your first sale to start tracking your revenue.'}">
 
                 <!-- Info Banners (Stripe ready-to-sync) -->
                 <table:ArgoTable.InfoBannerContent>
@@ -229,8 +220,8 @@
                 <table:ArgoTable.ExtraButtonsContent>
                     <Button x:Name="ImportMenuButton"
                             Classes="primary-button"
-                            Classes.compact="{Binding ResponsiveHeader.IsCompactMode}"
-                            Classes.medium="{Binding ResponsiveHeader.IsMediumMode}"
+                            Classes.compact="{Binding $parent[table:ArgoTable].IsCompactMode}"
+                            Classes.medium="{Binding $parent[table:ArgoTable].IsMediumMode}"
                             ToolTip.Tip="{loc:Loc 'Import'}">
                         <Button.Flyout>
                             <MenuFlyout Placement="BottomEdgeAlignedRight">
@@ -270,7 +261,7 @@
                             <PathIcon Data="{x:Static icons:Icons.ImportData}"
                                       Width="16" Height="16"
                                       Foreground="White" />
-                            <TextBlock Text="{loc:Loc 'Import'}" IsVisible="{Binding ResponsiveHeader.ShowButtonText}" />
+                            <TextBlock Text="{loc:Loc 'Import'}" IsVisible="{Binding $parent[table:ArgoTable].ShowButtonText}" />
                         </StackPanel>
                     </Button>
                 </table:ArgoTable.ExtraButtonsContent>
@@ -520,18 +511,18 @@
                                                         Padding="8,4"
                                                         CornerRadius="4"
                                                         ClipToBounds="True"
-                                                        Background="{Binding StatusDisplay, Converter={x:Static local:StringConverters.ToRevenueStatusBackground}}">
+                                                        Background="{Binding StatusDisplay, Converter={x:Static local:StatusConverters.TransactionStatusBackground}}">
                                                     <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                                                         <TextBlock Text="{Binding StatusDisplay, Converter={StaticResource TranslateConverter}}"
                                                                    FontSize="12"
                                                                    FontWeight="Medium"
                                                                    VerticalAlignment="Center"
-                                                                   Foreground="{Binding StatusDisplay, Converter={x:Static local:StringConverters.ToRevenueStatusForeground}}" />
+                                                                   Foreground="{Binding StatusDisplay, Converter={x:Static local:StatusConverters.TransactionStatusForeground}}" />
                                                         <!-- Explains the "Pending" conversion status (awaiting the exact-date rate) -->
                                                         <PathIcon Data="{x:Static icons:Icons.InfoOutline}"
                                                                   Width="12" Height="12"
                                                                   VerticalAlignment="Center"
-                                                                  Foreground="{Binding StatusDisplay, Converter={x:Static local:StringConverters.ToRevenueStatusForeground}}"
+                                                                  Foreground="{Binding StatusDisplay, Converter={x:Static local:StatusConverters.TransactionStatusForeground}}"
                                                                   IsVisible="{Binding IsPendingConversion}"
                                                                   ToolTip.Tip="{Binding PendingConversionHint}" />
                                                     </StackPanel>

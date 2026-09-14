@@ -151,15 +151,6 @@ public partial class ExpensesPageViewModel : SortablePageViewModelBase
 
     #endregion
 
-    #region Responsive Layout
-
-    /// <summary>
-    /// Responsive header helper for adaptive layout.
-    /// </summary>
-    public ResponsiveHeaderHelper ResponsiveHeader { get; } = new();
-
-    #endregion
-
     #region Expenses Collection
 
     private readonly List<Expense> _allExpenses = [];

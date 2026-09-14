@@ -59,14 +59,6 @@
                                 ItemsSource="{Binding Returns}"
                                 SearchQuery="{Binding SearchQuery, Mode=TwoWay}"
                                 SearchPlaceholder="{loc:Loc 'Search returns...'}"
-                                SearchBoxWidth="{Binding ResponsiveHeader.SearchBoxWidth}"
-                                SearchBoxMinHeight="{Binding ResponsiveHeader.SearchBoxMinHeight}"
-                                SearchIconMargin="{Binding ResponsiveHeader.SearchIconMargin}"
-                                HeaderPadding="{Binding ResponsiveHeader.HeaderPadding}"
-                                HeaderSpacing="{Binding ResponsiveHeader.HeaderSpacing}"
-                                IsCompactMode="{Binding ResponsiveHeader.IsCompactMode}"
-                                IsMediumMode="{Binding ResponsiveHeader.IsMediumMode}"
-                                ShowButtonText="{Binding ResponsiveHeader.ShowButtonText}"
                                 FilterCommand="{Binding OpenFilterModalCommand}"
                                 ShowAddButton="False"
                                 ColumnWidthsManager="{Binding ColumnWidths}"
@@ -80,8 +72,7 @@
                                 ToggleColumnMenuCommand="{Binding ToggleColumnMenuCommand}"
                                 EmptyIcon="{x:Static icons:Icons.Returns}"
                                 EmptyTitle="{loc:Loc 'No returns found'}"
-                                EmptyMessage="{loc:Loc 'Returns will appear here when items are returned to suppliers or by customers.'}"
-                                BorderSizeChanged="OnHeaderSizeChanged">
+                                EmptyMessage="{loc:Loc 'Returns will appear here when items are returned to suppliers or by customers.'}">
 
                 <!-- Table Header Content - Using ArgoTableHeader for reduced boilerplate -->
                 <table:ArgoTable.HeaderContent>

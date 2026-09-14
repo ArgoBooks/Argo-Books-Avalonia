@@ -16,7 +16,7 @@
     </Design.DataContext>
 
     <UserControl.Resources>
-        <local:EqualConverter x:Key="EqualConverter" />
+        <local:EqualityConverter x:Key="EqualityConverter" />
         <local:HexColorToBrushConverter x:Key="HexToBrush" />
         <local:Base64ToImageConverter x:Key="Base64ToImage" />
     </UserControl.Resources>
@@ -361,25 +361,25 @@
                                             <Button Grid.Column="0"
                                                     Content="{loc:Loc 'Colors'}"
                                                     Classes="property-tab-button"
-                                                    Classes.selected="{Binding PropertiesTabIndex, Converter={StaticResource EqualConverter}, ConverterParameter=0}"
+                                                    Classes.selected="{Binding PropertiesTabIndex, Converter={StaticResource EqualityConverter}, ConverterParameter=0}"
                                                     Command="{Binding SetPropertiesTabCommand}"
                                                     CommandParameter="0" />
                                             <Button Grid.Column="1"
                                                     Content="{loc:Loc 'Logo'}"
                                                     Classes="property-tab-button"
-                                                    Classes.selected="{Binding PropertiesTabIndex, Converter={StaticResource EqualConverter}, ConverterParameter=1}"
+                                                    Classes.selected="{Binding PropertiesTabIndex, Converter={StaticResource EqualityConverter}, ConverterParameter=1}"
                                                     Command="{Binding SetPropertiesTabCommand}"
                                                     CommandParameter="1" />
                                             <Button Grid.Column="2"
                                                     Content="{loc:Loc 'Text'}"
                                                     Classes="property-tab-button"
-                                                    Classes.selected="{Binding PropertiesTabIndex, Converter={StaticResource EqualConverter}, ConverterParameter=2}"
+                                                    Classes.selected="{Binding PropertiesTabIndex, Converter={StaticResource EqualityConverter}, ConverterParameter=2}"
                                                     Command="{Binding SetPropertiesTabCommand}"
                                                     CommandParameter="2" />
                                             <Button Grid.Column="3"
                                                     Content="{loc:Loc 'Display'}"
                                                     Classes="property-tab-button"
-                                                    Classes.selected="{Binding PropertiesTabIndex, Converter={StaticResource EqualConverter}, ConverterParameter=3}"
+                                                    Classes.selected="{Binding PropertiesTabIndex, Converter={StaticResource EqualityConverter}, ConverterParameter=3}"
                                                     Command="{Binding SetPropertiesTabCommand}"
                                                     CommandParameter="3" />
                                         </Grid>
@@ -392,7 +392,7 @@
                                                   Margin="0,12,0,0">
                                         <StackPanel Margin="20,0,20,20">
                                             <!-- Colors Tab (Index 0) -->
-                                            <StackPanel Spacing="10" IsVisible="{Binding PropertiesTabIndex, Converter={StaticResource EqualConverter}, ConverterParameter=0}">
+                                            <StackPanel Spacing="10" IsVisible="{Binding PropertiesTabIndex, Converter={StaticResource EqualityConverter}, ConverterParameter=0}">
                                                 <!-- Header Color -->
                                                 <Grid ColumnDefinitions="*,150">
                                                     <TextBlock Grid.Column="0" Text="{Binding HeaderColorLabel}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
@@ -431,7 +431,7 @@
                                             </StackPanel>
 
                                             <!-- Logo Tab (Index 1) -->
-                                            <StackPanel Spacing="10" IsVisible="{Binding PropertiesTabIndex, Converter={StaticResource EqualConverter}, ConverterParameter=1}">
+                                            <StackPanel Spacing="10" IsVisible="{Binding PropertiesTabIndex, Converter={StaticResource EqualityConverter}, ConverterParameter=1}">
                                                 <CheckBox IsChecked="{Binding ShowLogo}"
                                                           Content="{loc:Loc 'Show logo on invoice'}" />
 
@@ -501,7 +501,7 @@
                                             </StackPanel>
 
                                             <!-- Text Tab (Index 2) -->
-                                            <StackPanel Spacing="10" IsVisible="{Binding PropertiesTabIndex, Converter={StaticResource EqualConverter}, ConverterParameter=2}">
+                                            <StackPanel Spacing="10" IsVisible="{Binding PropertiesTabIndex, Converter={StaticResource EqualityConverter}, ConverterParameter=2}">
                                                 <StackPanel Spacing="4">
                                                     <TextBlock Text="{loc:Loc 'Header Text'}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" />
                                                     <TextBox Text="{Binding HeaderText, Mode=TwoWay}" Classes="form-input" MaxLength="200" />
@@ -546,7 +546,7 @@
                                             </StackPanel>
 
                                             <!-- Display Options Tab (Index 3) -->
-                                            <StackPanel Spacing="8" IsVisible="{Binding PropertiesTabIndex, Converter={StaticResource EqualConverter}, ConverterParameter=3}">
+                                            <StackPanel Spacing="8" IsVisible="{Binding PropertiesTabIndex, Converter={StaticResource EqualityConverter}, ConverterParameter=3}">
                                                 <CheckBox IsChecked="{Binding ShowCompanyAddress}"
                                                           Content="{loc:Loc 'Show company address'}" />
                                                 <CheckBox IsChecked="{Binding ShowCompanyPhone}"

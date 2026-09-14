@@ -134,14 +134,6 @@ public partial class ReceiptsPage : UserControl
         }
     }
 
-    private void OnHeaderSizeChanged(object? sender, SizeChangedEventArgs e)
-    {
-        if (DataContext is ReceiptsPageViewModel viewModel && e.WidthChanged)
-        {
-            viewModel.ResponsiveHeader.HeaderWidth = e.NewSize.Width;
-        }
-    }
-
     private void OnDragOver(object? sender, DragEventArgs e)
     {
         if (DataContext is not ReceiptsPageViewModel viewModel) return;

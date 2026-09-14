@@ -546,16 +546,16 @@
                                                 <Grid ColumnDefinitions="0.8*,0.6*,1.5*,0.6*,0.6*">
                                                     <TextBlock Grid.Column="0" Text="{Binding DateFormatted}" FontSize="14" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
                                                     <Border Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Left" Padding="8,4" CornerRadius="4"
-                                                            Background="{Binding Type, Converter={x:Static local:StringConverters.ToHistoryTypeBadgeBackground}}">
+                                                            Background="{Binding Type, Converter={x:Static local:StatusConverters.HistoryTypeBadgeBackground}}">
                                                         <TextBlock Text="{Binding Type}" FontSize="12" FontWeight="Medium"
-                                                                   Foreground="{Binding Type, Converter={x:Static local:StringConverters.ToHistoryTypeBadgeForeground}}" />
+                                                                   Foreground="{Binding Type, Converter={x:Static local:StatusConverters.HistoryTypeBadgeForeground}}" />
                                                     </Border>
                                                     <TextBlock Grid.Column="2" Text="{Binding Description}" FontSize="14" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                                                     <TextBlock Grid.Column="3" Text="{Binding AmountFormatted}" FontSize="14" FontWeight="Medium" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
                                                     <Border Grid.Column="4" VerticalAlignment="Center" HorizontalAlignment="Left" Padding="8,4" CornerRadius="4"
-                                                            Background="{Binding Status, Converter={x:Static local:StringConverters.ToHistoryStatusBadgeBackground}}">
+                                                            Background="{Binding Status, Converter={x:Static local:StatusConverters.HistoryStatusBadgeBackground}}">
                                                         <TextBlock Text="{Binding Status}" FontSize="12" FontWeight="Medium"
-                                                                   Foreground="{Binding Status, Converter={x:Static local:StringConverters.ToHistoryStatusBadgeForeground}}" />
+                                                                   Foreground="{Binding Status, Converter={x:Static local:StatusConverters.HistoryStatusBadgeForeground}}" />
                                                     </Border>
                                                 </Grid>
                                             </Border>

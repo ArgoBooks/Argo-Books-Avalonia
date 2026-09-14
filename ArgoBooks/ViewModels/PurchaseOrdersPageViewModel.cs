@@ -19,15 +19,6 @@ namespace ArgoBooks.ViewModels;
 /// </summary>
 public partial class PurchaseOrdersPageViewModel : SortablePageViewModelBase
 {
-    #region Responsive Header
-
-    /// <summary>
-    /// Responsive header helper for adaptive layout.
-    /// </summary>
-    public ResponsiveHeaderHelper ResponsiveHeader { get; } = new();
-
-    #endregion
-
     #region Statistics
 
     [ObservableProperty]

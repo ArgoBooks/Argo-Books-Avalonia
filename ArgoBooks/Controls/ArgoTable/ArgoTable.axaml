@@ -13,10 +13,6 @@
              x:DataType="table:ArgoTable"
              x:Name="Root">
 
-    <UserControl.Resources>
-        <local:PageEqualsConverter x:Key="PageEqualsConverter" />
-    </UserControl.Resources>
-
     <Border Background="{DynamicResource SurfaceBrush}"
             CornerRadius="12"
             BorderBrush="{DynamicResource BorderBrush}"
@@ -266,7 +262,7 @@
                                             Command="{Binding #Root.GoToPageCommand}"
                                             CommandParameter="{Binding}">
                                         <controls:PaginationHelper.IsActivePage>
-                                            <MultiBinding Converter="{StaticResource PageEqualsConverter}">
+                                            <MultiBinding Converter="{x:Static local:PageEqualsConverter.Instance}">
                                                 <Binding />
                                                 <Binding Path="#Root.CurrentPage" />
                                             </MultiBinding>
