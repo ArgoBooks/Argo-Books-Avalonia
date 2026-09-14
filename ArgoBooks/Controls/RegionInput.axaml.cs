@@ -111,9 +111,14 @@ public partial class RegionInput : UserControl, INotifyPropertyChanged
                     .FirstOrDefault(c => string.Equals(c.Name, countryName, StringComparison.OrdinalIgnoreCase))?.FlagPath;
 
                 foreach (var region in list)
-                    Options.Add(new RegionOption(region.Code, region.Name, region.Name.Translate(),
+                {
+                    var shown = region.EnglishName == null
+                        ? region.Name.Translate()
+                        : $"{region.Name.Translate()} ({region.EnglishName})";
+                    Options.Add(new RegionOption(region.Code, region.Name, shown,
                         flagPath: Regions.FlagPathFor(Country, region), fallbackFlagPath: countryFlag,
                         alias: region.EnglishName));
+                }
             }
         }
         finally

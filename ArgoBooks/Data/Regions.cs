@@ -1,8 +1,8 @@
 namespace ArgoBooks.Data;
 
 /// <summary>
-/// A region of a country, by the value saved for it and the name shown. Where the local name differs
-/// from the English one (Sachsen, Saxony), search also matches the English name.
+/// A region of a country, by the value saved for it and its local name. Where that differs from the
+/// English name, the picker shows both, as "Sachsen (Saxony)", and search matches either.
 /// </summary>
 public sealed record Region(string Code, string Name, string? IsoCode = null, string? EnglishName = null)
 {
