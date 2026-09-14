@@ -267,24 +267,19 @@ public class ReportTableDataService(CompanyData? companyData, ReportFilters filt
         if (tableConfig.MaxRows > 0)
             query = query.Take(tableConfig.MaxRows);
 
-        var rentalItemLookup = companyData?.RentalInventory.ToDictionary(ri => ri.Id) ?? [];
-        var inventoryItemLookup = companyData?.Inventory.ToDictionary(i => i.Id) ?? [];
-
         return query.Select(r =>
         {
             var customer = companyData?.GetCustomer(r.CustomerId);
-            var rentalItem = rentalItemLookup.GetValueOrDefault(r.RentalItemId);
-            var inventoryItem = rentalItem != null ? inventoryItemLookup.GetValueOrDefault(rentalItem.InventoryItemId) : null;
-            var product = inventoryItem != null ? companyData?.GetProduct(inventoryItem.ProductId) : null;
+            var lines = r.EffectiveLineItems();
             return new RentalRecordTableRow
             {
                 Id = r.Id,
-                ItemName = product?.Name ?? "Unknown",
+                ItemName = RentalBookings.ItemNames(companyData, r),
                 CustomerName = customer?.Name ?? "Unknown",
                 StartDate = r.StartDate,
                 DueDate = r.DueDate,
                 ReturnDate = r.ReturnDate,
-                RateAmount = r.RateAmount,
+                RateAmount = lines.Count == 1 ? lines[0].RateAmount : null,
                 TotalCost = r.TotalCost ?? 0,
                 Status = r.Status.ToString()
             };
@@ -1014,7 +1009,8 @@ public class RentalRecordTableRow
     public DateTime StartDate { get; set; }
     public DateTime DueDate { get; set; }
     public DateTime? ReturnDate { get; set; }
-    public decimal RateAmount { get; set; }
+    /// <summary>Null for a rental of several items, which each have their own rate.</summary>
+    public decimal? RateAmount { get; set; }
     public decimal TotalCost { get; set; }
     public string Status { get; set; } = string.Empty;
 }

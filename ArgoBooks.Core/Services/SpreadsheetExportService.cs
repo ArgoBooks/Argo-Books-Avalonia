@@ -602,9 +602,10 @@ public class SpreadsheetExportService
 
         foreach (var r in filtered)
         {
-            if (r.LineItems.Count > 0)
+            var lines = r.EffectiveLineItems();
+            if (lines.Count > 0)
             {
-                foreach (var li in r.LineItems)
+                foreach (var li in lines)
                 {
                     rows.Add(
                     [

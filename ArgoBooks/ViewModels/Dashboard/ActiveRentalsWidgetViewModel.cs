@@ -2,8 +2,7 @@ using System.Collections.ObjectModel;
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Dashboard;
-using ArgoBooks.Core.Models.Inventory;
-using ArgoBooks.Core.Models.Rentals;
+using ArgoBooks.Localization;
 using ArgoBooks.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -67,9 +66,6 @@ public partial class ActiveRentalsWidgetViewModel : WidgetViewModelBase
 
     private void LoadActiveRentals(CompanyData data)
     {
-        var rentalItemLookup = data.RentalInventory.ToDictionary(r => r.Id);
-        var inventoryLookup = data.Inventory.ToDictionary(i => i.Id);
-
         var query = data.Rentals
             .Where(r => r.Status == RentalStatus.Active || r.Status == RentalStatus.Overdue);
 
@@ -82,14 +78,16 @@ public partial class ActiveRentalsWidgetViewModel : WidgetViewModelBase
             .Select(r => new ActiveRentalItem
             {
                 Id = r.Id,
-                ItemName = GetRentalItemName(rentalItemLookup, inventoryLookup, data, r.RentalItemId),
+                ItemName = Core.Services.RentalBookings.ItemNames(data, r),
                 CustomerName = GetCustomerName(data, r.CustomerId),
                 StartDate = r.StartDate,
                 StartDateFormatted = DateFormatService.Format(r.StartDate),
                 DueDate = r.DueDate,
                 DueDateFormatted = DateFormatService.Format(r.DueDate),
-                RateAmount = CurrencyService.Format(r.RateAmount),
-                RateType = r.RateType.ToString(),
+                RateAmount = r.EffectiveLineItems().Count > 1
+                    ? "{0} items".TranslateFormat(r.EffectiveLineItems().Count)
+                    : CurrencyService.Format(r.RateAmount),
+                RateType = r.EffectiveLineItems().Count > 1 ? string.Empty : r.RateType.ToString(),
                 Status = r.Status == RentalStatus.Overdue ? "Overdue" : "Active",
                 StatusVariant = r.Status == RentalStatus.Overdue ? "error" : "success",
                 DaysRemaining = (r.DueDate.Date - DateTime.Now.Date).Days,
@@ -120,18 +118,6 @@ public partial class ActiveRentalsWidgetViewModel : WidgetViewModelBase
         if (string.IsNullOrEmpty(customerId)) return "Unknown";
         var customer = data.GetCustomer(customerId);
         return customer?.Name ?? "Unknown";
-    }
-
-    private static string GetRentalItemName(
-        Dictionary<string, RentalItem> rentalItemLookup,
-        Dictionary<string, InventoryItem> inventoryLookup,
-        CompanyData data,
-        string rentalItemId)
-    {
-        if (!rentalItemLookup.TryGetValue(rentalItemId, out var item)) return "Unknown Item";
-        if (!inventoryLookup.TryGetValue(item.InventoryItemId, out var invItem)) return "Unknown Item";
-        var product = data.GetProduct(invItem.ProductId);
-        return product?.Name ?? "Unknown Item";
     }
 
     #endregion

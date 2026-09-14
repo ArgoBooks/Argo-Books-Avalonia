@@ -2825,7 +2825,7 @@ public class ReportRenderer : IDisposable
                         "Date" => r.StartDate.ToString("MM/dd/yyyy"),
                         "Due Date" => r.DueDate.ToString("MM/dd/yyyy"),
                         "Return Date" => r.ReturnDate?.ToString("MM/dd/yyyy") ?? "",
-                        "Rate" => FormatCurrency(r.RateAmount),
+                        "Rate" => r.RateAmount is { } rate ? FormatCurrency(rate) : "",
                         "Total" => FormatCurrency(r.TotalCost),
                         "Status" => r.Status,
                         _ => ""

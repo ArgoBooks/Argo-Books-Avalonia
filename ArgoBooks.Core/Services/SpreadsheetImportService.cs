@@ -4619,7 +4619,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
                 record.Quantity = record.LineItems.Sum(li => li.Quantity);
                 record.RateType = firstLi.RateType;
                 record.RateAmount = firstLi.RateAmount;
-                record.SecurityDeposit = record.LineItems.Sum(li => li.SecurityDeposit * li.Quantity);
+                record.SecurityDeposit = RentalBookings.TotalDeposit(record.LineItems);
             }
 
             if (existing == null)

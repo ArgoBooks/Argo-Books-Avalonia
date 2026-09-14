@@ -2,8 +2,6 @@ using System.Collections.ObjectModel;
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Dashboard;
-using ArgoBooks.Core.Models.Inventory;
-using ArgoBooks.Core.Models.Rentals;
 using ArgoBooks.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 
@@ -33,8 +31,6 @@ public partial class OverdueRentalsWidgetViewModel : WidgetViewModelBase
 
     private void LoadOverdueRentals(CompanyData data)
     {
-        var rentalItemLookup = data.RentalInventory.ToDictionary(r => r.Id);
-        var inventoryLookup = data.Inventory.ToDictionary(i => i.Id);
         var today = DateTime.Now.Date;
 
         var items = data.Rentals
@@ -42,7 +38,7 @@ public partial class OverdueRentalsWidgetViewModel : WidgetViewModelBase
             .OrderByDescending(r => (today - r.DueDate.Date).Days)
             .Select(r =>
             {
-                var itemName = GetRentalItemName(rentalItemLookup, inventoryLookup, data, r.RentalItemId);
+                var itemName = Core.Services.RentalBookings.ItemNames(data, r);
                 var customer = data.GetCustomer(r.CustomerId);
                 var customerName = customer?.Name ?? "Unknown";
                 var dueDateStr = DateFormatService.Format(r.DueDate);
@@ -53,17 +49,5 @@ public partial class OverdueRentalsWidgetViewModel : WidgetViewModelBase
             .ToList();
 
         Rentals = new ObservableCollection<OverdueRentalItem>(items);
-    }
-
-    private static string GetRentalItemName(
-        Dictionary<string, RentalItem> rentalItemLookup,
-        Dictionary<string, InventoryItem> inventoryLookup,
-        CompanyData data,
-        string rentalItemId)
-    {
-        if (!rentalItemLookup.TryGetValue(rentalItemId, out var item)) return "Unknown Item";
-        if (!inventoryLookup.TryGetValue(item.InventoryItemId, out var invItem)) return "Unknown Item";
-        var product = data.GetProduct(invItem.ProductId);
-        return product?.Name ?? "Unknown Item";
     }
 }
