@@ -2746,7 +2746,7 @@ public partial class InvoiceModalsViewModel : ViewModelBase
     /// <summary>
     /// Removes the auto-created Revenue for an invoice (if any).
     /// Only removes revenues that were auto-generated (i.e., not referenced by line items).
-    /// User-created revenues that were linked via "Generate Invoice" are only unlinked, not deleted.
+    /// User-created revenues that were linked via "Create Invoice" are only unlinked, not deleted.
     /// </summary>
     private static void RemoveAutoCreatedRevenue(Invoice invoice, CompanyData companyData)
     {

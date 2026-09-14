@@ -299,9 +299,9 @@
                                                         <PathIcon Data="{x:Static icons:Icons.Edit}"
                                                                   Width="16" Height="16" />
                                                     </Button>
-                                                    <!-- Generate Invoice Button -->
+                                                    <!-- Create Invoice Button -->
                                                     <Button Classes="icon-button"
-                                                            ToolTip.Tip="{loc:Loc 'Generate Invoice'}"
+                                                            ToolTip.Tip="{loc:Loc 'Create Invoice'}"
                                                             IsVisible="{Binding CanGenerateInvoice}"
                                                             Command="{Binding $parent[ItemsControl].((vm:RentalRecordsPageViewModel)DataContext).GenerateInvoiceCommand}"
                                                             CommandParameter="{Binding}">

@@ -616,9 +616,9 @@
                                                         <PathIcon Data="{x:Static icons:Icons.Returns}"
                                                                   Width="16" Height="16" />
                                                     </Button>
-                                                    <!-- Generate Invoice Button (shown when no invoice linked) -->
+                                                    <!-- Create Invoice Button (shown when no invoice linked) -->
                                                     <Button Classes="icon-button"
-                                                            ToolTip.Tip="{loc:Loc 'Generate Invoice'}"
+                                                            ToolTip.Tip="{loc:Loc 'Create Invoice'}"
                                                             IsVisible="{Binding CanGenerateInvoice}"
                                                             Command="{Binding $parent[ItemsControl].((vm:RevenuePageViewModel)DataContext).GenerateInvoiceCommand}"
                                                             CommandParameter="{Binding}">
