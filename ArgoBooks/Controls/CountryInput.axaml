@@ -5,11 +5,16 @@
              xmlns:controls="using:ArgoBooks.Controls"
              xmlns:loc="using:ArgoBooks.Localization"
              xmlns:icons="using:ArgoBooks"
+             xmlns:converters="using:ArgoBooks.Converters"
              mc:Ignorable="d" d:DesignWidth="300" d:DesignHeight="40"
              x:Class="ArgoBooks.Controls.CountryInput"
              x:DataType="controls:CountryInput"
              x:Name="Root"
              Focusable="True">
+
+    <UserControl.Resources>
+        <converters:HighlightBrushMultiConverter x:Key="HighlightBrushMultiConverter" />
+    </UserControl.Resources>
 
     <Grid>
         <!-- Country Dropdown -->
@@ -104,14 +109,19 @@
                                       ItemsSource="{Binding #Root.FilteredCountries}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate DataType="controls:CountryDialCode">
-                                    <Button Background="Transparent"
-                                            BorderThickness="0"
+                                    <Button BorderThickness="0"
                                             Padding="10,8"
                                             Cursor="Hand"
                                             HorizontalAlignment="Stretch"
                                             HorizontalContentAlignment="Stretch"
                                             Command="{Binding #Root.SelectCountryCommand}"
                                             CommandParameter="{Binding}">
+                                        <Button.Background>
+                                            <MultiBinding Converter="{StaticResource HighlightBrushMultiConverter}">
+                                                <Binding Path="." />
+                                                <Binding Path="#Root.HighlightedCountry" />
+                                            </MultiBinding>
+                                        </Button.Background>
                                         <Button.Styles>
                                             <Style Selector="Button:pointerover /template/ ContentPresenter">
                                                 <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />

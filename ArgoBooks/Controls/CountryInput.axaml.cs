@@ -113,7 +113,6 @@ public partial class CountryInput : UserControl, INotifyPropertyChanged
 
                 if (value)
                 {
-                    SelectedIndex = 0;
                     UpdateFilteredCountries();
                 }
             }
@@ -148,9 +147,18 @@ public partial class CountryInput : UserControl, INotifyPropertyChanged
             {
                 field = value;
                 RaisePropertyChanged();
+                RaisePropertyChanged(nameof(HighlightedCountry));
+                if (value >= 0)
+                    _countryListBox?.ContainerFromIndex(value)?.BringIntoView();
             }
         }
     } = -1;
+
+    /// <summary>
+    /// Gets the country the arrow keys have highlighted, or null.
+    /// </summary>
+    public CountryDialCode? HighlightedCountry =>
+        SelectedIndex >= 0 && SelectedIndex < FilteredCountries.Count ? FilteredCountries[SelectedIndex] : null;
 
     /// <summary>
     /// Gets the filtered countries based on search.
@@ -199,11 +207,14 @@ public partial class CountryInput : UserControl, INotifyPropertyChanged
         }
     }
 
+    private ItemsControl? _countryListBox;
+
     protected override void OnLoaded(RoutedEventArgs e)
     {
         base.OnLoaded(e);
 
         _countrySearchBox = this.FindControl<TextBox>("CountrySearchBox");
+        _countryListBox = this.FindControl<ItemsControl>("CountryListBox");
 
         if (_countrySearchBox != null)
         {
@@ -320,6 +331,7 @@ public partial class CountryInput : UserControl, INotifyPropertyChanged
 
     private void UpdateFilteredCountries()
     {
+        SelectedIndex = -1;
         FilteredCountries.Clear();
 
         var searchText = _searchText.Trim().ToLowerInvariant();
