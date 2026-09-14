@@ -211,25 +211,22 @@ public partial class SupplierModalsViewModel : ViewModelBase
     public ObservableCollection<string> CountryOptions { get; } = ["All"];
     public ObservableCollection<string> StatusOptions { get; } = ["All", "Active", "Inactive"];
 
-    // Original filter values for change detection (captured when modal opens)
-    private string _originalFilterCountry = "All";
-    private string _originalFilterStatus = "All";
-
-    /// <summary>
-    /// Returns true if any filter has been changed from the state when the modal was opened.
-    /// </summary>
-    public bool HasFilterModalChanges =>
-        FilterCountry != _originalFilterCountry ||
-        FilterStatus != _originalFilterStatus;
-
-    /// <summary>
-    /// Captures the current filter state as original values for change detection.
-    /// </summary>
-    private void CaptureOriginalFilterValues()
+    private sealed record FilterValues(string Country, string Status)
     {
-        _originalFilterCountry = FilterCountry;
-        _originalFilterStatus = FilterStatus;
+        public static readonly FilterValues Default = new("All", "All");
     }
+
+    private FilterSnapshot<FilterValues>? _filters;
+
+    private FilterSnapshot<FilterValues> Filters => _filters ??= new(FilterValues.Default,
+        () => new(FilterCountry, FilterStatus),
+        v =>
+        {
+            FilterCountry = v.Country;
+            FilterStatus = v.Status;
+        });
+
+    public bool HasFilterModalChanges => Filters.HasChanges;
 
     #endregion
 
@@ -805,33 +802,20 @@ public partial class SupplierModalsViewModel : ViewModelBase
     public void OpenFilterModal()
     {
         UpdateCountryOptions();
-        CaptureOriginalFilterValues();
+        Filters.Capture();
         IsFilterModalOpen = true;
     }
 
-    [RelayCommand]
-    public void CloseFilterModal()
-    {
-        IsFilterModalOpen = false;
-    }
+    private void CloseFilterModal() => IsFilterModalOpen = false;
 
     /// <summary>
-    /// Requests to close the Filter modal, showing confirmation if filters have been changed.
+    /// Closes the filter modal, asking first and putting the filters back if they were changed.
     /// </summary>
     [RelayCommand]
     public async Task RequestCloseFilterModalAsync()
     {
-        if (HasFilterModalChanges)
-        {
-            if (!await ConfirmDiscardFiltersAsync())
-                return;
-
-            // Restore filter values to the state when modal was opened
-            FilterCountry = _originalFilterCountry;
-            FilterStatus = _originalFilterStatus;
-        }
-
-        CloseFilterModal();
+        if (await Filters.ConfirmDiscardAsync(ConfirmDiscardFiltersAsync))
+            CloseFilterModal();
     }
 
     [RelayCommand]
@@ -844,7 +828,7 @@ public partial class SupplierModalsViewModel : ViewModelBase
     [RelayCommand]
     public void ClearFilters()
     {
-        ResetFilterDefaults();
+        Filters.Reset();
         FiltersCleared?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
     }
@@ -883,12 +867,6 @@ public partial class SupplierModalsViewModel : ViewModelBase
     #endregion
 
     #region Helpers
-
-    private void ResetFilterDefaults()
-    {
-        FilterCountry = "All";
-        FilterStatus = "All";
-    }
 
     private void ClearModalFields()
     {

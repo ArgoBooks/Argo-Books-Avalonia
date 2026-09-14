@@ -230,6 +230,7 @@ public partial class StockLevelsPageViewModel : SortablePageViewModelBase
         {
             App.StockLevelsModalsViewModel.ItemSaved += OnModalItemSaved;
             App.StockLevelsModalsViewModel.FiltersApplied += OnFiltersApplied;
+            App.StockLevelsModalsViewModel.FiltersCleared += OnFiltersCleared;
         }
     }
 
@@ -244,6 +245,7 @@ public partial class StockLevelsPageViewModel : SortablePageViewModelBase
         {
             App.StockLevelsModalsViewModel.ItemSaved -= OnModalItemSaved;
             App.StockLevelsModalsViewModel.FiltersApplied -= OnFiltersApplied;
+            App.StockLevelsModalsViewModel.FiltersCleared -= OnFiltersCleared;
         }
     }
 
@@ -255,6 +257,15 @@ public partial class StockLevelsPageViewModel : SortablePageViewModelBase
         FilterCategory = e.Category;
         FilterLocation = e.Location;
         FilterStatus = e.Status;
+        CurrentPage = 1;
+        FilterItems();
+    }
+
+    private void OnFiltersCleared(object? sender, EventArgs e)
+    {
+        FilterCategory = "All";
+        FilterLocation = "All";
+        FilterStatus = "All";
         CurrentPage = 1;
         FilterItems();
     }

@@ -1,5 +1,8 @@
+using System.Globalization;
 using ArgoBooks.Controls;
 using ArgoBooks.Controls.ColumnWidths;
+using ArgoBooks.Core.Data;
+using ArgoBooks.Core.Models.Transactions;
 using ArgoBooks.Helpers;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Entities;
@@ -94,7 +97,20 @@ public partial class CustomersPageViewModel : SortablePageViewModelBase
         });
 
     [ObservableProperty]
+    private string _filterPaymentStatus = "All";
+
+    [ObservableProperty]
     private string _filterCustomerStatus = "All";
+
+    [ObservableProperty]
+    private string _filterCountry = "All";
+
+    /// <summary>Outstanding balance bounds, compared in USD.</summary>
+    [ObservableProperty]
+    private string? _filterOutstandingMin;
+
+    [ObservableProperty]
+    private string? _filterOutstandingMax;
 
     [ObservableProperty]
     private DateTime? _filterLastRentalFrom;
@@ -181,13 +197,15 @@ public partial class CustomersPageViewModel : SortablePageViewModelBase
     /// <summary>
     /// Handles filters applied event from modals.
     /// </summary>
-    private void OnFiltersApplied(object? sender, EventArgs e)
+    internal void OnFiltersApplied(object? sender, EventArgs e)
     {
-        // Copy filter values from shared ViewModel
-        var modals = App.CustomerModalsViewModel;
-        if (modals != null)
+        if (sender is CustomerModalsViewModel modals)
         {
+            FilterPaymentStatus = modals.FilterPaymentStatus;
             FilterCustomerStatus = modals.FilterCustomerStatus;
+            FilterCountry = modals.FilterCountry;
+            FilterOutstandingMin = modals.FilterOutstandingMin;
+            FilterOutstandingMax = modals.FilterOutstandingMax;
             FilterLastRentalFrom = modals.FilterLastRentalFrom;
             FilterLastRentalTo = modals.FilterLastRentalTo;
         }
@@ -198,9 +216,13 @@ public partial class CustomersPageViewModel : SortablePageViewModelBase
     /// <summary>
     /// Handles filters cleared event from modals.
     /// </summary>
-    private void OnFiltersCleared(object? sender, EventArgs e)
+    internal void OnFiltersCleared(object? sender, EventArgs e)
     {
+        FilterPaymentStatus = "All";
         FilterCustomerStatus = "All";
+        FilterCountry = "All";
+        FilterOutstandingMin = null;
+        FilterOutstandingMax = null;
         FilterLastRentalFrom = null;
         FilterLastRentalTo = null;
         SearchQuery = null;
@@ -278,6 +300,28 @@ public partial class CustomersPageViewModel : SortablePageViewModelBase
             filtered = filtered.Where(c => c.LastTransactionDate <= FilterLastRentalTo.Value);
         }
 
+        if (FilterCountry != "All")
+        {
+            var country = Countries.NormalizeCountryOrKeep(FilterCountry);
+            filtered = filtered.Where(c => string.Equals(
+                Countries.NormalizeCountryOrKeep(c.Address.Country), country, StringComparison.OrdinalIgnoreCase));
+        }
+
+        var outstandingMin = ParseAmount(FilterOutstandingMin);
+        var outstandingMax = ParseAmount(FilterOutstandingMax);
+        if (FilterPaymentStatus != "All" || outstandingMin.HasValue || outstandingMax.HasValue)
+        {
+            var standings = PaymentStandings(App.CompanyManager?.CompanyData?.Invoices ?? [], DateTime.Today);
+            var paymentStatus = FilterPaymentStatus;
+            filtered = filtered.Where(c =>
+            {
+                var standing = standings.GetValueOrDefault(c.Id);
+                return (paymentStatus == "All" || PaymentStatusOf(standing) == paymentStatus)
+                       && (!outstandingMin.HasValue || standing.OutstandingUSD >= outstandingMin.Value)
+                       && (!outstandingMax.HasValue || standing.OutstandingUSD <= outstandingMax.Value);
+            });
+        }
+
         var displayItems = filtered.Select(customer =>
         {
             var addressParts = new List<string>();
@@ -328,6 +372,41 @@ public partial class CustomersPageViewModel : SortablePageViewModelBase
 
         Customers.ReplaceAll(pagedCustomers);
     }
+
+    /// <summary>What a customer owes on open invoices, in USD, and how many days late the oldest overdue one is.</summary>
+    internal readonly record struct PaymentStanding(decimal OutstandingUSD, int DaysPastDue);
+
+    /// <summary>Beyond the AR aging report's last bucket (90+ days).</summary>
+    internal const int DelinquentAfterDays = 90;
+
+    /// <summary>
+    /// Standings by customer id, over the invoices the Invoices page counts as outstanding: drafts
+    /// were never sent, and paid or cancelled invoices are settled.
+    /// </summary>
+    internal static Dictionary<string, PaymentStanding> PaymentStandings(IEnumerable<Invoice> invoices, DateTime today) =>
+        invoices
+            .Where(i => i.Status is not (InvoiceStatus.Draft or InvoiceStatus.Paid or InvoiceStatus.Cancelled))
+            .GroupBy(i => i.CustomerId)
+            .ToDictionary(g => g.Key, g => new PaymentStanding(
+                g.Sum(i => i.EffectiveBalanceUSD),
+                g.Where(i => i.IsOverdue || i.Status == InvoiceStatus.Overdue)
+                    .Select(i => Math.Max(1, (today.Date - i.DueDate.Date).Days))
+                    .DefaultIfEmpty(0)
+                    .Max()));
+
+    /// <summary>
+    /// The payment status filter's tiers, which don't overlap: Current has nothing overdue, Overdue is
+    /// up to 90 days late, Delinquent is later than that.
+    /// </summary>
+    internal static string PaymentStatusOf(PaymentStanding standing) => standing.DaysPastDue switch
+    {
+        > DelinquentAfterDays => "Delinquent",
+        > 0 => "Overdue",
+        _ => "Current"
+    };
+
+    private static decimal? ParseAmount(string? text) =>
+        decimal.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out var amount) ? amount : null;
 
     #endregion
 

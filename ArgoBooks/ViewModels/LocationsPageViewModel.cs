@@ -148,6 +148,7 @@ public partial class LocationsPageViewModel : SortablePageViewModelBase
             App.LocationsModalsViewModel.LocationSaved += OnModalLocationSaved;
             App.LocationsModalsViewModel.LocationDeleted += OnModalLocationDeleted;
             App.LocationsModalsViewModel.FiltersApplied += OnFiltersApplied;
+            App.LocationsModalsViewModel.FiltersCleared += OnFiltersCleared;
         }
     }
 
@@ -163,6 +164,7 @@ public partial class LocationsPageViewModel : SortablePageViewModelBase
             App.LocationsModalsViewModel.LocationSaved -= OnModalLocationSaved;
             App.LocationsModalsViewModel.LocationDeleted -= OnModalLocationDeleted;
             App.LocationsModalsViewModel.FiltersApplied -= OnFiltersApplied;
+            App.LocationsModalsViewModel.FiltersCleared -= OnFiltersCleared;
         }
     }
 
@@ -173,6 +175,14 @@ public partial class LocationsPageViewModel : SortablePageViewModelBase
     {
         FilterType = e.Type;
         FilterStatus = e.Status;
+        CurrentPage = 1;
+        FilterLocations();
+    }
+
+    private void OnFiltersCleared(object? sender, EventArgs e)
+    {
+        FilterType = "All";
+        FilterStatus = "All";
         CurrentPage = 1;
         FilterLocations();
     }

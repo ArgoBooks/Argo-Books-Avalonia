@@ -757,41 +757,31 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
     /// </summary>
     public ObservableCollection<string> FilterStatusOptions { get; } = new(InventoryStatusExtensions.GetFilterOptions());
 
-    // Original filter values for change detection
-    private string _originalFilterCategory = "All";
-    private string _originalFilterLocation = "All";
-    private string _originalFilterStatus = "All";
-
     /// <summary>
-    /// Returns true if any filter has been changed from its original value when the modal was opened.
+    /// Raised when filters are cleared.
     /// </summary>
-    public bool HasFilterModalChanges =>
-        FilterCategory != _originalFilterCategory ||
-        FilterLocation != _originalFilterLocation ||
-        FilterStatus != _originalFilterStatus;
+    public event EventHandler? FiltersCleared;
 
-    /// <summary>
-    /// Captures the current filter values as the original values for change detection.
-    /// </summary>
-    private void CaptureOriginalFilterValues()
+    private sealed record FilterValues(string Category, string Location, string Status)
     {
-        _originalFilterCategory = FilterCategory;
-        _originalFilterLocation = FilterLocation;
-        _originalFilterStatus = FilterStatus;
+        public static readonly FilterValues Default = new("All", "All", "All");
     }
 
-    /// <summary>
-    /// Restores filter values to their original values when the modal was opened.
-    /// </summary>
-    private void RestoreOriginalFilterValues()
-    {
-        FilterCategory = _originalFilterCategory;
-        FilterLocation = _originalFilterLocation;
-        FilterStatus = _originalFilterStatus;
-    }
+    private FilterSnapshot<FilterValues>? _filters;
+
+    private FilterSnapshot<FilterValues> Filters => _filters ??= new(FilterValues.Default,
+        () => new(FilterCategory, FilterLocation, FilterStatus),
+        v =>
+        {
+            FilterCategory = v.Category;
+            FilterLocation = v.Location;
+            FilterStatus = v.Status;
+        });
+
+    public bool HasFilterModalChanges => Filters.HasChanges;
 
     /// <summary>
-    /// Opens the filter modal.
+    /// Opens the filter modal seeded with the page's current filters.
     /// </summary>
     public void OpenFilterModal(IEnumerable<string> categories, IEnumerable<string> locations,
         string currentCategory, string currentLocation, string currentStatus)
@@ -806,38 +796,21 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
         foreach (var loc in locations.Where(l => l != "All"))
             FilterLocations.Add(loc);
 
-        FilterCategory = currentCategory;
-        FilterLocation = currentLocation;
-        FilterStatus = currentStatus;
-
-        CaptureOriginalFilterValues();
+        Filters.Set(new(currentCategory, currentLocation, currentStatus));
+        Filters.Capture();
         IsFilterModalOpen = true;
     }
 
-    /// <summary>
-    /// Closes the filter modal.
-    /// </summary>
-    [RelayCommand]
-    private void CloseFilterModal()
-    {
-        IsFilterModalOpen = false;
-    }
+    private void CloseFilterModal() => IsFilterModalOpen = false;
 
     /// <summary>
-    /// Requests to close the Filter modal, showing confirmation if changes were made.
+    /// Closes the filter modal, asking first and putting the filters back if they were changed.
     /// </summary>
     [RelayCommand]
     public async Task RequestCloseFilterModalAsync()
     {
-        if (HasFilterModalChanges)
-        {
-            if (!await ConfirmDiscardFiltersAsync())
-                return;
-
-            RestoreOriginalFilterValues();
-        }
-
-        CloseFilterModal();
+        if (await Filters.ConfirmDiscardAsync(ConfirmDiscardFiltersAsync))
+            CloseFilterModal();
     }
 
     /// <summary>
@@ -847,7 +820,7 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
     private void ApplyFilters()
     {
         FiltersApplied?.Invoke(this, new FilterAppliedEventArgs(FilterCategory, FilterLocation, FilterStatus));
-        IsFilterModalOpen = false;
+        CloseFilterModal();
     }
 
     /// <summary>
@@ -856,18 +829,9 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
     [RelayCommand]
     private void ClearFilters()
     {
-        ResetFilterDefaults();
+        Filters.Reset();
+        FiltersCleared?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
-    }
-
-    /// <summary>
-    /// Resets filter values to their defaults.
-    /// </summary>
-    private void ResetFilterDefaults()
-    {
-        FilterCategory = "All";
-        FilterLocation = "All";
-        FilterStatus = "All";
     }
 
     #endregion

@@ -358,7 +358,7 @@
                                            Foreground="{DynamicResource TextPrimaryBrush}"
                                            VerticalAlignment="Center" />
                                 <Button Grid.Column="1" Classes="icon-button"
-                                        Command="{Binding CloseFilterModalCommand}">
+                                        Command="{Binding RequestCloseFilterModalCommand}">
                                     <PathIcon Data="{x:Static icons:Icons.Close}" Width="20" Height="20" />
                                 </Button>
                             </Grid>
@@ -436,7 +436,7 @@
                                         Command="{Binding ClearFiltersCommand}" />
                                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12">
                                     <Button Classes="secondary-button" Content="{loc:Loc Cancel}"
-                                            Command="{Binding CloseFilterModalCommand}" />
+                                            Command="{Binding RequestCloseFilterModalCommand}" />
                                     <Button Classes="primary-button" Content="{loc:Loc Apply}"
                                             Command="{Binding ApplyFiltersCommand}" />
                                 </StackPanel>

@@ -1498,42 +1498,24 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
     public ObservableCollection<string> FilterStatusOptions { get; } =
         new(PurchaseOrderStatusExtensions.GetFilterOptions());
 
-    // Original filter values for change detection
-    private DateTimeOffset? _originalFilterStartDate;
-    private DateTimeOffset? _originalFilterEndDate;
-    private string _originalFilterSupplier = "All";
-    private string _originalFilterStatus = "All";
-
-    /// <summary>
-    /// Returns true if any filter has been changed from its original value when the modal was opened.
-    /// </summary>
-    public bool HasFilterModalChanges =>
-        FilterStartDate != _originalFilterStartDate ||
-        FilterEndDate != _originalFilterEndDate ||
-        FilterSupplier != _originalFilterSupplier ||
-        FilterStatus != _originalFilterStatus;
-
-    /// <summary>
-    /// Captures the current filter values as the original values for change detection.
-    /// </summary>
-    private void CaptureOriginalFilterValues()
+    private sealed record FilterValues(DateTimeOffset? StartDate, DateTimeOffset? EndDate, string Supplier, string Status)
     {
-        _originalFilterStartDate = FilterStartDate;
-        _originalFilterEndDate = FilterEndDate;
-        _originalFilterSupplier = FilterSupplier;
-        _originalFilterStatus = FilterStatus;
+        public static readonly FilterValues Default = new(null, null, "All", "All");
     }
 
-    /// <summary>
-    /// Restores filter values to their original values when the modal was opened.
-    /// </summary>
-    private void RestoreOriginalFilterValues()
-    {
-        FilterStartDate = _originalFilterStartDate;
-        FilterEndDate = _originalFilterEndDate;
-        FilterSupplier = _originalFilterSupplier;
-        FilterStatus = _originalFilterStatus;
-    }
+    private FilterSnapshot<FilterValues>? _filters;
+
+    private FilterSnapshot<FilterValues> Filters => _filters ??= new(FilterValues.Default,
+        () => new(FilterStartDate, FilterEndDate, FilterSupplier, FilterStatus),
+        v =>
+        {
+            FilterStartDate = v.StartDate;
+            FilterEndDate = v.EndDate;
+            FilterSupplier = v.Supplier;
+            FilterStatus = v.Status;
+        });
+
+    public bool HasFilterModalChanges => Filters.HasChanges;
 
     /// <summary>
     /// Opens the filter modal.
@@ -1541,34 +1523,20 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
     public void OpenFilterModal()
     {
         LoadFilterSupplierOptions();
-        CaptureOriginalFilterValues();
+        Filters.Capture();
         IsFilterModalOpen = true;
     }
 
-    /// <summary>
-    /// Closes the filter modal.
-    /// </summary>
-    [RelayCommand]
-    private void CloseFilterModal()
-    {
-        IsFilterModalOpen = false;
-    }
+    private void CloseFilterModal() => IsFilterModalOpen = false;
 
     /// <summary>
-    /// Requests to close the filter modal, showing confirmation if filters have been changed.
+    /// Closes the filter modal, asking first and putting the filters back if they were changed.
     /// </summary>
     [RelayCommand]
     public async Task RequestCloseFilterModalAsync()
     {
-        if (HasFilterModalChanges)
-        {
-            if (!await ConfirmDiscardFiltersAsync())
-                return;
-
-            RestoreOriginalFilterValues();
-        }
-
-        CloseFilterModal();
+        if (await Filters.ConfirmDiscardAsync(ConfirmDiscardFiltersAsync))
+            CloseFilterModal();
     }
 
     /// <summary>
@@ -1587,17 +1555,9 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
     [RelayCommand]
     private void ClearFilters()
     {
-        ResetFilterDefaults();
+        Filters.Reset();
         FiltersCleared?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
-    }
-
-    private void ResetFilterDefaults()
-    {
-        FilterStartDate = null;
-        FilterEndDate = null;
-        FilterSupplier = "All";
-        FilterStatus = "All";
     }
 
     private void LoadFilterSupplierOptions()

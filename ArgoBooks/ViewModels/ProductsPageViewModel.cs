@@ -1,4 +1,3 @@
-using System.Collections.ObjectModel;
 using ArgoBooks.Controls;
 using ArgoBooks.Controls.ColumnWidths;
 using ArgoBooks.Core.Enums;
@@ -118,11 +117,13 @@ public partial class ProductsPageViewModel : SortablePageViewModelBase
     [ObservableProperty]
     private string _filterItemType = "All";
 
+    /// <summary>Category chosen in the filter modal; null means all.</summary>
     [ObservableProperty]
-    private string? _filterCategory;
+    private string? _filterCategoryId;
 
+    /// <summary>Supplier chosen in the filter modal; null means all.</summary>
     [ObservableProperty]
-    private string? _filterSupplier;
+    private string? _filterSupplierId;
 
     #endregion
 
@@ -157,16 +158,6 @@ public partial class ProductsPageViewModel : SortablePageViewModelBase
     /// </summary>
     public BatchObservableCollection<ProductDisplayItem> CurrentProducts =>
         IsExpensesTabSelected ? ExpenseProducts : RevenueProducts;
-
-    /// <summary>
-    /// Available categories for filter/modal dropdown.
-    /// </summary>
-    public ObservableCollection<CategoryOption> AvailableCategories { get; } = [];
-
-    /// <summary>
-    /// Available suppliers for filter/modal dropdown.
-    /// </summary>
-    public ObservableCollection<SupplierOption> AvailableSuppliers { get; } = [];
 
     #endregion
 
@@ -236,8 +227,8 @@ public partial class ProductsPageViewModel : SortablePageViewModelBase
         if (modals != null)
         {
             FilterItemType = modals.FilterItemType;
-            FilterCategory = modals.FilterCategory;
-            FilterSupplier = modals.FilterSupplier;
+            FilterCategoryId = modals.FilterCategory?.Id;
+            FilterSupplierId = modals.FilterSupplier?.Id;
         }
         CurrentPage = 1;
         FilterProducts();
@@ -246,8 +237,8 @@ public partial class ProductsPageViewModel : SortablePageViewModelBase
     private void OnFiltersCleared(object? sender, EventArgs e)
     {
         FilterItemType = "All";
-        FilterCategory = null;
-        FilterSupplier = null;
+        FilterCategoryId = null;
+        FilterSupplierId = null;
         SearchQuery = null;
         CurrentPage = 1;
         FilterProducts();
@@ -271,26 +262,7 @@ public partial class ProductsPageViewModel : SortablePageViewModelBase
             return;
 
         _allProducts.AddRange(companyData.Products);
-        UpdateDropdownOptions();
         FilterProducts();
-    }
-
-    /// <summary>
-    /// Updates the dropdown options from company data.
-    /// </summary>
-    private void UpdateDropdownOptions()
-    {
-        var companyData = App.CompanyManager?.CompanyData;
-        if (companyData == null)
-            return;
-
-        var targetType = IsExpensesTabSelected ? CategoryType.Expense : CategoryType.Revenue;
-        OptionLoader.Fill(AvailableCategories,
-            OptionLoader.Categories(companyData, targetType).AsOptions<CategoryOption>(),
-            new CategoryOption { Name = "All Categories" });
-        OptionLoader.Fill(AvailableSuppliers,
-            OptionLoader.Suppliers(companyData).AsOptions<SupplierOption>(),
-            new SupplierOption { Name = "All Suppliers" });
     }
 
     /// <summary>
@@ -332,22 +304,15 @@ public partial class ProductsPageViewModel : SortablePageViewModelBase
             filtered = filtered.Where(p => p.ItemType == FilterItemType);
         }
 
-        if (!string.IsNullOrWhiteSpace(FilterCategory) && FilterCategory != "All Categories")
+        // A category picked on the other tab doesn't narrow this one.
+        if (FilterCategoryId != null && categoryIds.Contains(FilterCategoryId))
         {
-            var categoryOption = AvailableCategories.FirstOrDefault(c => c.Name == FilterCategory);
-            if (categoryOption?.Id != null)
-            {
-                filtered = filtered.Where(p => p.CategoryId == categoryOption.Id);
-            }
+            filtered = filtered.Where(p => p.CategoryId == FilterCategoryId);
         }
 
-        if (!string.IsNullOrWhiteSpace(FilterSupplier) && FilterSupplier != "All Suppliers")
+        if (FilterSupplierId != null)
         {
-            var supplierOption = AvailableSuppliers.FirstOrDefault(s => s.Name == FilterSupplier);
-            if (supplierOption?.Id != null)
-            {
-                filtered = filtered.Where(p => p.SupplierId == supplierOption.Id);
-            }
+            filtered = filtered.Where(p => p.SupplierId == FilterSupplierId);
         }
 
         var displayItems = filtered.Select(product =>

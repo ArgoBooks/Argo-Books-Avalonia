@@ -241,14 +241,29 @@ public partial class CustomerModalsViewModel : ViewModelBase
     [ObservableProperty]
     private DateTime? _filterLastRentalTo;
 
-    // Original filter values for change detection (captured when modal opens)
-    private string _originalFilterPaymentStatus = "All";
-    private string _originalFilterCustomerStatus = "All";
-    private string _originalFilterCountry = "All";
-    private string? _originalFilterOutstandingMin;
-    private string? _originalFilterOutstandingMax;
-    private DateTime? _originalFilterLastRentalFrom;
-    private DateTime? _originalFilterLastRentalTo;
+    private sealed record FilterValues(
+        string PaymentStatus, string CustomerStatus, string Country,
+        string? OutstandingMin, string? OutstandingMax,
+        DateTime? LastRentalFrom, DateTime? LastRentalTo)
+    {
+        public static readonly FilterValues Default = new("All", "All", "All", null, null, null, null);
+    }
+
+    private FilterSnapshot<FilterValues>? _filters;
+
+    private FilterSnapshot<FilterValues> Filters => _filters ??= new(FilterValues.Default,
+        () => new(FilterPaymentStatus, FilterCustomerStatus, FilterCountry,
+            FilterOutstandingMin, FilterOutstandingMax, FilterLastRentalFrom, FilterLastRentalTo),
+        v =>
+        {
+            FilterPaymentStatus = v.PaymentStatus;
+            FilterCustomerStatus = v.CustomerStatus;
+            FilterCountry = v.Country;
+            FilterOutstandingMin = v.OutstandingMin;
+            FilterOutstandingMax = v.OutstandingMax;
+            FilterLastRentalFrom = v.LastRentalFrom;
+            FilterLastRentalTo = v.LastRentalTo;
+        });
 
     #endregion
 
@@ -848,82 +863,38 @@ public partial class CustomerModalsViewModel : ViewModelBase
 
     #region Filter Modal
 
-    /// <summary>
-    /// Returns true if any filter has been changed from the state when the modal was opened.
-    /// </summary>
-    public bool HasFilterModalChanges =>
-        FilterPaymentStatus != _originalFilterPaymentStatus ||
-        FilterCustomerStatus != _originalFilterCustomerStatus ||
-        FilterCountry != _originalFilterCountry ||
-        FilterOutstandingMin != _originalFilterOutstandingMin ||
-        FilterOutstandingMax != _originalFilterOutstandingMax ||
-        FilterLastRentalFrom != _originalFilterLastRentalFrom ||
-        FilterLastRentalTo != _originalFilterLastRentalTo;
-
-    /// <summary>
-    /// Captures the current filter state as original values for change detection.
-    /// </summary>
-    private void CaptureOriginalFilterValues()
-    {
-        _originalFilterPaymentStatus = FilterPaymentStatus;
-        _originalFilterCustomerStatus = FilterCustomerStatus;
-        _originalFilterCountry = FilterCountry;
-        _originalFilterOutstandingMin = FilterOutstandingMin;
-        _originalFilterOutstandingMax = FilterOutstandingMax;
-        _originalFilterLastRentalFrom = FilterLastRentalFrom;
-        _originalFilterLastRentalTo = FilterLastRentalTo;
-    }
+    public bool HasFilterModalChanges => Filters.HasChanges;
 
     [RelayCommand]
     public void OpenFilterModal()
     {
         UpdateCountryOptions();
-        CaptureOriginalFilterValues();
+        Filters.Capture();
         IsFilterModalOpen = true;
     }
 
     private void UpdateCountryOptions()
     {
+        // The page matches countries after normalising them, so "US" and "United States" are one choice.
         var addresses = App.CompanyManager?.CompanyData?.Customers.Select(c => c.Address) ?? Enumerable.Empty<Address>();
-        OptionLoader.Fill(CountryOptions, OptionLoader.Countries(addresses), "All");
+        OptionLoader.Fill(CountryOptions,
+            OptionLoader.Countries(addresses)
+                .Select(Core.Data.Countries.NormalizeCountryOrKeep)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(c => c),
+            "All");
     }
 
-    [RelayCommand]
-    public void CloseFilterModal()
-    {
-        IsFilterModalOpen = false;
-    }
+    private void CloseFilterModal() => IsFilterModalOpen = false;
 
+    /// <summary>
+    /// Closes the filter modal, asking first and putting the filters back if they were changed.
+    /// </summary>
     [RelayCommand]
     public async Task RequestCloseFilterModalAsync()
     {
-        if (HasFilterModalChanges)
-        {
-            if (!await ConfirmDiscardFiltersAsync())
-                return;
-
-            // Restore filter values to the state when modal was opened
-            FilterPaymentStatus = _originalFilterPaymentStatus;
-            FilterCustomerStatus = _originalFilterCustomerStatus;
-            FilterCountry = _originalFilterCountry;
-            FilterOutstandingMin = _originalFilterOutstandingMin;
-            FilterOutstandingMax = _originalFilterOutstandingMax;
-            FilterLastRentalFrom = _originalFilterLastRentalFrom;
-            FilterLastRentalTo = _originalFilterLastRentalTo;
-        }
-
-        CloseFilterModal();
-    }
-
-    private void ResetFilterDefaults()
-    {
-        FilterPaymentStatus = "All";
-        FilterCustomerStatus = "All";
-        FilterCountry = "All";
-        FilterOutstandingMin = null;
-        FilterOutstandingMax = null;
-        FilterLastRentalFrom = null;
-        FilterLastRentalTo = null;
+        if (await Filters.ConfirmDiscardAsync(ConfirmDiscardFiltersAsync))
+            CloseFilterModal();
     }
 
     [RelayCommand]
@@ -936,7 +907,7 @@ public partial class CustomerModalsViewModel : ViewModelBase
     [RelayCommand]
     public void ClearFilters()
     {
-        ResetFilterDefaults();
+        Filters.Reset();
         FiltersCleared?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
     }
@@ -1087,51 +1058,49 @@ public partial class CustomerModalsViewModel : ViewModelBase
         CustomerHistory.Clear();
     }
 
+    private sealed record HistoryFilterValues(
+        string Type, string Status, DateTime? DateFrom, DateTime? DateTo, string? AmountMin, string? AmountMax)
+    {
+        public static readonly HistoryFilterValues Default = new("All", "All", null, null, null, null);
+    }
+
+    private FilterSnapshot<HistoryFilterValues>? _historyFilters;
+
+    private FilterSnapshot<HistoryFilterValues> HistoryFilters => _historyFilters ??= new(HistoryFilterValues.Default,
+        () => new(HistoryFilterType, HistoryFilterStatus, HistoryFilterDateFrom, HistoryFilterDateTo,
+            HistoryFilterAmountMin, HistoryFilterAmountMax),
+        v =>
+        {
+            HistoryFilterType = v.Type;
+            HistoryFilterStatus = v.Status;
+            HistoryFilterDateFrom = v.DateFrom;
+            HistoryFilterDateTo = v.DateTo;
+            HistoryFilterAmountMin = v.AmountMin;
+            HistoryFilterAmountMax = v.AmountMax;
+        });
+
     /// <summary>
-    /// Returns true if any history filter has been changed from its default value.
+    /// Returns true if any history filter has been changed since the history filter modal opened.
     /// </summary>
-    public bool HasHistoryFilterChanges =>
-        HistoryFilterType != "All" ||
-        HistoryFilterStatus != "All" ||
-        HistoryFilterDateFrom != null ||
-        HistoryFilterDateTo != null ||
-        !string.IsNullOrWhiteSpace(HistoryFilterAmountMin) ||
-        !string.IsNullOrWhiteSpace(HistoryFilterAmountMax);
+    public bool HasHistoryFilterChanges => HistoryFilters.HasChanges;
 
     [RelayCommand]
     public void OpenHistoryFilterModal()
     {
+        HistoryFilters.Capture();
         IsHistoryFilterModalOpen = true;
     }
 
-    [RelayCommand]
-    public void CloseHistoryFilterModal()
-    {
-        IsHistoryFilterModalOpen = false;
-    }
+    private void CloseHistoryFilterModal() => IsHistoryFilterModalOpen = false;
 
+    /// <summary>
+    /// Closes the history filter modal, asking first and putting the filters back if they were changed.
+    /// </summary>
     [RelayCommand]
     public async Task RequestCloseHistoryFilterModalAsync()
     {
-        if (HasHistoryFilterChanges)
-        {
-            if (!await ConfirmDiscardFiltersAsync())
-                return;
-
-            ResetHistoryFilterDefaults();
-        }
-
-        CloseHistoryFilterModal();
-    }
-
-    private void ResetHistoryFilterDefaults()
-    {
-        HistoryFilterType = "All";
-        HistoryFilterStatus = "All";
-        HistoryFilterDateFrom = null;
-        HistoryFilterDateTo = null;
-        HistoryFilterAmountMin = null;
-        HistoryFilterAmountMax = null;
+        if (await HistoryFilters.ConfirmDiscardAsync(ConfirmDiscardFiltersAsync))
+            CloseHistoryFilterModal();
     }
 
     [RelayCommand]
@@ -1147,7 +1116,7 @@ public partial class CustomerModalsViewModel : ViewModelBase
     [RelayCommand]
     public void ClearHistoryFilters()
     {
-        ResetHistoryFilterDefaults();
+        HistoryFilters.Reset();
         if (_historyCustomer != null)
         {
             LoadCustomerHistory(_historyCustomer.Id);

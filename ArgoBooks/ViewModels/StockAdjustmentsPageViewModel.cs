@@ -153,10 +153,14 @@ public partial class StockAdjustmentsPageViewModel : SortablePageViewModelBase
     private DateTime? _endDate;
 
     [ObservableProperty]
-    private string _filterLocation = "All";
-
-    [ObservableProperty]
     private string _filterProduct = "All";
+
+    /// <summary>
+    /// Adjustment type chosen in the filter modal ("All", "Add", "Remove" or "Set"). It narrows
+    /// whatever the tab already shows.
+    /// </summary>
+    [ObservableProperty]
+    private string _filterType = "All";
 
     #endregion
 
@@ -171,11 +175,6 @@ public partial class StockAdjustmentsPageViewModel : SortablePageViewModelBase
     /// Adjustments for display in the table.
     /// </summary>
     public BatchObservableCollection<StockAdjustmentDisplayItem> Adjustments { get; } = [];
-
-    /// <summary>
-    /// Location options for filter.
-    /// </summary>
-    public ObservableCollection<string> LocationOptions { get; } = ["All"];
 
     /// <summary>
     /// Product options for filter.
@@ -218,6 +217,7 @@ public partial class StockAdjustmentsPageViewModel : SortablePageViewModelBase
             App.StockAdjustmentsModalsViewModel.AdjustmentSaved += OnAdjustmentMade;
             App.StockAdjustmentsModalsViewModel.AdjustmentDeleted += OnAdjustmentMade;
             App.StockAdjustmentsModalsViewModel.FiltersApplied += OnFiltersApplied;
+            App.StockAdjustmentsModalsViewModel.FiltersCleared += OnFiltersCleared;
         }
 
         // Subscribe to timezone/time format changes to refresh time display. Use a named handler (not
@@ -242,6 +242,7 @@ public partial class StockAdjustmentsPageViewModel : SortablePageViewModelBase
             App.StockAdjustmentsModalsViewModel.AdjustmentSaved -= OnAdjustmentMade;
             App.StockAdjustmentsModalsViewModel.AdjustmentDeleted -= OnAdjustmentMade;
             App.StockAdjustmentsModalsViewModel.FiltersApplied -= OnFiltersApplied;
+            App.StockAdjustmentsModalsViewModel.FiltersCleared -= OnFiltersCleared;
         }
         TimeZoneService.TimeSettingsChanged -= OnTimeSettingsChanged;
     }
@@ -249,12 +250,22 @@ public partial class StockAdjustmentsPageViewModel : SortablePageViewModelBase
     /// <summary>
     /// Handles filter applied events from the modals.
     /// </summary>
-    private void OnFiltersApplied(object? sender, AdjustmentsFilterAppliedEventArgs e)
+    internal void OnFiltersApplied(object? sender, AdjustmentsFilterAppliedEventArgs e)
     {
         StartDate = e.StartDate?.DateTime;
         EndDate = e.EndDate?.DateTime;
         FilterProduct = e.Product;
-        // Note: FilterType maps to adjustment type filter
+        FilterType = e.Type;
+        CurrentPage = 1;
+        FilterAdjustments();
+    }
+
+    internal void OnFiltersCleared(object? sender, EventArgs e)
+    {
+        StartDate = null;
+        EndDate = null;
+        FilterProduct = "All";
+        FilterType = "All";
         CurrentPage = 1;
         FilterAdjustments();
     }
@@ -297,14 +308,6 @@ public partial class StockAdjustmentsPageViewModel : SortablePageViewModelBase
     {
         var companyData = App.CompanyManager?.CompanyData;
         if (companyData == null) return;
-
-        LocationOptions.Clear();
-        LocationOptions.Add("All");
-        var locations = companyData.Locations.Select(l => l.Name).Distinct().OrderBy(n => n).ToList();
-        foreach (var location in locations)
-        {
-            LocationOptions.Add(location);
-        }
 
         ProductOptions.Clear();
         ProductOptions.Add("All");
@@ -351,21 +354,14 @@ public partial class StockAdjustmentsPageViewModel : SortablePageViewModelBase
 
         IEnumerable<StockAdjustment> filtered = _allAdjustments;
 
-        // Apply tab filter
-        if (ActiveTab != "All")
+        if (ParseAdjustmentType(ActiveTab) is { } tabType)
         {
-            var tabType = ActiveTab switch
-            {
-                "Add" => AdjustmentType.Add,
-                "Remove" => AdjustmentType.Remove,
-                "Set" => AdjustmentType.Set,
-                _ => (AdjustmentType?)null
-            };
+            filtered = filtered.Where(a => a.AdjustmentType == tabType);
+        }
 
-            if (tabType.HasValue)
-            {
-                filtered = filtered.Where(a => a.AdjustmentType == tabType.Value);
-            }
+        if (ParseAdjustmentType(FilterType) is { } filterType)
+        {
+            filtered = filtered.Where(a => a.AdjustmentType == filterType);
         }
 
         // Apply date range filter
@@ -376,17 +372,6 @@ public partial class StockAdjustmentsPageViewModel : SortablePageViewModelBase
         if (EndDate.HasValue)
         {
             filtered = filtered.Where(a => a.Timestamp.Date <= EndDate.Value.Date);
-        }
-
-        if (FilterLocation != "All")
-        {
-            filtered = filtered.Where(a =>
-            {
-                var invItem = inventory.FirstOrDefault(i => i.Id == a.InventoryItemId);
-                if (invItem == null) return false;
-                var location = locations.FirstOrDefault(l => l.Id == invItem.LocationId);
-                return location?.Name == FilterLocation;
-            });
         }
 
         if (FilterProduct != "All")
@@ -522,8 +507,19 @@ public partial class StockAdjustmentsPageViewModel : SortablePageViewModelBase
             StartDate,
             EndDate,
             FilterProduct,
-            "All");
+            FilterType);
     }
+
+    /// <summary>
+    /// Maps a tab or filter option ("Add", "Remove", "Set") to its adjustment type; "All" maps to null.
+    /// </summary>
+    private static AdjustmentType? ParseAdjustmentType(string option) => option switch
+    {
+        nameof(AdjustmentType.Add) => AdjustmentType.Add,
+        nameof(AdjustmentType.Remove) => AdjustmentType.Remove,
+        nameof(AdjustmentType.Set) => AdjustmentType.Set,
+        _ => null
+    };
 
     #endregion
 

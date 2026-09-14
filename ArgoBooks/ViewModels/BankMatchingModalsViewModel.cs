@@ -96,6 +96,9 @@ public partial class BankMatchingModalsViewModel : ViewModelBase
     /// <summary>Raised when the user applies filters from the filter modal.</summary>
     public event EventHandler<BankFilterAppliedEventArgs>? FiltersApplied;
 
+    /// <summary>Raised when the user clears the filter modal's filters.</summary>
+    public event EventHandler? FiltersCleared;
+
     [ObservableProperty]
     private bool _isFilterModalOpen;
 
@@ -112,33 +115,56 @@ public partial class BankMatchingModalsViewModel : ViewModelBase
     public ObservableCollection<string> StatusOptions { get; } =
         ["All", "Matched", "Suggested", "Unmatched", "Ignored"];
 
+    private sealed record LineFilterValues(DateTimeOffset? StartDate, DateTimeOffset? EndDate, string Status)
+    {
+        public static readonly LineFilterValues Default = new(null, null, "All");
+    }
+
+    private FilterSnapshot<LineFilterValues>? _filters;
+
+    private FilterSnapshot<LineFilterValues> Filters => _filters ??= new(LineFilterValues.Default,
+        () => new(FilterStartDate, FilterEndDate, FilterStatus),
+        v =>
+        {
+            FilterStartDate = v.StartDate;
+            FilterEndDate = v.EndDate;
+            FilterStatus = v.Status;
+        });
+
+    public bool HasFilterModalChanges => Filters.HasChanges;
+
+    private static DateTimeOffset? ToOffset(DateTime? date) => date.HasValue ? new DateTimeOffset(date.Value) : null;
+
     /// <summary>Opens the filter modal seeded with the current filter values.</summary>
     public void OpenFilterModal(DateTime? startDate, DateTime? endDate, string status)
     {
-        FilterStartDate = startDate.HasValue ? new DateTimeOffset(startDate.Value) : null;
-        FilterEndDate = endDate.HasValue ? new DateTimeOffset(endDate.Value) : null;
-        FilterStatus = string.IsNullOrEmpty(status) ? "All" : status;
+        Filters.Set(new(ToOffset(startDate), ToOffset(endDate), string.IsNullOrEmpty(status) ? "All" : status));
+        Filters.Capture();
         IsFilterModalOpen = true;
     }
 
-    [RelayCommand]
     private void CloseFilterModal() => IsFilterModalOpen = false;
+
+    [RelayCommand]
+    private async Task RequestCloseFilterModalAsync()
+    {
+        if (await Filters.ConfirmDiscardAsync(ConfirmDiscardFiltersAsync))
+            CloseFilterModal();
+    }
 
     [RelayCommand]
     private void ApplyFilters()
     {
-        IsFilterModalOpen = false;
+        CloseFilterModal();
         FiltersApplied?.Invoke(this, new BankFilterAppliedEventArgs(FilterStartDate, FilterEndDate, FilterStatus));
     }
 
     [RelayCommand]
     private void ClearFilters()
     {
-        FilterStartDate = null;
-        FilterEndDate = null;
-        FilterStatus = "All";
-        IsFilterModalOpen = false;
-        FiltersApplied?.Invoke(this, new BankFilterAppliedEventArgs(null, null, "All"));
+        Filters.Reset();
+        CloseFilterModal();
+        FiltersCleared?.Invoke(this, EventArgs.Empty);
     }
 
     #endregion
@@ -147,6 +173,9 @@ public partial class BankMatchingModalsViewModel : ViewModelBase
 
     /// <summary>Raised when the user applies filters from the missing-records filter modal.</summary>
     public event EventHandler<MissingFilterAppliedEventArgs>? MissingFiltersApplied;
+
+    /// <summary>Raised when the user clears the missing-records filter modal's filters.</summary>
+    public event EventHandler? MissingFiltersCleared;
 
     [ObservableProperty]
     private bool _isMissingFilterModalOpen;
@@ -164,32 +193,53 @@ public partial class BankMatchingModalsViewModel : ViewModelBase
     public ObservableCollection<string> TypeOptions { get; } =
         ["All", "Expense", "Revenue"];
 
+    private sealed record MissingFilterValues(DateTimeOffset? StartDate, DateTimeOffset? EndDate, string Type)
+    {
+        public static readonly MissingFilterValues Default = new(null, null, "All");
+    }
+
+    private FilterSnapshot<MissingFilterValues>? _missingFilters;
+
+    private FilterSnapshot<MissingFilterValues> MissingFilters => _missingFilters ??= new(MissingFilterValues.Default,
+        () => new(MissingFilterStartDate, MissingFilterEndDate, MissingFilterType),
+        v =>
+        {
+            MissingFilterStartDate = v.StartDate;
+            MissingFilterEndDate = v.EndDate;
+            MissingFilterType = v.Type;
+        });
+
+    public bool HasMissingFilterModalChanges => MissingFilters.HasChanges;
+
     public void OpenMissingFilterModal(DateTime? startDate, DateTime? endDate, string type)
     {
-        MissingFilterStartDate = startDate.HasValue ? new DateTimeOffset(startDate.Value) : null;
-        MissingFilterEndDate = endDate.HasValue ? new DateTimeOffset(endDate.Value) : null;
-        MissingFilterType = string.IsNullOrEmpty(type) ? "All" : type;
+        MissingFilters.Set(new(ToOffset(startDate), ToOffset(endDate), string.IsNullOrEmpty(type) ? "All" : type));
+        MissingFilters.Capture();
         IsMissingFilterModalOpen = true;
     }
 
-    [RelayCommand]
     private void CloseMissingFilterModal() => IsMissingFilterModalOpen = false;
+
+    [RelayCommand]
+    private async Task RequestCloseMissingFilterModalAsync()
+    {
+        if (await MissingFilters.ConfirmDiscardAsync(ConfirmDiscardFiltersAsync))
+            CloseMissingFilterModal();
+    }
 
     [RelayCommand]
     private void ApplyMissingFilters()
     {
-        IsMissingFilterModalOpen = false;
+        CloseMissingFilterModal();
         MissingFiltersApplied?.Invoke(this, new MissingFilterAppliedEventArgs(MissingFilterStartDate, MissingFilterEndDate, MissingFilterType));
     }
 
     [RelayCommand]
     private void ClearMissingFilters()
     {
-        MissingFilterStartDate = null;
-        MissingFilterEndDate = null;
-        MissingFilterType = "All";
-        IsMissingFilterModalOpen = false;
-        MissingFiltersApplied?.Invoke(this, new MissingFilterAppliedEventArgs(null, null, "All"));
+        MissingFilters.Reset();
+        CloseMissingFilterModal();
+        MissingFiltersCleared?.Invoke(this, EventArgs.Empty);
     }
 
     #endregion

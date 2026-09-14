@@ -100,9 +100,6 @@ public partial class RentalInventoryPageViewModel : SortablePageViewModelBase
     private string _filterStatus = "All";
 
     [ObservableProperty]
-    private string? _filterSupplier;
-
-    [ObservableProperty]
     private string? _filterDailyRateMin;
 
     [ObservableProperty]
@@ -181,7 +178,6 @@ public partial class RentalInventoryPageViewModel : SortablePageViewModelBase
         if (modals != null)
         {
             FilterStatus = modals.FilterStatus;
-            FilterSupplier = modals.FilterSupplier;
             FilterDailyRateMin = modals.FilterDailyRateMin;
             FilterDailyRateMax = modals.FilterDailyRateMax;
             FilterAvailability = modals.FilterAvailability;
@@ -193,7 +189,6 @@ public partial class RentalInventoryPageViewModel : SortablePageViewModelBase
     private void OnFiltersCleared(object? sender, EventArgs e)
     {
         FilterStatus = "All";
-        FilterSupplier = null;
         FilterDailyRateMin = null;
         FilterDailyRateMax = null;
         FilterAvailability = "All";
@@ -307,15 +302,6 @@ public partial class RentalInventoryPageViewModel : SortablePageViewModelBase
                 "Unavailable Only" => filtered.Where(i => ResolveInStock(i) == 0 || i.Status != EntityStatus.Active),
                 _ => filtered
             };
-        }
-
-        if (!string.IsNullOrWhiteSpace(FilterSupplier) && FilterSupplier != "All Suppliers")
-        {
-            var supplier = companyData?.Suppliers.FirstOrDefault(s => s.Name == FilterSupplier);
-            if (supplier != null)
-            {
-                filtered = filtered.Where(i => ResolveSupplierId(i) == supplier.Id);
-            }
         }
 
         if (decimal.TryParse(FilterDailyRateMin, out var minRate))

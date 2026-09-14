@@ -193,34 +193,30 @@ public partial class ProductModalsViewModel : ViewModelBase
     [ObservableProperty]
     private string _filterItemType = "All";
 
+    // The dropdowns select option objects, so these hold the option itself; null means All.
     [ObservableProperty]
-    private string? _filterCategory;
+    private CategoryOption? _filterCategory;
 
     [ObservableProperty]
-    private string? _filterSupplier;
+    private SupplierOption? _filterSupplier;
 
-    // Original filter values for change detection (captured when modal opens)
-    private string _originalFilterItemType = "All";
-    private string? _originalFilterCategory;
-    private string? _originalFilterSupplier;
-
-    /// <summary>
-    /// Returns true if any filter has been changed from the state when the modal was opened.
-    /// </summary>
-    public bool HasFilterModalChanges =>
-        FilterItemType != _originalFilterItemType ||
-        FilterCategory != _originalFilterCategory ||
-        FilterSupplier != _originalFilterSupplier;
-
-    /// <summary>
-    /// Captures the current filter state as original values for change detection.
-    /// </summary>
-    private void CaptureOriginalFilterValues()
+    private sealed record FilterValues(string ItemType, string? CategoryId, string? SupplierId)
     {
-        _originalFilterItemType = FilterItemType;
-        _originalFilterCategory = FilterCategory;
-        _originalFilterSupplier = FilterSupplier;
+        public static readonly FilterValues Default = new("All", null, null);
     }
+
+    private FilterSnapshot<FilterValues>? _filters;
+
+    private FilterSnapshot<FilterValues> Filters => _filters ??= new(FilterValues.Default,
+        () => new(FilterItemType, FilterCategory?.Id, FilterSupplier?.Id),
+        v =>
+        {
+            FilterItemType = v.ItemType;
+            FilterCategory = v.CategoryId == null ? null : AvailableCategories.FirstOrDefault(c => c.Id == v.CategoryId);
+            FilterSupplier = v.SupplierId == null ? null : AvailableSuppliers.FirstOrDefault(s => s.Id == v.SupplierId);
+        });
+
+    public bool HasFilterModalChanges => Filters.HasChanges;
 
     #endregion
 
@@ -703,8 +699,12 @@ public partial class ProductModalsViewModel : ViewModelBase
     [RelayCommand]
     public void OpenFilterModal()
     {
+        var current = Filters.Current;
         UpdateDropdownOptions();
-        CaptureOriginalFilterValues();
+        // The reload replaced the option objects (and the category list follows the tab), so point
+        // the selections at the new ones; a category from the other tab drops back to All.
+        Filters.Set(current);
+        Filters.Capture();
         IsFilterModalOpen = true;
     }
 
@@ -714,30 +714,16 @@ public partial class ProductModalsViewModel : ViewModelBase
         OpenFilterModal();
     }
 
-    [RelayCommand]
-    public void CloseFilterModal()
-    {
-        IsFilterModalOpen = false;
-    }
+    private void CloseFilterModal() => IsFilterModalOpen = false;
 
     /// <summary>
-    /// Requests to close the Filter modal, showing confirmation if filter changes exist.
+    /// Closes the filter modal, asking first and putting the filters back if they were changed.
     /// </summary>
     [RelayCommand]
     public async Task RequestCloseFilterModalAsync()
     {
-        if (HasFilterModalChanges)
-        {
-            if (!await ConfirmDiscardFiltersAsync())
-                return;
-
-            // Restore filter values to the state when modal was opened
-            FilterItemType = _originalFilterItemType;
-            FilterCategory = _originalFilterCategory;
-            FilterSupplier = _originalFilterSupplier;
-        }
-
-        CloseFilterModal();
+        if (await Filters.ConfirmDiscardAsync(ConfirmDiscardFiltersAsync))
+            CloseFilterModal();
     }
 
     [RelayCommand]
@@ -750,16 +736,9 @@ public partial class ProductModalsViewModel : ViewModelBase
     [RelayCommand]
     public void ClearFilters()
     {
-        ResetFilterDefaults();
+        Filters.Reset();
         FiltersCleared?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
-    }
-
-    private void ResetFilterDefaults()
-    {
-        FilterItemType = "All";
-        FilterCategory = null;
-        FilterSupplier = null;
     }
 
     #endregion

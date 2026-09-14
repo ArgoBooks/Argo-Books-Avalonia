@@ -57,42 +57,24 @@ public partial class LostDamagedModalsViewModel : ViewModelBase
     /// </summary>
     public ObservableCollection<string> ReasonOptions { get; } = ["All", "Theft", "Breakage", "Spoilage", "Missing", "Other"];
 
-    // Original filter values for change detection
-    private string _originalFilterType = "All";
-    private DateTimeOffset? _originalFilterDateFrom;
-    private DateTimeOffset? _originalFilterDateTo;
-    private string _originalFilterReason = "All";
-
-    /// <summary>
-    /// Returns true if any filter has been changed from its original value when the modal was opened.
-    /// </summary>
-    public bool HasFilterModalChanges =>
-        FilterType != _originalFilterType ||
-        FilterDateFrom != _originalFilterDateFrom ||
-        FilterDateTo != _originalFilterDateTo ||
-        FilterReason != _originalFilterReason;
-
-    /// <summary>
-    /// Captures the current filter values as the original values for change detection.
-    /// </summary>
-    private void CaptureOriginalFilterValues()
+    private sealed record FilterValues(string Type, DateTimeOffset? DateFrom, DateTimeOffset? DateTo, string Reason)
     {
-        _originalFilterType = FilterType;
-        _originalFilterDateFrom = FilterDateFrom;
-        _originalFilterDateTo = FilterDateTo;
-        _originalFilterReason = FilterReason;
+        public static readonly FilterValues Default = new("All", null, null, "All");
     }
 
-    /// <summary>
-    /// Restores filter values to their original values when the modal was opened.
-    /// </summary>
-    private void RestoreOriginalFilterValues()
-    {
-        FilterType = _originalFilterType;
-        FilterDateFrom = _originalFilterDateFrom;
-        FilterDateTo = _originalFilterDateTo;
-        FilterReason = _originalFilterReason;
-    }
+    private FilterSnapshot<FilterValues>? _filters;
+
+    private FilterSnapshot<FilterValues> Filters => _filters ??= new(FilterValues.Default,
+        () => new(FilterType, FilterDateFrom, FilterDateTo, FilterReason),
+        v =>
+        {
+            FilterType = v.Type;
+            FilterDateFrom = v.DateFrom;
+            FilterDateTo = v.DateTo;
+            FilterReason = v.Reason;
+        });
+
+    public bool HasFilterModalChanges => Filters.HasChanges;
 
     #endregion
 
@@ -103,44 +85,20 @@ public partial class LostDamagedModalsViewModel : ViewModelBase
     /// </summary>
     public void OpenFilterModal()
     {
-        CaptureOriginalFilterValues();
+        Filters.Capture();
         IsFilterModalOpen = true;
     }
 
-    /// <summary>
-    /// Closes the filter modal.
-    /// </summary>
-    [RelayCommand]
-    private void CloseFilterModal()
-    {
-        IsFilterModalOpen = false;
-    }
+    private void CloseFilterModal() => IsFilterModalOpen = false;
 
     /// <summary>
-    /// Resets all filter values to their defaults.
-    /// </summary>
-    private void ResetFilterDefaults()
-    {
-        FilterType = "All";
-        FilterDateFrom = null;
-        FilterDateTo = null;
-        FilterReason = "All";
-    }
-
-    /// <summary>
-    /// Requests to close the filter modal, showing confirmation if there are unapplied changes.
+    /// Closes the filter modal, asking first and putting the filters back if they were changed.
     /// </summary>
     [RelayCommand]
     public async Task RequestCloseFilterModalAsync()
     {
-        if (HasFilterModalChanges)
-        {
-            if (!await ConfirmDiscardFiltersAsync()) return;
-
-            RestoreOriginalFilterValues();
-        }
-
-        CloseFilterModal();
+        if (await Filters.ConfirmDiscardAsync(ConfirmDiscardFiltersAsync))
+            CloseFilterModal();
     }
 
     /// <summary>
@@ -159,7 +117,7 @@ public partial class LostDamagedModalsViewModel : ViewModelBase
     [RelayCommand]
     private void ClearFilters()
     {
-        ResetFilterDefaults();
+        Filters.Reset();
         FiltersCleared?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
     }

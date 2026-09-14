@@ -499,45 +499,32 @@ public partial class StockAdjustmentsModalsViewModel : ViewModelBase
     /// </summary>
     public ObservableCollection<string> FilterTypeOptions { get; } = new(AdjustmentTypeExtensions.GetFilterOptions());
 
-    // Original filter values for change detection
-    private DateTimeOffset? _originalFilterStartDate;
-    private DateTimeOffset? _originalFilterEndDate;
-    private string _originalFilterProduct = "All";
-    private string _originalFilterType = "All";
-
     /// <summary>
-    /// Returns true if any filter has been changed from its original value when the modal was opened.
+    /// Raised when filters are cleared.
     /// </summary>
-    public bool HasFilterModalChanges =>
-        FilterStartDate != _originalFilterStartDate ||
-        FilterEndDate != _originalFilterEndDate ||
-        FilterProduct != _originalFilterProduct ||
-        FilterType != _originalFilterType;
+    public event EventHandler? FiltersCleared;
 
-    /// <summary>
-    /// Captures the current filter values as the original values for change detection.
-    /// </summary>
-    private void CaptureOriginalFilterValues()
+    private sealed record FilterValues(DateTimeOffset? StartDate, DateTimeOffset? EndDate, string Product, string Type)
     {
-        _originalFilterStartDate = FilterStartDate;
-        _originalFilterEndDate = FilterEndDate;
-        _originalFilterProduct = FilterProduct;
-        _originalFilterType = FilterType;
+        public static readonly FilterValues Default = new(null, null, "All", "All");
     }
 
-    /// <summary>
-    /// Restores filter values to their original values when the modal was opened.
-    /// </summary>
-    private void RestoreOriginalFilterValues()
-    {
-        FilterStartDate = _originalFilterStartDate;
-        FilterEndDate = _originalFilterEndDate;
-        FilterProduct = _originalFilterProduct;
-        FilterType = _originalFilterType;
-    }
+    private FilterSnapshot<FilterValues>? _filters;
+
+    private FilterSnapshot<FilterValues> Filters => _filters ??= new(FilterValues.Default,
+        () => new(FilterStartDate, FilterEndDate, FilterProduct, FilterType),
+        v =>
+        {
+            FilterStartDate = v.StartDate;
+            FilterEndDate = v.EndDate;
+            FilterProduct = v.Product;
+            FilterType = v.Type;
+        });
+
+    public bool HasFilterModalChanges => Filters.HasChanges;
 
     /// <summary>
-    /// Opens the filter modal.
+    /// Opens the filter modal seeded with the page's current filters.
     /// </summary>
     public void OpenFilterModal(IEnumerable<string> products,
         DateTimeOffset? startDate, DateTimeOffset? endDate,
@@ -548,23 +535,12 @@ public partial class StockAdjustmentsModalsViewModel : ViewModelBase
         foreach (var prod in products.Where(p => p != "All"))
             FilterProducts.Add(prod);
 
-        FilterStartDate = startDate;
-        FilterEndDate = endDate;
-        FilterProduct = currentProduct;
-        FilterType = currentType;
-
-        CaptureOriginalFilterValues();
+        Filters.Set(new(startDate, endDate, currentProduct, currentType));
+        Filters.Capture();
         IsFilterModalOpen = true;
     }
 
-    /// <summary>
-    /// Closes the filter modal.
-    /// </summary>
-    [RelayCommand]
-    private void CloseFilterModal()
-    {
-        IsFilterModalOpen = false;
-    }
+    private void CloseFilterModal() => IsFilterModalOpen = false;
 
     /// <summary>
     /// Applies the current filters.
@@ -574,18 +550,7 @@ public partial class StockAdjustmentsModalsViewModel : ViewModelBase
     {
         FiltersApplied?.Invoke(this, new AdjustmentsFilterAppliedEventArgs(
             FilterStartDate, FilterEndDate, FilterProduct, FilterType));
-        IsFilterModalOpen = false;
-    }
-
-    /// <summary>
-    /// Resets filter values to their defaults.
-    /// </summary>
-    private void ResetFilterDefaults()
-    {
-        FilterStartDate = null;
-        FilterEndDate = null;
-        FilterProduct = "All";
-        FilterType = "All";
+        CloseFilterModal();
     }
 
     /// <summary>
@@ -594,25 +559,19 @@ public partial class StockAdjustmentsModalsViewModel : ViewModelBase
     [RelayCommand]
     private void ClearFilters()
     {
-        ResetFilterDefaults();
+        Filters.Reset();
+        FiltersCleared?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
     }
 
     /// <summary>
-    /// Requests to close the filter modal, showing confirmation if changes were made.
+    /// Closes the filter modal, asking first and putting the filters back if they were changed.
     /// </summary>
     [RelayCommand]
     public async Task RequestCloseFilterModalAsync()
     {
-        if (HasFilterModalChanges)
-        {
-            if (!await ConfirmDiscardFiltersAsync())
-                return;
-
-            RestoreOriginalFilterValues();
-        }
-
-        CloseFilterModal();
+        if (await Filters.ConfirmDiscardAsync(ConfirmDiscardFiltersAsync))
+            CloseFilterModal();
     }
 
     #endregion

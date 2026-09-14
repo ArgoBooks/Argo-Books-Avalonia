@@ -180,6 +180,7 @@ public partial class SuppliersPageViewModel : SortablePageViewModelBase
             FilterCountry = App.SupplierModalsViewModel.FilterCountry == "All" ? null : App.SupplierModalsViewModel.FilterCountry;
             FilterStatus = App.SupplierModalsViewModel.FilterStatus;
         }
+        CurrentPage = 1;
         FilterSuppliers();
     }
 
@@ -191,6 +192,7 @@ public partial class SuppliersPageViewModel : SortablePageViewModelBase
         FilterCountry = null;
         FilterStatus = "All";
         SearchQuery = null;
+        CurrentPage = 1;
         FilterSuppliers();
     }
 

@@ -930,43 +930,32 @@ public partial class InvoiceModalsViewModel : ViewModelBase
 
     public ObservableCollection<string> StatusFilterOptions { get; } = new(InvoiceStatusExtensions.GetFilterOptions());
 
-    // Original filter values for change detection (captured when modal opens)
-    private string _originalFilterStatus = "All";
-    private string? _originalFilterCustomerId;
-    private string? _originalFilterAmountMin;
-    private string? _originalFilterAmountMax;
-    private DateTimeOffset? _originalFilterIssueDateFrom;
-    private DateTimeOffset? _originalFilterIssueDateTo;
-    private DateTimeOffset? _originalFilterDueDateFrom;
-    private DateTimeOffset? _originalFilterDueDateTo;
-
-    /// <summary>
-    /// Returns true if any filter has been changed from the state when the modal was opened.
-    /// </summary>
-    public bool HasFilterModalChanges =>
-        FilterStatus != _originalFilterStatus ||
-        FilterSelectedCustomer?.Id != _originalFilterCustomerId ||
-        FilterAmountMin != _originalFilterAmountMin ||
-        FilterAmountMax != _originalFilterAmountMax ||
-        FilterIssueDateFrom != _originalFilterIssueDateFrom ||
-        FilterIssueDateTo != _originalFilterIssueDateTo ||
-        FilterDueDateFrom != _originalFilterDueDateFrom ||
-        FilterDueDateTo != _originalFilterDueDateTo;
-
-    /// <summary>
-    /// Captures the current filter state as original values for change detection.
-    /// </summary>
-    private void CaptureOriginalFilterValues()
+    private sealed record FilterValues(
+        string Status, string? CustomerId, string? AmountMin, string? AmountMax,
+        DateTimeOffset? IssueDateFrom, DateTimeOffset? IssueDateTo,
+        DateTimeOffset? DueDateFrom, DateTimeOffset? DueDateTo)
     {
-        _originalFilterStatus = FilterStatus;
-        _originalFilterCustomerId = FilterSelectedCustomer?.Id;
-        _originalFilterAmountMin = FilterAmountMin;
-        _originalFilterAmountMax = FilterAmountMax;
-        _originalFilterIssueDateFrom = FilterIssueDateFrom;
-        _originalFilterIssueDateTo = FilterIssueDateTo;
-        _originalFilterDueDateFrom = FilterDueDateFrom;
-        _originalFilterDueDateTo = FilterDueDateTo;
+        public static readonly FilterValues Default = new("All", null, null, null, null, null, null, null);
     }
+
+    private FilterSnapshot<FilterValues>? _filters;
+
+    private FilterSnapshot<FilterValues> Filters => _filters ??= new(FilterValues.Default,
+        () => new(FilterStatus, FilterSelectedCustomer?.Id, FilterAmountMin, FilterAmountMax,
+            FilterIssueDateFrom, FilterIssueDateTo, FilterDueDateFrom, FilterDueDateTo),
+        v =>
+        {
+            FilterStatus = v.Status;
+            FilterSelectedCustomer = v.CustomerId == null ? null : CustomerOptions.FirstOrDefault(c => c.Id == v.CustomerId);
+            FilterAmountMin = v.AmountMin;
+            FilterAmountMax = v.AmountMax;
+            FilterIssueDateFrom = v.IssueDateFrom;
+            FilterIssueDateTo = v.IssueDateTo;
+            FilterDueDateFrom = v.DueDateFrom;
+            FilterDueDateTo = v.DueDateTo;
+        });
+
+    public bool HasFilterModalChanges => Filters.HasChanges;
 
     #endregion
 
@@ -1425,39 +1414,24 @@ public partial class InvoiceModalsViewModel : ViewModelBase
 
     public void OpenFilterModal()
     {
+        var current = Filters.Current;
         LoadCustomerOptions(includeAllOption: true);
-        CaptureOriginalFilterValues();
+        // The reload replaced the option objects, so point the selection at the new one.
+        Filters.Set(current);
+        Filters.Capture();
         IsFilterModalOpen = true;
     }
 
-    [RelayCommand]
-    private void CloseFilterModal()
-    {
-        IsFilterModalOpen = false;
-    }
+    private void CloseFilterModal() => IsFilterModalOpen = false;
 
     /// <summary>
-    /// Requests to close the Filter modal, showing confirmation if filter values have been changed.
+    /// Closes the filter modal, asking first and putting the filters back if they were changed.
     /// </summary>
     [RelayCommand]
     private async Task RequestCloseFilterModalAsync()
     {
-        if (HasFilterModalChanges)
-        {
-            if (!await ConfirmDiscardFiltersAsync()) return;
-
-            // Restore filter values to the state when modal was opened
-            FilterStatus = _originalFilterStatus;
-            FilterSelectedCustomer = CustomerOptions.FirstOrDefault(c => c.Id == _originalFilterCustomerId);
-            FilterAmountMin = _originalFilterAmountMin;
-            FilterAmountMax = _originalFilterAmountMax;
-            FilterIssueDateFrom = _originalFilterIssueDateFrom;
-            FilterIssueDateTo = _originalFilterIssueDateTo;
-            FilterDueDateFrom = _originalFilterDueDateFrom;
-            FilterDueDateTo = _originalFilterDueDateTo;
-        }
-
-        CloseFilterModal();
+        if (await Filters.ConfirmDiscardAsync(ConfirmDiscardFiltersAsync))
+            CloseFilterModal();
     }
 
     [RelayCommand]
@@ -1471,22 +1445,10 @@ public partial class InvoiceModalsViewModel : ViewModelBase
     [RelayCommand]
     private void ClearFilters()
     {
-        ResetFilterDefaults();
+        Filters.Reset();
+        FilterCustomerId = null;
         FiltersCleared?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
-    }
-
-    private void ResetFilterDefaults()
-    {
-        FilterStatus = "All";
-        FilterSelectedCustomer = null;
-        FilterCustomerId = null;
-        FilterAmountMin = null;
-        FilterAmountMax = null;
-        FilterIssueDateFrom = null;
-        FilterIssueDateTo = null;
-        FilterDueDateFrom = null;
-        FilterDueDateTo = null;
     }
 
     #endregion

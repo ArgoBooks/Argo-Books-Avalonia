@@ -40,6 +40,11 @@ public partial class LocationsModalsViewModel : ViewModelBase
     /// </summary>
     public event EventHandler<LocationsFilterAppliedEventArgs>? FiltersApplied;
 
+    /// <summary>
+    /// Raised when filters are cleared.
+    /// </summary>
+    public event EventHandler? FiltersCleared;
+
     #endregion
 
     #region Modal State
@@ -157,25 +162,22 @@ public partial class LocationsModalsViewModel : ViewModelBase
     /// </summary>
     public ObservableCollection<string> FilterStatusOptions { get; } = ["All", "Active", "Inactive"];
 
-    // Original filter values for change detection (captured when modal opens)
-    private string _originalFilterType = "All";
-    private string _originalFilterStatus = "All";
-
-    /// <summary>
-    /// Returns true if any filter has been changed from the state when the modal was opened.
-    /// </summary>
-    public bool HasFilterModalChanges =>
-        FilterType != _originalFilterType ||
-        FilterStatus != _originalFilterStatus;
-
-    /// <summary>
-    /// Captures the current filter state as original values for change detection.
-    /// </summary>
-    private void CaptureOriginalFilterValues()
+    private sealed record FilterValues(string Type, string Status)
     {
-        _originalFilterType = FilterType;
-        _originalFilterStatus = FilterStatus;
+        public static readonly FilterValues Default = new("All", "All");
     }
+
+    private FilterSnapshot<FilterValues>? _filters;
+
+    private FilterSnapshot<FilterValues> Filters => _filters ??= new(FilterValues.Default,
+        () => new(FilterType, FilterStatus),
+        v =>
+        {
+            FilterType = v.Type;
+            FilterStatus = v.Status;
+        });
+
+    public bool HasFilterModalChanges => Filters.HasChanges;
 
     #endregion
 
@@ -463,36 +465,20 @@ public partial class LocationsModalsViewModel : ViewModelBase
     /// </summary>
     public void OpenFilterModal()
     {
-        CaptureOriginalFilterValues();
+        Filters.Capture();
         IsFilterModalOpen = true;
     }
 
-    /// <summary>
-    /// Closes the filter modal.
-    /// </summary>
-    [RelayCommand]
-    private void CloseFilterModal()
-    {
-        IsFilterModalOpen = false;
-    }
+    private void CloseFilterModal() => IsFilterModalOpen = false;
 
     /// <summary>
-    /// Requests to close the filter modal, showing confirmation if filters have been changed.
+    /// Closes the filter modal, asking first and putting the filters back if they were changed.
     /// </summary>
     [RelayCommand]
     public async Task RequestCloseFilterModalAsync()
     {
-        if (HasFilterModalChanges)
-        {
-            if (!await ConfirmDiscardFiltersAsync())
-                return;
-
-            // Restore filter values to the state when modal was opened
-            FilterType = _originalFilterType;
-            FilterStatus = _originalFilterStatus;
-        }
-
-        CloseFilterModal();
+        if (await Filters.ConfirmDiscardAsync(ConfirmDiscardFiltersAsync))
+            CloseFilterModal();
     }
 
     /// <summary>
@@ -511,17 +497,9 @@ public partial class LocationsModalsViewModel : ViewModelBase
     [RelayCommand]
     private void ClearFilters()
     {
-        ResetFilterDefaults();
+        Filters.Reset();
+        FiltersCleared?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
-    }
-
-    /// <summary>
-    /// Resets filter values to their defaults.
-    /// </summary>
-    private void ResetFilterDefaults()
-    {
-        FilterType = "All";
-        FilterStatus = "All";
     }
 
     #endregion

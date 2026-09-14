@@ -470,14 +470,39 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     [ObservableProperty]
     private DateTimeOffset? _filterDateTo;
 
-    // Original filter values for change detection (captured when modal opens)
-    private string _originalFilterStatus = "All";
-    private string? _originalFilterCounterpartyId;
-    private string? _originalFilterCategoryId;
-    private string? _originalFilterAmountMin;
-    private string? _originalFilterAmountMax;
-    private DateTimeOffset? _originalFilterDateFrom;
-    private DateTimeOffset? _originalFilterDateTo;
+    private sealed record FilterValues(
+        string Status, string? CounterpartyId, string? CategoryId, string? AmountMin, string? AmountMax,
+        DateTimeOffset? DateFrom, DateTimeOffset? DateTo, string ReceiptStatus)
+    {
+        public static readonly FilterValues Default = new("All", null, null, null, null, null, null, "All");
+    }
+
+    private FilterSnapshot<FilterValues>? _filters;
+
+    private FilterSnapshot<FilterValues> Filters => _filters ??= new(FilterValues.Default,
+        () => new(FilterStatus, FilterSelectedCounterparty?.Id, FilterSelectedCategory?.Id,
+            FilterAmountMin, FilterAmountMax, FilterDateFrom, FilterDateTo, ReceiptStatusFilter),
+        v =>
+        {
+            FilterStatus = v.Status;
+            FilterSelectedCounterparty = v.CounterpartyId == null ? null : CounterpartyOptions.FirstOrDefault(c => c.Id == v.CounterpartyId);
+            FilterSelectedCategory = v.CategoryId == null ? null : CategoryOptions.FirstOrDefault(c => c.Id == v.CategoryId);
+            FilterAmountMin = v.AmountMin;
+            FilterAmountMax = v.AmountMax;
+            FilterDateFrom = v.DateFrom;
+            FilterDateTo = v.DateTo;
+            ReceiptStatusFilter = v.ReceiptStatus;
+        });
+
+    /// <summary>
+    /// The receipt filter only expenses have. It rides in the shared snapshot so discard and clear
+    /// cover it too.
+    /// </summary>
+    protected virtual string ReceiptStatusFilter
+    {
+        get => "All";
+        set { }
+    }
 
     public ObservableCollection<string> StatusFilterOptions { get; } = new(TransactionStatusExtensions.GetFilterOptions());
 
@@ -681,75 +706,29 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
 
     #region Filter Modal
 
-    /// <summary>
-    /// Returns true if any filter has been changed from the state when the modal was opened.
-    /// </summary>
-    public bool HasFilterModalChanges =>
-        FilterStatus != _originalFilterStatus ||
-        FilterSelectedCounterparty?.Id != _originalFilterCounterpartyId ||
-        FilterSelectedCategory?.Id != _originalFilterCategoryId ||
-        FilterAmountMin != _originalFilterAmountMin ||
-        FilterAmountMax != _originalFilterAmountMax ||
-        FilterDateFrom != _originalFilterDateFrom ||
-        FilterDateTo != _originalFilterDateTo;
-
-    /// <summary>
-    /// Captures the current filter state as original values for change detection.
-    /// </summary>
-    private void CaptureOriginalFilterValues()
-    {
-        _originalFilterStatus = FilterStatus;
-        _originalFilterCounterpartyId = FilterSelectedCounterparty?.Id;
-        _originalFilterCategoryId = FilterSelectedCategory?.Id;
-        _originalFilterAmountMin = FilterAmountMin;
-        _originalFilterAmountMax = FilterAmountMax;
-        _originalFilterDateFrom = FilterDateFrom;
-        _originalFilterDateTo = FilterDateTo;
-    }
-
-    private void ResetFilterDefaults()
-    {
-        FilterStatus = "All";
-        FilterSelectedCounterparty = null;
-        FilterSelectedCategory = null;
-        FilterAmountMin = null;
-        FilterAmountMax = null;
-        FilterDateFrom = null;
-        FilterDateTo = null;
-    }
+    public bool HasFilterModalChanges => Filters.HasChanges;
 
     public void OpenFilterModal()
     {
+        var current = Filters.Current;
         LoadCounterpartyOptionsForFilter();
         LoadCategoryOptionsForFilter();
-        CaptureOriginalFilterValues();
+        // The reload replaced the option objects, so point the selections at the new ones.
+        Filters.Set(current);
+        Filters.Capture();
         IsFilterModalOpen = true;
     }
 
-    [RelayCommand]
-    protected void CloseFilterModal()
-    {
-        IsFilterModalOpen = false;
-    }
+    protected void CloseFilterModal() => IsFilterModalOpen = false;
 
+    /// <summary>
+    /// Closes the filter modal, asking first and putting the filters back if they were changed.
+    /// </summary>
     [RelayCommand]
     protected async Task RequestCloseFilterModalAsync()
     {
-        if (HasFilterModalChanges)
-        {
-            if (!await ConfirmDiscardFiltersAsync()) return;
-
-            // Reset filter values to the state when modal was opened
-            FilterStatus = _originalFilterStatus;
-            FilterSelectedCounterparty = CounterpartyOptions.FirstOrDefault(c => c.Id == _originalFilterCounterpartyId);
-            FilterSelectedCategory = CategoryOptions.FirstOrDefault(c => c.Id == _originalFilterCategoryId);
-            FilterAmountMin = _originalFilterAmountMin;
-            FilterAmountMax = _originalFilterAmountMax;
-            FilterDateFrom = _originalFilterDateFrom;
-            FilterDateTo = _originalFilterDateTo;
-        }
-
-        CloseFilterModal();
+        if (await Filters.ConfirmDiscardAsync(ConfirmDiscardFiltersAsync))
+            CloseFilterModal();
     }
 
     [RelayCommand]
@@ -762,9 +741,9 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     }
 
     [RelayCommand]
-    protected virtual void ClearFilters()
+    protected void ClearFilters()
     {
-        ResetFilterDefaults();
+        Filters.Reset();
         FilterCounterpartyId = null;
         FilterCategoryId = null;
         FiltersCleared?.Invoke(this, EventArgs.Empty);

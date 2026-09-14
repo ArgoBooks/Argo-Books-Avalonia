@@ -45,7 +45,9 @@ public partial class BankMatchingPageViewModel : SortablePageViewModelBase
         {
             App.BankMatchingModalsViewModel.CandidateChosen += OnCandidateChosen;
             App.BankMatchingModalsViewModel.FiltersApplied += OnFiltersApplied;
+            App.BankMatchingModalsViewModel.FiltersCleared += OnFiltersCleared;
             App.BankMatchingModalsViewModel.MissingFiltersApplied += OnMissingFiltersApplied;
+            App.BankMatchingModalsViewModel.MissingFiltersCleared += OnMissingFiltersCleared;
         }
     }
 
@@ -62,7 +64,9 @@ public partial class BankMatchingPageViewModel : SortablePageViewModelBase
         {
             App.BankMatchingModalsViewModel.CandidateChosen -= OnCandidateChosen;
             App.BankMatchingModalsViewModel.FiltersApplied -= OnFiltersApplied;
+            App.BankMatchingModalsViewModel.FiltersCleared -= OnFiltersCleared;
             App.BankMatchingModalsViewModel.MissingFiltersApplied -= OnMissingFiltersApplied;
+            App.BankMatchingModalsViewModel.MissingFiltersCleared -= OnMissingFiltersCleared;
         }
     }
 
@@ -492,6 +496,15 @@ public partial class BankMatchingPageViewModel : SortablePageViewModelBase
         ApplyFiltersAndPaginate();
     }
 
+    private void OnFiltersCleared(object? sender, EventArgs e)
+    {
+        FilterStartDate = null;
+        FilterEndDate = null;
+        FilterStatus = "All";
+        CurrentPage = 1;
+        ApplyFiltersAndPaginate();
+    }
+
     [RelayCommand]
     private void OpenMissingFilterModal() =>
         App.BankMatchingModalsViewModel?.OpenMissingFilterModal(MissingFilterStartDate, MissingFilterEndDate, MissingFilterType);
@@ -501,6 +514,15 @@ public partial class BankMatchingPageViewModel : SortablePageViewModelBase
         MissingFilterStartDate = e.StartDate?.DateTime;
         MissingFilterEndDate = e.EndDate?.DateTime;
         MissingFilterType = e.Type;
+        MissingCurrentPage = 1;
+        RefreshMissing();
+    }
+
+    private void OnMissingFiltersCleared(object? sender, EventArgs e)
+    {
+        MissingFilterStartDate = null;
+        MissingFilterEndDate = null;
+        MissingFilterType = "All";
         MissingCurrentPage = 1;
         RefreshMissing();
     }

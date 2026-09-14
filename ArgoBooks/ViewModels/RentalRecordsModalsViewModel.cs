@@ -1339,84 +1339,50 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
 
     #region Filter Modal
 
-    // Original filter values for change detection
-    private string _originalFilterStatus = "All";
-    private string? _originalFilterCustomer;
-    private string? _originalFilterItem;
-    private DateTimeOffset? _originalFilterStartDateFrom;
-    private DateTimeOffset? _originalFilterStartDateTo;
-    private DateTimeOffset? _originalFilterDueDateFrom;
-    private DateTimeOffset? _originalFilterDueDateTo;
-
-    /// <summary>
-    /// Returns true if any filter has been changed from its original value when the modal was opened.
-    /// </summary>
-    public bool HasFilterModalChanges =>
-        FilterStatus != _originalFilterStatus ||
-        FilterCustomer != _originalFilterCustomer ||
-        FilterItem != _originalFilterItem ||
-        FilterStartDateFrom != _originalFilterStartDateFrom ||
-        FilterStartDateTo != _originalFilterStartDateTo ||
-        FilterDueDateFrom != _originalFilterDueDateFrom ||
-        FilterDueDateTo != _originalFilterDueDateTo;
-
-    /// <summary>
-    /// Captures the current filter values as the original values for change detection.
-    /// </summary>
-    private void CaptureOriginalFilterValues()
+    private sealed record FilterValues(
+        string Status, string? Customer, string? Item,
+        DateTimeOffset? StartDateFrom, DateTimeOffset? StartDateTo,
+        DateTimeOffset? DueDateFrom, DateTimeOffset? DueDateTo)
     {
-        _originalFilterStatus = FilterStatus;
-        _originalFilterCustomer = FilterCustomer;
-        _originalFilterItem = FilterItem;
-        _originalFilterStartDateFrom = FilterStartDateFrom;
-        _originalFilterStartDateTo = FilterStartDateTo;
-        _originalFilterDueDateFrom = FilterDueDateFrom;
-        _originalFilterDueDateTo = FilterDueDateTo;
+        public static readonly FilterValues Default = new("All", null, null, null, null, null, null);
     }
 
-    /// <summary>
-    /// Restores filter values to their original values when the modal was opened.
-    /// </summary>
-    private void RestoreOriginalFilterValues()
-    {
-        FilterStatus = _originalFilterStatus;
-        FilterCustomer = _originalFilterCustomer;
-        FilterItem = _originalFilterItem;
-        FilterStartDateFrom = _originalFilterStartDateFrom;
-        FilterStartDateTo = _originalFilterStartDateTo;
-        FilterDueDateFrom = _originalFilterDueDateFrom;
-        FilterDueDateTo = _originalFilterDueDateTo;
-    }
+    private FilterSnapshot<FilterValues>? _filters;
+
+    private FilterSnapshot<FilterValues> Filters => _filters ??= new(FilterValues.Default,
+        () => new(FilterStatus, FilterCustomer, FilterItem,
+            FilterStartDateFrom, FilterStartDateTo, FilterDueDateFrom, FilterDueDateTo),
+        v =>
+        {
+            FilterStatus = v.Status;
+            FilterCustomer = v.Customer;
+            FilterItem = v.Item;
+            FilterStartDateFrom = v.StartDateFrom;
+            FilterStartDateTo = v.StartDateTo;
+            FilterDueDateFrom = v.DueDateFrom;
+            FilterDueDateTo = v.DueDateTo;
+        });
+
+    public bool HasFilterModalChanges => Filters.HasChanges;
 
     [RelayCommand]
     public void OpenFilterModal()
     {
         UpdateDropdownOptions();
-        CaptureOriginalFilterValues();
+        Filters.Capture();
         IsFilterModalOpen = true;
     }
 
-    [RelayCommand]
-    public void CloseFilterModal()
-    {
-        IsFilterModalOpen = false;
-    }
+    private void CloseFilterModal() => IsFilterModalOpen = false;
 
     /// <summary>
-    /// Requests to close the Filter modal, showing confirmation if filters have been changed.
+    /// Closes the filter modal, asking first and putting the filters back if they were changed.
     /// </summary>
     [RelayCommand]
     public async Task RequestCloseFilterModalAsync()
     {
-        if (HasFilterModalChanges)
-        {
-            if (!await ConfirmDiscardFiltersAsync())
-                return;
-
-            RestoreOriginalFilterValues();
-        }
-
-        CloseFilterModal();
+        if (await Filters.ConfirmDiscardAsync(ConfirmDiscardFiltersAsync))
+            CloseFilterModal();
     }
 
     [RelayCommand]
@@ -1429,23 +1395,9 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
     [RelayCommand]
     public void ClearFilters()
     {
-        ResetFilterDefaults();
+        Filters.Reset();
         FiltersCleared?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
-    }
-
-    /// <summary>
-    /// Resets all filter fields to their default values.
-    /// </summary>
-    private void ResetFilterDefaults()
-    {
-        FilterStatus = "All";
-        FilterCustomer = null;
-        FilterItem = null;
-        FilterStartDateFrom = null;
-        FilterStartDateTo = null;
-        FilterDueDateFrom = null;
-        FilterDueDateTo = null;
     }
 
     #endregion

@@ -53,81 +53,43 @@ public partial class ReturnsModalsViewModel : ViewModelBase
 
     #region Filter Modal Commands
 
-    // Original filter values for change detection
-    private DateTimeOffset? _originalFilterDateFrom;
-    private DateTimeOffset? _originalFilterDateTo;
-    private string _originalFilterReason = "All";
-
-    /// <summary>
-    /// Returns true if any filter has been changed from its original value when the modal was opened.
-    /// </summary>
-    public bool HasFilterModalChanges =>
-        FilterDateFrom != _originalFilterDateFrom ||
-        FilterDateTo != _originalFilterDateTo ||
-        FilterReason != _originalFilterReason;
-
-    /// <summary>
-    /// Captures the current filter values as the original values for change detection.
-    /// </summary>
-    private void CaptureOriginalFilterValues()
+    private sealed record FilterValues(DateTimeOffset? DateFrom, DateTimeOffset? DateTo, string Reason)
     {
-        _originalFilterDateFrom = FilterDateFrom;
-        _originalFilterDateTo = FilterDateTo;
-        _originalFilterReason = FilterReason;
+        public static readonly FilterValues Default = new(null, null, "All");
     }
 
-    /// <summary>
-    /// Restores filter values to their original values when the modal was opened.
-    /// </summary>
-    private void RestoreOriginalFilterValues()
-    {
-        FilterDateFrom = _originalFilterDateFrom;
-        FilterDateTo = _originalFilterDateTo;
-        FilterReason = _originalFilterReason;
-    }
+    private FilterSnapshot<FilterValues>? _filters;
 
-    /// <summary>
-    /// Resets all filter values to their defaults.
-    /// </summary>
-    private void ResetFilterDefaults()
-    {
-        FilterDateFrom = null;
-        FilterDateTo = null;
-        FilterReason = "All";
-    }
+    private FilterSnapshot<FilterValues> Filters => _filters ??= new(FilterValues.Default,
+        () => new(FilterDateFrom, FilterDateTo, FilterReason),
+        v =>
+        {
+            FilterDateFrom = v.DateFrom;
+            FilterDateTo = v.DateTo;
+            FilterReason = v.Reason;
+        });
+
+    public bool HasFilterModalChanges => Filters.HasChanges;
 
     /// <summary>
     /// Opens the filter modal.
     /// </summary>
     public void OpenFilterModal()
     {
-        CaptureOriginalFilterValues();
+        Filters.Capture();
         IsFilterModalOpen = true;
     }
 
-    /// <summary>
-    /// Closes the filter modal.
-    /// </summary>
-    [RelayCommand]
-    private void CloseFilterModal()
-    {
-        IsFilterModalOpen = false;
-    }
+    private void CloseFilterModal() => IsFilterModalOpen = false;
 
     /// <summary>
-    /// Requests to close the filter modal, showing confirmation if there are unapplied changes.
+    /// Closes the filter modal, asking first and putting the filters back if they were changed.
     /// </summary>
     [RelayCommand]
     private async Task RequestCloseFilterModalAsync()
     {
-        if (HasFilterModalChanges)
-        {
-            if (!await ConfirmDiscardFiltersAsync()) return;
-
-            RestoreOriginalFilterValues();
-        }
-
-        CloseFilterModal();
+        if (await Filters.ConfirmDiscardAsync(ConfirmDiscardFiltersAsync))
+            CloseFilterModal();
     }
 
     /// <summary>
@@ -146,7 +108,7 @@ public partial class ReturnsModalsViewModel : ViewModelBase
     [RelayCommand]
     private void ClearFilters()
     {
-        ResetFilterDefaults();
+        Filters.Reset();
         FiltersCleared?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
     }

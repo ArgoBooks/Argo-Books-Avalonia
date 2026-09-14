@@ -96,31 +96,24 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
     /// </summary>
     public bool HasEditModalChanges => Capture() != _original;
 
-    /// <summary>
-    /// Returns true if any filter has been changed from the state when the modal was opened.
-    /// </summary>
-    public bool HasFilterModalChanges =>
-        FilterStatus != _originalFilterStatus ||
-        FilterAvailability != _originalFilterAvailability ||
-        FilterDailyRateMin != _originalFilterDailyRateMin ||
-        FilterDailyRateMax != _originalFilterDailyRateMax;
-
-    // Original filter values for change detection (captured when modal opens)
-    private string _originalFilterStatus = "All";
-    private string _originalFilterAvailability = "All";
-    private string? _originalFilterDailyRateMin;
-    private string? _originalFilterDailyRateMax;
-
-    /// <summary>
-    /// Captures the current filter state as original values for change detection.
-    /// </summary>
-    private void CaptureOriginalFilterValues()
+    private sealed record FilterValues(string Status, string Availability, string? DailyRateMin, string? DailyRateMax)
     {
-        _originalFilterStatus = FilterStatus;
-        _originalFilterAvailability = FilterAvailability;
-        _originalFilterDailyRateMin = FilterDailyRateMin;
-        _originalFilterDailyRateMax = FilterDailyRateMax;
+        public static readonly FilterValues Default = new("All", "All", null, null);
     }
+
+    private FilterSnapshot<FilterValues>? _filters;
+
+    private FilterSnapshot<FilterValues> Filters => _filters ??= new(FilterValues.Default,
+        () => new(FilterStatus, FilterAvailability, FilterDailyRateMin, FilterDailyRateMax),
+        v =>
+        {
+            FilterStatus = v.Status;
+            FilterAvailability = v.Availability;
+            FilterDailyRateMin = v.DailyRateMin;
+            FilterDailyRateMax = v.DailyRateMax;
+        });
+
+    public bool HasFilterModalChanges => Filters.HasChanges;
 
     #endregion
 
@@ -260,9 +253,6 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _filterStatus = "All";
-
-    [ObservableProperty]
-    private string? _filterSupplier;
 
     [ObservableProperty]
     private string? _filterDailyRateMin;
@@ -635,31 +625,20 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
     public void OpenFilterModal()
     {
         UpdateDropdownOptions();
-        CaptureOriginalFilterValues();
+        Filters.Capture();
         IsFilterModalOpen = true;
     }
 
-    [RelayCommand]
-    public void CloseFilterModal()
-    {
-        IsFilterModalOpen = false;
-    }
+    private void CloseFilterModal() => IsFilterModalOpen = false;
 
+    /// <summary>
+    /// Closes the filter modal, asking first and putting the filters back if they were changed.
+    /// </summary>
     [RelayCommand]
     public async Task RequestCloseFilterModalAsync()
     {
-        if (HasFilterModalChanges)
-        {
-            if (!await ConfirmDiscardFiltersAsync())
-                return;
-
-            FilterStatus = _originalFilterStatus;
-            FilterAvailability = _originalFilterAvailability;
-            FilterDailyRateMin = _originalFilterDailyRateMin;
-            FilterDailyRateMax = _originalFilterDailyRateMax;
-        }
-
-        CloseFilterModal();
+        if (await Filters.ConfirmDiscardAsync(ConfirmDiscardFiltersAsync))
+            CloseFilterModal();
     }
 
     [RelayCommand]
@@ -672,8 +651,7 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
     [RelayCommand]
     public void ClearFilters()
     {
-        ResetFilterDefaults();
-        FilterSupplier = null;
+        Filters.Reset();
         FiltersCleared?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
     }
@@ -905,14 +883,6 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
     {
         ModalInventoryItemError = null;
         ModalDailyRateError = null;
-    }
-
-    private void ResetFilterDefaults()
-    {
-        FilterStatus = "All";
-        FilterAvailability = "All";
-        FilterDailyRateMin = null;
-        FilterDailyRateMax = null;
     }
 
     private bool ValidateModal()

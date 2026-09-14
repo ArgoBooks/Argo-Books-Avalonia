@@ -238,7 +238,7 @@
                     <Border Grid.Row="0" Padding="24,20" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
                         <Grid ColumnDefinitions="*,Auto">
                             <TextBlock Grid.Column="0" Text="{loc:Loc 'Filter Rental Items'}" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
-                            <Button Grid.Column="1" Classes="icon-button" Command="{Binding CloseFilterModalCommand}">
+                            <Button Grid.Column="1" Classes="icon-button" Command="{Binding RequestCloseFilterModalCommand}">
                                 <PathIcon Data="{x:Static local:Icons.Close}" Width="20" Height="20" />
                             </Button>
                         </Grid>
@@ -293,7 +293,7 @@
                         <Grid ColumnDefinitions="Auto,*,Auto">
                             <Button Grid.Column="0" Classes="secondary-button" Content="{loc:Loc 'Clear filters'}" Command="{Binding ClearFiltersCommand}" />
                             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12">
-                                <Button Classes="secondary-button" Content="{loc:Loc Cancel}" Command="{Binding CloseFilterModalCommand}" />
+                                <Button Classes="secondary-button" Content="{loc:Loc Cancel}" Command="{Binding RequestCloseFilterModalCommand}" />
                                 <Button Classes="primary-button" Content="{loc:Loc Apply}" Command="{Binding ApplyFiltersCommand}" />
                             </StackPanel>
                         </Grid>

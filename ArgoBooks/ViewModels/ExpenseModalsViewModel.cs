@@ -186,10 +186,10 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
 
     #region Filter Override
 
-    protected override void ClearFilters()
+    protected override string ReceiptStatusFilter
     {
-        FilterReceiptStatus = "All";
-        base.ClearFilters();
+        get => FilterReceiptStatus;
+        set => FilterReceiptStatus = value;
     }
 
     #endregion

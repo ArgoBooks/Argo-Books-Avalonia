@@ -118,7 +118,7 @@
 
         <!-- Filter bank lines -->
         <controls:ModalOverlay IsOpen="{Binding IsFilterModalOpen}"
-                               ClosingCommand="{Binding CloseFilterModalCommand}">
+                               ClosingCommand="{Binding RequestCloseFilterModalCommand}">
             <controls:ModalOverlay.ModalContent>
                 <Border Background="{DynamicResource SurfaceBrush}"
                         BorderBrush="{DynamicResource BorderBrush}"
@@ -129,7 +129,7 @@
                             <Grid ColumnDefinitions="*,Auto">
                                 <TextBlock Text="{loc:Loc 'Filter bank lines'}" FontSize="18" FontWeight="SemiBold"
                                            Foreground="{DynamicResource TextPrimaryBrush}" />
-                                <Button Grid.Column="1" Classes="icon-button" Command="{Binding CloseFilterModalCommand}">
+                                <Button Grid.Column="1" Classes="icon-button" Command="{Binding RequestCloseFilterModalCommand}">
                                     <PathIcon Data="{x:Static local:Icons.Close}" Width="20" Height="20" />
                                 </Button>
                             </Grid>
@@ -165,7 +165,7 @@
                                 <Button Grid.Column="0" Content="{loc:Loc 'Clear filters'}" Classes="secondary-button"
                                         HorizontalAlignment="Left" Command="{Binding ClearFiltersCommand}" />
                                 <Button Grid.Column="2" Content="{loc:Loc Cancel}" Classes="secondary-button"
-                                        Margin="0,0,12,0" Command="{Binding CloseFilterModalCommand}" />
+                                        Margin="0,0,12,0" Command="{Binding RequestCloseFilterModalCommand}" />
                                 <Button Grid.Column="3" Content="{loc:Loc 'Apply Filters'}" Classes="primary-button"
                                         Command="{Binding ApplyFiltersCommand}" />
                             </Grid>
@@ -177,7 +177,7 @@
 
         <!-- Filter missing records -->
         <controls:ModalOverlay IsOpen="{Binding IsMissingFilterModalOpen}"
-                               ClosingCommand="{Binding CloseMissingFilterModalCommand}">
+                               ClosingCommand="{Binding RequestCloseMissingFilterModalCommand}">
             <controls:ModalOverlay.ModalContent>
                 <Border Background="{DynamicResource SurfaceBrush}"
                         BorderBrush="{DynamicResource BorderBrush}"
@@ -188,7 +188,7 @@
                             <Grid ColumnDefinitions="*,Auto">
                                 <TextBlock Text="{loc:Loc 'Filter records'}" FontSize="18" FontWeight="SemiBold"
                                            Foreground="{DynamicResource TextPrimaryBrush}" />
-                                <Button Grid.Column="1" Classes="icon-button" Command="{Binding CloseMissingFilterModalCommand}">
+                                <Button Grid.Column="1" Classes="icon-button" Command="{Binding RequestCloseMissingFilterModalCommand}">
                                     <PathIcon Data="{x:Static local:Icons.Close}" Width="20" Height="20" />
                                 </Button>
                             </Grid>
@@ -224,7 +224,7 @@
                                 <Button Grid.Column="0" Content="{loc:Loc 'Clear filters'}" Classes="secondary-button"
                                         HorizontalAlignment="Left" Command="{Binding ClearMissingFiltersCommand}" />
                                 <Button Grid.Column="2" Content="{loc:Loc Cancel}" Classes="secondary-button"
-                                        Margin="0,0,12,0" Command="{Binding CloseMissingFilterModalCommand}" />
+                                        Margin="0,0,12,0" Command="{Binding RequestCloseMissingFilterModalCommand}" />
                                 <Button Grid.Column="3" Content="{loc:Loc 'Apply Filters'}" Classes="primary-button"
                                         Command="{Binding ApplyMissingFiltersCommand}" />
                             </Grid>
