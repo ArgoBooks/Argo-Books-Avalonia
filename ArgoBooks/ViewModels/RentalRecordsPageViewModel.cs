@@ -29,10 +29,11 @@ public partial class RentalRecordsPageViewModel : SortablePageViewModelBase
     [ObservableProperty]
     private int _overdueRentals;
 
+    // What returned rentals charged, extra charges included, whether or not they were paid or invoiced.
     [ObservableProperty]
-    private decimal _totalRevenue;
+    private decimal _totalCharged;
 
-    public string TotalRevenueFormatted => CurrencyService.Format(TotalRevenue);
+    public string TotalChargedFormatted => CurrencyService.Format(TotalCharged);
 
     #endregion
 
@@ -303,8 +304,8 @@ public partial class RentalRecordsPageViewModel : SortablePageViewModelBase
         TotalRentals = _allRecords.Count;
         ActiveRentals = _allRecords.Count(r => r.Status == RentalStatus.Active);
         OverdueRentals = _allRecords.Count(r => r.Status == RentalStatus.Overdue);
-        TotalRevenue = _allRecords.Where(r => r.Status == RentalStatus.Returned).Sum(r => r.TotalCost ?? 0);
-        OnPropertyChanged(nameof(TotalRevenueFormatted));
+        TotalCharged = _allRecords.Where(r => r.Status == RentalStatus.Returned).Sum(r => r.TotalCost ?? 0);
+        OnPropertyChanged(nameof(TotalChargedFormatted));
     }
 
     [RelayCommand]

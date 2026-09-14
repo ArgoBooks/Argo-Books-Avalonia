@@ -34,8 +34,8 @@
                                    Value="{Binding OverdueRentals}"
                                    Icon="{x:Static icons:Icons.Info}"
                                    IconColor="Danger" />
-                <controls:StatCard Label="{loc:Loc 'Total Revenue'}"
-                                   Value="{Binding TotalRevenueFormatted}"
+                <controls:StatCard Label="{loc:Loc 'Total Charged'}"
+                                   Value="{Binding TotalChargedFormatted}"
                                    Icon="{x:Static icons:Icons.Dollar}"
                                    IconColor="Info" />
             </controls:StatCardsRow>
