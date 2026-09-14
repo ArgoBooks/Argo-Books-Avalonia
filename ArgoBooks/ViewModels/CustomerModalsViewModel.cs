@@ -24,10 +24,42 @@ public partial class CustomerModalsViewModel : ViewModelBase
     #region Modal State
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsFormOpen))]
     private bool _isAddModalOpen;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsFormOpen))]
     private bool _isEditModalOpen;
+
+    /// <summary>Add and edit share one form, open while either flag is set.</summary>
+    public bool IsFormOpen => IsAddModalOpen || IsEditModalOpen;
+
+    // Set when the form opens and kept on close, so the title doesn't change while it closes.
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FormTitle), nameof(FormSaveText), nameof(ModalIdPlaceholder))]
+    private bool _isEditMode;
+
+    public string FormTitle => IsEditMode ? "Edit Customer".Translate() : "Add Customer".Translate();
+    public string FormSaveText => IsEditMode ? "Save Changes".Translate() : "Add Customer".Translate();
+
+    // A blank ID is generated on add but rejected on edit, so only add hints at the format.
+    public string ModalIdPlaceholder => IsEditMode ? string.Empty : "CUS-xxx".Translate();
+
+    partial void OnIsAddModalOpenChanged(bool value)
+    {
+        if (value) IsEditMode = false;
+    }
+
+    partial void OnIsEditModalOpenChanged(bool value)
+    {
+        if (value) IsEditMode = true;
+    }
+
+    [RelayCommand]
+    private Task RequestCloseFormAsync() => IsEditMode ? RequestCloseEditModalAsync() : RequestCloseAddModalAsync();
+
+    [RelayCommand]
+    private Task SaveFormAsync() => IsEditMode ? SaveEditedCustomerAsync() : SaveNewCustomerAsync();
 
     [ObservableProperty]
     private bool _isFilterModalOpen;
@@ -83,7 +115,7 @@ public partial class CustomerModalsViewModel : ViewModelBase
     private string _modalStateProvince = string.Empty;
 
     [ObservableProperty]
-    private string _modalZipCode = string.Empty;
+    private string _modalPostalCode = string.Empty;
 
     [ObservableProperty]
     private string _modalCountry = string.Empty;
@@ -183,7 +215,7 @@ public partial class CustomerModalsViewModel : ViewModelBase
 
     private sealed record EditState(
         string Id, string FirstName, string LastName, string CompanyName, string Email, string Phone,
-        string StreetAddress, string City, string StateProvince, string ZipCode, string Country, string Notes,
+        string StreetAddress, string City, string StateProvince, string PostalCode, string Country, string Notes,
         bool AvatarChanged);
 
     // The form as the edit modal opened, for change detection.
@@ -191,7 +223,7 @@ public partial class CustomerModalsViewModel : ViewModelBase
 
     private EditState Capture() => new(
         ModalId.Trim(), ModalFirstName, ModalLastName, ModalCompanyName, ModalEmail, ModalPhone,
-        ModalStreetAddress, ModalCity, ModalStateProvince, ModalZipCode, ModalCountry, ModalNotes,
+        ModalStreetAddress, ModalCity, ModalStateProvince, ModalPostalCode, ModalCountry, ModalNotes,
         _pendingAvatarSourcePath != null || _shouldRemoveAvatarOnSave);
 
     /// <summary>
@@ -206,7 +238,7 @@ public partial class CustomerModalsViewModel : ViewModelBase
         !string.IsNullOrWhiteSpace(ModalStreetAddress) ||
         !string.IsNullOrWhiteSpace(ModalCity) ||
         !string.IsNullOrWhiteSpace(ModalStateProvince) ||
-        !string.IsNullOrWhiteSpace(ModalZipCode) ||
+        !string.IsNullOrWhiteSpace(ModalPostalCode) ||
         !string.IsNullOrWhiteSpace(ModalCountry) ||
         !string.IsNullOrWhiteSpace(ModalNotes) ||
         HasModalAvatar;
@@ -438,7 +470,7 @@ public partial class CustomerModalsViewModel : ViewModelBase
                 Street = ModalStreetAddress.Trim(),
                 City = ModalCity.Trim(),
                 State = ModalStateProvince.Trim(),
-                ZipCode = ModalZipCode.Trim(),
+                ZipCode = ModalPostalCode.Trim(),
                 Country = ModalCountry.Trim()
             },
             Notes = ModalNotes.Trim(),
@@ -537,7 +569,7 @@ public partial class CustomerModalsViewModel : ViewModelBase
         ModalStreetAddress = customer.Address.Street;
         ModalCity = customer.Address.City;
         ModalStateProvince = customer.Address.State;
-        ModalZipCode = customer.Address.ZipCode;
+        ModalPostalCode = customer.Address.ZipCode;
         ModalCountry = customer.Address.Country;
         ModalNotes = customer.Notes;
         ModalStatus = customer.Status switch
@@ -638,7 +670,7 @@ public partial class CustomerModalsViewModel : ViewModelBase
             Street = ModalStreetAddress.Trim(),
             City = ModalCity.Trim(),
             State = ModalStateProvince.Trim(),
-            ZipCode = ModalZipCode.Trim(),
+            ZipCode = ModalPostalCode.Trim(),
             Country = ModalCountry.Trim()
         };
         var newNotes = ModalNotes.Trim();
@@ -1139,7 +1171,7 @@ public partial class CustomerModalsViewModel : ViewModelBase
         ModalStreetAddress = string.Empty;
         ModalCity = string.Empty;
         ModalStateProvince = string.Empty;
-        ModalZipCode = string.Empty;
+        ModalPostalCode = string.Empty;
         ModalCountry = string.Empty;
         ModalNotes = string.Empty;
         ModalStatus = "Active";

@@ -6,10 +6,13 @@
              xmlns:loc="using:ArgoBooks.Localization"
              xmlns:icons="using:ArgoBooks"
              mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="300"
-             x:Class="ArgoBooks.Modals.SaveErrorModal"
-             x:CompileBindings="False">
+             x:Class="ArgoBooks.Controls.ErrorRetryModal"
+             x:DataType="controls:ErrorRetryModal"
+             x:Name="Root">
 
-    <controls:ModalOverlay IsOpen="{Binding HasSaveError}">
+    <controls:ModalOverlay x:Name="Overlay"
+                           IsOpen="{Binding #Root.IsOpen}"
+                           ClosingCommand="{Binding #Root.DismissCommand}">
         <controls:ModalOverlay.ModalContent>
             <Border HorizontalAlignment="Center"
                     VerticalAlignment="Center"
@@ -18,9 +21,9 @@
                     CornerRadius="12"
                     BoxShadow="0 8 32 0 #40000000">
                 <StackPanel Margin="24" Spacing="20">
-                    <!-- Error Icon and Message -->
-                    <StackPanel HorizontalAlignment="Center" Spacing="16">
-                        <Border Background="#fef2f2"
+                    <StackPanel HorizontalAlignment="Center" Spacing="16"
+                                IsVisible="{Binding #Root.ShowBusyPanel, Converter={x:Static BoolConverters.Not}}">
+                        <Border Background="{DynamicResource ErrorLightBrush}"
                                 CornerRadius="50"
                                 Width="64" Height="64"
                                 HorizontalAlignment="Center">
@@ -30,12 +33,12 @@
                                       HorizontalAlignment="Center"
                                       VerticalAlignment="Center" />
                         </Border>
-                        <TextBlock Text="{loc:Loc 'Unable to Save'}"
+                        <TextBlock Text="{Binding #Root.Title}"
                                    FontSize="18"
                                    FontWeight="SemiBold"
                                    Foreground="{DynamicResource TextPrimaryBrush}"
                                    HorizontalAlignment="Center" />
-                        <TextBlock Text="{Binding SaveErrorMessage}"
+                        <TextBlock Text="{Binding #Root.Message}"
                                    FontSize="14"
                                    Foreground="{DynamicResource TextSecondaryBrush}"
                                    TextWrapping="Wrap"
@@ -43,28 +46,43 @@
                                    HorizontalAlignment="Center" />
                     </StackPanel>
 
-                    <!-- Buttons -->
+                    <StackPanel HorizontalAlignment="Center" Spacing="16"
+                                IsVisible="{Binding #Root.ShowBusyPanel}">
+                        <controls:LoadingSpinner IsSpinning="{Binding #Root.ShowBusyPanel}"
+                                                 SizePreset="Large"
+                                                 HorizontalAlignment="Center" />
+                        <TextBlock Text="{Binding #Root.BusyTitle}"
+                                   FontSize="18"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   HorizontalAlignment="Center" />
+                        <TextBlock Text="{Binding #Root.BusyMessage}"
+                                   FontSize="14"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap"
+                                   TextAlignment="Center"
+                                   HorizontalAlignment="Center" />
+                    </StackPanel>
+
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="12">
                         <Button Classes="secondary-button"
                                 Content="{loc:Loc 'Cancel'}"
-                                Command="{Binding DismissSaveErrorCommand}"
-                                IsEnabled="{Binding !IsSavingTransaction}" />
+                                Command="{Binding #Root.DismissCommand}"
+                                IsEnabled="{Binding #Root.IsBusy, Converter={x:Static BoolConverters.Not}}" />
                         <Button Classes="primary-button"
-                                Command="{Binding RetrySaveCommand}"
-                                IsEnabled="{Binding !IsSavingTransaction}">
+                                Command="{Binding #Root.RetryCommand}"
+                                IsEnabled="{Binding #Root.IsBusy, Converter={x:Static BoolConverters.Not}}">
                             <StackPanel Orientation="Horizontal" Spacing="6">
-                                <!-- Retry icon - hidden when saving -->
                                 <PathIcon Data="{x:Static icons:Icons.RefreshAlt}"
                                           Width="16" Height="16"
-                                          IsVisible="{Binding !IsSavingTransaction}" />
-                                <!-- Loading spinner - shown when saving -->
+                                          IsVisible="{Binding #Root.IsBusy, Converter={x:Static BoolConverters.Not}}" />
                                 <PathIcon Data="{x:Static icons:Icons.Spinner}"
                                           Width="16" Height="16"
-                                          IsVisible="{Binding IsSavingTransaction}" />
+                                          IsVisible="{Binding #Root.ShowButtonSpinner}" />
                                 <TextBlock Text="{loc:Loc 'Retry'}"
-                                           IsVisible="{Binding !IsSavingTransaction}" />
+                                           IsVisible="{Binding #Root.IsBusy, Converter={x:Static BoolConverters.Not}}" />
                                 <TextBlock Text="{loc:Loc 'Retrying...'}"
-                                           IsVisible="{Binding IsSavingTransaction}" />
+                                           IsVisible="{Binding #Root.IsBusy}" />
                             </StackPanel>
                         </Button>
                     </StackPanel>

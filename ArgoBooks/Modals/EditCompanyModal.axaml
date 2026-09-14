@@ -255,6 +255,14 @@
     <modals:CurrencyLoadingModal />
 
     <!-- Currency Error Modal -->
-    <modals:CurrencyErrorModal />
+    <controls:ErrorRetryModal IsOpen="{Binding HasCurrencyError}"
+                              Title="{loc:Loc 'Unable to Change Currency'}"
+                              Message="{Binding CurrencyErrorMessage}"
+                              IsBusy="{Binding IsSavingCurrency}"
+                              BusyTitle="{loc:Loc 'Fetching Exchange Rates...'}"
+                              BusyMessage="{loc:Loc 'Please wait while we connect to the exchange rate service.'}"
+                              DismissCommand="{Binding DismissCurrencyErrorCommand}"
+                              RetryCommand="{Binding RetryCurrencySaveCommand}"
+                              AllowLightDismiss="False" />
     </Panel>
 </UserControl>

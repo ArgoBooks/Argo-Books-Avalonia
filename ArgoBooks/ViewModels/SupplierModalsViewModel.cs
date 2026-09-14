@@ -24,10 +24,42 @@ public partial class SupplierModalsViewModel : ViewModelBase
     #region Modal State
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsFormOpen))]
     private bool _isAddModalOpen;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsFormOpen))]
     private bool _isEditModalOpen;
+
+    /// <summary>Add and edit share one form, open while either flag is set.</summary>
+    public bool IsFormOpen => IsAddModalOpen || IsEditModalOpen;
+
+    // Set when the form opens and kept on close, so the title doesn't change while it closes.
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FormTitle), nameof(FormSaveText), nameof(ModalIdPlaceholder))]
+    private bool _isEditMode;
+
+    public string FormTitle => IsEditMode ? "Edit Supplier".Translate() : "Add Supplier".Translate();
+    public string FormSaveText => IsEditMode ? "Save Changes".Translate() : "Add Supplier".Translate();
+
+    // A blank ID is generated on add but rejected on edit, so only add hints at the format.
+    public string ModalIdPlaceholder => IsEditMode ? string.Empty : "SUP-xxx".Translate();
+
+    partial void OnIsAddModalOpenChanged(bool value)
+    {
+        if (value) IsEditMode = false;
+    }
+
+    partial void OnIsEditModalOpenChanged(bool value)
+    {
+        if (value) IsEditMode = true;
+    }
+
+    [RelayCommand]
+    private Task RequestCloseFormAsync() => IsEditMode ? RequestCloseEditModalAsync() : RequestCloseAddModalAsync();
+
+    [RelayCommand]
+    private Task SaveFormAsync() => IsEditMode ? SaveEditedSupplierAsync() : SaveNewSupplierAsync();
 
     [ObservableProperty]
     private bool _isDeleteConfirmOpen;
@@ -77,7 +109,7 @@ public partial class SupplierModalsViewModel : ViewModelBase
     private string _modalStateProvince = string.Empty;
 
     [ObservableProperty]
-    private string _modalZipCode = string.Empty;
+    private string _modalPostalCode = string.Empty;
 
     [ObservableProperty]
     private string _modalCountry = string.Empty;
@@ -166,7 +198,7 @@ public partial class SupplierModalsViewModel : ViewModelBase
 
     private sealed record EditState(
         string Id, string Name, string Email, string Phone, string Website,
-        string StreetAddress, string City, string StateProvince, string ZipCode, string Country, string Notes,
+        string StreetAddress, string City, string StateProvince, string PostalCode, string Country, string Notes,
         bool AvatarChanged);
 
     // The form as the edit modal opened, for change detection.
@@ -174,7 +206,7 @@ public partial class SupplierModalsViewModel : ViewModelBase
 
     private EditState Capture() => new(
         ModalId.Trim(), ModalSupplierName, ModalEmail, ModalPhone, ModalWebsite,
-        ModalStreetAddress, ModalCity, ModalStateProvince, ModalZipCode, ModalCountry, ModalNotes,
+        ModalStreetAddress, ModalCity, ModalStateProvince, ModalPostalCode, ModalCountry, ModalNotes,
         _pendingAvatarSourcePath != null || _pendingFaviconBytes != null || _shouldRemoveAvatarOnSave);
 
     /// <summary>
@@ -188,7 +220,7 @@ public partial class SupplierModalsViewModel : ViewModelBase
         !string.IsNullOrWhiteSpace(ModalStreetAddress) ||
         !string.IsNullOrWhiteSpace(ModalCity) ||
         !string.IsNullOrWhiteSpace(ModalStateProvince) ||
-        !string.IsNullOrWhiteSpace(ModalZipCode) ||
+        !string.IsNullOrWhiteSpace(ModalPostalCode) ||
         !string.IsNullOrWhiteSpace(ModalCountry) ||
         !string.IsNullOrWhiteSpace(ModalNotes) ||
         HasModalAvatar;
@@ -426,7 +458,7 @@ public partial class SupplierModalsViewModel : ViewModelBase
                 Street = string.IsNullOrWhiteSpace(ModalStreetAddress) ? string.Empty : ModalStreetAddress.Trim(),
                 City = string.IsNullOrWhiteSpace(ModalCity) ? string.Empty : ModalCity.Trim(),
                 State = string.IsNullOrWhiteSpace(ModalStateProvince) ? string.Empty : ModalStateProvince.Trim(),
-                ZipCode = string.IsNullOrWhiteSpace(ModalZipCode) ? string.Empty : ModalZipCode.Trim(),
+                ZipCode = string.IsNullOrWhiteSpace(ModalPostalCode) ? string.Empty : ModalPostalCode.Trim(),
                 Country = string.IsNullOrWhiteSpace(ModalCountry) ? string.Empty : ModalCountry.Trim()
             },
             Notes = string.IsNullOrWhiteSpace(ModalNotes) ? string.Empty : ModalNotes.Trim(),
@@ -544,7 +576,7 @@ public partial class SupplierModalsViewModel : ViewModelBase
         ModalStreetAddress = supplier.Address.Street;
         ModalCity = supplier.Address.City;
         ModalStateProvince = supplier.Address.State;
-        ModalZipCode = supplier.Address.ZipCode;
+        ModalPostalCode = supplier.Address.ZipCode;
         ModalCountry = supplier.Address.Country;
         ModalNotes = supplier.Notes;
 
@@ -610,7 +642,7 @@ public partial class SupplierModalsViewModel : ViewModelBase
             Street = string.IsNullOrWhiteSpace(ModalStreetAddress) ? string.Empty : ModalStreetAddress.Trim(),
             City = string.IsNullOrWhiteSpace(ModalCity) ? string.Empty : ModalCity.Trim(),
             State = string.IsNullOrWhiteSpace(ModalStateProvince) ? string.Empty : ModalStateProvince.Trim(),
-            ZipCode = string.IsNullOrWhiteSpace(ModalZipCode) ? string.Empty : ModalZipCode.Trim(),
+            ZipCode = string.IsNullOrWhiteSpace(ModalPostalCode) ? string.Empty : ModalPostalCode.Trim(),
             Country = string.IsNullOrWhiteSpace(ModalCountry) ? string.Empty : ModalCountry.Trim()
         };
         var newNotes = string.IsNullOrWhiteSpace(ModalNotes) ? string.Empty : ModalNotes.Trim();
@@ -888,7 +920,7 @@ public partial class SupplierModalsViewModel : ViewModelBase
         ModalStreetAddress = string.Empty;
         ModalCity = string.Empty;
         ModalStateProvince = string.Empty;
-        ModalZipCode = string.Empty;
+        ModalPostalCode = string.Empty;
         ModalCountry = string.Empty;
         ModalNotes = string.Empty;
         ModalError = null;

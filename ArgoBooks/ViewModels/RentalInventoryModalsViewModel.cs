@@ -21,10 +21,43 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
     #region Modal State
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsFormOpen))]
     private bool _isAddModalOpen;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsFormOpen))]
     private bool _isEditModalOpen;
+
+    /// <summary>Add and edit share one form, open while either flag is set.</summary>
+    public bool IsFormOpen => IsAddModalOpen || IsEditModalOpen;
+
+    // Set when the form opens and kept on close, so the title doesn't change while it closes.
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FormTitle), nameof(FormSaveText))]
+    private bool _isEditMode;
+
+    public string FormTitle => IsEditMode ? "Edit Rental Item".Translate() : "Add Rental Item".Translate();
+    public string FormSaveText => IsEditMode ? "Save Changes".Translate() : "Add Item".Translate();
+
+    partial void OnIsAddModalOpenChanged(bool value)
+    {
+        if (value) IsEditMode = false;
+    }
+
+    partial void OnIsEditModalOpenChanged(bool value)
+    {
+        if (value) IsEditMode = true;
+    }
+
+    [RelayCommand]
+    private Task RequestCloseFormAsync() => IsEditMode ? RequestCloseEditModalAsync() : RequestCloseAddModalAsync();
+
+    [RelayCommand]
+    private void SaveForm()
+    {
+        if (IsEditMode) SaveEditedItem();
+        else SaveNewItem();
+    }
 
     [ObservableProperty]
     private bool _isDeleteConfirmOpen;

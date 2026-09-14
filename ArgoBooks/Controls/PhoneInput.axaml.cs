@@ -1,17 +1,13 @@
-using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Text;
-using System.Windows.Input;
 using ArgoBooks.Core.Data;
-using ArgoBooks.Utilities;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Data;
-using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
-using CommunityToolkit.Mvvm.Input;
+using Avalonia.Threading;
 
 namespace ArgoBooks.Controls;
 
@@ -22,8 +18,7 @@ public partial class PhoneInput : UserControl, INotifyPropertyChanged
 {
     public new event PropertyChangedEventHandler? PropertyChanged;
     private TextBox? _phoneNumberBox;
-    private TextBox? _countrySearchBox;
-    private ListBox? _countryListBox;
+    private SearchableDropdown? _countryDropdown;
     private bool _isUpdatingText;
     private bool _isFormattingPhone;
 
@@ -107,27 +102,9 @@ public partial class PhoneInput : UserControl, INotifyPropertyChanged
         }
     }
 
-    private string _countrySearchText = string.Empty;
-    public string CountrySearchText
-    {
-        get => _countrySearchText;
-        set
-        {
-            if (_countrySearchText != value)
-            {
-                _countrySearchText = value;
-                RaisePropertyChanged();
-                if (!_isUpdatingText)
-                {
-                    UpdateFilteredCountries();
-                    if (!string.IsNullOrEmpty(value))
-                    {
-                        IsCountryDropdownOpen = true;
-                    }
-                }
-            }
-        }
-    }
+    public IReadOnlyList<CountryDialCode> PriorityCountries => PriorityDialCodes;
+
+    public IReadOnlyList<CountryDialCode> OtherCountries => OtherDialCodes;
 
     private string _formattedPhoneNumber = string.Empty;
     /// <summary>
@@ -151,71 +128,6 @@ public partial class PhoneInput : UserControl, INotifyPropertyChanged
             }
         }
     }
-
-    public bool IsCountryDropdownOpen
-    {
-        get;
-        set
-        {
-            if (field != value)
-            {
-                field = value;
-                RaisePropertyChanged();
-
-                if (value)
-                {
-                    // Refresh the list when opening
-                    SelectedIndex = 0;
-                    UpdateFilteredCountries();
-                }
-            }
-        }
-    }
-
-    /// <summary>
-    /// Gets whether there are filtered countries.
-    /// </summary>
-    public bool HasFilteredCountries
-    {
-        get;
-        private set
-        {
-            if (field != value)
-            {
-                field = value;
-                RaisePropertyChanged();
-            }
-        }
-    }
-
-    /// <summary>
-    /// Gets or sets the currently highlighted index in the dropdown.
-    /// </summary>
-    public int SelectedIndex
-    {
-        get;
-        set
-        {
-            if (field != value)
-            {
-                field = value;
-                RaisePropertyChanged();
-                ScrollToSelectedItem();
-            }
-        }
-    } = -1;
-
-    /// <summary>
-    /// Gets the filtered dial codes based on search.
-    /// </summary>
-    public ObservableCollection<CountryDialCode> FilteredDialCodes { get; } = [];
-
-    #endregion
-
-    #region Commands
-
-    public ICommand ToggleCountryDropdownCommand { get; }
-    public ICommand SelectCountryCommand { get; }
 
     #endregion
 
@@ -259,30 +171,25 @@ public partial class PhoneInput : UserControl, INotifyPropertyChanged
     /// </summary>
     public static readonly List<CountryDialCode> AllDialCodes = CreateAllDialCodes();
 
-    private static List<CountryDialCode> CreateAllDialCodes()
-    {
-        var priorityCount = Countries.Priority.Count;
-        var result = Countries.AllWithPriorityFirst
-            .Select((c, index) => new CountryDialCode(c.Code, c.Name, c.DialCode, c.PhoneFormat, c.FlagFileName)
-            {
-                ShowSeparatorAfter = index == priorityCount - 1 // Last priority country
-            })
+    private static List<CountryDialCode> CreateAllDialCodes() =>
+        Countries.AllWithPriorityFirst
+            .Select(c => new CountryDialCode(c.Code, c.Name, c.DialCode, c.PhoneFormat, c.FlagFileName))
             .ToList();
-        return result;
-    }
+
+    public static readonly IReadOnlyList<CountryDialCode> PriorityDialCodes =
+        AllDialCodes.Take(Countries.Priority.Count).ToList();
+
+    // AllDialCodes repeats the priority countries in the alphabetical list after them.
+    public static readonly IReadOnlyList<CountryDialCode> OtherDialCodes =
+        AllDialCodes.Skip(Countries.Priority.Count).Where(c => !Countries.IsPriority(c.Code)).ToList();
 
     #endregion
 
     public PhoneInput()
     {
-        ToggleCountryDropdownCommand = new RelayCommand(ToggleCountryDropdown);
-        SelectCountryCommand = new RelayCommand<CountryDialCode>(SelectCountry);
-
         InitializeComponent();
 
         SelectedCountry = AllDialCodes.FirstOrDefault(c => c.Code == "US");
-        UpdateCountrySearchText();
-        UpdateFilteredCountries();
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -291,12 +198,15 @@ public partial class PhoneInput : UserControl, INotifyPropertyChanged
 
         if (change.Property == SelectedCountryProperty)
         {
-            UpdateCountrySearchText();
             ReformatPhoneNumberForNewCountry();
             UpdatePhoneNumberPlaceholder();
             UpdateFullPhoneNumber();
             RaisePropertyChanged(nameof(IsPhoneComplete));
             RaisePropertyChanged(nameof(HasIncompletePhone));
+
+            // A country picked from the open list moves on to the number, once the pick has finished closing it.
+            if (_countryDropdown?.IsDropdownOpen == true)
+                Dispatcher.UIThread.Post(() => _phoneNumberBox?.Focus());
         }
         else if (change.Property == PhoneNumberProperty && !_isUpdatingText)
         {
@@ -321,7 +231,6 @@ public partial class PhoneInput : UserControl, INotifyPropertyChanged
         base.OnLoaded(e);
 
         _phoneNumberBox = this.FindControl<TextBox>("PhoneNumberBox");
-        _countrySearchBox = this.FindControl<TextBox>("CountrySearchBox");
 
         if (_phoneNumberBox != null)
         {
@@ -333,43 +242,35 @@ public partial class PhoneInput : UserControl, INotifyPropertyChanged
                 _phoneNumberBox.Text = _formattedPhoneNumber;
         }
 
-        if (_countrySearchBox != null)
+        if (_countryDropdown == null)
         {
-            _countrySearchBox.GotFocus += OnCountrySearchBoxGotFocus;
-            _countrySearchBox.KeyDown += OnCountrySearchBoxKeyDown;
-            // Tunneling so we re-open the dropdown even when the textbox already has focus.
-            // Without this, clicking-elsewhere light-dismisses the popup but the textbox keeps
-            // focus, and the next click on the textbox doesn't fire GotFocus.
-            _countrySearchBox.AddHandler(PointerPressedEvent, OnCountrySearchBoxPointerPressed, Avalonia.Interactivity.RoutingStrategies.Tunnel);
-        }
-
-        _countryListBox = this.FindControl<ListBox>("CountryListBox");
-        if (_countryListBox != null)
-        {
-            _countryListBox.PointerWheelChanged += OnCountryListBoxPointerWheelChanged;
-            _countryListBox.PointerReleased += OnCountryListBoxPointerReleased;
+            _countryDropdown = this.FindControl<SearchableDropdown>("CountryDropdown");
+            if (_countryDropdown != null)
+            {
+                ((AvaloniaObject)_countryDropdown).PropertyChanged += OnCountryDropdownPropertyChanged;
+                _countryDropdown.LostFocus += (_, _) => Dispatcher.UIThread.Post(RestoreCountryText);
+            }
         }
     }
 
-    private void OnCountryListBoxPointerWheelChanged(object? sender, PointerWheelEventArgs e)
+    private void OnCountryDropdownPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
-        e.Handled = true;
+        if (e.Property == SearchableDropdown.IsDropdownOpenProperty && e.NewValue is false)
+            Dispatcher.UIThread.Post(RestoreCountryText);
     }
 
-    private void OnCountryListBoxPointerReleased(object? sender, PointerReleasedEventArgs e)
+    /// <summary>
+    /// Search text that picked nothing gives way to the chosen dial code once the list is closed and the box
+    /// is left, so the box never shows a half-typed search beside a number formatted for another country.
+    /// </summary>
+    private void RestoreCountryText()
     {
-        if (_countryListBox?.SelectedItem is CountryDialCode country)
-        {
-            SelectCountry(country);
-        }
-    }
-
-    private void ScrollToSelectedItem()
-    {
-        if (_countryListBox == null || SelectedIndex < 0 || SelectedIndex >= FilteredDialCodes.Count)
+        if (_countryDropdown == null || _countryDropdown.IsDropdownOpen || _countryDropdown.IsKeyboardFocusWithin)
             return;
 
-        _countryListBox.ScrollIntoView(FilteredDialCodes[SelectedIndex]);
+        var dialCode = SelectedCountry?.DialCode ?? string.Empty;
+        if (_countryDropdown.SearchText != dialCode)
+            _countryDropdown.SearchText = dialCode;
     }
 
     private void ReformatPhoneNumberForNewCountry()
@@ -485,137 +386,6 @@ public partial class PhoneInput : UserControl, INotifyPropertyChanged
         _isFormattingPhone = false;
     }
 
-    private void OnCountrySearchBoxGotFocus(object? sender, FocusChangedEventArgs e)
-    {
-        IsCountryDropdownOpen = true;
-        _countrySearchBox?.SelectAll();
-    }
-
-    private void OnCountrySearchBoxPointerPressed(object? sender, PointerPressedEventArgs e)
-    {
-        if (!IsCountryDropdownOpen)
-        {
-            IsCountryDropdownOpen = true;
-        }
-    }
-
-    private void OnCountrySearchBoxKeyDown(object? sender, KeyEventArgs e)
-    {
-        switch (e.Key)
-        {
-            case Key.Down:
-                if (!IsCountryDropdownOpen)
-                {
-                    IsCountryDropdownOpen = true;
-                    SelectedIndex = 0;
-                }
-                else if (SelectedIndex < FilteredDialCodes.Count - 1)
-                {
-                    SelectedIndex++;
-                }
-                e.Handled = true;
-                break;
-            case Key.Up:
-                if (IsCountryDropdownOpen && SelectedIndex > 0)
-                {
-                    SelectedIndex--;
-                }
-                e.Handled = true;
-                break;
-            case Key.Escape:
-                IsCountryDropdownOpen = false;
-                UpdateCountrySearchText();
-                e.Handled = true;
-                break;
-            case Key.Enter:
-            case Key.Tab:
-                if (IsCountryDropdownOpen && SelectedIndex >= 0 && SelectedIndex < FilteredDialCodes.Count)
-                {
-                    SelectCountry(FilteredDialCodes[SelectedIndex]);
-                }
-                else if (FilteredDialCodes.Count > 0)
-                {
-                    SelectCountry(FilteredDialCodes[0]);
-                }
-                if (e.Key == Key.Enter)
-                    e.Handled = true;
-                break;
-        }
-    }
-
-    private void ToggleCountryDropdown()
-    {
-        IsCountryDropdownOpen = !IsCountryDropdownOpen;
-        if (IsCountryDropdownOpen)
-        {
-            _countrySearchBox?.Focus();
-            _countrySearchBox?.SelectAll();
-        }
-    }
-
-    private void SelectCountry(CountryDialCode? country)
-    {
-        if (country == null)
-            return;
-
-        SelectedCountry = country;
-        UpdateCountrySearchText();
-        IsCountryDropdownOpen = false;
-        _phoneNumberBox?.Focus();
-    }
-
-    private void UpdateCountrySearchText()
-    {
-        _isUpdatingText = true;
-        _countrySearchText = SelectedCountry?.DialCode ?? "+1";
-        RaisePropertyChanged(nameof(CountrySearchText));
-        _isUpdatingText = false;
-    }
-
-    private void UpdateFilteredCountries()
-    {
-        FilteredDialCodes.Clear();
-
-        var searchText = _countrySearchText.Trim().ToLowerInvariant();
-
-        bool showingFullList = string.IsNullOrEmpty(searchText) || searchText.StartsWith('+');
-
-        IEnumerable<CountryDialCode> filtered;
-
-        if (showingFullList)
-        {
-            // Show all when empty or when showing dial code
-            filtered = AllDialCodes;
-        }
-        else
-        {
-            filtered = SearchCountries(searchText);
-        }
-
-        // Get the last priority country code (Canada = "CA")
-        var lastPriorityCode = Countries.Priority.LastOrDefault()?.Code;
-
-        foreach (var item in filtered)
-        {
-            // Only show separator when displaying the full list, after the last priority country
-            item.ShowSeparatorAfter = showingFullList && item.Code == lastPriorityCode;
-            FilteredDialCodes.Add(item);
-        }
-
-        HasFilteredCountries = FilteredDialCodes.Count > 0;
-    }
-
-    private static IEnumerable<CountryDialCode> SearchCountries(string searchText) =>
-        AllDialCodes
-            // The full list repeats the priority countries above the alphabetical list.
-            .DistinctBy(c => c.Code)
-            .RankBySearch(searchText, c =>
-            [
-                c.Name,
-                c.Code.Equals(searchText, StringComparison.OrdinalIgnoreCase) ? c.Code : null,
-                c.DialCode
-            ]);
-
     private void UpdateFullPhoneNumber()
     {
         if (_isUpdatingText)
@@ -649,7 +419,6 @@ public partial class PhoneInput : UserControl, INotifyPropertyChanged
                 PhoneNumber = ExtractDigits(remaining);
                 _formattedPhoneNumber = FormatPhoneNumber(PhoneNumber);
                 RaisePropertyChanged(nameof(FormattedPhoneNumber));
-                UpdateCountrySearchText();
                 _isUpdatingText = false;
                 return;
             }
@@ -660,7 +429,6 @@ public partial class PhoneInput : UserControl, INotifyPropertyChanged
         PhoneNumber = ExtractDigits(fullPhone);
         _formattedPhoneNumber = FormatPhoneNumber(PhoneNumber);
         RaisePropertyChanged(nameof(FormattedPhoneNumber));
-        UpdateCountrySearchText();
         _isUpdatingText = false;
     }
 
@@ -728,11 +496,6 @@ public class CountryDialCode(string code, string name, string dialCode, string p
     /// Gets whether this is a priority/common country.
     /// </summary>
     public bool IsPriority => Countries.IsPriority(Code);
-
-    /// <summary>
-    /// Gets whether this country should show a separator after it (last priority country).
-    /// </summary>
-    public bool ShowSeparatorAfter { get; set; }
 
     /// <summary>
     /// Path to the flag image asset.

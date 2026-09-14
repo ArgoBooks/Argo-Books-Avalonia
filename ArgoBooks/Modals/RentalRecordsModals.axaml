@@ -13,9 +13,9 @@
              x:DataType="vm:RentalRecordsModalsViewModel">
 
     <Panel>
-        <!-- Add Record Modal -->
-        <controls:ModalOverlay IsOpen="{Binding IsAddModalOpen}"
-                               ClosingCommand="{Binding RequestCloseAddModalCommand}">
+        <!-- Add / Edit Record Modal -->
+        <controls:ModalOverlay IsOpen="{Binding IsFormOpen, Mode=OneWay}"
+                               ClosingCommand="{Binding RequestCloseFormCommand}">
             <controls:ModalOverlay.ModalContent>
                 <Border Background="{DynamicResource SurfaceBrush}"
                     BorderBrush="{DynamicResource BorderBrush}"
@@ -29,8 +29,8 @@
                     <!-- Header -->
                     <Border Grid.Row="0" Padding="24,20" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
                         <Grid ColumnDefinitions="*,Auto">
-                            <TextBlock Text="{loc:Loc 'New Rental Record'}" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
-                            <Button Grid.Column="1" Classes="icon-button" Command="{Binding CloseAddModalCommand}">
+                            <TextBlock Text="{Binding FormTitle}" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
+                            <Button Grid.Column="1" Classes="icon-button" Command="{Binding RequestCloseFormCommand}">
                                 <PathIcon Data="{x:Static local:Icons.Close}"
                                           Width="20" Height="20" />
                             </Button>
@@ -224,228 +224,8 @@
                     <!-- Footer -->
                     <Border Grid.Row="2" Padding="24,16" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12">
-                            <Button Classes="secondary-button" Content="{loc:Loc Cancel}" Command="{Binding CloseAddModalCommand}" />
-                            <Button Classes="primary-button" Content="{loc:Loc 'Create Rental'}" Command="{Binding SaveNewRecordCommand}" />
-                        </StackPanel>
-                    </Border>
-                </Grid>
-                </Border>
-            </controls:ModalOverlay.ModalContent>
-        </controls:ModalOverlay>
-
-        <!-- Edit Record Modal -->
-        <controls:ModalOverlay IsOpen="{Binding IsEditModalOpen}"
-                               ClosingCommand="{Binding RequestCloseEditModalCommand}">
-            <controls:ModalOverlay.ModalContent>
-                <Border Background="{DynamicResource SurfaceBrush}"
-                    BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="1"
-                    CornerRadius="12"
-                    Width="750"
-                    MaxHeight="700"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center">
-                <Grid RowDefinitions="Auto,*,Auto">
-                    <!-- Header -->
-                    <Border Grid.Row="0" Padding="24,20" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
-                        <Grid ColumnDefinitions="*,Auto">
-                            <TextBlock Text="{loc:Loc 'Edit Rental Record'}" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
-                            <Button Grid.Column="1" Classes="icon-button" Command="{Binding CloseEditModalCommand}">
-                                <PathIcon Data="{x:Static local:Icons.Close}"
-                                          Width="20" Height="20" />
-                            </Button>
-                        </Grid>
-                    </Border>
-
-                    <!-- Content -->
-                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                        <StackPanel Margin="24" Spacing="16">
-                            <!-- Customer -->
-                            <StackPanel Spacing="6">
-                                <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}">
-                                    <Run Text="{loc:Loc Customer}" /><Run Text=" *" Foreground="{DynamicResource ErrorBrush}" />
-                                </TextBlock>
-                                <controls:SearchableDropdown ItemsSource="{Binding AvailableCustomers}"
-                                                            SelectedItem="{Binding ModalCustomer}"
-                                                            DisplayMemberPath="Name"
-                                                            SearchMemberPath="Id"
-                                                            Placeholder="{loc:Loc 'Search customers...'}"
-                                                            ShowAddNew="True"
-                                                            AddNewText="{loc:Loc 'Create new customer'}"
-                                                            AddNewCommand="{Binding OpenCreateCustomerCommand}"
-                                                            EmptyMessage="{loc:Loc 'No customers available.'}"
-                                                            EmptyCreateLinkText="{loc:Loc 'Create one'}"
-                                                            EmptyCreateCommand="{Binding OpenCreateCustomerCommand}" />
-                                <TextBlock TextWrapping="Wrap" Text="{Binding ModalCustomerError}" Foreground="{DynamicResource ErrorBrush}" FontSize="12"
-                                           IsVisible="{Binding ModalCustomerError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                            </StackPanel>
-
-                            <!-- Start Date and Due Date Row -->
-                            <Grid ColumnDefinitions="*,16,*">
-                                <StackPanel Grid.Column="0" Spacing="6">
-                                    <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}">
-                                        <Run Text="{loc:Loc 'Start Date'}" /><Run Text=" *" Foreground="{DynamicResource ErrorBrush}" />
-                                    </TextBlock>
-                                    <DatePicker SelectedDate="{Binding ModalStartDate}" Classes="form-datepicker" HorizontalAlignment="Stretch" />
-                                </StackPanel>
-                                <StackPanel Grid.Column="2" Spacing="6">
-                                    <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}">
-                                        <Run Text="{loc:Loc 'Due Date'}" /><Run Text=" *" Foreground="{DynamicResource ErrorBrush}" />
-                                    </TextBlock>
-                                    <DatePicker SelectedDate="{Binding ModalDueDate}" Classes="form-datepicker" HorizontalAlignment="Stretch" />
-                                </StackPanel>
-                            </Grid>
-
-                            <!-- Line Items Section -->
-                            <StackPanel Spacing="12">
-                                <Grid ColumnDefinitions="*,Auto">
-                                    <TextBlock Grid.Column="0"
-                                               Text="{loc:Loc 'Line Items'}"
-                                               FontSize="14"
-                                               FontWeight="SemiBold"
-                                               Foreground="{DynamicResource TextPrimaryBrush}"
-                                               VerticalAlignment="Center" />
-                                    <Button Grid.Column="1"
-                                            Classes="secondary-button"
-                                            Command="{Binding AddRentalLineItemCommand}">
-                                        <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <PathIcon Data="{x:Static local:Icons.Add}"
-                                                      Width="14" Height="14" />
-                                            <TextBlock Text="{loc:Loc 'Add Item'}" />
-                                        </StackPanel>
-                                    </Button>
-                                </Grid>
-
-                                <!-- Line Items Header -->
-                                <Border Background="{DynamicResource SurfaceAltBrush}"
-                                        CornerRadius="6"
-                                        Padding="12,8"
-                                        IsVisible="{Binding RentalLineItems.Count, Converter={x:Static conv:IntConverters.IsPositive}}">
-                                    <Grid ColumnDefinitions="*,60,90,40">
-                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,4,0">
-                                            <TextBlock Text="{loc:Loc 'Rental Item'}" FontSize="12" FontWeight="Medium"
-                                                       Foreground="{DynamicResource TextTertiaryBrush}" />
-                                            <TextBlock Text=" *" FontSize="12" FontWeight="Medium"
-                                                       Foreground="{DynamicResource ErrorBrush}" />
-                                        </StackPanel>
-                                        <TextBlock Grid.Column="1" Text="{loc:Loc 'Qty'}" FontSize="12" FontWeight="Medium"
-                                                   Foreground="{DynamicResource TextTertiaryBrush}"
-                                                   HorizontalAlignment="Left" />
-                                        <TextBlock Grid.Column="2" Text="{loc:Loc 'Amount'}" FontSize="12" FontWeight="Medium"
-                                                   Foreground="{DynamicResource TextTertiaryBrush}"
-                                                   HorizontalAlignment="Right"
-                                                   Margin="0,0,12,0" />
-                                    </Grid>
-                                </Border>
-
-                                <!-- Line Items List -->
-                                <ItemsControl ItemsSource="{Binding RentalLineItems}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate DataType="vm:RentalModalLineItem">
-                                            <Border Padding="12,8"
-                                                    BorderBrush="{DynamicResource BorderBrush}"
-                                                    BorderThickness="0,0,0,1">
-                                                <StackPanel Spacing="4">
-                                                    <Grid ColumnDefinitions="*,60,90,40">
-                                                        <controls:SearchableDropdown Grid.Column="0"
-                                                                 Classes="compact"
-                                                                 Margin="0,0,8,0"
-                                                                 ItemsSource="{Binding $parent[ItemsControl].((vm:RentalRecordsModalsViewModel)DataContext).AvailableItems}"
-                                                                 SelectedItem="{Binding SelectedItem, Mode=TwoWay}"
-                                                                 DisplayMemberPath="Name"
-                                                                 Placeholder="{loc:Loc 'Search items...'}"
-                                                                 ShowAddNew="False"
-                                                                 EmptyMessage="{loc:Loc 'No items available.'}"
-                                                                 EmptyCreateLinkText="{loc:Loc 'Create one'}"
-                                                                 EmptyCreateCommand="{Binding $parent[ItemsControl].((vm:RentalRecordsModalsViewModel)DataContext).OpenCreateRentalItemCommand}"
-                                                                 EmptyCreateCommandParameter="{Binding}"
-                                                                 HasError="{Binding HasItemError}"
-                                                                 ErrorMessage="{loc:Loc 'Select an item'}" />
-                                                        <TextBox Grid.Column="1"
-                                                                 Text="{Binding Quantity, Mode=TwoWay}"
-                                                                 PlaceholderText="1"
-                                                                 Classes="form-input-compact"
-                                                                 behaviors:NumericInputBehavior.IsIntegerOnly="True"
-                                                                 MaxLength="7"
-                                                                 HorizontalContentAlignment="Center"
-                                                                 HorizontalAlignment="Stretch"
-                                                                 VerticalAlignment="Top"
-                                                                 Margin="0,0,4,0" />
-                                                        <TextBlock Grid.Column="2"
-                                                                   Text="{Binding AmountFormatted}"
-                                                                   FontSize="13"
-                                                                   FontWeight="Medium"
-                                                                   Foreground="{DynamicResource TextPrimaryBrush}"
-                                                                   VerticalAlignment="Center"
-                                                                   HorizontalAlignment="Right"
-                                                                   Margin="0,0,12,0" />
-                                                        <Button Grid.Column="3"
-                                                                Classes="icon-button danger"
-                                                                VerticalAlignment="Center"
-                                                                HorizontalAlignment="Center"
-                                                                IsVisible="{Binding $parent[ItemsControl].((vm:RentalRecordsModalsViewModel)DataContext).RentalLineItems.Count, Converter={x:Static conv:IntConverters.IsGreaterThanOne}}"
-                                                                Command="{Binding $parent[ItemsControl].((vm:RentalRecordsModalsViewModel)DataContext).RemoveRentalLineItemCommand}"
-                                                                CommandParameter="{Binding}"
-                                                                ToolTip.Tip="{loc:Loc 'Remove item'}">
-                                                            <PathIcon Data="{x:Static local:Icons.Delete}"
-                                                                      Width="14" Height="14" />
-                                                        </Button>
-                                                    </Grid>
-                                                    <TextBlock TextWrapping="Wrap" Text="{Binding QuantityError}"
-                                                               Foreground="{DynamicResource ErrorBrush}"
-                                                               FontSize="11"
-                                                               IsVisible="{Binding QuantityError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                                                </StackPanel>
-                                            </Border>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-
-                                <!-- Empty State for Line Items -->
-                                <Border Background="{DynamicResource SurfaceAltBrush}"
-                                        CornerRadius="8"
-                                        Padding="24,16"
-                                        IsVisible="{Binding RentalLineItems.Count, Converter={x:Static conv:IntConverters.IsZero}}">
-                                    <TextBlock Text="{loc:Loc 'No line items added. Click \'Add Item\' to add rental items.'}"
-                                               FontSize="14"
-                                               Foreground="{DynamicResource TextSecondaryBrush}"
-                                               HorizontalAlignment="Center" />
-                                </Border>
-
-                                <!-- Line items error -->
-                                <TextBlock TextWrapping="Wrap" Text="{Binding ModalLineItemsError}" Foreground="{DynamicResource ErrorBrush}" FontSize="12"
-                                           IsVisible="{Binding ModalLineItemsError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-
-                                <!-- Totals Row -->
-                                <Border Background="{DynamicResource SurfaceAltBrush}" CornerRadius="8" Padding="16"
-                                        IsVisible="{Binding RentalLineItems.Count, Converter={x:Static conv:IntConverters.IsPositive}}">
-                                    <Grid ColumnDefinitions="*,*">
-                                        <StackPanel Grid.Column="0" Spacing="4">
-                                            <TextBlock Text="{loc:Loc 'Total Deposit'}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                            <TextBlock Text="{Binding TotalSecurityDeposit}" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
-                                        </StackPanel>
-                                        <StackPanel Grid.Column="1" Spacing="4" HorizontalAlignment="Right">
-                                            <TextBlock Text="{loc:Loc 'Est. Amount'}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" HorizontalAlignment="Right" />
-                                            <TextBlock Text="{Binding TotalEstimatedAmount}" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" HorizontalAlignment="Right" />
-                                        </StackPanel>
-                                    </Grid>
-                                </Border>
-                            </StackPanel>
-
-                            <!-- Notes -->
-                            <StackPanel Spacing="6">
-                                <TextBlock Text="{loc:Loc Notes}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                <TextBox Text="{Binding ModalNotes}" PlaceholderText="{loc:Loc 'Optional notes'}" TextWrapping="Wrap" Classes="form-input"
-                                         AcceptsReturn="True" MinHeight="80" MaxLength="500" />
-                            </StackPanel>
-                        </StackPanel>
-                    </ScrollViewer>
-
-                    <!-- Footer -->
-                    <Border Grid.Row="2" Padding="24,16" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12">
-                            <Button Classes="secondary-button" Content="{loc:Loc Cancel}" Command="{Binding CloseEditModalCommand}" />
-                            <Button Classes="primary-button" Content="{loc:Loc 'Save Changes'}" Command="{Binding SaveEditedRecordCommand}" />
+                            <Button Classes="secondary-button" Content="{loc:Loc Cancel}" Command="{Binding RequestCloseFormCommand}" />
+                            <Button Classes="primary-button" Content="{Binding FormSaveText}" Command="{Binding SaveFormCommand}" />
                         </StackPanel>
                     </Border>
                 </Grid>

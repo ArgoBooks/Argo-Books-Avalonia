@@ -18,12 +18,9 @@ public partial class CountryInput : UserControl, INotifyPropertyChanged
     private void RaisePropertyChanged([CallerMemberName] string? propertyName = null) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 
-    private static readonly List<CountryDialCode> Priority =
-        PhoneInput.AllDialCodes.Take(Countries.Priority.Count).ToList();
+    private static readonly IReadOnlyList<CountryDialCode> Priority = PhoneInput.PriorityDialCodes;
 
-    // The full list repeats the priority countries after them.
-    private static readonly List<CountryDialCode> Others =
-        PhoneInput.AllDialCodes.Skip(Countries.Priority.Count).Where(c => !Countries.IsPriority(c.Code)).ToList();
+    private static readonly IReadOnlyList<CountryDialCode> Others = PhoneInput.OtherDialCodes;
 
     public static readonly StyledProperty<string> SelectedCountryNameProperty =
         AvaloniaProperty.Register<CountryInput, string>(nameof(SelectedCountryName), string.Empty, defaultBindingMode: BindingMode.TwoWay);

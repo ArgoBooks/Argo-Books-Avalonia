@@ -4,17 +4,17 @@ using ArgoBooks.ViewModels;
 namespace ArgoBooks.Modals;
 
 /// <summary>
-/// Modal dialogs for creating and editing expense records.
+/// Modal dialogs for creating, editing and filtering expense and revenue records.
 /// </summary>
-public partial class ExpenseModals : UserControl
+public partial class TransactionModals : UserControl
 {
-    public ExpenseModals()
+    public TransactionModals()
     {
         InitializeComponent();
         DataContextChanged += OnDataContextChanged;
     }
 
-    private ExpenseModalsViewModel? _previousViewModel;
+    private ITransactionModalsViewModel? _previousViewModel;
 
     private void OnDataContextChanged(object? sender, EventArgs e)
     {
@@ -24,7 +24,7 @@ public partial class ExpenseModals : UserControl
             _previousViewModel = null;
         }
 
-        if (DataContext is ExpenseModalsViewModel vm)
+        if (DataContext is ITransactionModalsViewModel vm)
         {
             vm.ScrollToLineItemsRequested += OnScrollToLineItemsRequested;
             _previousViewModel = vm;
@@ -33,7 +33,6 @@ public partial class ExpenseModals : UserControl
 
     private void OnScrollToLineItemsRequested(object? sender, EventArgs e)
     {
-        // Scroll to bring the line items section into view
         LineItemsSection?.BringIntoView();
     }
 }

@@ -23,7 +23,7 @@ namespace ArgoBooks.ViewModels;
 /// </summary>
 /// <typeparam name="TDisplayItem">The display item type (ExpenseDisplayItem or RevenueDisplayItem)</typeparam>
 /// <typeparam name="TLineItem">The line item type (ExpenseLineItem or RevenueLineItem)</typeparam>
-public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLineItem> : ViewModelBase
+public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLineItem> : ViewModelBase, ITransactionModalsViewModel
     where TDisplayItem : class
     where TLineItem : TransactionLineItemBase, new()
 {
@@ -92,6 +92,13 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
 
     [ObservableProperty]
     private string _saveButtonText = string.Empty;
+
+    /// <summary>True on the revenue form, which adds a customer and a paid flag and shows money coming in.</summary>
+    public bool IsRevenue => CategoryTypeFilter == CategoryType.Revenue;
+
+    /// <summary>Whether the sale is paid. Only the revenue form offers it.</summary>
+    [ObservableProperty]
+    private bool _modalPaid = true;
 
     #endregion
 
@@ -254,6 +261,11 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     public ObservableCollection<ProductOption> ProductOptions { get; } = [];
     public ObservableCollection<string> PaymentMethodOptions { get; } = new(PaymentMethodExtensions.GetCommonOptions());
     public ObservableCollection<TLineItem> LineItems { get; } = [];
+
+    System.Collections.ICollection ITransactionModalsViewModel.LineItems => LineItems;
+    System.Windows.Input.ICommand ITransactionModalsViewModel.RemoveLineItemCommand => RemoveLineItemCommand;
+    System.Windows.Input.ICommand ITransactionModalsViewModel.OpenCreateProductCommand => OpenCreateProductCommand;
+    System.Windows.Input.ICommand ITransactionModalsViewModel.OpenCreateCategoryCommand => OpenCreateCategoryCommand;
 
     /// <summary>
     /// Typed text counts as a change even though it moves no selection: typing over a picked
@@ -481,7 +493,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
 
     private FilterSnapshot<FilterValues> Filters => _filters ??= new(FilterValues.Default,
         () => new(FilterStatus, FilterSelectedCounterparty?.Id, FilterSelectedCategory?.Id,
-            FilterAmountMin, FilterAmountMax, FilterDateFrom, FilterDateTo, ReceiptStatusFilter),
+            FilterAmountMin, FilterAmountMax, FilterDateFrom, FilterDateTo, FilterReceiptStatus),
         v =>
         {
             FilterStatus = v.Status;
@@ -491,18 +503,17 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
             FilterAmountMax = v.AmountMax;
             FilterDateFrom = v.DateFrom;
             FilterDateTo = v.DateTo;
-            ReceiptStatusFilter = v.ReceiptStatus;
+            FilterReceiptStatus = v.ReceiptStatus;
         });
 
     /// <summary>
-    /// The receipt filter only expenses have. It rides in the shared snapshot so discard and clear
-    /// cover it too.
+    /// The receipt filter only the expense form shows. It rides in the shared snapshot so discard
+    /// and clear cover it too.
     /// </summary>
-    protected virtual string ReceiptStatusFilter
-    {
-        get => "All";
-        set { }
-    }
+    [ObservableProperty]
+    private string _filterReceiptStatus = "All";
+
+    public ObservableCollection<string> ReceiptFilterOptions { get; } = ["All", "With Receipt", "No Receipt"];
 
     public ObservableCollection<string> StatusFilterOptions { get; } = new(TransactionStatusExtensions.GetFilterOptions());
 

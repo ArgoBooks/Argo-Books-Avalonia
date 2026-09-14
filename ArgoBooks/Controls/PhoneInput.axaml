@@ -3,8 +3,6 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:controls="using:ArgoBooks.Controls"
-             xmlns:loc="using:ArgoBooks.Localization"
-             xmlns:icons="using:ArgoBooks"
              mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="60"
              x:Class="ArgoBooks.Controls.PhoneInput"
              x:DataType="controls:PhoneInput"
@@ -12,144 +10,21 @@
              Focusable="True">
 
     <Grid ColumnDefinitions="Auto,8,*">
-        <!-- Country Code Dropdown -->
-        <Border Grid.Column="0"
-                x:Name="CountryDropdownBorder"
-                CornerRadius="6"
-                BorderThickness="1"
-                Background="{DynamicResource SurfaceBrush}"
-                BorderBrush="{DynamicResource BorderBrush}"
-                MinWidth="80"
-                Classes.focused="{Binding #Root.IsCountryDropdownOpen}">
-            <Border.Styles>
-                <Style Selector="Border.focused">
-                    <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}" />
-                </Style>
-                <Style Selector="Border:pointerover:not(.focused)">
-                    <Setter Property="BorderBrush" Value="{DynamicResource BorderHoverBrush}" />
-                </Style>
-            </Border.Styles>
-
-            <Grid ColumnDefinitions="*,Auto">
-                <!-- Search/Display TextBox -->
-                <TextBox x:Name="CountrySearchBox"
-                         Grid.Column="0"
-                         Text="{Binding #Root.CountrySearchText, Mode=TwoWay}"
-                         PlaceholderText="+1"
-                         Background="Transparent"
-                         BorderThickness="0"
-                         Padding="8,8"
-                         FontSize="14"
-                         MinWidth="50"
-                         VerticalAlignment="Center"
-                         MaxLength="10" />
-
-                <!-- Dropdown Arrow -->
-                <Button Grid.Column="1"
-                        Background="Transparent"
-                        BorderThickness="0"
-                        Width="24" Height="24"
-                        Margin="0,0,4,0"
-                        Padding="0"
-                        CornerRadius="4"
-                        Cursor="Hand"
-                        Command="{Binding #Root.ToggleCountryDropdownCommand}">
-                    <PathIcon Data="{x:Static icons:Icons.ChevronDownSmall}"
-                              Width="12" Height="12"
-                              Foreground="{DynamicResource TextTertiaryBrush}" />
-                </Button>
-            </Grid>
-        </Border>
-
-        <!-- Country Dropdown Popup -->
-        <Popup Grid.Column="0"
-               x:Name="CountryDropdownPopup"
-               IsOpen="{Binding #Root.IsCountryDropdownOpen, Mode=TwoWay}"
-               PlacementTarget="{Binding #CountryDropdownBorder}"
-               Placement="Bottom"
-               PlacementGravity="BottomLeft"
-               IsLightDismissEnabled="True"
-               WindowManagerAddShadowHint="False">
-
-            <Border Background="{DynamicResource SurfaceBrush}"
-                    BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="1"
-                    CornerRadius="6"
-                    Width="220"
-                    MaxHeight="300"
-                    Margin="0,4,0,0"
-                    BoxShadow="0 4 12 0 #20000000">
-
-                <Grid RowDefinitions="Auto,*">
-                    <!-- No Results Message -->
-                    <TextBlock Grid.Row="0"
-                               Text="{loc:Loc 'No countries found'}"
-                               FontSize="13"
-                               Foreground="{DynamicResource TextTertiaryBrush}"
-                               Padding="12,16"
-                               HorizontalAlignment="Center"
-                               IsVisible="{Binding !#Root.HasFilteredCountries}" />
-
-                    <!-- Filtered Items -->
-                    <ListBox Grid.Row="1"
-                             x:Name="CountryListBox"
-                             ItemsSource="{Binding #Root.FilteredDialCodes}"
-                             SelectedIndex="{Binding #Root.SelectedIndex, Mode=TwoWay}"
-                             Background="Transparent"
-                             BorderThickness="0"
-                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                             IsVisible="{Binding #Root.HasFilteredCountries}">
-                        <ListBox.Styles>
-                            <Style Selector="ListBoxItem">
-                                <Setter Property="Padding" Value="10,6" />
-                                <Setter Property="Cursor" Value="Hand" />
-                                <Setter Property="Background" Value="Transparent" />
-                            </Style>
-                            <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
-                                <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
-                            </Style>
-                            <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
-                                <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
-                            </Style>
-                        </ListBox.Styles>
-                        <ListBox.ItemTemplate>
-                            <DataTemplate DataType="controls:CountryDialCode">
-                                <StackPanel>
-                                    <Grid ColumnDefinitions="26,46,*">
-                                        <!-- Flag Image -->
-                                        <Image Grid.Column="0"
-                                               Source="{Binding FlagImage}"
-                                               Width="20" Height="14"
-                                               Stretch="UniformToFill"
-                                               VerticalAlignment="Center"
-                                               Margin="0,0,4,0" />
-                                        <!-- Dial Code -->
-                                        <TextBlock Grid.Column="1"
-                                                   Text="{Binding DialCode}"
-                                                   FontWeight="Medium"
-                                                   FontSize="13"
-                                                   VerticalAlignment="Center"
-                                                   Foreground="{DynamicResource TextPrimaryBrush}" />
-                                        <!-- Country Name -->
-                                        <TextBlock Grid.Column="2"
-                                                   Text="{Binding Name}"
-                                                   FontSize="13"
-                                                   VerticalAlignment="Center"
-                                                   Foreground="{DynamicResource TextSecondaryBrush}"
-                                                   TextTrimming="CharacterEllipsis" />
-                                    </Grid>
-                                    <!-- Separator after priority countries -->
-                                    <Border Height="1"
-                                            Background="{DynamicResource BorderBrush}"
-                                            Margin="-10,6,-10,0"
-                                            IsVisible="{Binding ShowSeparatorAfter}" />
-                                </StackPanel>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
-                </Grid>
-            </Border>
-        </Popup>
+        <!-- Fixed width so typing a search doesn't push the number box around -->
+        <controls:SearchableDropdown x:Name="CountryDropdown"
+                                     Grid.Column="0"
+                                     Width="130"
+                                     VerticalAlignment="Center"
+                                     ItemsSource="{Binding #Root.OtherCountries}"
+                                     PriorityItems="{Binding #Root.PriorityCountries}"
+                                     DisplayMemberPath="DisplayName"
+                                     SelectedDisplayMemberPath="DialCode"
+                                     SearchMemberPath="Code"
+                                     ImageMemberPath="FlagImage"
+                                     EnterSelectsBestMatch="True"
+                                     SelectedItem="{Binding #Root.SelectedCountry, Mode=TwoWay}"
+                                     Placeholder="+1"
+                                     ShowAddNew="False" />
 
         <!-- Phone Number TextBox with auto-formatting -->
         <TextBox Grid.Column="2"

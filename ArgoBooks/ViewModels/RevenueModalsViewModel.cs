@@ -66,12 +66,6 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
         set => SelectedCounterparty = value;
     }
 
-    public bool HasCustomerError
-    {
-        get => HasCounterpartyError;
-        set => HasCounterpartyError = value;
-    }
-
     // Notify SelectedCustomer when SelectedCounterparty changes so UI bindings update
     protected override void OnCounterpartyChanged(CounterpartyOption? value)
     {
@@ -80,22 +74,11 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
 
     public ObservableCollection<CounterpartyOption> CustomerOptions => CounterpartyOptions;
 
-    // Filter aliases
-    public CounterpartyOption? FilterSelectedCustomer
-    {
-        get => FilterSelectedCounterparty;
-        set => FilterSelectedCounterparty = value;
-    }
-
     public string? FilterCustomerId
     {
         get => FilterCounterpartyId;
         set => FilterCounterpartyId = value;
     }
-
-    // Payment status
-    [ObservableProperty]
-    private bool _modalPaid = true;
 
     // Command aliases for AXAML bindings
     public IAsyncRelayCommand SaveRevenueCommand => SaveTransactionCommand;
@@ -786,13 +769,6 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
         revenue.DiscountUSD = state.DiscountUSD;
         revenue.FeeUSD = state.FeeUSD;
     }
-
-    #endregion
-
-    #region Navigation Aliases
-
-    [RelayCommand]
-    private void OpenCreateCustomer() => OpenCreateCounterparty();
 
     #endregion
 

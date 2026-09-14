@@ -118,234 +118,64 @@
         </controls:ModalOverlay>
 
         <!-- View Details Modal -->
-        <controls:ModalOverlay IsOpen="{Binding IsViewDetailsModalOpen}"
-                               ClosingCommand="{Binding CloseViewDetailsModalCommand}">
-            <controls:ModalOverlay.ModalContent>
-                <Border Background="{DynamicResource SurfaceBrush}"
-                        CornerRadius="12"
-                        Width="500"
-                        MaxHeight="600"
-                        ClipToBounds="True"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        BoxShadow="0 8 32 0 #40000000">
-                    <Grid RowDefinitions="Auto,*,Auto">
-                        <!-- Modal Header -->
-                        <Border Grid.Row="0"
-                                Padding="24,20"
-                                BorderBrush="{DynamicResource BorderBrush}"
-                                BorderThickness="0,0,0,1">
-                            <Grid ColumnDefinitions="*,Auto">
-                                <StackPanel Orientation="Horizontal" Spacing="12">
-                                    <Border Width="40" Height="40"
-                                            CornerRadius="8"
-                                            Background="{DynamicResource PrimaryLightBrush}">
-                                        <PathIcon Data="{x:Static icons:Icons.Eye}"
-                                                  Width="20" Height="20"
-                                                  Foreground="{DynamicResource PrimaryBrush}" />
-                                    </Border>
-                                    <StackPanel VerticalAlignment="Center">
-                                        <TextBlock Text="{loc:Loc 'Return Details'}"
-                                                   FontSize="18"
-                                                   FontWeight="SemiBold"
-                                                   Foreground="{DynamicResource TextPrimaryBrush}" />
-                                        <TextBlock Text="{Binding ViewDetailsId}"
-                                                   FontSize="12"
-                                                   Foreground="{DynamicResource TextTertiaryBrush}" />
-                                    </StackPanel>
-                                </StackPanel>
-                                <Button Grid.Column="1"
-                                        Classes="icon-button"
-                                        Command="{Binding CloseViewDetailsModalCommand}">
-                                    <PathIcon Data="{x:Static local:Icons.Close}"
-                                              Width="20" Height="20" />
-                                </Button>
-                            </Grid>
-                        </Border>
+        <controls:RecordDetailsModal IsOpen="{Binding IsViewDetailsModalOpen}"
+                                     Title="{loc:Loc 'Return Details'}"
+                                     Subtitle="{Binding ViewDetailsId}"
+                                     IconData="{x:Static icons:Icons.Eye}"
+                                     IconForeground="{DynamicResource PrimaryBrush}"
+                                     IconBackground="{DynamicResource PrimaryLightBrush}"
+                                     Reason="{Binding ViewDetailsReason}"
+                                     Notes="{Binding ViewDetailsNotes}"
+                                     CloseCommand="{Binding CloseViewDetailsModalCommand}">
+            <controls:RecordDetailsModal.Details>
+                <StackPanel Spacing="20">
+                    <!-- Product -->
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="{loc:Loc 'Product'}"
+                                   FontSize="12"
+                                   FontWeight="Medium"
+                                   Foreground="{DynamicResource TextTertiaryBrush}" />
+                        <TextBlock Text="{Binding ViewDetailsProduct}"
+                                   FontSize="14"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
 
-                        <!-- Modal Content -->
-                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                            <StackPanel Margin="24" Spacing="20">
-                                <!-- Product -->
-                                <StackPanel Spacing="6">
-                                    <TextBlock Text="{loc:Loc 'Product'}"
-                                               FontSize="12"
-                                               FontWeight="Medium"
-                                               Foreground="{DynamicResource TextTertiaryBrush}" />
-                                    <TextBlock Text="{Binding ViewDetailsProduct}"
-                                               FontSize="14"
-                                               Foreground="{DynamicResource TextPrimaryBrush}"
-                                               TextWrapping="Wrap" />
-                                </StackPanel>
-
-                                <!-- Date and Refund -->
-                                <Grid ColumnDefinitions="*,*">
-                                    <StackPanel Grid.Column="0" Spacing="6">
-                                        <TextBlock Text="{loc:Loc 'Return Date'}"
-                                                   FontSize="12"
-                                                   FontWeight="Medium"
-                                                   Foreground="{DynamicResource TextTertiaryBrush}" />
-                                        <TextBlock Text="{Binding ViewDetailsDate}"
-                                                   FontSize="14"
-                                                   Foreground="{DynamicResource TextPrimaryBrush}" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="1" Spacing="6">
-                                        <TextBlock Text="{loc:Loc 'Refund Amount'}"
-                                                   FontSize="12"
-                                                   FontWeight="Medium"
-                                                   Foreground="{DynamicResource TextTertiaryBrush}" />
-                                        <TextBlock Text="{Binding ViewDetailsRefund}"
-                                                   FontSize="14"
-                                                   FontWeight="SemiBold"
-                                                   Foreground="{DynamicResource TextPrimaryBrush}" />
-                                    </StackPanel>
-                                </Grid>
-
-                                <!-- Reason -->
-                                <StackPanel Spacing="6">
-                                    <TextBlock Text="{loc:Loc 'Reason'}"
-                                               FontSize="12"
-                                               FontWeight="Medium"
-                                               Foreground="{DynamicResource TextTertiaryBrush}" />
-                                    <Border Background="{DynamicResource SurfaceAltBrush}"
-                                            CornerRadius="8"
-                                            Padding="12">
-                                        <TextBlock Text="{Binding ViewDetailsReason}"
-                                                   FontSize="14"
-                                                   Foreground="{DynamicResource TextPrimaryBrush}"
-                                                   TextWrapping="Wrap" />
-                                    </Border>
-                                </StackPanel>
-
-                                <!-- Notes -->
-                                <StackPanel Spacing="6">
-                                    <TextBlock Text="{loc:Loc 'Notes'}"
-                                               FontSize="12"
-                                               FontWeight="Medium"
-                                               Foreground="{DynamicResource TextTertiaryBrush}" />
-                                    <Border Background="{DynamicResource SurfaceAltBrush}"
-                                            CornerRadius="8"
-                                            Padding="12"
-                                            MinHeight="60">
-                                        <TextBlock Text="{Binding ViewDetailsNotes}"
-                                                   FontSize="14"
-                                                   Foreground="{DynamicResource TextPrimaryBrush}"
-                                                   TextWrapping="Wrap" />
-                                    </Border>
-                                </StackPanel>
-                            </StackPanel>
-                        </ScrollViewer>
-
-                        <!-- Modal Footer -->
-                        <Border Grid.Row="2"
-                                Padding="24,16"
-                                BorderBrush="{DynamicResource BorderBrush}"
-                                BorderThickness="0,1,0,0">
-                            <Button Content="{loc:Loc 'Close'}"
-                                    Classes="secondary-button"
-                                    HorizontalAlignment="Right"
-                                    Command="{Binding CloseViewDetailsModalCommand}" />
-                        </Border>
+                    <!-- Date and Refund -->
+                    <Grid ColumnDefinitions="*,*">
+                        <StackPanel Grid.Column="0" Spacing="6">
+                            <TextBlock Text="{loc:Loc 'Return Date'}"
+                                       FontSize="12"
+                                       FontWeight="Medium"
+                                       Foreground="{DynamicResource TextTertiaryBrush}" />
+                            <TextBlock Text="{Binding ViewDetailsDate}"
+                                       FontSize="14"
+                                       Foreground="{DynamicResource TextPrimaryBrush}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Spacing="6">
+                            <TextBlock Text="{loc:Loc 'Refund Amount'}"
+                                       FontSize="12"
+                                       FontWeight="Medium"
+                                       Foreground="{DynamicResource TextTertiaryBrush}" />
+                            <TextBlock Text="{Binding ViewDetailsRefund}"
+                                       FontSize="14"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}" />
+                        </StackPanel>
                     </Grid>
-                </Border>
-            </controls:ModalOverlay.ModalContent>
-        </controls:ModalOverlay>
+                </StackPanel>
+            </controls:RecordDetailsModal.Details>
+        </controls:RecordDetailsModal>
 
         <!-- Undo Return Modal -->
-        <controls:ModalOverlay IsOpen="{Binding IsUndoReturnModalOpen}"
-                               ClosingCommand="{Binding CloseUndoReturnModalCommand}">
-            <controls:ModalOverlay.ModalContent>
-                <Border Background="{DynamicResource SurfaceBrush}"
-                        CornerRadius="12"
-                        Width="450"
-                        MaxHeight="500"
-                        ClipToBounds="True"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        BoxShadow="0 8 32 0 #40000000">
-                    <Grid RowDefinitions="Auto,*,Auto">
-                        <!-- Modal Header -->
-                        <Border Grid.Row="0"
-                                Padding="24,20"
-                                BorderBrush="{DynamicResource BorderBrush}"
-                                BorderThickness="0,0,0,1">
-                            <Grid ColumnDefinitions="*,Auto">
-                                <StackPanel Orientation="Horizontal" Spacing="12">
-                                    <Border Width="40" Height="40"
-                                            CornerRadius="8"
-                                            Background="{DynamicResource WarningLightBrush}">
-                                        <PathIcon Data="{x:Static local:Icons.Returns}"
-                                                  Width="20" Height="20"
-                                                  Foreground="#D97706" />
-                                    </Border>
-                                    <TextBlock Text="{loc:Loc 'Undo Return'}"
-                                               FontSize="18"
-                                               FontWeight="SemiBold"
-                                               Foreground="{DynamicResource TextPrimaryBrush}"
-                                               VerticalAlignment="Center" />
-                                </StackPanel>
-                                <Button Grid.Column="1"
-                                        Classes="icon-button"
-                                        Command="{Binding CloseUndoReturnModalCommand}">
-                                    <PathIcon Data="{x:Static local:Icons.Close}"
-                                              Width="20" Height="20" />
-                                </Button>
-                            </Grid>
-                        </Border>
-
-                        <!-- Modal Content -->
-                        <StackPanel Grid.Row="1" Spacing="16" Margin="24">
-                            <!-- Item Description -->
-                            <StackPanel Spacing="6">
-                                <TextBlock Text="{loc:Loc 'Return to undo:'}"
-                                           FontSize="13"
-                                           FontWeight="Medium"
-                                           Foreground="{DynamicResource TextPrimaryBrush}" />
-                                <TextBlock Text="{Binding UndoReturnItemDescription}"
-                                           FontSize="14"
-                                           FontWeight="Medium"
-                                           Foreground="{DynamicResource TextPrimaryBrush}" />
-                            </StackPanel>
-
-                            <!-- Reason (Optional) -->
-                            <StackPanel Spacing="8">
-                                <TextBlock FontSize="13"
-                                           FontWeight="Medium"
-                                           Foreground="{DynamicResource TextPrimaryBrush}">
-                                    <Run Text="{loc:Loc 'Reason for undo'}" />
-                                    <Run Text="{loc:Loc '(optional)'}" Foreground="{DynamicResource TextTertiaryBrush}" />
-                                </TextBlock>
-                                <TextBox Text="{Binding UndoReturnReason, Mode=TwoWay}"
-                                         PlaceholderText="{loc:Loc 'Enter reason for undoing this return...'}"
-                                         Classes="form-input"
-                                         AcceptsReturn="True"
-                                         TextWrapping="Wrap"
-                                         MinHeight="80"
-                                         MaxHeight="120"
-                                         MaxLength="500" />
-                            </StackPanel>
-                        </StackPanel>
-
-                        <!-- Modal Footer -->
-                        <Border Grid.Row="2"
-                                Padding="24,16"
-                                BorderBrush="{DynamicResource BorderBrush}"
-                                BorderThickness="0,1,0,0">
-                            <Grid ColumnDefinitions="*,Auto,Auto">
-                                <Button Grid.Column="1"
-                                        Content="{loc:Loc 'Cancel'}"
-                                        Classes="secondary-button"
-                                        Margin="0,0,12,0"
-                                        Command="{Binding CloseUndoReturnModalCommand}" />
-                                <Button Grid.Column="2"
-                                        Content="{loc:Loc 'Undo Return'}"
-                                        Classes="danger-button"
-                                        Command="{Binding ConfirmUndoReturnCommand}" />
-                            </Grid>
-                        </Border>
-                    </Grid>
-                </Border>
-            </controls:ModalOverlay.ModalContent>
-        </controls:ModalOverlay>
+        <controls:UndoRecordModal IsOpen="{Binding IsUndoReturnModalOpen}"
+                                  Title="{loc:Loc 'Undo Return'}"
+                                  ItemLabel="{loc:Loc 'Return to undo:'}"
+                                  Description="{Binding UndoReturnItemDescription}"
+                                  Reason="{Binding UndoReturnReason}"
+                                  ReasonPlaceholder="{loc:Loc 'Enter reason for undoing this return...'}"
+                                  ConfirmText="{loc:Loc 'Undo Return'}"
+                                  ConfirmCommand="{Binding ConfirmUndoReturnCommand}"
+                                  CloseCommand="{Binding CloseUndoReturnModalCommand}" />
     </Panel>
 </UserControl>

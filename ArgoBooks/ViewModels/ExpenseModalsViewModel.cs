@@ -77,12 +77,6 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
     // Command aliases for AXAML bindings
     public IAsyncRelayCommand SaveExpenseCommand => SaveTransactionCommand;
 
-    // Expense-specific filter
-    [ObservableProperty]
-    private string _filterReceiptStatus = "All";
-
-    public ObservableCollection<string> ReceiptFilterOptions { get; } = ["All", "With Receipt", "No Receipt"];
-
     #endregion
 
     #region Reason Options
@@ -180,16 +174,6 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
         if (companyData == null || expense == null) return;
 
         DeleteTransactionWithUndo(companyData, companyData.Expenses, expense, isExpense: true);
-    }
-
-    #endregion
-
-    #region Filter Override
-
-    protected override string ReceiptStatusFilter
-    {
-        get => FilterReceiptStatus;
-        set => FilterReceiptStatus = value;
     }
 
     #endregion

@@ -16,6 +16,7 @@
                                      DisplayMemberPath="Name"
                                      ImageMemberPath="Flag"
                                      SearchMemberPath="Alias"
+                                     EnterSelectsBestMatch="True"
                                      Placeholder="{Binding #Root.ListPlaceholder}"
                                      ShowAddNew="False" />
 

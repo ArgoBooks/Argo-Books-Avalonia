@@ -18,9 +18,9 @@
 
     <!-- All modals in one UserControl for full-screen coverage -->
     <Panel>
-        <!-- Add Payment Modal -->
-        <controls:ModalOverlay IsOpen="{Binding IsAddModalOpen}"
-                               ClosingCommand="{Binding RequestCloseAddModalCommand}">
+        <!-- Add / Edit Payment Modal -->
+        <controls:ModalOverlay IsOpen="{Binding IsFormOpen, Mode=OneWay}"
+                               ClosingCommand="{Binding RequestCloseFormCommand}">
             <controls:ModalOverlay.ModalContent>
                 <Border Background="{DynamicResource SurfaceBrush}"
                         BorderBrush="{DynamicResource BorderBrush}"
@@ -38,13 +38,13 @@
                             BorderThickness="0,0,0,1">
                         <Grid ColumnDefinitions="*,Auto">
                             <TextBlock Grid.Column="0"
-                                       Text="{loc:Loc 'Record Payment'}"
+                                       Text="{Binding FormTitle}"
                                        FontSize="18"
                                        FontWeight="SemiBold"
                                        Foreground="{DynamicResource TextPrimaryBrush}" />
                             <Button Grid.Column="1"
                                     Classes="icon-button"
-                                    Command="{Binding CloseAddModalCommand}">
+                                    Command="{Binding RequestCloseFormCommand}">
                                 <PathIcon Data="{x:Static local:Icons.Close}"
                                           Width="20" Height="20" />
                             </Button>
@@ -54,126 +54,7 @@
                     <!-- Form Content -->
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                         <StackPanel Margin="24" Spacing="16">
-                            <!-- Invoice -->
-                            <StackPanel Spacing="6">
-                                <TextBlock Text="{loc:Loc Invoice}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                <controls:SearchableDropdown ItemsSource="{Binding InvoiceOptions}"
-                                                            SelectedItem="{Binding SelectedInvoice}"
-                                                            DisplayMemberPath="Display"
-                                                            Placeholder="{loc:Loc 'Search for an invoice...'}"
-                                                            ShowAddNew="False"
-                                                            EmptyMessage="{loc:Loc 'No invoices found.'}"
-                                                            EmptyCreateLinkText="{loc:Loc 'Create one'}"
-                                                            EmptyCreateCommand="{Binding OpenCreateInvoiceCommand}" />
-                                <TextBlock TextWrapping="Wrap" Text="{Binding ModalInvoiceError}"
-                                           FontSize="12"
-                                           Foreground="{DynamicResource ErrorBrush}"
-                                           IsVisible="{Binding ModalInvoiceError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                            </StackPanel>
-
-                            <!-- Amount -->
-                            <StackPanel Spacing="6">
-                                <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}">
-                                    <Run Text="{loc:Loc Amount}" /><Run Text=" *" Foreground="{DynamicResource ErrorBrush}" />
-                                </TextBlock>
-                                <TextBox Text="{Binding ModalAmount, Mode=TwoWay}"
-                                         Classes="form-input"
-                                         PlaceholderText="0.00"
-                                         behaviors:NumericInputBehavior.IsDecimalOnly="True"
-                                         MaxLength="13" />
-                                <TextBlock TextWrapping="Wrap" Text="{Binding ModalAmountError}"
-                                           FontSize="12"
-                                           Foreground="{DynamicResource ErrorBrush}"
-                                           IsVisible="{Binding ModalAmountError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                            </StackPanel>
-
-                            <!-- Date -->
-                            <StackPanel Spacing="6">
-                                <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}">
-                                    <Run Text="{loc:Loc Date}" /><Run Text=" *" Foreground="{DynamicResource ErrorBrush}" />
-                                </TextBlock>
-                                <DatePicker SelectedDate="{Binding ModalDate}" Classes="form-datepicker" HorizontalAlignment="Stretch" />
-                            </StackPanel>
-
-                            <!-- Payment Method -->
-                            <StackPanel Spacing="6">
-                                <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}">
-                                    <Run Text="{loc:Loc 'Payment Method'}" /><Run Text=" *" Foreground="{DynamicResource ErrorBrush}" />
-                                </TextBlock>
-                                <ComboBox ItemsSource="{Binding ModalPaymentMethodOptions}"
-                                          SelectedItem="{Binding ModalPaymentMethod}"
-                                          Classes="form-combobox">
-                                    <ComboBox.ItemTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding Converter={StaticResource TranslateConverter}}" />
-                                        </DataTemplate>
-                                    </ComboBox.ItemTemplate>
-                                </ComboBox>
-                            </StackPanel>
-
-                            <!-- Reference Number -->
-                            <StackPanel Spacing="6">
-                                <TextBlock Text="{loc:Loc 'Reference Number'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                <TextBox Text="{Binding ModalReferenceNumber, Mode=TwoWay}"
-                                         Classes="form-input"
-                                         PlaceholderText="{loc:Loc 'Check number, transaction ID, etc.'}"
-                                         MaxLength="50" />
-                            </StackPanel>
-
-                            <!-- Notes -->
-                            <StackPanel Spacing="6">
-                                <TextBlock Text="{loc:Loc Notes}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                <TextBox Text="{Binding ModalNotes, Mode=TwoWay}"
-                                         Classes="form-input"
-                                         PlaceholderText="{loc:Loc 'Enter notes'}"
-                                         AcceptsReturn="True"
-                                         TextWrapping="Wrap"
-                                         MinHeight="80"
-                                         MaxHeight="120"
-                                         MaxLength="500" />
-                            </StackPanel>
-                        </StackPanel>
-                    </ScrollViewer>
-
-                    <!-- Footer -->
-                    <Border Grid.Row="2" Padding="24,16" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12">
-                            <Button Classes="secondary-button" Content="{loc:Loc Cancel}" Command="{Binding CloseAddModalCommand}" />
-                            <Button Classes="primary-button" Content="{loc:Loc 'Record Payment'}" Command="{Binding SaveNewPaymentCommand}" />
-                        </StackPanel>
-                    </Border>
-                </Grid>
-            </Border>
-            </controls:ModalOverlay.ModalContent>
-        </controls:ModalOverlay>
-
-        <!-- Edit Payment Modal -->
-        <controls:ModalOverlay IsOpen="{Binding IsEditModalOpen}"
-                               ClosingCommand="{Binding RequestCloseEditModalCommand}">
-            <controls:ModalOverlay.ModalContent>
-                <Border Background="{DynamicResource SurfaceBrush}"
-                        BorderBrush="{DynamicResource BorderBrush}"
-                        BorderThickness="1"
-                        CornerRadius="12"
-                        Width="500"
-                        MaxHeight="600"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center">
-                <Grid RowDefinitions="Auto,*,Auto">
-                    <!-- Header -->
-                    <Border Grid.Row="0" Padding="24,20" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
-                        <Grid ColumnDefinitions="*,Auto">
-                            <TextBlock Grid.Column="0" Text="{loc:Loc 'Edit Payment'}" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
-                            <Button Grid.Column="1" Classes="icon-button" Command="{Binding CloseEditModalCommand}">
-                                <PathIcon Data="{x:Static icons:Icons.Close}" Width="20" Height="20" />
-                            </Button>
-                        </Grid>
-                    </Border>
-
-                    <!-- Form Content -->
-                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                        <StackPanel Margin="24" Spacing="16">
-                            <!-- Portal payment info banner -->
+                            <!-- Portal payment info banner; IsPortalPayment is only set when editing -->
                             <Border Background="{DynamicResource SurfaceAltBrush}"
                                     CornerRadius="8"
                                     Padding="12"
@@ -195,6 +76,16 @@
                                                             EmptyMessage="{loc:Loc 'No invoices found.'}"
                                                             EmptyCreateLinkText="{loc:Loc 'Create one'}"
                                                             EmptyCreateCommand="{Binding OpenCreateInvoiceCommand}" />
+                                <TextBlock TextWrapping="Wrap" Text="{Binding ModalInvoiceError}"
+                                           FontSize="12"
+                                           Foreground="{DynamicResource ErrorBrush}">
+                                    <TextBlock.IsVisible>
+                                        <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                            <Binding Path="ModalInvoiceError" Converter="{x:Static StringConverters.IsNotNullOrEmpty}" />
+                                            <Binding Path="!IsEditMode" />
+                                        </MultiBinding>
+                                    </TextBlock.IsVisible>
+                                </TextBlock>
                             </StackPanel>
 
                             <!-- Amount, hidden for portal payments -->
@@ -264,8 +155,8 @@
                     <!-- Footer -->
                     <Border Grid.Row="2" Padding="24,16" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12">
-                            <Button Classes="secondary-button" Content="{loc:Loc Cancel}" Command="{Binding CloseEditModalCommand}" />
-                            <Button Classes="primary-button" Content="{loc:Loc 'Save Changes'}" Command="{Binding SaveEditedPaymentCommand}" />
+                            <Button Classes="secondary-button" Content="{loc:Loc Cancel}" Command="{Binding RequestCloseFormCommand}" />
+                            <Button Classes="primary-button" Content="{Binding FormSaveText}" Command="{Binding SaveFormCommand}" />
                         </StackPanel>
                     </Border>
                 </Grid>

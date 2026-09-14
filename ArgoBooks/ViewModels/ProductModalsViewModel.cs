@@ -23,19 +23,57 @@ public partial class ProductModalsViewModel : ViewModelBase
     #region Modal State
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsFormOpen))]
     private bool _isAddModalOpen;
 
     /// <summary>Title of the Add modal. Reset to the default on each open; callers can override it
     /// (e.g. the bank importer customizing an AI-proposed product) after calling OpenAddModal.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FormTitle))]
     private string _addModalTitle = "Add Product/Service";
 
     /// <summary>Text of the Add modal's primary button. Reset to the default on each open.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FormSaveText))]
     private string _addModalSaveText = "Add Product/Service";
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsFormOpen))]
     private bool _isEditModalOpen;
+
+    /// <summary>Add and edit share one form, open while either flag is set.</summary>
+    public bool IsFormOpen => IsAddModalOpen || IsEditModalOpen;
+
+    // Set when the form opens and kept on close, so the title doesn't change while it closes.
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FormTitle), nameof(FormSaveText), nameof(ModalIdPlaceholder))]
+    private bool _isEditMode;
+
+    public string FormTitle => IsEditMode ? EditModalTitle : AddModalTitle;
+    public string FormSaveText => IsEditMode ? "Save Changes".Translate() : AddModalSaveText;
+
+    // A blank ID is generated on add but rejected on edit, so only add hints at the format.
+    public string ModalIdPlaceholder => IsEditMode ? string.Empty : "PRD-xxx".Translate();
+
+    partial void OnIsAddModalOpenChanged(bool value)
+    {
+        if (value) IsEditMode = false;
+    }
+
+    partial void OnIsEditModalOpenChanged(bool value)
+    {
+        if (value) IsEditMode = true;
+    }
+
+    [RelayCommand]
+    private Task RequestCloseFormAsync() => IsEditMode ? RequestCloseEditModalAsync() : RequestCloseAddModalAsync();
+
+    [RelayCommand]
+    private void SaveForm()
+    {
+        if (IsEditMode) SaveEditedProduct();
+        else SaveNewProduct();
+    }
 
     [ObservableProperty]
     private bool _isDeleteConfirmOpen;
@@ -69,6 +107,7 @@ public partial class ProductModalsViewModel : ViewModelBase
     {
         OnPropertyChanged(nameof(IsProductSelected));
         OnPropertyChanged(nameof(EditModalTitle));
+        OnPropertyChanged(nameof(FormTitle));
     }
 
     [ObservableProperty]

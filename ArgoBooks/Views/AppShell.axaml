@@ -282,8 +282,8 @@
         <modals:InvoiceModals DataContext="{Binding InvoiceModalsViewModel}" />
         <modals:RefundModals DataContext="{Binding RefundModalsViewModel}" />
         <modals:InvoiceTemplateDesignerModal DataContext="{Binding InvoiceTemplateDesignerViewModel}" />
-        <modals:ExpenseModals DataContext="{Binding ExpenseModalsViewModel}" />
-        <modals:RevenueModals DataContext="{Binding RevenueModalsViewModel}" />
+        <modals:TransactionModals DataContext="{Binding ExpenseModalsViewModel}" />
+        <modals:TransactionModals DataContext="{Binding RevenueModalsViewModel}" />
         <modals:PurchaseOrdersModals DataContext="{Binding PurchaseOrdersModalsViewModel}" />
         <modals:StockLevelsModals DataContext="{Binding StockLevelsModalsViewModel}" />
         <modals:RentalInventoryModals DataContext="{Binding RentalInventoryModalsViewModel}" />

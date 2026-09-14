@@ -16,6 +16,7 @@
                                  DisplayMemberPath="Name"
                                  SearchMemberPath="Code"
                                  ImageMemberPath="FlagImage"
+                                 EnterSelectsBestMatch="True"
                                  Placeholder="{loc:Loc 'Select country'}"
                                  ShowAddNew="False" />
 
