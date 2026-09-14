@@ -116,23 +116,6 @@
                                   Width="14" Height="14" />
                     </Button>
 
-                    <Border Width="1" Background="{DynamicResource BorderBrush}" Margin="4,2" />
-
-                    <!-- Reset Zoom -->
-                    <Button x:Name="ResetZoomButton"
-                            Classes="icon-button"
-                            ToolTip.Tip="{loc:Loc 'Reset Zoom (100%)'}"
-                            Click="ResetZoom_Click"
-                            Padding="6"
-                            MinWidth="28"
-                            MinHeight="28">
-                        <TextBlock Text="1:1"
-                                   FontSize="11"
-                                   FontWeight="SemiBold"
-                                   Foreground="{DynamicResource TextSecondaryBrush}"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center" />
-                    </Button>
                 </StackPanel>
 
                 <!-- Right side hint -->
