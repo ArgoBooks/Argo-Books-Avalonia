@@ -222,54 +222,6 @@ public static class BoolConverters
 }
 
 /// <summary>
-/// Converter that returns one of two colors based on a boolean value.
-/// </summary>
-public class BoolToColorConverter : IValueConverter
-{
-    public string TrueColor { get; set; } = AppColors.Error;
-    public object? FalseColor { get; set; } = AppColors.ChartAxis;
-
-    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
-    {
-        if (value is not bool boolValue)
-            return GetBrush(FalseColor);
-
-        return boolValue ? new SolidColorBrush(Color.Parse(TrueColor)) : GetBrush(FalseColor);
-    }
-
-    private static IBrush GetBrush(object? colorValue)
-    {
-        if (colorValue is string colorString)
-        {
-            try
-            {
-                return new SolidColorBrush(Color.Parse(colorString));
-            }
-            catch
-            {
-                // Try to get from resources
-            }
-        }
-
-        if (colorValue is IBrush brush)
-            return brush;
-
-        // Try to get TextPrimaryBrush from resources
-        if (Application.Current?.Resources != null &&
-            Application.Current.Resources.TryGetResource("TextPrimaryBrush", Application.Current.ActualThemeVariant, out var resource) &&
-            resource is IBrush textBrush)
-        {
-            return textBrush;
-        }
-
-        return new SolidColorBrush(Color.Parse(AppColors.ChartAxis));
-    }
-
-    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
-        => throw new NotSupportedException();
-}
-
-/// <summary>
 /// Converter that returns one of two brushes based on a boolean value.
 /// Useful for dynamically changing colors in XAML.
 /// </summary>

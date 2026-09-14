@@ -15,14 +15,6 @@ public partial class RevenuePage : UserControl
         InitializeComponent();
     }
 
-    private void OnTableSizeChanged(object? sender, SizeChangedEventArgs e)
-    {
-        if (DataContext is RevenuePageViewModel viewModel && e.WidthChanged)
-        {
-            viewModel.ColumnWidths.SetAvailableWidth(e.NewSize.Width);
-        }
-    }
-
     private void OnHeaderSizeChanged(object? sender, SizeChangedEventArgs e)
     {
         if (DataContext is RevenuePageViewModel viewModel && e.WidthChanged)

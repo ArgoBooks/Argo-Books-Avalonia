@@ -80,15 +80,6 @@ public abstract partial class TableColumnWidthsBase : ObservableObject, ITableCo
     }
 
     /// <summary>
-    /// Called after all columns are registered to calculate initial proportional widths.
-    /// Subclasses should call this at the end of their constructor.
-    /// </summary>
-    protected void InitializeColumnWidths()
-    {
-        RecalculateWidths();
-    }
-
-    /// <summary>
     /// The star weight used for proportional distribution of a column. Override to vary the
     /// weight by the active column set (e.g. a page with Expense/Revenue tabs). Defaults to
     /// the column's single <see cref="ColumnDef.StarValue"/>.

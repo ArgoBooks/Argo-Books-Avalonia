@@ -30,9 +30,6 @@ public partial class PaymentModalsViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isDeleteConfirmOpen;
 
-    [ObservableProperty]
-    private bool _isFilterModalOpen;
-
     #endregion
 
     #region Modal Form Fields
@@ -104,69 +101,6 @@ public partial class PaymentModalsViewModel : ViewModelBase
 
     #endregion
 
-    #region Filter Fields
-
-    [ObservableProperty]
-    private string _filterPaymentMethod = "All";
-
-    [ObservableProperty]
-    private string _filterStatus = "All";
-
-    [ObservableProperty]
-    private string? _filterCustomerId;
-
-    [ObservableProperty]
-    private string? _filterAmountMin;
-
-    [ObservableProperty]
-    private string? _filterAmountMax;
-
-    [ObservableProperty]
-    private DateTimeOffset? _filterDateFrom;
-
-    [ObservableProperty]
-    private DateTimeOffset? _filterDateTo;
-
-    // Original filter values for change detection (captured when modal opens)
-    private string _originalFilterPaymentMethod = "All";
-    private string _originalFilterStatus = "All";
-    private string? _originalFilterCustomerId;
-    private string? _originalFilterAmountMin;
-    private string? _originalFilterAmountMax;
-    private DateTimeOffset? _originalFilterDateFrom;
-    private DateTimeOffset? _originalFilterDateTo;
-    private CustomerOption? _originalSelectedCustomerFilter;
-
-    /// <summary>
-    /// Returns true if any filter has been changed from the state when the modal was opened.
-    /// </summary>
-    public bool HasFilterModalChanges =>
-        FilterPaymentMethod != _originalFilterPaymentMethod ||
-        FilterStatus != _originalFilterStatus ||
-        FilterCustomerId != _originalFilterCustomerId ||
-        FilterAmountMin != _originalFilterAmountMin ||
-        FilterAmountMax != _originalFilterAmountMax ||
-        FilterDateFrom != _originalFilterDateFrom ||
-        FilterDateTo != _originalFilterDateTo ||
-        SelectedCustomerFilter?.Id != _originalSelectedCustomerFilter?.Id;
-
-    /// <summary>
-    /// Captures the current filter state as original values for change detection.
-    /// </summary>
-    private void CaptureOriginalFilterValues()
-    {
-        _originalFilterPaymentMethod = FilterPaymentMethod;
-        _originalFilterStatus = FilterStatus;
-        _originalFilterCustomerId = FilterCustomerId;
-        _originalFilterAmountMin = FilterAmountMin;
-        _originalFilterAmountMax = FilterAmountMax;
-        _originalFilterDateFrom = FilterDateFrom;
-        _originalFilterDateTo = FilterDateTo;
-        _originalSelectedCustomerFilter = SelectedCustomerFilter;
-    }
-
-    #endregion
-
     #region Dropdown Options
 
     /// <summary>
@@ -175,35 +109,9 @@ public partial class PaymentModalsViewModel : ViewModelBase
     public ObservableCollection<string> ModalPaymentMethodOptions { get; } = new(PaymentMethodExtensions.GetCommonOptions());
 
     /// <summary>
-    /// Payment method options for filter (includes All).
-    /// </summary>
-    public ObservableCollection<string> FilterPaymentMethodOptions { get; } = new(PaymentMethodExtensions.GetFilterOptions());
-
-    /// <summary>
-    /// Status options for filter.
-    /// </summary>
-    public ObservableCollection<string> StatusOptions { get; } = ["All", "Completed", "Pending", "Partial", "Refunded"];
-
-    /// <summary>
-    /// Customer options for filter (populated from company data).
-    /// </summary>
-    public ObservableCollection<CustomerOption> CustomerOptions { get; } = [];
-
-    /// <summary>
     /// Invoice options for add/edit modal (populated from company data).
     /// </summary>
     public ObservableCollection<InvoiceOption> InvoiceOptions { get; } = [];
-
-    /// <summary>
-    /// Selected customer option for filter.
-    /// </summary>
-    [ObservableProperty]
-    private CustomerOption? _selectedCustomerFilter;
-
-    partial void OnSelectedCustomerFilterChanged(CustomerOption? value)
-    {
-        FilterCustomerId = value?.Id;
-    }
 
     /// <summary>
     /// Selected invoice option for modal.
@@ -254,16 +162,6 @@ public partial class PaymentModalsViewModel : ViewModelBase
     /// </summary>
     public event EventHandler? PaymentDeleted;
 
-    /// <summary>
-    /// Fired when filters are applied.
-    /// </summary>
-    public event EventHandler? FiltersApplied;
-
-    /// <summary>
-    /// Fired when filters are cleared.
-    /// </summary>
-    public event EventHandler? FiltersCleared;
-
     #endregion
 
     #region Add Payment
@@ -274,7 +172,6 @@ public partial class PaymentModalsViewModel : ViewModelBase
         _editingPayment = null;
         ClearModalFields();
         LoadInvoiceOptions();
-        LoadCustomerOptionsForFilter();
         IsAddModalOpen = true;
     }
 
@@ -497,7 +394,6 @@ public partial class PaymentModalsViewModel : ViewModelBase
 
         _editingPayment = payment;
         LoadInvoiceOptions();
-        LoadCustomerOptionsForFilter();
 
         ModalInvoiceId = payment.InvoiceId;
         SelectedInvoice = InvoiceOptions.FirstOrDefault(i => i.Id == payment.InvoiceId);
@@ -807,65 +703,6 @@ public partial class PaymentModalsViewModel : ViewModelBase
 
     #endregion
 
-    #region Filter Modal
-
-    [RelayCommand]
-    public void OpenFilterModal()
-    {
-        LoadCustomerOptionsForFilter();
-        SelectedCustomerFilter = CustomerOptions.FirstOrDefault(c => c.Id == FilterCustomerId);
-        CaptureOriginalFilterValues();
-        IsFilterModalOpen = true;
-    }
-
-    [RelayCommand]
-    public void CloseFilterModal()
-    {
-        IsFilterModalOpen = false;
-    }
-
-    /// <summary>
-    /// Requests to close the Filter modal, showing confirmation if filter changes exist.
-    /// </summary>
-    [RelayCommand]
-    public async Task RequestCloseFilterModalAsync()
-    {
-        if (HasFilterModalChanges)
-        {
-            if (!await ConfirmDiscardFiltersAsync())
-                return;
-
-            // Restore filter values to the state when modal was opened
-            FilterPaymentMethod = _originalFilterPaymentMethod;
-            FilterStatus = _originalFilterStatus;
-            FilterCustomerId = _originalFilterCustomerId;
-            FilterAmountMin = _originalFilterAmountMin;
-            FilterAmountMax = _originalFilterAmountMax;
-            FilterDateFrom = _originalFilterDateFrom;
-            FilterDateTo = _originalFilterDateTo;
-            SelectedCustomerFilter = _originalSelectedCustomerFilter;
-        }
-
-        CloseFilterModal();
-    }
-
-    [RelayCommand]
-    public void ApplyFilters()
-    {
-        FiltersApplied?.Invoke(this, EventArgs.Empty);
-        CloseFilterModal();
-    }
-
-    [RelayCommand]
-    public void ClearFilters()
-    {
-        ResetFilterDefaults();
-        FiltersCleared?.Invoke(this, EventArgs.Empty);
-        CloseFilterModal();
-    }
-
-    #endregion
-
     #region Data Loading
 
     private void LoadInvoiceOptions()
@@ -897,21 +734,6 @@ public partial class PaymentModalsViewModel : ViewModelBase
                 Display = $"{invoice.Id} - {customerName} (${amountDue:N2} due)",
                 AmountDue = amountDue
             });
-        }
-    }
-
-    private void LoadCustomerOptionsForFilter()
-    {
-        CustomerOptions.Clear();
-        CustomerOptions.Add(new CustomerOption { Id = string.Empty, Name = "All Customers" });
-
-        var companyData = App.CompanyManager?.CompanyData;
-        if (companyData?.Customers == null)
-            return;
-
-        foreach (var customer in companyData.Customers.OrderBy(c => c.Name))
-        {
-            CustomerOptions.Add(new CustomerOption { Id = customer.Id, Name = customer.Name });
         }
     }
 
@@ -949,17 +771,6 @@ public partial class PaymentModalsViewModel : ViewModelBase
     {
         ModalInvoiceError = null;
         ModalAmountError = null;
-    }
-
-    private void ResetFilterDefaults()
-    {
-        FilterDateFrom = null;
-        FilterDateTo = null;
-        FilterPaymentMethod = "All";
-        FilterStatus = "All";
-        FilterAmountMin = null;
-        FilterAmountMax = null;
-        SelectedCustomerFilter = null;
     }
 
     private bool ValidateModal()

@@ -150,8 +150,6 @@ public partial class ReturnsPageViewModel : ViewModelBase, ICleanupViewModel
     [ObservableProperty]
     private int _pageSize = 10;
 
-    public ObservableCollection<int> PageSizeOptions { get; } = [5, 10, 15, 25, 50];
-
     partial void OnPageSizeChanged(int value)
     {
         CurrentPage = 1;
@@ -160,8 +158,6 @@ public partial class ReturnsPageViewModel : ViewModelBase, ICleanupViewModel
 
     [ObservableProperty]
     private string _paginationText = "0 returns";
-
-    public ObservableCollection<int> PageNumbers { get; } = [];
 
     public bool CanGoToPreviousPage => CurrentPage > 1;
     public bool CanGoToNextPage => CurrentPage < TotalPages;
@@ -364,7 +360,6 @@ public partial class ReturnsPageViewModel : ViewModelBase, ICleanupViewModel
         if (CurrentPage > TotalPages)
             CurrentPage = TotalPages;
 
-        UpdatePageNumbers();
         UpdatePaginationText(totalCount);
 
         // Apply pagination and add to collection
@@ -445,19 +440,6 @@ public partial class ReturnsPageViewModel : ViewModelBase, ICleanupViewModel
 
         var accountant = companyData.GetAccountant(returnRecord.ProcessedBy ?? "");
         return accountant?.Name ?? returnRecord.ProcessedBy ?? "Unknown";
-    }
-
-    private void UpdatePageNumbers()
-    {
-        PageNumbers.Clear();
-        var startPage = Math.Max(1, CurrentPage - 2);
-        var endPage = Math.Min(TotalPages, startPage + 4);
-        startPage = Math.Max(1, endPage - 4);
-
-        for (var i = startPage; i <= endPage; i++)
-        {
-            PageNumbers.Add(i);
-        }
     }
 
     private void UpdatePaginationText(int totalCount)

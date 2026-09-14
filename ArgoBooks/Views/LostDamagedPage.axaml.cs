@@ -20,12 +20,4 @@ public partial class LostDamagedPage : UserControl
             viewModel.ResponsiveHeader.HeaderWidth = e.NewSize.Width;
         }
     }
-
-    private void OnTableSizeChanged(object? sender, SizeChangedEventArgs e)
-    {
-        if (DataContext is LostDamagedPageViewModel viewModel && e.WidthChanged)
-        {
-            viewModel.ColumnWidths.SetAvailableWidth(e.NewSize.Width);
-        }
-    }
 }

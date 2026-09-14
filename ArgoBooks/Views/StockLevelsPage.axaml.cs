@@ -14,17 +14,6 @@ public partial class StockLevelsPage : UserControl
     }
 
     /// <summary>
-    /// Handles the table size changed event to update column widths.
-    /// </summary>
-    private void OnTableSizeChanged(object? sender, SizeChangedEventArgs e)
-    {
-        if (DataContext is StockLevelsPageViewModel viewModel && e.WidthChanged)
-        {
-            viewModel.ColumnWidths.SetAvailableWidth(e.NewSize.Width);
-        }
-    }
-
-    /// <summary>
     /// Handles the header size changed event for responsive layout.
     /// </summary>
     private void OnHeaderSizeChanged(object? sender, SizeChangedEventArgs e)

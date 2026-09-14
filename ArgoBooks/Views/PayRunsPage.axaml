@@ -79,8 +79,7 @@
                              EmptyIcon="{x:Static icons:Icons.Payments}"
                              EmptyTitle="{loc:Loc 'No pay runs yet'}"
                              EmptyMessage="{loc:Loc 'Run payroll to work out deductions, produce pay stubs and record the wages.'}"
-                             BorderSizeChanged="OnHeaderSizeChanged"
-                             TableGridSizeChanged="OnTableSizeChanged">
+                             BorderSizeChanged="OnHeaderSizeChanged">
 
                 <table:ArgoTable.ExtraButtonsContent>
                     <Button Classes="secondary-button"

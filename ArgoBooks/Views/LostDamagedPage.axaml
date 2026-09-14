@@ -67,8 +67,7 @@
                                 EmptyIcon="{x:Static icons:Icons.LostDamaged}"
                                 EmptyTitle="{loc:Loc 'No lost or damaged items found'}"
                                 EmptyMessage="{loc:Loc 'Items marked as lost or damaged from the Expenses or Revenue pages will appear here.'}"
-                                BorderSizeChanged="OnHeaderSizeChanged"
-                                TableGridSizeChanged="OnTableSizeChanged">
+                                BorderSizeChanged="OnHeaderSizeChanged">
 
                 <!-- Table Header Content - Using ArgoTableHeader for reduced boilerplate -->
                 <table:ArgoTable.HeaderContent>

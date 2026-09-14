@@ -65,8 +65,7 @@
                              EmptyIcon="{x:Static icons:Icons.Customers}"
                              EmptyTitle="{loc:Loc 'No employees yet'}"
                              EmptyMessage="{loc:Loc 'Add the people you pay, then run payroll to work out their deductions.'}"
-                             BorderSizeChanged="OnHeaderSizeChanged"
-                             TableGridSizeChanged="OnTableSizeChanged">
+                             BorderSizeChanged="OnHeaderSizeChanged">
 
                 <table:ArgoTable.HeaderContent>
                     <StackPanel Orientation="Horizontal">

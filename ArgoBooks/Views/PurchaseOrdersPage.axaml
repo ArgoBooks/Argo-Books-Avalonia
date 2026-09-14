@@ -85,8 +85,7 @@
                                     EmptyIcon="{x:Static icons:Icons.PurchaseOrders}"
                                     EmptyTitle="{loc:Loc 'No purchase orders found'}"
                                     EmptyMessage="{loc:Loc 'Purchase orders will appear here when you create orders for your suppliers.'}"
-                                    BorderSizeChanged="OnHeaderSizeChanged"
-                                    TableGridSizeChanged="OnTableSizeChanged">
+                                    BorderSizeChanged="OnHeaderSizeChanged">
 
                     <!-- Table Header Content - Using ArgoTableHeader for reduced boilerplate -->
                     <table:ArgoTable.HeaderContent>

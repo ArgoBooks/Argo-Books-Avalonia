@@ -36,6 +36,6 @@ public partial class CustomersTableColumnWidths : TableColumnWidthsBase
         RegisterColumn("Country", new ColumnDef { StarValue = 0.8, MinWidth = 80, PreferredWidth = 120 }, w => CountryColumnWidth = w);
         RegisterColumn("Actions", new ColumnDef { IsFixed = true, FixedWidth = ActionsWidth(3), MinWidth = ActionsWidth(3) }, w => ActionsColumnWidth = w);
 
-        InitializeColumnWidths();
+        RecalculateWidths();
     }
 }

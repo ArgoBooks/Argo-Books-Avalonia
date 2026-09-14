@@ -257,8 +257,7 @@
                                 EmptyTitle="{Binding EmptyStateTitle}"
                                 EmptyMessage="{Binding EmptyStateMessage}"
                                 ShowHeaderBorder="{Binding IsPortalConfigured}"
-                                BorderSizeChanged="OnHeaderSizeChanged"
-                                TableGridSizeChanged="OnTableSizeChanged">
+                                BorderSizeChanged="OnHeaderSizeChanged">
 
                 <!-- Info Banners (portal warning + invoice limit) -->
                 <table:ArgoTable.InfoBannerContent>
@@ -632,8 +631,7 @@
                              EmptyIcon="{x:Static icons:Icons.Refresh}"
                              EmptyTitle="No recurring invoices yet"
                              EmptyMessage="Create an invoice and turn on Repeat this invoice."
-                             ColumnWidthsManager="{Binding RecurringColumnWidths}"
-                             TableGridSizeChanged="OnRecurringTableSizeChanged">
+                             ColumnWidthsManager="{Binding RecurringColumnWidths}">
 
                 <!-- Column headers - widths driven by RecurringColumnWidths so they redistribute on resize -->
                 <table:ArgoTable.HeaderContent>

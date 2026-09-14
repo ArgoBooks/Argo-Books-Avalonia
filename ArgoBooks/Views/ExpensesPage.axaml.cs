@@ -23,14 +23,6 @@ public partial class ExpensesPage : UserControl
         }
     }
 
-    private void OnTableSizeChanged(object? sender, SizeChangedEventArgs e)
-    {
-        if (DataContext is ExpensesPageViewModel viewModel && e.WidthChanged)
-        {
-            viewModel.ColumnWidths.SetAvailableWidth(e.NewSize.Width);
-        }
-    }
-
     private async void OnAiScanButtonClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         try

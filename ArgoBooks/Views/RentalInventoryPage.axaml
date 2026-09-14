@@ -70,8 +70,7 @@
                                 EmptyIcon="{x:Static icons:Icons.RentalInventory}"
                                 EmptyTitle="{loc:Loc 'No rental items found'}"
                                 EmptyMessage="{loc:Loc 'Add your first rental item to start managing your rental inventory.'}"
-                                BorderSizeChanged="OnHeaderSizeChanged"
-                                TableGridSizeChanged="OnTableSizeChanged">
+                                BorderSizeChanged="OnHeaderSizeChanged">
 
                 <!-- Table Header Content - Using ArgoTableHeader for reduced boilerplate -->
                 <table:ArgoTable.HeaderContent>

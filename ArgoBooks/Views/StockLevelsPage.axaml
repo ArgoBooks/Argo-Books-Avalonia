@@ -89,8 +89,7 @@
                                     EmptyTitle="{Binding EmptyStateTitle}"
                                     EmptyMessage="{Binding EmptyStateMessage}"
                                     ShowEmptyAddButton="{Binding IsAllItemsTabSelected}"
-                                    BorderSizeChanged="OnHeaderSizeChanged"
-                                    TableGridSizeChanged="OnTableSizeChanged">
+                                    BorderSizeChanged="OnHeaderSizeChanged">
 
                     <!-- Table Header Content - Using ArgoTableHeader for reduced boilerplate -->
                     <table:ArgoTable.HeaderContent>

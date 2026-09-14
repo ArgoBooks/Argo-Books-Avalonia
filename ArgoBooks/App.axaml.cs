@@ -4521,10 +4521,6 @@ public partial class App : Application
             {
                 _productsPageViewModel = new ProductsPageViewModel();
             }
-            // Update plan status each time (may have changed)
-            _productsPageViewModel.HasPremium = _appShellViewModel!.SidebarViewModel.HasPremium;
-            // Reset modal state
-            _productsPageViewModel.IsAddModalOpen = false;
             _productsPageViewModel.HighlightTransactionId = null;
             if (param is TransactionNavigationParameter navParam)
             {
@@ -4537,11 +4533,6 @@ public partial class App : Application
                 if (dict.TryGetValue("selectedTabIndex", out var tabIndex) && tabIndex is int index)
                 {
                     _productsPageViewModel.SelectedTabIndex = index;
-                }
-                // Check if we should open the add modal
-                if (dict.TryGetValue("openAddModal", out var openAdd) && openAdd is true)
-                {
-                    _productsPageViewModel.IsAddModalOpen = true;
                 }
             }
             return new ProductsPage { DataContext = _productsPageViewModel };
@@ -4591,19 +4582,12 @@ public partial class App : Application
         navigationService.RegisterPage("Categories", param =>
         {
             _categoriesPageViewModel ??= new CategoriesPageViewModel();
-            // Reset modal state
-            _categoriesPageViewModel.IsAddModalOpen = false;
             if (param is Dictionary<string, object?> dict)
             {
                 // Check if we should select a specific tab (0 = Expenses, 1 = Revenue)
                 if (dict.TryGetValue("selectedTabIndex", out var tabIndex) && tabIndex is int index)
                 {
                     _categoriesPageViewModel.SelectedTabIndex = index;
-                }
-                // Check if we should open the add modal
-                if (dict.TryGetValue("openAddModal", out var openAdd) && openAdd is true)
-                {
-                    _categoriesPageViewModel.IsAddModalOpen = true;
                 }
             }
             return new CategoriesPage { DataContext = _categoriesPageViewModel };
@@ -4620,7 +4604,6 @@ public partial class App : Application
         CategoriesPage CategoriesPageForTab(int tabIndex)
         {
             _categoriesPageViewModel ??= new CategoriesPageViewModel();
-            _categoriesPageViewModel.IsAddModalOpen = false;
             _categoriesPageViewModel.SelectedTabIndex = tabIndex;
             return new CategoriesPage { DataContext = _categoriesPageViewModel };
         }
@@ -4628,8 +4611,6 @@ public partial class App : Application
         ProductsPage ProductsPageForTab(int tabIndex)
         {
             _productsPageViewModel ??= new ProductsPageViewModel();
-            _productsPageViewModel.HasPremium = _appShellViewModel!.SidebarViewModel.HasPremium;
-            _productsPageViewModel.IsAddModalOpen = false;
             _productsPageViewModel.HighlightTransactionId = null;
             _productsPageViewModel.SelectedTabIndex = tabIndex;
             return new ProductsPage { DataContext = _productsPageViewModel };

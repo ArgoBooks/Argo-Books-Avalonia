@@ -1,18 +1,14 @@
-using System.Collections.ObjectModel;
 using ArgoBooks.Controls;
 using ArgoBooks.Controls.ColumnWidths;
 using ArgoBooks.Helpers;
 using ArgoBooks.Core.Enums;
-using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Models.Entities;
 using ArgoBooks.Core.Services;
-using ArgoBooks.Localization;
 using ArgoBooks.Services;
 using ArgoBooks.Utilities;
 using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using ArgoBooks.Shared.Telemetry;
 
 namespace ArgoBooks.ViewModels;
 
@@ -56,12 +52,6 @@ public partial class CustomersPageViewModel : SortablePageViewModelBase
     #endregion
 
     #region Column Visibility
-
-    [ObservableProperty]
-    private double _columnMenuX;
-
-    [ObservableProperty]
-    private double _columnMenuY;
 
     [ObservableProperty]
     private bool _showCustomerColumn = ColumnVisibilityHelper.Load("Customers", "Customer", true);
@@ -133,11 +123,6 @@ public partial class CustomersPageViewModel : SortablePageViewModelBase
     /// </summary>
     public BatchObservableCollection<CustomerDisplayItem> Customers { get; } = [];
 
-    /// <summary>
-    /// Customer status options for filter.
-    /// </summary>
-    public ObservableCollection<string> CustomerStatusOptions { get; } = ["All", "Active", "Inactive", "Banned"];
-
     #endregion
 
     #region Pagination
@@ -147,84 +132,6 @@ public partial class CustomersPageViewModel : SortablePageViewModelBase
 
     /// <inheritdoc />
     protected override void OnSortOrPageChanged() => FilterCustomers();
-
-    #endregion
-
-    #region Modal State
-
-    [ObservableProperty]
-    private bool _isAddModalOpen;
-
-    [ObservableProperty]
-    private bool _isEditModalOpen;
-
-    [ObservableProperty]
-    private bool _isDeleteConfirmOpen;
-
-    [ObservableProperty]
-    private bool _isFilterModalOpen;
-
-    #endregion
-
-    #region Modal Form Fields
-
-    [ObservableProperty]
-    private string _modalFirstName = string.Empty;
-
-    [ObservableProperty]
-    private string _modalLastName = string.Empty;
-
-    [ObservableProperty]
-    private string _modalEmail = string.Empty;
-
-    [ObservableProperty]
-    private string _modalPhone = string.Empty;
-
-    [ObservableProperty]
-    private string _modalStreetAddress = string.Empty;
-
-    [ObservableProperty]
-    private string _modalCity = string.Empty;
-
-    [ObservableProperty]
-    private string _modalStateProvince = string.Empty;
-
-    [ObservableProperty]
-    private string _modalZipCode = string.Empty;
-
-    [ObservableProperty]
-    private string _modalCountry = string.Empty;
-
-    [ObservableProperty]
-    private string _modalNotes = string.Empty;
-
-    [ObservableProperty]
-    private string _modalStatus = "Active";
-
-    [ObservableProperty]
-    private string? _modalFirstNameError;
-
-    [ObservableProperty]
-    private string? _modalEmailError;
-
-    /// <summary>
-    /// The customer being edited (null for add).
-    /// </summary>
-    private Customer? _editingCustomer;
-
-    /// <summary>
-    /// The customer being deleted.
-    /// </summary>
-    private CustomerDisplayItem? _deletingCustomer;
-
-    #endregion
-
-    #region Dropdown Options
-
-    /// <summary>
-    /// Status options for edit modal.
-    /// </summary>
-    public ObservableCollection<string> StatusOptions { get; } = ["Active", "Inactive", "Banned"];
 
     #endregion
 
@@ -375,15 +282,6 @@ public partial class CustomersPageViewModel : SortablePageViewModelBase
     }
 
     /// <summary>
-    /// Refreshes the customers from the data source.
-    /// </summary>
-    [RelayCommand]
-    private void RefreshCustomers()
-    {
-        LoadCustomers();
-    }
-
-    /// <summary>
     /// Filters customers based on search query and filters.
     /// </summary>
     private void FilterCustomers()
@@ -472,7 +370,6 @@ public partial class CustomersPageViewModel : SortablePageViewModelBase
         if (CurrentPage > TotalPages)
             CurrentPage = TotalPages;
 
-        UpdatePageNumbers();
         UpdatePaginationText(totalCount);
 
         // Apply pagination and add to collection
@@ -481,19 +378,6 @@ public partial class CustomersPageViewModel : SortablePageViewModelBase
             .Take(PageSize);
 
         Customers.ReplaceAll(pagedCustomers);
-    }
-
-    protected override void UpdatePageNumbers()
-    {
-        PageNumbers.Clear();
-        var startPage = Math.Max(1, CurrentPage - 2);
-        var endPage = Math.Min(TotalPages, startPage + 4);
-        startPage = Math.Max(1, endPage - 4);
-
-        for (var i = startPage; i <= endPage; i++)
-        {
-            PageNumbers.Add(i);
-        }
     }
 
     private void UpdatePaginationText(int totalCount)
@@ -515,79 +399,6 @@ public partial class CustomersPageViewModel : SortablePageViewModelBase
         App.CustomerModalsViewModel?.OpenAddModal();
     }
 
-    /// <summary>
-    /// Closes the Add modal.
-    /// </summary>
-    [RelayCommand]
-    private void CloseAddModal()
-    {
-        IsAddModalOpen = false;
-        ClearModalFields();
-    }
-
-    /// <summary>
-    /// Saves a new customer.
-    /// </summary>
-    [RelayCommand]
-    private void SaveNewCustomer()
-    {
-        if (!ValidateModal())
-            return;
-
-        var companyData = App.CompanyManager?.CompanyData;
-        if (companyData == null)
-            return;
-
-        // Generate new ID
-        companyData.IdCounters.Customer++;
-        var newId = $"CUS-{companyData.IdCounters.Customer:D3}";
-
-        var newCustomer = new Customer
-        {
-            Id = newId,
-            Name = $"{ModalFirstName.Trim()} {ModalLastName.Trim()}".Trim(),
-            Email = ModalEmail.Trim(),
-            Phone = ModalPhone.Trim(),
-            Address = new Address
-            {
-                Street = ModalStreetAddress.Trim(),
-                City = ModalCity.Trim(),
-                State = ModalStateProvince.Trim(),
-                ZipCode = ModalZipCode.Trim(),
-                Country = ModalCountry.Trim()
-            },
-            Notes = ModalNotes.Trim(),
-            Status = EntityStatus.Active,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-
-        companyData.Customers.Add(newCustomer);
-        _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.CustomerCreated);
-        companyData.MarkAsModified();
-
-        // Record undo action
-        var customerToUndo = newCustomer;
-        App.UndoRedoManager.RecordAction(new DelegateAction(
-            $"Add customer '{newCustomer.Name}'",
-            () =>
-            {
-                companyData.Customers.Remove(customerToUndo);
-                companyData.MarkAsModified();
-                LoadCustomers();
-            },
-            () =>
-            {
-                companyData.Customers.Add(customerToUndo);
-                companyData.MarkAsModified();
-                LoadCustomers();
-            }));
-
-        // Reload and close
-        LoadCustomers();
-        CloseAddModal();
-    }
-
     #endregion
 
     #region Edit Customer
@@ -599,108 +410,6 @@ public partial class CustomersPageViewModel : SortablePageViewModelBase
     private void OpenEditModal(CustomerDisplayItem? item)
     {
         App.CustomerModalsViewModel?.OpenEditModal(item);
-    }
-
-    /// <summary>
-    /// Closes the Edit modal.
-    /// </summary>
-    [RelayCommand]
-    private void CloseEditModal()
-    {
-        IsEditModalOpen = false;
-        _editingCustomer = null;
-        ClearModalFields();
-    }
-
-    /// <summary>
-    /// Saves changes to an existing customer.
-    /// </summary>
-    [RelayCommand]
-    private void SaveEditedCustomer()
-    {
-        if (!ValidateModal() || _editingCustomer == null)
-            return;
-
-        var companyData = App.CompanyManager?.CompanyData;
-        if (companyData == null)
-            return;
-
-        // Store old values for undo
-        var oldName = _editingCustomer.Name;
-        var oldEmail = _editingCustomer.Email;
-        var oldPhone = _editingCustomer.Phone;
-        var oldAddress = new Address
-        {
-            Street = _editingCustomer.Address.Street,
-            City = _editingCustomer.Address.City,
-            State = _editingCustomer.Address.State,
-            ZipCode = _editingCustomer.Address.ZipCode,
-            Country = _editingCustomer.Address.Country
-        };
-        var oldNotes = _editingCustomer.Notes;
-        var oldStatus = _editingCustomer.Status;
-
-        // Store new values
-        var newName = $"{ModalFirstName.Trim()} {ModalLastName.Trim()}".Trim();
-        var newEmail = ModalEmail.Trim();
-        var newPhone = ModalPhone.Trim();
-        var newAddress = new Address
-        {
-            Street = ModalStreetAddress.Trim(),
-            City = ModalCity.Trim(),
-            State = ModalStateProvince.Trim(),
-            ZipCode = ModalZipCode.Trim(),
-            Country = ModalCountry.Trim()
-        };
-        var newNotes = ModalNotes.Trim();
-        var newStatus = ModalStatus switch
-        {
-            "Active" => EntityStatus.Active,
-            "Inactive" => EntityStatus.Inactive,
-            "Banned" => EntityStatus.Archived,
-            _ => EntityStatus.Active
-        };
-
-        // Update the customer
-        var customerToEdit = _editingCustomer;
-        customerToEdit.Name = newName;
-        customerToEdit.Email = newEmail;
-        customerToEdit.Phone = newPhone;
-        customerToEdit.Address = newAddress;
-        customerToEdit.Notes = newNotes;
-        customerToEdit.Status = newStatus;
-        customerToEdit.UpdatedAt = DateTime.UtcNow;
-
-        companyData.MarkAsModified();
-
-        App.UndoRedoManager.RecordAction(new DelegateAction(
-            $"Edit customer '{newName}'",
-            () =>
-            {
-                customerToEdit.Name = oldName;
-                customerToEdit.Email = oldEmail;
-                customerToEdit.Phone = oldPhone;
-                customerToEdit.Address = oldAddress;
-                customerToEdit.Notes = oldNotes;
-                customerToEdit.Status = oldStatus;
-                companyData.MarkAsModified();
-                LoadCustomers();
-            },
-            () =>
-            {
-                customerToEdit.Name = newName;
-                customerToEdit.Email = newEmail;
-                customerToEdit.Phone = newPhone;
-                customerToEdit.Address = newAddress;
-                customerToEdit.Notes = newNotes;
-                customerToEdit.Status = newStatus;
-                companyData.MarkAsModified();
-                LoadCustomers();
-            }));
-
-        // Reload and close
-        LoadCustomers();
-        CloseEditModal();
     }
 
     #endregion
@@ -716,56 +425,6 @@ public partial class CustomersPageViewModel : SortablePageViewModelBase
         App.CustomerModalsViewModel?.OpenDeleteConfirm(item);
     }
 
-    /// <summary>
-    /// Closes the delete confirmation dialog.
-    /// </summary>
-    [RelayCommand]
-    private void CloseDeleteConfirm()
-    {
-        IsDeleteConfirmOpen = false;
-        _deletingCustomer = null;
-    }
-
-    /// <summary>
-    /// Confirms and deletes the customer.
-    /// </summary>
-    [RelayCommand]
-    private void ConfirmDelete()
-    {
-        if (_deletingCustomer == null)
-            return;
-
-        var companyData = App.CompanyManager?.CompanyData;
-        if (companyData == null)
-            return;
-
-        var customer = companyData.Customers.FirstOrDefault(c => c.Id == _deletingCustomer.Id);
-        if (customer != null)
-        {
-            var deletedCustomer = customer;
-            companyData.Customers.Remove(customer);
-            companyData.MarkAsModified();
-
-            App.UndoRedoManager.RecordAction(new DelegateAction(
-                $"Delete customer '{deletedCustomer.Name}'",
-                () =>
-                {
-                    companyData.Customers.Add(deletedCustomer);
-                    companyData.MarkAsModified();
-                    LoadCustomers();
-                },
-                () =>
-                {
-                    companyData.Customers.Remove(deletedCustomer);
-                    companyData.MarkAsModified();
-                    LoadCustomers();
-                }));
-        }
-
-        LoadCustomers();
-        CloseDeleteConfirm();
-    }
-
     #endregion
 
     #region Filter Modal
@@ -779,41 +438,6 @@ public partial class CustomersPageViewModel : SortablePageViewModelBase
         App.CustomerModalsViewModel?.OpenFilterModal();
     }
 
-    /// <summary>
-    /// Closes the filter modal.
-    /// </summary>
-    [RelayCommand]
-    private void CloseFilterModal()
-    {
-        IsFilterModalOpen = false;
-    }
-
-    /// <summary>
-    /// Applies the current filters and closes the modal.
-    /// </summary>
-    [RelayCommand]
-    private void ApplyFilters()
-    {
-        CurrentPage = 1;
-        FilterCustomers();
-        CloseFilterModal();
-    }
-
-    /// <summary>
-    /// Clears all filters.
-    /// </summary>
-    [RelayCommand]
-    private void ClearFilters()
-    {
-        FilterCustomerStatus = "All";
-        FilterLastRentalFrom = null;
-        FilterLastRentalTo = null;
-        SearchQuery = null;
-        CurrentPage = 1;
-        FilterCustomers();
-        CloseFilterModal();
-    }
-
     #endregion
 
     #region Customer History Modal
@@ -825,57 +449,6 @@ public partial class CustomersPageViewModel : SortablePageViewModelBase
     private void OpenHistoryModal(CustomerDisplayItem? item)
     {
         App.CustomerModalsViewModel?.OpenHistoryModal(item);
-    }
-
-    #endregion
-
-    #region Modal Helpers
-
-    private void ClearModalFields()
-    {
-        ModalFirstName = string.Empty;
-        ModalLastName = string.Empty;
-        ModalEmail = string.Empty;
-        ModalPhone = string.Empty;
-        ModalStreetAddress = string.Empty;
-        ModalCity = string.Empty;
-        ModalStateProvince = string.Empty;
-        ModalZipCode = string.Empty;
-        ModalCountry = string.Empty;
-        ModalNotes = string.Empty;
-        ModalStatus = "Active";
-        ClearModalErrors();
-    }
-
-    private void ClearModalErrors()
-    {
-        ModalFirstNameError = null;
-        ModalEmailError = null;
-    }
-
-    private bool ValidateModal()
-    {
-        ClearModalErrors();
-        var isValid = true;
-
-        // Validate first name (required)
-        if (string.IsNullOrWhiteSpace(ModalFirstName))
-        {
-            ModalFirstNameError = "First name is required.".Translate();
-            isValid = false;
-        }
-
-        // Validate email format if provided
-        if (!string.IsNullOrWhiteSpace(ModalEmail))
-        {
-            if (!ModalEmail.Contains('@') || !ModalEmail.Contains('.'))
-            {
-                ModalEmailError = "Please enter a valid email address.".Translate();
-                isValid = false;
-            }
-        }
-
-        return isValid;
     }
 
     #endregion

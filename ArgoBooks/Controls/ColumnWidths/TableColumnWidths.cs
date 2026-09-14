@@ -76,6 +76,6 @@ public partial class TableColumnWidths : TableColumnWidthsBase
         RegisterColumn("Status", new ColumnDef { StarValue = 0.9, MinWidth = 80, PreferredWidth = 110 }, w => StatusColumnWidth = w);
         RegisterColumn("Actions", new ColumnDef { IsFixed = true, FixedWidth = ActionsWidth(5), MinWidth = ActionsWidth(5) }, w => ActionsColumnWidth = w);
 
-        InitializeColumnWidths();
+        RecalculateWidths();
     }
 }

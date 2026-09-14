@@ -58,16 +58,6 @@ public static class StringConverters
     public static readonly IValueConverter ToRentalItemStatusForeground = StatusConverters.RentalItemStatusForeground;
 
     /// <summary>
-    /// Converts payment transaction status to badge background color.
-    /// </summary>
-    public static readonly IValueConverter ToPaymentTransactionStatusBackground = StatusConverters.PaymentTransactionStatusBackground;
-
-    /// <summary>
-    /// Converts payment transaction status to badge foreground color.
-    /// </summary>
-    public static readonly IValueConverter ToPaymentTransactionStatusForeground = StatusConverters.PaymentTransactionStatusForeground;
-
-    /// <summary>
     /// Converts invoice status to badge background color.
     /// </summary>
     public static readonly IValueConverter ToInvoiceStatusBackground = StatusConverters.InvoiceStatusBackground;

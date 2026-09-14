@@ -53,8 +53,7 @@
                                 EmptyTitle="{loc:Loc 'No products found'}"
                                 EmptyMessage="{loc:Loc 'Add your first product to start tracking your inventory.'}"
                                 ShowHeaderBorder="True"
-                                BorderSizeChanged="OnHeaderSizeChanged"
-                                TableGridSizeChanged="OnTableSizeChanged">
+                                BorderSizeChanged="OnHeaderSizeChanged">
 
                 <!-- Table Header Content - Using ArgoTableHeader for reduced boilerplate -->
                 <table:ArgoTable.HeaderContent>

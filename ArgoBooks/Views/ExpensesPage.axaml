@@ -105,8 +105,7 @@
                                 EmptyIcon="{x:Static icons:Icons.Expenses}"
                                 EmptyTitle="{loc:Loc 'No expenses found'}"
                                 EmptyMessage="{loc:Loc 'Add your first expense to start tracking your spending.'}"
-                                BorderSizeChanged="OnHeaderSizeChanged"
-                                TableGridSizeChanged="OnTableSizeChanged">
+                                BorderSizeChanged="OnHeaderSizeChanged">
 
                 <!-- Extra Buttons Content (Import menu) -->
                 <table:ArgoTable.ExtraButtonsContent>

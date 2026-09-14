@@ -201,28 +201,6 @@ public static class StatusConverters
 
     #endregion
 
-    #region Payment Transaction Status
-
-    public static readonly IValueConverter PaymentTransactionStatusBackground = new StatusToBrushConverter(
-        new Dictionary<string, string>
-        {
-            ["Completed"] = GreenBg,
-            ["Pending"] = YellowBg,
-            ["Partial"] = BlueBg,
-            ["Refunded"] = PurpleBg
-        });
-
-    public static readonly IValueConverter PaymentTransactionStatusForeground = new StatusToBrushConverter(
-        new Dictionary<string, string>
-        {
-            ["Completed"] = GreenFg,
-            ["Pending"] = YellowFg,
-            ["Partial"] = BlueFg,
-            ["Refunded"] = PurpleFg
-        }, GrayFg);
-
-    #endregion
-
     #region History Type
 
     public static readonly IValueConverter HistoryTypeBadgeBackground = new StatusToBrushConverter(

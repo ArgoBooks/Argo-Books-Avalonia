@@ -20,12 +20,4 @@ public partial class RentalInventoryPage : UserControl
             viewModel.ResponsiveHeader.HeaderWidth = e.NewSize.Width;
         }
     }
-
-    private void OnTableSizeChanged(object? sender, SizeChangedEventArgs e)
-    {
-        if (DataContext is RentalInventoryPageViewModel viewModel && e.WidthChanged)
-        {
-            viewModel.ColumnWidths.SetAvailableWidth(e.NewSize.Width);
-        }
-    }
 }

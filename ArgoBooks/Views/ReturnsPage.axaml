@@ -81,8 +81,7 @@
                                 EmptyIcon="{x:Static icons:Icons.Returns}"
                                 EmptyTitle="{loc:Loc 'No returns found'}"
                                 EmptyMessage="{loc:Loc 'Returns will appear here when items are returned to suppliers or by customers.'}"
-                                BorderSizeChanged="OnHeaderSizeChanged"
-                                TableGridSizeChanged="OnTableSizeChanged">
+                                BorderSizeChanged="OnHeaderSizeChanged">
 
                 <!-- Table Header Content - Using ArgoTableHeader for reduced boilerplate -->
                 <table:ArgoTable.HeaderContent>

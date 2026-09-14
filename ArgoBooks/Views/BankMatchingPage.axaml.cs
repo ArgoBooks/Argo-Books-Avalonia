@@ -15,16 +15,4 @@ public partial class BankMatchingPage : UserControl
         if (DataContext is BankMatchingPageViewModel vm && e.WidthChanged)
             vm.ResponsiveHeader.HeaderWidth = e.NewSize.Width;
     }
-
-    private void OnBankLinesTableSizeChanged(object? sender, SizeChangedEventArgs e)
-    {
-        if (DataContext is BankMatchingPageViewModel vm && e.WidthChanged)
-            vm.BankLineColumns.SetAvailableWidth(e.NewSize.Width);
-    }
-
-    private void OnMissingTableSizeChanged(object? sender, SizeChangedEventArgs e)
-    {
-        if (DataContext is BankMatchingPageViewModel vm && e.WidthChanged)
-            vm.MissingColumns.SetAvailableWidth(e.NewSize.Width);
-    }
 }

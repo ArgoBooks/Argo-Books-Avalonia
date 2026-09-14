@@ -69,8 +69,7 @@
                                 EmptyIcon="{x:Static icons:Icons.Locations}"
                                 EmptyTitle="{loc:Loc 'No locations found'}"
                                 EmptyMessage="{loc:Loc 'Add your first location to start managing your warehouses and storage facilities.'}"
-                                BorderSizeChanged="OnHeaderSizeChanged"
-                                TableGridSizeChanged="OnTableSizeChanged">
+                                BorderSizeChanged="OnHeaderSizeChanged">
 
                 <!-- Table Header Content - Using ArgoTableHeader for reduced boilerplate -->
                 <table:ArgoTable.HeaderContent>

@@ -194,8 +194,6 @@ public partial class ReceiptsPageViewModel : ViewModelBase, ICleanupViewModel
     [ObservableProperty]
     private string _paginationText = "0 receipts";
 
-    public ObservableCollection<int> PageNumbers { get; } = [];
-
     public bool CanGoToPreviousPage => CurrentPage > 1;
     public bool CanGoToNextPage => CurrentPage < TotalPages;
 
@@ -615,7 +613,6 @@ public partial class ReceiptsPageViewModel : ViewModelBase, ICleanupViewModel
         if (CurrentPage > TotalPages)
             CurrentPage = TotalPages;
 
-        UpdatePageNumbers();
         UpdatePaginationText(totalCount);
 
         // Paginate BEFORE creating display items, only process the visible page
@@ -676,19 +673,6 @@ public partial class ReceiptsPageViewModel : ViewModelBase, ICleanupViewModel
                fileType.EndsWith("png", StringComparison.OrdinalIgnoreCase) ||
                fileType.EndsWith("gif", StringComparison.OrdinalIgnoreCase) ||
                fileType.EndsWith("webp", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private void UpdatePageNumbers()
-    {
-        PageNumbers.Clear();
-        var startPage = Math.Max(1, CurrentPage - 2);
-        var endPage = Math.Min(TotalPages, startPage + 4);
-        startPage = Math.Max(1, endPage - 4);
-
-        for (var i = startPage; i <= endPage; i++)
-        {
-            PageNumbers.Add(i);
-        }
     }
 
     private void UpdatePaginationText(int totalCount)

@@ -33,6 +33,6 @@ public partial class LocationsTableColumnWidths : TableColumnWidthsBase
         RegisterColumn("Manager", new ColumnDef { StarValue = 1.0, MinWidth = 120, PreferredWidth = 150 }, w => ManagerColumnWidth = w);
         RegisterColumn("Actions", new ColumnDef { IsFixed = true, FixedWidth = ActionsWidth(2), MinWidth = ActionsWidth(2) }, w => ActionsColumnWidth = w);
 
-        InitializeColumnWidths();
+        RecalculateWidths();
     }
 }

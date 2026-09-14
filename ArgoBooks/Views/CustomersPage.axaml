@@ -69,8 +69,7 @@
                                 EmptyIcon="{x:Static icons:Icons.Customers}"
                                 EmptyTitle="{loc:Loc 'No customers found'}"
                                 EmptyMessage="{loc:Loc 'Add your first customer to start managing your customer relationships.'}"
-                                BorderSizeChanged="OnHeaderSizeChanged"
-                                TableGridSizeChanged="OnTableSizeChanged">
+                                BorderSizeChanged="OnHeaderSizeChanged">
 
                 <!-- Table Header Content - Using ArgoTableHeader for reduced boilerplate -->
                 <table:ArgoTable.HeaderContent>

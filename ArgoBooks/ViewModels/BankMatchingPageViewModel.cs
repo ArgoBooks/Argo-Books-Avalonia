@@ -385,22 +385,11 @@ public partial class BankMatchingPageViewModel : SortablePageViewModelBase
         TotalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / PageSize));
         if (CurrentPage > TotalPages) CurrentPage = TotalPages;
 
-        UpdatePageNumbers();
         PaginationText = PaginationTextHelper.FormatPaginationText(totalCount, CurrentPage, PageSize, TotalPages, "line");
 
         Lines.Clear();
         foreach (var row in filtered.Skip((CurrentPage - 1) * PageSize).Take(PageSize))
             Lines.Add(row);
-    }
-
-    protected override void UpdatePageNumbers()
-    {
-        PageNumbers.Clear();
-        var startPage = Math.Max(1, CurrentPage - 2);
-        var endPage = Math.Min(TotalPages, startPage + 4);
-        startPage = Math.Max(1, endPage - 4);
-        for (var i = startPage; i <= endPage; i++)
-            PageNumbers.Add(i);
     }
 
     private Dictionary<string, List<BankMatchCandidate>> _candidatesByLineId = [];

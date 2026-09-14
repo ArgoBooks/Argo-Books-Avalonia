@@ -70,8 +70,7 @@
                                 EmptyIcon="{x:Static icons:Icons.Suppliers}"
                                 EmptyTitle="{loc:Loc 'No suppliers found'}"
                                 EmptyMessage="{loc:Loc 'Add your first supplier to track vendors and manage your supply chain.'}"
-                                BorderSizeChanged="OnHeaderSizeChanged"
-                                TableGridSizeChanged="OnTableSizeChanged">
+                                BorderSizeChanged="OnHeaderSizeChanged">
 
                 <!-- Table Header Content - Using ArgoTableHeader for reduced boilerplate -->
                 <table:ArgoTable.HeaderContent>

@@ -103,7 +103,6 @@
                                  GoToPreviousPageCommand="{Binding GoToPreviousPageCommand}"
                                  GoToNextPageCommand="{Binding GoToNextPageCommand}"
                                  BorderSizeChanged="OnHeaderSizeChanged"
-                                 TableGridSizeChanged="OnBankLinesTableSizeChanged"
                                  EmptyIcon="{x:Static icons:Icons.Bank}"
                                  EmptyTitle="{loc:Loc 'No bank lines to show'}"
                                  EmptyMessage="{loc:Loc 'No lines match your search or filters. Clear them, or import another statement.'}">
@@ -272,7 +271,6 @@
                                  GoToPreviousPageCommand="{Binding MissingGoToPreviousPageCommand}"
                                  GoToNextPageCommand="{Binding MissingGoToNextPageCommand}"
                                  BorderSizeChanged="OnHeaderSizeChanged"
-                                 TableGridSizeChanged="OnMissingTableSizeChanged"
                                  EmptyIcon="{x:Static icons:Icons.Check}"
                                  EmptyTitle="{loc:Loc 'No records to show'}"
                                  EmptyMessage="{loc:Loc 'Nothing here. Records appear when you have revenue, expenses or payments not matched to a bank line.'}">

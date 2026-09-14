@@ -98,16 +98,6 @@ public abstract partial class SortablePageViewModelBase : ViewModelBase, ICleanu
     private int _pageSize = 10;
 
     /// <summary>
-    /// Available page size options.
-    /// </summary>
-    public ObservableCollection<int> PageSizeOptions { get; } = [10, 25, 50, 100];
-
-    /// <summary>
-    /// Page numbers for pagination display.
-    /// </summary>
-    public ObservableCollection<int> PageNumbers { get; } = [];
-
-    /// <summary>
     /// Gets whether we can navigate to the previous page.
     /// </summary>
     public bool CanGoToPreviousPage => CurrentPage > 1;
@@ -167,19 +157,6 @@ public abstract partial class SortablePageViewModelBase : ViewModelBase, ICleanu
     {
         OnPropertyChanged(nameof(CanGoToPreviousPage));
         OnPropertyChanged(nameof(CanGoToNextPage));
-    }
-
-    /// <summary>
-    /// Updates the PageNumbers collection based on TotalPages.
-    /// Override for custom pagination display (e.g., sliding window).
-    /// </summary>
-    protected virtual void UpdatePageNumbers()
-    {
-        PageNumbers.Clear();
-        for (int i = 1; i <= TotalPages; i++)
-        {
-            PageNumbers.Add(i);
-        }
     }
 
     #endregion

@@ -114,7 +114,7 @@
             </Button>
         </StackPanel>
 
-        <!-- Modal Overlay for message boxes and ModalService modals. ZIndex sits above the
+        <!-- Modal Overlay for message boxes. ZIndex sits above the
              welcome screen (150), create wizard (200), and onboarding/loading overlays (210-225)
              so dialogs (errors, the save-blocked prompt) appear on top instead of behind them;
              kept below the data-safety dialogs (Confirmation 250, UnsavedChanges 275). When no

@@ -376,7 +376,6 @@ public partial class LocationsPageViewModel : SortablePageViewModelBase
         if (CurrentPage > TotalPages)
             CurrentPage = TotalPages;
 
-        UpdatePageNumbers();
         UpdatePaginationText(totalCount);
 
         // Apply pagination and add to collection
@@ -399,19 +398,6 @@ public partial class LocationsPageViewModel : SortablePageViewModelBase
         if (name.Contains("retail") || name.Contains("store")) return "Retail Store";
         if (name.Contains("distribution")) return "Distribution Center";
         return "Warehouse"; // Default
-    }
-
-    protected override void UpdatePageNumbers()
-    {
-        PageNumbers.Clear();
-        var startPage = Math.Max(1, CurrentPage - 2);
-        var endPage = Math.Min(TotalPages, startPage + 4);
-        startPage = Math.Max(1, endPage - 4);
-
-        for (var i = startPage; i <= endPage; i++)
-        {
-            PageNumbers.Add(i);
-        }
     }
 
     private void UpdatePaginationText(int totalCount)
@@ -506,24 +492,6 @@ public partial class LocationDisplayItem : ObservableObject
 
     [ObservableProperty]
     private DateTime _createdAt;
-
-    /// <summary>
-    /// Gets the initials from the location name for avatar display.
-    /// </summary>
-    public string Initials
-    {
-        get
-        {
-            var parts = Name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length >= 2)
-                return $"{parts[0][0]}{parts[1][0]}".ToUpperInvariant();
-            if (parts is [{ Length: >= 2 }])
-                return parts[0][..2].ToUpperInvariant();
-            if (parts is [{ Length: 1 }])
-                return parts[0].ToUpperInvariant();
-            return "?";
-        }
-    }
 
     public string StatusText => IsActive ? "Active" : "Inactive";
 

@@ -51,8 +51,7 @@
                                 EmptyIcon="{x:Static icons:Icons.Categories}"
                                 EmptyTitle="{loc:Loc 'No categories found'}"
                                 EmptyMessage="{loc:Loc 'Create your first category to organize your products and services.'}"
-                                BorderSizeChanged="OnHeaderSizeChanged"
-                                TableGridSizeChanged="OnTableSizeChanged">
+                                BorderSizeChanged="OnHeaderSizeChanged">
 
                 <!-- Table Header Content - Using ArgoTableHeader for reduced boilerplate -->
                 <table:ArgoTable.HeaderContent>

@@ -70,8 +70,7 @@
                                 EmptyIcon="{x:Static icons:Icons.RentalRecords}"
                                 EmptyTitle="{loc:Loc 'No rental records found'}"
                                 EmptyMessage="{loc:Loc 'Create your first rental record to start tracking rentals.'}"
-                                BorderSizeChanged="OnHeaderSizeChanged"
-                                TableGridSizeChanged="OnTableSizeChanged">
+                                BorderSizeChanged="OnHeaderSizeChanged">
 
                 <!-- Table Header Content - Using ArgoTableHeader for reduced boilerplate -->
                 <table:ArgoTable.HeaderContent>

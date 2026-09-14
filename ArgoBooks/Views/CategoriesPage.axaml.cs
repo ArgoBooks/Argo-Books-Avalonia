@@ -19,14 +19,6 @@ public partial class CategoriesPage : UserControl
         App.CategoriesTutorialViewModel?.ShowIfFirstVisit();
     }
 
-    private void OnTableSizeChanged(object? sender, SizeChangedEventArgs e)
-    {
-        if (DataContext is CategoriesPageViewModel viewModel && e.WidthChanged)
-        {
-            viewModel.ColumnWidths.SetAvailableWidth(e.NewSize.Width);
-        }
-    }
-
     private void OnHeaderSizeChanged(object? sender, SizeChangedEventArgs e)
     {
         if (DataContext is CategoriesPageViewModel viewModel && e.WidthChanged)

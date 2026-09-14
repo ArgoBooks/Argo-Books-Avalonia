@@ -691,7 +691,6 @@ public RevenuePageViewModel()
         if (CurrentPage > TotalPages)
             CurrentPage = TotalPages;
 
-        UpdatePageNumbers();
         UpdatePaginationText(totalCount);
 
         // Apply pagination and add to collection
@@ -727,19 +726,6 @@ public RevenuePageViewModel()
         }
         if (!RevenueAggregator.IsCollected(revenue)) return "Unpaid";
         return "Completed";
-    }
-
-    protected override void UpdatePageNumbers()
-    {
-        PageNumbers.Clear();
-        var startPage = Math.Max(1, CurrentPage - 2);
-        var endPage = Math.Min(TotalPages, startPage + 4);
-        startPage = Math.Max(1, endPage - 4);
-
-        for (var i = startPage; i <= endPage; i++)
-        {
-            PageNumbers.Add(i);
-        }
     }
 
     private void UpdatePaginationText(int totalCount)
