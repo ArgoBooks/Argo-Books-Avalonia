@@ -6,7 +6,8 @@ using SkiaSharp;
 // Region Flag Downloader
 // Usage: dotnet run --project tools/ArgoBooks.RegionFlags
 //
-// Downloads an image for each province and state in Regions, looked up on Wikidata by ISO 3166-2 code:
+// Downloads an image for each province, state and county in Regions, looked up on Wikidata by its ISO
+// 3166-2 code, or by its Wikidata id where it has no code:
 // its flag (P41), or its coat of arms (P94) where it has none, or its logo (P154) where it has neither.
 // The image comes from Wikimedia Commons, shrunk to fit the same 35x24 box as the country flags. See
 // docs/Publishing.md for when to run it.
@@ -22,6 +23,8 @@ var overrides = new Dictionary<string, string>
 {
     ["AU-ACT"] = "Flag of the Australian Capital Territory.svg",
     ["DE-BY"] = "Flag of Bavaria (lozengy).svg",
+    ["GB-Q21693433"] = "Arms of Bristol City Council.svg",
+    ["GB-Q48790202"] = "Flag of Cornwall.svg",
     ["IT-CH"] = "Flag of the province of Chieti.svg",
     ["IT-EN"] = "Provincia di Enna-Stemma.svg",
     ["IT-GO"] = "Flag of the Province of Gorizia.svg",
@@ -38,12 +41,14 @@ var overrides = new Dictionary<string, string>
     ["NZ-WKO"] = "Waikato Regional Council logo.svg",
 };
 
-// Irish counties have no official flags: the ones listed are sports colours, some linked to the wrong
-// county, so their coats of arms come first.
-var armsFirst = new HashSet<string> { "IE" };
+// Counties in Ireland and Northern Ireland have no official flags: the ones listed are GAA sports colours,
+// some linked to the wrong county, so their coats of arms come first.
+string[] armsFirst = ["IE-", "GB-Q189592", "GB-Q192761", "GB-Q190684", "GB-Q190678", "GB-Q192208", "GB-Q192229"];
 
 // A gonfalone is a tall ceremonial banner, and the national flag or a proposal is not the region's own.
 var rejected = new Regex(@"gonfalone|proposed|^Flag of France\.svg$", RegexOptions.IgnoreCase);
+
+var wikidataKey = new Regex(@"^[A-Z]{2}-Q\d+$");
 
 using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
 http.DefaultRequestHeaders.UserAgent.ParseAdd("ArgoBooksRegionFlags/1.0 (https://argorobots.com)");
@@ -108,7 +113,7 @@ string? Choose(string code)
     if (!images.TryGetValue(code, out var found))
         return null;
 
-    string[] order = armsFirst.Contains(code[..2]) ? ["arms", "flag", "logo"] : ["flag", "arms", "logo"];
+    string[] order = armsFirst.Any(code.StartsWith) ? ["arms", "flag", "logo"] : ["flag", "arms", "logo"];
     return order
         .Select(kind => found
             .Where(image => image.Kind == kind && !rejected.IsMatch(image.File))
@@ -121,8 +126,11 @@ string? Choose(string code)
 
 async Task<Dictionary<string, List<(string Kind, string File)>>> WikidataImagesAsync(List<string> regionCodes)
 {
-    var values = string.Join(" ", regionCodes.Select(c => $"\"{c}\""));
-    var query = $"SELECT ?code ?kind ?file WHERE {{ VALUES ?code {{ {values} }} ?item wdt:P300 ?code. " +
+    var byWikidataId = regionCodes.Where(c => wikidataKey.IsMatch(c)).ToList();
+    var isoValues = string.Join(" ", regionCodes.Except(byWikidataId).Select(c => $"\"{c}\""));
+    var itemValues = string.Join(" ", byWikidataId.Select(c => $"(wd:{c[3..]} \"{c}\")"));
+    var query = "SELECT ?code ?kind ?file WHERE { " +
+                $"{{ VALUES ?code {{ {isoValues} }} ?item wdt:P300 ?code. }} UNION {{ VALUES (?item ?code) {{ {itemValues} }} }} " +
                 "FILTER NOT EXISTS { ?item wdt:P576 ?dissolved } " +
                 "{ ?item wdt:P41 ?file BIND(\"flag\" AS ?kind) } UNION " +
                 "{ ?item wdt:P94 ?file BIND(\"arms\" AS ?kind) } UNION " +

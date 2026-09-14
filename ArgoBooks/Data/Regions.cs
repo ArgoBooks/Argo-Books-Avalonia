@@ -4,14 +4,18 @@ namespace ArgoBooks.Data;
 /// A region of a country, by the value saved for it and its local name. Where that differs from the
 /// English name, the picker shows both, as "Sachsen (Saxony)", and search matches either.
 /// </summary>
-public sealed record Region(string Code, string Name, string? IsoCode = null, string? EnglishName = null)
+public sealed record Region(string Code, string Name, string? IsoCode = null, string? EnglishName = null,
+    string? WikidataId = null)
 {
     /// <summary>A region that addresses write out in full, so its name is what gets saved.</summary>
     public static Region Named(string name, string isoCode, string? englishName = null) =>
         new(name, name, isoCode, englishName);
 
-    /// <summary>The part of its ISO 3166-2 code after the country.</summary>
-    public string Iso => IsoCode ?? Code;
+    /// <summary>A region with no ISO 3166-2 code, such as an English county, known by its Wikidata id.</summary>
+    public static Region Wikidata(string name, string wikidataId) => new(name, name, WikidataId: wikidataId);
+
+    /// <summary>What names its image after the country: its ISO 3166-2 code, or its Wikidata id.</summary>
+    public string ImageKey => WikidataId ?? IsoCode ?? Code;
 }
 
 /// <summary>
@@ -413,6 +417,120 @@ public static class Regions
         Region.Named("West Coast", "WTC"),
     ];
 
+    // England's ceremonial counties, Northern Ireland's counties, Scotland's council areas and Wales's
+    // principal areas: the names UK addresses use.
+    public static IReadOnlyList<Region> UnitedKingdom { get; } =
+    [
+        Region.Named("Aberdeen", "ABE"),
+        Region.Named("Aberdeenshire", "ABD"),
+        Region.Named("Angus", "ANS"),
+        Region.Named("Argyll and Bute", "AGB"),
+        Region.Wikidata("Bedfordshire", "Q23143"),
+        Region.Wikidata("Berkshire", "Q23220"),
+        Region.Named("Blaenau Gwent", "BGW"),
+        Region.Named("Bridgend", "BGE"),
+        Region.Wikidata("Bristol", "Q21693433"),
+        Region.Wikidata("Buckinghamshire", "Q23229"),
+        Region.Named("Caerphilly", "CAY"),
+        Region.Wikidata("Cambridgeshire", "Q23112"),
+        Region.Named("Cardiff", "CRF"),
+        Region.Named("Carmarthenshire", "CMN"),
+        Region.Named("Ceredigion", "CGN"),
+        Region.Wikidata("Cheshire", "Q23064"),
+        Region.Wikidata("City of London", "Q23311"),
+        Region.Named("Clackmannanshire", "CLK"),
+        Region.Named("Conwy", "CWY"),
+        Region.Wikidata("Cornwall", "Q48790202"),
+        Region.Wikidata("County Antrim", "Q189592"),
+        Region.Wikidata("County Armagh", "Q192761"),
+        Region.Wikidata("County Down", "Q190684"),
+        Region.Wikidata("County Durham", "Q23082"),
+        Region.Wikidata("County Fermanagh", "Q190678"),
+        Region.Wikidata("County Londonderry", "Q192208"),
+        Region.Wikidata("County Tyrone", "Q192229"),
+        Region.Wikidata("Cumbria", "Q23066"),
+        Region.Named("Denbighshire", "DEN"),
+        Region.Wikidata("Derbyshire", "Q23098"),
+        Region.Wikidata("Devon", "Q23156"),
+        Region.Wikidata("Dorset", "Q23159"),
+        Region.Named("Dumfries and Galloway", "DGY"),
+        Region.Named("Dundee", "DND"),
+        Region.Named("East Ayrshire", "EAY"),
+        Region.Named("East Dunbartonshire", "EDU"),
+        Region.Named("East Lothian", "ELN"),
+        Region.Named("East Renfrewshire", "ERW"),
+        Region.Wikidata("East Riding of Yorkshire", "Q23088"),
+        Region.Wikidata("East Sussex", "Q23293"),
+        Region.Named("Edinburgh", "EDH"),
+        Region.Wikidata("Essex", "Q23240"),
+        Region.Named("Falkirk", "FAL"),
+        Region.Named("Fife", "FIF"),
+        Region.Named("Flintshire", "FLN"),
+        Region.Named("Glasgow", "GLG"),
+        Region.Wikidata("Gloucestershire", "Q23165"),
+        Region.Wikidata("Greater London", "Q23306"),
+        Region.Wikidata("Greater Manchester", "Q23099"),
+        Region.Named("Gwynedd", "GWN"),
+        Region.Wikidata("Hampshire", "Q23204"),
+        Region.Wikidata("Herefordshire", "Q23129"),
+        Region.Wikidata("Hertfordshire", "Q3410"),
+        Region.Named("Highland", "HLD"),
+        Region.Named("Inverclyde", "IVC"),
+        Region.Named("Isle of Anglesey", "AGY"),
+        Region.Wikidata("Isle of Wight", "Q9679"),
+        Region.Wikidata("Kent", "Q23298"),
+        Region.Wikidata("Lancashire", "Q23077"),
+        Region.Wikidata("Leicestershire", "Q23106"),
+        Region.Wikidata("Lincolnshire", "Q23090"),
+        Region.Wikidata("Merseyside", "Q23100"),
+        Region.Named("Merthyr Tydfil", "MTY"),
+        Region.Named("Midlothian", "MLN"),
+        Region.Named("Monmouthshire", "MON"),
+        Region.Named("Moray", "MRY"),
+        Region.Named("Neath Port Talbot", "NTL"),
+        Region.Named("Newport", "NWP"),
+        Region.Wikidata("Norfolk", "Q23109"),
+        Region.Named("North Ayrshire", "NAY"),
+        Region.Named("North Lanarkshire", "NLK"),
+        Region.Wikidata("North Yorkshire", "Q23086"),
+        Region.Wikidata("Northamptonshire", "Q23115"),
+        Region.Wikidata("Northumberland", "Q23079"),
+        Region.Wikidata("Nottinghamshire", "Q23092"),
+        Region.Named("Orkney Islands", "ORK"),
+        Region.Named("Outer Hebrides", "ELS"),
+        Region.Wikidata("Oxfordshire", "Q23169"),
+        Region.Named("Pembrokeshire", "PEM"),
+        Region.Named("Perth and Kinross", "PKN"),
+        Region.Named("Powys", "POW"),
+        Region.Named("Renfrewshire", "RFW"),
+        Region.Named("Rhondda Cynon Taf", "RCT"),
+        Region.Wikidata("Rutland", "Q23107"),
+        Region.Named("Scottish Borders", "SCB"),
+        Region.Named("Shetland Islands", "ZET"),
+        Region.Wikidata("Shropshire", "Q23103"),
+        Region.Wikidata("Somerset", "Q23157"),
+        Region.Named("South Ayrshire", "SAY"),
+        Region.Named("South Lanarkshire", "SLK"),
+        Region.Wikidata("South Yorkshire", "Q23095"),
+        Region.Wikidata("Staffordshire", "Q23105"),
+        Region.Named("Stirling", "STG"),
+        Region.Wikidata("Suffolk", "Q23111"),
+        Region.Wikidata("Surrey", "Q23276"),
+        Region.Named("Swansea", "SWA"),
+        Region.Named("Torfaen", "TOF"),
+        Region.Wikidata("Tyne and Wear", "Q23080"),
+        Region.Named("Vale of Glamorgan", "VGL"),
+        Region.Wikidata("Warwickshire", "Q23140"),
+        Region.Named("West Dunbartonshire", "WDU"),
+        Region.Named("West Lothian", "WLN"),
+        Region.Wikidata("West Midlands", "Q23124"),
+        Region.Wikidata("West Sussex", "Q23287"),
+        Region.Wikidata("West Yorkshire", "Q23083"),
+        Region.Wikidata("Wiltshire", "Q23183"),
+        Region.Wikidata("Worcestershire", "Q23135"),
+        Region.Named("Wrexham", "WRX"),
+    ];
+
     private sealed record CountryRegions(IReadOnlyList<Region> List, string CountryCode, string Label, string Placeholder);
 
     private static readonly Dictionary<string, CountryRegions> ByCountry = new(StringComparer.OrdinalIgnoreCase)
@@ -429,6 +547,7 @@ public static class Regions
         ["France"] = new(France, "FR", "Region", "Select a region"),
         ["Netherlands"] = new(Netherlands, "NL", "Province", "Select a province"),
         ["New Zealand"] = new(NewZealand, "NZ", "Region", "Select a region"),
+        ["United Kingdom"] = new(UnitedKingdom, "GB", "County", "Select a county"),
     };
 
     /// <summary>The list for a country, or null when its addresses take free text.</summary>
@@ -449,17 +568,20 @@ public static class Regions
 
     public static string PlaceholderFor(string? country) => Lookup(country)?.Placeholder ?? string.Empty;
 
-    /// <summary>The full ISO 3166-2 code of every region that can have a flag.</summary>
+    /// <summary>
+    /// The image name of every region: its country code, then its ISO 3166-2 code or, where it has none,
+    /// its Wikidata id (CA-ON, GB-Q23298).
+    /// </summary>
     public static IEnumerable<string> FlagCodes =>
-        ByCountry.Values.SelectMany(entry => entry.List.Select(region => $"{entry.CountryCode}-{region.Iso}"));
+        ByCountry.Values.SelectMany(entry => entry.List.Select(region => $"{entry.CountryCode}-{region.ImageKey}"));
 
     /// <summary>
-    /// The flag image for a region, named by its full ISO 3166-2 code, or null for a country without a
-    /// list. The images come from tools/ArgoBooks.RegionFlags.
+    /// The image for a region, named as in <see cref="FlagCodes"/>, or null for a country without a list.
+    /// The images come from tools/ArgoBooks.RegionFlags.
     /// </summary>
     public static string? FlagPathFor(string? country, Region region) =>
         Lookup(country) is { } entry
-            ? $"avares://ArgoBooks/Assets/RegionFlags/{entry.CountryCode}-{region.Iso}.png"
+            ? $"avares://ArgoBooks/Assets/RegionFlags/{entry.CountryCode}-{region.ImageKey}.png"
             : null;
 
     private static CountryRegions? Lookup(string? country)
