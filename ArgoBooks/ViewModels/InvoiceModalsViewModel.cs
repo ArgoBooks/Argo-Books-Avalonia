@@ -970,6 +970,12 @@ public partial class InvoiceModalsViewModel : ViewModelBase
 
     #region Constructor
 
+    /// <summary>
+    /// Sending needs the payment portal, so Preview stays off and the sidebar says so until it is set up.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isPortalReady = true;
+
     public InvoiceModalsViewModel()
     {
         LoadCustomerOptions(includeAllOption: false);
@@ -977,9 +983,21 @@ public partial class InvoiceModalsViewModel : ViewModelBase
 
         // Subscribe to plan status changes
         App.PlanStatusChanged += OnPlanStatusChanged;
+        PaymentProviderService.ProvidersChanged += (_, _) => IsPortalReady = PaymentProviderService.IsPortalReady();
     }
 
     private void OnPlanStatusChanged(object? sender, PlanStatusChangedEventArgs e) => HasPremium = e.HasPremium;
+
+    /// <summary>
+    /// Settings sits below this modal, so the modal closes first, asking before it discards anything.
+    /// </summary>
+    [RelayCommand]
+    private async Task SetUpPaymentPortal()
+    {
+        await RequestCloseCreateEditModalAsync();
+        if (!IsCreateEditModalOpen)
+            App.SettingsModalViewModel?.OpenWithTab(SettingsTab.PaymentPortal);
+    }
 
     private void LoadCustomerOptions(bool includeAllOption = false)
     {
@@ -2778,6 +2796,7 @@ public partial class InvoiceModalsViewModel : ViewModelBase
 
     private void ResetForm()
     {
+        IsPortalReady = PaymentProviderService.IsPortalReady();
         _editingInvoiceId = string.Empty;
         _unansweredSend = null;
         _paperLogo = null;

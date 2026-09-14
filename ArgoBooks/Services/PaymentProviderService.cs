@@ -1,3 +1,5 @@
+using ArgoBooks.Core.Models.Portal;
+
 namespace ArgoBooks.Services;
 
 /// <summary>
@@ -63,6 +65,17 @@ public static class PaymentProviderService
         }
 
         NotifyProvidersChanged();
+    }
+
+    /// <summary>
+    /// Whether invoices can be sent and paid online: the company is registered with the portal and at
+    /// least one payment provider is connected.
+    /// </summary>
+    public static bool IsPortalReady()
+    {
+        var portalUrl = App.CompanyManager?.CompanyData?.Settings.PaymentPortal.PortalUrl;
+        var hasPortalKey = PortalSettings.IsConfigured || !string.IsNullOrEmpty(portalUrl);
+        return hasPortalKey && GetConnectedMethods().Count > 0;
     }
 
     /// <summary>
