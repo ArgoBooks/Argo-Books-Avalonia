@@ -1574,8 +1574,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
 
             if (isRevenue)
             {
-                companyData.IdCounters.Revenue++;
-                var revenueId = $"REV-{DateTime.Now:yyyy}-{companyData.IdCounters.Revenue:D5}";
+                var revenueId = new Core.Data.IdGenerator(companyData).NextRevenueId(transactionDate);
 
                 var revenue = new Revenue
                 {
@@ -1608,8 +1607,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             }
             else
             {
-                companyData.IdCounters.Expense++;
-                var expenseId = $"PUR-{DateTime.Now:yyyy}-{companyData.IdCounters.Expense:D5}";
+                var expenseId = new Core.Data.IdGenerator(companyData).NextExpenseId(transactionDate);
 
                 var expense = new Expense
                 {
@@ -2694,13 +2692,13 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         decimal total, decimal subtotal, decimal taxAmount, decimal discount, decimal shipping, List<LineItem> lineItems)
     {
         var currency = ScanCurrencyCode;
-        companyData.IdCounters.Expense++;
-        var expenseId = $"PUR-{DateTime.Now:yyyy}-{companyData.IdCounters.Expense:D5}";
+        var expenseDate = ExtractedDate?.DateTime ?? DateTime.Now;
+        var expenseId = new Core.Data.IdGenerator(companyData).NextExpenseId(expenseDate);
 
         var expense = new Expense
         {
             Id = expenseId,
-            Date = ExtractedDate?.DateTime ?? DateTime.Now,
+            Date = expenseDate,
             SupplierId = SelectedSupplier?.Id,
             Description = lineItems.Count > 0 ? lineItems[0].Description : ExtractedSupplier,
             LineItems = lineItems,
@@ -2769,13 +2767,13 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         decimal total, decimal subtotal, decimal taxAmount, decimal discount, decimal shipping, List<LineItem> lineItems)
     {
         var currency = ScanCurrencyCode;
-        companyData.IdCounters.Revenue++;
-        var revenueId = $"REV-{DateTime.Now:yyyy}-{companyData.IdCounters.Revenue:D5}";
+        var revenueDate = ExtractedDate?.DateTime ?? DateTime.Now;
+        var revenueId = new Core.Data.IdGenerator(companyData).NextRevenueId(revenueDate);
 
         var revenue = new Revenue
         {
             Id = revenueId,
-            Date = ExtractedDate?.DateTime ?? DateTime.Now,
+            Date = revenueDate,
             CustomerId = null, // Could be linked to customer if we add customer selection later
             Description = lineItems.Count > 0 ? lineItems[0].Description : ExtractedSupplier,
             LineItems = lineItems,
@@ -2922,10 +2920,9 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             var aiCategory = _aiSuggestion?.NewCategory;
             var categoryName = aiCategory?.Name ?? "General Expenses";
 
-            companyData.IdCounters.Category++;
             category = new Category
             {
-                Id = $"CAT-PUR-{companyData.IdCounters.Category:D3}",
+                Id = new Core.Data.IdGenerator(companyData).NextCategoryId(CategoryType.Expense),
                 Name = categoryName,
                 Type = CategoryType.Expense,
                 Description = aiCategory?.Description

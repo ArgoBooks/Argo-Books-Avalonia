@@ -2757,8 +2757,7 @@ public partial class InvoiceModalsViewModel : ViewModelBase
     /// </summary>
     internal static void CreateRevenueFromInvoice(Invoice invoice, CompanyData companyData)
     {
-        companyData.IdCounters.Revenue++;
-        var revenueId = $"REV-{DateTime.Now:yyyy}-{companyData.IdCounters.Revenue:D5}";
+        var revenueId = new Core.Data.IdGenerator(companyData).NextRevenueId(invoice.IssueDate);
 
         var description = invoice.LineItems.Count switch
         {

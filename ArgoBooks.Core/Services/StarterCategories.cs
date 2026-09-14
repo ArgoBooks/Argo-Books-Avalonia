@@ -72,11 +72,9 @@ public static class StarterCategories
 
     private static void Add(CompanyData data, string name, string icon, CategoryType type)
     {
-        data.IdCounters.Category++;
-        var typePrefix = type == CategoryType.Expense ? "PUR" : "SAL";
         data.Categories.Add(new Category
         {
-            Id = $"CAT-{typePrefix}-{data.IdCounters.Category:D3}",
+            Id = new IdGenerator(data).NextCategoryId(type),
             Name = name,
             Type = type,
             Icon = icon

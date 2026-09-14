@@ -349,16 +349,14 @@ public static class RecurringTransactionService
         if (schedule.Type == CategoryType.Revenue)
         {
             var revenue = Clone(schedule.RevenueTemplate!);
-            data.IdCounters.Revenue++;
-            revenue.Id = $"REV-{occurrence:yyyy}-{data.IdCounters.Revenue:D5}";
+            revenue.Id = new IdGenerator(data).NextRevenueId(occurrence);
             data.Revenues.Add(revenue);
             entry = revenue;
         }
         else
         {
             var expense = Clone(schedule.ExpenseTemplate!);
-            data.IdCounters.Expense++;
-            expense.Id = $"PUR-{occurrence:yyyy}-{data.IdCounters.Expense:D5}";
+            expense.Id = new IdGenerator(data).NextExpenseId(occurrence);
             data.Expenses.Add(expense);
             entry = expense;
         }

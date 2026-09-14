@@ -206,16 +206,15 @@ public partial class CategoryModalsViewModel : ViewModelBase
         var companyData = App.CompanyManager?.CompanyData;
         if (companyData == null) return;
 
-        companyData.IdCounters.Category++;
-        var typePrefix = _isExpensesTab ? "PUR" : "SAL";
-        var newId = $"CAT-{typePrefix}-{companyData.IdCounters.Category:D3}";
+        var categoryType = _isExpensesTab ? CategoryType.Expense : CategoryType.Revenue;
+        var newId = new Core.Data.IdGenerator(companyData).NextCategoryId(categoryType);
         var parentId = IsAddingSubCategory ? _addingSubCategoryParent?.Id : null;
 
         var newCategory = new Category
         {
             Id = newId,
             Name = ModalCategoryName.Trim(),
-            Type = _isExpensesTab ? CategoryType.Expense : CategoryType.Revenue,
+            Type = categoryType,
             ParentId = parentId,
             Description = string.IsNullOrWhiteSpace(ModalDescription) ? null : ModalDescription.Trim(),
             Color = AppColors.CategoryDefault,

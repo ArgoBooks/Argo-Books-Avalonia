@@ -3,7 +3,7 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Windows.Input;
-using ArgoBooks.Data;
+using ArgoBooks.Core.Data;
 using ArgoBooks.Utilities;
 using Avalonia;
 using Avalonia.Controls;

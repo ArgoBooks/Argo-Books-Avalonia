@@ -1,6 +1,4 @@
 using System.Diagnostics;
-using System.Net.Http.Headers;
-using System.Text;
 using System.Text.Json;
 using ArgoBooks.Core.Models.Telemetry;
 using ArgoBooks.Shared.Telemetry;
@@ -396,135 +394,54 @@ If nothing was missed, return: {{""missingItems"": []}}";
     }
 
     /// <summary>
-    /// Posts a vision (image + prompt) request to the AI proxy and returns the extracted text
-    /// content, or null on failure. This replicates just the vision-call slice of the desktop's
-    /// <c>GeminiService</c> (which also carries bank-categorization/supplier-suggestion features
-    /// this scanner doesn't need), so Shared stays free of that larger surface.
+    /// Posts a vision (image + prompt) request to the AI proxy. Content is null on failure, with
+    /// the server's message and code when it gave them.
     /// </summary>
-    private async Task<VisionResponse> SendVisionRequestAsync(
+    private async Task<AiProxyResponse> SendVisionRequestAsync(
         string systemPrompt, string userPrompt, string base64Image, string mimeType,
         CancellationToken cancellationToken, string operation = "receipt_scan")
     {
-        var wallClock = Stopwatch.StartNew();
-        long uploadBytes = (long)(base64Image.Length * 0.75);
-
-        object requestBody = new
+        var response = await new AiProxyClient(_httpClient, baseUrl, apiAuth).SendAsync(new AiProxyRequest
         {
-            systemPrompt,
-            userPrompt,
-            model = DefaultModel,
+            Operation = operation,
+            SystemPrompt = systemPrompt,
+            UserPrompt = userPrompt,
+            Model = DefaultModel,
             // No maxTokens: the server sets the receipt-scan output budget authoritatively
             // from RECEIPT_SCAN_MAX_OUTPUT_TOKENS (.env) and ignores any client value here.
-            temperature = 0.0,
-            base64Image,
-            mimeType,
-            operation,
-            sizeFeature = uploadBytes,
-            platform = PlatformTag
-        };
+            Temperature = 0.0,
+            Base64Image = base64Image,
+            MimeType = mimeType,
+        }, cancellationToken);
 
-        var json = JsonSerializer.Serialize(requestBody);
-
-        using var request = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/api/ai/completions.php");
-        request.Content = new StringContent(json, Encoding.UTF8, "application/json");
-        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-        apiAuth?.AddAuthHeaders(request);
-
-        var response = await _httpClient.SendAsync(request, cancellationToken);
-        var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
-
-        // Read the body on the failure path too. The server explains itself there, in as many
-        // words ("Monthly scan limit reached (10 of 10 used). Your limit resets on ..."), and
-        // throwing it away turned every distinct failure into one indistinguishable message
-        // with a Retry button that could not help. Diagnosing a single refused scan then meant
-        // reading telemetry and querying the database.
-        if (!response.IsSuccessStatusCode)
+        if (!response.IsHttpSuccess)
         {
-            (string? serverMessage, string? serverCode) = ReadServerError(responseBody);
-
             errorLogger?.LogError(
-                $"AI proxy error {response.StatusCode} ({serverCode ?? "no code"}): {serverMessage ?? "no message"}",
+                $"AI proxy error {response.StatusCode} ({response.Code ?? "no code"}): {response.Message ?? "no message"}",
                 ErrorCategory.Api,
                 "Receipt scan completion");
 
-            return new VisionResponse(null, serverMessage, serverCode);
+            return response;
         }
-
-        wallClock.Stop();
-        using var doc = JsonDocument.Parse(responseBody);
-        var root = doc.RootElement;
 
         // Feeds the server-measured compute time (and load factor) back to the caller so
         // desktop-side progress estimates can self-calibrate (see App's OperationTimingService
         // wiring). Best-effort: no-op when the response has no "timing" block.
-        if (onTimingRecorded != null && root.TryGetProperty("timing", out var timing))
+        if (response.Timing is { } timing)
         {
-            double serverMs = timing.TryGetProperty("elapsed_ms", out var e) && e.TryGetDouble(out var ev) ? ev : 0;
-            double? loadFactor = timing.TryGetProperty("load_factor", out var lf) && lf.TryGetDouble(out var lv) ? lv : null;
-            onTimingRecorded(serverMs, wallClock.Elapsed.TotalMilliseconds, uploadBytes, loadFactor);
+            onTimingRecorded?.Invoke(timing.ServerMs, response.WallClockMs, response.UploadBytes, timing.LoadFactor);
         }
 
-        if (root.TryGetProperty("success", out var successProp) && successProp.GetBoolean()
-            && root.TryGetProperty("content", out var contentProp))
+        if (!response.Succeeded)
         {
-            return new VisionResponse(contentProp.GetString(), null, null);
+            errorLogger?.LogError(
+                $"AI proxy returned success=false ({response.Code ?? "no code"}): {response.Message ?? "no message"}",
+                ErrorCategory.Api,
+                "Receipt scan completion");
         }
 
-        // A 200 that still says no.
-        (string? message, string? code) = ReadServerError(responseBody);
-
-        errorLogger?.LogError(
-            $"AI proxy returned success=false ({code ?? "no code"}): {message ?? "no message"}",
-            ErrorCategory.Api,
-            "Receipt scan completion");
-
-        return new VisionResponse(null, message, code);
+        return response;
     }
-
-    /// <summary>
-    /// The server's message and error code, from a body that may not be JSON at all.
-    ///
-    /// A proxy or host error page arrives as HTML with an HTTP status, so this has to survive
-    /// being handed something that is not JSON rather than throwing inside the error path.
-    /// </summary>
-    private static (string? Message, string? Code) ReadServerError(string body)
-    {
-        if (string.IsNullOrWhiteSpace(body))
-        {
-            return (null, null);
-        }
-
-        try
-        {
-            using var doc = JsonDocument.Parse(body);
-            var root = doc.RootElement;
-
-            string? message = root.TryGetProperty("message", out var m) ? m.GetString() : null;
-            string? code = root.TryGetProperty("errorCode", out var c) ? c.GetString() : null;
-
-            return (string.IsNullOrWhiteSpace(message) ? null : message, code);
-        }
-        catch (JsonException)
-        {
-            return (null, null);
-        }
-    }
-
-    /// <summary>
-    /// What the proxy said: the content on success, or the reason it refused.
-    ///
-    /// A plain string cannot carry a refusal. <see cref="Code"/> is separate from <see cref="Message"/> because the caller shows
-    /// one and branches on the other.
-    /// </summary>
-    private sealed record VisionResponse(string? Content, string? Message, string? Code);
-
-    /// <summary>Platform tag sent with each AI call for the server-side timing records.</summary>
-    private static readonly string PlatformTag =
-        OperatingSystem.IsAndroid() ? "android"
-        : OperatingSystem.IsIOS() ? "ios"
-        : OperatingSystem.IsWindows() ? "windows"
-        : OperatingSystem.IsMacOS() ? "macos"
-        : OperatingSystem.IsLinux() ? "linux" : "other";
 
     // IMPORTANT: Make this internal so tests can call it
     public static ReceiptScanResult ParseResponse(string response)

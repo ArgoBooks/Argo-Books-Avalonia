@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using ArgoBooks.Core.Platform;
 using ArgoBooks.Services;
 using ApiConfig = ArgoBooks.Core.Services.ApiConfig;
+using AppInfo = ArgoBooks.Core.Services.AppInfo;
 using Avalonia.Controls;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;

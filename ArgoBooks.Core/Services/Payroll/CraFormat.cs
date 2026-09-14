@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using ArgoBooks.Core.Data;
 
 namespace ArgoBooks.Core.Services.Payroll;
 
@@ -57,12 +58,17 @@ public static class CraFormat
             return null;
         }
 
-        string upper = v.ToUpperInvariant();
-
-        if (Aliases.TryGetValue(upper, out string? alias))
+        // The app's own country list first: the names the picker produces plus the aliases people
+        // type (U.S., England, Korea), none of which is what the regional data calls them. Its
+        // code is still checked against the regional data rather than trusted.
+        if (Countries.Find(v) is { } country
+            && Countries.GetAlpha3Code(country.Code) is { } fromCountry
+            && Alpha3Codes.Value.Contains(fromCountry))
         {
-            return alias;
+            return fromCountry;
         }
+
+        string upper = v.ToUpperInvariant();
 
         if (upper.Length == 3 && Alpha3Codes.Value.Contains(upper))
         {
@@ -74,43 +80,8 @@ public static class CraFormat
             return fromAlpha2;
         }
 
-        if (NameToAlpha3.Value.TryGetValue(upper, out string? fromName))
-        {
-            return fromName;
-        }
-
-        // Last resort, for the informal names the charts already knew about: America, England,
-        // Korea and the like, which are not what the regional data calls those countries.
-        //
-        // Its result is checked rather than trusted. That lookup falls back to returning the
-        // input lowercased when it does not recognise a name, which would put "germany" in a
-        // field the specification says is a three letter ISO code, so only a value the regional
-        // data confirms is allowed through.
-        string mapped = Data.CountryCodeMapping.GetIsoCode(v).ToUpperInvariant();
-
-        return mapped.Length == 3 && Alpha3Codes.Value.Contains(mapped) ? mapped : null;
+        return NameToAlpha3.Value.TryGetValue(upper, out string? fromName) ? fromName : null;
     }
-
-    /// <summary>
-    /// Names and abbreviations people actually type that the regional data does not answer to.
-    /// The specification calls out CAN and USA in particular, so those are pinned rather than
-    /// left to a lookup.
-    /// </summary>
-    private static readonly Dictionary<string, string> Aliases = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["CANADA"] = "CAN",
-        ["CA"] = "CAN",
-        ["CAN"] = "CAN",
-        ["USA"] = "USA",
-        ["US"] = "USA",
-        ["U.S."] = "USA",
-        ["U.S.A."] = "USA",
-        ["UNITED STATES"] = "USA",
-        ["UNITED STATES OF AMERICA"] = "USA",
-        ["UK"] = "GBR",
-        ["UNITED KINGDOM"] = "GBR",
-        ["GREAT BRITAIN"] = "GBR",
-    };
 
     /// <summary>
     /// Every region the runtime knows. Built once, and defensively: constructing a RegionInfo

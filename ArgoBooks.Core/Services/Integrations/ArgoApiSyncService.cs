@@ -249,7 +249,7 @@ public class ArgoApiSyncService
         var creation = new ArgoApiImportCreation
         {
             PreviousSyncTime = api.LastSyncTime,
-            Pre = ArgoApiImportCreation.CounterSnapshot.From(data.IdCounters)
+            Pre = IntegrationImportCreation.CounterSnapshot.From(data.IdCounters)
         };
 
         if (!preview.HasActivity || string.IsNullOrWhiteSpace(api.DesktopKey))
@@ -278,14 +278,14 @@ public class ArgoApiSyncService
         {
             // Nothing is claimed yet, so any rows left behind would be offered again on the next
             // sync and imported a second time.
-            creation.Post = ArgoApiImportCreation.CounterSnapshot.From(data.IdCounters);
+            creation.Post = IntegrationImportCreation.CounterSnapshot.From(data.IdCounters);
             creation.Undo(data);
             throw;
         }
 
         // Taken before the claim is awaited, so a record something else creates meanwhile is not
         // counted as the import's and its id is not handed back by an undo.
-        creation.Post = ArgoApiImportCreation.CounterSnapshot.From(data.IdCounters);
+        creation.Post = IntegrationImportCreation.CounterSnapshot.From(data.IdCounters);
 
         try
         {

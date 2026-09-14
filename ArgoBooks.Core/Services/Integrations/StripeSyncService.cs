@@ -93,7 +93,7 @@ public class StripeSyncService(StripeApiClient client)
         {
             PreviousCursor = stripe.LastSyncCursor,
             PreviousSyncTime = stripe.LastSyncTime,
-            Pre = StripeImportCreation.CounterSnapshot.From(data.IdCounters)
+            Pre = IntegrationImportCreation.CounterSnapshot.From(data.IdCounters)
         };
 
         int revBefore = data.Revenues.Count, expBefore = data.Expenses.Count,
@@ -137,7 +137,7 @@ public class StripeSyncService(StripeApiClient client)
         creation.Payouts.AddRange(stripe.ImportedPayouts.Skip(payBefore));
         creation.NewCursor = stripe.LastSyncCursor;
         creation.NewSyncTime = stripe.LastSyncTime;
-        creation.Post = StripeImportCreation.CounterSnapshot.From(data.IdCounters);
+        creation.Post = IntegrationImportCreation.CounterSnapshot.From(data.IdCounters);
         return creation;
     }
 

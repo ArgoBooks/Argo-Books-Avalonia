@@ -322,7 +322,7 @@ public partial class LanguageService
             TranslationProgress?.Invoke(this, new TranslationProgressEventArgs(languageName, true, "Downloading translations..."));
 
             // Get app version for download URL
-            var version = Core.Services.AppInfo.VersionNumber;
+            var version = AppInfo.VersionNumber;
             var downloadUrl = string.Format(DownloadUrlTemplate, version, isoCode);
 
             App.ErrorLogger?.LogDebug($"LanguageService: Downloading from {downloadUrl}");

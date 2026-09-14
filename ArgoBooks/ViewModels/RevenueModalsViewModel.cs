@@ -511,8 +511,8 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
 
     protected override void SaveNewTransaction(CompanyData companyData)
     {
-        companyData.IdCounters.Revenue++;
-        var revenueId = $"REV-{DateTime.Now:yyyy}-{companyData.IdCounters.Revenue:D5}";
+        var date = ModalDate?.DateTime ?? DateTime.Now;
+        var revenueId = new Core.Data.IdGenerator(companyData).NextRevenueId(date);
 
         var (description, totalQuantity, averageUnitPrice) = GetLineItemSummary();
         var modelLineItems = CreateModelLineItems();
@@ -520,7 +520,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
         var revenue = new Revenue
         {
             Id = revenueId,
-            Date = ModalDate?.DateTime ?? DateTime.Now,
+            Date = date,
             CustomerId = SelectedCustomer?.Id,
             Description = description,
             LineItems = modelLineItems,

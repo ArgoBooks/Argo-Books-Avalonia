@@ -1,6 +1,6 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
-using ArgoBooks.Data;
+using ArgoBooks.Core.Data;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Data;

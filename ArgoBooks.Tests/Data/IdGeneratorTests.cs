@@ -1,5 +1,7 @@
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
+using ArgoBooks.Core.Models.Entities;
+using ArgoBooks.Core.Models.Transactions;
 using Xunit;
 
 namespace ArgoBooks.Tests.Data;
@@ -43,6 +45,51 @@ public class IdGeneratorTests
         Assert.Equal("CAT-REV-001", salesId);
         Assert.Equal("CAT-EXP-002", purchaseId);
         Assert.Equal("CAT-RNT-003", rentalId);
+    }
+
+    [Fact]
+    public void NextCategoryId_SkipsAnIdACategoryAlreadyHas()
+    {
+        var companyData = CreateCompanyData();
+        companyData.Categories.Add(new Category { Id = "CAT-EXP-001", Name = "Typed by hand", Type = CategoryType.Expense });
+
+        var id = new IdGenerator(companyData).NextCategoryId(CategoryType.Expense);
+
+        Assert.Equal("CAT-EXP-002", id);
+    }
+
+    #endregion
+
+    #region Revenue and Expense ID Generation Tests
+
+    [Fact]
+    public void NextRevenueId_TakesTheYearFromTheRevenuesDate()
+    {
+        var id = new IdGenerator(CreateCompanyData()).NextRevenueId(new DateTime(2019, 12, 31));
+
+        Assert.Equal("REV-2019-00001", id);
+    }
+
+    [Fact]
+    public void NextExpenseId_TakesTheYearFromTheExpensesDate()
+    {
+        var id = new IdGenerator(CreateCompanyData()).NextExpenseId(new DateTime(2021, 1, 1));
+
+        Assert.Equal("PUR-2021-00001", id);
+    }
+
+    [Fact]
+    public void NextRevenueAndExpenseId_SkipIdsAlreadyTaken()
+    {
+        var companyData = CreateCompanyData();
+        companyData.Revenues.Add(new Revenue { Id = "REV-2024-00001" });
+        companyData.Expenses.Add(new Expense { Id = "PUR-2024-00001" });
+        var generator = new IdGenerator(companyData);
+
+        Assert.Equal("REV-2024-00002", generator.NextRevenueId(new DateTime(2024, 6, 1)));
+        Assert.Equal("PUR-2024-00002", generator.NextExpenseId(new DateTime(2024, 6, 1)));
+        Assert.Equal(2, companyData.IdCounters.Revenue);
+        Assert.Equal(2, companyData.IdCounters.Expense);
     }
 
     #endregion

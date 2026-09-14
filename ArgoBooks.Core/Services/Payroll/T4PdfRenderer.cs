@@ -3,6 +3,7 @@ using ArgoBooks.Core.Models.Payroll;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
+using static ArgoBooks.Core.Services.Payroll.PayrollPdf;
 
 namespace ArgoBooks.Core.Services.Payroll;
 
@@ -253,54 +254,14 @@ public static class T4PdfRenderer
         return ms.ToArray();
     }
 
-    private static IEnumerable<string> AddressLines(Models.Common.Address address)
-    {
-        if (!string.IsNullOrWhiteSpace(address.Street))
-        {
-            yield return address.Street;
-        }
-
-        string cityLine = string.Join(", ",
-            new[] { address.City, address.State, address.ZipCode }.Where(s => !string.IsNullOrWhiteSpace(s)));
-
-        if (!string.IsNullOrWhiteSpace(cityLine))
-        {
-            yield return cityLine;
-        }
-    }
-
     private static void Box(ColumnDescriptor col, int box, string label, decimal value, bool bold = false) =>
         Box(col, box.ToString(CultureInfo.InvariantCulture), label, value, bold);
 
     private static void Box(ColumnDescriptor col, string box, string label, decimal value, bool bold = false) =>
-        col.Item().PaddingTop(2).Row(r =>
-        {
-            r.ConstantItem(46).Text($"Box {box}").FontSize(9).FontColor(Colors.Grey.Darken2);
-
-            var left = r.RelativeItem().Text(label);
-            var right = r.ConstantItem(120).AlignRight().Text(Money(value));
-
-            if (bold)
-            {
-                left.SemiBold();
-                right.SemiBold();
-            }
-        });
+        LabelledRow(col, $"Box {box}", label, Money(value), 46, 120, bold);
 
     private static void Plain(ColumnDescriptor col, int box, string label, string value) =>
-        col.Item().PaddingTop(2).Row(r =>
-        {
-            r.ConstantItem(46).Text($"Box {box}").FontSize(9).FontColor(Colors.Grey.Darken2);
-            r.RelativeItem().Text(label);
-            r.ConstantItem(120).AlignRight().Text(value);
-        });
-
-    /// <summary>Grouped the way a SIN is normally written, so it can be checked at a glance.</summary>
-    private static string FormatSin(string sin)
-    {
-        string digits = new(sin.Where(char.IsAsciiDigit).ToArray());
-        return digits.Length == 9 ? $"{digits[..3]} {digits[3..6]} {digits[6..]}" : "not provided";
-    }
+        LabelledRow(col, $"Box {box}", label, value, 46, 120);
 
     private static string DentalText(DentalBenefitCode code) => code switch
     {

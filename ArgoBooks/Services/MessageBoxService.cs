@@ -1,10 +1,6 @@
 using ArgoBooks.Controls;
 using ArgoBooks.Core.Services;
 using Avalonia.Threading;
-using MessageBoxButtons = ArgoBooks.Core.Services.MessageBoxButtons;
-using MessageBoxResult = ArgoBooks.Core.Services.MessageBoxResult;
-using MessageBoxResultEventArgs = ArgoBooks.Controls.MessageBoxResultEventArgs;
-using MessageBoxType = ArgoBooks.Core.Services.MessageBoxType;
 
 namespace ArgoBooks.Services;
 
@@ -39,8 +35,8 @@ public class MessageBoxService : IMessageBoxService
             {
                 Title = options.Title,
                 Message = options.Message,
-                MessageType = ConvertType(options.Type),
-                Buttons = ConvertButtons(options.Buttons),
+                MessageType = options.Type,
+                Buttons = options.Buttons,
                 ShowIcon = options.ShowIcon
             };
 
@@ -155,7 +151,7 @@ public class MessageBoxService : IMessageBoxService
                 messageBox.ResultSelected -= OnResultSelected;
             }
 
-            _resultTcs?.TrySetResult(ConvertResult(e.Result));
+            _resultTcs?.TrySetResult(e.Result);
         });
     }
 
@@ -168,43 +164,5 @@ public class MessageBoxService : IMessageBoxService
 
         // If closed via escape or other means, return None/Cancel
         _resultTcs?.TrySetResult(MessageBoxResult.Cancel);
-    }
-
-    private static Controls.MessageBoxType ConvertType(MessageBoxType type)
-    {
-        return type switch
-        {
-            MessageBoxType.Info => Controls.MessageBoxType.Info,
-            MessageBoxType.Success => Controls.MessageBoxType.Success,
-            MessageBoxType.Warning => Controls.MessageBoxType.Warning,
-            MessageBoxType.Error => Controls.MessageBoxType.Error,
-            MessageBoxType.Question => Controls.MessageBoxType.Question,
-            _ => Controls.MessageBoxType.Info
-        };
-    }
-
-    private static Controls.MessageBoxButtons ConvertButtons(MessageBoxButtons buttons)
-    {
-        return buttons switch
-        {
-            MessageBoxButtons.Ok => Controls.MessageBoxButtons.Ok,
-            MessageBoxButtons.OkCancel => Controls.MessageBoxButtons.OkCancel,
-            MessageBoxButtons.YesNo => Controls.MessageBoxButtons.YesNo,
-            MessageBoxButtons.YesNoCancel => Controls.MessageBoxButtons.YesNoCancel,
-            _ => Controls.MessageBoxButtons.Ok
-        };
-    }
-
-    private static MessageBoxResult ConvertResult(Controls.MessageBoxResult result)
-    {
-        return result switch
-        {
-            Controls.MessageBoxResult.None => MessageBoxResult.None,
-            Controls.MessageBoxResult.Ok => MessageBoxResult.Ok,
-            Controls.MessageBoxResult.Cancel => MessageBoxResult.Cancel,
-            Controls.MessageBoxResult.Yes => MessageBoxResult.Yes,
-            Controls.MessageBoxResult.No => MessageBoxResult.No,
-            _ => MessageBoxResult.None
-        };
     }
 }

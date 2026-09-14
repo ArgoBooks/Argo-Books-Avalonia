@@ -1306,7 +1306,7 @@ public partial class App : Application
             SharedHttpClient = httpClient;
             var geoLocationService = new GeoLocationService(httpClient, errorLogger);
             var telemetryStorageService = new TelemetryStorageService(errorLogger: errorLogger);
-            var appVersion = Services.AppInfo.VersionNumber;
+            var appVersion = AppInfo.VersionNumber;
             var telemetryUploadService = new TelemetryUploadService(telemetryStorageService, httpClient, errorLogger, appVersion);
             TelemetryManager = new TelemetryManager(
                 telemetryStorageService,
@@ -1695,7 +1695,7 @@ public partial class App : Application
             // best-effort and run off the UI thread so launch isn't blocked.
             try
             {
-                var flushVersion = Services.AppInfo.VersionNumber;
+                var flushVersion = AppInfo.VersionNumber;
                 _ = Task.Run(async () =>
                 {
                     try
@@ -1735,7 +1735,7 @@ public partial class App : Application
             // is disposed inside the task so it doesn't leak past the one-shot report.
             try
             {
-                var appVersion = Services.AppInfo.VersionNumber;
+                var appVersion = AppInfo.VersionNumber;
                 var capturedErrorLogger = ErrorLogger;
                 _ = Task.Run(async () =>
                 {
@@ -1787,7 +1787,7 @@ public partial class App : Application
                 // Refresh cached translations once per app version. Without this, users
                 // never see translations added after their first language download because
                 // DownloadAndCacheLanguageAsync skips when a cached file exists.
-                var currentVersion = Services.AppInfo.VersionNumber;
+                var currentVersion = AppInfo.VersionNumber;
                 if (SettingsService.GlobalSettings.Ui.LastLanguageVersion != currentVersion)
                 {
                     _ = Task.Run(async () =>
@@ -2475,7 +2475,7 @@ public partial class App : Application
         if (!Version.TryParse(sampleVersion, out var sampleVer))
             return false;
 
-        var appVersion = Services.AppInfo.AssemblyVersion;
+        var appVersion = AppInfo.AssemblyVersion;
         if (appVersion == null)
             return false;
 

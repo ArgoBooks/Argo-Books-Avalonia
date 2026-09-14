@@ -1,4 +1,6 @@
-namespace ArgoBooks.Data;
+using System.Globalization;
+
+namespace ArgoBooks.Core.Data;
 
 /// <summary>
 /// Provides a shared list of countries with their dial codes and phone formats.
@@ -644,9 +646,66 @@ public static class Countries
         if (CountryAliases.TryGetValue(trimmed, out var canonicalName))
             return canonicalName;
 
+        if (trimmed.Length == 2 && All.FirstOrDefault(c => c.Code.Equals(trimmed, StringComparison.OrdinalIgnoreCase)) is { } byCode)
+            return byCode.Name;
+
+        if (trimmed.Length == 3 && GetByAlpha3Code(trimmed) is { } byAlpha3)
+            return byAlpha3.Name;
+
         // No match found
         return null;
     }
+
+    /// <summary>
+    /// The country for a name, alias, or 2- or 3-letter ISO code, or null if not recognised.
+    /// </summary>
+    public static CountryInfo? Find(string? input) =>
+        NormalizeCountry(input) is { } name ? All.FirstOrDefault(c => c.Name == name) : null;
+
+    /// <summary>
+    /// Uppercase ISO 3166-1 alpha-3 code for a country's alpha-2 code, or null if unknown.
+    /// </summary>
+    public static string? GetAlpha3Code(string alpha2) =>
+        Alpha3ByAlpha2.Value.TryGetValue(alpha2, out var alpha3) ? alpha3 : null;
+
+    /// <summary>
+    /// The country with this ISO 3166-1 alpha-3 code (any case), or null if unknown.
+    /// </summary>
+    public static CountryInfo? GetByAlpha3Code(string alpha3) =>
+        CountryByAlpha3.Value.TryGetValue(alpha3, out var country) ? country : null;
+
+    // Canonical countries the runtime's region data does not carry (Windows ICU has no Western Sahara).
+    private static readonly Dictionary<string, string> Alpha3Fallbacks = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["EH"] = "ESH",
+    };
+
+    // RegionInfo is built from the alpha-2 code directly, which covers far more regions than
+    // the list of installed cultures does.
+    private static readonly Lazy<Dictionary<string, string>> Alpha3ByAlpha2 = new(() =>
+    {
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var country in All)
+        {
+            try
+            {
+                var alpha3 = new RegionInfo(country.Code).ThreeLetterISORegionName;
+                if (alpha3.Length == 3 && alpha3.All(char.IsAsciiLetter))
+                    map[country.Code] = alpha3.ToUpperInvariant();
+            }
+            catch (ArgumentException)
+            {
+            }
+
+            if (!map.ContainsKey(country.Code) && Alpha3Fallbacks.TryGetValue(country.Code, out var fallback))
+                map[country.Code] = fallback;
+        }
+        return map;
+    });
+
+    private static readonly Lazy<Dictionary<string, CountryInfo>> CountryByAlpha3 = new(() =>
+        All.Where(c => Alpha3ByAlpha2.Value.ContainsKey(c.Code))
+            .ToDictionary(c => Alpha3ByAlpha2.Value[c.Code], StringComparer.OrdinalIgnoreCase));
 
     /// <summary>
     /// Normalizes a country input string, returning the original value if no match is found.

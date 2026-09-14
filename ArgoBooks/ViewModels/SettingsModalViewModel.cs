@@ -3430,7 +3430,7 @@ public partial class SettingsModalViewModel : ViewModelBase
                                 ? "No Translation Files on the Dev Server"
                                 : "Language Download Failed".Translate(),
                             Message = missingOnDev
-                                ? $"The dev server has no {requestedLanguage} translation file for version {Core.Services.AppInfo.VersionNumber}. Use a production build, or upload the language files to the dev server."
+                                ? $"The dev server has no {requestedLanguage} translation file for version {AppInfo.VersionNumber}. Use a production build, or upload the language files to the dev server."
                                 : "Could not download the language file from the server. Please check your internet connection and try again.".Translate(),
                             PrimaryButtonText = "OK".Translate(),
                             SecondaryButtonText = null,

@@ -1282,11 +1282,9 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
 
     private CategoryOption CreateCategory(CompanyData companyData, string name, List<Category> created)
     {
-        companyData.IdCounters.Category++;
-        var typePrefix = CategoryTypeFilter == CategoryType.Expense ? "PUR" : "SAL";
         var category = new Category
         {
-            Id = $"CAT-{typePrefix}-{companyData.IdCounters.Category:D3}",
+            Id = new Core.Data.IdGenerator(companyData).NextCategoryId(CategoryTypeFilter),
             Name = name,
             Type = CategoryTypeFilter
         };

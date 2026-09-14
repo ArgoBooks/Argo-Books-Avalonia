@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using ArgoBooks.Core.Data;
 using ArgoBooks.Data;
 using ArgoBooks.Localization;
 using Avalonia;

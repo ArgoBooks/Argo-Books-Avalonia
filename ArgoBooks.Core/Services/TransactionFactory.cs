@@ -30,10 +30,9 @@ public static class TransactionFactory
 {
     public static Expense CreateExpense(CompanyData data, TransactionDraft draft)
     {
-        data.IdCounters.Expense++;
         return new Expense
         {
-            Id = $"PUR-{draft.Date:yyyy}-{data.IdCounters.Expense:D5}",
+            Id = new IdGenerator(data).NextExpenseId(draft.Date),
             Date = draft.Date,
             SupplierId = draft.CounterpartyId,
             Description = draft.Description,
@@ -51,10 +50,9 @@ public static class TransactionFactory
 
     public static Revenue CreateRevenue(CompanyData data, TransactionDraft draft)
     {
-        data.IdCounters.Revenue++;
         return new Revenue
         {
-            Id = $"REV-{draft.Date:yyyy}-{data.IdCounters.Revenue:D5}",
+            Id = new IdGenerator(data).NextRevenueId(draft.Date),
             Date = draft.Date,
             CustomerId = draft.CounterpartyId,
             Description = draft.Description,

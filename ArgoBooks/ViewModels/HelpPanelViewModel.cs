@@ -1,6 +1,7 @@
 using ArgoBooks.Core.Platform;
 using ArgoBooks.Services;
 using ApiConfig = ArgoBooks.Core.Services.ApiConfig;
+using AppInfo = ArgoBooks.Core.Services.AppInfo;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 

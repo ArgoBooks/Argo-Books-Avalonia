@@ -1,98 +1,11 @@
 using System.Windows.Input;
 using Avalonia;
 using Avalonia.Controls;
+using ArgoBooks.Core.Services;
 using ArgoBooks.Localization;
 using CommunityToolkit.Mvvm.Input;
 
 namespace ArgoBooks.Controls;
-
-/// <summary>
-/// Type of message box which determines the icon and primary button style.
-/// </summary>
-public enum MessageBoxType
-{
-    /// <summary>
-    /// Information message.
-    /// </summary>
-    Info,
-
-    /// <summary>
-    /// Success message.
-    /// </summary>
-    Success,
-
-    /// <summary>
-    /// Warning message.
-    /// </summary>
-    Warning,
-
-    /// <summary>
-    /// Error message.
-    /// </summary>
-    Error,
-
-    /// <summary>
-    /// Question/confirmation message.
-    /// </summary>
-    Question
-}
-
-/// <summary>
-/// Button configurations for message boxes.
-/// </summary>
-public enum MessageBoxButtons
-{
-    /// <summary>
-    /// Single OK button.
-    /// </summary>
-    Ok,
-
-    /// <summary>
-    /// OK and Cancel buttons.
-    /// </summary>
-    OkCancel,
-
-    /// <summary>
-    /// Yes and No buttons.
-    /// </summary>
-    YesNo,
-
-    /// <summary>
-    /// Yes, No, and Cancel buttons.
-    /// </summary>
-    YesNoCancel
-}
-
-/// <summary>
-/// Result from a message box dialog.
-/// </summary>
-public enum MessageBoxResult
-{
-    /// <summary>
-    /// No result (dialog was closed without selection).
-    /// </summary>
-    None,
-
-    /// <summary>
-    /// OK button was clicked.
-    /// </summary>
-    Ok,
-
-    /// <summary>
-    /// Cancel button was clicked.
-    /// </summary>
-    Cancel,
-
-    /// <summary>
-    /// Yes button was clicked.
-    /// </summary>
-    Yes,
-
-    /// <summary>
-    /// No button was clicked.
-    /// </summary>
-    No
-}
 
 /// <summary>
 /// Event args for message box result selection.

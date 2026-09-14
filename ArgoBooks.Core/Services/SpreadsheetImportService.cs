@@ -1468,8 +1468,7 @@ public class SpreadsheetImportService
         if (invoice.AmountPaid <= 0 || data.Revenues.Any(r => r.InvoiceId == invoice.Id && !r.IsKeptDeposit))
             return;
 
-        data.IdCounters.Revenue++;
-        var revenueId = $"REV-{DateTime.UtcNow:yyyy}-{data.IdCounters.Revenue:D5}";
+        var revenueId = new IdGenerator(data).NextRevenueId(invoice.IssueDate);
         var isPaid = invoice.Status == InvoiceStatus.Paid || invoice.Balance <= 0;
 
         var revenue = new Revenue
@@ -3454,13 +3453,8 @@ Respond with ONLY a JSON array, one entry per product in the same order:
     }
 
     /// <summary>Advances the counter past every id in <paramref name="taken"/> and claims the one it lands on.</summary>
-    private static string MintId(Func<int> advance, Func<int, string> format, HashSet<string> taken)
-    {
-        string id;
-        do id = format(advance());
-        while (!taken.Add(id));
-        return id;
-    }
+    private static string MintId(Func<int> advance, Func<int, string> format, HashSet<string> taken) =>
+        IdGenerator.NextFreeId(advance, format, id => !taken.Add(id));
 
     private void ImportCustomers(CompanyData data, List<string> headers, List<List<object?>> rows, ImportOptions? options = null)
     {
@@ -3640,7 +3634,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             // single record (or skipped as "already exists") when the sheet has no identifier. Without
             // this, an ID-less sheet imports only its first row.
             if (string.IsNullOrWhiteSpace(id))
-                id = MintId(() => ++data.IdCounters.Expense, n => $"PUR-{DateTime.UtcNow:yyyy}-{n:D5}", takenIds);
+                id = MintId(() => ++data.IdCounters.Expense, n => IdGenerator.FormatExpenseId(date, n), takenIds);
 
             var existing = data.Expenses.FirstOrDefault(p => p.Id == id);
             if (options?.SkipExistingRecords == true && existing != null) { options.SkippedCount++; continue; }
@@ -4249,7 +4243,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             // single record (or skipped as "already exists") when the sheet has no identifier. Without
             // this, an ID-less sheet imports only its first row. (Mirrors ImportPurchases.)
             if (string.IsNullOrWhiteSpace(id))
-                id = MintId(() => ++data.IdCounters.Revenue, n => $"REV-{DateTime.UtcNow:yyyy}-{n:D5}", takenIds);
+                id = MintId(() => ++data.IdCounters.Revenue, n => IdGenerator.FormatRevenueId(date, n), takenIds);
 
             var existing = data.Revenues.FirstOrDefault(s => s.Id == id);
             if (options?.SkipExistingRecords == true && existing != null) { options.SkippedCount++; continue; }
@@ -4648,13 +4642,6 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             if (string.IsNullOrWhiteSpace(id) && string.IsNullOrWhiteSpace(name))
                 continue;
 
-            // Blank ID: mint a unique one so distinct rows aren't collapsed into a single record.
-            if (string.IsNullOrWhiteSpace(id))
-                id = MintId(() => ++data.IdCounters.Category, n => $"CAT-{n:D3}", takenIds);
-
-            var existing = data.Categories.FirstOrDefault(c => c.Id == id);
-            if (options?.SkipExistingRecords == true && existing != null) { options.SkippedCount++; continue; }
-
             var typeStr = GetString(row, headers, "Type");
             var categoryType = typeStr.ToLowerInvariant() switch
             {
@@ -4663,6 +4650,13 @@ Respond with ONLY a JSON array, one entry per product in the same order:
                 "rental" => CategoryType.Rental,
                 _ => CategoryType.Revenue
             };
+
+            // Blank ID: mint a unique one so distinct rows aren't collapsed into a single record.
+            if (string.IsNullOrWhiteSpace(id))
+                id = MintId(() => ++data.IdCounters.Category, n => IdGenerator.FormatCategoryId(categoryType, n), takenIds);
+
+            var existing = data.Categories.FirstOrDefault(c => c.Id == id);
+            if (options?.SkipExistingRecords == true && existing != null) { options.SkippedCount++; continue; }
 
             var category = existing ?? new Category();
 

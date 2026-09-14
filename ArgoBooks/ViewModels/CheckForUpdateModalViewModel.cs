@@ -22,7 +22,7 @@ public partial class CheckForUpdateModalViewModel : ViewModelBase
     private bool _isOpen;
 
     [ObservableProperty]
-    private string _currentVersion = Services.AppInfo.Version;
+    private string _currentVersion = AppInfo.Version;
 
     [ObservableProperty]
     private string _newVersion = "";

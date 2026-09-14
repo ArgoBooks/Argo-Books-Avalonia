@@ -1285,10 +1285,9 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
         if (amount <= 0)
             return null;
 
-        companyData.IdCounters.Revenue++;
         return new Revenue
         {
-            Id = $"REV-{DateTime.Now:yyyy}-{companyData.IdCounters.Revenue:D5}",
+            Id = new Core.Data.IdGenerator(companyData).NextRevenueId(date),
             Date = date,
             CustomerId = invoice.CustomerId,
             Description = $"Kept security deposit, rental {rental.Id}",

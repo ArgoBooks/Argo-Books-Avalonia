@@ -305,7 +305,7 @@ public class SpreadsheetRoundTripFidelityTests : IDisposable
     {
         // The id counter is only brought up to date after every sheet is in.
         CompanyData source = PaidInvoiceSource(withLinkedRevenue: false);
-        string clash = $"REV-{DateTime.UtcNow:yyyy}-00001";
+        string clash = "REV-2025-00001";
         source.Revenues.Single().Id = clash;
 
         CompanyData target = await RoundTripAsync(source);

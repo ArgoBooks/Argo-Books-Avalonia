@@ -1,3 +1,5 @@
+using ArgoBooks.Core.Data;
+
 namespace ArgoBooks.Data;
 
 /// <summary>

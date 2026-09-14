@@ -481,8 +481,8 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
 
     protected override void SaveNewTransaction(CompanyData companyData)
     {
-        companyData.IdCounters.Expense++;
-        var expenseId = $"PUR-{DateTime.Now:yyyy}-{companyData.IdCounters.Expense:D5}";
+        var date = ModalDate?.DateTime ?? DateTime.Now;
+        var expenseId = new Core.Data.IdGenerator(companyData).NextExpenseId(date);
 
         var (description, totalQuantity, averageUnitPrice) = GetLineItemSummary();
         var modelLineItems = CreateModelLineItems();
@@ -490,7 +490,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
         var expense = new Expense
         {
             Id = expenseId,
-            Date = ModalDate?.DateTime ?? DateTime.Now,
+            Date = date,
             SupplierId = SelectedSupplier?.Id,
             Description = description,
             LineItems = modelLineItems,
