@@ -121,6 +121,11 @@ public static class LevenshteinDistance
         if (targetLower.Contains(searchLower))
             return 0.8;
 
+        // One or two letters are too short to be a typo of anything: "ca" would loosely match every
+        // short word or code sharing a letter with it.
+        if (searchLower.Length < 3)
+            return -1;
+
         // Fuzzy match using normalized similarity
         var similarity = NormalizedSimilarity(searchLower, targetLower);
 

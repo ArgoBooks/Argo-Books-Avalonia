@@ -451,7 +451,7 @@ public partial class SearchableDropdown : UserControl, INotifyPropertyChanged
         else if (change.Property == SelectedItemProperty)
         {
             // Sync SearchText when SelectedItem is set programmatically
-            OnSelectedItemChanged(change.NewValue);
+            OnSelectedItemChanged(change.OldValue, change.NewValue);
         }
         else if (change.Property == IsDropdownOpenProperty)
         {
@@ -477,12 +477,16 @@ public partial class SearchableDropdown : UserControl, INotifyPropertyChanged
         UpdateFilteredItems();
     }
 
-    private void OnSelectedItemChanged(object? newValue)
+    private void OnSelectedItemChanged(object? oldValue, object? newValue)
     {
         _isSettingFromSelectedItem = true;
         try
         {
-            SearchText = newValue != null ? GetDisplayText(newValue) : string.Empty;
+            if (newValue != null)
+                SearchText = GetDisplayText(newValue);
+            // A consumer dropping the pick while someone types over it leaves their text alone.
+            else if (_searchTextBox?.IsFocused != true || oldValue == null || SearchText == GetDisplayText(oldValue))
+                SearchText = string.Empty;
         }
         finally
         {

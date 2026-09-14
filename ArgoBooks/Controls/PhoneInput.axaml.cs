@@ -589,7 +589,7 @@ public partial class PhoneInput : UserControl, INotifyPropertyChanged
         }
         else
         {
-            filtered = SearchCountries(searchText, matchDialCode: true);
+            filtered = SearchCountries(searchText);
         }
 
         // Get the last priority country code (Canada = "CA")
@@ -605,7 +605,7 @@ public partial class PhoneInput : UserControl, INotifyPropertyChanged
         HasFilteredCountries = FilteredDialCodes.Count > 0;
     }
 
-    public static IEnumerable<CountryDialCode> SearchCountries(string searchText, bool matchDialCode) =>
+    private static IEnumerable<CountryDialCode> SearchCountries(string searchText) =>
         AllDialCodes
             // The full list repeats the priority countries above the alphabetical list.
             .DistinctBy(c => c.Code)
@@ -613,7 +613,7 @@ public partial class PhoneInput : UserControl, INotifyPropertyChanged
             [
                 c.Name,
                 c.Code.Equals(searchText, StringComparison.OrdinalIgnoreCase) ? c.Code : null,
-                matchDialCode ? c.DialCode : null
+                c.DialCode
             ]);
 
     private void UpdateFullPhoneNumber()
