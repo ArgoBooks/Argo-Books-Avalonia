@@ -492,3 +492,41 @@ A line takes stock from, or adds it to, the stock record at `LineItem.LocationId
 - **Returns** record the return only (§10). They don't restock or take back the sale's cost of goods sold.
 - **Receipt scans and revenue created from invoices** move no stock, as before.
 - **Per-product profit** is still not shown (§13).
+
+---
+
+## 15. Rentals
+
+`RentalBookings` holds the rental math. A rental has one or more lines, each with an item, a quantity, a rate type and a per-unit deposit. A record saved by the old Rent Out action has no lines and keeps one on the record itself, where the deposit is the total; `RentalRecord.EffectiveLineItems()` turns it into a line.
+
+### Charges
+
+```
+days            = max(1, returnDate.Date − startDate.Date)
+line (Daily)    = rate × days × quantity
+line (Weekly)   = rate × ceil(days / 7) × quantity
+line (Monthly)  = rate × ceil(days / 30) × quantity
+TotalCost       = Σ lines + ExtraCharges
+```
+
+Dates count, not times: out Monday and back Wednesday is two days. The add form and Rent Out estimate the same way, to the due date. An invoice made from a rental has one line per item, charged to the return date, or to the due date while the rental is still out, plus a line for any extra charges.
+
+### Deposits and extra charges
+
+The rental's `SecurityDeposit` is Σ per-unit deposit × quantity. At return, anything from nothing to the whole deposit can be refunded (`DepositRefunded`) and the rest is kept. A kept deposit on an invoice becomes revenue on the return date (§4). Extra charges, such as a late fee or damage, are billed on top of the rental and don't come out of the deposit.
+
+### Paid without an invoice
+
+Marking a rental paid when it has no invoice records a revenue row for `TotalCost` plus any kept deposit, in the company currency and converted at its own date (Rule 3a). It is dated on the return when marked paid there, otherwise on the day it was marked. `RentalRecord.RevenueId` links it, so marking it unpaid or deleting the rental removes it. A rental with an invoice counts through the invoice instead, and a paid rental can't be invoiced, so the money is never counted twice.
+
+### Stock and reservations
+
+A rental starting after today is **Reserved** and leaves stock alone. Checking it out makes it Active and takes its units out of stock, and returning it puts them back. Before a rental is saved or checked out, each item needs enough units free on every day it covers:
+
+```
+owned  = InStock + units out on active and overdue rentals
+booked = most units other rentals take on any one day of this rental's dates
+free   = owned − booked
+```
+
+A reservation takes its start to due dates. A rental that is out takes its dates and, once late, every day up to today. A rental that takes stock now also can't take more than is in stock, plus what it already has out when it is being edited.

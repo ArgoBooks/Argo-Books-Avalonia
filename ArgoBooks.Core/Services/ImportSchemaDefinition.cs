@@ -283,7 +283,7 @@ public static class ImportSchemaDefinition
                 new("Rate Amount", "decimal", "Rate amount per period", JsonName: "rateAmount"),
                 new("Security Deposit", "decimal", "Security deposit amount", JsonName: "securityDeposit"),
                 new("Total Cost", "decimal", "Total cost of the rental", JsonName: "totalCost"),
-                new("Status", "enum:Active,Returned,Overdue,Cancelled", "Rental status", JsonName: "status"),
+                new("Status", "enum:Reserved,Active,Returned,Overdue,Cancelled", "Rental status", JsonName: "status"),
                 new("Paid", "enum:Yes,No", "Whether the rental has been paid", JsonName: "paid"),
             ],
 
