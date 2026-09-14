@@ -222,13 +222,15 @@
                                             <!-- Validation / send errors -->
                                             <Border Background="{DynamicResource ErrorLightBrush}" BorderBrush="{DynamicResource ErrorBrush}"
                                                     BorderThickness="1" CornerRadius="6" Padding="10,8" IsVisible="{Binding HasValidationMessage}">
-                                                <TextBlock Text="{Binding ValidationMessage}" Foreground="{DynamicResource ErrorBrush}" FontSize="12" TextWrapping="Wrap" />
+                                                <TextBlock Text="{Binding ValidationMessage}" Foreground="{DynamicResource ErrorTextBrush}" FontSize="12" TextWrapping="Wrap" />
                                             </Border>
                                             <Border Background="{DynamicResource ErrorLightBrush}" BorderBrush="{DynamicResource ErrorBrush}"
                                                     BorderThickness="1" CornerRadius="6" Padding="10,8" IsVisible="{Binding HasSendError}">
                                                 <Grid ColumnDefinitions="*,Auto">
-                                                    <TextBlock Grid.Column="0" Text="{Binding SendErrorMessage}" Foreground="{DynamicResource ErrorBrush}" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" />
-                                                    <Button Grid.Column="1" Content="✕" Command="{Binding DismissSendErrorCommand}" Background="Transparent" Foreground="{DynamicResource ErrorBrush}" BorderThickness="0" Padding="4" VerticalAlignment="Center" Cursor="Hand" />
+                                                    <TextBlock Grid.Column="0" Text="{Binding SendErrorMessage}" Foreground="{DynamicResource ErrorTextBrush}" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                                    <Button Grid.Column="1" Classes="icon-button-small" Width="24" Height="24" Command="{Binding DismissSendErrorCommand}" VerticalAlignment="Center" ToolTip.Tip="{loc:Loc 'Dismiss'}">
+                                                        <PathIcon Data="{x:Static icons:Icons.Close}" Width="10" Height="10" Foreground="{DynamicResource ErrorTextBrush}" />
+                                                    </Button>
                                                 </Grid>
                                             </Border>
 
