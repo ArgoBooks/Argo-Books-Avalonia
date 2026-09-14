@@ -66,18 +66,16 @@
                                    <TextBlock TextWrapping="Wrap" Text="{Binding ModalSupplierNameError}" FontSize="12" Foreground="{DynamicResource ErrorBrush}" IsVisible="{Binding ModalSupplierNameError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                </StackPanel>
                            </Grid>
-                           <Grid ColumnDefinitions="*,16,*">
-                               <StackPanel Grid.Column="0" Spacing="6">
-                                   <TextBlock Text="{loc:Loc 'Email'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                   <TextBox Text="{Binding ModalEmail, Mode=TwoWay}" Classes="form-input" PlaceholderText="{loc:Loc 'supplier@email.com'}" MaxLength="254" />
-                                   <TextBlock TextWrapping="Wrap" Text="{Binding ModalEmailError}" FontSize="12" Foreground="{DynamicResource ErrorBrush}" IsVisible="{Binding ModalEmailError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                               </StackPanel>
-                               <StackPanel Grid.Column="2" Spacing="6">
-                                   <TextBlock Text="{loc:Loc 'Phone'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                   <controls:PhoneInput FullPhoneNumber="{Binding ModalPhone, Mode=TwoWay}" />
-                                   <TextBlock TextWrapping="Wrap" Text="{Binding ModalPhoneError}" FontSize="12" Foreground="{DynamicResource ErrorBrush}" IsVisible="{Binding ModalPhoneError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                               </StackPanel>
-                           </Grid>
+                           <StackPanel Spacing="6">
+                               <TextBlock Text="{loc:Loc 'Email'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
+                               <TextBox Text="{Binding ModalEmail, Mode=TwoWay}" Classes="form-input" PlaceholderText="{loc:Loc 'supplier@email.com'}" MaxLength="254" />
+                               <TextBlock TextWrapping="Wrap" Text="{Binding ModalEmailError}" FontSize="12" Foreground="{DynamicResource ErrorBrush}" IsVisible="{Binding ModalEmailError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                           </StackPanel>
+                           <StackPanel Spacing="6">
+                               <TextBlock Text="{loc:Loc 'Phone'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
+                               <controls:PhoneInput FullPhoneNumber="{Binding ModalPhone, Mode=TwoWay}" />
+                               <TextBlock TextWrapping="Wrap" Text="{Binding ModalPhoneError}" FontSize="12" Foreground="{DynamicResource ErrorBrush}" IsVisible="{Binding ModalPhoneError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                           </StackPanel>
                            <StackPanel Spacing="6">
                                <TextBlock Text="{loc:Loc 'Website'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
                                <TextBox Text="{Binding ModalWebsite, Mode=TwoWay}" Classes="form-input" PlaceholderText="{loc:Loc 'https://www.example.com'}" MaxLength="500" />
