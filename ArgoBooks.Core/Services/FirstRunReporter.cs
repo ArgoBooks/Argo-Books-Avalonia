@@ -92,7 +92,18 @@ public sealed class FirstRunReporter
             };
 
             var url = $"{ApiConfig.BaseUrl}{EndpointPath}";
-            using var response = await _httpClient.PostAsJsonAsync(url, payload, cancellationToken);
+            using var request = new HttpRequestMessage(HttpMethod.Post, url)
+            {
+                Content = JsonContent.Create(payload),
+            };
+            // Telemetry is filed under this id, so the website can show which
+            // referral source brought in the user behind that activity.
+            var deviceId = LicenseAuthHelper.GetDeviceId();
+            if (!string.IsNullOrEmpty(deviceId))
+            {
+                request.Headers.Add("X-Device-Id", deviceId);
+            }
+            using var response = await _httpClient.SendAsync(request, cancellationToken);
             postCompleted = true;
 
             if (response.IsSuccessStatusCode)
