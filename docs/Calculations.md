@@ -485,7 +485,7 @@ Stock bought before cost of goods sold existed was expensed at the time, so coun
 
 ### Locations
 
-A line takes stock from, or adds it to, the stock record at `LineItem.LocationId`. The form only asks when the product is stocked at two or more locations; otherwise the product's first stock record is used, or a new one is made at the company's first location. The location is saved on the line, so editing or deleting the transaction later returns stock to the same place.
+A line takes stock from, or adds it to, the stock record at `LineItem.LocationId`. The form only asks when the product is stocked at two or more locations; otherwise the product's first stock record is used, or a new one is made at the company's first location. The location is saved on the line, so editing or deleting the transaction later returns stock to the same place. Editing or deleting takes back only what the transaction's own stock adjustments show it moved, so a transaction saved before its product tracked stock, or brought in by the spreadsheet import, has nothing to take back.
 
 ### Not matched
 
