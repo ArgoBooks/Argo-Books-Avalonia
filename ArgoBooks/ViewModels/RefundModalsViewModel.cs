@@ -1,3 +1,4 @@
+using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Models.Transactions;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -28,13 +29,35 @@ public partial class RefundModalsViewModel : ObservableObject
     /// </summary>
     private Action? _onRefundClosed;
 
-    public void OpenRefundModal(Invoice invoice, IEnumerable<Payment> invoicePayments, string customerName, Action? onClosed = null)
+    /// <summary>
+    /// Opens the refund window for an invoice. The verification code goes to the owner email, so a missing
+    /// one is caught here rather than halfway through. <paramref name="depositOnly"/> selects only the
+    /// deposit, at that amount.
+    /// </summary>
+    public async Task OpenForInvoiceAsync(CompanyData companyData, Invoice invoice, Action? onClosed = null,
+        decimal? depositOnly = null, string? reason = null)
+    {
+        if (string.IsNullOrWhiteSpace(companyData.Settings.Company.Email))
+        {
+            await App.ShowWarningMessageBoxAsync(
+                "Owner email required",
+                "You need to set your portal owner email before issuing a refund. The verification code is sent to that address.\n\nOpen Settings → Payment Portal and set your owner email, then try again.");
+            return;
+        }
+
+        var payments = companyData.Payments.Where(p => p.InvoiceId == invoice.Id).ToList();
+        var customerName = companyData.GetCustomer(invoice.CustomerId)?.Name ?? string.Empty;
+        OpenRefundModal(invoice, payments, customerName, onClosed, depositOnly, reason);
+    }
+
+    public void OpenRefundModal(Invoice invoice, IEnumerable<Payment> invoicePayments, string customerName, Action? onClosed = null,
+        decimal? depositOnly = null, string? reason = null)
     {
         var refundService = App.RefundService;
         if (refundService == null) return;
 
         ActiveRefundVm?.Dispose();
-        ActiveRefundVm = new RefundModalViewModel(refundService, invoice, invoicePayments, customerName)
+        ActiveRefundVm = new RefundModalViewModel(refundService, invoice, invoicePayments, customerName, depositOnly, reason)
         {
             RequestClose = CloseRefundModal,
         };

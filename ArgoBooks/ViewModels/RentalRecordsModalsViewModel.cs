@@ -904,6 +904,7 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
 
         RecordReturned?.Invoke(this, EventArgs.Empty);
         CloseReturnModal();
+        OfferDepositRefund(companyData, rental, refund);
     }
 
     private sealed record ReturnFields(
@@ -934,12 +935,7 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
     /// </summary>
     private static Revenue? CreateKeptDepositRevenue(RentalRecord rental, CompanyData companyData, DateTime date, decimal kept)
     {
-        var invoice = rental.InvoiceIds
-            .Select(companyData.GetInvoice)
-            .OfType<Invoice>()
-            .Where(i => i.SecurityDeposit > 0)
-            .OrderBy(i => i.IssueDate)
-            .FirstOrDefault();
+        var invoice = DepositInvoice(rental, companyData);
         if (invoice == null)
             return null;
 
@@ -969,6 +965,32 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
+    }
+
+    private static Invoice? DepositInvoice(RentalRecord rental, CompanyData companyData) =>
+        rental.InvoiceIds
+            .Select(companyData.GetInvoice)
+            .OfType<Invoice>()
+            .Where(i => i.SecurityDeposit > 0)
+            .OrderBy(i => i.IssueDate)
+            .FirstOrDefault();
+
+    /// <summary>
+    /// A deposit billed on an invoice paid online has to go back through the provider, so its refund
+    /// window opens with only the deposit selected. An invoice paid any other way has no refund to record.
+    /// </summary>
+    private static void OfferDepositRefund(CompanyData companyData, RentalRecord rental, decimal refund)
+    {
+        var invoice = refund > 0 ? DepositInvoice(rental, companyData) : null;
+        if (invoice == null || App.RefundModalsViewModel is not { } refunds)
+            return;
+
+        var held = SecurityDeposits.StillHeld(invoice, companyData.Payments, companyData.Revenues);
+        var paidOnline = companyData.Payments.Any(p => p.InvoiceId == invoice.Id && !p.IsRefund
+            && p.Source == PaymentSource.Online && !string.IsNullOrEmpty(p.ProviderPaymentId));
+        if (held > 0 && paidOnline)
+            _ = refunds.OpenForInvoiceAsync(companyData, invoice, depositOnly: Math.Min(refund, held),
+                reason: $"Security deposit, rental {rental.Id}");
     }
 
     private static void AddRentalRevenue(CompanyData companyData, Revenue revenue)

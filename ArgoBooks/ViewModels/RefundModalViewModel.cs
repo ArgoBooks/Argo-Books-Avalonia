@@ -221,7 +221,8 @@ public partial class RefundModalViewModel : ObservableObject
     [ObservableProperty]
     private string _hardBlockContactReason = string.Empty;
 
-    public RefundModalViewModel(RefundService refundService, Invoice invoice, IEnumerable<Payment> invoicePayments, string customerName)
+    public RefundModalViewModel(RefundService refundService, Invoice invoice, IEnumerable<Payment> invoicePayments, string customerName,
+        decimal? depositOnly = null, string? reason = null)
     {
         _refundService = refundService;
         _invoice = invoice;
@@ -231,6 +232,10 @@ public partial class RefundModalViewModel : ObservableObject
         BuildPaymentRows();
         BuildLineRows();
         BuildRefundHistory();
+
+        if (depositOnly is { } deposit)
+            SelectDepositOnly(deposit);
+        Reason = reason ?? string.Empty;
 
         // No money left to refund but past refunds exist → open in read-only
         // details mode. If neither, fall through to LineItems and let it show
@@ -397,6 +402,18 @@ public partial class RefundModalViewModel : ObservableObject
         }
 
         UpdateProcessingFeeRow();
+        RecomputeTotals();
+    }
+
+    // Giving back a rental's deposit: only the deposit row, at the amount being refunded.
+    private void SelectDepositOnly(decimal amount)
+    {
+        foreach (var row in LineRows)
+        {
+            if (row.Kind == "deposit")
+                row.Amount = Math.Min(amount, row.Amount);
+            row.IsSelected = row.Kind == "deposit";
+        }
         RecomputeTotals();
     }
 

@@ -513,7 +513,7 @@ Dates count, not times: out Monday and back Wednesday is two days. The add form 
 
 ### Deposits and extra charges
 
-The rental's `SecurityDeposit` is Σ per-unit deposit × quantity. At return, anything from nothing to the whole deposit can be refunded (`DepositRefunded`) and the rest is kept. A kept deposit on an invoice becomes revenue on the return date (§4). Extra charges, such as a late fee or damage, are billed on top of the rental and don't come out of the deposit.
+The rental's `SecurityDeposit` is Σ per-unit deposit × quantity. At return, anything from nothing to the whole deposit can be refunded (`DepositRefunded`) and the rest is kept. A kept deposit on an invoice becomes revenue on the return date (§4). When that invoice was paid online, confirming the return opens its refund window with only the deposit selected, at the amount refunded, so the money goes back through the provider and the balance sheet stops holding it once the refund syncs. Extra charges, such as a late fee or damage, are billed on top of the rental and don't come out of the deposit.
 
 ### Paid without an invoice
 
