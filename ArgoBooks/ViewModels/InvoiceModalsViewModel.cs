@@ -1098,11 +1098,6 @@ public partial class InvoiceModalsViewModel : ViewModelBase
         var rental = companyData.Rentals.FirstOrDefault(r => r.Id == rentalRecordId);
         if (rental == null) return;
 
-        var rentalItem = companyData.RentalInventory.FirstOrDefault(i => i.Id == rental.RentalItemId);
-        var inventoryItem = rentalItem != null ? companyData.Inventory.FirstOrDefault(i => i.Id == rentalItem.InventoryItemId) : null;
-        var rentalProduct = inventoryItem != null ? companyData.GetProduct(inventoryItem.ProductId) : null;
-        var itemName = rentalProduct?.Name ?? "Unknown Item";
-
         // Open the standard create modal (loads options, resets form)
         OpenCreateModal();
 
@@ -1112,58 +1107,60 @@ public partial class InvoiceModalsViewModel : ViewModelBase
         // Pre-select the customer
         SelectedCustomer = CustomerOptions.FirstOrDefault(c => c.Id == rental.CustomerId);
 
-        // Calculate rental cost
-        var endDate = rental.ReturnDate ?? DateTime.Today;
-        var days = (int)(endDate - rental.StartDate).TotalDays;
-        if (days < 1) days = 1;
-
-        var totalCost = rental.RateType switch
-        {
-            RateType.Daily => rental.RateAmount * days * rental.Quantity,
-            RateType.Weekly => rental.RateAmount * (decimal)Math.Ceiling(days / 7.0) * rental.Quantity,
-            RateType.Monthly => rental.RateAmount * (decimal)Math.Ceiling(days / 30.0) * rental.Quantity,
-            _ => rental.RateAmount * days * rental.Quantity
-        };
-
-        // Replace the default line item with rental charge, unsubscribe the
+        // Replace the default line item with the rental's charges, unsubscribe the
         // ResetForm placeholder first so its PropertyChanged isn't leaked.
         foreach (var item in LineItems)
             item.PropertyChanged -= OnLineItemPropertyChanged;
         LineItems.Clear();
 
-        // Try to match rental item to a product by name, or create a synthetic one
-        var matchedProduct = ProductOptions.FirstOrDefault(p =>
-            string.Equals(p.Name, itemName, StringComparison.OrdinalIgnoreCase));
-
-        if (matchedProduct == null)
+        // One line per item for the days out: to the return, or to the due date while it is still out.
+        var days = RentalBookings.ChargeableDays(rental.StartDate, rental.ReturnDate ?? rental.DueDate);
+        foreach (var line in rental.EffectiveLineItems())
         {
-            // Create a synthetic product option from the rental item so the dropdown shows the item
-            matchedProduct = new ProductOption
+            var itemName = RentalBookings.ItemName(companyData, line.RentalItemId);
+            var unitCost = RentalBookings.UnitCost(line, days);
+
+            // Try to match rental item to a product by name, or create a synthetic one
+            var product = ProductOptions.FirstOrDefault(p =>
+                string.Equals(p.Name, itemName, StringComparison.OrdinalIgnoreCase));
+            if (product == null)
             {
-                Id = rentalItem?.Id ?? rental.RentalItemId,
-                Name = itemName,
-                Description = itemName,
-                UnitPrice = totalCost
-            };
-            ProductOptions.Add(matchedProduct);
+                product = new ProductOption { Id = line.RentalItemId, Name = itemName, Description = itemName, UnitPrice = unitCost };
+                ProductOptions.Add(product);
+            }
+
+            var period = line.RateType switch { RateType.Weekly => "week", RateType.Monthly => "month", _ => "day" };
+            AddRentalLine(product,
+                $"Rental: {itemName} ({CurrencyService.Format(line.RateAmount)}/{period}, {days} {(days == 1 ? "day" : "days")})",
+                line.Quantity, unitCost, rental.Id);
         }
 
-        var rentalLineItem = new LineItemDisplayModel
+        if (rental.ExtraCharges > 0)
         {
-            SelectedProduct = matchedProduct,
-            Description = $"Rental: {itemName} ({rental.RateType} @ {CurrencyService.Format(rental.RateAmount)} x {rental.Quantity})",
-            Quantity = 1,
-            UnitPrice = totalCost,
-            RentalRecordId = rental.Id,
-            InvoiceCurrencyCode = SelectedCurrencyCode
-        };
-        rentalLineItem.PropertyChanged += OnLineItemPropertyChanged;
-        LineItems.Add(rentalLineItem);
+            AddRentalLine(null,
+                string.IsNullOrWhiteSpace(rental.ExtraChargesNote) ? "Extra charges" : $"Extra charges: {rental.ExtraChargesNote}",
+                1, rental.ExtraCharges, rental.Id);
+        }
 
         // Store security deposit separately (not as a line item)
         SecurityDeposit = rental.SecurityDeposit;
 
         UpdateTotals();
+    }
+
+    private void AddRentalLine(ProductOption? product, string description, decimal quantity, decimal unitPrice, string rentalId)
+    {
+        var line = new LineItemDisplayModel
+        {
+            SelectedProduct = product,
+            Description = description,
+            Quantity = quantity,
+            UnitPrice = unitPrice,
+            RentalRecordId = rentalId,
+            InvoiceCurrencyCode = SelectedCurrencyCode
+        };
+        line.PropertyChanged += OnLineItemPropertyChanged;
+        LineItems.Add(line);
     }
 
     /// <summary>

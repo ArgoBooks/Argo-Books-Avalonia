@@ -277,6 +277,14 @@
                                                                   Width="16" Height="16" />
                                                     </Button>
                                                     <Button Classes="icon-button"
+                                                            ToolTip.Tip="{loc:Loc 'Check Out'}"
+                                                            Command="{Binding $parent[ItemsControl].((vm:RentalRecordsPageViewModel)DataContext).CheckOutCommand}"
+                                                            CommandParameter="{Binding}"
+                                                            IsVisible="{Binding IsReserved}">
+                                                        <PathIcon Data="{x:Static icons:Icons.Play}"
+                                                                  Width="16" Height="16" />
+                                                    </Button>
+                                                    <Button Classes="icon-button"
                                                             ToolTip.Tip="{loc:Loc 'View Details'}"
                                                             Command="{Binding $parent[ItemsControl].((vm:RentalRecordsPageViewModel)DataContext).OpenViewModalCommand}"
                                                             CommandParameter="{Binding}">
@@ -287,7 +295,7 @@
                                                             ToolTip.Tip="{loc:Loc 'Edit'}"
                                                             Command="{Binding $parent[ItemsControl].((vm:RentalRecordsPageViewModel)DataContext).OpenEditModalCommand}"
                                                             CommandParameter="{Binding}"
-                                                            IsVisible="{Binding IsActive}">
+                                                            IsVisible="{Binding CanEdit}">
                                                         <PathIcon Data="{x:Static icons:Icons.Edit}"
                                                                   Width="16" Height="16" />
                                                     </Button>
@@ -307,6 +315,22 @@
                                                             Command="{Binding $parent[ItemsControl].((vm:RentalRecordsPageViewModel)DataContext).MarkAsPaidCommand}"
                                                             CommandParameter="{Binding}">
                                                         <PathIcon Data="{x:Static icons:Icons.CircleCheck}"
+                                                                  Width="16" Height="16" />
+                                                    </Button>
+                                                    <Button Classes="icon-button"
+                                                            ToolTip.Tip="{loc:Loc 'Mark as Unpaid'}"
+                                                            IsVisible="{Binding CanMarkAsUnpaid}"
+                                                            Command="{Binding $parent[ItemsControl].((vm:RentalRecordsPageViewModel)DataContext).MarkAsUnpaidCommand}"
+                                                            CommandParameter="{Binding}">
+                                                        <PathIcon Data="{x:Static icons:Icons.Undo}"
+                                                                  Width="16" Height="16" />
+                                                    </Button>
+                                                    <Button Classes="icon-button"
+                                                            ToolTip.Tip="{loc:Loc 'Cancel Reservation'}"
+                                                            Command="{Binding $parent[ItemsControl].((vm:RentalRecordsPageViewModel)DataContext).CancelReservationCommand}"
+                                                            CommandParameter="{Binding}"
+                                                            IsVisible="{Binding IsReserved}">
+                                                        <PathIcon Data="{x:Static icons:Icons.CloseCircle}"
                                                                   Width="16" Height="16" />
                                                     </Button>
                                                     <Button Classes="icon-button danger"

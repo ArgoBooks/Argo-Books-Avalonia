@@ -37,16 +37,16 @@ public class RentalRecordsModalsViewModelTests : ModalViewModelTestBase
         return record;
     }
 
+    private static RentalRecordDisplayItem Row(bool active = true) =>
+        new() { Id = "RNT-1", IsActive = active, ItemName = "Widget", CustomerName = "Bob" };
+
     [Fact]
     public void ReturnRental_UndoThenRedo_KeepsConfirmedPaidAndTotal()
     {
         var record = SeedActiveRental();
         var vm = new RentalRecordsModalsViewModel();
 
-        vm.OpenReturnModal(new RentalRecordDisplayItem
-        {
-            Id = "RNT-1", IsActive = true, ItemName = "Widget", CustomerName = "Bob"
-        });
+        vm.OpenReturnModal(Row());
         vm.ReturnMarkAsPaid = true;                 // the value the user confirms
         var confirmedCost = vm.ReturnTotalCost;     // computed from the line items
         vm.ConfirmReturn();
@@ -75,10 +75,7 @@ public class RentalRecordsModalsViewModelTests : ModalViewModelTestBase
     {
         var record = SeedActiveRental(); // started 5 days ago, 1 unit at 10/day
         var vm = new RentalRecordsModalsViewModel();
-        vm.OpenReturnModal(new RentalRecordDisplayItem
-        {
-            Id = "RNT-1", IsActive = true, ItemName = "Widget", CustomerName = "Bob"
-        });
+        vm.OpenReturnModal(Row());
         Assert.Equal(50m, vm.ReturnTotalCost);
 
         vm.ReturnDate = new DateTimeOffset(record.StartDate.AddDays(10));
@@ -86,6 +83,20 @@ public class RentalRecordsModalsViewModelTests : ModalViewModelTestBase
 
         vm.ConfirmReturn();
         Assert.Equal(100m, record.TotalCost);
+    }
+
+    [Fact]
+    public void ReturnRental_ExtraCharges_AreAddedToTheTotal()
+    {
+        var record = SeedActiveRental();
+        var vm = new RentalRecordsModalsViewModel();
+
+        vm.OpenReturnModal(Row());
+        vm.ReturnExtraCharges = "25";
+        vm.ReturnExtraChargesNote = "Late";
+        vm.ConfirmReturn();
+
+        Assert.Equal((75m, 25m, "Late"), (record.TotalCost, record.ExtraCharges, record.ExtraChargesNote));
     }
 
     private void SeedDepositInvoice(RentalRecord record)
@@ -99,13 +110,10 @@ public class RentalRecordsModalsViewModelTests : ModalViewModelTestBase
         record.InvoiceIds.Add("INV-1");
     }
 
-    private static void Return(RentalRecordsModalsViewModel vm, bool refundDeposit)
+    private static void Return(RentalRecordsModalsViewModel vm, string refund)
     {
-        vm.OpenReturnModal(new RentalRecordDisplayItem
-        {
-            Id = "RNT-1", IsActive = true, ItemName = "Widget", CustomerName = "Bob"
-        });
-        vm.ReturnRefundDeposit = refundDeposit;
+        vm.OpenReturnModal(Row());
+        vm.ReturnDepositRefund = refund;
         vm.ConfirmReturn();
     }
 
@@ -116,7 +124,7 @@ public class RentalRecordsModalsViewModelTests : ModalViewModelTestBase
         SeedDepositInvoice(SeedActiveRental());
         var vm = new RentalRecordsModalsViewModel();
 
-        Return(vm, refundDeposit: false);
+        Return(vm, refund: "0");
 
         var kept = Assert.Single(Company.Revenues);
         Assert.True(kept.IsKeptDeposit);
@@ -131,13 +139,37 @@ public class RentalRecordsModalsViewModelTests : ModalViewModelTestBase
     }
 
     [Fact]
+    public void ReturnRental_RefundingPartOfTheDeposit_KeepsTheRest()
+    {
+        var record = SeedActiveRental();
+        SeedDepositInvoice(record);
+
+        Return(new RentalRecordsModalsViewModel(), refund: "15");
+
+        Assert.Equal(15m, record.DepositRefunded);
+        Assert.Equal(5m, Assert.Single(Company.Revenues).Total);
+    }
+
+    [Fact]
     public void ReturnRental_GivingTheDepositBack_AddsNoRevenue()
     {
         SeedDepositInvoice(SeedActiveRental());
 
-        Return(new RentalRecordsModalsViewModel(), refundDeposit: true);
+        Return(new RentalRecordsModalsViewModel(), refund: "20");
 
         Assert.Empty(Company.Revenues);
+    }
+
+    [Fact]
+    public void ReturnRental_RefundingMoreThanTheDeposit_IsRefused()
+    {
+        var record = SeedActiveRental();
+        var vm = new RentalRecordsModalsViewModel();
+
+        Return(vm, refund: "25");
+
+        Assert.Equal(RentalStatus.Active, record.Status);
+        Assert.NotNull(vm.ReturnDepositRefundError);
     }
 
     // The deposit came in with the invoice, so it is priced at the invoice's rate. When that rate
@@ -155,12 +187,73 @@ public class RentalRecordsModalsViewModelTests : ModalViewModelTestBase
         });
         record.InvoiceIds.Add("INV-1");
 
-        Return(new RentalRecordsModalsViewModel(), refundDeposit: false);
+        Return(new RentalRecordsModalsViewModel(), refund: "0");
 
         var kept = Assert.Single(Company.Revenues);
         Assert.True(kept.IsPendingConversion);
         var queued = Assert.Single(Company.PendingConversions);
         Assert.Equal((kept.Id, issued), (queued.TransactionId, queued.TransactionDate));
+    }
+
+    // A rental paid without an invoice never reached revenue or profit.
+    [Fact]
+    public void ReturnRental_PaidWithoutAnInvoice_RecordsTheRevenue()
+    {
+        var record = SeedActiveRental();
+        var vm = new RentalRecordsModalsViewModel();
+
+        vm.OpenReturnModal(Row());
+        vm.ReturnMarkAsPaid = true;
+        vm.ConfirmReturn();
+
+        var revenue = Assert.Single(Company.Revenues);
+        Assert.Equal((50m, "RNT-1", revenue.Id), (revenue.Total, revenue.ReferenceNumber, record.RevenueId));
+
+        Undo();
+        Assert.Empty(Company.Revenues);
+        Assert.Null(record.RevenueId);
+
+        Redo();
+        Assert.Same(revenue, Assert.Single(Company.Revenues));
+    }
+
+    [Fact]
+    public void MarkAsPaid_AfterTheReturn_RecordsTheRevenueAndUndoRemovesIt()
+    {
+        var record = SeedActiveRental();
+        var vm = new RentalRecordsModalsViewModel();
+        Return(vm, refund: "20");
+
+        vm.MarkAsPaid(Row(active: false));
+
+        Assert.True(record.Paid);
+        Assert.Equal(50m, Assert.Single(Company.Revenues).Total);
+
+        Undo();
+        Assert.False(record.Paid);
+        Assert.Empty(Company.Revenues);
+    }
+
+    [Fact]
+    public void MarkAsUnpaid_RemovesTheRevenue_AndUndoPutsItBack()
+    {
+        var record = SeedActiveRental();
+        var vm = new RentalRecordsModalsViewModel();
+        vm.OpenReturnModal(Row());
+        vm.ReturnMarkAsPaid = true;
+        vm.ConfirmReturn();
+        var revenue = Assert.Single(Company.Revenues);
+
+        vm.MarkAsUnpaid(Row(active: false));
+
+        Assert.False(record.Paid);
+        Assert.Null(record.RevenueId);
+        Assert.Empty(Company.Revenues);
+
+        Undo();
+        Assert.True(record.Paid);
+        Assert.Equal(revenue.Id, record.RevenueId);
+        Assert.Same(revenue, Assert.Single(Company.Revenues));
     }
 
     private InventoryItem SeedRentableStock(int inStock)
@@ -171,6 +264,19 @@ public class RentalRecordsModalsViewModelTests : ModalViewModelTestBase
         Company.Inventory.Add(stock);
         Company.RentalInventory.Add(new RentalItem { Id = "RI-1", InventoryItemId = "INV-1", DailyRate = 10m });
         return stock;
+    }
+
+    private static RentalRecordsModalsViewModel NewRental(string quantity, int startIn, int dueIn)
+    {
+        var vm = new RentalRecordsModalsViewModel();
+        vm.OpenAddModal();
+        vm.ModalCustomer = vm.AvailableCustomers.Single();
+        var line = vm.RentalLineItems.Single();
+        line.SelectedItem = vm.AvailableItems.Single();
+        line.Quantity = quantity;
+        vm.ModalStartDate = new DateTimeOffset(DateTime.Today.AddDays(startIn));
+        vm.ModalDueDate = new DateTimeOffset(DateTime.Today.AddDays(dueIn));
+        return vm;
     }
 
     private static RentalRecordsModalsViewModel NewRentalWithTwoLinesOfSameItem(string firstQty, string secondQty)
@@ -211,6 +317,59 @@ public class RentalRecordsModalsViewModelTests : ModalViewModelTestBase
 
         Assert.Single(Company.Rentals);
         Assert.Equal(0, stock.InStock);
+    }
+
+    [Fact]
+    public void NewRental_StartingLater_IsReservedAndLeavesTheStock()
+    {
+        var stock = SeedRentableStock(5);
+
+        NewRental("2", startIn: 3, dueIn: 5).SaveNewRecord();
+
+        Assert.Equal(RentalStatus.Reserved, Assert.Single(Company.Rentals).Status);
+        Assert.Equal(5, stock.InStock);
+    }
+
+    // The same unit can't be promised twice for days that overlap, but it can for other days.
+    [Fact]
+    public void NewRental_OverlappingAReservation_IsRefused_ButLaterDatesSave()
+    {
+        SeedRentableStock(1);
+        Company.Rentals.Add(new RentalRecord
+        {
+            Id = "RNT-1", CustomerId = "CUST-1", Status = RentalStatus.Reserved,
+            StartDate = DateTime.Today.AddDays(3), DueDate = DateTime.Today.AddDays(5),
+            LineItems = [new RentalLineItem { RentalItemId = "RI-1", Quantity = 1, RateType = RateType.Daily, RateAmount = 10m }]
+        });
+
+        var overlapping = NewRental("1", startIn: 4, dueIn: 6);
+        overlapping.SaveNewRecord();
+        Assert.Single(Company.Rentals);
+        Assert.NotNull(overlapping.RentalLineItems.Single().QuantityError);
+
+        NewRental("1", startIn: 6, dueIn: 8).SaveNewRecord();
+        Assert.Equal(2, Company.Rentals.Count);
+    }
+
+    [Fact]
+    public void CheckOut_TakesTheReservationsStock_AndUndoPutsItBack()
+    {
+        var stock = SeedRentableStock(5);
+        var record = new RentalRecord
+        {
+            Id = "RNT-1", CustomerId = "CUST-1", Status = RentalStatus.Reserved,
+            StartDate = DateTime.Today.AddDays(2), DueDate = DateTime.Today.AddDays(4),
+            LineItems = [new RentalLineItem { RentalItemId = "RI-1", Quantity = 2, RateType = RateType.Daily, RateAmount = 10m }]
+        };
+        Company.Rentals.Add(record);
+        var vm = new RentalRecordsModalsViewModel();
+
+        vm.CheckOut(new RentalRecordDisplayItem { Id = "RNT-1", IsReserved = true });
+
+        Assert.Equal((RentalStatus.Active, DateTime.Today, 3m), (record.Status, record.StartDate, stock.InStock));
+
+        Undo();
+        Assert.Equal((RentalStatus.Reserved, DateTime.Today.AddDays(2), 5m), (record.Status, record.StartDate, stock.InStock));
     }
 
     // "Rent Out" saves only the top-level item and quantity, with no line items, so an edit has to

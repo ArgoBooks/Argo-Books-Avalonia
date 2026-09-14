@@ -40,7 +40,9 @@
                                                             DisplayMemberPath="DisplayText"
                                                             Placeholder="{loc:Loc 'Search inventory items...'}"
                                                             ShowAddNew="False"
-                                                            EmptyMessage="{loc:Loc 'No inventory items available.'}" />
+                                                            EmptyMessage="{loc:Loc 'No inventory items available.'}"
+                                                            EmptyCreateLinkText="{loc:Loc 'Create one'}"
+                                                            EmptyCreateCommand="{Binding OpenCreateInventoryItemCommand}" />
                                 <TextBlock TextWrapping="Wrap" Text="{Binding ModalInventoryItemError}" FontSize="12" Foreground="{DynamicResource ErrorBrush}"
                                            IsVisible="{Binding ModalInventoryItemError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                             </StackPanel>
@@ -158,11 +160,11 @@
                                 <Grid ColumnDefinitions="*,8,*">
                                     <StackPanel Grid.Column="0" Spacing="4">
                                         <TextBlock Text="{loc:Loc 'Min'}" FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}" />
-                                        <TextBox Text="{Binding FilterDailyRateMin, Mode=TwoWay}" Classes="form-input" PlaceholderText="$0.00" behaviors:NumericInputBehavior.IsDecimalOnly="True" MaxLength="13" />
+                                        <TextBox Text="{Binding FilterDailyRateMin, Mode=TwoWay}" Classes="form-input" PlaceholderText="0.00" behaviors:NumericInputBehavior.IsDecimalOnly="True" MaxLength="13" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="2" Spacing="4">
                                         <TextBlock Text="{loc:Loc 'Max'}" FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}" />
-                                        <TextBox Text="{Binding FilterDailyRateMax, Mode=TwoWay}" Classes="form-input" PlaceholderText="$0.00" behaviors:NumericInputBehavior.IsDecimalOnly="True" MaxLength="13" />
+                                        <TextBox Text="{Binding FilterDailyRateMax, Mode=TwoWay}" Classes="form-input" PlaceholderText="0.00" behaviors:NumericInputBehavior.IsDecimalOnly="True" MaxLength="13" />
                                     </StackPanel>
                                 </Grid>
                             </StackPanel>
@@ -233,7 +235,7 @@
                                                IsVisible="{Binding RentOutQuantityError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                 </StackPanel>
                                 <StackPanel Grid.Column="2" Spacing="6">
-                                    <TextBlock Text="{loc:Loc Available}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                    <TextBlock Text="{loc:Loc 'In Stock'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
                                     <TextBlock Text="{Binding RentOutAvailableQuantity}" FontSize="14" Foreground="{DynamicResource TextPrimaryBrush}" Padding="12,10" />
                                 </StackPanel>
                             </Grid>
@@ -252,7 +254,7 @@
                                 </StackPanel>
                                 <StackPanel Grid.Column="2" Spacing="6">
                                     <TextBlock Text="{loc:Loc 'Rate Amount'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                    <TextBlock Text="{Binding RentOutRateAmount, StringFormat='${0:N2}'}" FontSize="14" Foreground="{DynamicResource TextPrimaryBrush}" Padding="12,10" />
+                                    <TextBlock Text="{Binding RentOutRateFormatted}" FontSize="14" Foreground="{DynamicResource TextPrimaryBrush}" Padding="12,10" />
                                 </StackPanel>
                             </Grid>
 
@@ -266,13 +268,18 @@
                             <StackPanel Spacing="6">
                                 <TextBlock Text="{loc:Loc 'Due Date'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
                                 <DatePicker SelectedDate="{Binding RentOutDueDate}" Classes="form-datepicker" HorizontalAlignment="Stretch" />
+                                <TextBlock TextWrapping="Wrap" Text="{Binding RentOutDueDateError}" FontSize="12" Foreground="{DynamicResource ErrorBrush}"
+                                           IsVisible="{Binding RentOutDueDateError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                             </StackPanel>
+
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" IsVisible="{Binding RentOutStartsLater}"
+                                       Text="{loc:Loc 'This starts after today, so it is saved as a reservation. Its stock stays on the shelf until you check it out.'}" />
 
                             <!-- Security Deposit and Estimated Total -->
                             <Grid ColumnDefinitions="*,16,*">
                                 <StackPanel Grid.Column="0" Spacing="6">
                                     <TextBlock Text="{loc:Loc 'Security Deposit'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                    <TextBlock Text="{Binding RentOutDeposit, StringFormat='${0:N2}'}" FontSize="14" Foreground="{DynamicResource TextPrimaryBrush}" Padding="12,10" />
+                                    <TextBlock Text="{Binding RentOutDepositFormatted}" FontSize="14" Foreground="{DynamicResource TextPrimaryBrush}" Padding="12,10" />
                                 </StackPanel>
                                 <StackPanel Grid.Column="2" Spacing="6">
                                     <TextBlock Text="{loc:Loc 'Estimated Total'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />

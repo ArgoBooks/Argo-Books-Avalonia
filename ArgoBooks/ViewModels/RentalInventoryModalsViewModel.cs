@@ -4,6 +4,7 @@ using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models;
 using ArgoBooks.Core.Models.Inventory;
 using ArgoBooks.Core.Models.Rentals;
+using ArgoBooks.Core.Services;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -194,36 +195,36 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
     [ObservableProperty]
     private string? _rentOutQuantityError;
 
+    [ObservableProperty]
+    private string? _rentOutDueDateError;
+
     private RentalItem? _rentingItem;
 
-    public string RentOutEstimatedTotal
+    public string RentOutEstimatedTotal =>
+        int.TryParse(RentOutQuantity, out var qty) && qty > 0 && RentOutStartDate != null && RentOutDueDate != null
+            ? CurrencyService.Format(RentalBookings.RentalCost([RentOutLine(qty)], RentOutStartDate.Value.DateTime, RentOutDueDate.Value.DateTime))
+            : CurrencyService.Format(0);
+
+    public string RentOutRateFormatted => CurrencyService.Format(RentOutRateAmount);
+
+    public string RentOutDepositFormatted =>
+        CurrencyService.Format(RentOutDeposit * (int.TryParse(RentOutQuantity, out var qty) && qty > 0 ? qty : 1));
+
+    public bool RentOutStartsLater => RentOutStartDate?.Date > DateTime.Today;
+
+    private RentalLineItem RentOutLine(int quantity) => new()
     {
-        get
-        {
-            if (!int.TryParse(RentOutQuantity, out var qty) || qty <= 0)
-                return "$0.00";
-
-            if (RentOutStartDate == null || RentOutDueDate == null)
-                return "$0.00";
-
-            var days = (RentOutDueDate.Value - RentOutStartDate.Value).Days;
-            if (days <= 0) days = 1;
-
-            var total = RentOutRateType switch
-            {
-                "Daily" => RentOutRateAmount * days * qty,
-                "Weekly" => RentOutRateAmount * Math.Ceiling(days / 7.0m) * qty,
-                "Monthly" => RentOutRateAmount * Math.Ceiling(days / 30.0m) * qty,
-                _ => 0
-            };
-
-            return CurrencyService.Format(total);
-        }
-    }
+        RentalItemId = _rentingItem?.Id ?? RentOutItemId,
+        Quantity = quantity,
+        RateType = Enum.TryParse<RateType>(RentOutRateType, out var type) ? type : RateType.Daily,
+        RateAmount = RentOutRateAmount,
+        SecurityDeposit = RentOutDeposit
+    };
 
     partial void OnRentOutQuantityChanged(string value)
     {
         OnPropertyChanged(nameof(RentOutEstimatedTotal));
+        OnPropertyChanged(nameof(RentOutDepositFormatted));
         if (int.TryParse(value, out var qty) && qty > 0)
         {
             RentOutQuantityError = null;
@@ -259,13 +260,20 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
 
     partial void OnRentOutStartDateChanged(DateTimeOffset? value)
     {
+        RentOutDueDateError = null;
         OnPropertyChanged(nameof(RentOutEstimatedTotal));
+        OnPropertyChanged(nameof(RentOutStartsLater));
     }
 
     partial void OnRentOutDueDateChanged(DateTimeOffset? value)
     {
+        RentOutDueDateError = null;
         OnPropertyChanged(nameof(RentOutEstimatedTotal));
     }
+
+    partial void OnRentOutRateAmountChanged(decimal value) => OnPropertyChanged(nameof(RentOutRateFormatted));
+
+    partial void OnRentOutDepositChanged(decimal value) => OnPropertyChanged(nameof(RentOutDepositFormatted));
 
     private void UpdateRentOutRateAmount()
     {
@@ -361,6 +369,7 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
     // leaking onto the singleton create-modal VMs. See CreateModalSubscription.
     private EventHandler? _supplierSavedHandler;
     private EventHandler? _customerSavedHandler;
+    private EventHandler? _stockSavedHandler;
 
     [RelayCommand]
     private void OpenCreateSupplier()
@@ -376,6 +385,27 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
                 UpdateDropdownOptions();
             });
         supplierModals.OpenAddModal();
+    }
+
+    // A rental item rents out a stock record, so with none yet it opens Stock Levels' Add Item form.
+    [RelayCommand]
+    private void OpenCreateInventoryItem()
+    {
+        var stockLevelsModals = App.StockLevelsModalsViewModel;
+        if (stockLevelsModals == null) return;
+
+        CreateModalSubscription.RearmOnce(ref _stockSavedHandler,
+            h => stockLevelsModals.ItemSaved += h,
+            h => stockLevelsModals.ItemSaved -= h,
+            () =>
+            {
+                UpdateDropdownOptions();
+
+                var newItem = AvailableInventoryItems.FirstOrDefault(i => i.Id == stockLevelsModals.LastSavedItemId);
+                if (newItem != null)
+                    ModalInventoryItem = newItem;
+            });
+        stockLevelsModals.OpenAddItemModal();
     }
 
     [RelayCommand]
@@ -549,8 +579,8 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
         // while units are out would put them back on the wrong item.
         var rentalItemId = _editingItem.Id;
         if (oldInventoryItemId != newInventoryItemId && companyData.Rentals.Any(r =>
-                (r.Status == RentalStatus.Active || r.Status == RentalStatus.Overdue) &&
-                RentalRecordsModalsViewModel.GetEffectiveLineItems(r).Any(li => li.RentalItemId == rentalItemId)))
+                RentalBookings.HoldsStock(r) &&
+                r.EffectiveLineItems().Any(li => li.RentalItemId == rentalItemId)))
         {
             ModalInventoryItemError = "This item is rented out. Link it to another inventory item once every rental of it is returned.".Translate();
             return;
@@ -703,8 +733,9 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
         if (rentalItem == null)
             return;
 
+        // With every unit out, a booking for later dates can still fit.
         var inventoryItem = companyData?.Inventory.FirstOrDefault(inv => inv.Id == rentalItem.InventoryItemId);
-        if (inventoryItem == null || inventoryItem.InStock <= 0)
+        if (inventoryItem == null || inventoryItem.InStock + RentalBookings.UnitsOut(companyData!.Rentals, rentalItem.Id) <= 0)
             return;
 
         _rentingItem = rentalItem;
@@ -745,93 +776,15 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
         if (companyData == null)
             return;
 
-        var inventoryItem = companyData.Inventory.FirstOrDefault(inv => inv.Id == _rentingItem.InventoryItemId);
-        if (inventoryItem == null)
-            return;
-
-        var rentQty = int.TryParse(RentOutQuantity, out var qty) ? qty : 1;
-
-        companyData.IdCounters.Rental++;
-        var newId = $"RNT-{companyData.IdCounters.Rental:D3}";
-
-        var newRental = new RentalRecord
-        {
-            Id = newId,
-            RentalItemId = _rentingItem.Id,
-            CustomerId = RentOutCustomer?.Id ?? string.Empty,
-            AccountantId = RentOutAccountant?.Id,
-            Quantity = rentQty,
-            RateType = RentOutRateType switch
-            {
-                "Weekly" => RateType.Weekly,
-                "Monthly" => RateType.Monthly,
-                _ => RateType.Daily
-            },
-            RateAmount = RentOutRateAmount,
-            SecurityDeposit = RentOutDeposit,
-            StartDate = RentOutStartDate?.DateTime ?? DateTime.Today,
-            DueDate = RentOutDueDate?.DateTime ?? DateTime.Today.AddDays(1),
-            Status = RentalStatus.Active,
-            Notes = RentOutNotes.Trim(),
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-
-        // Decrement inventory stock
-        var oldInStock = inventoryItem.InStock;
-        inventoryItem.InStock -= rentQty;
-        inventoryItem.Status = inventoryItem.CalculateStatus();
-        inventoryItem.LastUpdated = DateTime.UtcNow;
-        App.CheckAndNotifyStockStatus(inventoryItem, oldInStock);
-
-        // Create stock adjustment audit record
-        companyData.IdCounters.StockAdjustment++;
-        var adjustment = new StockAdjustment
-        {
-            Id = $"ADJ-{companyData.IdCounters.StockAdjustment:D5}",
-            InventoryItemId = inventoryItem.Id,
-            AdjustmentType = AdjustmentType.Remove,
-            Quantity = rentQty,
-            PreviousStock = oldInStock,
-            NewStock = inventoryItem.InStock,
-            Reason = "Rental",
-            ReferenceNumber = newId,
-            Timestamp = DateTime.UtcNow,
-            IsAutoGenerated = true
-        };
-        companyData.StockAdjustments.Add(adjustment);
-
-        companyData.Rentals.Add(newRental);
-        _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.RentalRecordCreated);
-        companyData.MarkAsModified();
-
-        var rentalToUndo = newRental;
-        var invItemToUpdate = inventoryItem;
-        var adjToUndo = adjustment;
-        App.UndoRedoManager.RecordAction(new DelegateAction(
-            $"Rent out '{RentOutItemName}' to customer",
+        RentalRecordsModalsViewModel.CreateRental(companyData, RentOutCustomer!.Id!, RentOutAccountant?.Id,
+            [RentOutLine(int.Parse(RentOutQuantity))],
+            RentOutStartDate?.DateTime ?? DateTime.Today, RentOutDueDate?.DateTime ?? DateTime.Today.AddDays(1),
+            RentOutNotes.Trim(),
             () =>
             {
-                companyData.Rentals.Remove(rentalToUndo);
-                invItemToUpdate.InStock = oldInStock;
-                invItemToUpdate.Status = invItemToUpdate.CalculateStatus();
-                companyData.StockAdjustments.Remove(adjToUndo);
-                companyData.MarkAsModified();
                 RentalCreated?.Invoke(this, EventArgs.Empty);
                 ItemSaved?.Invoke(this, EventArgs.Empty);
-            },
-            () =>
-            {
-                companyData.Rentals.Add(rentalToUndo);
-                var stockBeforeRedo = invItemToUpdate.InStock;
-                invItemToUpdate.InStock -= rentQty;
-                invItemToUpdate.Status = invItemToUpdate.CalculateStatus();
-                App.CheckAndNotifyStockStatus(invItemToUpdate, stockBeforeRedo);
-                companyData.StockAdjustments.Add(adjToUndo);
-                companyData.MarkAsModified();
-                RentalCreated?.Invoke(this, EventArgs.Empty);
-                ItemSaved?.Invoke(this, EventArgs.Empty);
-            }));
+            });
 
         RentalCreated?.Invoke(this, EventArgs.Empty);
         ItemSaved?.Invoke(this, EventArgs.Empty);
@@ -849,14 +802,24 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
             isValid = false;
         }
 
+        var start = RentOutStartDate?.DateTime ?? DateTime.Today;
+        var due = RentOutDueDate?.DateTime ?? DateTime.Today.AddDays(1);
+        if (due.Date < start.Date)
+        {
+            RentOutDueDateError = "The due date can't be before the start date.".Translate();
+            isValid = false;
+        }
+
+        var companyData = App.CompanyManager?.CompanyData;
         if (!int.TryParse(RentOutQuantity, out var qty) || qty <= 0)
         {
             RentOutQuantityError = "Please enter a valid quantity.".Translate();
             isValid = false;
         }
-        else if (qty > RentOutAvailableQuantity)
+        else if (companyData != null && _rentingItem != null &&
+                 RentalBookings.FindShortfalls(companyData, [RentOutLine(qty)], start, due, start.Date <= DateTime.Today)[0] is { } available)
         {
-            RentOutQuantityError = "Only {0} in stock.".TranslateFormat(RentOutAvailableQuantity);
+            RentOutQuantityError = "Only {0} available for these dates.".TranslateFormat(available);
             isValid = false;
         }
 
@@ -867,6 +830,7 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
     {
         RentOutCustomerError = null;
         RentOutQuantityError = null;
+        RentOutDueDateError = null;
     }
 
     #endregion

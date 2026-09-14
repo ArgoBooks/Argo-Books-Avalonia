@@ -60,8 +60,13 @@
                                         <Run Text="{loc:Loc 'Due Date'}" /><Run Text=" *" Foreground="{DynamicResource ErrorBrush}" />
                                     </TextBlock>
                                     <DatePicker SelectedDate="{Binding ModalDueDate}" Classes="form-datepicker" HorizontalAlignment="Stretch" />
+                                    <TextBlock TextWrapping="Wrap" Text="{Binding ModalDueDateError}" Foreground="{DynamicResource ErrorBrush}" FontSize="12"
+                                               IsVisible="{Binding ModalDueDateError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                 </StackPanel>
                             </Grid>
+
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" IsVisible="{Binding ShowReservationHint}"
+                                       Text="{loc:Loc 'This starts after today, so it is saved as a reservation. Its stock stays on the shelf until you check it out.'}" />
 
                             <!-- Line Items Section -->
                             <StackPanel Spacing="12">
@@ -252,13 +257,21 @@
                             <!-- Customer -->
                             <StackPanel Spacing="6">
                                 <TextBlock Text="{loc:Loc Customer}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                <TextBox Text="{Binding FilterCustomer}" PlaceholderText="{loc:Loc 'Search by customer name'}" Classes="form-input" MaxLength="100" />
+                                <controls:SearchableDropdown ItemsSource="{Binding FilterCustomerOptions}"
+                                                             SelectedItem="{Binding FilterCustomer}"
+                                                             DisplayMemberPath="Name"
+                                                             SearchMemberPath="Id"
+                                                             Placeholder="{loc:Loc 'Search customers...'}" />
                             </StackPanel>
 
                             <!-- Item -->
                             <StackPanel Spacing="6">
                                 <TextBlock Text="{loc:Loc 'Rental Item'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                <TextBox Text="{Binding FilterItem}" PlaceholderText="{loc:Loc 'Search by item name'}" Classes="form-input" MaxLength="100" />
+                                <controls:SearchableDropdown ItemsSource="{Binding FilterItemOptions}"
+                                                             SelectedItem="{Binding FilterItem}"
+                                                             DisplayMemberPath="Name"
+                                                             SearchMemberPath="Id"
+                                                             Placeholder="{loc:Loc 'Search items...'}" />
                             </StackPanel>
 
                             <!-- Start Date Range -->
@@ -357,25 +370,39 @@
                             <Grid ColumnDefinitions="*,Auto">
                                 <StackPanel>
                                     <TextBlock Text="{loc:Loc 'Total Rental Cost'}" FontWeight="Medium" Foreground="{DynamicResource SuccessTextBrush}" />
-                                    <TextBlock Text="{loc:Loc 'Calculated based on rental duration'}" FontSize="12" Foreground="{DynamicResource SuccessTextLightBrush}" />
+                                    <TextBlock Text="{Binding ReturnCostDetail}" FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource SuccessTextLightBrush}" />
                                 </StackPanel>
-                                <TextBlock Grid.Column="1" Text="{Binding ReturnTotalCostFormatted}" FontSize="24" FontWeight="Bold" Foreground="{DynamicResource SuccessTextBrush}" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1" Text="{Binding ReturnAmountDueFormatted}" FontSize="24" FontWeight="Bold" Foreground="{DynamicResource SuccessTextBrush}" VerticalAlignment="Center" />
                             </Grid>
                         </Border>
 
-                        <!-- Security Deposit -->
-                        <Border Background="{DynamicResource WarningLightBrush}" CornerRadius="8" Padding="16"
-                                IsVisible="{Binding HasDeposit}">
-                            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
-                                <StackPanel Grid.Column="0">
-                                    <TextBlock Text="{loc:Loc 'Security Deposit'}" FontWeight="Medium" Foreground="{DynamicResource WarningTextBrush}" />
-                                    <TextBlock Text="{Binding ReturnDepositFormatted}" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource WarningTextLightBrush}" />
-                                </StackPanel>
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <CheckBox IsChecked="{Binding ReturnRefundDeposit}" Content="{loc:Loc 'Refund Deposit'}" Foreground="{DynamicResource WarningTextBrush}" Classes="warning-checkbox" />
-                                </StackPanel>
+                        <!-- Extra Charges -->
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="{loc:Loc 'Extra Charges'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
+                            <Grid ColumnDefinitions="140,12,*">
+                                <TextBox Grid.Column="0" Text="{Binding ReturnExtraCharges}" Classes="form-input" PlaceholderText="0.00"
+                                         behaviors:NumericInputBehavior.IsDecimalOnly="True" MaxLength="13" />
+                                <TextBox Grid.Column="2" Text="{Binding ReturnExtraChargesNote}" Classes="form-input"
+                                         PlaceholderText="{loc:Loc 'What for, such as a late return or damage'}" MaxLength="100" />
                             </Grid>
-                        </Border>
+                            <TextBlock Text="{loc:Loc 'Billed on top of the rental. To cover damage from the deposit instead, refund less of it.'}"
+                                       FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource TextTertiaryBrush}" />
+                        </StackPanel>
+
+                        <!-- Security Deposit -->
+                        <StackPanel Spacing="6" IsVisible="{Binding HasDeposit}">
+                            <TextBlock Text="{loc:Loc 'Deposit to Refund'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
+                            <Grid ColumnDefinitions="140,12,*">
+                                <TextBox Grid.Column="0" Text="{Binding ReturnDepositRefund}" Classes="form-input" PlaceholderText="0.00"
+                                         behaviors:NumericInputBehavior.IsDecimalOnly="True" MaxLength="13" />
+                                <TextBlock Grid.Column="2" Text="{Binding ReturnDepositHeldText}" FontSize="13" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                            </Grid>
+                            <TextBlock Text="{Binding ReturnKeptDepositText}" FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}"
+                                       IsVisible="{Binding ReturnKeptDepositText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                            <TextBlock Text="{Binding ReturnDepositRefundError}" FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource ErrorBrush}"
+                                       IsVisible="{Binding ReturnDepositRefundError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                        </StackPanel>
 
                             <!-- Mark as Paid -->
                             <CheckBox IsChecked="{Binding ReturnMarkAsPaid}"
@@ -396,7 +423,7 @@
                     <Border Classes="modal-footer" Grid.Row="2">
                         <StackPanel Classes="modal-actions">
                             <Button Classes="secondary-button" Content="{loc:Loc Cancel}" Command="{Binding CloseReturnModalCommand}" />
-                            <Button Classes="success-button" Content="{loc:Loc 'Confirm Return'}" Command="{Binding ConfirmReturnCommand}" />
+                            <Button Classes="primary-button" Content="{loc:Loc 'Confirm Return'}" Command="{Binding ConfirmReturnCommand}" />
                         </StackPanel>
                     </Border>
                 </Grid>
@@ -530,15 +557,18 @@
 
                             <!-- Financial Summary -->
                             <Border Background="{DynamicResource SuccessLightBrush}" CornerRadius="8" Padding="16">
-                                <Grid ColumnDefinitions="*,*">
+                                <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto">
                                     <StackPanel Grid.Column="0" Spacing="4">
                                         <TextBlock Text="{loc:Loc 'Total Cost'}" FontSize="12" Foreground="{DynamicResource SuccessTextBrush}" />
                                         <TextBlock Text="{Binding ViewTotalCostFormatted}" FontSize="20" FontWeight="Bold" Foreground="{DynamicResource SuccessTextLightBrush}" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" Spacing="4">
                                         <TextBlock Text="{loc:Loc 'Deposit Status'}" FontSize="12" Foreground="{DynamicResource SuccessTextBrush}" />
-                                        <TextBlock Text="{Binding ViewDepositStatusFormatted}" FontWeight="SemiBold" Foreground="{DynamicResource SuccessTextLightBrush}" />
+                                        <TextBlock Text="{Binding ViewDepositStatusFormatted}" FontWeight="SemiBold" TextWrapping="Wrap" Foreground="{DynamicResource SuccessTextLightBrush}" />
                                     </StackPanel>
+                                    <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Margin="0,8,0,0" TextWrapping="Wrap" FontSize="12"
+                                               Text="{Binding ViewExtraChargesText}" Foreground="{DynamicResource SuccessTextBrush}"
+                                               IsVisible="{Binding ViewExtraChargesText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                 </Grid>
                             </Border>
 
@@ -561,22 +591,5 @@
             </controls:ModalOverlay.ModalContent>
         </controls:ModalOverlay>
     </Panel>
-
-    <UserControl.Styles>
-        <!-- Warning checkbox: visible border on amber background -->
-        <Style Selector="CheckBox.warning-checkbox /template/ Border#NormalRectangle">
-            <Setter Property="BorderBrush" Value="{DynamicResource WarningTextBrush}" />
-        </Style>
-        <!-- Keep text color on hover instead of theme default (target all possible template parts) -->
-        <Style Selector="CheckBox.warning-checkbox:pointerover">
-            <Setter Property="Foreground" Value="{DynamicResource WarningTextBrush}" />
-        </Style>
-        <Style Selector="CheckBox.warning-checkbox:pointerover /template/ ContentPresenter#ContentPresenter">
-            <Setter Property="Foreground" Value="{DynamicResource WarningTextBrush}" />
-        </Style>
-        <Style Selector="CheckBox.warning-checkbox:pointerover /template/ ContentPresenter">
-            <Setter Property="Foreground" Value="{DynamicResource WarningTextBrush}" />
-        </Style>
-    </UserControl.Styles>
 
 </UserControl>

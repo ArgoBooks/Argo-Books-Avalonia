@@ -3,6 +3,7 @@ using System.Globalization;
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Rentals;
+using ArgoBooks.Core.Services;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -377,14 +378,17 @@ public partial class RentalAvailabilityModalViewModel : ViewModelBase
     {
         ActiveRentals.Clear();
         var customersById = data.Customers.ToDictionary(c => c.Id, c => c);
-        foreach (var span in rentals.Where(s => s.IsActive).OrderBy(s => s.End))
+        foreach (var span in rentals.Where(s => s.IsActive || s.IsReserved).OrderBy(s => s.Start))
         {
             customersById.TryGetValue(span.CustomerId, out var customer);
             var customerName = customer?.Name ?? Loc.Tr("Unknown customer");
+            var startLabel = span.Start.ToString("MMM d", CultureInfo.CurrentCulture);
             var endLabel = span.End.ToString("MMM d", CultureInfo.CurrentCulture);
             ActiveRentals.Add(new ActiveRentalDisplay
             {
-                Description = Loc.Tr("{0}× until {1}, {2}", span.Quantity, endLabel, customerName),
+                Description = span.IsReserved
+                    ? Loc.Tr("{0}× reserved {1} to {2}, {3}", span.Quantity, startLabel, endLabel, customerName)
+                    : Loc.Tr("{0}× until {1}, {2}", span.Quantity, endLabel, customerName),
                 IsOverdue = span.IsOverdue
             });
         }
@@ -400,20 +404,8 @@ public partial class RentalAvailabilityModalViewModel : ViewModelBase
     /// InStock decrements on rental creation and increments on return, so we add back
     /// active rentals' quantities to recover the original total.
     /// </summary>
-    private static int ComputeTotalFleet(CompanyData data, string rentalItemId, int displayedInStock)
-    {
-        var reserved = 0;
-        foreach (var rental in data.Rentals)
-        {
-            if (!IsCurrentlyHeld(rental)) continue;
-            foreach (var qty in QuantitiesForItem(rental, rentalItemId))
-                reserved += qty;
-        }
-        return Math.Max(0, displayedInStock) + reserved;
-    }
-
-    private static bool IsCurrentlyHeld(RentalRecord rental) =>
-        rental.Status == RentalStatus.Active || rental.Status == RentalStatus.Overdue;
+    private static int ComputeTotalFleet(CompanyData data, string rentalItemId, int displayedInStock) =>
+        Math.Max(0, displayedInStock) + RentalBookings.UnitsOut(data.Rentals, rentalItemId);
 
     private static List<RentalSpan> GetRentalsForItem(CompanyData data, string rentalItemId)
     {
@@ -431,7 +423,7 @@ public partial class RentalAvailabilityModalViewModel : ViewModelBase
                 // and overdue, extend through today so the user sees it in past cells.
                 DateTime end;
                 bool isOverdue = false;
-                bool isStillHeld = IsCurrentlyHeld(rental);
+                bool isStillHeld = RentalBookings.HoldsStock(rental);
                 if (rental.Status == RentalStatus.Returned && rental.ReturnDate.HasValue)
                 {
                     end = rental.ReturnDate.Value;
@@ -452,6 +444,7 @@ public partial class RentalAvailabilityModalViewModel : ViewModelBase
                     End = end,
                     Quantity = qty,
                     IsActive = isStillHeld,
+                    IsReserved = rental.Status == RentalStatus.Reserved,
                     IsOverdue = isOverdue,
                     CustomerId = rental.CustomerId
                 });
@@ -464,19 +457,8 @@ public partial class RentalAvailabilityModalViewModel : ViewModelBase
     /// Yields each quantity reserved for the given rental item ID across a rental's line items
     /// (or the legacy top-level fields when no line items exist).
     /// </summary>
-    private static IEnumerable<int> QuantitiesForItem(RentalRecord rental, string rentalItemId)
-    {
-        if (rental.LineItems.Count > 0)
-        {
-            foreach (var li in rental.LineItems)
-                if (li.RentalItemId == rentalItemId)
-                    yield return li.Quantity;
-        }
-        else if (rental.RentalItemId == rentalItemId)
-        {
-            yield return rental.Quantity;
-        }
-    }
+    private static IEnumerable<int> QuantitiesForItem(RentalRecord rental, string rentalItemId) =>
+        rental.EffectiveLineItems().Where(li => li.RentalItemId == rentalItemId).Select(li => li.Quantity);
 
     private static int SumRentedOn(List<RentalSpan> spans, DateTime day)
     {
@@ -496,6 +478,7 @@ public partial class RentalAvailabilityModalViewModel : ViewModelBase
         public DateTime End;
         public int Quantity;
         public bool IsActive;
+        public bool IsReserved;
         public bool IsOverdue;
         public string CustomerId;
     }

@@ -212,7 +212,7 @@
 
                                     <!-- Active rentals list -->
                                     <StackPanel Spacing="8" IsVisible="{Binding HasActiveRentals}">
-                                        <TextBlock Text="{loc:Loc 'Active Rentals'}"
+                                        <TextBlock Text="{loc:Loc 'Active and Reserved'}"
                                                    FontSize="10"
                                                    FontWeight="SemiBold"
                                                    Foreground="{DynamicResource TextSecondaryBrush}"

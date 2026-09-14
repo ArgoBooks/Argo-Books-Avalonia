@@ -184,6 +184,21 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
                 }
             }
 
+            // Removing only the revenue would leave the rental marked paid with no money behind it.
+            var rental = companyData?.Rentals.FirstOrDefault(r => r.RevenueId == item.Id);
+            if (rental != null)
+            {
+                await dialog.ShowAsync(new ConfirmationDialogOptions
+                {
+                    Title = "Cannot Delete Revenue".Translate(),
+                    Message = "This revenue was recorded when rental {0} was marked paid. To remove it, mark the rental unpaid on the Rental Records page.".TranslateFormat(rental.Id),
+                    PrimaryButtonText = "OK".Translate(),
+                    CancelButtonText = null,
+                    IsPrimaryDestructive = false
+                });
+                return;
+            }
+
             if (!await ConfirmDeleteAsync("Delete Revenue".Translate(),
                     "Are you sure you want to delete this revenue?\n\nID: {0}\nProduct: {1}\nAmount: {2}".TranslateFormat(item.Id, item.ProductDescription, item.TotalFormatted)))
                 return;

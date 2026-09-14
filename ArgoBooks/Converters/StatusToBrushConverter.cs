@@ -130,6 +130,7 @@ public static class StatusConverters
     public static readonly IValueConverter RentalStatusBackground = new StatusToBrushConverter(
         new Dictionary<string, string>
         {
+            ["Reserved"] = IndigoBg,
             ["Active"] = GreenBg,
             ["Returned"] = BlueBg,
             ["Overdue"] = RedBg,
@@ -139,6 +140,7 @@ public static class StatusConverters
     public static readonly IValueConverter RentalStatusForeground = new StatusToBrushConverter(
         new Dictionary<string, string>
         {
+            ["Reserved"] = IndigoFg,
             ["Active"] = GreenFg,
             ["Returned"] = BlueFg,
             ["Overdue"] = RedFg,

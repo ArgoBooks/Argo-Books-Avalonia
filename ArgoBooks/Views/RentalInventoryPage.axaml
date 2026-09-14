@@ -192,7 +192,7 @@
                                                             ToolTip.Tip="{loc:Loc 'Rent Out'}"
                                                             Command="{Binding $parent[ItemsControl].((vm:RentalInventoryPageViewModel)DataContext).OpenRentOutModalCommand}"
                                                             CommandParameter="{Binding}"
-                                                            IsVisible="{Binding IsAvailable}">
+                                                            IsVisible="{Binding CanRentOut}">
                                                         <PathIcon Data="{x:Static icons:Icons.DocumentNotes}"
                                                                   Width="16" Height="16" />
                                                     </Button>

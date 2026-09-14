@@ -214,24 +214,28 @@ public partial class RentalInventoryPageViewModel : SortablePageViewModelBase
         var companyData = App.CompanyManager?.CompanyData;
         var inventoryLookup = companyData?.Inventory.ToDictionary(inv => inv.Id) ?? [];
 
-        var totalInStock = 0;
-        var activeInStock = 0;
-        var maintenanceInStock = 0;
+        var rentals = companyData?.Rentals ?? [];
+        var total = 0;
+        var available = 0;
+        var rentedOut = 0;
+        var maintenance = 0;
 
         foreach (var item in _allItems)
         {
             var inStock = inventoryLookup.TryGetValue(item.InventoryItemId, out var inv) ? (int)inv.InStock : 0;
-            totalInStock += inStock;
+            var unitsOut = RentalBookings.UnitsOut(rentals, item.Id);
+            total += inStock + unitsOut;
+            rentedOut += unitsOut;
             if (item.Status == EntityStatus.Inactive)
-                maintenanceInStock += inStock;
+                maintenance += inStock;
             else
-                activeInStock += inStock;
+                available += inStock;
         }
 
-        TotalItems = totalInStock;
-        AvailableItems = activeInStock;
-        RentedOutItems = 0; // Rented quantity is not tracked on the item
-        MaintenanceItems = maintenanceInStock;
+        TotalItems = total;
+        AvailableItems = available;
+        RentedOutItems = rentedOut;
+        MaintenanceItems = maintenance;
     }
 
     [RelayCommand]
@@ -259,6 +263,9 @@ public partial class RentalInventoryPageViewModel : SortablePageViewModelBase
         int ResolveInStock(RentalItem item) =>
             inventoryLookup.TryGetValue(item.InventoryItemId, out var inv) ? (int)inv.InStock : 0;
 
+        var unitsOut = _allItems.GroupBy(i => i.Id)
+            .ToDictionary(g => g.Key, g => RentalBookings.UnitsOut(companyData?.Rentals ?? [], g.Key));
+
         // Helper to get SupplierId from linked Product
         string? ResolveSupplierId(RentalItem item)
         {
@@ -283,7 +290,7 @@ public partial class RentalInventoryPageViewModel : SortablePageViewModelBase
             {
                 "Available" => filtered.Where(i => ResolveInStock(i) > 0 && i.Status == EntityStatus.Active),
                 "In Maintenance" => filtered.Where(i => i.Status == EntityStatus.Inactive),
-                "All Rented" => filtered.Where(i => ResolveInStock(i) == 0 && i.Status == EntityStatus.Active),
+                "All Rented" => filtered.Where(i => ResolveInStock(i) == 0 && unitsOut[i.Id] > 0 && i.Status == EntityStatus.Active),
                 _ => filtered
             };
         }
@@ -320,7 +327,8 @@ public partial class RentalInventoryPageViewModel : SortablePageViewModelBase
 
             var isAvailable = inStock > 0 && item.Status == EntityStatus.Active;
             var status = item.Status == EntityStatus.Inactive ? "In Maintenance" :
-                         inStock == 0 ? "All Rented" : "Available";
+                         inStock > 0 ? "Available" :
+                         unitsOut[item.Id] > 0 ? "All Rented" : "Out of Stock";
 
             return new RentalItemDisplayItem
             {
@@ -333,7 +341,9 @@ public partial class RentalInventoryPageViewModel : SortablePageViewModelBase
                 WeeklyRate = item.WeeklyRate,
                 MonthlyRate = item.MonthlyRate,
                 SecurityDeposit = item.SecurityDeposit,
-                IsAvailable = isAvailable
+                IsAvailable = isAvailable,
+                RentedOut = unitsOut[item.Id],
+                CanRentOut = item.Status == EntityStatus.Active && inStock + unitsOut[item.Id] > 0
             };
         }).ToList();
 
@@ -438,6 +448,12 @@ public partial class RentalItemDisplayItem : ObservableObject
 
     [ObservableProperty]
     private bool _isAvailable;
+
+    [ObservableProperty]
+    private int _rentedOut;
+
+    [ObservableProperty]
+    private bool _canRentOut;
 
     public string DailyRateFormatted => CurrencyService.Format(DailyRate);
     public string WeeklyRateFormatted => CurrencyService.Format(WeeklyRate);

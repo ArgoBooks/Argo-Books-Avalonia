@@ -3,6 +3,7 @@ using ArgoBooks.Controls;
 using ArgoBooks.Controls.ColumnWidths;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Helpers;
+using ArgoBooks.Localization;
 using ArgoBooks.Core.Models.Rentals;
 using ArgoBooks.Core.Services;
 using ArgoBooks.Services;
@@ -51,10 +52,10 @@ public partial class RentalRecordsPageViewModel : SortablePageViewModelBase
     private string _filterStatus = "All";
 
     [ObservableProperty]
-    private string? _filterCustomer;
+    private string? _filterCustomerId;
 
     [ObservableProperty]
-    private string? _filterItem;
+    private string? _filterItemId;
 
     [ObservableProperty]
     private DateTime? _filterStartDateFrom;
@@ -236,8 +237,8 @@ public partial class RentalRecordsPageViewModel : SortablePageViewModelBase
         if (modals != null)
         {
             FilterStatus = modals.FilterStatus;
-            FilterCustomer = modals.FilterCustomer;
-            FilterItem = modals.FilterItem;
+            FilterCustomerId = modals.FilterCustomer?.Id;
+            FilterItemId = modals.FilterItem?.Id;
             FilterStartDateFrom = modals.FilterStartDateFrom?.DateTime;
             FilterStartDateTo = modals.FilterStartDateTo?.DateTime;
             FilterDueDateFrom = modals.FilterDueDateFrom?.DateTime;
@@ -250,8 +251,8 @@ public partial class RentalRecordsPageViewModel : SortablePageViewModelBase
     private void OnFiltersCleared(object? sender, EventArgs e)
     {
         FilterStatus = "All";
-        FilterCustomer = null;
-        FilterItem = null;
+        FilterCustomerId = null;
+        FilterItemId = null;
         FilterStartDateFrom = null;
         FilterStartDateTo = null;
         FilterDueDateFrom = null;
@@ -323,52 +324,21 @@ public partial class RentalRecordsPageViewModel : SortablePageViewModelBase
             filtered = filtered
                 .RankBySearch(SearchQuery, r =>
                 {
-                    var itemName = RentalRecordsModalsViewModel.GetItemDisplayName(r, companyData);
+                    var itemName = RentalBookings.ItemNames(companyData, r);
                     var customer = companyData?.Customers.FirstOrDefault(c => c.Id == r.CustomerId);
                     return [r.Id, itemName, customer?.Name];
                 })
                 .ToList();
         }
 
-        if (FilterStatus != "All")
-        {
-            var statusEnum = FilterStatus switch
-            {
-                "Active" => RentalStatus.Active,
-                "Returned" => RentalStatus.Returned,
-                "Overdue" => RentalStatus.Overdue,
-                "Cancelled" => RentalStatus.Cancelled,
-                _ => (RentalStatus?)null
-            };
-            if (statusEnum.HasValue)
-            {
-                filtered = filtered.Where(r => r.Status == statusEnum.Value);
-            }
-        }
+        if (Enum.TryParse<RentalStatus>(FilterStatus, out var status))
+            filtered = filtered.Where(r => r.Status == status);
 
-        if (!string.IsNullOrWhiteSpace(FilterCustomer) && FilterCustomer != "All Customers")
-        {
-            var customer = companyData?.Customers.FirstOrDefault(c => c.Name == FilterCustomer);
-            if (customer != null)
-            {
-                filtered = filtered.Where(r => r.CustomerId == customer.Id);
-            }
-        }
+        if (!string.IsNullOrEmpty(FilterCustomerId))
+            filtered = filtered.Where(r => r.CustomerId == FilterCustomerId);
 
-        if (!string.IsNullOrWhiteSpace(FilterItem) && FilterItem != "All Items")
-        {
-            // Resolve filter item name through chain: find all RentalItems whose resolved name matches
-            var matchingRentalItemIds = companyData?.RentalInventory
-                .Where(ri =>
-                {
-                    var invItem = companyData.Inventory.FirstOrDefault(inv => inv.Id == ri.InventoryItemId);
-                    var product = invItem != null ? companyData.Products.FirstOrDefault(p => p.Id == invItem.ProductId) : null;
-                    return product?.Name == FilterItem;
-                })
-                .Select(ri => ri.Id)
-                .ToHashSet() ?? [];
-            filtered = filtered.Where(r => matchingRentalItemIds.Contains(r.RentalItemId));
-        }
+        if (!string.IsNullOrEmpty(FilterItemId))
+            filtered = filtered.Where(r => r.EffectiveLineItems().Any(li => li.RentalItemId == FilterItemId));
 
         // Apply date filters
         if (FilterStartDateFrom.HasValue)
@@ -399,7 +369,8 @@ public partial class RentalRecordsPageViewModel : SortablePageViewModelBase
             {
                 Id = record.Id,
                 AccountantName = accountant?.Name ?? "System",
-                ItemName = RentalRecordsModalsViewModel.GetItemDisplayName(record, companyData),
+                ItemName = RentalBookings.ItemNames(companyData, record),
+                ItemCount = record.EffectiveLineItems().Count,
                 ItemId = record.RentalItemId,
                 CustomerName = customer?.Name ?? "Unknown Customer",
                 CustomerId = record.CustomerId,
@@ -413,7 +384,8 @@ public partial class RentalRecordsPageViewModel : SortablePageViewModelBase
                 Status = record.Status.ToString(),
                 TotalCost = record.TotalCost ?? 0,
                 DaysOverdue = record.EffectiveDaysOverdue,
-                IsActive = record.Status == RentalStatus.Active || record.Status == RentalStatus.Overdue,
+                IsActive = RentalBookings.HoldsStock(record),
+                IsReserved = record.Status == RentalStatus.Reserved,
                 Paid = record.Paid,
                 HasInvoices = record.HasInvoices,
                 InvoiceId = record.InvoiceIds.FirstOrDefault() ?? string.Empty,
@@ -510,32 +482,25 @@ public partial class RentalRecordsPageViewModel : SortablePageViewModelBase
     [RelayCommand]
     private void MarkAsPaid(RentalRecordDisplayItem? record)
     {
-        if (record == null) return;
+        App.RentalRecordsModalsViewModel?.MarkAsPaid(record);
+    }
 
-        var companyData = App.CompanyManager?.CompanyData;
-        var rental = companyData?.Rentals.FirstOrDefault(r => r.Id == record.Id);
-        if (rental == null) return;
+    [RelayCommand]
+    private void MarkAsUnpaid(RentalRecordDisplayItem? record)
+    {
+        App.RentalRecordsModalsViewModel?.MarkAsUnpaid(record);
+    }
 
-        rental.Paid = true;
-        rental.UpdatedAt = DateTime.UtcNow;
-        companyData!.MarkAsModified();
+    [RelayCommand]
+    private void CheckOut(RentalRecordDisplayItem? record)
+    {
+        App.RentalRecordsModalsViewModel?.CheckOut(record);
+    }
 
-        App.UndoRedoManager.RecordAction(new DelegateAction(
-            $"Mark rental '{rental.Id}' as paid",
-            () =>
-            {
-                rental.Paid = false;
-                companyData.MarkAsModified();
-                LoadRecords();
-            },
-            () =>
-            {
-                rental.Paid = true;
-                companyData.MarkAsModified();
-                LoadRecords();
-            }));
-
-        LoadRecords();
+    [RelayCommand]
+    private void CancelReservation(RentalRecordDisplayItem? record)
+    {
+        App.RentalRecordsModalsViewModel?.CancelReservation(record);
     }
 
     #endregion
@@ -557,6 +522,9 @@ public partial class RentalRecordDisplayItem : ObservableObject
 
     [ObservableProperty]
     private string _itemId = string.Empty;
+
+    [ObservableProperty]
+    private int _itemCount = 1;
 
     [ObservableProperty]
     private string _customerName = string.Empty;
@@ -598,6 +566,9 @@ public partial class RentalRecordDisplayItem : ObservableObject
     private bool _isActive;
 
     [ObservableProperty]
+    private bool _isReserved;
+
+    [ObservableProperty]
     private bool _paid;
 
     [ObservableProperty]
@@ -613,12 +584,14 @@ public partial class RentalRecordDisplayItem : ObservableObject
 
     public string StartDateFormatted => StartDate.ToString("MMM d, yyyy");
     public string DueDateFormatted => DueDate.ToString("MMM d, yyyy");
-    public string RateFormatted => $"{CurrencyService.Format(RateAmount)}/{RateType}";
+    public string RateFormatted => ItemCount > 1 ? "{0} items".TranslateFormat(ItemCount) : $"{CurrencyService.Format(RateAmount)}/{RateType}";
     public string TotalCostFormatted => CurrencyService.Format(TotalCost);
     public string DepositFormatted => CurrencyService.Format(SecurityDeposit);
     public string DaysOverdueText => DaysOverdue > 0 ? $"{DaysOverdue} days" : "-";
-    public bool CanGenerateInvoice => !Paid && !HasInvoices;
-    public bool CanMarkAsPaid => !Paid && !IsActive;
+    public bool CanGenerateInvoice => !Paid && !HasInvoices && Status != nameof(RentalStatus.Cancelled);
+    public bool CanMarkAsPaid => !Paid && !IsActive && !IsReserved && Status != nameof(RentalStatus.Cancelled);
+    public bool CanEdit => IsActive || IsReserved;
+    public bool CanMarkAsUnpaid => Paid;
 }
 
 /// <summary>
