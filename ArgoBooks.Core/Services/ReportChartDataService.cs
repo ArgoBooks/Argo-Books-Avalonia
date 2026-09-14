@@ -29,21 +29,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
 
         var (startDate, endDate) = GetDateRange();
 
-        var grossByDay = companyData.Revenues
-            .Where(s => s.Date >= startDate && s.Date <= endDate)
-            .Where(RevenueAggregator.IsCollected)
-            .GroupBy(s => s.Date.Date)
-            .ToDictionary(g => g.Key, g => g.Sum(s => s.EffectiveTotalUSD));
-
-        // Subtract refund Payments cash-basis: a refund reduces revenue on the
-        // date the refund was issued. Same-day refund nets to 0; multi-day
-        // leaves the original day's revenue intact and shows a negative on
-        // the refund's day.
-        foreach (var (day, refunded) in RefundAggregator.GroupRefundsByDayUSD(
-                     companyData.Payments, startDate, endDate))
-        {
-            grossByDay[day] = (grossByDay.TryGetValue(day, out var v) ? v : 0m) - refunded;
-        }
+        var grossByDay = NetRevenueByDayUSD(startDate, endDate);
 
         return grossByDay
             .OrderBy(kv => kv.Key)
@@ -143,15 +129,13 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
 
         var (startDate, endDate) = GetDateRange();
 
-        return companyData.Expenses
-            .Where(p => p.Date >= startDate && p.Date <= endDate)
-            .GroupBy(p => p.Date.Date)
-            .OrderBy(g => g.Key)
-            .Select(g => new ChartDataPoint
+        return ExpensesByDayUSD(startDate, endDate)
+            .OrderBy(kv => kv.Key)
+            .Select(kv => new ChartDataPoint
             {
-                Label = g.Key.ToString("MMM dd"),
-                Value = (double)g.Sum(p => p.EffectiveTotalUSD),
-                Date = g.Key
+                Label = kv.Key.ToString("MMM dd"),
+                Value = (double)kv.Value,
+                Date = kv.Key
             })
             .ToList();
     }
@@ -264,126 +248,11 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
 
         var (startDate, endDate) = GetDateRange();
 
-        // Switch to daily buckets when the filter window is narrow. Month
-        // bucketing summed the WHOLE month even when the user filtered to
-        // a single day or week, making "today only" show all of May, etc.
-        // GetTimeBucket already handles the day/week/month switchover.
+        // Built from the daily series so wide ranges keep refund-only days and bucket by week as the
+        // converted path does.
+        var daily = GetRevenueVsExpensesDaily();
         var bucket = GetTimeBucket(startDate, endDate);
-
-        if (bucket == TimeBucket.Day)
-        {
-            // Daily granularity: sum revenue and expenses per day inside
-            // the actual filter window. Aligns with what the user expects
-            // when filtering to a short range.
-            var revByDay = companyData.Revenues
-                .Where(s => s.Date >= startDate && s.Date <= endDate)
-                .Where(RevenueAggregator.IsCollected)
-                .GroupBy(s => s.Date.Date)
-                .ToDictionary(g => g.Key, g => (double)g.Sum(s => s.EffectiveTotalUSD));
-            // Subtract refunds cash-basis on the refund's day so the Revenue
-            // series matches the standalone Revenue chart and stat card.
-            foreach (var (day, refunded) in RefundAggregator.GroupRefundsByDayUSD(
-                         companyData.Payments, startDate, endDate))
-            {
-                revByDay[day] = revByDay.GetValueOrDefault(day, 0) - (double)refunded;
-            }
-            var expByDay = companyData.Expenses
-                .Where(p => p.Date >= startDate && p.Date <= endDate)
-                .GroupBy(p => p.Date.Date)
-                .ToDictionary(g => g.Key, g => (double)g.Sum(p => p.EffectiveTotalUSD));
-            var dayKeys = revByDay.Keys.Union(expByDay.Keys).OrderBy(d => d).ToList();
-            if (dayKeys.Count == 0) return [];
-
-            var revDaily = dayKeys.Select(d => new ChartDataPoint
-            {
-                Label = d.ToString("MMM dd"),
-                Value = revByDay.GetValueOrDefault(d, 0),
-                Date = d
-            }).ToList();
-            var expDaily = dayKeys.Select(d => new ChartDataPoint
-            {
-                Label = d.ToString("MMM dd"),
-                Value = expByDay.GetValueOrDefault(d, 0),
-                Date = d
-            }).ToList();
-            return
-            [
-                new ChartSeriesData { Name = "Expenses", Color = AppColors.ExpenseRed, DataPoints = expDaily },
-                new ChartSeriesData { Name = "Revenue",  Color = AppColors.Success,    DataPoints = revDaily }
-            ];
-        }
-
-        var allMonths = GetMonthsBetween(startDate, endDate).ToList();
-
-        // Filter to only months that have actual revenue or expense data
-        // INSIDE the filter window (not the whole month).
-        var monthsWithData = allMonths.Where(month =>
-        {
-            var clampedStart = new DateTime(month.Year, month.Month, 1) < startDate
-                ? startDate
-                : new DateTime(month.Year, month.Month, 1);
-            var rawMonthEnd = new DateTime(month.Year, month.Month, 1).AddMonths(1).AddTicks(-1);
-            var clampedEnd = rawMonthEnd > endDate ? endDate : rawMonthEnd;
-            var hasRevenue = companyData.Revenues
-                .Where(RevenueAggregator.IsCollected)
-                .Any(s => s.Date >= clampedStart && s.Date <= clampedEnd);
-            var hasExpenses = companyData.Expenses.Any(p => p.Date >= clampedStart && p.Date <= clampedEnd);
-            return hasRevenue || hasExpenses;
-        }).ToList();
-
-        if (monthsWithData.Count == 0)
-            return [];
-
-        var revenueData = monthsWithData.Select(month =>
-        {
-            // Clamp month bounds to the filter window so partial months only
-            // sum data inside the user's selection (e.g. "May 1 - May 11"
-            // should not include May 12-31).
-            var clampedStart = new DateTime(month.Year, month.Month, 1) < startDate
-                ? startDate
-                : new DateTime(month.Year, month.Month, 1);
-            var rawMonthEnd = new DateTime(month.Year, month.Month, 1).AddMonths(1).AddTicks(-1);
-            var clampedEnd = rawMonthEnd > endDate ? endDate : rawMonthEnd;
-
-            var gross = (double)companyData.Revenues
-                .Where(s => s.Date >= clampedStart && s.Date <= clampedEnd)
-                .Where(RevenueAggregator.IsCollected)
-                .Sum(s => s.EffectiveTotalUSD);
-            // Subtract refunds within the same clamped window so the Revenue
-            // series nets out refunds the same way other revenue surfaces do.
-            var refunds = (double)RefundAggregator.GetRefundedInDateRangeUSD(
-                companyData.Payments, clampedStart, clampedEnd);
-
-            return new ChartDataPoint
-            {
-                Label = month.ToString("MMM yyyy"),
-                Value = gross - refunds,
-                Date = month
-            };
-        }).ToList();
-
-        var expenseData = monthsWithData.Select(month =>
-        {
-            var clampedStart = new DateTime(month.Year, month.Month, 1) < startDate
-                ? startDate
-                : new DateTime(month.Year, month.Month, 1);
-            var rawMonthEnd = new DateTime(month.Year, month.Month, 1).AddMonths(1).AddTicks(-1);
-            var clampedEnd = rawMonthEnd > endDate ? endDate : rawMonthEnd;
-
-            return new ChartDataPoint
-            {
-                Label = month.ToString("MMM yyyy"),
-                Value = (double)ExpenseAggregator.SumExpensesUSD(
-                    companyData.Expenses, clampedStart, clampedEnd),
-                Date = month
-            };
-        }).ToList();
-
-        return
-        [
-            new ChartSeriesData { Name = "Expenses", Color = AppColors.ExpenseRed, DataPoints = expenseData },
-            new ChartSeriesData { Name = "Revenue", Color = AppColors.Success, DataPoints = revenueData }
-        ];
+        return bucket == TimeBucket.Day || daily.Count == 0 ? daily : RebucketSeriesSum(daily, bucket);
     }
 
     /// <summary>
@@ -396,22 +265,8 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
 
         var (startDate, endDate) = GetDateRange();
 
-        var salesByDay = companyData.Revenues
-            .Where(s => s.Date >= startDate && s.Date <= endDate)
-            .Where(RevenueAggregator.IsCollected)
-            .GroupBy(s => s.Date.Date)
-            .ToDictionary(g => g.Key, g => (double)g.Sum(s => s.EffectiveTotalUSD));
-        // Subtract refunds cash-basis on the refund's day, as GetRevenueVsExpenses does.
-        foreach (var (day, refunded) in RefundAggregator.GroupRefundsByDayUSD(
-                     companyData.Payments, startDate, endDate))
-        {
-            salesByDay[day] = salesByDay.GetValueOrDefault(day, 0) - (double)refunded;
-        }
-
-        var purchasesByDay = companyData.Expenses
-            .Where(p => p.Date >= startDate && p.Date <= endDate)
-            .GroupBy(p => p.Date.Date)
-            .ToDictionary(g => g.Key, g => (double)g.Sum(p => p.EffectiveTotalUSD));
+        var salesByDay = NetRevenueByDayUSD(startDate, endDate);
+        var purchasesByDay = ExpensesByDayUSD(startDate, endDate);
 
         var allDays = salesByDay.Keys.Union(purchasesByDay.Keys).OrderBy(d => d).ToList();
 
@@ -421,14 +276,14 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
         var revenueData = allDays.Select(key => new ChartDataPoint
         {
             Label = key.ToString("MMM dd"),
-            Value = salesByDay.GetValueOrDefault(key, 0),
+            Value = (double)salesByDay.GetValueOrDefault(key),
             Date = key
         }).ToList();
 
         var expenseData = allDays.Select(key => new ChartDataPoint
         {
             Label = key.ToString("MMM dd"),
-            Value = purchasesByDay.GetValueOrDefault(key, 0),
+            Value = (double)purchasesByDay.GetValueOrDefault(key),
             Date = key
         }).ToList();
 
@@ -479,18 +334,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
         var allMonths = GetMonthsBetween(startDate, endDate).ToList();
 
         // Filter to only months with actual transaction data
-        var monthsWithData = allMonths.Where(month =>
-        {
-            var monthStart = new DateTime(month.Year, month.Month, 1);
-            var monthEnd = monthStart.AddMonths(1).AddTicks(-1);
-
-            var hasRevenue = companyData.Revenues
-                .Where(RevenueAggregator.IsCollected)
-                .Any(s => s.Date >= monthStart && s.Date <= monthEnd);
-            var hasExpenses = companyData.Expenses.Any(p => p.Date >= monthStart && p.Date <= monthEnd);
-
-            return hasRevenue || hasExpenses;
-        }).ToList();
+        var monthsWithData = allMonths.Where(month => MonthHasTransactions(month, startDate, endDate)).ToList();
 
         if (monthsWithData.Count == 0)
             return [];
@@ -499,10 +343,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
         {
             // Clamp month bounds to the filter window so a partial month only averages data inside
             // the user's selection (matches GetRevenueVsExpenses).
-            var monthStart = new DateTime(month.Year, month.Month, 1);
-            var monthEnd = monthStart.AddMonths(1).AddTicks(-1);
-            var clampedStart = monthStart < startDate ? startDate : monthStart;
-            var clampedEnd = monthEnd > endDate ? endDate : monthEnd;
+            var (clampedStart, clampedEnd) = MonthWindow(month, startDate, endDate);
 
             // Paid-only: average should reflect typical collected revenue,
             // not paddled by unpaid invoices that may never come in.
@@ -522,10 +363,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
 
         var expenseData = monthsWithData.Select(month =>
         {
-            var monthStart = new DateTime(month.Year, month.Month, 1);
-            var monthEnd = monthStart.AddMonths(1).AddTicks(-1);
-            var clampedStart = monthStart < startDate ? startDate : monthStart;
-            var clampedEnd = monthEnd > endDate ? endDate : monthEnd;
+            var (clampedStart, clampedEnd) = MonthWindow(month, startDate, endDate);
 
             var transactions = companyData.Expenses
                 .Where(p => p.Date >= clampedStart && p.Date <= clampedEnd)
@@ -560,28 +398,14 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
         var allMonths = GetMonthsBetween(startDate, endDate).ToList();
 
         // Filter to only months with actual transaction data
-        var monthsWithData = allMonths.Where(month =>
-        {
-            var monthStart = new DateTime(month.Year, month.Month, 1);
-            var monthEnd = monthStart.AddMonths(1).AddTicks(-1);
-
-            var hasRevenue = companyData.Revenues
-                .Where(RevenueAggregator.IsCollected)
-                .Any(s => s.Date >= monthStart && s.Date <= monthEnd);
-            var hasExpenses = companyData.Expenses.Any(p => p.Date >= monthStart && p.Date <= monthEnd);
-
-            return hasRevenue || hasExpenses;
-        }).ToList();
+        var monthsWithData = allMonths.Where(month => MonthHasTransactions(month, startDate, endDate)).ToList();
 
         if (monthsWithData.Count == 0)
             return [];
 
         var revenueData = monthsWithData.Select(month =>
         {
-            var monthStart = new DateTime(month.Year, month.Month, 1);
-            var monthEnd = monthStart.AddMonths(1).AddTicks(-1);
-            var clampedStart = monthStart < startDate ? startDate : monthStart;
-            var clampedEnd = monthEnd > endDate ? endDate : monthEnd;
+            var (clampedStart, clampedEnd) = MonthWindow(month, startDate, endDate);
 
             return new ChartDataPoint
             {
@@ -598,10 +422,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
 
         var expenseData = monthsWithData.Select(month =>
         {
-            var monthStart = new DateTime(month.Year, month.Month, 1);
-            var monthEnd = monthStart.AddMonths(1).AddTicks(-1);
-            var clampedStart = monthStart < startDate ? startDate : monthStart;
-            var clampedEnd = monthEnd > endDate ? endDate : monthEnd;
+            var (clampedStart, clampedEnd) = MonthWindow(month, startDate, endDate);
 
             return new ChartDataPoint
             {
@@ -976,10 +797,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
 
         return monthsWithData.Select(month =>
         {
-            var monthStart = new DateTime(month.Year, month.Month, 1);
-            var monthEnd = monthStart.AddMonths(1).AddTicks(-1);
-            var clampedStart = monthStart < startDate ? startDate : monthStart;
-            var clampedEnd = monthEnd > endDate ? endDate : monthEnd;
+            var (clampedStart, clampedEnd) = MonthWindow(month, startDate, endDate);
 
             var shippingCosts = new List<decimal>();
 
@@ -1435,10 +1253,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
         // Filter to only months with actual return data
         var monthsWithData = allMonths.Where(month =>
         {
-            var monthStart = new DateTime(month.Year, month.Month, 1);
-            var monthEnd = monthStart.AddMonths(1).AddTicks(-1);
-            var clampedStart = monthStart < startDate ? startDate : monthStart;
-            var clampedEnd = monthEnd > endDate ? endDate : monthEnd;
+            var (clampedStart, clampedEnd) = MonthWindow(month, startDate, endDate);
             return companyData.Returns.Any(r => r.ReturnDate >= clampedStart && r.ReturnDate <= clampedEnd);
         }).ToList();
 
@@ -1448,10 +1263,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
         // Current Return model represents returns from revenue (customer returns)
         var revenueReturns = monthsWithData.Select(month =>
         {
-            var monthStart = new DateTime(month.Year, month.Month, 1);
-            var monthEnd = monthStart.AddMonths(1).AddTicks(-1);
-            var clampedStart = monthStart < startDate ? startDate : monthStart;
-            var clampedEnd = monthEnd > endDate ? endDate : monthEnd;
+            var (clampedStart, clampedEnd) = MonthWindow(month, startDate, endDate);
 
             return new ChartDataPoint
             {
@@ -1628,10 +1440,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
         // Filter to only months with actual loss data
         var monthsWithData = allMonths.Where(month =>
         {
-            var monthStart = new DateTime(month.Year, month.Month, 1);
-            var monthEnd = monthStart.AddMonths(1).AddTicks(-1);
-            var clampedStart = monthStart < startDate ? startDate : monthStart;
-            var clampedEnd = monthEnd > endDate ? endDate : monthEnd;
+            var (clampedStart, clampedEnd) = MonthWindow(month, startDate, endDate);
             return companyData.LostDamaged.Any(l => l.DateDiscovered >= clampedStart && l.DateDiscovered <= clampedEnd);
         }).ToList();
 
@@ -1641,10 +1450,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
         // All lost/damaged inventory are expense-side losses
         var expenseLosses = monthsWithData.Select(month =>
         {
-            var monthStart = new DateTime(month.Year, month.Month, 1);
-            var monthEnd = monthStart.AddMonths(1).AddTicks(-1);
-            var clampedStart = monthStart < startDate ? startDate : monthStart;
-            var clampedEnd = monthEnd > endDate ? endDate : monthEnd;
+            var (clampedStart, clampedEnd) = MonthWindow(month, startDate, endDate);
 
             return new ChartDataPoint
             {
@@ -1690,10 +1496,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
         // Filter to only months with tax data
         var monthsWithData = allMonths.Where(month =>
         {
-            var monthStart = new DateTime(month.Year, month.Month, 1);
-            var monthEnd = monthStart.AddMonths(1).AddTicks(-1);
-            var clampedStart = monthStart < startDate ? startDate : monthStart;
-            var clampedEnd = monthEnd > endDate ? endDate : monthEnd;
+            var (clampedStart, clampedEnd) = MonthWindow(month, startDate, endDate);
             return companyData.Revenues.Any(r => r.Date >= clampedStart && r.Date <= clampedEnd && (r.TaxAmountUSD > 0 || r.TaxAmount > 0)) ||
                    companyData.Expenses.Any(e => e.Date >= clampedStart && e.Date <= clampedEnd && (e.TaxAmountUSD > 0 || e.TaxAmount > 0));
         }).ToList();
@@ -1703,10 +1506,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
 
         var taxCollected = monthsWithData.Select(month =>
         {
-            var monthStart = new DateTime(month.Year, month.Month, 1);
-            var monthEnd = monthStart.AddMonths(1).AddTicks(-1);
-            var clampedStart = monthStart < startDate ? startDate : monthStart;
-            var clampedEnd = monthEnd > endDate ? endDate : monthEnd;
+            var (clampedStart, clampedEnd) = MonthWindow(month, startDate, endDate);
 
             return new ChartDataPoint
             {
@@ -1720,10 +1520,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
 
         var taxPaid = monthsWithData.Select(month =>
         {
-            var monthStart = new DateTime(month.Year, month.Month, 1);
-            var monthEnd = monthStart.AddMonths(1).AddTicks(-1);
-            var clampedStart = monthStart < startDate ? startDate : monthStart;
-            var clampedEnd = monthEnd > endDate ? endDate : monthEnd;
+            var (clampedStart, clampedEnd) = MonthWindow(month, startDate, endDate);
 
             return new ChartDataPoint
             {
@@ -1951,10 +1748,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
 
         var monthsWithData = allMonths.Where(month =>
         {
-            var monthStart = new DateTime(month.Year, month.Month, 1);
-            var monthEnd = monthStart.AddMonths(1).AddTicks(-1);
-            var clampedStart = monthStart < startDate ? startDate : monthStart;
-            var clampedEnd = monthEnd > endDate ? endDate : monthEnd;
+            var (clampedStart, clampedEnd) = MonthWindow(month, startDate, endDate);
             return companyData.Revenues.Any(r => r.Date >= clampedStart && r.Date <= clampedEnd && (r.TaxAmountUSD > 0 || r.TaxAmount > 0)) ||
                    companyData.Expenses.Any(e => e.Date >= clampedStart && e.Date <= clampedEnd && (e.TaxAmountUSD > 0 || e.TaxAmount > 0));
         }).ToList();
@@ -1964,10 +1758,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
 
         var revenueTax = monthsWithData.Select(month =>
         {
-            var monthStart = new DateTime(month.Year, month.Month, 1);
-            var monthEnd = monthStart.AddMonths(1).AddTicks(-1);
-            var clampedStart = monthStart < startDate ? startDate : monthStart;
-            var clampedEnd = monthEnd > endDate ? endDate : monthEnd;
+            var (clampedStart, clampedEnd) = MonthWindow(month, startDate, endDate);
 
             return new ChartDataPoint
             {
@@ -1981,10 +1772,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
 
         var expenseTax = monthsWithData.Select(month =>
         {
-            var monthStart = new DateTime(month.Year, month.Month, 1);
-            var monthEnd = monthStart.AddMonths(1).AddTicks(-1);
-            var clampedStart = monthStart < startDate ? startDate : monthStart;
-            var clampedEnd = monthEnd > endDate ? endDate : monthEnd;
+            var (clampedStart, clampedEnd) = MonthWindow(month, startDate, endDate);
 
             return new ChartDataPoint
             {
@@ -2084,6 +1872,44 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
             DataPoints = RebucketSum(series.DataPoints, bucket)
         }).ToList();
     }
+
+    /// <summary>The part of a calendar month inside the filter window.</summary>
+    private static (DateTime Start, DateTime End) MonthWindow(DateTime month, DateTime start, DateTime end)
+    {
+        var monthStart = new DateTime(month.Year, month.Month, 1);
+        var monthEnd = monthStart.AddMonths(1).AddTicks(-1);
+        return (monthStart < start ? start : monthStart, monthEnd > end ? end : monthEnd);
+    }
+
+    private bool MonthHasTransactions(DateTime month, DateTime start, DateTime end)
+    {
+        var (windowStart, windowEnd) = MonthWindow(month, start, end);
+        return companyData!.Revenues.Where(RevenueAggregator.IsCollected).Any(s => s.Date >= windowStart && s.Date <= windowEnd)
+               || companyData.Expenses.Any(p => p.Date >= windowStart && p.Date <= windowEnd);
+    }
+
+    /// <summary>
+    /// Collected revenue per day in USD, less each refund on the day it was issued, so the revenue
+    /// charts match the Revenue stat card (Calculations.md §8, §11).
+    /// </summary>
+    private Dictionary<DateTime, decimal> NetRevenueByDayUSD(DateTime start, DateTime end)
+    {
+        var byDay = companyData!.Revenues
+            .Where(s => s.Date >= start && s.Date <= end)
+            .Where(RevenueAggregator.IsCollected)
+            .GroupBy(s => s.Date.Date)
+            .ToDictionary(g => g.Key, g => g.Sum(s => s.EffectiveTotalUSD));
+
+        foreach (var (day, refunded) in RefundAggregator.GroupRefundsByDayUSD(companyData.Payments, start, end))
+            byDay[day] = byDay.GetValueOrDefault(day) - refunded;
+
+        return byDay;
+    }
+
+    private Dictionary<DateTime, decimal> ExpensesByDayUSD(DateTime start, DateTime end) => companyData!.Expenses
+        .Where(p => p.Date >= start && p.Date <= end)
+        .GroupBy(p => p.Date.Date)
+        .ToDictionary(g => g.Key, g => g.Sum(p => p.EffectiveTotalUSD));
 
     /// <summary>
     /// Gets the months between two dates.

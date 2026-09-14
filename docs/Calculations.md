@@ -106,9 +106,11 @@ The app never substitutes a different date's rate or shows a raw cross-currency 
 
 Phase 2 extends this to aggregates: each transaction is converted at its own date before summing,
 so totals match the sum of the displayed rows to the cent (supersedes the "convert the USD sum at
-one date" step in Rule 3 for non-USD display currencies). Until then, the report/accounting callers
-of `ExchangeRateService.ConvertFromUSD` still show the USD amount on a miss (rare after the import
-gate); this is the one bounded surface not yet on the strict path.
+one date" step in Rule 3 for non-USD display currencies). A card or total on screen shows Pending
+while any row it converts lacks its rate (`CurrencyService.FormatTotalOrPending`,
+`FormatSumDisplayFromUSD`). A report or an Insights run picks one currency for the whole document
+with `DisplayCurrency.Resolve`: the company currency when every date it converts at has an exact
+rate, otherwise USD throughout, so a printed report never mixes currencies.
 
 ---
 
@@ -349,6 +351,7 @@ Bank Matching (`BankMatchingService`) is a non-financial reference layer: it imp
 | Expenses Over Time | — | `EffectiveTotalUSD` | n/a | n/a |
 | Profit Over Time | `EffectiveSubtotalUSD` | `OperatingExpenseUSD`, plus cost of goods sold (§14) | Yes | Pre-tax portion |
 | Revenue vs Expenses | `EffectiveTotalUSD` | `EffectiveTotalUSD` | Yes (revenue side) | Full amount (revenue side) |
+| Report Summary box | `EffectiveTotalUSD` (Revenue); Net Profit card rule for any other type | `EffectiveTotalUSD` | Yes (revenue side) | Full amount (revenue side) |
 | Top Customers by Revenue | `EffectiveTotalUSD` | — | Yes | Full amount |
 | Customer Lifetime Value | `EffectiveTotalUSD` | — | Yes | Full amount |
 | Revenue Growth (Analytics) | `EffectiveTotalUSD` | — | Yes | Full amount |
@@ -381,7 +384,7 @@ When writing or reviewing aggregation code:
 - `ProfitCalculator.CalculateNetProfitByDayUSD(data, start, end)`: per-day profit for charts.
 - `CostOfGoodsAggregator`: cost of goods sold on sales (`SumCostOfGoodsSoldUSD`, paid-only or not) and expenses without the tracked stock they bought (`SumOperatingExpensesUSD`). `ProfitCalculator` uses both; never subtract `ExpenseAggregator` totals from revenue to get profit.
 - `InventoryStockService`: the only place stock moves for a purchase, a sale, an edit or delete of either, an import or a transfer, and the only place cost of goods sold is fixed on a line.
-- `ComparisonPeriod.For(preset, start, end)`: the period every "vs previous period" figure compares against (dashboard, Analytics, Insights trends). This month, quarter or year so far compares with the same days of the one before, stopping at its end when it is shorter (This Month on Sep 11 is Aug 1 to Aug 11; This Year on Feb 29 is Jan 1 to Feb 28). Last month, quarter or year compares with the whole calendar period before it. Everything else compares with the same number of days just before.
+- `ComparisonPeriod.For(preset, start, end)`: the period every "vs previous period" figure compares against (dashboard, Analytics, Insights trends, and the report Summary box's growth rate). Report presets This Week, This Month and This Quarter run to the end of today, as the dashboard's do. This month, quarter or year so far compares with the same days of the one before, stopping at its end when it is shorter (This Month on Sep 11 is Aug 1 to Aug 11; This Year on Feb 29 is Jan 1 to Feb 28). Last month, quarter or year compares with the whole calendar period before it. Everything else compares with the same number of days just before.
 - `InvoiceTotalsService.Recalculate(invoice, allPayments)`: call after any mutation to an invoice's payment list.
 - `InvoiceMath`: the §4 per-invoice formula (subtotal, discount, fee, taxable base, tax, total). Anything that needs an invoice figure calls it rather than re-deriving the arithmetic.
 

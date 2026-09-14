@@ -50,7 +50,9 @@ public class ReportReturnLossCurrencyTests
     [Fact]
     public async Task LossesTable_ValueFromAForeignPurchase_IsConvertedToTheDisplayCurrency()
     {
-        var prior = SetInstance(await SeededServiceAsync(RecordDate));
+        // A report shows the company currency only when every date it converts at has a rate, its end
+        // date included; otherwise the whole report prints in USD (Calculations.md §3a).
+        var prior = SetInstance(await SeededServiceAsync(RecordDate, new DateTime(2024, 12, 31)));
         try
         {
             var data = new CompanyData();

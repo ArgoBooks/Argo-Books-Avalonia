@@ -213,15 +213,6 @@ public class ExchangeRateService
         => TryConvertExact(amountUSD, BaseCurrency, toCurrency, date, out result);
 
     /// <summary>
-    /// Converts a USD amount to the target currency at the exact <paramref name="date"/>. Returns
-    /// the converted amount on an exact-date hit, or the USD amount unchanged on a miss. No
-    /// wrong-date fallback. Retained only for the report/accounting callers that cannot yet show a
-    /// pending state; prefer <see cref="TryConvertFromUSD"/> at any call site that can.
-    /// </summary>
-    public decimal ConvertFromUSD(decimal amountUSD, string toCurrency, DateTime date)
-        => TryConvertFromUSD(amountUSD, toCurrency, date, out var converted) ? converted : amountUSD;
-
-    /// <summary>
     /// Converts an amount from one currency to another.
     /// </summary>
     /// <param name="amount">The amount to convert.</param>

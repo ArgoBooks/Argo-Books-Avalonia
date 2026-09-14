@@ -489,6 +489,7 @@ public static class DatePresetNames
         // Normalize to lowercase for case-insensitive comparison
         var presetLower = presetName.ToLowerInvariant();
 
+        // This week, month, quarter and year run to the end of today, as on the dashboard (Calculations.md §12).
         return presetLower switch
         {
             "today" => (today, today.AddDays(1).AddTicks(-1)),
@@ -497,9 +498,9 @@ public static class DatePresetNames
             "last 30 days" => (today.AddDays(-29), today.AddDays(1).AddTicks(-1)),
             "last 100 days" => (today.AddDays(-99), today.AddDays(1).AddTicks(-1)),
             "last 365 days" => (today.AddDays(-364), today.AddDays(1).AddTicks(-1)),
-            "this week" => (today.AddDays(-(int)today.DayOfWeek), today.AddDays(7 - (int)today.DayOfWeek).AddTicks(-1)),
+            "this week" => (today.AddDays(-(int)today.DayOfWeek), today.AddDays(1).AddTicks(-1)),
             "last week" => (today.AddDays(-(int)today.DayOfWeek - 7), today.AddDays(-(int)today.DayOfWeek).AddTicks(-1)),
-            "this month" => (new DateTime(now.Year, now.Month, 1), new DateTime(now.Year, now.Month, 1).AddMonths(1).AddTicks(-1)),
+            "this month" => (new DateTime(now.Year, now.Month, 1), today.AddDays(1).AddTicks(-1)),
             "last month" => (new DateTime(now.Year, now.Month, 1).AddMonths(-1), new DateTime(now.Year, now.Month, 1).AddTicks(-1)),
             "last 3 months" => (today.AddMonths(-3), today.AddDays(1).AddTicks(-1)),
             "last 6 months" => (today.AddMonths(-6), today.AddDays(1).AddTicks(-1)),
@@ -529,7 +530,7 @@ public static class DatePresetNames
     {
         int quarter = (now.Month - 1) / 3;
         var start = new DateTime(now.Year, quarter * 3 + 1, 1);
-        var end = start.AddMonths(3).AddTicks(-1);
+        var end = now.Date.AddDays(1).AddTicks(-1);
         return (start, end);
     }
 

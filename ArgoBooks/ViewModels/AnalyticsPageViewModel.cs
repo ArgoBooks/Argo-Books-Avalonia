@@ -2249,21 +2249,21 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         var marginChange = margin - prevMargin;
 
         // Update properties (convert each transaction at its OWN date per Calculations.md §3a).
-        var totalPurchasesDisplay = ExpenseAggregator.SumExpensesDisplay(data.Expenses, StartDate, EndDate, CurrencyService.GetDisplayAmount);
-        var totalRevenueDisplay =
-            RevenueAggregator.SumCollectedRevenueDisplay(data.Revenues, StartDate, EndDate, CurrencyService.GetDisplayAmount)
-            - RefundAggregator.GetRefundedInDateRangeDisplay(data.Payments, StartDate, EndDate, CurrencyService.GetDisplayAmount);
-        var netProfitDisplay = ProfitCalculator.CalculateNetProfitDisplay(data, StartDate, EndDate, CurrencyService.GetDisplayAmount);
-
-        TotalPurchases = CurrencyService.Format(totalPurchasesDisplay);
+        // The same figures as the dashboard cards, showing Pending while a rate is missing.
+        TotalPurchases = CurrencyService.FormatSumDisplayFromUSD(
+            data.Expenses.Where(e => e.Date >= StartDate && e.Date <= EndDate),
+            e => e.Total, e => e.OriginalCurrency, e => e.TotalUSD, e => e.Date);
         PurchasesChangeValue = hasPrevPeriodData && prevPurchasesUSD > 0 ? (double)purchasesChange : null;
         PurchasesChangeText = hasPrevPeriodData && prevPurchasesUSD > 0 ? $"{Math.Abs(purchasesChange):F1}%" : null;
 
-        TotalRevenue = CurrencyService.Format(totalRevenueDisplay);
+        TotalRevenue = CurrencyService.FormatTotalOrPending(convert =>
+            RevenueAggregator.SumCollectedRevenueDisplay(data.Revenues, StartDate, EndDate, convert)
+            - RefundAggregator.GetRefundedInDateRangeDisplay(data.Payments, StartDate, EndDate, convert));
         RevenueChangeValue = hasPrevPeriodData && prevSalesUSD > 0 ? (double)revenueChange : null;
         RevenueChangeText = hasPrevPeriodData && prevSalesUSD > 0 ? $"{Math.Abs(revenueChange):F1}%" : null;
 
-        NetProfit = CurrencyService.Format(netProfitDisplay);
+        NetProfit = CurrencyService.FormatTotalOrPending(convert =>
+            ProfitCalculator.CalculateNetProfitDisplay(data, StartDate, EndDate, convert));
         ProfitChangeValue = hasPrevPeriodData && prevNetProfit != 0 ? (double)profitChange : null;
         ProfitChangeText = hasPrevPeriodData && prevNetProfit != 0 ? $"{Math.Abs(profitChange):F1}%" : null;
 

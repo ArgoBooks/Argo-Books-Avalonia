@@ -1292,7 +1292,7 @@
                                            Foreground="{DynamicResource TextSecondaryBrush}" />
                                 <StackPanel Spacing="4">
                                     <TextBlock Text="{loc:Loc 'Transaction Type'}" FontSize="11" Foreground="{DynamicResource TextTertiaryBrush}" />
-                                    <ComboBox ItemsSource="{Binding TransactionTypes}"
+                                    <ComboBox ItemsSource="{Binding SummaryTransactionTypes}"
                                               SelectedItem="{Binding SelectedSummaryElement.TransactionType, FallbackValue={x:Null}}"
                                               HorizontalAlignment="Stretch">
                                         <ComboBox.ItemTemplate>

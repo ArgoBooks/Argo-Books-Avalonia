@@ -108,25 +108,9 @@ public static class ProfitCalculator
         if (data.Payments == null) return new Dictionary<DateTime, decimal>();
 
         var invoicesById = BuildInvoiceLookup(data.Invoices);
-        var byDay = new Dictionary<DateTime, decimal>();
-
-        foreach (var p in data.Payments.Where(x => x.IsRefund && x.Date >= start && x.Date <= end))
-        {
-            var refundTotalUSD = Math.Abs(p.EffectiveAmountUSD) * p.RevenueShare;
-            decimal preTax;
-            if (!string.IsNullOrEmpty(p.InvoiceId)
-                && invoicesById.TryGetValue(p.InvoiceId, out var invoice)
-                && invoice.Total > 0)
-            {
-                preTax = refundTotalUSD * RefundAggregator.PreTaxShare(invoice);
-            }
-            else
-            {
-                preTax = refundTotalUSD;
-            }
-            var day = p.Date.Date;
-            byDay[day] = byDay.GetValueOrDefault(day, 0m) + preTax;
-        }
-        return byDay;
+        return data.Payments
+            .Where(p => p.IsRefund && p.Date >= start && p.Date <= end)
+            .GroupBy(p => p.Date.Date)
+            .ToDictionary(g => g.Key, g => g.Sum(p => RefundAggregator.PreTaxPortionUSD(p, invoicesById)));
     }
 }

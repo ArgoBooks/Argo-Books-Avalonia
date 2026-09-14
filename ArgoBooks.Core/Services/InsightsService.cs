@@ -44,66 +44,14 @@ public class InsightsService(
     /// exact-date USD-&gt;currency rate is available for every date we might convert; otherwise "USD"
     /// for the whole run, so a sentence never mixes currencies or shows a partial value.
     /// </summary>
-    private void ResolveDisplayCode(CompanyData companyData)
-    {
-        var code = companyData.Settings.Localization.Currency;
-        if (string.IsNullOrEmpty(code) || string.Equals(code, "USD", StringComparison.OrdinalIgnoreCase))
-        {
-            _displayCode = "USD";
-            return;
-        }
+    private void ResolveDisplayCode(CompanyData companyData) =>
+        // Revenue and expense dates only: the set changing the company currency preloads, so a switch that
+        // succeeded resolves to that currency.
+        _displayCode = DisplayCurrency.Resolve(
+            companyData.Settings.Localization.Currency,
+            companyData.Revenues.Select(r => r.Date).Concat(companyData.Expenses.Select(e => e.Date)));
 
-        var rates = ExchangeRateService.Instance;
-        if (rates == null)
-        {
-            _displayCode = "USD";
-            return;
-        }
-
-        foreach (var date in GetConversionDates(companyData))
-        {
-            if (!rates.TryConvertFromUSD(1m, code, date, out _))
-            {
-                _displayCode = "USD";
-                return;
-            }
-        }
-
-        _displayCode = code;
-    }
-
-    /// <summary>
-    /// The dates an insight amount is converted at: revenue and expense dates. This deliberately
-    /// mirrors exactly the set the currency-change flow preloads (see EditCompanyModalViewModel:
-    /// today + every revenue and expense date), so whenever a switch to a non-USD currency succeeded,
-    /// this resolves to that currency instead of falling back to USD. It excludes today (usually no
-    /// transaction is dated today, so its rate is often uncached) and payment/invoice dates (payments
-    /// are never shown; the one invoice-based figure converts at today's warmed rate). Displayed
-    /// averages convert at real transaction dates, so no extra dates are needed.
-    /// </summary>
-    private static IEnumerable<DateTime> GetConversionDates(CompanyData companyData)
-    {
-        var dates = new HashSet<DateTime>();
-        foreach (var r in companyData.Revenues) dates.Add(r.Date.Date);
-        foreach (var e in companyData.Expenses) dates.Add(e.Date.Date);
-        return dates;
-    }
-
-    /// <summary>
-    /// Converts a USD amount to <see cref="_displayCode"/> at the given date. Returns the USD amount
-    /// unchanged when the run is in USD; falls back to USD defensively if the exact-date rate is
-    /// unavailable (ResolveDisplayCode already guarantees it isn't for the dates we convert).
-    /// </summary>
-    private decimal ToDisplay(decimal amountUSD, DateTime date)
-    {
-        if (string.Equals(_displayCode, "USD", StringComparison.OrdinalIgnoreCase))
-            return amountUSD;
-
-        return ExchangeRateService.Instance != null
-               && ExchangeRateService.Instance.TryConvertFromUSD(amountUSD, _displayCode, date, out var converted)
-            ? converted
-            : amountUSD;
-    }
+    private decimal ToDisplay(decimal amountUSD, DateTime date) => DisplayCurrency.FromUSD(amountUSD, _displayCode, date);
 
     /// <summary>
     /// Sums per-item USD amounts after converting EACH at that item's OWN date, per the Phase 2

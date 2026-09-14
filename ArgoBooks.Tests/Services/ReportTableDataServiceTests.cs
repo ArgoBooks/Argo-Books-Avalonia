@@ -270,39 +270,6 @@ public class ReportTableDataServiceTests
 
     #endregion
 
-    #region Summary Statistics
-
-    [Fact]
-    public void GetSummaryStatistics_Expenses_UsesGrossAmountIncludingTax()
-    {
-        // The Dashboard and ProfitCalculator treat an expense's gross amount (including tax paid to
-        // the supplier) as the cost that left the business. Summary Statistics used the pre-tax
-        // subtotal instead, so its expense total (and the report's Net Profit) disagreed with the
-        // Dashboard by exactly the supplier tax.
-        var data = new CompanyData();
-        data.Expenses.Add(new Expense
-        {
-            Id = "EXP-1",
-            Date = new DateTime(2024, 6, 1),
-            OriginalCurrency = "USD",
-            Total = 550m,       // gross
-            TaxAmount = 50m     // => pre-tax subtotal is 500
-        });
-
-        var filters = new ReportFilters
-        {
-            StartDate = new DateTime(2024, 1, 1),
-            EndDate = new DateTime(2024, 12, 31),
-            TransactionType = TransactionType.Expenses
-        };
-
-        var stats = new ReportTableDataService(data, filters).GetSummaryStatistics();
-
-        Assert.Equal(550m, stats.TotalExpenses);
-    }
-
-    #endregion
-
     #region Shipping
 
     // The Shipping cell sits beside Total, which is converted from the USD base at the row's date.

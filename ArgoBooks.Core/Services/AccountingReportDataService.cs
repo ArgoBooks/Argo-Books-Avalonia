@@ -43,84 +43,15 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
     private IReadOnlyDictionary<string, Invoice> InvoicesById =>
         _invoicesById ??= ProfitCalculator.BuildInvoiceLookup(companyData!.Invoices);
 
-    private string ResolveDisplayCode()
-    {
-        var code = GetCurrencyCode();
-
-        // USD company (the default): identity, never convert.
-        if (string.Equals(code, "USD", StringComparison.OrdinalIgnoreCase))
-            return "USD";
-
-        var rates = ExchangeRateService.Instance;
-        if (rates == null || companyData == null)
-            return "USD"; // No way to convert -> show USD so the document stays single-currency.
-
-        // Convert at the company currency only if an exact-date USD->code rate is available for
-        // EVERY date the report needs to convert. Any single miss -> whole report falls back to USD.
-        foreach (var date in GetConversionDates())
-        {
-            if (!rates.TryConvertFromUSD(1m, code, date, out _))
-                return "USD";
-        }
-
-        return code;
-    }
+    private string ResolveDisplayCode() => companyData == null
+        ? "USD"
+        : DisplayCurrency.Resolve(GetCurrencyCode(), DisplayCurrency.ReportDates(companyData, filters.EndDate));
 
     /// <summary>
-    /// The distinct set of dates the report converts at: every transaction the report sums or needs
-    /// (revenues, expenses, payments, purchase orders, and relevant invoices) PLUS the report end
-    /// date (used for point-in-time valuations such as inventory and AR aging). If ANY of these
-    /// lacks an exact-date rate for the company currency, the report falls back to USD.
-    /// </summary>
-    private IEnumerable<DateTime> GetConversionDates()
-    {
-        var dates = new HashSet<DateTime>();
-        if (companyData != null)
-        {
-            // Revenues and expenses summed across Income Statement, Cash Flow, Balance Sheet,
-            // General Ledger, Tax Summary and Product Sales: gate on every recorded date.
-            foreach (var r in companyData.Revenues)
-                dates.Add(r.Date.Date);
-            foreach (var e in companyData.Expenses)
-                dates.Add(e.Date.Date);
-
-            // Payments (Cash Flow, Balance Sheet cash, General Ledger).
-            foreach (var p in companyData.Payments)
-                dates.Add(p.Date.Date);
-
-            // Purchase orders (Balance Sheet accounts payable).
-            foreach (var po in companyData.PurchaseOrders)
-                dates.Add(po.OrderDate.Date);
-
-            // Invoices (Balance Sheet AR, AR aging) are converted at their issue date.
-            foreach (var i in companyData.Invoices)
-                dates.Add(i.IssueDate.Date);
-        }
-
-        // Point-in-time valuations (inventory, balances "as of") use the end date.
-        dates.Add((filters.EndDate ?? DateTime.Today).Date);
-
-        return dates;
-    }
-
-    /// <summary>
-    /// Converts a USD amount to <see cref="DisplayCode"/> at the given transaction date.
-    /// Returns the USD amount unchanged when the report is in USD (USD company or fallback).
-    /// Per docs/Calculations.md §3a, conversion happens at PRODUCTION (before aggregation), so a
+    /// A USD amount in <see cref="DisplayCode"/> at its transaction's date (docs/Calculations.md §3a), so a
     /// total equals the sum of its rows converted at each row's own date.
     /// </summary>
-    private decimal ToDisplay(decimal amountUSD, DateTime date)
-    {
-        if (string.Equals(DisplayCode, "USD", StringComparison.OrdinalIgnoreCase))
-            return amountUSD;
-
-        // DisplayCode is only set to a non-USD code when every conversion date has an exact-date
-        // rate, so this lookup is expected to succeed; fall back to the USD amount defensively.
-        return ExchangeRateService.Instance != null
-               && ExchangeRateService.Instance.TryConvertFromUSD(amountUSD, DisplayCode, date, out var converted)
-            ? converted
-            : amountUSD;
-    }
+    private decimal ToDisplay(decimal amountUSD, DateTime date) => DisplayCurrency.FromUSD(amountUSD, DisplayCode, date);
 
     /// <summary>
     /// The end date used for point-in-time valuations (inventory, balances "as of").

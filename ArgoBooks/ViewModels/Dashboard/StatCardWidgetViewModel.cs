@@ -174,9 +174,9 @@ public partial class StatCardWidgetViewModel : WidgetViewModelBase
         // Convert each revenue/refund at its OWN date before summing (Calculations.md §3a Phase 2),
         // so a non-USD display total isn't re-priced at today's rate. currentUSD is kept for the
         // currency-agnostic period-over-period change below.
-        Value = CurrencyService.Format(
-            RevenueAggregator.SumCollectedRevenueDisplay(data.Revenues, startDate, endDate, CurrencyService.GetDisplayAmount)
-            - RefundAggregator.GetRefundedInDateRangeDisplay(data.Payments, startDate, endDate, CurrencyService.GetDisplayAmount));
+        Value = CurrencyService.FormatTotalOrPending(convert =>
+            RevenueAggregator.SumCollectedRevenueDisplay(data.Revenues, startDate, endDate, convert)
+            - RefundAggregator.GetRefundedInDateRangeDisplay(data.Payments, startDate, endDate, convert));
 
         var (prevStart, prevEnd) = DashboardCalculations.GetComparisonPeriod();
         if (prevStart != DateTime.MinValue && DashboardCalculations.HasSufficientPriorData(data, prevStart))
@@ -248,8 +248,8 @@ public partial class StatCardWidgetViewModel : WidgetViewModelBase
         var profitUSD = ProfitCalculator.CalculateNetProfitUSD(data, startDate, endDate);
         // Convert each contributing transaction at its OWN date before summing (Calculations.md §3a
         // Phase 2). profitUSD is kept for the currency-agnostic period-over-period change below.
-        Value = CurrencyService.Format(
-            ProfitCalculator.CalculateNetProfitDisplay(data, startDate, endDate, CurrencyService.GetDisplayAmount));
+        Value = CurrencyService.FormatTotalOrPending(convert =>
+            ProfitCalculator.CalculateNetProfitDisplay(data, startDate, endDate, convert));
 
         var (prevStart, prevEnd) = DashboardCalculations.GetComparisonPeriod();
         if (prevStart != DateTime.MinValue && DashboardCalculations.HasSufficientPriorData(data, prevStart))
