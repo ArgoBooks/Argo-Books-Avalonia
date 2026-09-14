@@ -1239,7 +1239,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
 
         // Editing mode adds contenteditable + the edit->postMessage bridge on top of the interaction script.
         // Ahead of everything else: both scripts below post through window.__argoPost.
-        var injected = Services.WebViewOutbox.Script
+        var injected = "<script>" + Services.WebViewOutbox.Script + "</script>"
                        + restoreScript
                        + (IsEditable ? interactionScript + BuildEditingScript() : interactionScript);
 
