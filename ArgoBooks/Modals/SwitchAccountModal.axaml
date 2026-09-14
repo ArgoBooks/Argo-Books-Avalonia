@@ -17,40 +17,16 @@
     <controls:ModalOverlay IsOpen="{Binding IsOpen}">
         <controls:ModalOverlay.ModalContent>
             <!-- Modal Container -->
-            <Border Background="{DynamicResource SurfaceBrush}"
-                BorderBrush="{DynamicResource BorderBrush}"
-                BorderThickness="1"
-                CornerRadius="12"
+            <Border Classes="modal-card"
                 Width="480"
-                MaxHeight="550"
-                HorizontalAlignment="Center"
-                VerticalAlignment="Center"
-                BoxShadow="0 8 32 0 #40000000">
+                MaxHeight="550">
 
             <Grid RowDefinitions="Auto,Auto,*">
                 <!-- Header -->
-                <Border Grid.Row="0"
-                        Padding="24,20"
-                        BorderBrush="{DynamicResource BorderBrush}"
-                        BorderThickness="0,0,0,1">
-                    <Grid ColumnDefinitions="*,Auto">
-                        <StackPanel Grid.Column="0" Spacing="4">
-                            <TextBlock Text="{loc:Loc 'Switch Account'}"
-                                       FontSize="18"
-                                       FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextPrimaryBrush}" />
-                            <TextBlock Text="{loc:Loc 'Select an account to sign in'}"
-                                       FontSize="13"
-                                       Foreground="{DynamicResource TextSecondaryBrush}" />
-                        </StackPanel>
-                        <Button Grid.Column="1"
-                                Classes="icon-button"
-                                Command="{Binding CloseCommand}">
-                            <PathIcon Data="{x:Static local:Icons.Close}"
-                                      Width="20" Height="20" />
-                        </Button>
-                    </Grid>
-                </Border>
+                <controls:ModalHeader Grid.Row="0"
+                                      Title="{loc:Loc 'Switch Account'}"
+                                      Subtitle="{loc:Loc 'Select an account to sign in'}"
+                                      CloseCommand="{Binding CloseCommand}" />
 
                 <!-- Search Box -->
                 <Border Grid.Row="1"

@@ -18,26 +18,12 @@
                                ClosingCommand="{Binding CancelActionCommand}">
             <controls:ModalOverlay.ModalContent>
                 <!-- Modal Content -->
-                <Border Background="{DynamicResource SurfaceBrush}"
-                BorderBrush="{DynamicResource BorderBrush}"
-                BorderThickness="1"
-                CornerRadius="12"
-                Width="400"
-                HorizontalAlignment="Center"
-                VerticalAlignment="Center"
-                BoxShadow="0 8 32 0 #40000000">
+                <Border Classes="modal-card"
+                Width="400">
 
             <Grid RowDefinitions="Auto,*,Auto">
                 <!-- Header -->
-                <Border Grid.Row="0"
-                        Padding="24,20"
-                        BorderBrush="{DynamicResource BorderBrush}"
-                        BorderThickness="0,0,0,1">
-                    <TextBlock Text="{Binding Title}"
-                               FontSize="18"
-                               FontWeight="SemiBold"
-                               Foreground="{DynamicResource TextPrimaryBrush}" />
-                </Border>
+                <controls:ModalHeader Grid.Row="0" Title="{Binding Title}" />
 
                 <!-- Body -->
                 <Border Grid.Row="1" Padding="24,20">
@@ -48,13 +34,8 @@
                 </Border>
 
                 <!-- Footer -->
-                <Border Grid.Row="2"
-                        Padding="24,16"
-                        BorderBrush="{DynamicResource BorderBrush}"
-                        BorderThickness="0,1,0,0">
-                    <StackPanel Orientation="Horizontal"
-                                HorizontalAlignment="Right"
-                                Spacing="12">
+                <Border Classes="modal-footer" Grid.Row="2">
+                    <StackPanel Classes="modal-actions">
                         <!-- Cancel Button -->
                         <Button Classes="secondary-button"
                                 Content="{Binding CancelButtonText}"

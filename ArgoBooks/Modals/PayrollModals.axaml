@@ -21,28 +21,14 @@
         <controls:ModalOverlay IsOpen="{Binding IsEmployeeModalOpen}"
                                ClosingCommand="{Binding RequestCloseEmployeeModalCommand}">
             <controls:ModalOverlay.ModalContent>
-                <Border HorizontalAlignment="Center" VerticalAlignment="Center"
-                        Width="640" MaxHeight="700"
-                        Background="{DynamicResource SurfaceBrush}"
-                        CornerRadius="12"
-                        BoxShadow="0 8 32 0 #40000000">
+                <Border Classes="modal-card"
+                        Width="640" MaxHeight="700">
                     <Grid RowDefinitions="Auto,*,Auto">
 
                         <!-- Header -->
-                        <Border Grid.Row="0" Padding="24,16"
-                                BorderBrush="{DynamicResource BorderBrush}"
-                                BorderThickness="0,0,0,1">
-                            <Grid ColumnDefinitions="*,Auto">
-                                <TextBlock Grid.Column="0" Text="{Binding ModalTitle}"
-                                           FontSize="18" FontWeight="SemiBold"
-                                           Foreground="{DynamicResource TextPrimaryBrush}"
-                                           VerticalAlignment="Center" />
-                                <Button Grid.Column="1" Classes="icon-button"
-                                        Command="{Binding CloseEmployeeModalCommand}">
-                                    <PathIcon Data="{x:Static icons:Icons.Close}" Width="20" Height="20" />
-                                </Button>
-                            </Grid>
-                        </Border>
+                        <controls:ModalHeader Grid.Row="0"
+                                              Title="{Binding ModalTitle}"
+                                              CloseCommand="{Binding RequestCloseEmployeeModalCommand}" />
 
                         <!-- Content -->
                         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -320,10 +306,8 @@
                         </ScrollViewer>
 
                         <!-- Footer -->
-                        <Border Grid.Row="2" Padding="24,16"
-                                BorderBrush="{DynamicResource BorderBrush}"
-                                BorderThickness="0,1,0,0">
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12">
+                        <Border Classes="modal-footer" Grid.Row="2">
+                            <StackPanel Classes="modal-actions">
                                 <Button Classes="secondary-button" Content="{loc:Loc Cancel}"
                                         Command="{Binding CloseEmployeeModalCommand}" />
                                 <Button Classes="primary-button" Content="{loc:Loc Save}"
@@ -339,30 +323,14 @@
         <controls:ModalOverlay IsOpen="{Binding IsFilterModalOpen}"
                                ClosingCommand="{Binding RequestCloseFilterModalCommand}">
             <controls:ModalOverlay.ModalContent>
-                <Border HorizontalAlignment="Center" VerticalAlignment="Center"
-                        Width="450"
-                        Background="{DynamicResource SurfaceBrush}"
-                        BorderBrush="{DynamicResource BorderBrush}"
-                        BorderThickness="1"
-                        CornerRadius="12"
-                        BoxShadow="0 8 32 0 #40000000">
+                <Border Classes="modal-card"
+                        Width="450">
                     <Grid RowDefinitions="Auto,*,Auto">
 
                         <!-- Header -->
-                        <Border Grid.Row="0" Padding="24,20"
-                                BorderBrush="{DynamicResource BorderBrush}"
-                                BorderThickness="0,0,0,1">
-                            <Grid ColumnDefinitions="*,Auto">
-                                <TextBlock Grid.Column="0" Text="{loc:Loc 'Filter employees'}"
-                                           FontSize="18" FontWeight="SemiBold"
-                                           Foreground="{DynamicResource TextPrimaryBrush}"
-                                           VerticalAlignment="Center" />
-                                <Button Grid.Column="1" Classes="icon-button"
-                                        Command="{Binding RequestCloseFilterModalCommand}">
-                                    <PathIcon Data="{x:Static icons:Icons.Close}" Width="20" Height="20" />
-                                </Button>
-                            </Grid>
-                        </Border>
+                        <controls:ModalHeader Grid.Row="0"
+                                              Title="{loc:Loc 'Filter employees'}"
+                                              CloseCommand="{Binding RequestCloseFilterModalCommand}" />
 
                         <!-- Content -->
                         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
@@ -427,9 +395,7 @@
                         </ScrollViewer>
 
                         <!-- Footer -->
-                        <Border Grid.Row="2" Padding="24,16"
-                                BorderBrush="{DynamicResource BorderBrush}"
-                                BorderThickness="0,1,0,0">
+                        <Border Classes="modal-footer" Grid.Row="2">
                             <Grid ColumnDefinitions="Auto,*,Auto">
                                 <Button Grid.Column="0" Classes="secondary-button"
                                         Content="{loc:Loc 'Clear filters'}"
@@ -454,30 +420,14 @@
         <controls:ModalOverlay IsOpen="{Binding Roe.IsOpen}"
                                ClosingCommand="{Binding Roe.CloseCommand}">
             <controls:ModalOverlay.ModalContent>
-                <Border HorizontalAlignment="Center" VerticalAlignment="Center"
-                        Width="680" MaxHeight="760"
-                        Background="{DynamicResource SurfaceBrush}"
-                        CornerRadius="12"
-                        BoxShadow="0 8 32 0 #40000000">
+                <Border Classes="modal-card"
+                        Width="680" MaxHeight="760">
                     <Grid RowDefinitions="Auto,*,Auto">
 
-                        <Border Grid.Row="0" Padding="24,16"
-                                BorderBrush="{DynamicResource BorderBrush}"
-                                BorderThickness="0,0,0,1">
-                            <Grid ColumnDefinitions="*,Auto">
-                                <StackPanel Grid.Column="0" Spacing="2">
-                                    <TextBlock Text="{loc:Loc 'Record of Employment'}"
-                                               FontSize="18" FontWeight="SemiBold"
-                                               Foreground="{DynamicResource TextPrimaryBrush}" />
-                                    <TextBlock Text="{Binding Roe.EmployeeName}" FontSize="13"
-                                               Foreground="{DynamicResource TextSecondaryBrush}" />
-                                </StackPanel>
-                                <Button Grid.Column="1" Classes="icon-button"
-                                        Command="{Binding Roe.CloseCommand}">
-                                    <PathIcon Data="{x:Static icons:Icons.Close}" Width="20" Height="20" />
-                                </Button>
-                            </Grid>
-                        </Border>
+                        <controls:ModalHeader Grid.Row="0"
+                                              Title="{loc:Loc 'Record of Employment'}"
+                                              Subtitle="{Binding Roe.EmployeeName}"
+                                              CloseCommand="{Binding Roe.CloseCommand}" />
 
                         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                             <StackPanel Margin="24" Spacing="18">
@@ -679,9 +629,7 @@
                             </StackPanel>
                         </ScrollViewer>
 
-                        <Border Grid.Row="2" Padding="24,16"
-                                BorderBrush="{DynamicResource BorderBrush}"
-                                BorderThickness="0,1,0,0">
+                        <Border Classes="modal-footer" Grid.Row="2">
                             <Grid ColumnDefinitions="Auto,*,Auto">
                                 <!-- Needs nothing filled in: the usual thing to do with the
                                      worksheet is read figures off it while ROE Web is open. -->

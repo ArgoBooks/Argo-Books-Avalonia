@@ -40,35 +40,15 @@
         <controls:ModalOverlay IsOpen="{Binding IsAddEditModalOpen}"
                                ClosingCommand="{Binding RequestCloseAddEditModalCommand}">
             <controls:ModalOverlay.ModalContent>
-                <Border HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
+                <Border Classes="modal-card"
                     Width="750"
                     MinHeight="500"
-                    MaxHeight="700"
-                    Background="{DynamicResource SurfaceBrush}"
-                    CornerRadius="12"
-                    BoxShadow="0 8 32 0 #40000000">
+                    MaxHeight="700">
                 <Grid RowDefinitions="Auto,*,Auto">
                     <!-- Header -->
-                    <Border Grid.Row="0"
-                            Padding="24,16"
-                            BorderBrush="{DynamicResource BorderBrush}"
-                            BorderThickness="0,0,0,1">
-                        <Grid ColumnDefinitions="*,Auto">
-                            <TextBlock Grid.Column="0"
-                                       Text="{Binding ModalTitle}"
-                                       FontSize="18"
-                                       FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextPrimaryBrush}"
-                                       VerticalAlignment="Center" />
-                            <Button Grid.Column="1"
-                                    Classes="icon-button"
-                                    Command="{Binding CloseAddEditModalCommand}">
-                                <PathIcon Data="{x:Static icons:Icons.Close}"
-                                          Width="20" Height="20" />
-                            </Button>
-                        </Grid>
-                    </Border>
+                    <controls:ModalHeader Grid.Row="0"
+                                          Title="{Binding ModalTitle}"
+                                          CloseCommand="{Binding RequestCloseAddEditModalCommand}" />
 
                     <!-- Content -->
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
@@ -459,10 +439,7 @@
                     </StackPanel>
 
                     <!-- Footer -->
-                    <Border Grid.Row="2"
-                            Padding="24,16"
-                            BorderBrush="{DynamicResource BorderBrush}"
-                            BorderThickness="0,1,0,0"
+                    <Border Classes="modal-footer" Grid.Row="2"
                             IsVisible="{Binding !IsSavingTransaction}">
                         <Grid ColumnDefinitions="Auto,*,Auto,Auto">
                             <TextBlock Grid.Column="0"
@@ -500,42 +477,17 @@
         <controls:ModalOverlay IsOpen="{Binding IsFilterModalOpen}"
                                ClosingCommand="{Binding RequestCloseFilterModalCommand}">
             <controls:ModalOverlay.ModalContent>
-                <Border HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
+                <Border Classes="modal-card"
                     Width="500"
-                    MaxHeight="600"
-                    Background="{DynamicResource SurfaceBrush}"
-                    CornerRadius="12"
-                    BoxShadow="0 8 32 0 #40000000">
+                    MaxHeight="600">
                 <Grid RowDefinitions="Auto,*,Auto">
                     <!-- Header -->
-                    <Border Grid.Row="0"
-                            Padding="24,16"
-                            BorderBrush="{DynamicResource BorderBrush}"
-                            BorderThickness="0,0,0,1">
-                        <Grid ColumnDefinitions="*,Auto">
-                            <TextBlock Grid.Column="0"
-                                       Text="{loc:Loc 'Filter Expenses'}"
-                                       IsVisible="{Binding !IsRevenue}"
-                                       FontSize="18"
-                                       FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextPrimaryBrush}"
-                                       VerticalAlignment="Center" />
-                            <TextBlock Grid.Column="0"
-                                       Text="{loc:Loc 'Filter Revenue'}"
-                                       IsVisible="{Binding IsRevenue}"
-                                       FontSize="18"
-                                       FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextPrimaryBrush}"
-                                       VerticalAlignment="Center" />
-                            <Button Grid.Column="1"
-                                    Classes="icon-button"
-                                    Command="{Binding RequestCloseFilterModalCommand}">
-                                <PathIcon Data="{x:Static icons:Icons.Close}"
-                                          Width="20" Height="20" />
-                            </Button>
-                        </Grid>
-                    </Border>
+                    <controls:ModalHeader Grid.Row="0" CloseCommand="{Binding RequestCloseFilterModalCommand}">
+                        <Panel>
+                            <TextBlock Classes="modal-title" Text="{loc:Loc 'Filter Expenses'}" IsVisible="{Binding !IsRevenue}" />
+                            <TextBlock Classes="modal-title" Text="{loc:Loc 'Filter Revenue'}" IsVisible="{Binding IsRevenue}" />
+                        </Panel>
+                    </controls:ModalHeader>
 
                     <!-- Content -->
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -646,10 +598,7 @@
                     </ScrollViewer>
 
                     <!-- Footer -->
-                    <Border Grid.Row="2"
-                            Padding="24,16"
-                            BorderBrush="{DynamicResource BorderBrush}"
-                            BorderThickness="0,1,0,0">
+                    <Border Classes="modal-footer" Grid.Row="2">
                         <Grid ColumnDefinitions="Auto,*,Auto,Auto">
                             <Button Grid.Column="0"
                                     Classes="secondary-button"
@@ -674,32 +623,11 @@
         <!-- ======================= ITEM STATUS MODAL ======================= -->
         <controls:ModalOverlay IsOpen="{Binding IsItemStatusModalOpen}">
             <controls:ModalOverlay.ModalContent>
-                <Border HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
-                    Width="450"
-                    Background="{DynamicResource SurfaceBrush}"
-                    CornerRadius="12"
-                    BoxShadow="0 8 32 0 #40000000">
+                <Border Classes="modal-card"
+                    Width="450">
                 <StackPanel>
                     <!-- Header -->
-                    <Border Padding="24,16"
-                            BorderBrush="{DynamicResource BorderBrush}"
-                            BorderThickness="0,0,0,1">
-                        <Grid ColumnDefinitions="*,Auto">
-                            <TextBlock Grid.Column="0"
-                                       Text="{Binding ItemStatusModalTitle}"
-                                       FontSize="18"
-                                       FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextPrimaryBrush}"
-                                       VerticalAlignment="Center" />
-                            <Button Grid.Column="1"
-                                    Classes="icon-button"
-                                    Command="{Binding CloseItemStatusModalCommand}">
-                                <PathIcon Data="{x:Static icons:Icons.Close}"
-                                          Width="20" Height="20" />
-                            </Button>
-                        </Grid>
-                    </Border>
+                    <controls:ModalHeader Title="{Binding ItemStatusModalTitle}" CloseCommand="{Binding CloseItemStatusModalCommand}" />
 
                     <!-- Content -->
                     <StackPanel Margin="24" Spacing="20">
@@ -757,8 +685,8 @@
                     </StackPanel>
 
                     <!-- Footer -->
-                    <Border Padding="24,16" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12">
+                    <Border Classes="modal-footer">
+                        <StackPanel Classes="modal-actions">
                             <Button Classes="secondary-button" Content="{loc:Loc 'Cancel'}" Command="{Binding CloseItemStatusModalCommand}" />
                             <Button Classes="primary-button" Content="{Binding ItemStatusSaveButtonText}" Command="{Binding ConfirmItemStatusCommand}" />
                         </StackPanel>

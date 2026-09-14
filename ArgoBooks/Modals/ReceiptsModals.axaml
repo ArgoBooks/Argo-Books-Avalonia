@@ -36,32 +36,14 @@
         <controls:ModalOverlay IsOpen="{Binding IsFilterModalOpen}"
                                ClosingCommand="{Binding RequestCloseFilterModalCommand}">
             <controls:ModalOverlay.ModalContent>
-                <Border HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
+                <Border Classes="modal-card"
                         Width="480"
-                        MaxHeight="620"
-                        Background="{DynamicResource SurfaceBrush}"
-                        CornerRadius="12"
-                        BoxShadow="0 8 32 0 #40000000">
+                        MaxHeight="620">
                 <Grid RowDefinitions="Auto,*,Auto">
                     <!-- Modal Header -->
-                    <Border Grid.Row="0"
-                            Padding="24,16"
-                            BorderBrush="{DynamicResource BorderBrush}"
-                            BorderThickness="0,0,0,1">
-                        <Grid ColumnDefinitions="*,Auto">
-                            <TextBlock Text="{loc:Loc 'Filter Receipts'}"
-                                       FontSize="18"
-                                       FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextPrimaryBrush}" />
-                            <Button Grid.Column="1"
-                                    Classes="icon-button"
-                                    Command="{Binding RequestCloseFilterModalCommand}">
-                                <PathIcon Data="{x:Static icons:Icons.Close}"
-                                          Width="20" Height="20" />
-                            </Button>
-                        </Grid>
-                    </Border>
+                    <controls:ModalHeader Grid.Row="0"
+                                          Title="{loc:Loc 'Filter Receipts'}"
+                                          CloseCommand="{Binding RequestCloseFilterModalCommand}" />
 
                     <!-- Modal Content -->
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -170,10 +152,7 @@
                     </ScrollViewer>
 
                     <!-- Modal Footer -->
-                    <Border Grid.Row="2"
-                            Padding="24,16"
-                            BorderBrush="{DynamicResource BorderBrush}"
-                            BorderThickness="0,1,0,0">
+                    <Border Classes="modal-footer" Grid.Row="2">
                         <Grid ColumnDefinitions="*,Auto,Auto">
                             <Button Grid.Column="0"
                                     Content="{loc:Loc 'Clear filters'}"
@@ -1019,38 +998,19 @@
         <controls:ModalOverlay IsOpen="{Binding IsBulkDropZoneOpen}"
                                ClosingCommand="{Binding RequestCloseBulkDropZoneCommand}">
             <controls:ModalOverlay.ModalContent>
-                <Border HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
+                <Border Classes="modal-card"
                         Width="550"
-                        MaxHeight="700"
-                        Background="{DynamicResource SurfaceBrush}"
-                        CornerRadius="12"
-                        BoxShadow="0 8 32 0 #40000000">
+                        MaxHeight="700">
                     <Grid RowDefinitions="Auto,*,Auto">
                         <!-- Header -->
-                        <Border Grid.Row="0"
-                                Padding="24,16"
-                                BorderBrush="{DynamicResource BorderBrush}"
-                                BorderThickness="0,0,0,1">
-                            <Grid ColumnDefinitions="*,Auto">
-                                <StackPanel Orientation="Horizontal" Spacing="12">
-                                    <PathIcon Data="{x:Static icons:Icons.ScanReceipt}"
-                                              Width="24" Height="24"
-                                              Foreground="{DynamicResource PrimaryBrush}" />
-                                    <TextBlock Text="Bulk Receipt Scanning"
-                                               FontSize="18"
-                                               FontWeight="SemiBold"
-                                               Foreground="{DynamicResource TextPrimaryBrush}"
-                                               VerticalAlignment="Center" />
-                                </StackPanel>
-                                <Button Grid.Column="1"
-                                        Classes="icon-button"
-                                        Command="{Binding CloseBulkDropZoneCommand}">
-                                    <PathIcon Data="{x:Static icons:Icons.Close}"
-                                              Width="20" Height="20" />
-                                </Button>
-                            </Grid>
-                        </Border>
+                        <controls:ModalHeader Grid.Row="0" CloseCommand="{Binding RequestCloseBulkDropZoneCommand}">
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <PathIcon Data="{x:Static icons:Icons.ScanReceipt}"
+                                          Width="24" Height="24"
+                                          Foreground="{DynamicResource PrimaryBrush}" />
+                                <TextBlock Classes="modal-title" Text="Bulk Receipt Scanning" />
+                            </StackPanel>
+                        </controls:ModalHeader>
 
                         <!-- Content -->
                         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -1185,10 +1145,7 @@
                         </ScrollViewer>
 
                         <!-- Footer -->
-                        <Border Grid.Row="2"
-                                Padding="24,16"
-                                BorderBrush="{DynamicResource BorderBrush}"
-                                BorderThickness="0,1,0,0">
+                        <Border Classes="modal-footer" Grid.Row="2">
                             <Grid ColumnDefinitions="*,Auto,Auto">
                                 <Button Grid.Column="1"
                                         Content="Cancel"
@@ -1218,25 +1175,15 @@
         <controls:ModalOverlay IsOpen="{Binding IsBulkScanning}"
                                ClosingCommand="{Binding RequestCancelBulkScanCommand}">
             <controls:ModalOverlay.ModalContent>
-                <Border HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
+                <Border Classes="modal-card"
                         Width="550"
-                        MaxHeight="600"
-                        Background="{DynamicResource SurfaceBrush}"
-                        CornerRadius="12"
-                        BoxShadow="0 8 32 0 #40000000">
+                        MaxHeight="600">
                     <Grid RowDefinitions="Auto,*,Auto">
                         <!-- Header -->
-                        <Border Grid.Row="0"
-                                Padding="24,16"
-                                BorderBrush="{DynamicResource BorderBrush}"
-                                BorderThickness="0,0,0,1">
+                        <controls:ModalHeader Grid.Row="0">
                             <StackPanel Spacing="8">
                                 <Grid ColumnDefinitions="*,Auto">
-                                    <TextBlock Text="Scanning Receipts"
-                                               FontSize="18"
-                                               FontWeight="SemiBold"
-                                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                                    <TextBlock Classes="modal-title" Text="Scanning Receipts" />
                                     <TextBlock Grid.Column="1"
                                                FontSize="13"
                                                Foreground="{DynamicResource TextSecondaryBrush}"
@@ -1252,7 +1199,7 @@
                                              Height="6"
                                              CornerRadius="3" />
                             </StackPanel>
-                        </Border>
+                        </controls:ModalHeader>
 
                         <!-- Items List -->
                         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -1359,10 +1306,7 @@
                         </ScrollViewer>
 
                         <!-- Footer -->
-                        <Border Grid.Row="2"
-                                Padding="24,16"
-                                BorderBrush="{DynamicResource BorderBrush}"
-                                BorderThickness="0,1,0,0">
+                        <Border Classes="modal-footer" Grid.Row="2">
                             <Grid ColumnDefinitions="*,Auto">
                                 <Button Grid.Column="1"
                                         Content="Cancel"
@@ -1379,26 +1323,14 @@
         <controls:ModalOverlay IsOpen="{Binding IsBulkScanComplete}"
                                ClosingCommand="{Binding RequestCloseBulkReviewCommand}">
             <controls:ModalOverlay.ModalContent>
-                <Border HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
+                <Border Classes="modal-card"
                         Width="550"
-                        MaxHeight="600"
-                        Background="{DynamicResource SurfaceBrush}"
-                        CornerRadius="12"
-                        BoxShadow="0 8 32 0 #40000000">
+                        MaxHeight="600">
                     <Grid RowDefinitions="Auto,*,Auto">
                         <!-- Header -->
-                        <Border Grid.Row="0"
-                                Padding="24,16"
-                                BorderBrush="{DynamicResource BorderBrush}"
-                                BorderThickness="0,0,0,1">
-                            <Grid ColumnDefinitions="*,Auto">
-                                <TextBlock Text="Scan Complete"
-                                           FontSize="18"
-                                           FontWeight="SemiBold"
-                                           Foreground="{DynamicResource TextPrimaryBrush}" />
-                                <TextBlock Grid.Column="1"
-                                           FontSize="13"
+                        <controls:ModalHeader Grid.Row="0" Title="Scan Complete">
+                            <controls:ModalHeader.Actions>
+                                <TextBlock FontSize="13"
                                            Foreground="{DynamicResource TextSecondaryBrush}"
                                            VerticalAlignment="Center">
                                     <Run Text="{Binding BulkScansSucceeded}" />
@@ -1406,8 +1338,8 @@
                                     <Run Text="{Binding BulkScansFailed}" />
                                     <Run Text=" failed" />
                                 </TextBlock>
-                            </Grid>
-                        </Border>
+                            </controls:ModalHeader.Actions>
+                        </controls:ModalHeader>
 
                         <!-- Items List (same as scanning but all done) -->
                         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -1500,10 +1432,7 @@
                         </ScrollViewer>
 
                         <!-- Footer -->
-                        <Border Grid.Row="2"
-                                Padding="24,16"
-                                BorderBrush="{DynamicResource BorderBrush}"
-                                BorderThickness="0,1,0,0">
+                        <Border Classes="modal-footer" Grid.Row="2">
                             <Grid ColumnDefinitions="*,Auto,Auto">
                                 <!-- Close when no succeeded items -->
                                 <Button Grid.Column="1"

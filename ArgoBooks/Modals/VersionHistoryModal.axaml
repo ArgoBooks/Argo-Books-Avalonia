@@ -21,23 +21,14 @@
                                ClosingCommand="{Binding CloseCommand}"
                                CloseOnBackdropClick="True">
             <controls:ModalOverlay.ModalContent>
-                <Border Background="{DynamicResource SurfaceBrush}"
-                        BorderBrush="{DynamicResource BorderBrush}"
-                        BorderThickness="1"
-                        CornerRadius="12"
+                <Border Classes="modal-card"
                         Width="650"
-                        Height="700"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        BoxShadow="0 8 32 0 #40000000">
+                        Height="700">
 
                     <Grid RowDefinitions="Auto,Auto,*,Auto">
                         <!-- Header -->
-                        <Border Grid.Row="0"
-                                Padding="24,20"
-                                BorderBrush="{DynamicResource BorderBrush}"
-                                BorderThickness="0,0,0,1">
-                            <Grid ColumnDefinitions="Auto,*,Auto">
+                        <controls:ModalHeader Grid.Row="0" CloseCommand="{Binding CloseCommand}">
+                            <Grid ColumnDefinitions="Auto,*">
                                 <!-- Clock Icon -->
                                 <Border Grid.Column="0"
                                         Width="40" Height="40"
@@ -49,10 +40,7 @@
                                               Foreground="{DynamicResource PrimaryBrush}" />
                                 </Border>
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <TextBlock Text="{loc:Loc 'Version History'}"
-                                               FontSize="18"
-                                               FontWeight="SemiBold"
-                                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                                    <TextBlock Classes="modal-title" Text="{loc:Loc 'Version History'}" />
                                     <TextBlock FontSize="13"
                                                Foreground="{DynamicResource TextTertiaryBrush}"
                                                Margin="0,2,0,0">
@@ -63,16 +51,8 @@
                                         </TextBlock.Text>
                                     </TextBlock>
                                 </StackPanel>
-                                <!-- Close Button -->
-                                <Button Grid.Column="2"
-                                        Classes="header-icon"
-                                        Command="{Binding CloseCommand}"
-                                        VerticalAlignment="Top">
-                                    <PathIcon Data="{x:Static local:Icons.Close}"
-                                              Width="16" Height="16" />
-                                </Button>
                             </Grid>
-                        </Border>
+                        </controls:ModalHeader>
 
                         <!-- Search and Filters -->
                         <Border Grid.Row="1" Padding="24,16,24,12">
@@ -314,10 +294,7 @@
                         </Border>
 
                         <!-- Footer -->
-                        <Border Grid.Row="3"
-                                Padding="24,16"
-                                BorderBrush="{DynamicResource BorderBrush}"
-                                BorderThickness="0,1,0,0">
+                        <Border Classes="modal-footer" Grid.Row="3">
                             <Grid ColumnDefinitions="*,Auto">
                                 <!-- Event count -->
                                 <TextBlock Grid.Column="0"

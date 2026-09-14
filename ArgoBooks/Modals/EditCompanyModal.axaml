@@ -17,38 +17,16 @@
                            ClosingCommand="{Binding CloseCommand}">
         <controls:ModalOverlay.ModalContent>
             <!-- Modal -->
-            <Border HorizontalAlignment="Center"
-                VerticalAlignment="Center"
-                Background="{DynamicResource SurfaceBrush}"
-                CornerRadius="12"
-                BoxShadow="0 8 32 0 #40000000"
+            <Border Classes="modal-card"
                 Width="620"
                 MaxHeight="750"
                 ClipToBounds="True">
             <Grid RowDefinitions="Auto,*,Auto">
                 <!-- Header -->
-                <Border Grid.Row="0"
-                        Background="{DynamicResource SurfaceAltBrush}"
-                        CornerRadius="12,12,0,0"
-                        Padding="24,16">
-                    <Grid ColumnDefinitions="*,Auto">
-                        <StackPanel Grid.Column="0" Spacing="2">
-                            <TextBlock Text="{loc:Loc 'Edit Company'}"
-                                       FontSize="18"
-                                       FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextPrimaryBrush}" />
-                            <TextBlock Text="{loc:Loc 'Update your company information'}"
-                                       FontSize="13"
-                                       Foreground="{DynamicResource TextSecondaryBrush}" />
-                        </StackPanel>
-                        <Button Grid.Column="1"
-                                Classes="icon-button"
-                                Command="{Binding CloseCommand}">
-                            <PathIcon Data="{x:Static local:Icons.Close}"
-                                      Width="20" Height="20" />
-                        </Button>
-                    </Grid>
-                </Border>
+                <controls:ModalHeader Grid.Row="0"
+                                      Title="{loc:Loc 'Edit Company'}"
+                                      Subtitle="{loc:Loc 'Update your company information'}"
+                                      CloseCommand="{Binding CloseCommand}" />
 
                 <!-- Body -->
                 <ScrollViewer Grid.Row="1"
@@ -227,10 +205,7 @@
                 </ScrollViewer>
 
                 <!-- Footer -->
-                <Border Grid.Row="2"
-                        Background="{DynamicResource SurfaceAltBrush}"
-                        CornerRadius="0,0,12,12"
-                        Padding="24,16">
+                <Border Classes="modal-footer" Grid.Row="2">
                     <Grid ColumnDefinitions="*,Auto,Auto">
                         <Button Grid.Column="1"
                                 Classes="secondary-button"

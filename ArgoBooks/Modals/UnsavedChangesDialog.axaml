@@ -29,22 +29,13 @@
         <controls:ModalOverlay IsOpen="{Binding IsOpen}" CloseOnBackdropClick="False">
             <controls:ModalOverlay.ModalContent>
                 <!-- Modal Content -->
-                <Border Background="{DynamicResource SurfaceBrush}"
-                BorderBrush="{DynamicResource BorderBrush}"
-                BorderThickness="1"
-                CornerRadius="12"
+                <Border Classes="modal-card"
                 Width="550"
-                MaxHeight="500"
-                HorizontalAlignment="Center"
-                VerticalAlignment="Center"
-                BoxShadow="0 8 32 0 #40000000">
+                MaxHeight="500">
 
             <Grid RowDefinitions="Auto,Auto,*,Auto">
                 <!-- Header -->
-                <Border Grid.Row="0"
-                        Padding="24,20"
-                        BorderBrush="{DynamicResource BorderBrush}"
-                        BorderThickness="0,0,0,1">
+                <controls:ModalHeader Grid.Row="0">
                     <Grid ColumnDefinitions="Auto,*">
                         <!-- Warning Icon -->
                         <Border Grid.Column="0"
@@ -57,10 +48,7 @@
                                        Foreground="{DynamicResource WarningBrush}" />
                         </Border>
                         <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                            <TextBlock Text="{Binding Title}"
-                                       FontSize="18"
-                                       FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextPrimaryBrush}" />
+                            <TextBlock Classes="modal-title" Text="{Binding Title}" />
                             <TextBlock Text="{Binding UnsavedChangeCountText}"
                                        FontSize="13"
                                        Foreground="{DynamicResource TextTertiaryBrush}"
@@ -68,7 +56,7 @@
                                        Margin="0,2,0,0" />
                         </StackPanel>
                     </Grid>
-                </Border>
+                </controls:ModalHeader>
 
                 <!-- Message -->
                 <Border Grid.Row="1" Padding="24,16">
@@ -205,10 +193,7 @@
                 </Border>
 
                 <!-- Footer -->
-                <Border Grid.Row="3"
-                        Padding="24,16"
-                        BorderBrush="{DynamicResource BorderBrush}"
-                        BorderThickness="0,1,0,0"
+                <Border Classes="modal-footer" Grid.Row="3"
                         Margin="0,16,0,0">
                     <Grid ColumnDefinitions="Auto,*,Auto">
                         <!-- Expand/Collapse All (only when there are changes) -->

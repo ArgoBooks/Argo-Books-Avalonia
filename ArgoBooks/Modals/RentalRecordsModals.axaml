@@ -17,25 +17,12 @@
         <controls:ModalOverlay IsOpen="{Binding IsFormOpen, Mode=OneWay}"
                                ClosingCommand="{Binding RequestCloseFormCommand}">
             <controls:ModalOverlay.ModalContent>
-                <Border Background="{DynamicResource SurfaceBrush}"
-                    BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="1"
-                    CornerRadius="12"
+                <Border Classes="modal-card"
                     Width="750"
-                    MaxHeight="700"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center">
+                    MaxHeight="700">
                 <Grid RowDefinitions="Auto,*,Auto">
                     <!-- Header -->
-                    <Border Grid.Row="0" Padding="24,20" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
-                        <Grid ColumnDefinitions="*,Auto">
-                            <TextBlock Text="{Binding FormTitle}" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
-                            <Button Grid.Column="1" Classes="icon-button" Command="{Binding RequestCloseFormCommand}">
-                                <PathIcon Data="{x:Static local:Icons.Close}"
-                                          Width="20" Height="20" />
-                            </Button>
-                        </Grid>
-                    </Border>
+                    <controls:ModalHeader Grid.Row="0" Title="{Binding FormTitle}" CloseCommand="{Binding RequestCloseFormCommand}" />
 
                     <!-- Content -->
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -222,8 +209,8 @@
                     </ScrollViewer>
 
                     <!-- Footer -->
-                    <Border Grid.Row="2" Padding="24,16" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12">
+                    <Border Classes="modal-footer" Grid.Row="2">
+                        <StackPanel Classes="modal-actions">
                             <Button Classes="secondary-button" Content="{loc:Loc Cancel}" Command="{Binding RequestCloseFormCommand}" />
                             <Button Classes="primary-button" Content="{Binding FormSaveText}" Command="{Binding SaveFormCommand}" />
                         </StackPanel>
@@ -237,24 +224,13 @@
         <controls:ModalOverlay IsOpen="{Binding IsFilterModalOpen}"
                                ClosingCommand="{Binding RequestCloseFilterModalCommand}">
             <controls:ModalOverlay.ModalContent>
-                <Border Background="{DynamicResource SurfaceBrush}"
-                    BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="1"
-                    CornerRadius="12"
-                    Width="500"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center">
+                <Border Classes="modal-card"
+                    Width="500">
                 <Grid RowDefinitions="Auto,*,Auto">
                     <!-- Header -->
-                    <Border Grid.Row="0" Padding="24,20" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
-                        <Grid ColumnDefinitions="*,Auto">
-                            <TextBlock Text="{loc:Loc 'Filter Rental Records'}" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
-                            <Button Grid.Column="1" Classes="icon-button" Command="{Binding RequestCloseFilterModalCommand}">
-                                <PathIcon Data="{x:Static local:Icons.Close}"
-                                          Width="20" Height="20" />
-                            </Button>
-                        </Grid>
-                    </Border>
+                    <controls:ModalHeader Grid.Row="0"
+                                          Title="{loc:Loc 'Filter Rental Records'}"
+                                          CloseCommand="{Binding RequestCloseFilterModalCommand}" />
 
                     <!-- Content -->
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -318,7 +294,7 @@
                     </ScrollViewer>
 
                     <!-- Footer -->
-                    <Border Grid.Row="2" Padding="24,16" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
+                    <Border Classes="modal-footer" Grid.Row="2">
                         <Grid ColumnDefinitions="Auto,*,Auto">
                             <Button Grid.Column="0" Classes="secondary-button" Content="{loc:Loc 'Clear filters'}" Command="{Binding ClearFiltersCommand}" />
                             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12">
@@ -335,25 +311,14 @@
         <!-- Return Modal -->
         <controls:ModalOverlay IsOpen="{Binding IsReturnModalOpen}">
             <controls:ModalOverlay.ModalContent>
-                <Border Background="{DynamicResource SurfaceBrush}"
-                    BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="1"
-                    CornerRadius="12"
+                <Border Classes="modal-card"
                     Width="500"
-                    MaxHeight="700"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center">
+                    MaxHeight="700">
                 <Grid RowDefinitions="Auto,*,Auto">
                     <!-- Header -->
-                    <Border Grid.Row="0" Padding="24,20" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
-                        <Grid ColumnDefinitions="*,Auto">
-                            <TextBlock Text="{loc:Loc 'Process Return'}" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
-                            <Button Grid.Column="1" Classes="icon-button" Command="{Binding CloseReturnModalCommand}">
-                                <PathIcon Data="{x:Static local:Icons.Close}"
-                                          Width="20" Height="20" />
-                            </Button>
-                        </Grid>
-                    </Border>
+                    <controls:ModalHeader Grid.Row="0"
+                                          Title="{loc:Loc 'Process Return'}"
+                                          CloseCommand="{Binding CloseReturnModalCommand}" />
 
                     <!-- Content -->
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -428,8 +393,8 @@
                     </ScrollViewer>
 
                     <!-- Footer -->
-                    <Border Grid.Row="2" Padding="24,16" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12">
+                    <Border Classes="modal-footer" Grid.Row="2">
+                        <StackPanel Classes="modal-actions">
                             <Button Classes="secondary-button" Content="{loc:Loc Cancel}" Command="{Binding CloseReturnModalCommand}" />
                             <Button Classes="success-button" Content="{loc:Loc 'Confirm Return'}" Command="{Binding ConfirmReturnCommand}" />
                         </StackPanel>
@@ -442,33 +407,22 @@
         <!-- View Modal -->
         <controls:ModalOverlay IsOpen="{Binding IsViewModalOpen}">
             <controls:ModalOverlay.ModalContent>
-                <Border Background="{DynamicResource SurfaceBrush}"
-                    BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="1"
-                    CornerRadius="12"
+                <Border Classes="modal-card"
                     Width="600"
-                    MaxHeight="700"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center">
+                    MaxHeight="700">
                 <Grid RowDefinitions="Auto,*,Auto">
                     <!-- Header -->
-                    <Border Grid.Row="0" Padding="24,20" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
-                        <Grid ColumnDefinitions="*,Auto">
-                            <StackPanel Orientation="Horizontal" Spacing="12">
-                                <TextBlock Text="{loc:Loc 'Rental Details'}" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
-                                <Border Background="{Binding ViewStatus, Converter={x:Static conv:StatusConverters.RentalStatusBackground}}"
-                                        CornerRadius="4" Padding="8,4" VerticalAlignment="Center">
-                                    <TextBlock Text="{Binding ViewStatus}"
-                                               Foreground="{Binding ViewStatus, Converter={x:Static conv:StatusConverters.RentalStatusForeground}}"
-                                               FontSize="12" FontWeight="Medium" />
-                                </Border>
-                            </StackPanel>
-                            <Button Grid.Column="1" Classes="icon-button" Command="{Binding CloseViewModalCommand}">
-                                <PathIcon Data="{x:Static local:Icons.Close}"
-                                          Width="20" Height="20" />
-                            </Button>
-                        </Grid>
-                    </Border>
+                    <controls:ModalHeader Grid.Row="0" CloseCommand="{Binding CloseViewModalCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <TextBlock Classes="modal-title" Text="{loc:Loc 'Rental Details'}" />
+                            <Border Background="{Binding ViewStatus, Converter={x:Static conv:StatusConverters.RentalStatusBackground}}"
+                                    CornerRadius="4" Padding="8,4" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding ViewStatus}"
+                                           Foreground="{Binding ViewStatus, Converter={x:Static conv:StatusConverters.RentalStatusForeground}}"
+                                           FontSize="12" FontWeight="Medium" />
+                            </Border>
+                        </StackPanel>
+                    </controls:ModalHeader>
 
                     <!-- Content -->
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -599,7 +553,7 @@
                     </ScrollViewer>
 
                     <!-- Footer -->
-                    <Border Grid.Row="2" Padding="24,16" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
+                    <Border Classes="modal-footer" Grid.Row="2">
                         <Button Classes="secondary-button" Content="{loc:Loc Close}" Command="{Binding CloseViewModalCommand}" HorizontalAlignment="Right" />
                     </Border>
                 </Grid>
