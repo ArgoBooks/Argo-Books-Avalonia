@@ -14,6 +14,8 @@
                                      ItemsSource="{Binding #Root.Options}"
                                      SelectedItem="{Binding #Root.SelectedOption, Mode=TwoWay}"
                                      DisplayMemberPath="Name"
+                                     ImageMemberPath="Flag"
+                                     SearchMemberPath="Alias"
                                      Placeholder="{Binding #Root.ListPlaceholder}"
                                      ShowAddNew="False" />
 

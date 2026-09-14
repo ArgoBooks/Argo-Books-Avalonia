@@ -9,6 +9,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Data;
 using Avalonia.Input;
+using Avalonia.Media;
 using System.Collections.Concurrent;
 using System.Reflection;
 using ArgoBooks.Utilities;
@@ -56,6 +57,9 @@ public partial class SearchableDropdown : UserControl, INotifyPropertyChanged
 
     public static readonly StyledProperty<string?> SearchMemberPathProperty =
         AvaloniaProperty.Register<SearchableDropdown, string?>(nameof(SearchMemberPath));
+
+    public static readonly StyledProperty<string?> ImageMemberPathProperty =
+        AvaloniaProperty.Register<SearchableDropdown, string?>(nameof(ImageMemberPath));
 
     public static readonly StyledProperty<string?> LabelProperty =
         AvaloniaProperty.Register<SearchableDropdown, string?>(nameof(Label));
@@ -147,6 +151,19 @@ public partial class SearchableDropdown : UserControl, INotifyPropertyChanged
         get => GetValue(SearchMemberPathProperty);
         set => SetValue(SearchMemberPathProperty, value);
     }
+
+    /// <summary>
+    /// Gets or sets the property holding each item's image, such as a flag, shown before its text.
+    /// </summary>
+    public string? ImageMemberPath
+    {
+        get => GetValue(ImageMemberPathProperty);
+        set => SetValue(ImageMemberPathProperty, value);
+    }
+
+    /// <summary>The selected item's image, shown in the closed box.</summary>
+    public IImage? SelectedItemImage =>
+        SelectedItem is { } item ? GetMemberValue(item, ImageMemberPath) as IImage : null;
 
     /// <summary>
     /// Gets or sets the label text.
@@ -471,6 +488,8 @@ public partial class SearchableDropdown : UserControl, INotifyPropertyChanged
         {
             _isSettingFromSelectedItem = false;
         }
+
+        RaisePropertyChanged(nameof(SelectedItemImage));
     }
 
     protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
@@ -777,7 +796,9 @@ public partial class SearchableDropdown : UserControl, INotifyPropertyChanged
         return GetMemberText(item, DisplayMemberPath) ?? item.ToString() ?? string.Empty;
     }
 
-    private static string? GetMemberText(object item, string? path)
+    private static string? GetMemberText(object item, string? path) => GetMemberValue(item, path)?.ToString();
+
+    private static object? GetMemberValue(object item, string? path)
     {
         if (string.IsNullOrEmpty(path))
             return null;
@@ -785,6 +806,6 @@ public partial class SearchableDropdown : UserControl, INotifyPropertyChanged
         var property = DisplayPropertyCache.GetOrAdd(
             (item.GetType(), path),
             static key => key.Item1.GetProperty(key.Item2));
-        return property?.GetValue(item)?.ToString();
+        return property?.GetValue(item);
     }
 }

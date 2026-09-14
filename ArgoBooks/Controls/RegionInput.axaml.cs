@@ -7,6 +7,9 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Data;
 using Avalonia.Data.Converters;
+using Avalonia.Media;
+using Avalonia.Media.Imaging;
+using Avalonia.Platform;
 
 namespace ArgoBooks.Controls;
 
@@ -103,8 +106,14 @@ public partial class RegionInput : UserControl, INotifyPropertyChanged
             Options.Clear();
             if (list != null)
             {
+                var countryName = Countries.NormalizeCountry(Country) ?? Country?.Trim();
+                var countryFlag = PhoneInput.AllDialCodes
+                    .FirstOrDefault(c => string.Equals(c.Name, countryName, StringComparison.OrdinalIgnoreCase))?.FlagPath;
+
                 foreach (var region in list)
-                    Options.Add(new RegionOption(region.Code, region.Name, region.Name.Translate()));
+                    Options.Add(new RegionOption(region.Code, region.Name, region.Name.Translate(),
+                        flagPath: Regions.FlagPathFor(Country, region), fallbackFlagPath: countryFlag,
+                        alias: region.EnglishName));
             }
         }
         finally
@@ -163,7 +172,8 @@ public partial class RegionInput : UserControl, INotifyPropertyChanged
 }
 
 /// <summary>One entry in a <see cref="RegionInput"/> list.</summary>
-public sealed class RegionOption(string code, string englishName, string name, bool isKept = false)
+public sealed class RegionOption(string code, string englishName, string name, bool isKept = false, string? flagPath = null,
+    string? fallbackFlagPath = null, string? alias = null)
 {
     public string Code { get; } = code;
 
@@ -173,11 +183,39 @@ public sealed class RegionOption(string code, string englishName, string name, b
     /// <summary>True for a saved value that is not on the list, shown so it is not lost.</summary>
     public bool IsKept { get; } = isKept;
 
+    /// <summary>Another name search matches, such as Saxony for Sachsen.</summary>
+    public string? Alias { get; } = alias;
+
+    /// <summary>The region's flag, coat of arms or logo, or its country's flag where it has none.</summary>
+    public IImage? Flag
+    {
+        get
+        {
+            if (!_flagLoaded)
+            {
+                _flagLoaded = true;
+                field = LoadImage(flagPath) ?? LoadImage(fallbackFlagPath);
+            }
+            return field;
+        }
+    }
+
+    private bool _flagLoaded;
+
+    private static Bitmap? LoadImage(string? path)
+    {
+        if (path == null)
+            return null;
+        var uri = new Uri(path);
+        return AssetLoader.Exists(uri) ? new Bitmap(AssetLoader.Open(uri)) : null;
+    }
+
     public bool Matches(string value)
     {
         var trimmed = value.Trim();
         return string.Equals(trimmed, Code, StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(trimmed, englishName, StringComparison.OrdinalIgnoreCase);
+               string.Equals(trimmed, englishName, StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(trimmed, Alias, StringComparison.OrdinalIgnoreCase);
     }
 
     public override string ToString() => Name;

@@ -235,6 +235,20 @@ The app verifies an Ed25519 signature on every update it downloads, and refuses 
 
 The release is now live. The website download buttons serve the new version, and existing installs will show the "A new version is available" banner the next time they check for updates. Test the auto-update by opening the previous version of the app and letting it update, then confirm that the old version was uninstalled and the new one is installed. Once that works, the release is done.
 
+## Once a Year: Province and State Flags
+
+The province and state pickers show a flag for each region, stored in `ArgoBooks/Assets/RegionFlags` and named by ISO code (for example `DE-BY.png`). Region flags rarely change: a US state redesigns one every year or two, and countries occasionally merge or split regions. Check them once a year, not every release.
+
+1. Run the downloader. It reads the regions from `ArgoBooks/Data/Regions.cs`, looks up each one's current flag on Wikidata, and rewrites the PNGs to match the country flags:
+
+   ```powershell
+   dotnet run --project C:\Users\evand\Desktop\Argo-Books-Avalonia\tools\ArgoBooks.RegionFlags
+   ```
+
+2. Look through the changed images in the Git diff before committing. Wikidata is edited by the public, so a changed flag is usually a real redesign but can be a proposed design or vandalism.
+
+Run it again whenever a region is added to or removed from `Regions.cs`. Where a region has no flag, the downloader takes its coat of arms, then its logo. Irish counties take their coats of arms first, because the flags listed for them are sports colours. A region with none of these shows its country's flag in the picker.
+
 ## Notes
 
 The signature covers the file's exact bytes. If an installer file is rebuilt for any reason, re-sign it and update `avalonia-update.xml`.
