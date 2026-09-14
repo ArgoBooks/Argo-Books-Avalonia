@@ -188,38 +188,6 @@
         <Setter Property="Opacity" Value="0.5" />
     </Style>
 
-    <!-- Success Button (for positive actions) -->
-    <Style Selector="Button.success-button">
-        <Setter Property="Background" Value="{DynamicResource SuccessBrush}" />
-        <Setter Property="Foreground" Value="White" />
-        <Setter Property="BorderThickness" Value="0" />
-        <Setter Property="CornerRadius" Value="{StaticResource FormControlCornerRadius}" />
-        <Setter Property="Padding" Value="16,10" />
-        <Setter Property="MinHeight" Value="{StaticResource FormControlHeight}" />
-        <Setter Property="FontSize" Value="14" />
-        <Setter Property="FontWeight" Value="Medium" />
-        <Setter Property="Cursor" Value="Hand" />
-        <Setter Property="VerticalContentAlignment" Value="Center" />
-        <Setter Property="HorizontalContentAlignment" Value="Center" />
-    </Style>
-    <Style Selector="Button.success-button /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="{DynamicResource SuccessBrush}" />
-        <Setter Property="TextBlock.Foreground" Value="White" />
-    </Style>
-    <Style Selector="Button.success-button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="{DynamicResource SuccessDarkBrush}" />
-        <Setter Property="TextBlock.Foreground" Value="White" />
-    </Style>
-    <Style Selector="Button.success-button:pointerover">
-        <Setter Property="Foreground" Value="White" />
-    </Style>
-    <Style Selector="Button.success-button PathIcon">
-        <Setter Property="Foreground" Value="White" />
-    </Style>
-    <Style Selector="Button.success-button:pointerover PathIcon">
-        <Setter Property="Foreground" Value="White" />
-    </Style>
-
     <!-- Warning Button (for cautionary actions) -->
     <Style Selector="Button.warning-button">
         <Setter Property="Background" Value="{DynamicResource WarningBrush}" />

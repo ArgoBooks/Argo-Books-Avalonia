@@ -444,7 +444,7 @@
                     <Border Classes="modal-footer" Grid.Row="2">
                         <StackPanel Classes="modal-actions">
                             <Button Classes="secondary-button" Content="{loc:Loc 'Cancel'}" Command="{Binding CloseReceiveModalCommand}" />
-                            <Button Classes="success-button" Content="{loc:Loc 'Confirm Received'}" Command="{Binding ConfirmReceiveCommand}" />
+                            <Button Classes="primary-button" Content="{loc:Loc 'Confirm Received'}" Command="{Binding ConfirmReceiveCommand}" />
                         </StackPanel>
                     </Border>
                 </Grid>
