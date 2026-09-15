@@ -751,6 +751,16 @@ public partial class SearchableDropdown : UserControl, INotifyPropertyChanged
         if (!_isSettingFromSelectedItem)
             _showAll = false;
 
+        // Typing over the picked item's name, or deleting it, drops the pick. Without this the box can
+        // read empty while the form still holds the item, and a save writes to the hidden one. Only
+        // while the user types: a consumer setting the text (a pre-filled row, a pending new name)
+        // must not clear what it just selected.
+        if (!_isSettingFromSelectedItem && _searchTextBox?.IsFocused == true
+            && SelectedItem is { } picked && SearchText != GetSelectedText(picked))
+        {
+            SelectedItem = null;
+        }
+
         // Open dropdown only when the user is actually typing (search box focused), not when the
         // text is set programmatically / via binding (e.g. pre-filled rows in the bank importer).
         if (!_isSettingFromSelectedItem && !string.IsNullOrEmpty(SearchText) && !IsDropdownOpen
