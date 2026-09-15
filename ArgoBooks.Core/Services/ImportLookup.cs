@@ -48,6 +48,38 @@ public static class ImportLookup
         return category;
     }
 
+    /// <summary>
+    /// The customer called <paramref name="name"/>, adding one to the company when there is none.
+    /// <paramref name="created"/> says which, so an undo removes only what it added.
+    /// </summary>
+    public static Customer FindOrCreateCustomer(CompanyData data, string name, out bool created)
+    {
+        var existing = data.Customers.FirstOrDefault(c =>
+            string.Equals(c.Name, name, StringComparison.OrdinalIgnoreCase));
+        created = existing == null;
+        if (existing != null) return existing;
+
+        var customer = new Customer { Id = new IdGenerator(data).NextCustomerId(), Name = name };
+        data.Customers.Add(customer);
+        return customer;
+    }
+
+    /// <summary>
+    /// The supplier called <paramref name="name"/>, adding one to the company when there is none.
+    /// <paramref name="created"/> says which, so an undo removes only what it added.
+    /// </summary>
+    public static Supplier FindOrCreateSupplier(CompanyData data, string name, out bool created)
+    {
+        var existing = data.Suppliers.FirstOrDefault(s =>
+            string.Equals(s.Name, name, StringComparison.OrdinalIgnoreCase));
+        created = existing == null;
+        if (existing != null) return existing;
+
+        var supplier = new Supplier { Id = new IdGenerator(data).NextSupplierId(), Name = name };
+        data.Suppliers.Add(supplier);
+        return supplier;
+    }
+
     public static string NormalizeCurrency(string? code, string fallback = "USD") =>
         string.IsNullOrWhiteSpace(code) ? fallback : code.ToUpperInvariant();
 }

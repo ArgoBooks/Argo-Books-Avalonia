@@ -63,6 +63,10 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
     [ObservableProperty]
     private Supplier? _selectedSupplier;
 
+    /// <summary>What is typed in the Supplier box, so a name matching nothing becomes a new supplier on save.</summary>
+    [ObservableProperty]
+    private string? _selectedSupplierText;
+
     [ObservableProperty]
     private DateTimeOffset? _orderDate = new DateTimeOffset(DateTime.Today);
 
@@ -448,6 +452,13 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
 
         var hasErrors = false;
 
+        if (SelectedSupplier == null &&
+            QuickCreate.EnsureSupplier(App.CompanyManager?.CompanyData, SelectedSupplierText) is { } typedSupplier)
+        {
+            LoadSuppliers();
+            SelectedSupplier = AvailableSuppliers.FirstOrDefault(s => s.Id == typedSupplier.Id);
+        }
+
         if (SelectedSupplier == null)
         {
             HasSupplierError = true;
@@ -722,6 +733,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
     private void ClearAddModalFields()
     {
         SelectedSupplier = null;
+        SelectedSupplierText = null;
         OrderDate = new DateTimeOffset(DateTime.Today);
         ExpectedDeliveryDate = new DateTimeOffset(DateTime.Today.AddDays(7));
         ShippingCost = "0";

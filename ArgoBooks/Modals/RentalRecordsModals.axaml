@@ -34,6 +34,7 @@
                                 </TextBlock>
                                 <controls:SearchableDropdown ItemsSource="{Binding AvailableCustomers}"
                                                             SelectedItem="{Binding ModalCustomer}"
+                                                            SearchText="{Binding ModalCustomerText, Mode=TwoWay}"
                                                             DisplayMemberPath="Name"
                                                             SearchMemberPath="Id"
                                                             Placeholder="{loc:Loc 'Search customers...'}"

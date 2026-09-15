@@ -32,11 +32,6 @@ public partial class ProductModalsViewModel : ViewModelBase
     [NotifyPropertyChangedFor(nameof(FormTitle))]
     private string _addModalTitle = "Add Product/Service";
 
-    /// <summary>Text of the Add modal's primary button. Reset to the default on each open.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(FormSaveText))]
-    private string _addModalSaveText = "Add Product/Service";
-
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsFormOpen))]
     private bool _isEditModalOpen;
@@ -50,7 +45,9 @@ public partial class ProductModalsViewModel : ViewModelBase
     private bool _isEditMode;
 
     public string FormTitle => IsEditMode ? EditModalTitle : AddModalTitle;
-    public string FormSaveText => IsEditMode ? "Save Changes".Translate() : AddModalSaveText;
+    public string FormSaveText => IsEditMode
+        ? "Save Changes".Translate()
+        : IsProductSelected ? "Add Product".Translate() : "Add Service".Translate();
 
     // A blank ID is generated on add but rejected on edit, so only add hints at the format.
     public string ModalIdPlaceholder => IsEditMode ? string.Empty : "PRD-xxx".Translate();
@@ -108,7 +105,16 @@ public partial class ProductModalsViewModel : ViewModelBase
         OnPropertyChanged(nameof(IsProductSelected));
         OnPropertyChanged(nameof(EditModalTitle));
         OnPropertyChanged(nameof(FormTitle));
+        OnPropertyChanged(nameof(FormSaveText));
     }
+
+    /// <summary>What is typed in the Category box, so a name matching nothing becomes a new category on save.</summary>
+    [ObservableProperty]
+    private string? _modalCategoryText;
+
+    /// <summary>What is typed in the Supplier box, so a name matching nothing becomes a new supplier on save.</summary>
+    [ObservableProperty]
+    private string? _modalSupplierText;
 
     [ObservableProperty]
     private CategoryOption? _modalCategory;
@@ -295,7 +301,6 @@ public partial class ProductModalsViewModel : ViewModelBase
         ClearModalFields();
         UpdateDropdownOptions();
         AddModalTitle = "Add Product/Service".Translate();
-        AddModalSaveText = "Add Product/Service".Translate();
         IsAddModalOpen = true;
     }
 
@@ -807,6 +812,8 @@ public partial class ProductModalsViewModel : ViewModelBase
         ModalItemType = "Product";
         ModalCategory = null;
         ModalCategoryId = null;
+        ModalCategoryText = null;
+        ModalSupplierText = null;
         ModalSupplier = null;
         ModalTrackInventory = false;
         ModalUnitOfMeasure = StockUnits.Each;
@@ -870,6 +877,8 @@ public partial class ProductModalsViewModel : ViewModelBase
             }
         }
 
+        ResolveTypedPickers();
+
         if (string.IsNullOrEmpty(ModalCategoryId))
         {
             ModalCategoryError = HasCategories
@@ -879,6 +888,29 @@ public partial class ProductModalsViewModel : ViewModelBase
         }
 
         return isValid;
+    }
+
+    /// <summary>
+    /// Creates the category or supplier the user typed but never picked from the list, so a name that
+    /// isn't on the list yet saves instead of failing validation.
+    /// </summary>
+    private void ResolveTypedPickers()
+    {
+        var companyData = App.CompanyManager?.CompanyData;
+        if (companyData == null)
+            return;
+
+        var type = IsExpensesTab ? CategoryType.Expense : CategoryType.Revenue;
+        var category = ModalCategory == null ? QuickCreate.EnsureCategory(companyData, type, ModalCategoryText) : null;
+        var supplier = ModalSupplier == null ? QuickCreate.EnsureSupplier(companyData, ModalSupplierText) : null;
+        if (category == null && supplier == null)
+            return;
+
+        UpdateDropdownOptions();
+        if (category != null)
+            ModalCategoryId = category.Id;
+        if (supplier != null)
+            ModalSupplier = AvailableSuppliers.FirstOrDefault(s => s.Id == supplier.Id);
     }
 
     #endregion

@@ -36,6 +36,7 @@
                                 </TextBlock>
                                 <controls:SearchableDropdown ItemsSource="{Binding AvailableSuppliers}"
                                                             SelectedItem="{Binding SelectedSupplier}"
+                                                            SearchText="{Binding SelectedSupplierText, Mode=TwoWay}"
                                                             DisplayMemberPath="Name"
                                                             SearchMemberPath="Id"
                                                             Placeholder="{loc:Loc 'Search suppliers...'}"

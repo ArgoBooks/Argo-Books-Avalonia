@@ -55,6 +55,19 @@ public partial class CategoryInput : UserControl, INotifyPropertyChanged
         set => SetValue(OpenCategoriesPageCommandProperty, value);
     }
 
+    public static readonly StyledProperty<string?> TypedTextProperty =
+        AvaloniaProperty.Register<CategoryInput, string?>(nameof(TypedText), defaultBindingMode: BindingMode.TwoWay);
+
+    /// <summary>
+    /// What is actually typed in the box, whether or not it names an existing category, so a save can
+    /// create the category the user typed instead of rejecting the form.
+    /// </summary>
+    public string? TypedText
+    {
+        get => GetValue(TypedTextProperty);
+        set => SetValue(TypedTextProperty, value);
+    }
+
     private bool _syncing;
 
     public CategoryItem? SelectedCategory
@@ -91,6 +104,7 @@ public partial class CategoryInput : UserControl, INotifyPropertyChanged
             if (field == value) return;
             field = value;
             RaisePropertyChanged();
+            TypedText = value;
             if (!_syncing)
                 SelectedCategory = FindByName(value);
         }

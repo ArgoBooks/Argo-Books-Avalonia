@@ -80,6 +80,10 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
     [ObservableProperty]
     private CustomerOption? _modalCustomer;
 
+    /// <summary>What is typed in the Customer box, so a name matching nothing becomes a new customer on save.</summary>
+    [ObservableProperty]
+    private string? _modalCustomerText;
+
     [ObservableProperty]
     private AccountantOption? _modalAccountant;
 
@@ -1369,6 +1373,13 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
     {
         ClearModalErrors();
         var isValid = true;
+
+        if (ModalCustomer == null &&
+            QuickCreate.EnsureCustomer(App.CompanyManager?.CompanyData, ModalCustomerText) is { } typedCustomer)
+        {
+            UpdateDropdownOptions();
+            ModalCustomer = AvailableCustomers.FirstOrDefault(c => c.Id == typedCustomer.Id);
+        }
 
         if (ModalCustomer == null)
         {

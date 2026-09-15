@@ -68,6 +68,7 @@
                                     </TextBlock>
                                     <controls:CategoryInput Categories="{Binding CategoryItems}"
                                                             SelectedCategoryId="{Binding ModalCategoryId, Mode=TwoWay}"
+                                                            TypedText="{Binding ModalCategoryText, Mode=TwoWay}"
                                                             OpenCategoriesPageCommand="{Binding OpenCategoriesWithAddModalCommand}" />
                                     <TextBlock TextWrapping="Wrap" Text="{Binding ModalCategoryError}" FontSize="12" Foreground="{DynamicResource ErrorBrush}"
                                                IsVisible="{Binding ModalCategoryError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
@@ -80,6 +81,7 @@
                                     <TextBlock Text="{loc:Loc Supplier}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
                                     <controls:SearchableDropdown ItemsSource="{Binding AvailableSuppliers}"
                                                                 SelectedItem="{Binding ModalSupplier}"
+                                                                SearchText="{Binding ModalSupplierText, Mode=TwoWay}"
                                                                 DisplayMemberPath="Name"
                                                                 SearchMemberPath="Id"
                                                                 Placeholder="{loc:Loc 'Search suppliers...'}"

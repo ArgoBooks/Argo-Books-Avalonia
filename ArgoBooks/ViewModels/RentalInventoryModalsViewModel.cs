@@ -165,6 +165,10 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
     [ObservableProperty]
     private CustomerOption? _rentOutCustomer;
 
+    /// <summary>What is typed in the Customer box, so a name matching nothing becomes a new customer on save.</summary>
+    [ObservableProperty]
+    private string? _rentOutCustomerText;
+
     [ObservableProperty]
     private AccountantOption? _rentOutAccountant;
 
@@ -745,6 +749,7 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
         RentOutItemId = rentalItem.Id;
         RentOutAvailableQuantity = (int)inventoryItem.InStock;
         RentOutCustomer = null;
+        RentOutCustomerText = null;
         RentOutAccountant = null;
         RentOutQuantity = "1";
         RentOutRateType = "Daily";
@@ -795,6 +800,13 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
     {
         ClearRentOutErrors();
         var isValid = true;
+
+        if (RentOutCustomer == null &&
+            QuickCreate.EnsureCustomer(App.CompanyManager?.CompanyData, RentOutCustomerText) is { } typedCustomer)
+        {
+            UpdateDropdownOptions();
+            RentOutCustomer = AvailableCustomers.FirstOrDefault(c => c.Id == typedCustomer.Id);
+        }
 
         if (RentOutCustomer == null)
         {
