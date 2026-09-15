@@ -55,7 +55,7 @@ upgraded the next time they are saved. Files written at version 2 cannot be open
 builds, so `FileService` checks the footer's format version **before** attempting any decryption
 and reports an out-of-date app rather than a misleading wrong-password error.
 
-See [Security](Security.md) for the key derivation and envelope details, and
+See [Security](SecurityArchitecture.md) for the key derivation and envelope details, and
 [Password recovery](../tools/ArgoBooks.Recovery/README.md) for the support-side unlock path.
 
 ### Footer contents
