@@ -55,7 +55,7 @@ of the codebase.
 | [Architecture](docs/Architecture.md) | Getting oriented in the projects and how they fit together |
 | [Data Storage](docs/DataStorage.md) | Working with `.argo` files, the archive format, or saving and loading |
 | [Calculations](docs/Calculations.md) | Touching any money figure. The single source of truth for revenue, profit, tax and refunds |
-| [Security](docs/Security.md) | Changing encryption, key handling, passwords or biometric unlock |
+| [Security](docs/SecurityArchitecture.md) | Changing encryption, key handling, passwords or biometric unlock |
 
 ### Features
 

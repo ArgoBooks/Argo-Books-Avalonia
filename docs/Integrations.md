@@ -43,7 +43,7 @@ credentials.
 
 The key is stored in the company file's settings under `integrations.stripe.apiKey`, so it is
 protected by the same encryption as everything else in the file, meaning it is only encrypted if
-the file has a password. See [Security](Security.md).
+the file has a password. See [Security](SecurityArchitecture.md).
 
 Endpoints follow a stable category-prefix pattern (`/api/<area>/<action>.php`). Specific URLs are scattered across the relevant Core services; treat the tables above as the authoritative list of integration surfaces, not the individual endpoints.
 

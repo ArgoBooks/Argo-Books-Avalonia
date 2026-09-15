@@ -60,7 +60,7 @@ Version 3 arrived with decimal stock quantities and cost of goods sold. It opens
 path as version 2; the bump exists so an older build reports itself out of date instead of failing
 on a stock quantity like 2.5 that it can only read as a whole number.
 
-See [Security](Security.md) for the key derivation and envelope details, and
+See [Security](SecurityArchitecture.md) for the key derivation and envelope details, and
 [Password recovery](../tools/ArgoBooks.Recovery/README.md) for the support-side unlock path.
 
 ### Footer contents
