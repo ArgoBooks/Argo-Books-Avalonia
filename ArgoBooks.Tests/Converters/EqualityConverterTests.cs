@@ -5,7 +5,7 @@ using Xunit;
 namespace ArgoBooks.Tests.Converters;
 
 /// <summary>
-/// Tests for the EqualityConverter and EqualConverter classes.
+/// Tests for the EqualityConverter class.
 /// </summary>
 public class EqualityConverterTests
 {
@@ -107,42 +107,12 @@ public class EqualityConverterTests
 
     #endregion
 
-    #region EqualConverter Convert Tests
+    #region EqualityConverter Int Parameter Tests
 
     [Fact]
-    public void EqualConverter_Convert_BothNull_ReturnsFalse()
+    public void EqualityConverter_Convert_IntWithMatchingStringParameter_ReturnsTrue()
     {
-        var converter = new EqualConverter();
-
-        var result = converter.Convert(null, typeof(bool), null, null!);
-
-        Assert.Equal(false, result);
-    }
-
-    [Fact]
-    public void EqualConverter_Convert_ValueNullParameterNotNull_ReturnsFalse()
-    {
-        var converter = new EqualConverter();
-
-        var result = converter.Convert(null, typeof(bool), "test", null!);
-
-        Assert.Equal(false, result);
-    }
-
-    [Fact]
-    public void EqualConverter_Convert_ParameterNull_ReturnsFalse()
-    {
-        var converter = new EqualConverter();
-
-        var result = converter.Convert("test", typeof(bool), null, null!);
-
-        Assert.Equal(false, result);
-    }
-
-    [Fact]
-    public void EqualConverter_Convert_IntWithMatchingStringParameter_ReturnsTrue()
-    {
-        var converter = new EqualConverter();
+        var converter = new EqualityConverter();
 
         var result = converter.Convert(42, typeof(bool), "42", null!);
 
@@ -150,9 +120,9 @@ public class EqualityConverterTests
     }
 
     [Fact]
-    public void EqualConverter_Convert_IntWithDifferentStringParameter_ReturnsFalse()
+    public void EqualityConverter_Convert_IntWithDifferentStringParameter_ReturnsFalse()
     {
-        var converter = new EqualConverter();
+        var converter = new EqualityConverter();
 
         var result = converter.Convert(42, typeof(bool), "43", null!);
 
@@ -160,19 +130,19 @@ public class EqualityConverterTests
     }
 
     [Fact]
-    public void EqualConverter_Convert_EqualStrings_ReturnsTrue()
+    public void EqualityConverter_Convert_IntWithNonNumericStringParameter_ReturnsFalse()
     {
-        var converter = new EqualConverter();
+        var converter = new EqualityConverter();
 
-        var result = converter.Convert("hello", typeof(bool), "hello", null!);
+        var result = converter.Convert(42, typeof(bool), "abc", null!);
 
-        Assert.Equal(true, result);
+        Assert.Equal(false, result);
     }
 
     [Fact]
-    public void EqualConverter_Convert_DifferentStrings_ReturnsFalse()
+    public void EqualityConverter_Convert_DifferentStrings_ReturnsFalse()
     {
-        var converter = new EqualConverter();
+        var converter = new EqualityConverter();
 
         var result = converter.Convert("hello", typeof(bool), "world", null!);
 

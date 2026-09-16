@@ -114,7 +114,7 @@
             </Button>
         </StackPanel>
 
-        <!-- Modal Overlay for message boxes and ModalService modals. ZIndex sits above the
+        <!-- Modal Overlay for message boxes. ZIndex sits above the
              welcome screen (150), create wizard (200), and onboarding/loading overlays (210-225)
              so dialogs (errors, the save-blocked prompt) appear on top instead of behind them;
              kept below the data-safety dialogs (Confirmation 250, UnsavedChanges 275). When no
@@ -265,19 +265,21 @@
 
         <!-- Categories Page Tutorial Overlay.
              Margin top = 30 so the backdrop clears the title bar (see above). -->
-        <modals:CategoriesTutorialOverlay DataContext="{Binding CategoriesTutorialViewModel}"
-                                          HorizontalAlignment="Stretch"
-                                          VerticalAlignment="Stretch"
-                                          Margin="0,30,0,0"
-                                          ZIndex="220" />
+        <modals:PageTutorialOverlay DataContext="{Binding CategoriesTutorialViewModel}"
+                                    Icon="{x:Static local:Icons.Categories}"
+                                    HorizontalAlignment="Stretch"
+                                    VerticalAlignment="Stretch"
+                                    Margin="0,30,0,0"
+                                    ZIndex="220" />
 
         <!-- Products Page Tutorial Overlay.
              Margin top = 30 so the backdrop clears the title bar (see above). -->
-        <modals:ProductsTutorialOverlay DataContext="{Binding ProductsTutorialViewModel}"
-                                        HorizontalAlignment="Stretch"
-                                        VerticalAlignment="Stretch"
-                                        Margin="0,30,0,0"
-                                        ZIndex="220" />
+        <modals:PageTutorialOverlay DataContext="{Binding ProductsTutorialViewModel}"
+                                    Icon="{x:Static local:Icons.Products}"
+                                    HorizontalAlignment="Stretch"
+                                    VerticalAlignment="Stretch"
+                                    Margin="0,30,0,0"
+                                    ZIndex="220" />
 
         <!-- Loading Overlay (shows during long operations like import) -->
         <Border IsVisible="{Binding IsLoading}"

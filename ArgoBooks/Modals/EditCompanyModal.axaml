@@ -17,38 +17,16 @@
                            ClosingCommand="{Binding CloseCommand}">
         <controls:ModalOverlay.ModalContent>
             <!-- Modal -->
-            <Border HorizontalAlignment="Center"
-                VerticalAlignment="Center"
-                Background="{DynamicResource SurfaceBrush}"
-                CornerRadius="12"
-                BoxShadow="0 8 32 0 #40000000"
+            <Border Classes="modal-card"
                 Width="620"
                 MaxHeight="750"
                 ClipToBounds="True">
             <Grid RowDefinitions="Auto,*,Auto">
                 <!-- Header -->
-                <Border Grid.Row="0"
-                        Background="{DynamicResource SurfaceAltBrush}"
-                        CornerRadius="12,12,0,0"
-                        Padding="24,16">
-                    <Grid ColumnDefinitions="*,Auto">
-                        <StackPanel Grid.Column="0" Spacing="2">
-                            <TextBlock Text="{loc:Loc 'Edit Company'}"
-                                       FontSize="18"
-                                       FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextPrimaryBrush}" />
-                            <TextBlock Text="{loc:Loc 'Update your company information'}"
-                                       FontSize="13"
-                                       Foreground="{DynamicResource TextSecondaryBrush}" />
-                        </StackPanel>
-                        <Button Grid.Column="1"
-                                Classes="icon-button"
-                                Command="{Binding CloseCommand}">
-                            <PathIcon Data="{x:Static local:Icons.Close}"
-                                      Width="20" Height="20" />
-                        </Button>
-                    </Grid>
-                </Border>
+                <controls:ModalHeader Grid.Row="0"
+                                      Title="{loc:Loc 'Edit Company'}"
+                                      Subtitle="{loc:Loc 'Update your company information'}"
+                                      CloseCommand="{Binding CloseCommand}" />
 
                 <!-- Body -->
                 <ScrollViewer Grid.Row="1"
@@ -143,14 +121,11 @@
 
                             <!-- Province / State -->
                             <StackPanel Grid.Row="4" Grid.Column="2" Spacing="6">
-                                <TextBlock Text="{loc:Loc 'Province / State'}"
+                                <TextBlock Text="{Binding Country, Converter={x:Static controls:RegionInput.LabelConverter}}"
                                            FontSize="13"
                                            FontWeight="Medium"
                                            Foreground="{DynamicResource TextSecondaryBrush}" />
-                                <TextBox Classes="form-input"
-                                         Text="{Binding ProvinceState, Mode=TwoWay}"
-                                         PlaceholderText="{loc:Loc 'Enter province or state'}"
-                                         MaxLength="100" />
+                                <controls:RegionInput Country="{Binding Country}" Value="{Binding ProvinceState, Mode=TwoWay}" />
                             </StackPanel>
 
                             <!-- City -->
@@ -230,10 +205,7 @@
                 </ScrollViewer>
 
                 <!-- Footer -->
-                <Border Grid.Row="2"
-                        Background="{DynamicResource SurfaceAltBrush}"
-                        CornerRadius="0,0,12,12"
-                        Padding="24,16">
+                <Border Classes="modal-footer" Grid.Row="2">
                     <Grid ColumnDefinitions="*,Auto,Auto">
                         <Button Grid.Column="1"
                                 Classes="secondary-button"
@@ -258,6 +230,14 @@
     <modals:CurrencyLoadingModal />
 
     <!-- Currency Error Modal -->
-    <modals:CurrencyErrorModal />
+    <controls:ErrorRetryModal IsOpen="{Binding HasCurrencyError}"
+                              Title="{loc:Loc 'Unable to Change Currency'}"
+                              Message="{Binding CurrencyErrorMessage}"
+                              IsBusy="{Binding IsSavingCurrency}"
+                              BusyTitle="{loc:Loc 'Fetching Exchange Rates...'}"
+                              BusyMessage="{loc:Loc 'Please wait while we connect to the exchange rate service.'}"
+                              DismissCommand="{Binding DismissCurrencyErrorCommand}"
+                              RetryCommand="{Binding RetryCurrencySaveCommand}"
+                              AllowLightDismiss="False" />
     </Panel>
 </UserControl>

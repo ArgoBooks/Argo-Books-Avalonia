@@ -13,21 +13,11 @@
     <controls:ModalOverlay IsOpen="{Binding IsOpen}"
                            ClosingCommand="{Binding CloseCommand}">
         <controls:ModalOverlay.ModalContent>
-            <Border Background="{DynamicResource SurfaceBrush}"
-                    BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="1" CornerRadius="12" Width="600" MaxHeight="560"
-                    HorizontalAlignment="Center" VerticalAlignment="Center">
+            <Border Classes="modal-card"
+                    Width="600" MaxHeight="560">
                 <Grid RowDefinitions="Auto,Auto,*,Auto">
                     <!-- Header -->
-                    <Border Grid.Row="0" Padding="20,16" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
-                        <Grid ColumnDefinitions="*,Auto">
-                            <TextBlock Text="{loc:Loc 'Select Icon'}" FontSize="18" FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
-                            <Button Grid.Column="1" Classes="icon-button" Command="{Binding CloseCommand}">
-                                <PathIcon Data="{x:Static local:Icons.Close}" Width="18" Height="18" />
-                            </Button>
-                        </Grid>
-                    </Border>
+                    <controls:ModalHeader Grid.Row="0" Title="{loc:Loc 'Select Icon'}" CloseCommand="{Binding CloseCommand}" />
 
                     <!-- Search Box -->
                     <Border Grid.Row="1" Padding="16,12">
@@ -174,7 +164,7 @@
                     </Grid>
 
                     <!-- Footer with selected emoji preview -->
-                    <Border Grid.Row="3" Padding="16,12" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
+                    <Border Classes="modal-footer" Grid.Row="3">
                         <Grid ColumnDefinitions="Auto,*,Auto">
                             <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                                 <TextBlock Text="{loc:Loc 'Selected:'}"

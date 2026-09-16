@@ -1,8 +1,6 @@
-using System.Collections.ObjectModel;
 using System.Runtime.InteropServices;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
-using Avalonia;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -33,7 +31,7 @@ public partial class StepIndicator : ObservableObject
 /// <summary>
 /// ViewModel for the interactive app tour overlay.
 /// </summary>
-public partial class AppTourViewModel : ViewModelBase
+public partial class AppTourViewModel : TutorialStepperViewModelBase
 {
     private static bool IsMacOS => RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
     private static string QuickActionsShortcut => IsMacOS ? "Cmd+K" : "Ctrl+K";
@@ -73,60 +71,15 @@ public partial class AppTourViewModel : ViewModelBase
     private List<TourStep> _tourSteps;
 
     [ObservableProperty]
-    private bool _isOpen;
-
-    [ObservableProperty]
-    private int _currentStepIndex;
-
-    [ObservableProperty]
-    private string _currentTitle = "";
-
-    [ObservableProperty]
-    private string _currentDescription = "";
-
-    [ObservableProperty]
     private string _currentTargetArea = "center";
 
     [ObservableProperty]
     private string? _currentIcon;
 
-    [ObservableProperty]
-    private int _totalSteps;
-
-    [ObservableProperty]
-    private bool _isFirstStep = true;
-
-    [ObservableProperty]
-    private bool _isLastStep;
-
-    [ObservableProperty]
-    private string _progressText = "";
-
-    // Dynamic highlight bounds (set by code-behind)
-    [ObservableProperty]
-    private Thickness _highlightMargin;
-
-    [ObservableProperty]
-    private double _highlightWidth = double.NaN;
-
-    [ObservableProperty]
-    private double _highlightHeight = double.NaN;
-
-    [ObservableProperty]
-    private bool _showHighlight;
-
-    [ObservableProperty]
-    private CornerRadius _highlightCornerRadius = new(8);
-
     /// <summary>
     /// Event raised when the target area changes and bounds need to be recalculated.
     /// </summary>
     public event EventHandler? TargetAreaChanged;
-
-    /// <summary>
-    /// Step indicators for the progress dots.
-    /// </summary>
-    public ObservableCollection<StepIndicator> StepIndicators { get; } = [];
 
     /// <summary>
     /// Event raised when the tour is completed.
@@ -141,16 +94,12 @@ public partial class AppTourViewModel : ViewModelBase
     public AppTourViewModel()
     {
         _tourSteps = GetTourSteps();
-        TotalSteps = _tourSteps.Count;
-
-        // Initialize step indicators
-        for (int i = 0; i < TotalSteps; i++)
-        {
-            StepIndicators.Add(new StepIndicator { Index = i, IsActive = false });
-        }
+        InitializeStepIndicators();
 
         LanguageService.Instance.LanguageChanged += OnLanguageChanged;
     }
+
+    protected override int StepCount => _tourSteps.Count;
 
     private void OnLanguageChanged(object? sender, LanguageChangedEventArgs e)
     {
@@ -161,12 +110,7 @@ public partial class AppTourViewModel : ViewModelBase
     /// <summary>
     /// Starts the app tour from the beginning.
     /// </summary>
-    public void StartTour()
-    {
-        CurrentStepIndex = 0;
-        UpdateCurrentStep();
-        IsOpen = true;
-    }
+    public void StartTour() => OpenAtFirstStep();
 
     /// <summary>
     /// Shows the tour if the user hasn't completed it yet
@@ -184,30 +128,6 @@ public partial class AppTourViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void NextStep()
-    {
-        if (CurrentStepIndex < _tourSteps.Count - 1)
-        {
-            CurrentStepIndex++;
-            UpdateCurrentStep();
-        }
-        else
-        {
-            CompleteTour();
-        }
-    }
-
-    [RelayCommand]
-    private void PreviousStep()
-    {
-        if (CurrentStepIndex > 0)
-        {
-            CurrentStepIndex--;
-            UpdateCurrentStep();
-        }
-    }
-
-    [RelayCommand]
     private void SkipTour()
     {
         IsOpen = false;
@@ -215,59 +135,21 @@ public partial class AppTourViewModel : ViewModelBase
         TourSkipped?.Invoke(this, EventArgs.Empty);
     }
 
-    private void CompleteTour()
+    protected override void Finish()
     {
         IsOpen = false;
         TutorialService.Instance.CompleteAppTour();
         TourCompleted?.Invoke(this, EventArgs.Empty);
     }
 
-    private void UpdateCurrentStep()
+    protected override void ApplyStep(int index)
     {
-        if (CurrentStepIndex >= 0 && CurrentStepIndex < _tourSteps.Count)
-        {
-            var step = _tourSteps[CurrentStepIndex];
-            CurrentTitle = step.Title;
-            CurrentDescription = step.Description;
-            CurrentTargetArea = step.TargetArea;
-            CurrentIcon = step.Icon;
-            IsFirstStep = CurrentStepIndex == 0;
-            IsLastStep = CurrentStepIndex == _tourSteps.Count - 1;
-            ProgressText = "{0} of {1}".TranslateFormat(CurrentStepIndex + 1, TotalSteps);
-
-            for (int i = 0; i < StepIndicators.Count; i++)
-            {
-                StepIndicators[i].IsActive = i == CurrentStepIndex;
-            }
-
-            // Notify that bounds need to be recalculated
-            TargetAreaChanged?.Invoke(this, EventArgs.Empty);
-        }
+        var step = _tourSteps[index];
+        CurrentTitle = step.Title;
+        CurrentDescription = step.Description;
+        CurrentTargetArea = step.TargetArea;
+        CurrentIcon = step.Icon;
     }
 
-    /// <summary>
-    /// Updates the highlight bounds. Called from code-behind after measuring elements.
-    /// </summary>
-    public void SetHighlightBounds(Rect bounds, CornerRadius cornerRadius)
-    {
-        if (bounds.Width <= 0 || bounds.Height <= 0)
-        {
-            ShowHighlight = false;
-            return;
-        }
-
-        HighlightMargin = new Thickness(bounds.Left, bounds.Top, 0, 0);
-        HighlightWidth = bounds.Width;
-        HighlightHeight = bounds.Height;
-        HighlightCornerRadius = cornerRadius;
-        ShowHighlight = true;
-    }
-
-    /// <summary>
-    /// Hides the highlight.
-    /// </summary>
-    public void HideHighlight()
-    {
-        ShowHighlight = false;
-    }
+    protected override void OnStepShown() => TargetAreaChanged?.Invoke(this, EventArgs.Empty);
 }

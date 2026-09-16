@@ -19,41 +19,14 @@
         <controls:ModalOverlay IsOpen="{Binding IsOpen}"
                                ClosingCommand="{Binding CancelCustomDateRangeCommand}">
             <controls:ModalOverlay.ModalContent>
-                <Border Background="{DynamicResource SurfaceBrush}"
-                    BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="1"
-                    CornerRadius="12"
-                    Width="340"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
-                    BoxShadow="0 8 32 0 #40000000">
+                <Border Classes="modal-card"
+                    Width="340">
 
                 <Grid RowDefinitions="Auto,Auto,Auto">
                     <!-- Header with Close Button -->
-                    <Border Grid.Row="0"
-                            Padding="20,16"
-                            BorderBrush="{DynamicResource BorderBrush}"
-                            BorderThickness="0,0,0,1">
-                        <Grid ColumnDefinitions="*,Auto">
-                            <TextBlock Grid.Column="0"
-                                       Text="{loc:Loc 'Select Date Range'}"
-                                       FontSize="16"
-                                       FontWeight="SemiBold"
-                                       VerticalAlignment="Center"
-                                       Foreground="{DynamicResource TextPrimaryBrush}" />
-                            <Button Grid.Column="1"
-                                    Classes="close-button"
-                                    Padding="4"
-                                    MinWidth="28"
-                                    MinHeight="28"
-                                    Command="{Binding CancelCustomDateRangeCommand}"
-                                    ToolTip.Tip="{loc:Loc Close}">
-                                <PathIcon Data="{x:Static icons:Icons.Close}"
-                                          Width="16" Height="16"
-                                          Foreground="{DynamicResource TextSecondaryBrush}" />
-                            </Button>
-                        </Grid>
-                    </Border>
+                    <controls:ModalHeader Grid.Row="0"
+                                          Title="{loc:Loc 'Select Date Range'}"
+                                          CloseCommand="{Binding CancelCustomDateRangeCommand}" />
 
                     <!-- Body -->
                     <StackPanel Grid.Row="1" Spacing="12" Margin="20,16">
@@ -80,13 +53,8 @@
                     </StackPanel>
 
                     <!-- Footer -->
-                    <Border Grid.Row="2"
-                            Padding="20,14"
-                            BorderBrush="{DynamicResource BorderBrush}"
-                            BorderThickness="0,1,0,0">
-                        <StackPanel Orientation="Horizontal"
-                                    HorizontalAlignment="Right"
-                                    Spacing="10">
+                    <Border Classes="modal-footer" Grid.Row="2">
+                        <StackPanel Classes="modal-actions">
                             <Button Classes="secondary-button"
                                     Content="{loc:Loc Cancel}"
                                     Command="{Binding CancelCustomDateRangeCommand}" />
@@ -100,24 +68,4 @@
             </controls:ModalOverlay.ModalContent>
         </controls:ModalOverlay>
     </Panel>
-
-    <UserControl.Styles>
-        <!-- Close Button - no background -->
-        <Style Selector="Button.close-button">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="CornerRadius" Value="6" />
-            <Setter Property="Cursor" Value="Hand" />
-        </Style>
-        <Style Selector="Button.close-button /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="Transparent" />
-        </Style>
-        <Style Selector="Button.close-button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
-        </Style>
-        <Style Selector="Button.close-button:pointerover PathIcon">
-            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-        </Style>
-
-    </UserControl.Styles>
 </UserControl>

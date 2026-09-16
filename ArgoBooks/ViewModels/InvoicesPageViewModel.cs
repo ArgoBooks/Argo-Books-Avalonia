@@ -28,12 +28,6 @@ namespace ArgoBooks.ViewModels;
 /// </summary>
 public partial class InvoicesPageViewModel : SortablePageViewModelBase
 {
-    #region Responsive Header
-
-    public ResponsiveHeaderHelper ResponsiveHeader { get; } = new();
-
-    #endregion
-
     #region Statistics
 
     [ObservableProperty]
@@ -344,48 +338,39 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
 
     public RecurringTableColumnWidths RecurringColumnWidths => App.RecurringColumnWidths;
 
-    [ObservableProperty]
-    private bool _showIdColumn = ColumnVisibilityHelper.Load("Invoices", "Id", true);
-
-    [ObservableProperty]
-    private bool _showAccountantColumn = ColumnVisibilityHelper.Load("Invoices", "Accountant", true);
-
-    [ObservableProperty]
-    private bool _showCustomerColumn = ColumnVisibilityHelper.Load("Invoices", "Customer", true);
-
-    [ObservableProperty]
-    private bool _showIssueDateColumn = ColumnVisibilityHelper.Load("Invoices", "IssueDate", true);
-
-    [ObservableProperty]
-    private bool _showDueDateColumn = ColumnVisibilityHelper.Load("Invoices", "DueDate", true);
-
-    [ObservableProperty]
-    private bool _showAmountColumn = ColumnVisibilityHelper.Load("Invoices", "Amount", true);
-
-    [ObservableProperty]
-    private bool _showStatusColumn = ColumnVisibilityHelper.Load("Invoices", "Status", true);
-
-    partial void OnShowIdColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Id", value); ColumnVisibilityHelper.Save("Invoices", "Id", value); }
-    partial void OnShowAccountantColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Accountant", value); ColumnVisibilityHelper.Save("Invoices", "Accountant", value); }
-    partial void OnShowCustomerColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Customer", value); ColumnVisibilityHelper.Save("Invoices", "Customer", value); }
-    partial void OnShowIssueDateColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("IssueDate", value); ColumnVisibilityHelper.Save("Invoices", "IssueDate", value); }
-    partial void OnShowDueDateColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("DueDate", value); ColumnVisibilityHelper.Save("Invoices", "DueDate", value); }
-    partial void OnShowAmountColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Amount", value); ColumnVisibilityHelper.Save("Invoices", "Amount", value); }
-    partial void OnShowStatusColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Status", value); ColumnVisibilityHelper.Save("Invoices", "Status", value); }
-
-    [RelayCommand]
-    private void ResetColumnVisibility()
+    private static readonly ColumnVisibilityDefaults ColumnDefaults = new("Invoices", new Dictionary<string, bool>
     {
-        ColumnWidths.ResetWidths();
-        ColumnVisibilityHelper.ResetPage("Invoices");
-        ShowIdColumn = true;
-        ShowAccountantColumn = true;
-        ShowCustomerColumn = true;
-        ShowIssueDateColumn = true;
-        ShowDueDateColumn = true;
-        ShowAmountColumn = true;
-        ShowStatusColumn = true;
-    }
+        ["Id"] = true,
+        ["Accountant"] = true,
+        ["Customer"] = true,
+        ["IssueDate"] = true,
+        ["DueDate"] = true,
+        ["Amount"] = true,
+        ["Status"] = true,
+    });
+
+    protected override ColumnVisibilityDefaults ColumnVisibility => ColumnDefaults;
+
+    [ObservableProperty]
+    private bool _showIdColumn = ColumnDefaults.Load("Id");
+
+    [ObservableProperty]
+    private bool _showAccountantColumn = ColumnDefaults.Load("Accountant");
+
+    [ObservableProperty]
+    private bool _showCustomerColumn = ColumnDefaults.Load("Customer");
+
+    [ObservableProperty]
+    private bool _showIssueDateColumn = ColumnDefaults.Load("IssueDate");
+
+    [ObservableProperty]
+    private bool _showDueDateColumn = ColumnDefaults.Load("DueDate");
+
+    [ObservableProperty]
+    private bool _showAmountColumn = ColumnDefaults.Load("Amount");
+
+    [ObservableProperty]
+    private bool _showStatusColumn = ColumnDefaults.Load("Status");
 
     #endregion
 
@@ -427,9 +412,6 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
 
     #region Pagination
 
-    [ObservableProperty]
-    private string _paginationText = "0 invoices";
-
     /// <inheritdoc />
     protected override void OnSortOrPageChanged() => FilterInvoices();
 
@@ -450,10 +432,7 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
         UpdateOnlineStatistics();
         _ = CheckPortalStatusAsync();
 
-        // Subscribe to undo/redo state changes to refresh UI
-        App.UndoRedoManager.StateChanged += OnUndoRedoStateChanged;
-        if (App.NavigationService != null)
-            App.NavigationService.Navigated += OnNavigated;
+        EnableDeferredUndoRefresh(p => p == PageNames.Invoices, LoadInvoices);
 
         // Subscribe to invoice modal events to refresh data
         if (App.InvoiceModalsViewModel != null)
@@ -552,9 +531,6 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
     public override void Cleanup()
     {
         base.Cleanup();
-        App.UndoRedoManager.StateChanged -= OnUndoRedoStateChanged;
-        if (App.NavigationService != null)
-            App.NavigationService.Navigated -= OnNavigated;
         if (_paymentSavedHandler != null && App.PaymentModalsViewModel != null)
         {
             App.PaymentModalsViewModel.PaymentSaved -= _paymentSavedHandler;
@@ -573,27 +549,6 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
             App.CompanyManager.CompanyDataChanged -= OnCompanyDataChanged;
         App.PlanStatusChanged -= OnPlanStatusChanged;
         RecurringInvoiceService.InvoicesGenerated -= OnRecurringInvoicesGenerated;
-    }
-
-    private bool _needsRefresh;
-
-    private void OnUndoRedoStateChanged(object? sender, EventArgs e)
-    {
-        if (App.NavigationService?.CurrentPageName != PageNames.Invoices)
-        {
-            _needsRefresh = true;
-            return;
-        }
-        LoadInvoices();
-    }
-
-    private void OnNavigated(object? sender, NavigationEventArgs e)
-    {
-        if (e.PageName == PageNames.Invoices && _needsRefresh)
-        {
-            _needsRefresh = false;
-            LoadInvoices();
-        }
     }
 
     private void OnInvoiceSaved(object? sender, EventArgs e)
@@ -682,7 +637,7 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
                     InvoiceNumber = invoice.InvoiceNumber,
                     CustomerId = invoice.CustomerId,
                     CustomerName = customer?.Name ?? "Unknown Customer",
-                    CustomerInitials = GetInitials(customer?.Name ?? "?"),
+                    CustomerInitials = Helpers.InitialsHelper.From(customer?.Name),
                     IssueDate = invoice.IssueDate,
                     DueDate = invoice.DueDate,
                     Total = invoice.Total,
@@ -700,17 +655,9 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
 
     private void LoadCustomerOptions()
     {
-        CustomerOptions.Clear();
-        CustomerOptions.Add(new CustomerOption { Id = string.Empty, Name = "All Customers" });
-
-        var companyData = App.CompanyManager?.CompanyData;
-        if (companyData?.Customers == null)
-            return;
-
-        foreach (var customer in companyData.Customers.OrderBy(c => c.Name))
-        {
-            CustomerOptions.Add(new CustomerOption { Id = customer.Id, Name = customer.Name });
-        }
+        OptionLoader.Fill(CustomerOptions,
+            OptionLoader.Customers(App.CompanyManager?.CompanyData).AsOptions<CustomerOption>(),
+            new CustomerOption { Name = "All Customers" });
     }
 
     private void UpdateStatistics()
@@ -780,17 +727,7 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
         if (!string.IsNullOrWhiteSpace(SearchQuery))
         {
             filtered = filtered
-                .Select(i => new
-                {
-                    Invoice = i,
-                    IdScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, i.Id),
-                    CustomerScore = LevenshteinDistance.ComputeSearchScore(SearchQuery,
-                        companyData?.GetCustomer(i.CustomerId)?.Name ?? ""),
-                    NumberScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, i.InvoiceNumber)
-                })
-                .Where(x => x.IdScore >= 0 || x.CustomerScore >= 0 || x.NumberScore >= 0)
-                .OrderByDescending(x => Math.Max(Math.Max(x.IdScore, x.CustomerScore), x.NumberScore))
-                .Select(x => x.Invoice)
+                .RankBySearch(SearchQuery, i => [i.Id, companyData?.GetCustomer(i.CustomerId)?.Name, i.InvoiceNumber])
                 .ToList();
         }
 
@@ -878,7 +815,7 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
                 AccountantName = accountant?.Name ?? "System",
                 CustomerId = invoice.CustomerId,
                 CustomerName = customer?.Name ?? "Unknown Customer",
-                CustomerInitials = GetInitials(customer?.Name ?? "?"),
+                CustomerInitials = Helpers.InitialsHelper.From(customer?.Name),
                 CustomerAvatarBitmap = avatarBitmap,
                 HasCustomerAvatar = avatarBitmap != null,
                 IssueDate = invoice.IssueDate,
@@ -922,19 +859,7 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
 
         NavigateToHighlightedItem(displayItems, x => x.Id);
 
-        // Calculate pagination
-        var totalCount = displayItems.Count;
-        TotalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / PageSize));
-        if (CurrentPage > TotalPages)
-            CurrentPage = TotalPages;
-
-        UpdatePageNumbers();
-        UpdatePaginationText(totalCount);
-
-        // Apply pagination and add to collection
-        var pagedInvoices = displayItems
-            .Skip((CurrentPage - 1) * PageSize)
-            .Take(PageSize);
+        var pagedInvoices = Paginate(displayItems, "invoice");
 
         Invoices.ReplaceAll(pagedInvoices);
     }
@@ -969,19 +894,6 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
             InvoiceStatus.Refunded => "Refunded",
             _ => "Unknown"
         };
-    }
-
-    private static string GetInitials(string name)
-    {
-        if (string.IsNullOrEmpty(name))
-            return "?";
-
-        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length >= 2)
-            return $"{parts[0][0]}{parts[^1][0]}".ToUpper();
-        if (parts is [{ Length: >= 1 }])
-            return parts[0][0].ToString().ToUpper();
-        return "?";
     }
 
     /// <summary>
@@ -1019,25 +931,6 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
         return false;
     }
 
-    protected override void UpdatePageNumbers()
-    {
-        PageNumbers.Clear();
-        var startPage = Math.Max(1, CurrentPage - 2);
-        var endPage = Math.Min(TotalPages, startPage + 4);
-        startPage = Math.Max(1, endPage - 4);
-
-        for (var i = startPage; i <= endPage; i++)
-        {
-            PageNumbers.Add(i);
-        }
-    }
-
-    private void UpdatePaginationText(int totalCount)
-    {
-        PaginationText = PaginationTextHelper.FormatPaginationText(
-            totalCount, CurrentPage, PageSize, TotalPages, "invoice");
-    }
-
     #endregion
 
     #region Portal Configuration
@@ -1046,15 +939,7 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
     [NotifyCanExecuteChangedFor(nameof(OpenCreateModalCommand))]
     private bool _isPortalConfigured;
 
-    private void CheckPortalConfiguration()
-    {
-        // Consider the portal configured if the API key is present (or PortalUrl persisted)
-        // AND at least one payment provider is actually connected.
-        var portalUrl = App.CompanyManager?.CompanyData?.Settings.PaymentPortal.PortalUrl;
-        var hasPortalKey = PortalSettings.IsConfigured || !string.IsNullOrEmpty(portalUrl);
-        var hasConnectedProvider = PaymentProviderService.GetConnectedMethods().Count > 0;
-        IsPortalConfigured = hasPortalKey && hasConnectedProvider;
-    }
+    private void CheckPortalConfiguration() => IsPortalConfigured = PaymentProviderService.IsPortalReady();
 
     [RelayCommand]
     private void OpenPortalSettings()
@@ -1118,13 +1003,10 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
     private void RefreshSchedulesPage()
     {
         var totalCount = _allSchedules.Count;
-        ScheduleTotalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / SchedulePageSize));
-        if (ScheduleCurrentPage > ScheduleTotalPages) ScheduleCurrentPage = ScheduleTotalPages;
-        if (ScheduleCurrentPage < 1) ScheduleCurrentPage = 1;
+        ScheduleTotalPages = PaginationMath.TotalPages(totalCount, SchedulePageSize);
+        ScheduleCurrentPage = PaginationMath.ClampPage(ScheduleCurrentPage, ScheduleTotalPages);
 
-        Schedules.ReplaceAll(_allSchedules
-            .Skip((ScheduleCurrentPage - 1) * SchedulePageSize)
-            .Take(SchedulePageSize));
+        Schedules.ReplaceAll(PaginationMath.Slice(_allSchedules, ScheduleCurrentPage, SchedulePageSize));
         SchedulePaginationText = PaginationTextHelper.FormatPaginationText(
             totalCount, ScheduleCurrentPage, SchedulePageSize, ScheduleTotalPages, "schedule");
         OnPropertyChanged(nameof(HasSchedules));
@@ -1313,37 +1195,9 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
         var invoice = companyData?.GetInvoice(item.Id);
         if (companyData == null || invoice == null) return;
 
-        // Refunds require an owner email so the verification code has somewhere
-        // to be delivered. Pre-flight this client-side so the user gets a
-        // clear actionable error (with a path to fix it) rather than getting
-        // halfway through the modal and hitting the server's 412 gate.
-        if (string.IsNullOrWhiteSpace(companyData.Settings.Company.Email))
-        {
-            await ShowRefundEmailRequiredAsync();
-            return;
-        }
-
-        var invoicePayments = companyData.Payments.Where(p => p.InvoiceId == invoice.Id).ToList();
-        var customer = companyData.GetCustomer(invoice.CustomerId);
-        var customerName = customer?.Name ?? item.CustomerName;
-
-        // Hand off to the AppShell-level RefundModals, the same pattern as
-        // every other modal in the app. The onClosed callback refreshes the
-        // invoice list so any newly-arrived refund Payment appears.
-        App.RefundModalsViewModel?.OpenRefundModal(invoice, invoicePayments, customerName, onClosed: LoadInvoices);
-    }
-
-    private static async Task ShowRefundEmailRequiredAsync()
-    {
-        if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop
-            || desktop.MainWindow is not MainWindow mainWindow
-            || mainWindow.MessageBoxService is not { } mbox)
-        {
-            return;
-        }
-        await mbox.ShowErrorAsync(
-            "Owner email required",
-            "You need to set your portal owner email before issuing a refund. The verification code is sent to that address.\n\nOpen Settings → Payment Portal and set your owner email, then try again.");
+        // The invoice list refreshes when the window closes, so a newly-arrived refund Payment appears.
+        if (App.RefundModalsViewModel is { } refunds)
+            await refunds.OpenForInvoiceAsync(companyData, invoice, onClosed: LoadInvoices);
     }
 
     [RelayCommand]
@@ -1829,10 +1683,6 @@ public partial class RecurringScheduleDisplayItem : ObservableObject
 /// <summary>
 /// Customer option for dropdown.
 /// </summary>
-public class CustomerOption
+public class CustomerOption : NamedOption
 {
-    public string? Id { get; set; }
-    public string Name { get; set; } = string.Empty;
-
-    public override string ToString() => Name;
 }

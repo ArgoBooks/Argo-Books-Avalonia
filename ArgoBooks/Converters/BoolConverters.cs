@@ -43,27 +43,9 @@ public static class BoolConverters
     /// Error = red (#dc2626), No error = default border color.
     /// </summary>
     public static readonly IValueConverter ToErrorBorderBrush =
-        new FuncValueConverter<bool, IBrush>(value =>
-        {
-            if (value)
-            {
-                if (Application.Current?.Resources != null &&
-                    Application.Current.Resources.TryGetResource("ErrorBrush", Application.Current.ActualThemeVariant, out var resource) &&
-                    resource is IBrush brush)
-                {
-                    return brush;
-                }
-                return new SolidColorBrush(Color.Parse(AppColors.Error));
-            }
-            // Return BorderBrush for no error state to preserve the control's default border
-            if (Application.Current?.Resources != null &&
-                Application.Current.Resources.TryGetResource("BorderBrush", Application.Current.ActualThemeVariant, out var borderResource) &&
-                borderResource is IBrush borderBrush)
-            {
-                return borderBrush;
-            }
-            return new SolidColorBrush(Color.Parse(AppColors.ChartGrid));
-        });
+        new FuncValueConverter<bool, IBrush>(value => value
+            ? ConverterUtils.ThemeBrush("ErrorBrush", AppColors.Error)
+            : ConverterUtils.ThemeBrush("BorderBrush", AppColors.ChartGrid));
 
     /// <summary>
     /// Converts bool (isActive) to status badge foreground color.
@@ -207,66 +189,10 @@ public static class BoolConverters
     /// Used to highlight hint labels that should turn red when their associated value is invalid.
     /// </summary>
     public static readonly IValueConverter ToErrorOrTertiaryBrush =
-        new FuncValueConverter<bool, IBrush>(value =>
-        {
-            var key = value ? "ErrorBrush" : "TextTertiaryBrush";
-            if (Application.Current?.Resources != null &&
-                Application.Current.Resources.TryGetResource(key, Application.Current.ActualThemeVariant, out var resource) &&
-                resource is IBrush brush)
-            {
-                return brush;
-            }
-            return new SolidColorBrush(Color.Parse(value ? AppColors.Error : AppColors.GrayText));
-        });
+        new FuncValueConverter<bool, IBrush>(value => value
+            ? ConverterUtils.ThemeBrush("ErrorBrush", AppColors.Error)
+            : ConverterUtils.ThemeBrush("TextTertiaryBrush", AppColors.GrayText));
 
-}
-
-/// <summary>
-/// Converter that returns one of two colors based on a boolean value.
-/// </summary>
-public class BoolToColorConverter : IValueConverter
-{
-    public string TrueColor { get; set; } = AppColors.Error;
-    public object? FalseColor { get; set; } = AppColors.ChartAxis;
-
-    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
-    {
-        if (value is not bool boolValue)
-            return GetBrush(FalseColor);
-
-        return boolValue ? new SolidColorBrush(Color.Parse(TrueColor)) : GetBrush(FalseColor);
-    }
-
-    private static IBrush GetBrush(object? colorValue)
-    {
-        if (colorValue is string colorString)
-        {
-            try
-            {
-                return new SolidColorBrush(Color.Parse(colorString));
-            }
-            catch
-            {
-                // Try to get from resources
-            }
-        }
-
-        if (colorValue is IBrush brush)
-            return brush;
-
-        // Try to get TextPrimaryBrush from resources
-        if (Application.Current?.Resources != null &&
-            Application.Current.Resources.TryGetResource("TextPrimaryBrush", Application.Current.ActualThemeVariant, out var resource) &&
-            resource is IBrush textBrush)
-        {
-            return textBrush;
-        }
-
-        return new SolidColorBrush(Color.Parse(AppColors.ChartAxis));
-    }
-
-    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
-        => throw new NotSupportedException();
 }
 
 /// <summary>

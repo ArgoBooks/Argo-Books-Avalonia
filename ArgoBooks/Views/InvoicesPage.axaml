@@ -232,14 +232,6 @@
                                 ItemsSource="{Binding Invoices}"
                                 SearchQuery="{Binding SearchQuery, Mode=TwoWay}"
                                 SearchPlaceholder="{loc:Loc 'Search invoices...'}"
-                                SearchBoxWidth="{Binding ResponsiveHeader.SearchBoxWidth}"
-                                SearchBoxMinHeight="{Binding ResponsiveHeader.SearchBoxMinHeight}"
-                                SearchIconMargin="{Binding ResponsiveHeader.SearchIconMargin}"
-                                HeaderPadding="{Binding ResponsiveHeader.HeaderPadding}"
-                                HeaderSpacing="{Binding ResponsiveHeader.HeaderSpacing}"
-                                IsCompactMode="{Binding ResponsiveHeader.IsCompactMode}"
-                                IsMediumMode="{Binding ResponsiveHeader.IsMediumMode}"
-                                ShowButtonText="{Binding ResponsiveHeader.ShowButtonText}"
                                 FilterCommand="{Binding OpenFilterModalCommand}"
                                 AddCommand="{Binding OpenCreateModalCommand}"
                                 AddButtonText="{loc:Loc 'Create Invoice'}"
@@ -256,9 +248,7 @@
                                 EmptyIcon="{x:Static icons:Icons.Invoices}"
                                 EmptyTitle="{Binding EmptyStateTitle}"
                                 EmptyMessage="{Binding EmptyStateMessage}"
-                                ShowHeaderBorder="{Binding IsPortalConfigured}"
-                                BorderSizeChanged="OnHeaderSizeChanged"
-                                TableGridSizeChanged="OnTableSizeChanged">
+                                ShowHeaderBorder="{Binding IsPortalConfigured}">
 
                 <!-- Info Banners (portal warning + invoice limit) -->
                 <table:ArgoTable.InfoBannerContent>
@@ -346,15 +336,15 @@
                 <!-- Extra Buttons Content (Template Designer) -->
                 <table:ArgoTable.ExtraButtonsContent>
                     <Button Classes="secondary-button"
-                            Classes.compact="{Binding ResponsiveHeader.IsCompactMode}"
-                            Classes.medium="{Binding ResponsiveHeader.IsMediumMode}"
+                            Classes.compact="{Binding $parent[table:ArgoTable].IsCompactMode}"
+                            Classes.medium="{Binding $parent[table:ArgoTable].IsMediumMode}"
                             Command="{Binding OpenTemplateDesignerCommand}"
                             ToolTip.Tip="{loc:Loc 'Invoice Templates'}">
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <PathIcon Data="{x:Static icons:Icons.DocumentList}"
                                       Width="16" Height="16" />
                             <TextBlock Text="{loc:Loc Templates}"
-                                       IsVisible="{Binding ResponsiveHeader.ShowButtonText}" />
+                                       IsVisible="{Binding $parent[table:ArgoTable].ShowButtonText}" />
                         </StackPanel>
                     </Button>
                 </table:ArgoTable.ExtraButtonsContent>
@@ -475,11 +465,11 @@
                                                         HorizontalAlignment="Left"
                                                         Padding="8,4"
                                                         CornerRadius="4"
-                                                        Background="{Binding StatusDisplay, Converter={x:Static local:StringConverters.ToInvoiceStatusBackground}}">
+                                                        Background="{Binding StatusDisplay, Converter={x:Static local:StatusConverters.InvoiceStatusBackground}}">
                                                     <TextBlock Text="{Binding StatusDisplay, Converter={StaticResource TranslateConverter}}"
                                                                FontSize="12"
                                                                FontWeight="Medium"
-                                                               Foreground="{Binding StatusDisplay, Converter={x:Static local:StringConverters.ToInvoiceStatusForeground}}" />
+                                                               Foreground="{Binding StatusDisplay, Converter={x:Static local:StatusConverters.InvoiceStatusForeground}}" />
                                                 </Border>
                                             </table:ArgoTableCell.CellContent>
                                         </table:ArgoTableCell>
@@ -632,8 +622,7 @@
                              EmptyIcon="{x:Static icons:Icons.Refresh}"
                              EmptyTitle="No recurring invoices yet"
                              EmptyMessage="Create an invoice and turn on Repeat this invoice."
-                             ColumnWidthsManager="{Binding RecurringColumnWidths}"
-                             TableGridSizeChanged="OnRecurringTableSizeChanged">
+                             ColumnWidthsManager="{Binding RecurringColumnWidths}">
 
                 <!-- Column headers - widths driven by RecurringColumnWidths so they redistribute on resize -->
                 <table:ArgoTable.HeaderContent>

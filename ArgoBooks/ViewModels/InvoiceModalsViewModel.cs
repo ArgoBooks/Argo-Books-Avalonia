@@ -589,80 +589,30 @@ public partial class InvoiceModalsViewModel : ViewModelBase
               DiscountAmount > 0 ||
               LineItems.Any(i => !string.IsNullOrWhiteSpace(i.Description) || i.SelectedProduct != null || (i.UnitPrice ?? 0) > 0);
 
-    // Original values for change detection in edit mode
-    private string? _originalCustomerId;
-    private DateTimeOffset? _originalIssueDate;
-    private DateTimeOffset? _originalDueDate;
-    private string _originalStatus = "Draft";
-    private string _originalNotes = string.Empty;
-    private decimal _originalTaxRate;
-    private bool _originalTaxIsFixed;
-    private decimal _originalSecurityDeposit;
-    private decimal _originalShippingAmount;
-    private decimal _originalCustomFeeAmount;
-    private bool _originalCustomFeeIsPercent;
-    private decimal _originalDiscountAmount;
-    private bool _originalDiscountIsPercent;
-    private List<(string? ProductId, string Description, decimal? Quantity, decimal? UnitPrice)> _originalLineItems = [];
+    private sealed record LineState(string? ProductId, string Description, decimal? Quantity, decimal? UnitPrice);
+
+    private sealed record EditState(
+        string? CustomerId, DateTimeOffset? IssueDate, DateTimeOffset? DueDate, string Status, string Notes,
+        decimal TaxRate, bool TaxIsFixed, decimal SecurityDeposit, decimal ShippingAmount,
+        decimal CustomFeeAmount, bool CustomFeeIsPercent, decimal DiscountAmount, bool DiscountIsPercent,
+        Helpers.EquatableArray<LineState> LineItems);
+
+    // The form as the edit modal opened, for change detection.
+    private EditState? _original;
+
+    private EditState Capture() => new(
+        SelectedCustomer?.Id, ModalIssueDate, ModalDueDate, ModalStatus, ModalNotes,
+        TaxRate, TaxIsFixed, SecurityDeposit, ShippingAmount,
+        CustomFeeAmount, CustomFeeIsPercent, DiscountAmount, DiscountIsPercent,
+        new Helpers.EquatableArray<LineState>(LineItems.Select(li =>
+            new LineState(li.SelectedProduct?.Id, li.Description, li.Quantity, li.UnitPrice))));
 
     /// <summary>
     /// Returns true if any changes have been made in the Edit modal compared to original values.
     /// </summary>
-    public bool HasEditModalChanges
-    {
-        get
-        {
-            if (SelectedCustomer?.Id != _originalCustomerId) return true;
-            if (ModalIssueDate != _originalIssueDate) return true;
-            if (ModalDueDate != _originalDueDate) return true;
-            if (ModalStatus != _originalStatus) return true;
-            if (ModalNotes != _originalNotes) return true;
-            if (TaxRate != _originalTaxRate) return true;
-            if (TaxIsFixed != _originalTaxIsFixed) return true;
-            if (SecurityDeposit != _originalSecurityDeposit) return true;
-            if (ShippingAmount != _originalShippingAmount) return true;
-            if (CustomFeeAmount != _originalCustomFeeAmount) return true;
-            if (CustomFeeIsPercent != _originalCustomFeeIsPercent) return true;
-            if (DiscountAmount != _originalDiscountAmount) return true;
-            if (DiscountIsPercent != _originalDiscountIsPercent) return true;
+    public bool HasEditModalChanges => Capture() != _original;
 
-            // Compare line items
-            if (LineItems.Count != _originalLineItems.Count) return true;
-            for (int i = 0; i < LineItems.Count; i++)
-            {
-                var current = LineItems[i];
-                var original = _originalLineItems[i];
-                if (current.SelectedProduct?.Id != original.ProductId ||
-                    current.Description != original.Description ||
-                    current.Quantity != original.Quantity ||
-                    current.UnitPrice != original.UnitPrice)
-                    return true;
-            }
-
-            return false;
-        }
-    }
-
-    /// <summary>
-    /// Captures the current form state as original values for change detection.
-    /// </summary>
-    private void CaptureOriginalValues()
-    {
-        _originalCustomerId = SelectedCustomer?.Id;
-        _originalIssueDate = ModalIssueDate;
-        _originalDueDate = ModalDueDate;
-        _originalStatus = ModalStatus;
-        _originalNotes = ModalNotes;
-        _originalTaxRate = TaxRate;
-        _originalTaxIsFixed = TaxIsFixed;
-        _originalSecurityDeposit = SecurityDeposit;
-        _originalShippingAmount = ShippingAmount;
-        _originalCustomFeeAmount = CustomFeeAmount;
-        _originalCustomFeeIsPercent = CustomFeeIsPercent;
-        _originalDiscountAmount = DiscountAmount;
-        _originalDiscountIsPercent = DiscountIsPercent;
-        _originalLineItems = LineItems.Select(li => (li.SelectedProduct?.Id, li.Description, li.Quantity, li.UnitPrice)).ToList();
-    }
+    private void CaptureOriginalValues() => _original = Capture();
 
     public ObservableCollection<CustomerOption> CustomerOptions { get; } = [];
 
@@ -980,43 +930,32 @@ public partial class InvoiceModalsViewModel : ViewModelBase
 
     public ObservableCollection<string> StatusFilterOptions { get; } = new(InvoiceStatusExtensions.GetFilterOptions());
 
-    // Original filter values for change detection (captured when modal opens)
-    private string _originalFilterStatus = "All";
-    private string? _originalFilterCustomerId;
-    private string? _originalFilterAmountMin;
-    private string? _originalFilterAmountMax;
-    private DateTimeOffset? _originalFilterIssueDateFrom;
-    private DateTimeOffset? _originalFilterIssueDateTo;
-    private DateTimeOffset? _originalFilterDueDateFrom;
-    private DateTimeOffset? _originalFilterDueDateTo;
-
-    /// <summary>
-    /// Returns true if any filter has been changed from the state when the modal was opened.
-    /// </summary>
-    public bool HasFilterModalChanges =>
-        FilterStatus != _originalFilterStatus ||
-        FilterSelectedCustomer?.Id != _originalFilterCustomerId ||
-        FilterAmountMin != _originalFilterAmountMin ||
-        FilterAmountMax != _originalFilterAmountMax ||
-        FilterIssueDateFrom != _originalFilterIssueDateFrom ||
-        FilterIssueDateTo != _originalFilterIssueDateTo ||
-        FilterDueDateFrom != _originalFilterDueDateFrom ||
-        FilterDueDateTo != _originalFilterDueDateTo;
-
-    /// <summary>
-    /// Captures the current filter state as original values for change detection.
-    /// </summary>
-    private void CaptureOriginalFilterValues()
+    private sealed record FilterValues(
+        string Status, string? CustomerId, string? AmountMin, string? AmountMax,
+        DateTimeOffset? IssueDateFrom, DateTimeOffset? IssueDateTo,
+        DateTimeOffset? DueDateFrom, DateTimeOffset? DueDateTo)
     {
-        _originalFilterStatus = FilterStatus;
-        _originalFilterCustomerId = FilterSelectedCustomer?.Id;
-        _originalFilterAmountMin = FilterAmountMin;
-        _originalFilterAmountMax = FilterAmountMax;
-        _originalFilterIssueDateFrom = FilterIssueDateFrom;
-        _originalFilterIssueDateTo = FilterIssueDateTo;
-        _originalFilterDueDateFrom = FilterDueDateFrom;
-        _originalFilterDueDateTo = FilterDueDateTo;
+        public static readonly FilterValues Default = new("All", null, null, null, null, null, null, null);
     }
+
+    private FilterSnapshot<FilterValues>? _filters;
+
+    private FilterSnapshot<FilterValues> Filters => _filters ??= new(FilterValues.Default,
+        () => new(FilterStatus, FilterSelectedCustomer?.Id, FilterAmountMin, FilterAmountMax,
+            FilterIssueDateFrom, FilterIssueDateTo, FilterDueDateFrom, FilterDueDateTo),
+        v =>
+        {
+            FilterStatus = v.Status;
+            FilterSelectedCustomer = v.CustomerId == null ? null : CustomerOptions.FirstOrDefault(c => c.Id == v.CustomerId);
+            FilterAmountMin = v.AmountMin;
+            FilterAmountMax = v.AmountMax;
+            FilterIssueDateFrom = v.IssueDateFrom;
+            FilterIssueDateTo = v.IssueDateTo;
+            FilterDueDateFrom = v.DueDateFrom;
+            FilterDueDateTo = v.DueDateTo;
+        });
+
+    public bool HasFilterModalChanges => Filters.HasChanges;
 
     #endregion
 
@@ -1031,6 +970,12 @@ public partial class InvoiceModalsViewModel : ViewModelBase
 
     #region Constructor
 
+    /// <summary>
+    /// Sending needs the payment portal, so Preview stays off and the sidebar says so until it is set up.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isPortalReady = true;
+
     public InvoiceModalsViewModel()
     {
         LoadCustomerOptions(includeAllOption: false);
@@ -1038,27 +983,27 @@ public partial class InvoiceModalsViewModel : ViewModelBase
 
         // Subscribe to plan status changes
         App.PlanStatusChanged += OnPlanStatusChanged;
+        PaymentProviderService.ProvidersChanged += (_, _) => IsPortalReady = PaymentProviderService.IsPortalReady();
     }
 
     private void OnPlanStatusChanged(object? sender, PlanStatusChangedEventArgs e) => HasPremium = e.HasPremium;
 
+    /// <summary>
+    /// Settings sits below this modal, so the modal closes first, asking before it discards anything.
+    /// </summary>
+    [RelayCommand]
+    private async Task SetUpPaymentPortal()
+    {
+        await RequestCloseCreateEditModalAsync();
+        if (!IsCreateEditModalOpen)
+            App.SettingsModalViewModel?.OpenWithTab(SettingsTab.PaymentPortal);
+    }
+
     private void LoadCustomerOptions(bool includeAllOption = false)
     {
-        CustomerOptions.Clear();
-
-        if (includeAllOption)
-        {
-            CustomerOptions.Add(new CustomerOption { Id = null, Name = "All Customers" });
-        }
-
-        var companyData = App.CompanyManager?.CompanyData;
-        if (companyData?.Customers == null)
-            return;
-
-        foreach (var customer in companyData.Customers.OrderBy(c => c.Name))
-        {
-            CustomerOptions.Add(new CustomerOption { Id = customer.Id, Name = customer.Name });
-        }
+        OptionLoader.Fill(CustomerOptions,
+            OptionLoader.Customers(App.CompanyManager?.CompanyData).AsOptions<CustomerOption>(),
+            includeAllOption ? new CustomerOption { Name = "All Customers" } : null);
     }
 
     private void LoadProductOptions()
@@ -1171,11 +1116,6 @@ public partial class InvoiceModalsViewModel : ViewModelBase
         var rental = companyData.Rentals.FirstOrDefault(r => r.Id == rentalRecordId);
         if (rental == null) return;
 
-        var rentalItem = companyData.RentalInventory.FirstOrDefault(i => i.Id == rental.RentalItemId);
-        var inventoryItem = rentalItem != null ? companyData.Inventory.FirstOrDefault(i => i.Id == rentalItem.InventoryItemId) : null;
-        var rentalProduct = inventoryItem != null ? companyData.GetProduct(inventoryItem.ProductId) : null;
-        var itemName = rentalProduct?.Name ?? "Unknown Item";
-
         // Open the standard create modal (loads options, resets form)
         OpenCreateModal();
 
@@ -1185,58 +1125,60 @@ public partial class InvoiceModalsViewModel : ViewModelBase
         // Pre-select the customer
         SelectedCustomer = CustomerOptions.FirstOrDefault(c => c.Id == rental.CustomerId);
 
-        // Calculate rental cost
-        var endDate = rental.ReturnDate ?? DateTime.Today;
-        var days = (int)(endDate - rental.StartDate).TotalDays;
-        if (days < 1) days = 1;
-
-        var totalCost = rental.RateType switch
-        {
-            RateType.Daily => rental.RateAmount * days * rental.Quantity,
-            RateType.Weekly => rental.RateAmount * (decimal)Math.Ceiling(days / 7.0) * rental.Quantity,
-            RateType.Monthly => rental.RateAmount * (decimal)Math.Ceiling(days / 30.0) * rental.Quantity,
-            _ => rental.RateAmount * days * rental.Quantity
-        };
-
-        // Replace the default line item with rental charge, unsubscribe the
+        // Replace the default line item with the rental's charges, unsubscribe the
         // ResetForm placeholder first so its PropertyChanged isn't leaked.
         foreach (var item in LineItems)
             item.PropertyChanged -= OnLineItemPropertyChanged;
         LineItems.Clear();
 
-        // Try to match rental item to a product by name, or create a synthetic one
-        var matchedProduct = ProductOptions.FirstOrDefault(p =>
-            string.Equals(p.Name, itemName, StringComparison.OrdinalIgnoreCase));
-
-        if (matchedProduct == null)
+        // One line per item for the days out: to the return, or to the due date while it is still out.
+        var days = RentalBookings.ChargeableDays(rental.StartDate, rental.ReturnDate ?? rental.DueDate);
+        foreach (var line in rental.EffectiveLineItems())
         {
-            // Create a synthetic product option from the rental item so the dropdown shows the item
-            matchedProduct = new ProductOption
+            var itemName = RentalBookings.ItemName(companyData, line.RentalItemId);
+            var unitCost = RentalBookings.UnitCost(line, days);
+
+            // Try to match rental item to a product by name, or create a synthetic one
+            var product = ProductOptions.FirstOrDefault(p =>
+                string.Equals(p.Name, itemName, StringComparison.OrdinalIgnoreCase));
+            if (product == null)
             {
-                Id = rentalItem?.Id ?? rental.RentalItemId,
-                Name = itemName,
-                Description = itemName,
-                UnitPrice = totalCost
-            };
-            ProductOptions.Add(matchedProduct);
+                product = new ProductOption { Id = line.RentalItemId, Name = itemName, Description = itemName, UnitPrice = unitCost };
+                ProductOptions.Add(product);
+            }
+
+            var period = line.RateType switch { RateType.Weekly => "week", RateType.Monthly => "month", _ => "day" };
+            AddRentalLine(product,
+                $"Rental: {itemName} ({CurrencyService.Format(line.RateAmount)}/{period}, {days} {(days == 1 ? "day" : "days")})",
+                line.Quantity, unitCost, rental.Id);
         }
 
-        var rentalLineItem = new LineItemDisplayModel
+        if (rental.ExtraCharges > 0)
         {
-            SelectedProduct = matchedProduct,
-            Description = $"Rental: {itemName} ({rental.RateType} @ {CurrencyService.Format(rental.RateAmount)} x {rental.Quantity})",
-            Quantity = 1,
-            UnitPrice = totalCost,
-            RentalRecordId = rental.Id,
-            InvoiceCurrencyCode = SelectedCurrencyCode
-        };
-        rentalLineItem.PropertyChanged += OnLineItemPropertyChanged;
-        LineItems.Add(rentalLineItem);
+            AddRentalLine(null,
+                string.IsNullOrWhiteSpace(rental.ExtraChargesNote) ? "Extra charges" : $"Extra charges: {rental.ExtraChargesNote}",
+                1, rental.ExtraCharges, rental.Id);
+        }
 
         // Store security deposit separately (not as a line item)
         SecurityDeposit = rental.SecurityDeposit;
 
         UpdateTotals();
+    }
+
+    private void AddRentalLine(ProductOption? product, string description, decimal quantity, decimal unitPrice, string rentalId)
+    {
+        var line = new LineItemDisplayModel
+        {
+            SelectedProduct = product,
+            Description = description,
+            Quantity = quantity,
+            UnitPrice = unitPrice,
+            RentalRecordId = rentalId,
+            InvoiceCurrencyCode = SelectedCurrencyCode
+        };
+        line.PropertyChanged += OnLineItemPropertyChanged;
+        LineItems.Add(line);
     }
 
     /// <summary>
@@ -1452,19 +1394,9 @@ public partial class InvoiceModalsViewModel : ViewModelBase
         {
             if (item == null) return;
 
-            var dialog = App.ConfirmationDialog;
-            if (dialog == null) return;
-
-            var result = await dialog.ShowAsync(new ConfirmationDialogOptions
-            {
-                Title = "Delete Invoice".Translate(),
-                Message = "Are you sure you want to delete this invoice?\n\nInvoice: {0}\nAmount: {1}".TranslateFormat(item.Id, item.TotalFormatted),
-                PrimaryButtonText = "Delete".Translate(),
-                CancelButtonText = "Cancel".Translate(),
-                IsPrimaryDestructive = true
-            });
-
-            if (result != ConfirmationResult.Primary) return;
+            if (!await ConfirmDeleteAsync("Delete Invoice".Translate(),
+                    "Are you sure you want to delete this invoice?\n\nInvoice: {0}\nAmount: {1}".TranslateFormat(item.Id, item.TotalFormatted)))
+                return;
 
             var companyData = App.CompanyManager?.CompanyData;
 
@@ -1497,39 +1429,24 @@ public partial class InvoiceModalsViewModel : ViewModelBase
 
     public void OpenFilterModal()
     {
+        var current = Filters.Current;
         LoadCustomerOptions(includeAllOption: true);
-        CaptureOriginalFilterValues();
+        // The reload replaced the option objects, so point the selection at the new one.
+        Filters.Set(current);
+        Filters.Capture();
         IsFilterModalOpen = true;
     }
 
-    [RelayCommand]
-    private void CloseFilterModal()
-    {
-        IsFilterModalOpen = false;
-    }
+    private void CloseFilterModal() => IsFilterModalOpen = false;
 
     /// <summary>
-    /// Requests to close the Filter modal, showing confirmation if filter values have been changed.
+    /// Closes the filter modal, asking first and putting the filters back if they were changed.
     /// </summary>
     [RelayCommand]
     private async Task RequestCloseFilterModalAsync()
     {
-        if (HasFilterModalChanges)
-        {
-            if (!await ConfirmDiscardFiltersAsync()) return;
-
-            // Restore filter values to the state when modal was opened
-            FilterStatus = _originalFilterStatus;
-            FilterSelectedCustomer = CustomerOptions.FirstOrDefault(c => c.Id == _originalFilterCustomerId);
-            FilterAmountMin = _originalFilterAmountMin;
-            FilterAmountMax = _originalFilterAmountMax;
-            FilterIssueDateFrom = _originalFilterIssueDateFrom;
-            FilterIssueDateTo = _originalFilterIssueDateTo;
-            FilterDueDateFrom = _originalFilterDueDateFrom;
-            FilterDueDateTo = _originalFilterDueDateTo;
-        }
-
-        CloseFilterModal();
+        if (await Filters.ConfirmDiscardAsync(ConfirmDiscardFiltersAsync))
+            CloseFilterModal();
     }
 
     [RelayCommand]
@@ -1543,22 +1460,10 @@ public partial class InvoiceModalsViewModel : ViewModelBase
     [RelayCommand]
     private void ClearFilters()
     {
-        ResetFilterDefaults();
+        Filters.Reset();
+        FilterCustomerId = null;
         FiltersCleared?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
-    }
-
-    private void ResetFilterDefaults()
-    {
-        FilterStatus = "All";
-        FilterSelectedCustomer = null;
-        FilterCustomerId = null;
-        FilterAmountMin = null;
-        FilterAmountMax = null;
-        FilterIssueDateFrom = null;
-        FilterIssueDateTo = null;
-        FilterDueDateFrom = null;
-        FilterDueDateTo = null;
     }
 
     #endregion
@@ -2757,8 +2662,7 @@ public partial class InvoiceModalsViewModel : ViewModelBase
     /// </summary>
     internal static void CreateRevenueFromInvoice(Invoice invoice, CompanyData companyData)
     {
-        companyData.IdCounters.Revenue++;
-        var revenueId = $"REV-{DateTime.Now:yyyy}-{companyData.IdCounters.Revenue:D5}";
+        var revenueId = new Core.Data.IdGenerator(companyData).NextRevenueId(invoice.IssueDate);
 
         var description = invoice.LineItems.Count switch
         {
@@ -2860,7 +2764,7 @@ public partial class InvoiceModalsViewModel : ViewModelBase
     /// <summary>
     /// Removes the auto-created Revenue for an invoice (if any).
     /// Only removes revenues that were auto-generated (i.e., not referenced by line items).
-    /// User-created revenues that were linked via "Generate Invoice" are only unlinked, not deleted.
+    /// User-created revenues that were linked via "Create Invoice" are only unlinked, not deleted.
     /// </summary>
     private static void RemoveAutoCreatedRevenue(Invoice invoice, CompanyData companyData)
     {
@@ -2892,6 +2796,7 @@ public partial class InvoiceModalsViewModel : ViewModelBase
 
     private void ResetForm()
     {
+        IsPortalReady = PaymentProviderService.IsPortalReady();
         _editingInvoiceId = string.Empty;
         _unansweredSend = null;
         _paperLogo = null;

@@ -19,35 +19,13 @@
         <!-- Upgrade Modal -->
         <controls:ModalOverlay IsOpen="{Binding IsOpen}" ClosingCommand="{Binding CloseCommand}">
             <controls:ModalOverlay.ModalContent>
-                <Border Background="{DynamicResource SurfaceBrush}"
-                    BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="1"
-                    CornerRadius="12"
+                <Border Classes="modal-card"
                     Width="780"
-                    MaxHeight="860"
-                    VerticalAlignment="Center"
-                    BoxShadow="0 8 32 0 #40000000">
+                    MaxHeight="860">
 
                 <Grid RowDefinitions="Auto,*,Auto">
                     <!-- Header -->
-                    <Border Grid.Row="0"
-                            Padding="24,20"
-                            BorderBrush="{DynamicResource BorderBrush}"
-                            BorderThickness="0,0,0,1">
-                        <Grid ColumnDefinitions="*,Auto">
-                            <TextBlock Grid.Column="0"
-                                       Text="{loc:Loc 'Upgrade Your Plan'}"
-                                       FontSize="18"
-                                       FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextPrimaryBrush}" />
-                            <Button Grid.Column="1"
-                                    Classes="icon-button"
-                                    Command="{Binding CloseCommand}">
-                                <PathIcon Data="{x:Static local:Icons.Close}"
-                                          Width="20" Height="20" />
-                            </Button>
-                        </Grid>
-                    </Border>
+                    <controls:ModalHeader Grid.Row="0" Title="{loc:Loc 'Upgrade Your Plan'}" CloseCommand="{Binding CloseCommand}" />
 
                     <!-- Body -->
                     <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
@@ -310,10 +288,7 @@
                     </ScrollViewer>
 
                     <!-- Footer -->
-                    <Border Grid.Row="2"
-                            Padding="24,20"
-                            BorderBrush="{DynamicResource BorderBrush}"
-                            BorderThickness="0,1,0,0"
+                    <Border Classes="modal-footer" Grid.Row="2"
                             IsVisible="{Binding ShowPlans}">
                         <Button Classes="primary-button"
                                 HorizontalAlignment="Right"
@@ -334,37 +309,17 @@
         <!-- Enter Key Modal -->
         <controls:ModalOverlay IsOpen="{Binding IsEnterKeyModalOpen}" ClosingCommand="{Binding RequestCloseEnterKeyCommand}">
             <controls:ModalOverlay.ModalContent>
-                <Border Background="{DynamicResource SurfaceBrush}"
-                    BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="1"
-                    CornerRadius="12"
-                    Width="420"
-                    VerticalAlignment="Center"
-                    BoxShadow="0 8 32 0 #40000000">
+                <Border Classes="modal-card"
+                    Width="420">
 
                 <Panel>
                     <!-- Normal Entry View -->
                     <Grid RowDefinitions="Auto,*,Auto"
                           IsVisible="{Binding ShowKeyEntryForm}">
                         <!-- Header -->
-                        <Border Grid.Row="0"
-                                Padding="24,20"
-                                BorderBrush="{DynamicResource BorderBrush}"
-                                BorderThickness="0,0,0,1">
-                            <Grid ColumnDefinitions="*,Auto">
-                                <TextBlock Grid.Column="0"
-                                           Text="{loc:Loc 'Enter License Key'}"
-                                           FontSize="18"
-                                           FontWeight="SemiBold"
-                                           Foreground="{DynamicResource TextPrimaryBrush}" />
-                                <Button Grid.Column="1"
-                                        Classes="icon-button"
-                                        Command="{Binding CloseEnterKeyCommand}">
-                                    <PathIcon Data="{x:Static icons:Icons.Close}"
-                                              Width="20" Height="20" />
-                                </Button>
-                            </Grid>
-                        </Border>
+                        <controls:ModalHeader Grid.Row="0"
+                                              Title="{loc:Loc 'Enter License Key'}"
+                                              CloseCommand="{Binding CloseEnterKeyCommand}" />
 
                         <!-- Body -->
                         <StackPanel Grid.Row="1" Margin="24" Spacing="16">
@@ -394,10 +349,7 @@
                         </StackPanel>
                         
                         <!-- Footer -->
-                        <Border Grid.Row="2"
-                                Padding="24,16"
-                                BorderBrush="{DynamicResource BorderBrush}"
-                                BorderThickness="0,1,0,0">
+                        <Border Grid.Row="2" Classes="modal-footer">
                             <Grid ColumnDefinitions="Auto,*">
                                 <Button Grid.Column="0"
                                         Classes="secondary-button"

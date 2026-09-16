@@ -74,8 +74,7 @@ public static class CaptureIngestService
         CompanyData data, CapturedTransaction tx, List<LineItem> lineItems,
         decimal amount, decimal taxRate, decimal unitPrice, string description, string companyCurrency)
     {
-        data.IdCounters.Expense++;
-        var expenseId = $"PUR-{DateTime.Now:yyyy}-{data.IdCounters.Expense:D5}";
+        var expenseId = new IdGenerator(data).NextExpenseId(tx.Date);
 
         var receiptId = NextReceiptId(data);
 
@@ -110,8 +109,7 @@ public static class CaptureIngestService
         CompanyData data, CapturedTransaction tx, List<LineItem> lineItems,
         decimal amount, decimal taxRate, decimal unitPrice, string description, string companyCurrency)
     {
-        data.IdCounters.Revenue++;
-        var revenueId = $"REV-{DateTime.Now:yyyy}-{data.IdCounters.Revenue:D5}";
+        var revenueId = new IdGenerator(data).NextRevenueId(tx.Date);
 
         var receiptId = NextReceiptId(data);
 

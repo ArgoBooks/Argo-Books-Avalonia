@@ -4,6 +4,7 @@ using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models;
 using ArgoBooks.Core.Models.Inventory;
 using ArgoBooks.Core.Models.Rentals;
+using ArgoBooks.Core.Services;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -21,10 +22,43 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
     #region Modal State
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsFormOpen))]
     private bool _isAddModalOpen;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsFormOpen))]
     private bool _isEditModalOpen;
+
+    /// <summary>Add and edit share one form, open while either flag is set.</summary>
+    public bool IsFormOpen => IsAddModalOpen || IsEditModalOpen;
+
+    // Set when the form opens and kept on close, so the title doesn't change while it closes.
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FormTitle), nameof(FormSaveText))]
+    private bool _isEditMode;
+
+    public string FormTitle => IsEditMode ? "Edit Rental Item".Translate() : "Add Rental Item".Translate();
+    public string FormSaveText => IsEditMode ? "Save Changes".Translate() : "Add Item".Translate();
+
+    partial void OnIsAddModalOpenChanged(bool value)
+    {
+        if (value) IsEditMode = false;
+    }
+
+    partial void OnIsEditModalOpenChanged(bool value)
+    {
+        if (value) IsEditMode = true;
+    }
+
+    [RelayCommand]
+    private Task RequestCloseFormAsync() => IsEditMode ? RequestCloseEditModalAsync() : RequestCloseAddModalAsync();
+
+    [RelayCommand]
+    private void SaveForm()
+    {
+        if (IsEditMode) SaveEditedItem();
+        else SaveNewItem();
+    }
 
     [ObservableProperty]
     private bool _isDeleteConfirmOpen;
@@ -68,14 +102,16 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
 
     private RentalItem? _editingItem;
 
-    // Original values for change detection in edit mode
-    private InventoryItemOption? _originalInventoryItem;
-    private string _originalDailyRate = string.Empty;
-    private string _originalWeeklyRate = string.Empty;
-    private string _originalMonthlyRate = string.Empty;
-    private string _originalSecurityDeposit = string.Empty;
-    private string _originalNotes = string.Empty;
-    private string _originalStatus = "Active";
+    private sealed record EditState(
+        string? InventoryItemId, string DailyRate, string WeeklyRate, string MonthlyRate,
+        string SecurityDeposit, string Notes, string Status);
+
+    // The form as the edit modal opened, for change detection.
+    private EditState? _original;
+
+    private EditState Capture() => new(
+        ModalInventoryItem?.Id, ModalDailyRate, ModalWeeklyRate, ModalMonthlyRate,
+        ModalSecurityDeposit, ModalNotes, ModalStatus);
 
     /// <summary>
     /// Returns true if any data has been entered in the Add modal.
@@ -92,40 +128,26 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
     /// <summary>
     /// Returns true if any changes have been made in the Edit modal.
     /// </summary>
-    public bool HasEditModalChanges =>
-        ModalInventoryItem?.Id != _originalInventoryItem?.Id ||
-        ModalDailyRate != _originalDailyRate ||
-        ModalWeeklyRate != _originalWeeklyRate ||
-        ModalMonthlyRate != _originalMonthlyRate ||
-        ModalSecurityDeposit != _originalSecurityDeposit ||
-        ModalNotes != _originalNotes ||
-        ModalStatus != _originalStatus;
+    public bool HasEditModalChanges => Capture() != _original;
 
-    /// <summary>
-    /// Returns true if any filter has been changed from the state when the modal was opened.
-    /// </summary>
-    public bool HasFilterModalChanges =>
-        FilterStatus != _originalFilterStatus ||
-        FilterAvailability != _originalFilterAvailability ||
-        FilterDailyRateMin != _originalFilterDailyRateMin ||
-        FilterDailyRateMax != _originalFilterDailyRateMax;
-
-    // Original filter values for change detection (captured when modal opens)
-    private string _originalFilterStatus = "All";
-    private string _originalFilterAvailability = "All";
-    private string? _originalFilterDailyRateMin;
-    private string? _originalFilterDailyRateMax;
-
-    /// <summary>
-    /// Captures the current filter state as original values for change detection.
-    /// </summary>
-    private void CaptureOriginalFilterValues()
+    private sealed record FilterValues(string Status, string Availability, string? DailyRateMin, string? DailyRateMax)
     {
-        _originalFilterStatus = FilterStatus;
-        _originalFilterAvailability = FilterAvailability;
-        _originalFilterDailyRateMin = FilterDailyRateMin;
-        _originalFilterDailyRateMax = FilterDailyRateMax;
+        public static readonly FilterValues Default = new("All", "All", null, null);
     }
+
+    private FilterSnapshot<FilterValues>? _filters;
+
+    private FilterSnapshot<FilterValues> Filters => _filters ??= new(FilterValues.Default,
+        () => new(FilterStatus, FilterAvailability, FilterDailyRateMin, FilterDailyRateMax),
+        v =>
+        {
+            FilterStatus = v.Status;
+            FilterAvailability = v.Availability;
+            FilterDailyRateMin = v.DailyRateMin;
+            FilterDailyRateMax = v.DailyRateMax;
+        });
+
+    public bool HasFilterModalChanges => Filters.HasChanges;
 
     #endregion
 
@@ -142,6 +164,10 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
 
     [ObservableProperty]
     private CustomerOption? _rentOutCustomer;
+
+    /// <summary>What is typed in the Customer box, so a name matching nothing becomes a new customer on save.</summary>
+    [ObservableProperty]
+    private string? _rentOutCustomerText;
 
     [ObservableProperty]
     private AccountantOption? _rentOutAccountant;
@@ -173,36 +199,36 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
     [ObservableProperty]
     private string? _rentOutQuantityError;
 
+    [ObservableProperty]
+    private string? _rentOutDueDateError;
+
     private RentalItem? _rentingItem;
 
-    public string RentOutEstimatedTotal
+    public string RentOutEstimatedTotal =>
+        int.TryParse(RentOutQuantity, out var qty) && qty > 0 && RentOutStartDate != null && RentOutDueDate != null
+            ? CurrencyService.Format(RentalBookings.RentalCost([RentOutLine(qty)], RentOutStartDate.Value.DateTime, RentOutDueDate.Value.DateTime))
+            : CurrencyService.Format(0);
+
+    public string RentOutRateFormatted => CurrencyService.Format(RentOutRateAmount);
+
+    public string RentOutDepositFormatted =>
+        CurrencyService.Format(RentOutDeposit * (int.TryParse(RentOutQuantity, out var qty) && qty > 0 ? qty : 1));
+
+    public bool RentOutStartsLater => RentOutStartDate?.Date > DateTime.Today;
+
+    private RentalLineItem RentOutLine(int quantity) => new()
     {
-        get
-        {
-            if (!int.TryParse(RentOutQuantity, out var qty) || qty <= 0)
-                return "$0.00";
-
-            if (RentOutStartDate == null || RentOutDueDate == null)
-                return "$0.00";
-
-            var days = (RentOutDueDate.Value - RentOutStartDate.Value).Days;
-            if (days <= 0) days = 1;
-
-            var total = RentOutRateType switch
-            {
-                "Daily" => RentOutRateAmount * days * qty,
-                "Weekly" => RentOutRateAmount * Math.Ceiling(days / 7.0m) * qty,
-                "Monthly" => RentOutRateAmount * Math.Ceiling(days / 30.0m) * qty,
-                _ => 0
-            };
-
-            return CurrencyService.Format(total);
-        }
-    }
+        RentalItemId = _rentingItem?.Id ?? RentOutItemId,
+        Quantity = quantity,
+        RateType = Enum.TryParse<RateType>(RentOutRateType, out var type) ? type : RateType.Daily,
+        RateAmount = RentOutRateAmount,
+        SecurityDeposit = RentOutDeposit
+    };
 
     partial void OnRentOutQuantityChanged(string value)
     {
         OnPropertyChanged(nameof(RentOutEstimatedTotal));
+        OnPropertyChanged(nameof(RentOutDepositFormatted));
         if (int.TryParse(value, out var qty) && qty > 0)
         {
             RentOutQuantityError = null;
@@ -238,13 +264,20 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
 
     partial void OnRentOutStartDateChanged(DateTimeOffset? value)
     {
+        RentOutDueDateError = null;
         OnPropertyChanged(nameof(RentOutEstimatedTotal));
+        OnPropertyChanged(nameof(RentOutStartsLater));
     }
 
     partial void OnRentOutDueDateChanged(DateTimeOffset? value)
     {
+        RentOutDueDateError = null;
         OnPropertyChanged(nameof(RentOutEstimatedTotal));
     }
+
+    partial void OnRentOutRateAmountChanged(decimal value) => OnPropertyChanged(nameof(RentOutRateFormatted));
+
+    partial void OnRentOutDepositChanged(decimal value) => OnPropertyChanged(nameof(RentOutDepositFormatted));
 
     private void UpdateRentOutRateAmount()
     {
@@ -265,9 +298,6 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _filterStatus = "All";
-
-    [ObservableProperty]
-    private string? _filterSupplier;
 
     [ObservableProperty]
     private string? _filterDailyRateMin;
@@ -343,6 +373,7 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
     // leaking onto the singleton create-modal VMs. See CreateModalSubscription.
     private EventHandler? _supplierSavedHandler;
     private EventHandler? _customerSavedHandler;
+    private EventHandler? _stockSavedHandler;
 
     [RelayCommand]
     private void OpenCreateSupplier()
@@ -358,6 +389,27 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
                 UpdateDropdownOptions();
             });
         supplierModals.OpenAddModal();
+    }
+
+    // A rental item rents out a stock record, so with none yet it opens Stock Levels' Add Item form.
+    [RelayCommand]
+    private void OpenCreateInventoryItem()
+    {
+        var stockLevelsModals = App.StockLevelsModalsViewModel;
+        if (stockLevelsModals == null) return;
+
+        CreateModalSubscription.RearmOnce(ref _stockSavedHandler,
+            h => stockLevelsModals.ItemSaved += h,
+            h => stockLevelsModals.ItemSaved -= h,
+            () =>
+            {
+                UpdateDropdownOptions();
+
+                var newItem = AvailableInventoryItems.FirstOrDefault(i => i.Id == stockLevelsModals.LastSavedItemId);
+                if (newItem != null)
+                    ModalInventoryItem = newItem;
+            });
+        stockLevelsModals.OpenAddItemModal();
     }
 
     [RelayCommand]
@@ -461,13 +513,7 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
         ModalStatus = rentalItem.Status == EntityStatus.Inactive ? "In Maintenance" : "Active";
         ModalNotes = rentalItem.Notes;
 
-        _originalInventoryItem = ModalInventoryItem;
-        _originalDailyRate = ModalDailyRate;
-        _originalWeeklyRate = ModalWeeklyRate;
-        _originalMonthlyRate = ModalMonthlyRate;
-        _originalSecurityDeposit = ModalSecurityDeposit;
-        _originalNotes = ModalNotes;
-        _originalStatus = ModalStatus;
+        _original = Capture();
 
         ClearModalErrors();
         IsEditModalOpen = true;
@@ -537,8 +583,8 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
         // while units are out would put them back on the wrong item.
         var rentalItemId = _editingItem.Id;
         if (oldInventoryItemId != newInventoryItemId && companyData.Rentals.Any(r =>
-                (r.Status == RentalStatus.Active || r.Status == RentalStatus.Overdue) &&
-                RentalRecordsModalsViewModel.GetEffectiveLineItems(r).Any(li => li.RentalItemId == rentalItemId)))
+                RentalBookings.HoldsStock(r) &&
+                r.EffectiveLineItems().Any(li => li.RentalItemId == rentalItemId)))
         {
             ModalInventoryItemError = "This item is rented out. Link it to another inventory item once every rental of it is returned.".Translate();
             return;
@@ -609,67 +655,28 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
             if (item == null)
                 return;
 
-            // Check if rental item is in use
-            var cd = App.CompanyManager?.CompanyData;
-            if (cd != null)
-            {
-                var usages = new List<string>();
-                if (cd.Rentals.Any(r => r.RentalItemId == item.Id || r.LineItems.Any(li => li.RentalItemId == item.Id)))
-                    usages.Add("Rental Record".Translate());
-                if (usages.Count > 0)
-                {
-                    await App.ShowWarningMessageBoxAsync(
-                        "Cannot Delete".Translate(),
-                        "This rental item cannot be deleted because it is referenced by one or more: {0}.".TranslateFormat(string.Join(", ", usages)));
-                    return;
-                }
-            }
-
-            var dialog = App.ConfirmationDialog;
-            if (dialog == null)
-                return;
-
-            var result = await dialog.ShowAsync(new ConfirmationDialogOptions
-            {
-                Title = "Delete Rental Item".Translate(),
-                Message = "Are you sure you want to delete this rental item?\n\n{0}".TranslateFormat(item.Name),
-                PrimaryButtonText = "Delete".Translate(),
-                CancelButtonText = "Cancel".Translate(),
-                IsPrimaryDestructive = true
-            });
-
-            if (result != ConfirmationResult.Primary)
-                return;
-
             var companyData = App.CompanyManager?.CompanyData;
             if (companyData == null)
                 return;
 
-            var rentalItem = companyData.RentalInventory.FirstOrDefault(i => i.Id == item.Id);
-            if (rentalItem != null)
-            {
-                var deletedItem = rentalItem;
-                var deletedName = item.Name;
-                companyData.RentalInventory.Remove(rentalItem);
-                companyData.MarkAsModified();
+            if (await BlockIfInUseAsync(
+                    usages => "This rental item cannot be deleted because it is referenced by one or more: {0}.".TranslateFormat(usages),
+                    (companyData.Rentals.Any(r => r.RentalItemId == item.Id || r.LineItems.Any(li => li.RentalItemId == item.Id)), "Rental Record".Translate())))
+                return;
 
-                App.UndoRedoManager.RecordAction(new DelegateAction(
-                    $"Delete rental item '{deletedName}'",
-                    () =>
-                    {
-                        companyData.RentalInventory.Add(deletedItem);
-                        companyData.MarkAsModified();
-                        ItemDeleted?.Invoke(this, EventArgs.Empty);
-                    },
-                    () =>
-                    {
-                        companyData.RentalInventory.Remove(deletedItem);
-                        companyData.MarkAsModified();
-                        ItemDeleted?.Invoke(this, EventArgs.Empty);
-                    }));
+            if (!await ConfirmDeleteAsync("Delete Rental Item".Translate(),
+                    "Are you sure you want to delete this rental item?\n\n{0}".TranslateFormat(item.Name)))
+                return;
+
+            var rentalItem = companyData.RentalInventory.FirstOrDefault(i => i.Id == item.Id);
+            if (rentalItem == null)
+            {
+                ItemDeleted?.Invoke(this, EventArgs.Empty);
+                return;
             }
 
-            ItemDeleted?.Invoke(this, EventArgs.Empty);
+            RemoveWithUndo(companyData, companyData.RentalInventory, rentalItem, $"Delete rental item '{item.Name}'",
+                () => ItemDeleted?.Invoke(this, EventArgs.Empty));
         }
         catch (Exception ex)
         {
@@ -685,31 +692,20 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
     public void OpenFilterModal()
     {
         UpdateDropdownOptions();
-        CaptureOriginalFilterValues();
+        Filters.Capture();
         IsFilterModalOpen = true;
     }
 
-    [RelayCommand]
-    public void CloseFilterModal()
-    {
-        IsFilterModalOpen = false;
-    }
+    private void CloseFilterModal() => IsFilterModalOpen = false;
 
+    /// <summary>
+    /// Closes the filter modal, asking first and putting the filters back if they were changed.
+    /// </summary>
     [RelayCommand]
     public async Task RequestCloseFilterModalAsync()
     {
-        if (HasFilterModalChanges)
-        {
-            if (!await ConfirmDiscardFiltersAsync())
-                return;
-
-            FilterStatus = _originalFilterStatus;
-            FilterAvailability = _originalFilterAvailability;
-            FilterDailyRateMin = _originalFilterDailyRateMin;
-            FilterDailyRateMax = _originalFilterDailyRateMax;
-        }
-
-        CloseFilterModal();
+        if (await Filters.ConfirmDiscardAsync(ConfirmDiscardFiltersAsync))
+            CloseFilterModal();
     }
 
     [RelayCommand]
@@ -722,8 +718,7 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
     [RelayCommand]
     public void ClearFilters()
     {
-        ResetFilterDefaults();
-        FilterSupplier = null;
+        Filters.Reset();
         FiltersCleared?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
     }
@@ -742,8 +737,9 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
         if (rentalItem == null)
             return;
 
+        // With every unit out, a booking for later dates can still fit.
         var inventoryItem = companyData?.Inventory.FirstOrDefault(inv => inv.Id == rentalItem.InventoryItemId);
-        if (inventoryItem == null || inventoryItem.InStock <= 0)
+        if (inventoryItem == null || inventoryItem.InStock + RentalBookings.UnitsOut(companyData!.Rentals, rentalItem.Id) <= 0)
             return;
 
         _rentingItem = rentalItem;
@@ -751,8 +747,9 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
 
         RentOutItemName = item.Name;
         RentOutItemId = rentalItem.Id;
-        RentOutAvailableQuantity = inventoryItem.InStock;
+        RentOutAvailableQuantity = (int)inventoryItem.InStock;
         RentOutCustomer = null;
+        RentOutCustomerText = null;
         RentOutAccountant = null;
         RentOutQuantity = "1";
         RentOutRateType = "Daily";
@@ -784,93 +781,15 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
         if (companyData == null)
             return;
 
-        var inventoryItem = companyData.Inventory.FirstOrDefault(inv => inv.Id == _rentingItem.InventoryItemId);
-        if (inventoryItem == null)
-            return;
-
-        var rentQty = int.TryParse(RentOutQuantity, out var qty) ? qty : 1;
-
-        companyData.IdCounters.Rental++;
-        var newId = $"RNT-{companyData.IdCounters.Rental:D3}";
-
-        var newRental = new RentalRecord
-        {
-            Id = newId,
-            RentalItemId = _rentingItem.Id,
-            CustomerId = RentOutCustomer?.Id ?? string.Empty,
-            AccountantId = RentOutAccountant?.Id,
-            Quantity = rentQty,
-            RateType = RentOutRateType switch
-            {
-                "Weekly" => RateType.Weekly,
-                "Monthly" => RateType.Monthly,
-                _ => RateType.Daily
-            },
-            RateAmount = RentOutRateAmount,
-            SecurityDeposit = RentOutDeposit,
-            StartDate = RentOutStartDate?.DateTime ?? DateTime.Today,
-            DueDate = RentOutDueDate?.DateTime ?? DateTime.Today.AddDays(1),
-            Status = RentalStatus.Active,
-            Notes = RentOutNotes.Trim(),
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-
-        // Decrement inventory stock
-        var oldInStock = inventoryItem.InStock;
-        inventoryItem.InStock -= rentQty;
-        inventoryItem.Status = inventoryItem.CalculateStatus();
-        inventoryItem.LastUpdated = DateTime.UtcNow;
-        App.CheckAndNotifyStockStatus(inventoryItem, oldInStock);
-
-        // Create stock adjustment audit record
-        companyData.IdCounters.StockAdjustment++;
-        var adjustment = new StockAdjustment
-        {
-            Id = $"ADJ-{companyData.IdCounters.StockAdjustment:D5}",
-            InventoryItemId = inventoryItem.Id,
-            AdjustmentType = AdjustmentType.Remove,
-            Quantity = rentQty,
-            PreviousStock = oldInStock,
-            NewStock = inventoryItem.InStock,
-            Reason = "Rental",
-            ReferenceNumber = newId,
-            Timestamp = DateTime.UtcNow,
-            IsAutoGenerated = true
-        };
-        companyData.StockAdjustments.Add(adjustment);
-
-        companyData.Rentals.Add(newRental);
-        _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.RentalRecordCreated);
-        companyData.MarkAsModified();
-
-        var rentalToUndo = newRental;
-        var invItemToUpdate = inventoryItem;
-        var adjToUndo = adjustment;
-        App.UndoRedoManager.RecordAction(new DelegateAction(
-            $"Rent out '{RentOutItemName}' to customer",
+        RentalRecordsModalsViewModel.CreateRental(companyData, RentOutCustomer!.Id!, RentOutAccountant?.Id,
+            [RentOutLine(int.Parse(RentOutQuantity))],
+            RentOutStartDate?.DateTime ?? DateTime.Today, RentOutDueDate?.DateTime ?? DateTime.Today.AddDays(1),
+            RentOutNotes.Trim(),
             () =>
             {
-                companyData.Rentals.Remove(rentalToUndo);
-                invItemToUpdate.InStock = oldInStock;
-                invItemToUpdate.Status = invItemToUpdate.CalculateStatus();
-                companyData.StockAdjustments.Remove(adjToUndo);
-                companyData.MarkAsModified();
                 RentalCreated?.Invoke(this, EventArgs.Empty);
                 ItemSaved?.Invoke(this, EventArgs.Empty);
-            },
-            () =>
-            {
-                companyData.Rentals.Add(rentalToUndo);
-                var stockBeforeRedo = invItemToUpdate.InStock;
-                invItemToUpdate.InStock -= rentQty;
-                invItemToUpdate.Status = invItemToUpdate.CalculateStatus();
-                App.CheckAndNotifyStockStatus(invItemToUpdate, stockBeforeRedo);
-                companyData.StockAdjustments.Add(adjToUndo);
-                companyData.MarkAsModified();
-                RentalCreated?.Invoke(this, EventArgs.Empty);
-                ItemSaved?.Invoke(this, EventArgs.Empty);
-            }));
+            });
 
         RentalCreated?.Invoke(this, EventArgs.Empty);
         ItemSaved?.Invoke(this, EventArgs.Empty);
@@ -882,20 +801,37 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
         ClearRentOutErrors();
         var isValid = true;
 
+        if (RentOutCustomer == null &&
+            QuickCreate.EnsureCustomer(App.CompanyManager?.CompanyData, RentOutCustomerText) is { } typedCustomer)
+        {
+            UpdateDropdownOptions();
+            RentOutCustomer = AvailableCustomers.FirstOrDefault(c => c.Id == typedCustomer.Id);
+        }
+
         if (RentOutCustomer == null)
         {
             RentOutCustomerError = "Customer is required.".Translate();
             isValid = false;
         }
 
+        var start = RentOutStartDate?.DateTime ?? DateTime.Today;
+        var due = RentOutDueDate?.DateTime ?? DateTime.Today.AddDays(1);
+        if (due.Date < start.Date)
+        {
+            RentOutDueDateError = "The due date can't be before the start date.".Translate();
+            isValid = false;
+        }
+
+        var companyData = App.CompanyManager?.CompanyData;
         if (!int.TryParse(RentOutQuantity, out var qty) || qty <= 0)
         {
             RentOutQuantityError = "Please enter a valid quantity.".Translate();
             isValid = false;
         }
-        else if (qty > RentOutAvailableQuantity)
+        else if (companyData != null && _rentingItem != null &&
+                 RentalBookings.FindShortfalls(companyData, [RentOutLine(qty)], start, due, start.Date <= DateTime.Today)[0] is { } available)
         {
-            RentOutQuantityError = "Only {0} in stock.".TranslateFormat(RentOutAvailableQuantity);
+            RentOutQuantityError = "Only {0} available for these dates.".TranslateFormat(available);
             isValid = false;
         }
 
@@ -906,6 +842,7 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
     {
         RentOutCustomerError = null;
         RentOutQuantityError = null;
+        RentOutDueDateError = null;
     }
 
     #endregion
@@ -924,28 +861,19 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
             var product = companyData.Products.FirstOrDefault(p => p.Id == invItem.ProductId);
             var location = companyData.Locations.FirstOrDefault(l => l.Id == invItem.LocationId);
             var productName = product?.Name ?? "Unknown";
-            var locationName = location?.Name ?? "Default";
+            var locationName = location?.Name ?? "Unknown";
             AvailableInventoryItems.Add(new InventoryItemOption
             {
                 Id = invItem.Id,
                 ProductName = productName,
                 LocationName = locationName,
-                InStock = invItem.InStock,
+                InStock = (int)invItem.InStock,
                 DisplayText = $"{productName} @ {locationName} ({invItem.InStock} in stock)"
             });
         }
 
-        AvailableCustomers.Clear();
-        foreach (var customer in companyData.Customers.Where(c => c.Status == EntityStatus.Active).OrderBy(c => c.Name))
-        {
-            AvailableCustomers.Add(new CustomerOption { Id = customer.Id, Name = customer.Name });
-        }
-
-        AvailableAccountants.Clear();
-        foreach (var accountant in companyData.Accountants.OrderBy(a => a.Name))
-        {
-            AvailableAccountants.Add(new AccountantOption { Id = accountant.Id, Name = accountant.Name });
-        }
+        OptionLoader.Fill(AvailableCustomers, OptionLoader.Customers(companyData, activeOnly: true).AsOptions<CustomerOption>());
+        OptionLoader.Fill(AvailableAccountants, OptionLoader.Accountants(companyData).AsOptions<AccountantOption>());
     }
 
     private void ClearModalFields()
@@ -964,14 +892,6 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
     {
         ModalInventoryItemError = null;
         ModalDailyRateError = null;
-    }
-
-    private void ResetFilterDefaults()
-    {
-        FilterStatus = "All";
-        FilterAvailability = "All";
-        FilterDailyRateMin = null;
-        FilterDailyRateMax = null;
     }
 
     private bool ValidateModal()
@@ -1043,10 +963,6 @@ public class InventoryItemOption
 /// <summary>
 /// Option model for accountant dropdown.
 /// </summary>
-public class AccountantOption
+public class AccountantOption : NamedOption
 {
-    public string Id { get; set; } = string.Empty;
-    public string Name { get; set; } = string.Empty;
-
-    public override string ToString() => Name;
 }

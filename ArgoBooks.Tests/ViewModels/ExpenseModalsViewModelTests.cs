@@ -122,7 +122,7 @@ public class ExpenseModalsViewModelTests : ModalViewModelTestBase
         return item;
     }
 
-    private int LedgerNet() => Company.StockAdjustments.Sum(InventoryValuationService.SignedDelta);
+    private decimal LedgerNet() => Company.StockAdjustments.Sum(InventoryValuationService.SignedDelta);
 
     [Fact]
     public async Task DeleteExpense_ReversesStock_UndoReappliesIt_RedoReversesAgain()

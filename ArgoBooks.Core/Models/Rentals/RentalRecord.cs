@@ -98,6 +98,24 @@ public class RentalRecord
     public bool Paid { get; set; }
 
     /// <summary>
+    /// Late fees or damage billed on top of the rental when it came back. Included in <see cref="TotalCost"/>.
+    /// </summary>
+    [JsonPropertyName("extraCharges")]
+    public decimal ExtraCharges { get; set; }
+
+    /// <summary>
+    /// What the extra charges were for.
+    /// </summary>
+    [JsonPropertyName("extraChargesNote")]
+    public string ExtraChargesNote { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The revenue recorded when the rental was marked paid without an invoice.
+    /// </summary>
+    [JsonPropertyName("revenueId")]
+    public string? RevenueId { get; set; }
+
+    /// <summary>
     /// Line items for multi-item rentals.
     /// When populated, these take precedence over the top-level RentalItemId/Quantity/RateType/RateAmount/SecurityDeposit fields.
     /// </summary>
@@ -121,6 +139,29 @@ public class RentalRecord
     /// </summary>
     [JsonIgnore]
     public bool HasInvoices => InvoiceIds.Count > 0;
+
+    /// <summary>
+    /// The rental's lines. A record saved by the old Rent Out action has none and keeps its item,
+    /// quantity and total deposit on the record itself, so one line is built from those. A line's
+    /// deposit is per unit.
+    /// </summary>
+    public List<RentalLineItem> EffectiveLineItems()
+    {
+        if (LineItems.Count > 0 || string.IsNullOrEmpty(RentalItemId))
+            return LineItems;
+
+        return
+        [
+            new RentalLineItem
+            {
+                RentalItemId = RentalItemId,
+                Quantity = Quantity,
+                RateType = RateType,
+                RateAmount = RateAmount,
+                SecurityDeposit = Quantity > 0 ? SecurityDeposit / Quantity : SecurityDeposit
+            }
+        ];
+    }
 
     /// <summary>
     /// When the record was created.

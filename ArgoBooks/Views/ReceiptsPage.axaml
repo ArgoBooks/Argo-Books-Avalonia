@@ -107,14 +107,6 @@
                                 ItemsSource="{Binding Receipts}"
                                 SearchQuery="{Binding SearchQuery, Mode=TwoWay}"
                                 SearchPlaceholder="{loc:Loc 'Search receipts...'}"
-                                SearchBoxWidth="{Binding ResponsiveHeader.SearchBoxWidth}"
-                                SearchBoxMinHeight="{Binding ResponsiveHeader.SearchBoxMinHeight}"
-                                SearchIconMargin="{Binding ResponsiveHeader.SearchIconMargin}"
-                                HeaderPadding="{Binding ResponsiveHeader.HeaderPadding}"
-                                HeaderSpacing="{Binding ResponsiveHeader.HeaderSpacing}"
-                                IsCompactMode="{Binding ResponsiveHeader.IsCompactMode}"
-                                IsMediumMode="{Binding ResponsiveHeader.IsMediumMode}"
-                                ShowButtonText="{Binding ResponsiveHeader.ShowButtonText}"
                                 FilterCommand="{Binding OpenFilterModalCommand}"
                                 AddCommand="{Binding AiScanReceiptCommand}"
                                 AddButtonText="{loc:Loc 'Scan Receipt'}"
@@ -133,7 +125,6 @@
                                 EmptyIcon="{x:Static icons:Icons.Receipts}"
                                 EmptyTitle="{loc:Loc 'No receipts found'}"
                                 EmptyMessage="{loc:Loc 'Receipts from transactions will appear here. You can also scan receipts using AI.'}"
-                                BorderSizeChanged="OnHeaderSizeChanged"
                                 TableGridSizeChanged="OnTableSizeChanged">
 
                 <!-- The monthly scan allowance. Not a stat card: it is a standing fact about the

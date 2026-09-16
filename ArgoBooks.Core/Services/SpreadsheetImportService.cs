@@ -1468,8 +1468,7 @@ public class SpreadsheetImportService
         if (invoice.AmountPaid <= 0 || data.Revenues.Any(r => r.InvoiceId == invoice.Id && !r.IsKeptDeposit))
             return;
 
-        data.IdCounters.Revenue++;
-        var revenueId = $"REV-{DateTime.UtcNow:yyyy}-{data.IdCounters.Revenue:D5}";
+        var revenueId = new IdGenerator(data).NextRevenueId(invoice.IssueDate);
         var isPaid = invoice.Status == InvoiceStatus.Paid || invoice.Balance <= 0;
 
         var revenue = new Revenue
@@ -3454,13 +3453,8 @@ Respond with ONLY a JSON array, one entry per product in the same order:
     }
 
     /// <summary>Advances the counter past every id in <paramref name="taken"/> and claims the one it lands on.</summary>
-    private static string MintId(Func<int> advance, Func<int, string> format, HashSet<string> taken)
-    {
-        string id;
-        do id = format(advance());
-        while (!taken.Add(id));
-        return id;
-    }
+    private static string MintId(Func<int> advance, Func<int, string> format, HashSet<string> taken) =>
+        IdGenerator.NextFreeId(advance, format, id => !taken.Add(id));
 
     private void ImportCustomers(CompanyData data, List<string> headers, List<List<object?>> rows, ImportOptions? options = null)
     {
@@ -3640,7 +3634,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             // single record (or skipped as "already exists") when the sheet has no identifier. Without
             // this, an ID-less sheet imports only its first row.
             if (string.IsNullOrWhiteSpace(id))
-                id = MintId(() => ++data.IdCounters.Expense, n => $"PUR-{DateTime.UtcNow:yyyy}-{n:D5}", takenIds);
+                id = MintId(() => ++data.IdCounters.Expense, n => IdGenerator.FormatExpenseId(date, n), takenIds);
 
             var existing = data.Expenses.FirstOrDefault(p => p.Id == id);
             if (options?.SkipExistingRecords == true && existing != null) { options.SkippedCount++; continue; }
@@ -3833,9 +3827,9 @@ Respond with ONLY a JSON array, one entry per product in the same order:
 
             // Handle Reorder Point and Overstock Threshold
             if (Set("Reorder Point"))
-                product.ReorderPoint = GetInt(row, headers, "Reorder Point");
+                product.ReorderPoint = GetDecimal(row, headers, "Reorder Point");
             if (Set("Overstock Threshold"))
-                product.OverstockThreshold = GetInt(row, headers, "Overstock Threshold");
+                product.OverstockThreshold = GetDecimal(row, headers, "Overstock Threshold");
 
             // Set TrackInventory based on whether reorder/overstock values are set
             if (product.ReorderPoint > 0 || product.OverstockThreshold > 0)
@@ -3887,11 +3881,11 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             if (Set("Location ID"))
                 item.LocationId = locationId;
             if (Set("In Stock"))
-                item.InStock = GetInt(row, headers, "In Stock");
+                item.InStock = GetDecimal(row, headers, "In Stock");
             if (Set("Reserved"))
-                item.Reserved = GetInt(row, headers, "Reserved");
+                item.Reserved = GetDecimal(row, headers, "Reserved");
             if (Set("Reorder Point"))
-                item.ReorderPoint = GetInt(row, headers, "Reorder Point");
+                item.ReorderPoint = GetDecimal(row, headers, "Reorder Point");
             if (Set("Unit Cost"))
                 item.UnitCost = GetDecimal(row, headers, "Unit Cost");
             if (Set("Last Updated"))
@@ -4249,7 +4243,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             // single record (or skipped as "already exists") when the sheet has no identifier. Without
             // this, an ID-less sheet imports only its first row. (Mirrors ImportPurchases.)
             if (string.IsNullOrWhiteSpace(id))
-                id = MintId(() => ++data.IdCounters.Revenue, n => $"REV-{DateTime.UtcNow:yyyy}-{n:D5}", takenIds);
+                id = MintId(() => ++data.IdCounters.Revenue, n => IdGenerator.FormatRevenueId(date, n), takenIds);
 
             var existing = data.Revenues.FirstOrDefault(s => s.Id == id);
             if (options?.SkipExistingRecords == true && existing != null) { options.SkippedCount++; continue; }
@@ -4518,7 +4512,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
                             {
                                 Id = $"INV-ITM-{nextNum:D3}",
                                 ProductId = productId,
-                                InStock = GetInt(row, headers, "Total Qty")
+                                InStock = GetDecimal(row, headers, "Total Qty")
                             };
                             data.Inventory.Add(newInv);
                             inventoryItemId = newInv.Id;
@@ -4625,7 +4619,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
                 record.Quantity = record.LineItems.Sum(li => li.Quantity);
                 record.RateType = firstLi.RateType;
                 record.RateAmount = firstLi.RateAmount;
-                record.SecurityDeposit = record.LineItems.Sum(li => li.SecurityDeposit * li.Quantity);
+                record.SecurityDeposit = RentalBookings.TotalDeposit(record.LineItems);
             }
 
             if (existing == null)
@@ -4648,13 +4642,6 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             if (string.IsNullOrWhiteSpace(id) && string.IsNullOrWhiteSpace(name))
                 continue;
 
-            // Blank ID: mint a unique one so distinct rows aren't collapsed into a single record.
-            if (string.IsNullOrWhiteSpace(id))
-                id = MintId(() => ++data.IdCounters.Category, n => $"CAT-{n:D3}", takenIds);
-
-            var existing = data.Categories.FirstOrDefault(c => c.Id == id);
-            if (options?.SkipExistingRecords == true && existing != null) { options.SkippedCount++; continue; }
-
             var typeStr = GetString(row, headers, "Type");
             var categoryType = typeStr.ToLowerInvariant() switch
             {
@@ -4663,6 +4650,13 @@ Respond with ONLY a JSON array, one entry per product in the same order:
                 "rental" => CategoryType.Rental,
                 _ => CategoryType.Revenue
             };
+
+            // Blank ID: mint a unique one so distinct rows aren't collapsed into a single record.
+            if (string.IsNullOrWhiteSpace(id))
+                id = MintId(() => ++data.IdCounters.Category, n => IdGenerator.FormatCategoryId(categoryType, n), takenIds);
+
+            var existing = data.Categories.FirstOrDefault(c => c.Id == id);
+            if (options?.SkipExistingRecords == true && existing != null) { options.SkippedCount++; continue; }
 
             var category = existing ?? new Category();
 
@@ -4830,11 +4824,11 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             if (Set("Type"))
                 adjustment.AdjustmentType = ParseEnum(GetString(row, headers, "Type"), AdjustmentType.Set);
             if (Set("Quantity"))
-                adjustment.Quantity = GetInt(row, headers, "Quantity");
+                adjustment.Quantity = GetDecimal(row, headers, "Quantity");
             if (Set("Previous Stock"))
-                adjustment.PreviousStock = GetInt(row, headers, "Previous Stock");
+                adjustment.PreviousStock = GetDecimal(row, headers, "Previous Stock");
             if (Set("New Stock"))
-                adjustment.NewStock = GetInt(row, headers, "New Stock");
+                adjustment.NewStock = GetDecimal(row, headers, "New Stock");
             if (Set("Reason"))
                 adjustment.Reason = GetString(row, headers, "Reason");
             if (Set("Reference Number"))
@@ -4999,9 +4993,9 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             var lineItem = new PurchaseOrderLineItem
             {
                 ProductId = GetString(row, headers, "Product ID"),
-                Quantity = GetInt(row, headers, "Quantity"),
+                Quantity = GetDecimal(row, headers, "Quantity"),
                 UnitCost = GetDecimal(row, headers, "Unit Cost"),
-                QuantityReceived = GetInt(row, headers, "Quantity Received")
+                QuantityReceived = GetDecimal(row, headers, "Quantity Received")
             };
 
             if (!lineItemsByPo.ContainsKey(poId))

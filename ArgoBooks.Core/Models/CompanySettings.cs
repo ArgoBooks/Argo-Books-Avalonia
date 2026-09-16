@@ -65,6 +65,13 @@ public class CompanySettings
     [JsonPropertyName("revenuePaymentsMigratedVersion")]
     public string? RevenuePaymentsMigratedVersion { get; set; }
 
+    /// <summary>
+    /// Set once the stock on hand when cost of goods sold began has been set aside as opening units.
+    /// See CompanyManager.StartCostOfGoodsIfNeeded.
+    /// </summary>
+    [JsonPropertyName("costOfGoodsStartedVersion")]
+    public string? CostOfGoodsStartedVersion { get; set; }
+
     [JsonPropertyName("company")]
     public CompanyInfo Company { get; set; } = new();
     [JsonPropertyName("localization")]

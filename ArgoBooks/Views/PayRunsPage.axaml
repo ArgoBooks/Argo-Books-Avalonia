@@ -54,14 +54,6 @@
                              ItemsSource="{Binding PayRuns}"
                              SearchQuery="{Binding SearchQuery, Mode=TwoWay}"
                              SearchPlaceholder="{loc:Loc 'Search pay runs...'}"
-                             SearchBoxWidth="{Binding ResponsiveHeader.SearchBoxWidth}"
-                             SearchBoxMinHeight="{Binding ResponsiveHeader.SearchBoxMinHeight}"
-                             SearchIconMargin="{Binding ResponsiveHeader.SearchIconMargin}"
-                             HeaderPadding="{Binding ResponsiveHeader.HeaderPadding}"
-                             HeaderSpacing="{Binding ResponsiveHeader.HeaderSpacing}"
-                             IsCompactMode="{Binding ResponsiveHeader.IsCompactMode}"
-                             IsMediumMode="{Binding ResponsiveHeader.IsMediumMode}"
-                             ShowButtonText="{Binding ResponsiveHeader.ShowButtonText}"
                              ShowFilterButton="False"
                              ShowAddButton="{Binding HasPremium}"
                              AddCommand="{Binding RunPayrollCommand}"
@@ -78,9 +70,7 @@
                              ToggleColumnMenuCommand="{Binding ToggleColumnMenuCommand}"
                              EmptyIcon="{x:Static icons:Icons.Payments}"
                              EmptyTitle="{loc:Loc 'No pay runs yet'}"
-                             EmptyMessage="{loc:Loc 'Run payroll to work out deductions, produce pay stubs and record the wages.'}"
-                             BorderSizeChanged="OnHeaderSizeChanged"
-                             TableGridSizeChanged="OnTableSizeChanged">
+                             EmptyMessage="{loc:Loc 'Run payroll to work out deductions, produce pay stubs and record the wages.'}">
 
                 <table:ArgoTable.ExtraButtonsContent>
                     <Button Classes="secondary-button"

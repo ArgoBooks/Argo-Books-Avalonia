@@ -19,15 +19,6 @@ namespace ArgoBooks.ViewModels;
 /// </summary>
 public partial class PurchaseOrdersPageViewModel : SortablePageViewModelBase
 {
-    #region Responsive Header
-
-    /// <summary>
-    /// Responsive header helper for adaptive layout.
-    /// </summary>
-    public ResponsiveHeaderHelper ResponsiveHeader { get; } = new();
-
-    #endregion
-
     #region Statistics
 
     [ObservableProperty]
@@ -57,48 +48,39 @@ public partial class PurchaseOrdersPageViewModel : SortablePageViewModelBase
     [ObservableProperty]
     private double _columnMenuY;
 
-    [ObservableProperty]
-    private bool _showPONumberColumn = ColumnVisibilityHelper.Load("PurchaseOrders", "PONumber", true);
-
-    [ObservableProperty]
-    private bool _showDateColumn = ColumnVisibilityHelper.Load("PurchaseOrders", "Date", true);
-
-    [ObservableProperty]
-    private bool _showSupplierColumn = ColumnVisibilityHelper.Load("PurchaseOrders", "Supplier", true);
-
-    [ObservableProperty]
-    private bool _showItemsColumn = ColumnVisibilityHelper.Load("PurchaseOrders", "Items", true);
-
-    [ObservableProperty]
-    private bool _showTotalColumn = ColumnVisibilityHelper.Load("PurchaseOrders", "Total", true);
-
-    [ObservableProperty]
-    private bool _showStatusColumn = ColumnVisibilityHelper.Load("PurchaseOrders", "Status", true);
-
-    [ObservableProperty]
-    private bool _showExpectedColumn = ColumnVisibilityHelper.Load("PurchaseOrders", "Expected", true);
-
-    partial void OnShowPONumberColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("PONumber", value); ColumnVisibilityHelper.Save("PurchaseOrders", "PONumber", value); }
-    partial void OnShowDateColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Date", value); ColumnVisibilityHelper.Save("PurchaseOrders", "Date", value); }
-    partial void OnShowSupplierColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Supplier", value); ColumnVisibilityHelper.Save("PurchaseOrders", "Supplier", value); }
-    partial void OnShowItemsColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Items", value); ColumnVisibilityHelper.Save("PurchaseOrders", "Items", value); }
-    partial void OnShowTotalColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Total", value); ColumnVisibilityHelper.Save("PurchaseOrders", "Total", value); }
-    partial void OnShowStatusColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Status", value); ColumnVisibilityHelper.Save("PurchaseOrders", "Status", value); }
-    partial void OnShowExpectedColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Expected", value); ColumnVisibilityHelper.Save("PurchaseOrders", "Expected", value); }
-
-    [RelayCommand]
-    private void ResetColumnVisibility()
+    private static readonly ColumnVisibilityDefaults ColumnDefaults = new("PurchaseOrders", new Dictionary<string, bool>
     {
-        ColumnWidths.ResetWidths();
-        ColumnVisibilityHelper.ResetPage("PurchaseOrders");
-        ShowPONumberColumn = true;
-        ShowDateColumn = true;
-        ShowSupplierColumn = true;
-        ShowItemsColumn = true;
-        ShowTotalColumn = true;
-        ShowStatusColumn = true;
-        ShowExpectedColumn = true;
-    }
+        ["PONumber"] = true,
+        ["Date"] = true,
+        ["Supplier"] = true,
+        ["Items"] = true,
+        ["Total"] = true,
+        ["Status"] = true,
+        ["Expected"] = true,
+    });
+
+    protected override ColumnVisibilityDefaults ColumnVisibility => ColumnDefaults;
+
+    [ObservableProperty]
+    private bool _showPONumberColumn = ColumnDefaults.Load("PONumber");
+
+    [ObservableProperty]
+    private bool _showDateColumn = ColumnDefaults.Load("Date");
+
+    [ObservableProperty]
+    private bool _showSupplierColumn = ColumnDefaults.Load("Supplier");
+
+    [ObservableProperty]
+    private bool _showItemsColumn = ColumnDefaults.Load("Items");
+
+    [ObservableProperty]
+    private bool _showTotalColumn = ColumnDefaults.Load("Total");
+
+    [ObservableProperty]
+    private bool _showStatusColumn = ColumnDefaults.Load("Status");
+
+    [ObservableProperty]
+    private bool _showExpectedColumn = ColumnDefaults.Load("Expected");
 
     #endregion
 
@@ -166,9 +148,6 @@ public partial class PurchaseOrdersPageViewModel : SortablePageViewModelBase
 
     #region Pagination
 
-    [ObservableProperty]
-    private string _paginationText = "0 orders";
-
     /// <inheritdoc />
     protected override void OnSortOrPageChanged() => FilterOrders();
 
@@ -187,10 +166,7 @@ public partial class PurchaseOrdersPageViewModel : SortablePageViewModelBase
 
         LoadOrders();
 
-        // Subscribe to undo/redo state changes to refresh UI
-        App.UndoRedoManager.StateChanged += OnUndoRedoStateChanged;
-        if (App.NavigationService != null)
-            App.NavigationService.Navigated += OnNavigated;
+        EnableDeferredUndoRefresh(p => p == PageNames.PurchaseOrders, LoadOrders);
 
         // Refresh totals + row displays when the display currency changes (mirrors the Payments page),
         // so the currency-aware TotalDisplay/TotalValue recompute instead of showing stale amounts.
@@ -236,30 +212,6 @@ public partial class PurchaseOrdersPageViewModel : SortablePageViewModelBase
     }
 
     /// <summary>
-    /// Handles undo/redo state changes by refreshing the orders.
-    /// </summary>
-    private bool _needsRefresh;
-
-    private void OnUndoRedoStateChanged(object? sender, EventArgs e)
-    {
-        if (App.NavigationService?.CurrentPageName != PageNames.PurchaseOrders)
-        {
-            _needsRefresh = true;
-            return;
-        }
-        LoadOrders();
-    }
-
-    private void OnNavigated(object? sender, NavigationEventArgs e)
-    {
-        if (e.PageName == PageNames.PurchaseOrders && _needsRefresh)
-        {
-            _needsRefresh = false;
-            LoadOrders();
-        }
-    }
-
-    /// <summary>
     /// Handles order saved events from modals.
     /// </summary>
     private void OnOrderSaved(object? sender, EventArgs e)
@@ -282,9 +234,6 @@ public partial class PurchaseOrdersPageViewModel : SortablePageViewModelBase
     public override void Cleanup()
     {
         base.Cleanup();
-        App.UndoRedoManager.StateChanged -= OnUndoRedoStateChanged;
-        if (App.NavigationService != null)
-            App.NavigationService.Navigated -= OnNavigated;
         CurrencyService.CurrencyChanged -= OnCurrencyChanged;
         if (App.PurchaseOrdersModalsViewModel != null)
         {
@@ -412,22 +361,7 @@ public partial class PurchaseOrdersPageViewModel : SortablePageViewModelBase
         if (!string.IsNullOrWhiteSpace(SearchQuery))
         {
             filtered = filtered
-                .Select(o =>
-                {
-                    var supplier = suppliers.FirstOrDefault(s => s.Id == o.SupplierId);
-
-                    return new
-                    {
-                        Order = o,
-                        IdScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, o.Id),
-                        PoScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, o.PoNumber),
-                        SupplierScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, supplier?.Name ?? ""),
-                        NotesScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, o.Notes)
-                    };
-                })
-                .Where(x => x.IdScore >= 0 || x.PoScore >= 0 || x.SupplierScore >= 0 || x.NotesScore >= 0)
-                .OrderByDescending(x => Math.Max(Math.Max(x.IdScore, x.PoScore), Math.Max(x.SupplierScore, x.NotesScore)))
-                .Select(x => x.Order)
+                .RankBySearch(SearchQuery, o => [o.Id, o.PoNumber, suppliers.FirstOrDefault(s => s.Id == o.SupplierId)?.Name, o.Notes])
                 .ToList();
         }
 
@@ -485,19 +419,7 @@ public partial class PurchaseOrdersPageViewModel : SortablePageViewModelBase
 
         NavigateToHighlightedItem(displayItems, x => x.Id);
 
-        // Calculate pagination
-        var totalCount = displayItems.Count;
-        TotalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / PageSize));
-        if (CurrentPage > TotalPages)
-            CurrentPage = TotalPages;
-
-        UpdatePageNumbers();
-        UpdatePaginationText(totalCount);
-
-        // Apply pagination and add to collection
-        var pagedOrders = displayItems
-            .Skip((CurrentPage - 1) * PageSize)
-            .Take(PageSize);
+        var pagedOrders = Paginate(displayItems, "order");
 
         Orders.ReplaceAll(pagedOrders);
     }
@@ -516,25 +438,6 @@ public partial class PurchaseOrdersPageViewModel : SortablePageViewModelBase
             PurchaseOrderStatus.Cancelled => "Cancelled",
             _ => status.ToString()
         };
-    }
-
-    protected override void UpdatePageNumbers()
-    {
-        PageNumbers.Clear();
-        var startPage = Math.Max(1, CurrentPage - 2);
-        var endPage = Math.Min(TotalPages, startPage + 4);
-        startPage = Math.Max(1, endPage - 4);
-
-        for (var i = startPage; i <= endPage; i++)
-        {
-            PageNumbers.Add(i);
-        }
-    }
-
-    private void UpdatePaginationText(int totalCount)
-    {
-        PaginationText = PaginationTextHelper.FormatPaginationText(
-            totalCount, CurrentPage, PageSize, TotalPages, "order");
     }
 
     #endregion

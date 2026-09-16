@@ -92,14 +92,14 @@ public partial class StockAdjustmentsModalsViewModel : ViewModelBase
         get
         {
             if (SelectedInventoryItem == null) return "0";
-            if (!int.TryParse(AdjustmentQuantity, out var qty)) return SelectedInventoryItem.InStock.ToString();
+            if (!decimal.TryParse(AdjustmentQuantity, out var qty)) return StockUnits.Format(SelectedInventoryItem.InStock);
 
             return AdjustmentType switch
             {
-                "Add" => (SelectedInventoryItem.InStock + qty).ToString(),
-                "Remove" => (SelectedInventoryItem.InStock - qty).ToString(),
-                "Set" => qty.ToString(),
-                _ => SelectedInventoryItem.InStock.ToString()
+                "Add" => StockUnits.Format(SelectedInventoryItem.InStock + qty),
+                "Remove" => StockUnits.Format(SelectedInventoryItem.InStock - qty),
+                "Set" => StockUnits.Format(qty),
+                _ => StockUnits.Format(SelectedInventoryItem.InStock)
             };
         }
     }
@@ -107,7 +107,7 @@ public partial class StockAdjustmentsModalsViewModel : ViewModelBase
     /// <summary>
     /// Current stock of selected item.
     /// </summary>
-    public int CurrentStock => SelectedInventoryItem?.InStock ?? 0;
+    public decimal CurrentStock => SelectedInventoryItem?.InStock ?? 0;
 
     partial void OnAdjustmentQuantityChanged(string value)
     {
@@ -239,7 +239,7 @@ public partial class StockAdjustmentsModalsViewModel : ViewModelBase
             hasErrors = true;
         }
 
-        if (!int.TryParse(AdjustmentQuantity, out var quantity) || quantity < 0)
+        if (!decimal.TryParse(AdjustmentQuantity, out var quantity) || quantity < 0)
         {
             HasQuantityError = true;
             hasErrors = true;
@@ -357,9 +357,9 @@ public partial class StockAdjustmentsModalsViewModel : ViewModelBase
             AvailableInventoryItems.Add(new InventoryItemDisplayOption
             {
                 InventoryItem = item,
-                DisplayText = $"{product?.Name ?? "Unknown"} @ {location?.Name ?? "Default"}",
+                DisplayText = $"{product?.Name ?? "Unknown"} @ {location?.Name ?? "Unknown"}",
                 ProductName = product?.Name ?? "Unknown",
-                LocationName = location?.Name ?? "Default",
+                LocationName = location?.Name ?? "Unknown",
                 CurrentStock = item.InStock
             });
         }
@@ -417,10 +417,9 @@ public partial class StockAdjustmentsModalsViewModel : ViewModelBase
             var companyData = App.CompanyManager?.CompanyData;
 
             var adjustment = companyData?.StockAdjustments.FirstOrDefault(a => a.Id == item.Id);
-            if (adjustment == null) return;
+            if (companyData == null || adjustment == null) return;
 
-            // Find the inventory item and reverse the adjustment
-            var inventoryItem = companyData?.Inventory.FirstOrDefault(i => i.Id == adjustment.InventoryItemId);
+            var inventoryItem = companyData.Inventory.FirstOrDefault(i => i.Id == adjustment.InventoryItemId);
 
             // Adding an adjustment can't leave stock below zero, so taking one back can't either.
             var stockAfterDelete = inventoryItem?.InStock - (adjustment.NewStock - adjustment.PreviousStock);
@@ -432,70 +431,33 @@ public partial class StockAdjustmentsModalsViewModel : ViewModelBase
                 return;
             }
 
-            var dialog = App.ConfirmationDialog;
-            if (dialog == null) return;
+            if (!await ConfirmDeleteAsync("Delete Stock Adjustment".Translate(),
+                    "Are you sure you want to delete this stock adjustment?\n\nProduct: {0}\nQuantity: {1}".TranslateFormat(item.ProductName, item.Quantity)))
+                return;
 
-            var result = await dialog.ShowAsync(new ConfirmationDialogOptions
-            {
-                Title = "Delete Stock Adjustment".Translate(),
-                Message = "Are you sure you want to delete this stock adjustment?\n\nProduct: {0}\nQuantity: {1}".TranslateFormat(item.ProductName, item.Quantity),
-                PrimaryButtonText = "Delete".Translate(),
-                CancelButtonText = "Cancel".Translate(),
-                IsPrimaryDestructive = true
-            });
-
-            if (result != ConfirmationResult.Primary) return;
-
-            // Store values for undo
             var oldInventoryStock = inventoryItem?.InStock;
             var oldInventoryStatus = inventoryItem?.Status;
 
-            // Reverse the adjustment on inventory if item still exists
-            if (inventoryItem != null)
-            {
-                // Reverse the adjustment's net effect from the live stock. Setting InStock to
-                // PreviousStock is only correct if this is the most recent adjustment for the item;
-                // with later adjustments present, that snapshot leaves stock and the ledger inconsistent.
-                inventoryItem.InStock -= adjustment.NewStock - adjustment.PreviousStock;
-                inventoryItem.Status = inventoryItem.CalculateStatus();
-                inventoryItem.LastUpdated = DateTime.UtcNow;
-            }
-
-            // Remove the adjustment record
-            companyData?.StockAdjustments.Remove(adjustment);
-            companyData?.MarkAsModified();
-
-            // Record undo action
-            var adjustmentProductName = item.ProductName;
-            App.UndoRedoManager.RecordAction(new DelegateAction(
-                $"Delete adjustment for '{adjustmentProductName}'",
-                () =>
+            RemoveWithUndo(companyData, companyData.StockAdjustments, adjustment, $"Delete adjustment for '{item.ProductName}'",
+                () => AdjustmentDeleted?.Invoke(this, EventArgs.Empty),
+                onRemove: () =>
                 {
-                    // Undo: restore the adjustment
-                    companyData?.StockAdjustments.Add(adjustment);
-                    if (inventoryItem != null && oldInventoryStock.HasValue)
-                    {
-                        inventoryItem.InStock = oldInventoryStock.Value;
-                        inventoryItem.Status = oldInventoryStatus ?? inventoryItem.CalculateStatus();
-                    }
-                    companyData?.MarkAsModified();
-                    AdjustmentDeleted?.Invoke(this, EventArgs.Empty);
+                    if (inventoryItem == null) return;
+
+                    // Reverse the adjustment's net effect from the live stock. Setting InStock to
+                    // PreviousStock is only correct if this is the most recent adjustment for the item;
+                    // with later adjustments present, that snapshot leaves stock and the ledger inconsistent.
+                    inventoryItem.InStock -= adjustment.NewStock - adjustment.PreviousStock;
+                    inventoryItem.Status = inventoryItem.CalculateStatus();
+                    inventoryItem.LastUpdated = DateTime.UtcNow;
                 },
-                () =>
+                onRestore: () =>
                 {
-                    // Redo: delete again
-                    companyData?.StockAdjustments.Remove(adjustment);
-                    if (inventoryItem != null)
-                    {
-                        inventoryItem.InStock -= adjustment.NewStock - adjustment.PreviousStock;
-                        inventoryItem.Status = inventoryItem.CalculateStatus();
-                    }
-                    companyData?.MarkAsModified();
-                    AdjustmentDeleted?.Invoke(this, EventArgs.Empty);
-                }));
+                    if (inventoryItem == null || !oldInventoryStock.HasValue) return;
 
-            // Notify
-            AdjustmentDeleted?.Invoke(this, EventArgs.Empty);
+                    inventoryItem.InStock = oldInventoryStock.Value;
+                    inventoryItem.Status = oldInventoryStatus ?? inventoryItem.CalculateStatus();
+                });
         }
         catch (Exception ex)
         {
@@ -537,45 +499,32 @@ public partial class StockAdjustmentsModalsViewModel : ViewModelBase
     /// </summary>
     public ObservableCollection<string> FilterTypeOptions { get; } = new(AdjustmentTypeExtensions.GetFilterOptions());
 
-    // Original filter values for change detection
-    private DateTimeOffset? _originalFilterStartDate;
-    private DateTimeOffset? _originalFilterEndDate;
-    private string _originalFilterProduct = "All";
-    private string _originalFilterType = "All";
-
     /// <summary>
-    /// Returns true if any filter has been changed from its original value when the modal was opened.
+    /// Raised when filters are cleared.
     /// </summary>
-    public bool HasFilterModalChanges =>
-        FilterStartDate != _originalFilterStartDate ||
-        FilterEndDate != _originalFilterEndDate ||
-        FilterProduct != _originalFilterProduct ||
-        FilterType != _originalFilterType;
+    public event EventHandler? FiltersCleared;
 
-    /// <summary>
-    /// Captures the current filter values as the original values for change detection.
-    /// </summary>
-    private void CaptureOriginalFilterValues()
+    private sealed record FilterValues(DateTimeOffset? StartDate, DateTimeOffset? EndDate, string Product, string Type)
     {
-        _originalFilterStartDate = FilterStartDate;
-        _originalFilterEndDate = FilterEndDate;
-        _originalFilterProduct = FilterProduct;
-        _originalFilterType = FilterType;
+        public static readonly FilterValues Default = new(null, null, "All", "All");
     }
 
-    /// <summary>
-    /// Restores filter values to their original values when the modal was opened.
-    /// </summary>
-    private void RestoreOriginalFilterValues()
-    {
-        FilterStartDate = _originalFilterStartDate;
-        FilterEndDate = _originalFilterEndDate;
-        FilterProduct = _originalFilterProduct;
-        FilterType = _originalFilterType;
-    }
+    private FilterSnapshot<FilterValues>? _filters;
+
+    private FilterSnapshot<FilterValues> Filters => _filters ??= new(FilterValues.Default,
+        () => new(FilterStartDate, FilterEndDate, FilterProduct, FilterType),
+        v =>
+        {
+            FilterStartDate = v.StartDate;
+            FilterEndDate = v.EndDate;
+            FilterProduct = v.Product;
+            FilterType = v.Type;
+        });
+
+    public bool HasFilterModalChanges => Filters.HasChanges;
 
     /// <summary>
-    /// Opens the filter modal.
+    /// Opens the filter modal seeded with the page's current filters.
     /// </summary>
     public void OpenFilterModal(IEnumerable<string> products,
         DateTimeOffset? startDate, DateTimeOffset? endDate,
@@ -586,23 +535,12 @@ public partial class StockAdjustmentsModalsViewModel : ViewModelBase
         foreach (var prod in products.Where(p => p != "All"))
             FilterProducts.Add(prod);
 
-        FilterStartDate = startDate;
-        FilterEndDate = endDate;
-        FilterProduct = currentProduct;
-        FilterType = currentType;
-
-        CaptureOriginalFilterValues();
+        Filters.Set(new(startDate, endDate, currentProduct, currentType));
+        Filters.Capture();
         IsFilterModalOpen = true;
     }
 
-    /// <summary>
-    /// Closes the filter modal.
-    /// </summary>
-    [RelayCommand]
-    private void CloseFilterModal()
-    {
-        IsFilterModalOpen = false;
-    }
+    private void CloseFilterModal() => IsFilterModalOpen = false;
 
     /// <summary>
     /// Applies the current filters.
@@ -612,18 +550,7 @@ public partial class StockAdjustmentsModalsViewModel : ViewModelBase
     {
         FiltersApplied?.Invoke(this, new AdjustmentsFilterAppliedEventArgs(
             FilterStartDate, FilterEndDate, FilterProduct, FilterType));
-        IsFilterModalOpen = false;
-    }
-
-    /// <summary>
-    /// Resets filter values to their defaults.
-    /// </summary>
-    private void ResetFilterDefaults()
-    {
-        FilterStartDate = null;
-        FilterEndDate = null;
-        FilterProduct = "All";
-        FilterType = "All";
+        CloseFilterModal();
     }
 
     /// <summary>
@@ -632,25 +559,19 @@ public partial class StockAdjustmentsModalsViewModel : ViewModelBase
     [RelayCommand]
     private void ClearFilters()
     {
-        ResetFilterDefaults();
+        Filters.Reset();
+        FiltersCleared?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
     }
 
     /// <summary>
-    /// Requests to close the filter modal, showing confirmation if changes were made.
+    /// Closes the filter modal, asking first and putting the filters back if they were changed.
     /// </summary>
     [RelayCommand]
     public async Task RequestCloseFilterModalAsync()
     {
-        if (HasFilterModalChanges)
-        {
-            if (!await ConfirmDiscardFiltersAsync())
-                return;
-
-            RestoreOriginalFilterValues();
-        }
-
-        CloseFilterModal();
+        if (await Filters.ConfirmDiscardAsync(ConfirmDiscardFiltersAsync))
+            CloseFilterModal();
     }
 
     #endregion
@@ -681,7 +602,7 @@ public class InventoryItemDisplayOption
     public string DisplayText { get; set; } = string.Empty;
     public string ProductName { get; set; } = string.Empty;
     public string LocationName { get; set; } = string.Empty;
-    public int CurrentStock { get; set; }
+    public decimal CurrentStock { get; set; }
 
     public override string ToString() => DisplayText;
 }

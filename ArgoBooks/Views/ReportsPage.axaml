@@ -15,7 +15,6 @@
              x:DataType="vm:ReportsPageViewModel">
 
     <UserControl.Resources>
-        <converters:EqualConverter x:Key="EqualConverter" />
         <converters:EqualityConverter x:Key="EqualityConverter" />
         <converters:EnumDisplayNameConverter x:Key="EnumDisplayNameConverter" />
         <converters:TransactionTypeSupportsReturnsConverter x:Key="TransactionTypeSupportsReturnsConverter" />
@@ -1292,7 +1291,7 @@
                                            Foreground="{DynamicResource TextSecondaryBrush}" />
                                 <StackPanel Spacing="4">
                                     <TextBlock Text="{loc:Loc 'Transaction Type'}" FontSize="11" Foreground="{DynamicResource TextTertiaryBrush}" />
-                                    <ComboBox ItemsSource="{Binding TransactionTypes}"
+                                    <ComboBox ItemsSource="{Binding SummaryTransactionTypes}"
                                               SelectedItem="{Binding SelectedSummaryElement.TransactionType, FallbackValue={x:Null}}"
                                               HorizontalAlignment="Stretch">
                                         <ComboBox.ItemTemplate>
@@ -1367,19 +1366,19 @@
                                         <Button Grid.Column="0"
                                                 Content="{loc:Loc 'General'}"
                                                 Classes="property-tab-button"
-                                                Classes.selected="{Binding TablePropertiesTabIndex, Converter={StaticResource EqualConverter}, ConverterParameter=0}"
+                                                Classes.selected="{Binding TablePropertiesTabIndex, Converter={StaticResource EqualityConverter}, ConverterParameter=0}"
                                                 Command="{Binding SetTablePropertiesTabCommand}"
                                                 CommandParameter="0" />
                                         <Button Grid.Column="1"
                                                 Content="{loc:Loc 'Style'}"
                                                 Classes="property-tab-button"
-                                                Classes.selected="{Binding TablePropertiesTabIndex, Converter={StaticResource EqualConverter}, ConverterParameter=1}"
+                                                Classes.selected="{Binding TablePropertiesTabIndex, Converter={StaticResource EqualityConverter}, ConverterParameter=1}"
                                                 Command="{Binding SetTablePropertiesTabCommand}"
                                                 CommandParameter="1" />
                                         <Button Grid.Column="2"
                                                 Content="{loc:Loc 'Columns'}"
                                                 Classes="property-tab-button"
-                                                Classes.selected="{Binding TablePropertiesTabIndex, Converter={StaticResource EqualConverter}, ConverterParameter=2}"
+                                                Classes.selected="{Binding TablePropertiesTabIndex, Converter={StaticResource EqualityConverter}, ConverterParameter=2}"
                                                 Command="{Binding SetTablePropertiesTabCommand}"
                                                 CommandParameter="2" />
                                     </Grid>
@@ -1387,7 +1386,7 @@
                                 </StackPanel>
 
                                 <!-- General Tab -->
-                                <StackPanel Spacing="8" IsVisible="{Binding TablePropertiesTabIndex, Converter={StaticResource EqualConverter}, ConverterParameter=0}">
+                                <StackPanel Spacing="8" IsVisible="{Binding TablePropertiesTabIndex, Converter={StaticResource EqualityConverter}, ConverterParameter=0}">
                                     <StackPanel Spacing="4">
                                         <TextBlock Text="{loc:Loc 'Transaction Type'}" FontSize="11" Foreground="{DynamicResource TextTertiaryBrush}" />
                                         <ComboBox ItemsSource="{Binding TransactionTypes}"
@@ -1428,7 +1427,7 @@
                                 </StackPanel>
 
                                 <!-- Style Tab -->
-                                <StackPanel Spacing="8" IsVisible="{Binding TablePropertiesTabIndex, Converter={StaticResource EqualConverter}, ConverterParameter=1}">
+                                <StackPanel Spacing="8" IsVisible="{Binding TablePropertiesTabIndex, Converter={StaticResource EqualityConverter}, ConverterParameter=1}">
                                     <TextBlock Text="{loc:Loc 'Display Options'}"
                                                FontSize="11"
                                                FontWeight="Medium"
@@ -1563,7 +1562,7 @@
                                 </StackPanel>
 
                                 <!-- Columns Tab -->
-                                <StackPanel Spacing="8" IsVisible="{Binding TablePropertiesTabIndex, Converter={StaticResource EqualConverter}, ConverterParameter=2}">
+                                <StackPanel Spacing="8" IsVisible="{Binding TablePropertiesTabIndex, Converter={StaticResource EqualityConverter}, ConverterParameter=2}">
                                     <CheckBox Content="{loc:Loc 'Date'}" IsChecked="{Binding SelectedTableElement.ShowDateColumn, FallbackValue=False}" />
                                     <CheckBox Content="{loc:Loc 'Transaction ID'}" IsChecked="{Binding SelectedTableElement.ShowTransactionIdColumn, FallbackValue=False}" />
                                     <CheckBox Content="{loc:Loc 'Company'}" IsChecked="{Binding SelectedTableElement.ShowCompanyColumn, FallbackValue=False}" />

@@ -121,6 +121,11 @@ public static class LevenshteinDistance
         if (targetLower.Contains(searchLower))
             return 0.8;
 
+        // One or two letters are too short to be a typo of anything: "ca" would loosely match every
+        // short word or code sharing a letter with it.
+        if (searchLower.Length < 3)
+            return -1;
+
         // Fuzzy match using normalized similarity
         var similarity = NormalizedSimilarity(searchLower, targetLower);
 
@@ -138,5 +143,37 @@ public static class LevenshteinDistance
             return bestSimilarity * 0.7; // Scale down fuzzy matches
 
         return -1; // No match
+    }
+
+    /// <summary>
+    /// Returns the best search score across several fields, or -1 if none match.
+    /// </summary>
+    public static double BestScore(string searchTerm, params string?[] fields)
+    {
+        double best = -1;
+        foreach (var field in fields)
+        {
+            if (string.IsNullOrEmpty(field)) continue;
+            var score = ComputeSearchScore(searchTerm, field);
+            if (score > best) best = score;
+        }
+        return best;
+    }
+
+    /// <summary>
+    /// Keeps the items where any field matches the search and orders them by their best score.
+    /// Ties keep their original order, and an empty search returns the items unchanged.
+    /// </summary>
+    public static IEnumerable<T> RankBySearch<T>(this IEnumerable<T> items, string? searchTerm, Func<T, string?[]> fields)
+    {
+        var term = searchTerm?.Trim();
+        if (string.IsNullOrEmpty(term))
+            return items;
+
+        return items
+            .Select(item => (Item: item, Score: BestScore(term, fields(item))))
+            .Where(x => x.Score >= 0)
+            .OrderByDescending(x => x.Score)
+            .Select(x => x.Item);
     }
 }

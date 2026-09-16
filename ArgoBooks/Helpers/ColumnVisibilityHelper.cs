@@ -22,25 +22,43 @@ public static class ColumnVisibilityHelper
     /// </remarks>
     public static void SyncToManager(object viewModel)
     {
-        var type = viewModel.GetType();
-        if (type.GetProperty("ColumnWidths")?.GetValue(viewModel) is not ITableColumnWidths widths)
+        if (GetManager(viewModel) is not { } widths)
             return;
 
-        foreach (var prop in type.GetProperties())
+        foreach (var prop in viewModel.GetType().GetProperties())
         {
             if (prop.PropertyType != typeof(bool) || !prop.CanRead)
                 continue;
 
-            var name = prop.Name;
-            // Match the Show{Column}Column convention; the middle is the manager's column key.
-            if (name.Length <= 10 ||
-                !name.StartsWith("Show", StringComparison.Ordinal) ||
-                !name.EndsWith("Column", StringComparison.Ordinal))
-                continue;
-
-            if (prop.GetValue(viewModel) is bool isVisible)
-                widths.SetColumnVisibility(name[4..^6], isVisible);
+            if (GetColumnKey(prop.Name) is { } column && prop.GetValue(viewModel) is bool isVisible)
+                widths.SetColumnVisibility(column, isVisible);
         }
+    }
+
+    /// <summary>
+    /// Gets the column-width manager exposed by a view model's <c>ColumnWidths</c> property, if any.
+    /// </summary>
+    public static ITableColumnWidths? GetManager(object viewModel) =>
+        viewModel.GetType().GetProperty("ColumnWidths")?.GetValue(viewModel) as ITableColumnWidths;
+
+    /// <summary>
+    /// Returns the column key for a <c>Show{Column}Column</c> property name, or null for any other name.
+    /// </summary>
+    public static string? GetColumnKey(string? propertyName) =>
+        propertyName is { Length: > 10 } name &&
+        name.StartsWith("Show", StringComparison.Ordinal) &&
+        name.EndsWith("Column", StringComparison.Ordinal)
+            ? name[4..^6]
+            : null;
+
+    /// <summary>
+    /// Sets every <c>Show{Column}Column</c> property on the view model back to its default.
+    /// </summary>
+    public static void ApplyDefaults(object viewModel, ColumnVisibilityDefaults columns)
+    {
+        var type = viewModel.GetType();
+        foreach (var (column, isVisible) in columns.Defaults)
+            type.GetProperty($"Show{column}Column")?.SetValue(viewModel, isVisible);
     }
 
     /// <summary>
@@ -98,4 +116,21 @@ public static class ColumnVisibilityHelper
             _ = App.SettingsService!.SaveGlobalSettingsAsync();
         }
     }
+}
+
+/// <summary>
+/// A page's column visibility settings key and each column's default visibility, shared by the
+/// page's <c>Show{Column}Column</c> field initializers and the column reset.
+/// </summary>
+public sealed class ColumnVisibilityDefaults(string pageName, IReadOnlyDictionary<string, bool> defaults)
+{
+    public string PageName { get; } = pageName;
+
+    public IReadOnlyDictionary<string, bool> Defaults { get; } = defaults;
+
+    /// <summary>
+    /// Loads the saved visibility for a column, or its default.
+    /// </summary>
+    public bool Load(string columnName) =>
+        ColumnVisibilityHelper.Load(PageName, columnName, Defaults[columnName]);
 }

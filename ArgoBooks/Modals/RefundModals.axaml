@@ -53,26 +53,15 @@
         <controls:ModalOverlay IsOpen="{Binding IsRefundModalOpen}"
                                ClosingCommand="{Binding RequestCloseRefundModalCommand}">
             <controls:ModalOverlay.ModalContent>
-                <Border Background="{DynamicResource SurfaceBrush}"
-                        BorderBrush="{DynamicResource BorderBrush}"
-                        BorderThickness="1" CornerRadius="12" Width="640" MaxHeight="700"
-                        HorizontalAlignment="Center" VerticalAlignment="Center"
+                <Border Classes="modal-card"
+                        Width="640" MaxHeight="700"
                         DataContext="{Binding ActiveRefundVm}">
                     <Grid RowDefinitions="Auto,*,Auto">
                         <!-- Header -->
-                        <Border Grid.Row="0" Padding="24,20" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
-                            <Grid ColumnDefinitions="*,Auto">
-                                <StackPanel Grid.Column="0">
-                                    <TextBlock Text="{Binding InvoiceNumber, StringFormat='Refund Invoice {0}'}"
-                                               FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
-                                    <TextBlock Text="{Binding CustomerDisplay}" FontSize="13"
-                                               Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,2,0,0" />
-                                </StackPanel>
-                                <Button Grid.Column="1" Classes="icon-button" Command="{Binding CloseCommand}">
-                                    <PathIcon Data="{x:Static local:Icons.Close}" Width="20" Height="20" />
-                                </Button>
-                            </Grid>
-                        </Border>
+                        <controls:ModalHeader Grid.Row="0"
+                                              Title="{Binding InvoiceNumber, StringFormat='Refund Invoice {0}'}"
+                                              Subtitle="{Binding CustomerDisplay}"
+                                              CloseCommand="{Binding CloseCommand}" />
 
                         <!-- Body -->
                         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -243,7 +232,7 @@
                              top. IsVisible is the primary mechanism but the
                              draw order is the safety net against the footer's
                              top-border separator leaking through. -->
-                        <Border Grid.Row="2" Padding="24,16" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0"
+                        <Border Classes="modal-footer" Grid.Row="2"
                                 IsVisible="{Binding ShowRefundFooter}">
                             <Grid ColumnDefinitions="Auto,*,Auto">
                                 <ProgressBar Grid.Column="0" Width="120" Height="4" IsIndeterminate="True"
@@ -329,22 +318,11 @@
         <controls:ModalOverlay IsOpen="{Binding IsVerifyEmailModalOpen}"
                                ClosingCommand="{Binding RequestCloseVerifyEmailModalCommand}">
             <controls:ModalOverlay.ModalContent>
-                <Border Background="{DynamicResource SurfaceBrush}"
-                        BorderBrush="{DynamicResource BorderBrush}"
-                        BorderThickness="1" CornerRadius="12" Width="480" MaxHeight="500"
-                        HorizontalAlignment="Center" VerticalAlignment="Center"
+                <Border Classes="modal-card"
+                        Width="480" MaxHeight="500"
                         DataContext="{Binding ActiveVerifyEmailVm}">
                     <Grid RowDefinitions="Auto,*,Auto">
-                        <Border Grid.Row="0" Padding="24,20" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
-                            <Grid ColumnDefinitions="*,Auto">
-                                <TextBlock Grid.Column="0" Text="Verify your email"
-                                           FontSize="18" FontWeight="SemiBold"
-                                           Foreground="{DynamicResource TextPrimaryBrush}" />
-                                <Button Grid.Column="1" Classes="icon-button" Command="{Binding CloseCommand}">
-                                    <PathIcon Data="{x:Static local:Icons.Close}" Width="20" Height="20" />
-                                </Button>
-                            </Grid>
-                        </Border>
+                        <controls:ModalHeader Grid.Row="0" Title="Verify your email" CloseCommand="{Binding CloseCommand}" />
 
                         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                             <StackPanel Margin="24" Spacing="14">
@@ -376,7 +354,7 @@
                             </StackPanel>
                         </ScrollViewer>
 
-                        <Border Grid.Row="2" Padding="24,16" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
+                        <Border Classes="modal-footer" Grid.Row="2">
                             <Grid ColumnDefinitions="Auto,*,Auto">
                                 <ProgressBar Grid.Column="0" Width="120" Height="4" IsIndeterminate="True"
                                              IsVisible="{Binding IsBusy}" VerticalAlignment="Center" />
@@ -402,24 +380,14 @@
         <controls:ModalOverlay IsOpen="{Binding IsEmailChangeModalOpen}"
                                ClosingCommand="{Binding RequestCloseEmailChangeModalCommand}">
             <controls:ModalOverlay.ModalContent>
-                <Border Background="{DynamicResource SurfaceBrush}"
-                        BorderBrush="{DynamicResource BorderBrush}"
-                        BorderThickness="1" CornerRadius="12" Width="540" MaxHeight="640"
-                        HorizontalAlignment="Center" VerticalAlignment="Center"
+                <Border Classes="modal-card"
+                        Width="540" MaxHeight="640"
                         DataContext="{Binding ActiveEmailChangeVm}">
                     <Grid RowDefinitions="Auto,*,Auto">
-                        <Border Grid.Row="0" Padding="24,20" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
-                            <Grid ColumnDefinitions="*,Auto">
-                                <StackPanel Grid.Column="0">
-                                    <TextBlock Text="Change owner email" FontSize="18" FontWeight="SemiBold" />
-                                    <TextBlock Text="{Binding CurrentOwnerEmail, StringFormat='Currently: {0}'}"
-                                               FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,2,0,0" />
-                                </StackPanel>
-                                <Button Grid.Column="1" Classes="icon-button" Command="{Binding CloseCommand}">
-                                    <PathIcon Data="{x:Static local:Icons.Close}" Width="20" Height="20" />
-                                </Button>
-                            </Grid>
-                        </Border>
+                        <controls:ModalHeader Grid.Row="0" Title="Change owner email" CloseCommand="{Binding CloseCommand}">
+                            <TextBlock Text="{Binding CurrentOwnerEmail, StringFormat='Currently: {0}'}"
+                                       FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,2,0,0" />
+                        </controls:ModalHeader>
 
                         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                             <StackPanel Margin="24" Spacing="14">
@@ -494,7 +462,7 @@
                             </StackPanel>
                         </ScrollViewer>
 
-                        <Border Grid.Row="2" Padding="24,16" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
+                        <Border Classes="modal-footer" Grid.Row="2">
                             <Grid ColumnDefinitions="Auto,*,Auto">
                                 <ProgressBar Grid.Column="0" Width="120" Height="4" IsIndeterminate="True"
                                              IsVisible="{Binding IsBusy}" VerticalAlignment="Center" />

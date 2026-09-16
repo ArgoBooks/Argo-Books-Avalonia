@@ -17,12 +17,6 @@ namespace ArgoBooks.ViewModels;
 /// </summary>
 public partial class RentalInventoryPageViewModel : SortablePageViewModelBase
 {
-    #region Responsive Header
-
-    public ResponsiveHeaderHelper ResponsiveHeader { get; } = new();
-
-    #endregion
-
     #region Statistics
 
     [ObservableProperty]
@@ -52,43 +46,35 @@ public partial class RentalInventoryPageViewModel : SortablePageViewModelBase
     /// </summary>
     public RentalInventoryTableColumnWidths ColumnWidths => App.RentalInventoryColumnWidths;
 
-    [ObservableProperty]
-    private bool _showItemColumn = ColumnVisibilityHelper.Load("RentalInventory", "Item", true);
-
-    [ObservableProperty]
-    private bool _showStatusColumn = ColumnVisibilityHelper.Load("RentalInventory", "Status", true);
-
-    [ObservableProperty]
-    private bool _showInStockColumn = ColumnVisibilityHelper.Load("RentalInventory", "InStock", true);
-
-    [ObservableProperty]
-    private bool _showDailyRateColumn = ColumnVisibilityHelper.Load("RentalInventory", "DailyRate", true);
-
-    [ObservableProperty]
-    private bool _showWeeklyRateColumn = ColumnVisibilityHelper.Load("RentalInventory", "WeeklyRate", true);
-
-    [ObservableProperty]
-    private bool _showDepositColumn = ColumnVisibilityHelper.Load("RentalInventory", "Deposit", true);
-
-    partial void OnShowItemColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Item", value); ColumnVisibilityHelper.Save("RentalInventory", "Item", value); }
-    partial void OnShowStatusColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Status", value); ColumnVisibilityHelper.Save("RentalInventory", "Status", value); }
-    partial void OnShowInStockColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("InStock", value); ColumnVisibilityHelper.Save("RentalInventory", "InStock", value); }
-    partial void OnShowDailyRateColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("DailyRate", value); ColumnVisibilityHelper.Save("RentalInventory", "DailyRate", value); }
-    partial void OnShowWeeklyRateColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("WeeklyRate", value); ColumnVisibilityHelper.Save("RentalInventory", "WeeklyRate", value); }
-    partial void OnShowDepositColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Deposit", value); ColumnVisibilityHelper.Save("RentalInventory", "Deposit", value); }
-
-    [RelayCommand]
-    private void ResetColumnVisibility()
+    private static readonly ColumnVisibilityDefaults ColumnDefaults = new("RentalInventory", new Dictionary<string, bool>
     {
-        ColumnWidths.ResetWidths();
-        ColumnVisibilityHelper.ResetPage("RentalInventory");
-        ShowItemColumn = true;
-        ShowStatusColumn = true;
-        ShowInStockColumn = true;
-        ShowDailyRateColumn = true;
-        ShowWeeklyRateColumn = true;
-        ShowDepositColumn = true;
-    }
+        ["Item"] = true,
+        ["Status"] = true,
+        ["InStock"] = true,
+        ["DailyRate"] = true,
+        ["WeeklyRate"] = true,
+        ["Deposit"] = true,
+    });
+
+    protected override ColumnVisibilityDefaults ColumnVisibility => ColumnDefaults;
+
+    [ObservableProperty]
+    private bool _showItemColumn = ColumnDefaults.Load("Item");
+
+    [ObservableProperty]
+    private bool _showStatusColumn = ColumnDefaults.Load("Status");
+
+    [ObservableProperty]
+    private bool _showInStockColumn = ColumnDefaults.Load("InStock");
+
+    [ObservableProperty]
+    private bool _showDailyRateColumn = ColumnDefaults.Load("DailyRate");
+
+    [ObservableProperty]
+    private bool _showWeeklyRateColumn = ColumnDefaults.Load("WeeklyRate");
+
+    [ObservableProperty]
+    private bool _showDepositColumn = ColumnDefaults.Load("Deposit");
 
     #endregion
 
@@ -106,9 +92,6 @@ public partial class RentalInventoryPageViewModel : SortablePageViewModelBase
 
     [ObservableProperty]
     private string _filterStatus = "All";
-
-    [ObservableProperty]
-    private string? _filterSupplier;
 
     [ObservableProperty]
     private string? _filterDailyRateMin;
@@ -135,9 +118,6 @@ public partial class RentalInventoryPageViewModel : SortablePageViewModelBase
 
     #region Pagination
 
-    [ObservableProperty]
-    private string _paginationText = "0 items";
-
     /// <inheritdoc />
     protected override void OnSortOrPageChanged() => FilterItems();
 
@@ -149,10 +129,7 @@ public partial class RentalInventoryPageViewModel : SortablePageViewModelBase
     {
         LoadItems();
 
-        // Subscribe to undo/redo state changes to refresh UI
-        App.UndoRedoManager.StateChanged += OnUndoRedoStateChanged;
-        if (App.NavigationService != null)
-            App.NavigationService.Navigated += OnNavigated;
+        EnableDeferredUndoRefresh(p => p == PageNames.RentalInventory, LoadItems);
 
         if (App.RentalInventoryModalsViewModel != null)
         {
@@ -170,36 +147,12 @@ public partial class RentalInventoryPageViewModel : SortablePageViewModelBase
     public override void Cleanup()
     {
         base.Cleanup();
-        App.UndoRedoManager.StateChanged -= OnUndoRedoStateChanged;
-        if (App.NavigationService != null)
-            App.NavigationService.Navigated -= OnNavigated;
         if (App.RentalInventoryModalsViewModel != null)
         {
             App.RentalInventoryModalsViewModel.ItemSaved -= OnItemSaved;
             App.RentalInventoryModalsViewModel.ItemDeleted -= OnItemDeleted;
             App.RentalInventoryModalsViewModel.FiltersApplied -= OnFiltersApplied;
             App.RentalInventoryModalsViewModel.FiltersCleared -= OnFiltersCleared;
-        }
-    }
-
-    private bool _needsRefresh;
-
-    private void OnUndoRedoStateChanged(object? sender, EventArgs e)
-    {
-        if (App.NavigationService?.CurrentPageName != PageNames.RentalInventory)
-        {
-            _needsRefresh = true;
-            return;
-        }
-        LoadItems();
-    }
-
-    private void OnNavigated(object? sender, NavigationEventArgs e)
-    {
-        if (e.PageName == PageNames.RentalInventory && _needsRefresh)
-        {
-            _needsRefresh = false;
-            LoadItems();
         }
     }
 
@@ -219,7 +172,6 @@ public partial class RentalInventoryPageViewModel : SortablePageViewModelBase
         if (modals != null)
         {
             FilterStatus = modals.FilterStatus;
-            FilterSupplier = modals.FilterSupplier;
             FilterDailyRateMin = modals.FilterDailyRateMin;
             FilterDailyRateMax = modals.FilterDailyRateMax;
             FilterAvailability = modals.FilterAvailability;
@@ -231,7 +183,6 @@ public partial class RentalInventoryPageViewModel : SortablePageViewModelBase
     private void OnFiltersCleared(object? sender, EventArgs e)
     {
         FilterStatus = "All";
-        FilterSupplier = null;
         FilterDailyRateMin = null;
         FilterDailyRateMax = null;
         FilterAvailability = "All";
@@ -263,24 +214,28 @@ public partial class RentalInventoryPageViewModel : SortablePageViewModelBase
         var companyData = App.CompanyManager?.CompanyData;
         var inventoryLookup = companyData?.Inventory.ToDictionary(inv => inv.Id) ?? [];
 
-        var totalInStock = 0;
-        var activeInStock = 0;
-        var maintenanceInStock = 0;
+        var rentals = companyData?.Rentals ?? [];
+        var total = 0;
+        var available = 0;
+        var rentedOut = 0;
+        var maintenance = 0;
 
         foreach (var item in _allItems)
         {
-            var inStock = inventoryLookup.TryGetValue(item.InventoryItemId, out var inv) ? inv.InStock : 0;
-            totalInStock += inStock;
+            var inStock = inventoryLookup.TryGetValue(item.InventoryItemId, out var inv) ? (int)inv.InStock : 0;
+            var unitsOut = RentalBookings.UnitsOut(rentals, item.Id);
+            total += inStock + unitsOut;
+            rentedOut += unitsOut;
             if (item.Status == EntityStatus.Inactive)
-                maintenanceInStock += inStock;
+                maintenance += inStock;
             else
-                activeInStock += inStock;
+                available += inStock;
         }
 
-        TotalItems = totalInStock;
-        AvailableItems = activeInStock;
-        RentedOutItems = 0; // Rented quantity is not tracked on the item
-        MaintenanceItems = maintenanceInStock;
+        TotalItems = total;
+        AvailableItems = available;
+        RentedOutItems = rentedOut;
+        MaintenanceItems = maintenance;
     }
 
     [RelayCommand]
@@ -306,7 +261,10 @@ public partial class RentalInventoryPageViewModel : SortablePageViewModelBase
 
         // Helper to get InStock from linked InventoryItem
         int ResolveInStock(RentalItem item) =>
-            inventoryLookup.TryGetValue(item.InventoryItemId, out var inv) ? inv.InStock : 0;
+            inventoryLookup.TryGetValue(item.InventoryItemId, out var inv) ? (int)inv.InStock : 0;
+
+        var unitsOut = _allItems.GroupBy(i => i.Id)
+            .ToDictionary(g => g.Key, g => RentalBookings.UnitsOut(companyData?.Rentals ?? [], g.Key));
 
         // Helper to get SupplierId from linked Product
         string? ResolveSupplierId(RentalItem item)
@@ -322,15 +280,7 @@ public partial class RentalInventoryPageViewModel : SortablePageViewModelBase
         if (!string.IsNullOrWhiteSpace(SearchQuery))
         {
             filtered = filtered
-                .Select(i => new
-                {
-                    Item = i,
-                    NameScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, ResolveName(i)),
-                    IdScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, i.Id)
-                })
-                .Where(x => x.NameScore >= 0 || x.IdScore >= 0)
-                .OrderByDescending(x => Math.Max(x.NameScore, x.IdScore))
-                .Select(x => x.Item)
+                .RankBySearch(SearchQuery, i => [ResolveName(i), i.Id])
                 .ToList();
         }
 
@@ -340,7 +290,7 @@ public partial class RentalInventoryPageViewModel : SortablePageViewModelBase
             {
                 "Available" => filtered.Where(i => ResolveInStock(i) > 0 && i.Status == EntityStatus.Active),
                 "In Maintenance" => filtered.Where(i => i.Status == EntityStatus.Inactive),
-                "All Rented" => filtered.Where(i => ResolveInStock(i) == 0 && i.Status == EntityStatus.Active),
+                "All Rented" => filtered.Where(i => ResolveInStock(i) == 0 && unitsOut[i.Id] > 0 && i.Status == EntityStatus.Active),
                 _ => filtered
             };
         }
@@ -353,15 +303,6 @@ public partial class RentalInventoryPageViewModel : SortablePageViewModelBase
                 "Unavailable Only" => filtered.Where(i => ResolveInStock(i) == 0 || i.Status != EntityStatus.Active),
                 _ => filtered
             };
-        }
-
-        if (!string.IsNullOrWhiteSpace(FilterSupplier) && FilterSupplier != "All Suppliers")
-        {
-            var supplier = companyData?.Suppliers.FirstOrDefault(s => s.Name == FilterSupplier);
-            if (supplier != null)
-            {
-                filtered = filtered.Where(i => ResolveSupplierId(i) == supplier.Id);
-            }
         }
 
         if (decimal.TryParse(FilterDailyRateMin, out var minRate))
@@ -386,7 +327,8 @@ public partial class RentalInventoryPageViewModel : SortablePageViewModelBase
 
             var isAvailable = inStock > 0 && item.Status == EntityStatus.Active;
             var status = item.Status == EntityStatus.Inactive ? "In Maintenance" :
-                         inStock == 0 ? "All Rented" : "Available";
+                         inStock > 0 ? "Available" :
+                         unitsOut[item.Id] > 0 ? "All Rented" : "Out of Stock";
 
             return new RentalItemDisplayItem
             {
@@ -399,7 +341,9 @@ public partial class RentalInventoryPageViewModel : SortablePageViewModelBase
                 WeeklyRate = item.WeeklyRate,
                 MonthlyRate = item.MonthlyRate,
                 SecurityDeposit = item.SecurityDeposit,
-                IsAvailable = isAvailable
+                IsAvailable = isAvailable,
+                RentedOut = unitsOut[item.Id],
+                CanRentOut = item.Status == EntityStatus.Active && inStock + unitsOut[item.Id] > 0
             };
         }).ToList();
 
@@ -422,40 +366,9 @@ public partial class RentalInventoryPageViewModel : SortablePageViewModelBase
                 i => i.Name);
         }
 
-        // Calculate pagination
-        var totalCount = displayItems.Count;
-        TotalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / PageSize));
-        if (CurrentPage > TotalPages)
-            CurrentPage = TotalPages;
-
-        UpdatePageNumbers();
-        UpdatePaginationText(totalCount);
-
-        // Apply pagination
-        var pagedItems = displayItems
-            .Skip((CurrentPage - 1) * PageSize)
-            .Take(PageSize);
+        var pagedItems = Paginate(displayItems, "item");
 
         Items.ReplaceAll(pagedItems);
-    }
-
-    protected override void UpdatePageNumbers()
-    {
-        PageNumbers.Clear();
-        var startPage = Math.Max(1, CurrentPage - 2);
-        var endPage = Math.Min(TotalPages, startPage + 4);
-        startPage = Math.Max(1, endPage - 4);
-
-        for (var i = startPage; i <= endPage; i++)
-        {
-            PageNumbers.Add(i);
-        }
-    }
-
-    private void UpdatePaginationText(int totalCount)
-    {
-        PaginationText = PaginationTextHelper.FormatPaginationText(
-            totalCount, CurrentPage, PageSize, TotalPages, "item");
     }
 
     #endregion
@@ -535,6 +448,12 @@ public partial class RentalItemDisplayItem : ObservableObject
 
     [ObservableProperty]
     private bool _isAvailable;
+
+    [ObservableProperty]
+    private int _rentedOut;
+
+    [ObservableProperty]
+    private bool _canRentOut;
 
     public string DailyRateFormatted => CurrencyService.Format(DailyRate);
     public string WeeklyRateFormatted => CurrencyService.Format(WeeklyRate);

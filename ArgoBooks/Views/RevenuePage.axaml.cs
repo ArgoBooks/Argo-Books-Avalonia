@@ -1,7 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
 using ArgoBooks.Utilities;
-using ArgoBooks.ViewModels;
 
 namespace ArgoBooks.Views;
 
@@ -13,22 +12,6 @@ public partial class RevenuePage : UserControl
     public RevenuePage()
     {
         InitializeComponent();
-    }
-
-    private void OnTableSizeChanged(object? sender, SizeChangedEventArgs e)
-    {
-        if (DataContext is RevenuePageViewModel viewModel && e.WidthChanged)
-        {
-            viewModel.ColumnWidths.SetAvailableWidth(e.NewSize.Width);
-        }
-    }
-
-    private void OnHeaderSizeChanged(object? sender, SizeChangedEventArgs e)
-    {
-        if (DataContext is RevenuePageViewModel viewModel && e.WidthChanged)
-        {
-            viewModel.ResponsiveHeader.HeaderWidth = e.NewSize.Width;
-        }
     }
 
     private async void OnAiScanButtonClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)

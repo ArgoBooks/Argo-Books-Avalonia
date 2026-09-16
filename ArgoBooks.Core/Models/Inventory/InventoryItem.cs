@@ -35,31 +35,31 @@ public class InventoryItem
     /// Total quantity in stock.
     /// </summary>
     [JsonPropertyName("inStock")]
-    public int InStock { get; set; }
+    public decimal InStock { get; set; }
 
     /// <summary>
     /// Quantity reserved for orders.
     /// </summary>
     [JsonPropertyName("reserved")]
-    public int Reserved { get; set; }
+    public decimal Reserved { get; set; }
 
     /// <summary>
     /// Quantity available for sale.
     /// </summary>
     [JsonIgnore]
-    public int Available => InStock - Reserved;
+    public decimal Available => InStock - Reserved;
 
     /// <summary>
     /// Stock level at which to reorder.
     /// </summary>
     [JsonPropertyName("reorderPoint")]
-    public int ReorderPoint { get; set; }
+    public decimal ReorderPoint { get; set; }
 
     /// <summary>
     /// Stock level considered overstock.
     /// </summary>
     [JsonPropertyName("overstockThreshold")]
-    public int OverstockThreshold { get; set; }
+    public decimal OverstockThreshold { get; set; }
 
     /// <summary>
     /// Cost per unit.
@@ -72,6 +72,13 @@ public class InventoryItem
     /// </summary>
     [JsonPropertyName("unitOfMeasure")]
     public string UnitOfMeasure { get; set; } = "Each";
+
+    /// <summary>
+    /// Units on hand when cost of goods sold began. They were counted as an expense when bought,
+    /// so sales use them up first at no cost rather than counting that stock twice.
+    /// </summary>
+    [JsonPropertyName("openingUnits")]
+    public decimal OpeningUnits { get; set; }
 
     /// <summary>
     /// Inventory status based on stock levels.
@@ -93,7 +100,7 @@ public class InventoryItem
     /// <summary>
     /// Calculates the status this item would have at the given stock level.
     /// </summary>
-    public InventoryStatus CalculateStatus(int stock)
+    public InventoryStatus CalculateStatus(decimal stock)
     {
         if (stock == 0)
             return InventoryStatus.OutOfStock;

@@ -45,14 +45,6 @@
                                 ItemsSource="{Binding Customers}"
                                 SearchQuery="{Binding SearchQuery, Mode=TwoWay}"
                                 SearchPlaceholder="{loc:Loc 'Search customers...'}"
-                                SearchBoxWidth="{Binding ResponsiveHeader.SearchBoxWidth}"
-                                SearchBoxMinHeight="{Binding ResponsiveHeader.SearchBoxMinHeight}"
-                                SearchIconMargin="{Binding ResponsiveHeader.SearchIconMargin}"
-                                HeaderPadding="{Binding ResponsiveHeader.HeaderPadding}"
-                                HeaderSpacing="{Binding ResponsiveHeader.HeaderSpacing}"
-                                IsCompactMode="{Binding ResponsiveHeader.IsCompactMode}"
-                                IsMediumMode="{Binding ResponsiveHeader.IsMediumMode}"
-                                ShowButtonText="{Binding ResponsiveHeader.ShowButtonText}"
                                 FilterCommand="{Binding OpenFilterModalCommand}"
                                 AddCommand="{Binding OpenAddModalCommand}"
                                 AddButtonText="{loc:Loc 'Add Customer'}"
@@ -68,9 +60,7 @@
                                 ToggleColumnMenuCommand="{Binding ToggleColumnMenuCommand}"
                                 EmptyIcon="{x:Static icons:Icons.Customers}"
                                 EmptyTitle="{loc:Loc 'No customers found'}"
-                                EmptyMessage="{loc:Loc 'Add your first customer to start managing your customer relationships.'}"
-                                BorderSizeChanged="OnHeaderSizeChanged"
-                                TableGridSizeChanged="OnTableSizeChanged">
+                                EmptyMessage="{loc:Loc 'Add your first customer to start managing your customer relationships.'}">
 
                 <!-- Table Header Content - Using ArgoTableHeader for reduced boilerplate -->
                 <table:ArgoTable.HeaderContent>

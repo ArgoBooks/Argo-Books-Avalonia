@@ -130,6 +130,7 @@ public static class StatusConverters
     public static readonly IValueConverter RentalStatusBackground = new StatusToBrushConverter(
         new Dictionary<string, string>
         {
+            ["Reserved"] = IndigoBg,
             ["Active"] = GreenBg,
             ["Returned"] = BlueBg,
             ["Overdue"] = RedBg,
@@ -139,6 +140,7 @@ public static class StatusConverters
     public static readonly IValueConverter RentalStatusForeground = new StatusToBrushConverter(
         new Dictionary<string, string>
         {
+            ["Reserved"] = IndigoFg,
             ["Active"] = GreenFg,
             ["Returned"] = BlueFg,
             ["Overdue"] = RedFg,
@@ -197,28 +199,6 @@ public static class StatusConverters
             ["Full"] = RedFg,
             ["Outside"] = GrayFg,
             ["Empty"] = GrayFg
-        }, GrayFg);
-
-    #endregion
-
-    #region Payment Transaction Status
-
-    public static readonly IValueConverter PaymentTransactionStatusBackground = new StatusToBrushConverter(
-        new Dictionary<string, string>
-        {
-            ["Completed"] = GreenBg,
-            ["Pending"] = YellowBg,
-            ["Partial"] = BlueBg,
-            ["Refunded"] = PurpleBg
-        });
-
-    public static readonly IValueConverter PaymentTransactionStatusForeground = new StatusToBrushConverter(
-        new Dictionary<string, string>
-        {
-            ["Completed"] = GreenFg,
-            ["Pending"] = YellowFg,
-            ["Partial"] = BlueFg,
-            ["Refunded"] = PurpleFg
         }, GrayFg);
 
     #endregion

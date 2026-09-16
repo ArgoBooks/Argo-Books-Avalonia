@@ -66,12 +66,6 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
         set => SelectedCounterparty = value;
     }
 
-    public bool HasCustomerError
-    {
-        get => HasCounterpartyError;
-        set => HasCounterpartyError = value;
-    }
-
     // Notify SelectedCustomer when SelectedCounterparty changes so UI bindings update
     protected override void OnCounterpartyChanged(CounterpartyOption? value)
     {
@@ -80,22 +74,11 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
 
     public ObservableCollection<CounterpartyOption> CustomerOptions => CounterpartyOptions;
 
-    // Filter aliases
-    public CounterpartyOption? FilterSelectedCustomer
-    {
-        get => FilterSelectedCounterparty;
-        set => FilterSelectedCounterparty = value;
-    }
-
     public string? FilterCustomerId
     {
         get => FilterCounterpartyId;
         set => FilterCounterpartyId = value;
     }
-
-    // Payment status
-    [ObservableProperty]
-    private bool _modalPaid = true;
 
     // Command aliases for AXAML bindings
     public IAsyncRelayCommand SaveRevenueCommand => SaveTransactionCommand;
@@ -139,23 +122,8 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
 
     #region Data Loading
 
-    protected override void LoadCounterpartyOptions()
-    {
-        CounterpartyOptions.Clear();
-        LoadCounterpartyOptionsInternal();
-    }
-
-    protected override void LoadCounterpartyOptionsInternal()
-    {
-        var companyData = App.CompanyManager?.CompanyData;
-        if (companyData?.Customers == null)
-            return;
-
-        foreach (var customer in companyData.Customers.OrderBy(c => c.Name))
-        {
-            CounterpartyOptions.Add(new CounterpartyOption { Id = customer.Id, Name = customer.Name });
-        }
-    }
+    protected override IEnumerable<CounterpartyOption> GetCounterpartyOptions() =>
+        OptionLoader.Customers(App.CompanyManager?.CompanyData).AsOptions<CounterpartyOption>();
 
     #endregion
 
@@ -216,16 +184,24 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
                 }
             }
 
-            var result = await dialog.ShowAsync(new ConfirmationDialogOptions
+            // Removing only the revenue would leave the rental marked paid with no money behind it.
+            var rental = companyData?.Rentals.FirstOrDefault(r => r.RevenueId == item.Id);
+            if (rental != null)
             {
-                Title = "Delete Revenue",
-                Message = $"Are you sure you want to delete this revenue?\n\nID: {item.Id}\nProduct: {item.ProductDescription}\nAmount: {item.TotalFormatted}",
-                PrimaryButtonText = "Delete",
-                CancelButtonText = "Cancel",
-                IsPrimaryDestructive = true
-            });
+                await dialog.ShowAsync(new ConfirmationDialogOptions
+                {
+                    Title = "Cannot Delete Revenue".Translate(),
+                    Message = "This revenue was recorded when rental {0} was marked paid. To remove it, mark the rental unpaid on the Rental Records page.".TranslateFormat(rental.Id),
+                    PrimaryButtonText = "OK".Translate(),
+                    CancelButtonText = null,
+                    IsPrimaryDestructive = false
+                });
+                return;
+            }
 
-            if (result != ConfirmationResult.Primary) return;
+            if (!await ConfirmDeleteAsync("Delete Revenue".Translate(),
+                    "Are you sure you want to delete this revenue?\n\nID: {0}\nProduct: {1}\nAmount: {2}".TranslateFormat(item.Id, item.ProductDescription, item.TotalFormatted)))
+                return;
 
             DeleteRevenue(item.Id);
         }
@@ -242,46 +218,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
         var revenue = companyData?.Revenues.FirstOrDefault(s => s.Id == revenueId);
         if (companyData == null || revenue == null) return;
 
-        // Find and remove associated receipt
-        Receipt? deletedReceipt = null;
-        if (!string.IsNullOrEmpty(revenue.ReceiptId))
-        {
-            deletedReceipt = companyData.Receipts.FirstOrDefault(r => r.Id == revenue.ReceiptId);
-            if (deletedReceipt != null)
-            {
-                companyData.Receipts.Remove(deletedReceipt);
-            }
-        }
-
-        // Put back the stock this sale took, as editing its lines down to nothing would
-        var deleteResults = AdjustInventoryForEdit(companyData, revenue.LineItems, [], revenue.Id, isExpense: false, reason: "Revenue deleted");
-
-        var deletedRevenue = revenue;
-        var capturedReceipt = deletedReceipt;
-        var action = new DelegateAction(
-            $"Delete revenue {revenue.Id}",
-            () =>
-            {
-                companyData.Revenues.Add(deletedRevenue);
-                if (capturedReceipt != null)
-                    companyData.Receipts.Add(capturedReceipt);
-                RevertInventoryAdjustments(companyData, deleteResults);
-                RaiseTransactionDeleted();
-            },
-            () =>
-            {
-                companyData.Revenues.Remove(deletedRevenue);
-                if (capturedReceipt != null)
-                    companyData.Receipts.Remove(capturedReceipt);
-                deleteResults = AdjustInventoryForEdit(companyData, deletedRevenue.LineItems, [], deletedRevenue.Id, isExpense: false, reason: "Revenue deleted");
-                RaiseTransactionDeleted();
-            });
-
-        companyData.Revenues.Remove(revenue);
-        App.UndoRedoManager.RecordAction(action);
-        App.CompanyManager?.MarkAsChanged();
-
-        RaiseTransactionDeleted();
+        DeleteTransactionWithUndo(companyData, companyData.Revenues, revenue, isExpense: false);
     }
 
     #endregion
@@ -511,8 +448,8 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
 
     protected override void SaveNewTransaction(CompanyData companyData)
     {
-        companyData.IdCounters.Revenue++;
-        var revenueId = $"REV-{DateTime.Now:yyyy}-{companyData.IdCounters.Revenue:D5}";
+        var date = ModalDate?.DateTime ?? DateTime.Now;
+        var revenueId = new Core.Data.IdGenerator(companyData).NextRevenueId(date);
 
         var (description, totalQuantity, averageUnitPrice) = GetLineItemSummary();
         var modelLineItems = CreateModelLineItems();
@@ -520,7 +457,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
         var revenue = new Revenue
         {
             Id = revenueId,
-            Date = ModalDate?.DateTime ?? DateTime.Now,
+            Date = date,
             CustomerId = SelectedCustomer?.Id,
             Description = description,
             LineItems = modelLineItems,
@@ -588,7 +525,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
         _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.RevenueCreated);
 
         // Adjust inventory for tracked products
-        var inventoryResults = AdjustInventoryForLineItems(companyData, modelLineItems, revenueId, isExpense: false);
+        var inventoryResults = AdjustInventoryForLineItems(companyData, revenue, modelLineItems, isExpense: false);
 
         var capturedReceipt = receipt;
         var action = new DelegateAction(
@@ -606,7 +543,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
                 companyData.Revenues.Add(revenue);
                 if (capturedReceipt != null)
                     companyData.Receipts.Add(capturedReceipt);
-                inventoryResults = AdjustInventoryForLineItems(companyData, modelLineItems, revenueId, isExpense: false);
+                inventoryResults = AdjustInventoryForLineItems(companyData, revenue, modelLineItems, isExpense: false);
                 RaiseTransactionSaved();
             });
 
@@ -704,7 +641,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
         }
 
         // Adjust inventory with net diff (single adjustment per product)
-        var editResults = AdjustInventoryForEdit(companyData, original.LineItems, modelLineItems, revenue.Id, isExpense: false);
+        var editResults = AdjustInventoryForEdit(companyData, revenue, original.LineItems, modelLineItems, isExpense: false);
 
         var capturedNewReceipt = newReceipt;
         // Snapshot the NEW state so redo restores the edit itself.
@@ -732,7 +669,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
                     companyData.Receipts.Remove(replacedReceipt);
                 if (capturedNewReceipt != null && !companyData.Receipts.Contains(capturedNewReceipt))
                     companyData.Receipts.Add(capturedNewReceipt);
-                editResults = AdjustInventoryForEdit(companyData, original.LineItems, modelLineItems, revenue.Id, isExpense: false);
+                editResults = AdjustInventoryForEdit(companyData, revenue, original.LineItems, modelLineItems, isExpense: false);
                 RaiseTransactionSaved();
             });
 
@@ -847,13 +784,6 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
         revenue.DiscountUSD = state.DiscountUSD;
         revenue.FeeUSD = state.FeeUSD;
     }
-
-    #endregion
-
-    #region Navigation Aliases
-
-    [RelayCommand]
-    private void OpenCreateCustomer() => OpenCreateCounterparty();
 
     #endregion
 

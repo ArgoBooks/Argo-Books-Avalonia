@@ -11,27 +11,16 @@
              x:DataType="vm:LocationsModalsViewModel">
 
     <Panel>
-        <!-- Add Location Modal -->
-        <controls:ModalOverlay IsOpen="{Binding IsAddModalOpen}"
-                               ClosingCommand="{Binding RequestCloseAddModalCommand}">
+        <!-- Add / Edit Location Modal -->
+        <controls:ModalOverlay IsOpen="{Binding IsFormOpen, Mode=OneWay}"
+                               ClosingCommand="{Binding RequestCloseFormCommand}">
             <controls:ModalOverlay.ModalContent>
-                <Border Background="{DynamicResource SurfaceBrush}"
-                    BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="1" CornerRadius="12" Width="600"
-                    MaxHeight="750"
-                    HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Border Classes="modal-card"
+                    Width="600"
+                    MaxHeight="750">
                 <Grid RowDefinitions="Auto,*,Auto">
                     <!-- Modal Header -->
-                    <Border Grid.Row="0" Padding="24,20" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
-                        <Grid ColumnDefinitions="*,Auto">
-                            <TextBlock Grid.Column="0" Text="{loc:Loc 'Add Location'}"
-                                       FontSize="18" FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextPrimaryBrush}" />
-                            <Button Grid.Column="1" Classes="icon-button" Command="{Binding CloseAddModalCommand}">
-                                <PathIcon Data="{x:Static local:Icons.Close}" Width="20" Height="20" />
-                            </Button>
-                        </Grid>
-                    </Border>
+                    <controls:ModalHeader Grid.Row="0" Title="{Binding FormTitle}" CloseCommand="{Binding RequestCloseFormCommand}" />
 
                     <!-- Modal Content -->
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -56,150 +45,15 @@
                                     <TextBox Text="{Binding ModalCode, Mode=TwoWay}"
                                              Classes="form-input"
                                              PlaceholderText="{loc:Loc 'Auto-generated if empty'}"
-                                             MaxLength="20" />
-                                </StackPanel>
-                            </Grid>
-
-                            <!-- Type -->
-                            <StackPanel Spacing="6">
-                                <TextBlock Text="{loc:Loc Type}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                <ComboBox ItemsSource="{Binding TypeOptions}"
-                                          SelectedItem="{Binding ModalType}"
-                                          Classes="form-combobox"
-                                          HorizontalAlignment="Stretch">
-                                    <ComboBox.ItemTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding Converter={StaticResource TranslateConverter}}" />
-                                        </DataTemplate>
-                                    </ComboBox.ItemTemplate>
-                                </ComboBox>
-                            </StackPanel>
-
-                            <!-- Address Section -->
-                            <TextBlock Text="{loc:Loc Address}" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,8,0,0" />
-
-                            <!-- Country -->
-                            <StackPanel Spacing="6">
-                                <TextBlock Text="{loc:Loc Country}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                <controls:CountryInput SelectedCountryName="{Binding ModalCountry, Mode=TwoWay}" />
-                            </StackPanel>
-
-                            <!-- State/Province and City -->
-                            <Grid ColumnDefinitions="*,16,*">
-                                <StackPanel Grid.Column="0" Spacing="6">
-                                    <TextBlock Text="{loc:Loc 'State/Province'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                    <TextBox Text="{Binding ModalStateProvince, Mode=TwoWay}"
-                                             Classes="form-input"
-                                             PlaceholderText="{loc:Loc 'Enter state/province'}"
-                                             MaxLength="100" />
-                                </StackPanel>
-                                <StackPanel Grid.Column="2" Spacing="6">
-                                    <TextBlock Text="{loc:Loc City}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                    <TextBox Text="{Binding ModalCity, Mode=TwoWay}"
-                                             Classes="form-input"
-                                             PlaceholderText="{loc:Loc 'Enter city'}"
-                                             MaxLength="100" />
-                                </StackPanel>
-                            </Grid>
-
-                            <!-- Postal Code and Street Address -->
-                            <Grid ColumnDefinitions="Auto,16,*">
-                                <StackPanel Grid.Column="0" Spacing="6" Width="150">
-                                    <TextBlock Text="{loc:Loc 'Postal code'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                    <TextBox Text="{Binding ModalPostalCode, Mode=TwoWay}"
-                                             Classes="form-input"
-                                             PlaceholderText="{loc:Loc 'Enter postal code'}"
-                                             MaxLength="20" />
-                                </StackPanel>
-                                <StackPanel Grid.Column="2" Spacing="6">
-                                    <TextBlock Text="{loc:Loc 'Street address'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                    <TextBox Text="{Binding ModalStreetAddress, Mode=TwoWay}"
-                                             Classes="form-input"
-                                             PlaceholderText="{loc:Loc 'Enter street address'}"
-                                             MaxLength="200" />
-                                </StackPanel>
-                            </Grid>
-
-                            <!-- Notes -->
-                            <StackPanel Spacing="6">
-                                <TextBlock Text="{loc:Loc Notes}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                <TextBox Text="{Binding ModalNotes, Mode=TwoWay}"
-                                         Classes="form-input"
-                                         AcceptsReturn="True"
-                                         TextWrapping="Wrap"
-                                         MinHeight="80"
-                                         MaxHeight="120"
-                                         PlaceholderText="{loc:Loc 'Enter notes'}"
-                                         MaxLength="500" />
-                            </StackPanel>
-
-                            <!-- Error Message -->
-                            <TextBlock TextWrapping="Wrap" Text="{Binding ModalError}"
-                                       FontSize="12"
-                                       Foreground="{DynamicResource ErrorBrush}"
-                                       IsVisible="{Binding ModalError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                        </StackPanel>
-                    </ScrollViewer>
-
-                    <!-- Modal Footer -->
-                    <Border Grid.Row="2" Padding="24,16" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12">
-                            <Button Classes="secondary-button" Content="{loc:Loc Cancel}" Command="{Binding CloseAddModalCommand}" />
-                            <Button Classes="primary-button" Content="{loc:Loc 'Add Location'}" Command="{Binding SaveNewLocationCommand}" />
-                        </StackPanel>
-                    </Border>
-                </Grid>
-            </Border>
-            </controls:ModalOverlay.ModalContent>
-        </controls:ModalOverlay>
-
-        <!-- Edit Location Modal -->
-        <controls:ModalOverlay IsOpen="{Binding IsEditModalOpen}"
-                               ClosingCommand="{Binding RequestCloseEditModalCommand}">
-            <controls:ModalOverlay.ModalContent>
-                <Border Background="{DynamicResource SurfaceBrush}"
-                    BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="1" CornerRadius="12" Width="600"
-                    MaxHeight="750"
-                    HorizontalAlignment="Center" VerticalAlignment="Center">
-                <Grid RowDefinitions="Auto,*,Auto">
-                    <!-- Modal Header -->
-                    <Border Grid.Row="0" Padding="24,20" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
-                        <Grid ColumnDefinitions="*,Auto">
-                            <TextBlock Grid.Column="0" Text="{loc:Loc 'Edit Location'}"
-                                       FontSize="18" FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextPrimaryBrush}" />
-                            <Button Grid.Column="1" Classes="icon-button" Command="{Binding CloseEditModalCommand}">
-                                <PathIcon Data="{x:Static local:Icons.Close}" Width="20" Height="20" />
-                            </Button>
-                        </Grid>
-                    </Border>
-
-                    <!-- Modal Content (same as Add) -->
-                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                        <StackPanel Margin="24" Spacing="16">
-                            <!-- Location Name and Code -->
-                            <Grid ColumnDefinitions="*,16,*">
-                                <StackPanel Grid.Column="0" Spacing="6">
-                                    <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}">
-                                        <Run Text="{loc:Loc 'Location Name'}" /><Run Text=" *" Foreground="{DynamicResource ErrorBrush}" />
-                                    </TextBlock>
-                                    <TextBox Text="{Binding ModalName, Mode=TwoWay}"
-                                             Classes="form-input"
-                                             PlaceholderText="{loc:Loc 'Enter location name'}"
-                                             MaxLength="100" />
-                                    <TextBlock TextWrapping="Wrap" Text="{Binding ModalNameError}"
-                                               FontSize="12"
-                                               Foreground="{DynamicResource ErrorBrush}"
-                                               IsVisible="{Binding ModalNameError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                                </StackPanel>
-                                <StackPanel Grid.Column="2" Spacing="6">
-                                    <TextBlock Text="{loc:Loc Code}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                             MaxLength="20"
+                                             IsVisible="{Binding !IsEditMode}" />
+                                    <!-- The code is the location's ID, so it can't change once saved -->
                                     <TextBox Text="{Binding ModalCode}"
                                              Classes="form-input"
                                              IsReadOnly="True"
                                              Background="{DynamicResource SurfaceAltBrush}"
-                                             MaxLength="20" />
+                                             MaxLength="20"
+                                             IsVisible="{Binding IsEditMode}" />
                                 </StackPanel>
                             </Grid>
 
@@ -218,50 +72,12 @@
                                 </ComboBox>
                             </StackPanel>
 
-                            <!-- Address Section -->
-                            <TextBlock Text="{loc:Loc Address}" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,8,0,0" />
-
-                            <!-- Country -->
-                            <StackPanel Spacing="6">
-                                <TextBlock Text="{loc:Loc Country}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                <controls:CountryInput SelectedCountryName="{Binding ModalCountry, Mode=TwoWay}" />
-                            </StackPanel>
-
-                            <!-- State/Province and City -->
-                            <Grid ColumnDefinitions="*,16,*">
-                                <StackPanel Grid.Column="0" Spacing="6">
-                                    <TextBlock Text="{loc:Loc 'State/Province'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                    <TextBox Text="{Binding ModalStateProvince, Mode=TwoWay}"
-                                             Classes="form-input"
-                                             PlaceholderText="{loc:Loc 'Enter state/province'}"
-                                             MaxLength="100" />
-                                </StackPanel>
-                                <StackPanel Grid.Column="2" Spacing="6">
-                                    <TextBlock Text="{loc:Loc City}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                    <TextBox Text="{Binding ModalCity, Mode=TwoWay}"
-                                             Classes="form-input"
-                                             PlaceholderText="{loc:Loc 'Enter city'}"
-                                             MaxLength="100" />
-                                </StackPanel>
-                            </Grid>
-
-                            <!-- Postal Code and Street Address -->
-                            <Grid ColumnDefinitions="Auto,16,*">
-                                <StackPanel Grid.Column="0" Spacing="6" Width="150">
-                                    <TextBlock Text="{loc:Loc 'Postal code'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                    <TextBox Text="{Binding ModalPostalCode, Mode=TwoWay}"
-                                             Classes="form-input"
-                                             PlaceholderText="{loc:Loc 'Enter postal code'}"
-                                             MaxLength="20" />
-                                </StackPanel>
-                                <StackPanel Grid.Column="2" Spacing="6">
-                                    <TextBlock Text="{loc:Loc 'Street address'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                    <TextBox Text="{Binding ModalStreetAddress, Mode=TwoWay}"
-                                             Classes="form-input"
-                                             PlaceholderText="{loc:Loc 'Enter street address'}"
-                                             MaxLength="200" />
-                                </StackPanel>
-                            </Grid>
+                            <controls:AddressFields Heading="{loc:Loc Address}"
+                                                    Street="{Binding ModalStreetAddress, Mode=TwoWay}"
+                                                    Country="{Binding ModalCountry, Mode=TwoWay}"
+                                                    Region="{Binding ModalStateProvince, Mode=TwoWay}"
+                                                    City="{Binding ModalCity, Mode=TwoWay}"
+                                                    PostalCode="{Binding ModalPostalCode, Mode=TwoWay}" />
 
                             <!-- Notes -->
                             <StackPanel Spacing="6">
@@ -285,10 +101,10 @@
                     </ScrollViewer>
 
                     <!-- Modal Footer -->
-                    <Border Grid.Row="2" Padding="24,16" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12">
-                            <Button Classes="secondary-button" Content="{loc:Loc Cancel}" Command="{Binding CloseEditModalCommand}" />
-                            <Button Classes="primary-button" Content="{loc:Loc 'Save Changes'}" Command="{Binding SaveEditedLocationCommand}" />
+                    <Border Classes="modal-footer" Grid.Row="2">
+                        <StackPanel Classes="modal-actions">
+                            <Button Classes="secondary-button" Content="{loc:Loc Cancel}" Command="{Binding RequestCloseFormCommand}" />
+                            <Button Classes="primary-button" Content="{Binding FormSaveText}" Command="{Binding SaveFormCommand}" />
                         </StackPanel>
                     </Border>
                 </Grid>
@@ -300,22 +116,13 @@
         <controls:ModalOverlay IsOpen="{Binding IsFilterModalOpen}"
                                ClosingCommand="{Binding RequestCloseFilterModalCommand}">
             <controls:ModalOverlay.ModalContent>
-                <Border Background="{DynamicResource SurfaceBrush}"
-                    BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="1" CornerRadius="12" Width="400"
-                    HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Border Classes="modal-card"
+                    Width="400">
                 <Grid RowDefinitions="Auto,*,Auto">
                     <!-- Modal Header -->
-                    <Border Grid.Row="0" Padding="24,20" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
-                        <Grid ColumnDefinitions="*,Auto">
-                            <TextBlock Grid.Column="0" Text="{loc:Loc 'Filter Locations'}"
-                                       FontSize="18" FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextPrimaryBrush}" />
-                            <Button Grid.Column="1" Classes="icon-button" Command="{Binding CloseFilterModalCommand}">
-                                <PathIcon Data="{x:Static local:Icons.Close}" Width="20" Height="20" />
-                            </Button>
-                        </Grid>
-                    </Border>
+                    <controls:ModalHeader Grid.Row="0"
+                                          Title="{loc:Loc 'Filter Locations'}"
+                                          CloseCommand="{Binding RequestCloseFilterModalCommand}" />
 
                     <!-- Modal Content -->
                     <StackPanel Grid.Row="1" Margin="24" Spacing="16">
@@ -351,11 +158,11 @@
                     </StackPanel>
 
                     <!-- Modal Footer -->
-                    <Border Grid.Row="2" Padding="24,16" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
+                    <Border Classes="modal-footer" Grid.Row="2">
                         <Grid ColumnDefinitions="Auto,*,Auto">
                             <Button Grid.Column="0" Classes="secondary-button" Content="{loc:Loc 'Clear filters'}" Command="{Binding ClearFiltersCommand}" />
                             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12">
-                                <Button Classes="secondary-button" Content="{loc:Loc Cancel}" Command="{Binding CloseFilterModalCommand}" />
+                                <Button Classes="secondary-button" Content="{loc:Loc Cancel}" Command="{Binding RequestCloseFilterModalCommand}" />
                                 <Button Classes="primary-button" Content="{loc:Loc Apply}" Command="{Binding ApplyFiltersCommand}" />
                             </StackPanel>
                         </Grid>

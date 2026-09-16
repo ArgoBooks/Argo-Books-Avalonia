@@ -1,0 +1,86 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="using:ArgoBooks.Controls"
+             xmlns:loc="using:ArgoBooks.Localization"
+             xmlns:icons="using:ArgoBooks"
+             mc:Ignorable="d" d:DesignWidth="500" d:DesignHeight="500"
+             x:Class="ArgoBooks.Controls.RecordDetailsModal"
+             x:DataType="controls:RecordDetailsModal"
+             x:Name="Root">
+
+    <controls:ModalOverlay IsOpen="{Binding #Root.IsOpen}"
+                           ClosingCommand="{Binding #Root.CloseCommand}">
+        <controls:ModalOverlay.ModalContent>
+            <Border Classes="modal-card"
+                    Width="500"
+                    MaxHeight="600"
+                    ClipToBounds="True">
+                <Grid RowDefinitions="Auto,*,Auto">
+                    <controls:ModalHeader Grid.Row="0" CloseCommand="{Binding #Root.CloseCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Border Width="40" Height="40"
+                                    CornerRadius="8"
+                                    Background="{Binding #Root.IconBackground}">
+                                <PathIcon Data="{Binding #Root.IconData}"
+                                          Width="20" Height="20"
+                                          Foreground="{Binding #Root.IconForeground}" />
+                            </Border>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Classes="modal-title" Text="{Binding #Root.Title}" />
+                                <TextBlock Text="{Binding #Root.Subtitle}"
+                                           FontSize="12"
+                                           Foreground="{DynamicResource TextTertiaryBrush}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </controls:ModalHeader>
+
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Margin="24" Spacing="20">
+                            <ContentPresenter Content="{Binding #Root.Details}" />
+
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="{loc:Loc 'Reason'}"
+                                           FontSize="12"
+                                           FontWeight="Medium"
+                                           Foreground="{DynamicResource TextTertiaryBrush}" />
+                                <Border Background="{DynamicResource SurfaceAltBrush}"
+                                        CornerRadius="8"
+                                        Padding="12">
+                                    <TextBlock Text="{Binding #Root.Reason}"
+                                               FontSize="14"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                               TextWrapping="Wrap" />
+                                </Border>
+                            </StackPanel>
+
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="{loc:Loc 'Notes'}"
+                                           FontSize="12"
+                                           FontWeight="Medium"
+                                           Foreground="{DynamicResource TextTertiaryBrush}" />
+                                <Border Background="{DynamicResource SurfaceAltBrush}"
+                                        CornerRadius="8"
+                                        Padding="12"
+                                        MinHeight="80">
+                                    <TextBlock Text="{Binding #Root.Notes}"
+                                               FontSize="14"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                               TextWrapping="Wrap" />
+                                </Border>
+                            </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <Border Classes="modal-footer" Grid.Row="2">
+                        <Button Content="{loc:Loc 'Close'}"
+                                Classes="secondary-button"
+                                HorizontalAlignment="Right"
+                                Command="{Binding #Root.CloseCommand}" />
+                    </Border>
+                </Grid>
+            </Border>
+        </controls:ModalOverlay.ModalContent>
+    </controls:ModalOverlay>
+</UserControl>

@@ -102,10 +102,9 @@ public static class ReceiptTypeConverter
             var expense = (Expense)existing;
             data.Expenses.Remove(expense);
 
-            data.IdCounters.Revenue++;
             var revenue = new Revenue
             {
-                Id = $"REV-{expense.Date:yyyy}-{data.IdCounters.Revenue:D5}",
+                Id = new IdGenerator(data).NextRevenueId(expense.Date),
                 Subtotal = expense.Amount,
                 CustomerId = ResolveCustomer(data, receipt, out createdCustomer)
             };
@@ -118,10 +117,9 @@ public static class ReceiptTypeConverter
             var revenue = (Revenue)existing;
             data.Revenues.Remove(revenue);
 
-            data.IdCounters.Expense++;
             var expense = new Expense
             {
-                Id = $"PUR-{revenue.Date:yyyy}-{data.IdCounters.Expense:D5}",
+                Id = new IdGenerator(data).NextExpenseId(revenue.Date),
                 SupplierId = ResolveSupplier(data, receipt, out createdSupplier)
             };
             CopyShared(revenue, expense, lineItems);
@@ -306,10 +304,9 @@ public static class ReceiptTypeConverter
         if (existing != null) return existing;
 
         created = true;
-        data.IdCounters.Category++;
         var category = new Category
         {
-            Id = $"CAT-{(type == CategoryType.Revenue ? "SAL" : "PUR")}-{data.IdCounters.Category:D3}",
+            Id = new IdGenerator(data).NextCategoryId(type),
             Name = type == CategoryType.Revenue ? "General Sales" : "General Expenses",
             Type = type
         };

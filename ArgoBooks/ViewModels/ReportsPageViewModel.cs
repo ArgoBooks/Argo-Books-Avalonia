@@ -1937,6 +1937,9 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
     public ObservableCollection<TransactionType> TransactionTypes { get; } =
         new(Enum.GetValues<TransactionType>());
 
+    public ObservableCollection<TransactionType> SummaryTransactionTypes { get; } =
+        [TransactionType.Revenue, TransactionType.Expenses];
+
     public ObservableCollection<HorizontalTextAlignment> HorizontalAlignments { get; } =
         new(Enum.GetValues<HorizontalTextAlignment>());
 

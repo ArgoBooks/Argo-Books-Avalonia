@@ -7,46 +7,21 @@ namespace ArgoBooks.Core.Services;
 /// </summary>
 public static class AppInfo
 {
-    private static string? _versionNumber;
-    private static Version? _assemblyVersion;
+    /// <summary>
+    /// Gets the raw version object. Every project shares one version (Directory.Build.props), so this
+    /// assembly is read instead of the entry assembly, which is the test host or designer outside the app.
+    /// </summary>
+    public static Version? AssemblyVersion { get; } = typeof(AppInfo).Assembly.GetName().Version;
 
     /// <summary>
     /// Gets the application version in "X.X.X" format.
     /// </summary>
-    public static string VersionNumber
-    {
-        get
-        {
-            if (_versionNumber == null)
-            {
-                var version = AssemblyVersion;
-                _versionNumber = version != null
-                    ? $"{version.Major}.{version.Minor}.{version.Build}"
-                    : "1.0.0";
-            }
-            return _versionNumber;
-        }
-    }
+    public static string VersionNumber { get; } = AssemblyVersion is { } v
+        ? $"{v.Major}.{v.Minor}.{v.Build}"
+        : "1.0.0";
 
     /// <summary>
-    /// Gets the raw version object from the entry assembly.
+    /// Gets the application version in "V.X.X.X" format for display.
     /// </summary>
-    public static Version? AssemblyVersion
-    {
-        get
-        {
-            if (_assemblyVersion == null)
-            {
-                try
-                {
-                    _assemblyVersion = Assembly.GetEntryAssembly()?.GetName().Version;
-                }
-                catch
-                {
-                    // Ignore errors accessing assembly
-                }
-            }
-            return _assemblyVersion;
-        }
-    }
+    public static string Version => $"V.{VersionNumber}";
 }

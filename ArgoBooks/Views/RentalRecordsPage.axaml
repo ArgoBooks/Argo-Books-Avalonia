@@ -34,8 +34,8 @@
                                    Value="{Binding OverdueRentals}"
                                    Icon="{x:Static icons:Icons.Info}"
                                    IconColor="Danger" />
-                <controls:StatCard Label="{loc:Loc 'Total Revenue'}"
-                                   Value="{Binding TotalRevenueFormatted}"
+                <controls:StatCard Label="{loc:Loc 'Total Charged'}"
+                                   Value="{Binding TotalChargedFormatted}"
                                    Icon="{x:Static icons:Icons.Dollar}"
                                    IconColor="Info" />
             </controls:StatCardsRow>
@@ -46,14 +46,6 @@
                                 ItemsSource="{Binding Records}"
                                 SearchQuery="{Binding SearchQuery, Mode=TwoWay}"
                                 SearchPlaceholder="{loc:Loc 'Search rentals...'}"
-                                SearchBoxWidth="{Binding ResponsiveHeader.SearchBoxWidth}"
-                                SearchBoxMinHeight="{Binding ResponsiveHeader.SearchBoxMinHeight}"
-                                SearchIconMargin="{Binding ResponsiveHeader.SearchIconMargin}"
-                                HeaderPadding="{Binding ResponsiveHeader.HeaderPadding}"
-                                HeaderSpacing="{Binding ResponsiveHeader.HeaderSpacing}"
-                                IsCompactMode="{Binding ResponsiveHeader.IsCompactMode}"
-                                IsMediumMode="{Binding ResponsiveHeader.IsMediumMode}"
-                                ShowButtonText="{Binding ResponsiveHeader.ShowButtonText}"
                                 FilterCommand="{Binding OpenFilterModalCommand}"
                                 AddCommand="{Binding OpenAddModalCommand}"
                                 AddButtonText="{loc:Loc 'New Rental'}"
@@ -69,9 +61,7 @@
                                 ToggleColumnMenuCommand="{Binding ToggleColumnMenuCommand}"
                                 EmptyIcon="{x:Static icons:Icons.RentalRecords}"
                                 EmptyTitle="{loc:Loc 'No rental records found'}"
-                                EmptyMessage="{loc:Loc 'Create your first rental record to start tracking rentals.'}"
-                                BorderSizeChanged="OnHeaderSizeChanged"
-                                TableGridSizeChanged="OnTableSizeChanged">
+                                EmptyMessage="{loc:Loc 'Create your first rental record to start tracking rentals.'}">
 
                 <!-- Table Header Content - Using ArgoTableHeader for reduced boilerplate -->
                 <table:ArgoTable.HeaderContent>
@@ -219,11 +209,11 @@
                                                         HorizontalAlignment="Left"
                                                         Padding="8,4"
                                                         CornerRadius="4"
-                                                        Background="{Binding Status, Converter={x:Static local:StringConverters.ToRentalStatusBackground}}">
+                                                        Background="{Binding Status, Converter={x:Static local:StatusConverters.RentalStatusBackground}}">
                                                     <TextBlock Text="{Binding Status, Converter={StaticResource TranslateConverter}}"
                                                                FontSize="12"
                                                                FontWeight="Medium"
-                                                               Foreground="{Binding Status, Converter={x:Static local:StringConverters.ToRentalStatusForeground}}" />
+                                                               Foreground="{Binding Status, Converter={x:Static local:StatusConverters.RentalStatusForeground}}" />
                                                 </Border>
                                             </table:ArgoTableCell.CellContent>
                                         </table:ArgoTableCell>
@@ -287,6 +277,14 @@
                                                                   Width="16" Height="16" />
                                                     </Button>
                                                     <Button Classes="icon-button"
+                                                            ToolTip.Tip="{loc:Loc 'Check Out'}"
+                                                            Command="{Binding $parent[ItemsControl].((vm:RentalRecordsPageViewModel)DataContext).CheckOutCommand}"
+                                                            CommandParameter="{Binding}"
+                                                            IsVisible="{Binding IsReserved}">
+                                                        <PathIcon Data="{x:Static icons:Icons.Play}"
+                                                                  Width="16" Height="16" />
+                                                    </Button>
+                                                    <Button Classes="icon-button"
                                                             ToolTip.Tip="{loc:Loc 'View Details'}"
                                                             Command="{Binding $parent[ItemsControl].((vm:RentalRecordsPageViewModel)DataContext).OpenViewModalCommand}"
                                                             CommandParameter="{Binding}">
@@ -297,13 +295,13 @@
                                                             ToolTip.Tip="{loc:Loc 'Edit'}"
                                                             Command="{Binding $parent[ItemsControl].((vm:RentalRecordsPageViewModel)DataContext).OpenEditModalCommand}"
                                                             CommandParameter="{Binding}"
-                                                            IsVisible="{Binding IsActive}">
+                                                            IsVisible="{Binding CanEdit}">
                                                         <PathIcon Data="{x:Static icons:Icons.Edit}"
                                                                   Width="16" Height="16" />
                                                     </Button>
-                                                    <!-- Generate Invoice Button -->
+                                                    <!-- Create Invoice Button -->
                                                     <Button Classes="icon-button"
-                                                            ToolTip.Tip="{loc:Loc 'Generate Invoice'}"
+                                                            ToolTip.Tip="{loc:Loc 'Create Invoice'}"
                                                             IsVisible="{Binding CanGenerateInvoice}"
                                                             Command="{Binding $parent[ItemsControl].((vm:RentalRecordsPageViewModel)DataContext).GenerateInvoiceCommand}"
                                                             CommandParameter="{Binding}">
@@ -317,6 +315,22 @@
                                                             Command="{Binding $parent[ItemsControl].((vm:RentalRecordsPageViewModel)DataContext).MarkAsPaidCommand}"
                                                             CommandParameter="{Binding}">
                                                         <PathIcon Data="{x:Static icons:Icons.CircleCheck}"
+                                                                  Width="16" Height="16" />
+                                                    </Button>
+                                                    <Button Classes="icon-button"
+                                                            ToolTip.Tip="{loc:Loc 'Mark as Unpaid'}"
+                                                            IsVisible="{Binding CanMarkAsUnpaid}"
+                                                            Command="{Binding $parent[ItemsControl].((vm:RentalRecordsPageViewModel)DataContext).MarkAsUnpaidCommand}"
+                                                            CommandParameter="{Binding}">
+                                                        <PathIcon Data="{x:Static icons:Icons.Undo}"
+                                                                  Width="16" Height="16" />
+                                                    </Button>
+                                                    <Button Classes="icon-button"
+                                                            ToolTip.Tip="{loc:Loc 'Cancel Reservation'}"
+                                                            Command="{Binding $parent[ItemsControl].((vm:RentalRecordsPageViewModel)DataContext).CancelReservationCommand}"
+                                                            CommandParameter="{Binding}"
+                                                            IsVisible="{Binding IsReserved}">
+                                                        <PathIcon Data="{x:Static icons:Icons.CloseCircle}"
                                                                   Width="16" Height="16" />
                                                     </Button>
                                                     <Button Classes="icon-button danger"

@@ -292,7 +292,7 @@ public class BankLineImportService(UsdConverter? convert = null)
         var key = name.Trim();
         if (cache.TryGetValue(key, out var cached)) return cached;
 
-        var existing = data.Suppliers.FirstOrDefault(s => string.Equals(s.Name, key, StringComparison.OrdinalIgnoreCase));
+        var existing = ImportLookup.FindSupplier(data, null, key);
         if (existing != null) { cache[key] = existing.Id; return existing.Id; }
 
         var supplier = new Supplier { Id = new IdGenerator(data).NextSupplierId(), Name = key };
@@ -308,7 +308,7 @@ public class BankLineImportService(UsdConverter? convert = null)
         var key = name.Trim();
         if (cache.TryGetValue(key, out var cached)) return cached;
 
-        var existing = data.Customers.FirstOrDefault(c => string.Equals(c.Name, key, StringComparison.OrdinalIgnoreCase));
+        var existing = ImportLookup.FindCustomer(data, null, key);
         if (existing != null) { cache[key] = existing.Id; return existing.Id; }
 
         var customer = new Customer { Id = new IdGenerator(data).NextCustomerId(), Name = key };
@@ -324,20 +324,8 @@ public class BankLineImportService(UsdConverter? convert = null)
         var key = $"{type}|{name.Trim()}";
         if (cache.TryGetValue(key, out var cached)) return cached;
 
-        var existing = data.Categories.FirstOrDefault(c =>
-            c.Type == type && string.Equals(c.Name, name.Trim(), StringComparison.OrdinalIgnoreCase));
-        if (existing != null) { cache[key] = existing.Id; return existing.Id; }
-
-        data.IdCounters.Category++;
-        var prefix = type == CategoryType.Expense ? "CAT-PUR" : "CAT-SAL";
-        var category = new Category
-        {
-            Id = $"{prefix}-{data.IdCounters.Category:D3}",
-            Name = name.Trim(),
-            Type = type
-        };
-        data.Categories.Add(category);
-        creation.CreatedEntities.Add(category);
+        var category = ImportLookup.FindOrCreateCategory(data, type, name.Trim(), out var created);
+        if (created) creation.CreatedEntities.Add(category);
         cache[key] = category.Id;
         return category.Id;
     }
@@ -348,8 +336,7 @@ public class BankLineImportService(UsdConverter? convert = null)
         var key = $"{type}|{name.Trim()}";
         if (cache.TryGetValue(key, out var cached)) return cached;
 
-        var existing = data.Products.FirstOrDefault(p =>
-            p.Type == type && string.Equals(p.Name, name.Trim(), StringComparison.OrdinalIgnoreCase));
+        var existing = ImportLookup.FindProduct(data, name.Trim(), type);
         if (existing != null) { cache[key] = existing.Id; return existing.Id; }
 
         var product = new Product

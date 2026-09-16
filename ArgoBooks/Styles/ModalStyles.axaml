@@ -1,24 +1,101 @@
 <Styles xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="using:ArgoBooks.Controls"
+        xmlns:icons="using:ArgoBooks">
 
     <!--
-        Argo Books Modal Styles
-        Shared styles for modal dialogs with fade-in/scale animations.
+        A standard modal inside a ModalOverlay:
 
-        RECOMMENDED: Use the ModalAnimationBehavior attached property for automatic animations:
-
-        <Border Classes="modal-animated"
-                helpers:ModalAnimationBehavior.IsEnabled="True"
-                helpers:ModalAnimationBehavior.OpenPropertyName="IsAddModalOpen">
-            ... modal content ...
+        <Border Classes="modal-card" Width="500">
+            <Grid RowDefinitions="Auto,*,Auto">
+                <controls:ModalHeader Grid.Row="0" Title="..." CloseCommand="{Binding RequestClose...}" />
+                ...body...
+                <Border Grid.Row="2" Classes="modal-footer">
+                    <StackPanel Classes="modal-actions">...</StackPanel>
+                </Border>
+            </Grid>
         </Border>
-
-        This eliminates the need for any code-behind animation logic.
-
-        ALTERNATIVE: Manual animation with ModalAnimationHelper:
-        1. Apply Classes="modal-content" to the modal content Border
-        2. In code-behind, call ModalAnimationHelper.AnimateIn/Out
     -->
+
+    <Style Selector="Border.modal-card">
+        <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="12" />
+        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="Border.modal-header">
+        <Setter Property="Padding" Value="24,20" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+        <Setter Property="BorderThickness" Value="0,0,0,1" />
+    </Style>
+
+    <Style Selector="TextBlock.modal-title">
+        <Setter Property="FontSize" Value="18" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="TextBlock.modal-subtitle">
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <!-- Used together with icon-button, which supplies the button look. -->
+    <Style Selector="Button.modal-close PathIcon">
+        <Setter Property="Width" Value="20" />
+        <Setter Property="Height" Value="20" />
+    </Style>
+
+    <Style Selector="Border.modal-footer">
+        <Setter Property="Padding" Value="24,16" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+        <Setter Property="BorderThickness" Value="0,1,0,0" />
+    </Style>
+
+    <Style Selector="StackPanel.modal-actions">
+        <Setter Property="Orientation" Value="Horizontal" />
+        <Setter Property="HorizontalAlignment" Value="Right" />
+        <Setter Property="Spacing" Value="12" />
+    </Style>
+
+    <Style Selector="controls|ModalHeader">
+        <Setter Property="Template">
+            <ControlTemplate TargetType="controls:ModalHeader">
+                <Border Classes="modal-header">
+                    <Grid ColumnDefinitions="*,Auto,Auto">
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center" Spacing="2">
+                            <TextBlock Classes="modal-title"
+                                       Text="{TemplateBinding Title}"
+                                       IsVisible="{TemplateBinding Title, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                            <TextBlock Classes="modal-subtitle"
+                                       Text="{TemplateBinding Subtitle}"
+                                       IsVisible="{TemplateBinding Subtitle, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                            <ContentPresenter Content="{TemplateBinding HeaderContent}"
+                                              IsVisible="{TemplateBinding HeaderContent, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                        </StackPanel>
+                        <ContentPresenter Grid.Column="1"
+                                          Margin="12,0,0,0"
+                                          VerticalAlignment="Center"
+                                          Content="{TemplateBinding Actions}"
+                                          IsVisible="{TemplateBinding Actions, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                        <Button Grid.Column="2"
+                                Classes="icon-button modal-close"
+                                Margin="12,0,0,0"
+                                VerticalAlignment="Center"
+                                Command="{TemplateBinding CloseCommand}"
+                                IsVisible="{TemplateBinding CloseCommand, Converter={x:Static ObjectConverters.IsNotNull}}">
+                            <PathIcon Data="{x:Static icons:Icons.Close}" />
+                        </Button>
+                    </Grid>
+                </Border>
+            </ControlTemplate>
+        </Setter>
+    </Style>
 
     <!-- Modal Backdrop - semi-transparent overlay with fade animation -->
     <Style Selector="Border.modal-backdrop">
@@ -43,29 +120,6 @@
         </Setter>
     </Style>
 
-    <!-- Modal Content - the dialog box with fade + scale animation -->
-    <Style Selector="Border.modal-content">
-        <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
-        <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="12" />
-        <Setter Property="HorizontalAlignment" Value="Center" />
-        <Setter Property="VerticalAlignment" Value="Center" />
-        <Setter Property="BoxShadow" Value="0 8 32 0 #40000000" />
-        <Setter Property="Focusable" Value="True" />
-        <Setter Property="Opacity" Value="0" />
-        <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
-        <Setter Property="RenderTransform">
-            <ScaleTransform ScaleX="0.95" ScaleY="0.95" />
-        </Setter>
-        <Setter Property="Transitions">
-            <Transitions>
-                <DoubleTransition Property="Opacity" Duration="0:0:0.15" Easing="CubicEaseOut" />
-                <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.15" Easing="CubicEaseOut" />
-            </Transitions>
-        </Setter>
-    </Style>
-
     <!-- Popup Banner - small notification banner with fade-in animation -->
     <!-- Use with BannerAnimationBehavior for proper fade animations -->
     <Style Selector="Border.popup-banner">
@@ -74,27 +128,6 @@
         <Setter Property="Transitions">
             <Transitions>
                 <DoubleTransition Property="Opacity" Duration="0:0:1" Easing="CubicEaseOut" />
-            </Transitions>
-        </Setter>
-    </Style>
-
-    <!-- Modal Content variant without border (for modals that define their own border) -->
-    <Style Selector="Border.modal-content-noborder">
-        <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
-        <Setter Property="CornerRadius" Value="12" />
-        <Setter Property="HorizontalAlignment" Value="Center" />
-        <Setter Property="VerticalAlignment" Value="Center" />
-        <Setter Property="BoxShadow" Value="0 8 32 0 #40000000" />
-        <Setter Property="Focusable" Value="True" />
-        <Setter Property="Opacity" Value="0" />
-        <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
-        <Setter Property="RenderTransform">
-            <ScaleTransform ScaleX="0.95" ScaleY="0.95" />
-        </Setter>
-        <Setter Property="Transitions">
-            <Transitions>
-                <DoubleTransition Property="Opacity" Duration="0:0:0.15" Easing="CubicEaseOut" />
-                <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.15" Easing="CubicEaseOut" />
             </Transitions>
         </Setter>
     </Style>

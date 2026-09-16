@@ -135,10 +135,10 @@ public partial class InvoicePreviewControl : UserControl
     private bool _isInitialized;
     private bool _webViewReady;
     private double _currentZoom = 1.0;
-    // True once the first page has rendered for this activation. Subsequent re-renders (logo,
-    // template, totals changes) preserve the current zoom instead of auto-fitting, so the preview
-    // doesn't visibly jump when the user edits the paper.
-    private bool _hasRenderedOnce;
+    // Set once the user zooms by hand, so re-renders keep their zoom; until then every render fits the
+    // paper. Opening an invoice re-renders several times as the form fills in, faster than the page
+    // reports its fitted zoom back, so restoring a remembered number opened it at 100%.
+    private bool _userZoomed;
     private double _pendingScrollX;
     private double _pendingScrollY;
     private bool _hasPendingScroll;
@@ -708,7 +708,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
 
         _webViewReady = false;
         // Next activation should auto-fit fresh rather than restore a stale zoom.
-        _hasRenderedOnce = false;
+        _userZoomed = false;
         _currentZoom = 1.0;
         // Drop any scroll capture that never completed, so reactivation doesn't restore a stale
         // scroll position from the previous viewing onto the freshly shown invoice.
@@ -840,6 +840,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
             if (messageType == "zoomUpdate" && root.TryGetProperty("zoom", out var zoomElement))
             {
                 _currentZoom = zoomElement.GetDouble();
+                _userZoomed = !(root.TryGetProperty("fit", out var fitElement) && fitElement.ValueKind == System.Text.Json.JsonValueKind.True);
                 Avalonia.Threading.Dispatcher.UIThread.Post(UpdateZoomDisplay);
             }
             else if (messageType == "invoiceEdit")
@@ -1007,8 +1008,8 @@ window.__totalsConfig = __TOTALS_CONFIG__;
         wrapper.style.transform = 'translate(' + tx + 'px, ' + ty + 'px) scale(' + scale + ')';
     }
 
-    function notifyZoom(scale) {
-        window.__argoPost(JSON.stringify({ type: 'zoomUpdate', zoom: scale }));
+    function notifyZoom(scale, fit) {
+        window.__argoPost(JSON.stringify({ type: 'zoomUpdate', zoom: scale, fit: fit }));
     }
 
     function updateZoom(newScale, originX, originY) {
@@ -1040,7 +1041,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
         var newScrollY = docY - (originY / newScale);
         window.scrollTo(newScrollX, newScrollY);
 
-        notifyZoom(newScale);
+        notifyZoom(newScale, false);
     }
 
     // Expose for C# InvokeScript calls
@@ -1079,7 +1080,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
         // window/DPI change from the scrollbar-toggle resize our own fit just fired.
         window.__fitVW = viewportWidth;
         window.__fitVH = viewportHeight;
-        notifyZoom(fitScale);
+        notifyZoom(fitScale, true);
     };
 
     window.__getZoom = function() {
@@ -1104,28 +1105,14 @@ window.__totalsConfig = __TOTALS_CONFIG__;
         resizeTimer = setTimeout(function() { window.__fitToWindow(); }, 50);
     });
 
-    // Auto-fit on initial display when content overflows the viewport.
-    // The user's main monitor renders at 1:1 cleanly (content fits), we
-    // leave that alone. On a higher-DPI second monitor, the same content
-    // overflows because WebView2's CSS-pixel viewport shrinks; in that
-    // case we proactively fit so the user isn't stuck looking at a
-    // ""zoomed in"" preview where the 1:1 button doesn't fix it.
+    // Fit the paper to the window when it shows, unless C# passes the zoom the user chose by hand.
     function maybeInitialFit() {
-        // On a re-render (logo/template/totals edit) C# passes the prior zoom so we keep it instead
-        // of auto-fitting, which is what made the preview jump when the user edited the paper.
         if (typeof window.__restoreScale === 'number' && window.__restoreScale > 0) {
             window.__setZoom(window.__restoreScale);
             return;
         }
-        var wrapper = document.getElementById('__zoomWrapper');
-        if (!wrapper) return;
-        var cw = wrapper.scrollWidth;
-        var ch = wrapper.scrollHeight;
-        var vw = window.innerWidth;
-        var vh = window.innerHeight;
-        if (cw > vw + 1 || ch > vh + 1) {
+        if (document.getElementById('__zoomWrapper'))
             window.__fitToWindow();
-        }
     }
     // Apply the initial fit synchronously - before the browser's first paint - so the content
     // appears already fitted and centered. This script runs at the end of <body>, so the DOM is
@@ -1229,17 +1216,14 @@ window.__totalsConfig = __TOTALS_CONFIG__;
 })();
 </script>";
 
-        // On the first render for this activation, let the page auto-fit. On every re-render after
-        // (logo/template/totals edits) restore the current zoom so the preview doesn't jump.
-        var restoreScale = _hasRenderedOnce
+        var restoreScale = _userZoomed
             ? _currentZoom.ToString(System.Globalization.CultureInfo.InvariantCulture)
             : "null";
-        _hasRenderedOnce = true;
         var restoreScript = $"<script>window.__restoreScale = {restoreScale};</script>";
 
         // Editing mode adds contenteditable + the edit->postMessage bridge on top of the interaction script.
         // Ahead of everything else: both scripts below post through window.__argoPost.
-        var injected = Services.WebViewOutbox.Script
+        var injected = "<script>" + Services.WebViewOutbox.Script + "</script>"
                        + restoreScript
                        + (IsEditable ? interactionScript + BuildEditingScript() : interactionScript);
 
@@ -1437,14 +1421,6 @@ window.__totalsConfig = __TOTALS_CONFIG__;
 
         var newZoom = Math.Max(_currentZoom - ZoomStep, MinZoom);
         _ = _webView.InvokeScript($"window.__setZoom({newZoom.ToString(System.Globalization.CultureInfo.InvariantCulture)})");
-    }
-
-    private void ResetZoom_Click(object? sender, RoutedEventArgs e)
-    {
-        if (_webView == null || !_webViewReady)
-            return;
-
-        _ = _webView.InvokeScript("window.__setZoom(1)");
     }
 
     private void FitToWindow_Click(object? sender, RoutedEventArgs e)

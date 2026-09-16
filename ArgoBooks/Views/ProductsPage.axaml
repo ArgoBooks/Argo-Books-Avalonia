@@ -27,14 +27,6 @@
                                 ItemsSource="{Binding CurrentProducts}"
                                 SearchQuery="{Binding SearchQuery, Mode=TwoWay}"
                                 SearchPlaceholder="{loc:Loc 'Search products...'}"
-                                SearchBoxWidth="{Binding ResponsiveHeader.SearchBoxWidth}"
-                                SearchBoxMinHeight="{Binding ResponsiveHeader.SearchBoxMinHeight}"
-                                SearchIconMargin="{Binding ResponsiveHeader.SearchIconMargin}"
-                                HeaderPadding="{Binding ResponsiveHeader.HeaderPadding}"
-                                HeaderSpacing="{Binding ResponsiveHeader.HeaderSpacing}"
-                                IsCompactMode="{Binding ResponsiveHeader.IsCompactMode}"
-                                IsMediumMode="{Binding ResponsiveHeader.IsMediumMode}"
-                                ShowButtonText="{Binding ResponsiveHeader.ShowButtonText}"
                                 FilterCommand="{Binding OpenFilterModalCommand}"
                                 AddCommand="{Binding OpenAddModalCommand}"
                                 AddButtonText="{loc:Loc 'Add Product'}"
@@ -52,9 +44,7 @@
                                 EmptyIcon="{x:Static icons:Icons.Products}"
                                 EmptyTitle="{loc:Loc 'No products found'}"
                                 EmptyMessage="{loc:Loc 'Add your first product to start tracking your inventory.'}"
-                                ShowHeaderBorder="True"
-                                BorderSizeChanged="OnHeaderSizeChanged"
-                                TableGridSizeChanged="OnTableSizeChanged">
+                                ShowHeaderBorder="True">
 
                 <!-- Table Header Content - Using ArgoTableHeader for reduced boilerplate -->
                 <table:ArgoTable.HeaderContent>
@@ -177,10 +167,10 @@
                                                 <table:ArgoTableCell.CellContent>
                                                     <Border VerticalAlignment="Center" HorizontalAlignment="Left"
                                                             Padding="8,4" CornerRadius="4"
-                                                            Background="{Binding ItemType, Converter={x:Static local:StringConverters.ToItemTypeBadgeBackground}}">
+                                                            Background="{Binding ItemType, Converter={x:Static local:StatusConverters.ItemTypeBadgeBackground}}">
                                                         <TextBlock Text="{Binding ItemType, Converter={StaticResource TranslateConverter}}"
                                                                    FontSize="12" FontWeight="Medium"
-                                                                   Foreground="{Binding ItemType, Converter={x:Static local:StringConverters.ToItemTypeBadgeForeground}}" />
+                                                                   Foreground="{Binding ItemType, Converter={x:Static local:StatusConverters.ItemTypeBadgeForeground}}" />
                                                     </Border>
                                                 </table:ArgoTableCell.CellContent>
                                             </table:ArgoTableCell>
@@ -270,10 +260,10 @@
                                                 <table:ArgoTableCell.CellContent>
                                                     <Border VerticalAlignment="Center" HorizontalAlignment="Left"
                                                             Padding="8,4" CornerRadius="4"
-                                                            Background="{Binding ItemType, Converter={x:Static local:StringConverters.ToItemTypeBadgeBackground}}">
+                                                            Background="{Binding ItemType, Converter={x:Static local:StatusConverters.ItemTypeBadgeBackground}}">
                                                         <TextBlock Text="{Binding ItemType, Converter={StaticResource TranslateConverter}}"
                                                                    FontSize="12" FontWeight="Medium"
-                                                                   Foreground="{Binding ItemType, Converter={x:Static local:StringConverters.ToItemTypeBadgeForeground}}" />
+                                                                   Foreground="{Binding ItemType, Converter={x:Static local:StatusConverters.ItemTypeBadgeForeground}}" />
                                                     </Border>
                                                 </table:ArgoTableCell.CellContent>
                                             </table:ArgoTableCell>

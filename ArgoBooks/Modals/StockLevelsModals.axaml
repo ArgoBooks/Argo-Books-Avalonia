@@ -16,27 +16,14 @@
         <controls:ModalOverlay IsOpen="{Binding IsAdjustStockModalOpen}"
                                ClosingCommand="{Binding RequestCloseAdjustStockModalCommand}">
             <controls:ModalOverlay.ModalContent>
-                <Border Background="{DynamicResource SurfaceBrush}"
-                    BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="1" CornerRadius="12" Width="550"
-                    HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Border Classes="modal-card"
+                    Width="550">
                 <Grid RowDefinitions="Auto,*,Auto">
                     <!-- Modal Header -->
-                    <Border Grid.Row="0" Padding="24,20" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
-                        <Grid ColumnDefinitions="*,Auto">
-                            <StackPanel Grid.Column="0">
-                                <TextBlock Text="{loc:Loc 'Adjust Stock'}"
-                                           FontSize="18" FontWeight="SemiBold"
-                                           Foreground="{DynamicResource TextPrimaryBrush}" />
-                                <TextBlock Text="{Binding SelectedItemProductName}"
-                                           FontSize="13"
-                                           Foreground="{DynamicResource TextSecondaryBrush}" />
-                            </StackPanel>
-                            <Button Grid.Column="1" Classes="icon-button" Command="{Binding CloseAdjustStockModalCommand}">
-                                <PathIcon Data="{x:Static local:Icons.Close}" Width="20" Height="20" />
-                            </Button>
-                        </Grid>
-                    </Border>
+                    <controls:ModalHeader Grid.Row="0"
+                                          Title="{loc:Loc 'Adjust Stock'}"
+                                          Subtitle="{Binding SelectedItemProductName}"
+                                          CloseCommand="{Binding RequestCloseAdjustStockModalCommand}" />
 
                     <!-- Modal Content -->
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -67,7 +54,7 @@
                                             CornerRadius="6"
                                             Padding="12,10"
                                             MinHeight="{StaticResource FormControlHeight}">
-                                        <TextBlock Text="{Binding CurrentStock}"
+                                        <TextBlock Text="{Binding CurrentStockText}"
                                                    Foreground="{DynamicResource TextSecondaryBrush}"
                                                    VerticalAlignment="Center" />
                                     </Border>
@@ -81,7 +68,7 @@
                                     <TextBox Text="{Binding AdjustmentQuantity, Mode=TwoWay}"
                                              Classes="form-input"
                                              PlaceholderText="{loc:Loc 'Enter quantity'}"
-                                             behaviors:NumericInputBehavior.IsIntegerOnly="True"
+                                             behaviors:NumericInputBehavior.IsDecimalOnly="True"
                                              MaxLength="7" />
                                     <TextBlock Text="{loc:Loc 'Please enter a valid quantity.'}"
                                                FontSize="12"
@@ -125,10 +112,102 @@
                     </ScrollViewer>
 
                     <!-- Modal Footer -->
-                    <Border Grid.Row="2" Padding="24,16" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12">
+                    <Border Classes="modal-footer" Grid.Row="2">
+                        <StackPanel Classes="modal-actions">
                             <Button Classes="secondary-button" Content="{loc:Loc Cancel}" Command="{Binding CloseAdjustStockModalCommand}" />
                             <Button Classes="primary-button" Content="{loc:Loc 'Apply Adjustment'}" Command="{Binding SaveAdjustmentCommand}" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+                </Border>
+            </controls:ModalOverlay.ModalContent>
+        </controls:ModalOverlay>
+
+        <!-- Transfer Stock Modal -->
+        <controls:ModalOverlay IsOpen="{Binding IsTransferStockModalOpen}"
+                               ClosingCommand="{Binding CloseTransferStockModalCommand}">
+            <controls:ModalOverlay.ModalContent>
+                <Border Classes="modal-card"
+                    Width="550">
+                <Grid RowDefinitions="Auto,*,Auto">
+                    <controls:ModalHeader Grid.Row="0"
+                                          Title="{loc:Loc 'Transfer Stock'}"
+                                          Subtitle="{Binding TransferProductName}"
+                                          CloseCommand="{Binding CloseTransferStockModalCommand}" />
+
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Margin="24" Spacing="16">
+                            <Grid ColumnDefinitions="*,16,*">
+                                <StackPanel Grid.Column="0" Spacing="6">
+                                    <TextBlock Text="{loc:Loc From}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                    <Border Background="{DynamicResource SurfaceAltBrush}"
+                                            CornerRadius="6"
+                                            Padding="12,10"
+                                            MinHeight="{StaticResource FormControlHeight}">
+                                        <TextBlock Text="{Binding TransferFromLocationName}"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                                   VerticalAlignment="Center" />
+                                    </Border>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Spacing="6">
+                                    <TextBlock Text="{loc:Loc 'In Stock'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                    <Border Background="{DynamicResource SurfaceAltBrush}"
+                                            CornerRadius="6"
+                                            Padding="12,10"
+                                            MinHeight="{StaticResource FormControlHeight}">
+                                        <TextBlock Text="{Binding TransferAvailableText}"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                                   VerticalAlignment="Center" />
+                                    </Border>
+                                </StackPanel>
+                            </Grid>
+
+                            <Grid ColumnDefinitions="*,16,*">
+                                <StackPanel Grid.Column="0" Spacing="6">
+                                    <controls:SearchableDropdown
+                                        Label="{loc:Loc To}"
+                                        IsRequired="True"
+                                        ItemsSource="{Binding TransferLocations}"
+                                        SelectedItem="{Binding TransferToLocation}"
+                                        DisplayMemberPath="Name"
+                                        Placeholder="{loc:Loc 'Select a location...'}"
+                                        ShowAddNew="False"
+                                        EmptyMessage="{loc:Loc 'No other locations'}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Spacing="6">
+                                    <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}">
+                                        <Run Text="{loc:Loc Quantity}" /><Run Text=" *" Foreground="{DynamicResource ErrorBrush}" />
+                                    </TextBlock>
+                                    <TextBox Text="{Binding TransferQuantity, Mode=TwoWay}"
+                                             Classes="form-input"
+                                             PlaceholderText="{loc:Loc 'Enter quantity'}"
+                                             behaviors:NumericInputBehavior.IsDecimalOnly="True"
+                                             MaxLength="10" />
+                                </StackPanel>
+                            </Grid>
+
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="{loc:Loc 'Reason/Notes'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                <TextBox Text="{Binding TransferNotes, Mode=TwoWay}"
+                                         Classes="form-input"
+                                         AcceptsReturn="True"
+                                         TextWrapping="Wrap"
+                                         MinHeight="80"
+                                         MaxHeight="120"
+                                         MaxLength="500" />
+                            </StackPanel>
+
+                            <TextBlock TextWrapping="Wrap" Text="{Binding TransferError}"
+                                       FontSize="12"
+                                       Foreground="{DynamicResource ErrorBrush}"
+                                       IsVisible="{Binding TransferError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <Border Classes="modal-footer" Grid.Row="2">
+                        <StackPanel Classes="modal-actions">
+                            <Button Classes="secondary-button" Content="{loc:Loc Cancel}" Command="{Binding CloseTransferStockModalCommand}" />
+                            <Button Classes="primary-button" Content="{loc:Loc Transfer}" Command="{Binding SaveTransferCommand}" />
                         </StackPanel>
                     </Border>
                 </Grid>
@@ -140,22 +219,13 @@
         <controls:ModalOverlay IsOpen="{Binding IsAddItemModalOpen}"
                                ClosingCommand="{Binding RequestCloseAddItemModalCommand}">
             <controls:ModalOverlay.ModalContent>
-                <Border Background="{DynamicResource SurfaceBrush}"
-                    BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="1" CornerRadius="12" Width="600"
-                    HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Border Classes="modal-card"
+                    Width="600">
                 <Grid RowDefinitions="Auto,*,Auto">
                     <!-- Modal Header -->
-                    <Border Grid.Row="0" Padding="24,20" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
-                        <Grid ColumnDefinitions="*,Auto">
-                            <TextBlock Text="{loc:Loc 'Add Inventory Item'}"
-                                       FontSize="18" FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextPrimaryBrush}" />
-                            <Button Grid.Column="1" Classes="icon-button" Command="{Binding CloseAddItemModalCommand}">
-                                <PathIcon Data="{x:Static local:Icons.Close}" Width="20" Height="20" />
-                            </Button>
-                        </Grid>
-                    </Border>
+                    <controls:ModalHeader Grid.Row="0"
+                                          Title="{loc:Loc 'Add Inventory Item'}"
+                                          CloseCommand="{Binding RequestCloseAddItemModalCommand}" />
 
                     <!-- Modal Content -->
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -168,6 +238,7 @@
                                 <controls:SearchableDropdown ItemsSource="{Binding AvailableProducts}"
                                                             SelectedItem="{Binding SelectedProduct}"
                                                             DisplayMemberPath="Name"
+                                                            SearchMemberPath="Id"
                                                             Placeholder="{loc:Loc 'Search products...'}"
                                                             ShowAddNew="False"
                                                             EmptyMessage="{loc:Loc 'No products available.'}"
@@ -213,7 +284,7 @@
                                     <TextBox Text="{Binding AddItemQuantity, Mode=TwoWay}"
                                              Classes="form-input"
                                              PlaceholderText="0"
-                                             behaviors:NumericInputBehavior.IsIntegerOnly="True"
+                                             behaviors:NumericInputBehavior.IsDecimalOnly="True"
                                              MaxLength="7" />
                                     <TextBlock Text="{loc:Loc 'Please enter a valid quantity.'}"
                                                FontSize="12"
@@ -226,7 +297,7 @@
                                     <TextBox Text="{Binding AddItemReorderPoint, Mode=TwoWay}"
                                              Classes="form-input"
                                              PlaceholderText="10"
-                                             behaviors:NumericInputBehavior.IsIntegerOnly="True"
+                                             behaviors:NumericInputBehavior.IsDecimalOnly="True"
                                              MaxLength="7" />
                                 </StackPanel>
                             </Grid>
@@ -237,7 +308,7 @@
                                 <TextBox Text="{Binding AddItemOverstockThreshold, Mode=TwoWay}"
                                          Classes="form-input"
                                          PlaceholderText="100"
-                                         behaviors:NumericInputBehavior.IsIntegerOnly="True"
+                                         behaviors:NumericInputBehavior.IsDecimalOnly="True"
                                          MaxLength="7" />
                             </StackPanel>
 
@@ -250,8 +321,8 @@
                     </ScrollViewer>
 
                     <!-- Modal Footer -->
-                    <Border Grid.Row="2" Padding="24,16" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12">
+                    <Border Classes="modal-footer" Grid.Row="2">
+                        <StackPanel Classes="modal-actions">
                             <Button Classes="secondary-button" Content="{loc:Loc Cancel}" Command="{Binding CloseAddItemModalCommand}" />
                             <Button Classes="primary-button" Content="{loc:Loc 'Add Item'}" Command="{Binding SaveNewItemCommand}" />
                         </StackPanel>
@@ -265,29 +336,11 @@
         <controls:ModalOverlay IsOpen="{Binding IsFilterModalOpen}"
                                ClosingCommand="{Binding RequestCloseFilterModalCommand}">
             <controls:ModalOverlay.ModalContent>
-                <Border Background="{DynamicResource SurfaceBrush}"
-                    CornerRadius="12"
-                    Width="480"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center">
+                <Border Classes="modal-card"
+                    Width="480">
                 <StackPanel>
                     <!-- Modal Header -->
-                    <Border Padding="24,20"
-                            BorderBrush="{DynamicResource BorderBrush}"
-                            BorderThickness="0,0,0,1">
-                        <Grid ColumnDefinitions="*,Auto">
-                            <TextBlock Text="{loc:Loc 'Filter Stock Levels'}"
-                                       FontSize="18"
-                                       FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextPrimaryBrush}" />
-                            <Button Grid.Column="1"
-                                    Classes="icon-button"
-                                    Command="{Binding CloseFilterModalCommand}">
-                                <PathIcon Data="{x:Static local:Icons.Close}"
-                                          Width="20" Height="20" />
-                            </Button>
-                        </Grid>
-                    </Border>
+                    <controls:ModalHeader Title="{loc:Loc 'Filter Stock Levels'}" CloseCommand="{Binding RequestCloseFilterModalCommand}" />
 
                     <!-- Modal Content -->
                     <StackPanel Spacing="16" Margin="24">
@@ -333,9 +386,7 @@
                     </StackPanel>
 
                     <!-- Modal Footer -->
-                    <Border Padding="24,16"
-                            BorderBrush="{DynamicResource BorderBrush}"
-                            BorderThickness="0,1,0,0">
+                    <Border Classes="modal-footer">
                         <Grid ColumnDefinitions="Auto,*,Auto,Auto">
                             <Button Grid.Column="0"
                                     Content="{loc:Loc 'Clear filters'}"
@@ -346,7 +397,7 @@
                                     Content="{loc:Loc Cancel}"
                                     Classes="secondary-button"
                                     Margin="0,0,12,0"
-                                    Command="{Binding CloseFilterModalCommand}" />
+                                    Command="{Binding RequestCloseFilterModalCommand}" />
                             <Button Grid.Column="3"
                                     Content="{loc:Loc 'Apply Filters'}"
                                     Classes="primary-button"

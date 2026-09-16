@@ -8,7 +8,7 @@ namespace ArgoBooks.Core.Models.Entities;
 public class Category
 {
     /// <summary>
-    /// Unique identifier (e.g., CAT-SAL-001).
+    /// Unique identifier (e.g., CAT-REV-001; older files also hold CAT-SAL-001 and CAT-PUR-001).
     /// </summary>
     [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;

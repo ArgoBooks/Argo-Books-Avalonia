@@ -118,7 +118,7 @@ public class RevenueModalsViewModelTests : ModalViewModelTestBase
         await vm.SaveRevenueCommand.ExecuteAsync(null);
         Assert.Equal(5, stock.InStock);
 
-        int LedgerNet() => Company.StockAdjustments.Sum(InventoryValuationService.SignedDelta);
+        decimal LedgerNet() => Company.StockAdjustments.Sum(InventoryValuationService.SignedDelta);
 
         vm.DeleteRevenue(Company.Revenues.Single().Id);
         Assert.Empty(Company.Revenues);

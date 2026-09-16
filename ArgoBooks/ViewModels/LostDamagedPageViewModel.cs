@@ -14,17 +14,8 @@ namespace ArgoBooks.ViewModels;
 /// <summary>
 /// ViewModel for the Lost/Damaged page displaying lost and damaged inventory records.
 /// </summary>
-public partial class LostDamagedPageViewModel : ViewModelBase, ICleanupViewModel
+public partial class LostDamagedPageViewModel : SortablePageViewModelBase
 {
-    #region Responsive Header
-
-    /// <summary>
-    /// Helper for responsive header layout adjustments.
-    /// </summary>
-    public ResponsiveHeaderHelper ResponsiveHeader { get; } = new();
-
-    #endregion
-
     #region Table Column Widths
 
     /// <summary>
@@ -37,58 +28,36 @@ public partial class LostDamagedPageViewModel : ViewModelBase, ICleanupViewModel
     #region Column Visibility
 
     [ObservableProperty]
-    private bool _isColumnMenuOpen;
-
-    [ObservableProperty]
     private double _columnMenuX;
 
     [ObservableProperty]
     private double _columnMenuY;
 
-    [ObservableProperty]
-    private bool _showIdColumn = ColumnVisibilityHelper.Load("LostDamaged", "Id", true);
-
-    [ObservableProperty]
-    private bool _showProductColumn = ColumnVisibilityHelper.Load("LostDamaged", "Product", true);
-
-    [ObservableProperty]
-    private bool _showDateColumn = ColumnVisibilityHelper.Load("LostDamaged", "Date", true);
-
-    [ObservableProperty]
-    private bool _showReasonColumn = ColumnVisibilityHelper.Load("LostDamaged", "Reason", true);
-
-    [ObservableProperty]
-    private bool _showLossColumn = ColumnVisibilityHelper.Load("LostDamaged", "Loss", true);
-
-    partial void OnShowIdColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Id", value); ColumnVisibilityHelper.Save("LostDamaged", "Id", value); }
-    partial void OnShowProductColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Product", value); ColumnVisibilityHelper.Save("LostDamaged", "Product", value); }
-    partial void OnShowDateColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Date", value); ColumnVisibilityHelper.Save("LostDamaged", "Date", value); }
-    partial void OnShowReasonColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Reason", value); ColumnVisibilityHelper.Save("LostDamaged", "Reason", value); }
-    partial void OnShowLossColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Loss", value); ColumnVisibilityHelper.Save("LostDamaged", "Loss", value); }
-
-    [RelayCommand]
-    private void ToggleColumnMenu()
+    private static readonly ColumnVisibilityDefaults ColumnDefaults = new("LostDamaged", new Dictionary<string, bool>
     {
-        IsColumnMenuOpen = !IsColumnMenuOpen;
-    }
+        ["Id"] = true,
+        ["Product"] = true,
+        ["Date"] = true,
+        ["Reason"] = true,
+        ["Loss"] = true,
+    });
 
-    [RelayCommand]
-    private void CloseColumnMenu()
-    {
-        IsColumnMenuOpen = false;
-    }
+    protected override ColumnVisibilityDefaults ColumnVisibility => ColumnDefaults;
 
-    [RelayCommand]
-    private void ResetColumnVisibility()
-    {
-        ColumnWidths.ResetWidths();
-        ColumnVisibilityHelper.ResetPage("LostDamaged");
-        ShowIdColumn = true;
-        ShowProductColumn = true;
-        ShowDateColumn = true;
-        ShowReasonColumn = true;
-        ShowLossColumn = true;
-    }
+    [ObservableProperty]
+    private bool _showIdColumn = ColumnDefaults.Load("Id");
+
+    [ObservableProperty]
+    private bool _showProductColumn = ColumnDefaults.Load("Product");
+
+    [ObservableProperty]
+    private bool _showDateColumn = ColumnDefaults.Load("Date");
+
+    [ObservableProperty]
+    private bool _showReasonColumn = ColumnDefaults.Load("Reason");
+
+    [ObservableProperty]
+    private bool _showLossColumn = ColumnDefaults.Load("Loss");
 
     #endregion
 
@@ -132,58 +101,8 @@ public partial class LostDamagedPageViewModel : ViewModelBase, ICleanupViewModel
 
     #region Pagination
 
-    [ObservableProperty]
-    private int _currentPage = 1;
-
-    [ObservableProperty]
-    private int _totalPages = 1;
-
-    [ObservableProperty]
-    private int _pageSize = 10;
-
-    public ObservableCollection<int> PageSizeOptions { get; } = [5, 10, 15, 25, 50];
-
-    partial void OnPageSizeChanged(int value)
-    {
-        CurrentPage = 1;
-        FilterItems();
-    }
-
-    [ObservableProperty]
-    private string _paginationText = "0 items";
-
-    public ObservableCollection<int> PageNumbers { get; } = [];
-
-    public bool CanGoToPreviousPage => CurrentPage > 1;
-    public bool CanGoToNextPage => CurrentPage < TotalPages;
-
-    partial void OnCurrentPageChanged(int value)
-    {
-        OnPropertyChanged(nameof(CanGoToPreviousPage));
-        OnPropertyChanged(nameof(CanGoToNextPage));
-        FilterItems();
-    }
-
-    [RelayCommand]
-    private void GoToPreviousPage()
-    {
-        if (CanGoToPreviousPage)
-            CurrentPage--;
-    }
-
-    [RelayCommand]
-    private void GoToNextPage()
-    {
-        if (CanGoToNextPage)
-            CurrentPage++;
-    }
-
-    [RelayCommand]
-    private void GoToPage(int page)
-    {
-        if (page >= 1 && page <= TotalPages)
-            CurrentPage = page;
-    }
+    /// <inheritdoc />
+    protected override void OnSortOrPageChanged() => FilterItems();
 
     #endregion
 
@@ -191,13 +110,9 @@ public partial class LostDamagedPageViewModel : ViewModelBase, ICleanupViewModel
 
     public LostDamagedPageViewModel()
     {
-        ColumnVisibilityHelper.SyncToManager(this);
         LoadItems();
 
-        // Subscribe to undo/redo state changes to refresh UI
-        App.UndoRedoManager.StateChanged += OnUndoRedoStateChanged;
-        if (App.NavigationService != null)
-            App.NavigationService.Navigated += OnNavigated;
+        EnableDeferredUndoRefresh(p => p == PageNames.LostDamaged, LoadItems);
 
         // Subscribe to modal events
         if (App.LostDamagedModalsViewModel != null)
@@ -206,33 +121,21 @@ public partial class LostDamagedPageViewModel : ViewModelBase, ICleanupViewModel
             App.LostDamagedModalsViewModel.FiltersCleared += OnFiltersCleared;
             App.LostDamagedModalsViewModel.ItemUndone += OnItemUndone;
         }
-
-        // Subscribe to language changes to refresh translated content
-        LanguageService.Instance.LanguageChanged += OnLanguageChanged;
     }
 
     /// <summary>
     /// Unsubscribes from app-level and singleton events so this page VM can be garbage collected when
     /// the company is switched. Called by ClearPageCaches via <see cref="ICleanupViewModel"/>.
     /// </summary>
-    public void Cleanup()
+    public override void Cleanup()
     {
-        CancelPendingSearch();
-        App.UndoRedoManager.StateChanged -= OnUndoRedoStateChanged;
-        if (App.NavigationService != null)
-            App.NavigationService.Navigated -= OnNavigated;
+        base.Cleanup();
         if (App.LostDamagedModalsViewModel != null)
         {
             App.LostDamagedModalsViewModel.FiltersApplied -= OnFiltersApplied;
             App.LostDamagedModalsViewModel.FiltersCleared -= OnFiltersCleared;
             App.LostDamagedModalsViewModel.ItemUndone -= OnItemUndone;
         }
-        LanguageService.Instance.LanguageChanged -= OnLanguageChanged;
-    }
-
-    private void OnLanguageChanged(object? sender, LanguageChangedEventArgs e)
-    {
-        FilterItems();
     }
 
     private void OnFiltersApplied(object? sender, EventArgs e)
@@ -251,27 +154,6 @@ public partial class LostDamagedPageViewModel : ViewModelBase, ICleanupViewModel
     private void OnItemUndone(object? sender, EventArgs e)
     {
         LoadItems();
-    }
-
-    private bool _needsRefresh;
-
-    private void OnUndoRedoStateChanged(object? sender, EventArgs e)
-    {
-        if (App.NavigationService?.CurrentPageName != PageNames.LostDamaged)
-        {
-            _needsRefresh = true;
-            return;
-        }
-        LoadItems();
-    }
-
-    private void OnNavigated(object? sender, NavigationEventArgs e)
-    {
-        if (e.PageName == PageNames.LostDamaged && _needsRefresh)
-        {
-            _needsRefresh = false;
-            LoadItems();
-        }
     }
 
     #endregion
@@ -321,12 +203,7 @@ public partial class LostDamagedPageViewModel : ViewModelBase, ICleanupViewModel
         // Apply search filter
         if (!string.IsNullOrWhiteSpace(SearchQuery))
         {
-            var query = SearchQuery.ToLowerInvariant();
-            filtered = filtered.Where(item =>
-                item.Id.ToLowerInvariant().Contains(query) ||
-                GetProductName(item.ProductId).ToLowerInvariant().Contains(query) ||
-                item.Notes.ToLowerInvariant().Contains(query)
-            );
+            filtered = filtered.RankBySearch(SearchQuery, item => [item.Id, GetProductName(item.ProductId), item.Notes]);
         }
 
         if (filterType != "All")
@@ -364,19 +241,7 @@ public partial class LostDamagedPageViewModel : ViewModelBase, ICleanupViewModel
 
         var displayItems = filtered.Select(CreateDisplayItem).ToList();
 
-        // Calculate pagination
-        var totalCount = displayItems.Count;
-        TotalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / PageSize));
-        if (CurrentPage > TotalPages)
-            CurrentPage = TotalPages;
-
-        UpdatePageNumbers();
-        UpdatePaginationText(totalCount);
-
-        // Apply pagination and add to collection
-        var pagedItems = displayItems
-            .Skip((CurrentPage - 1) * PageSize)
-            .Take(PageSize);
+        var pagedItems = Paginate(displayItems, "item");
 
         Items.ReplaceAll(pagedItems);
     }
@@ -416,25 +281,6 @@ public partial class LostDamagedPageViewModel : ViewModelBase, ICleanupViewModel
             LostDamagedReason.Damaged or LostDamagedReason.Expired or LostDamagedReason.Other => "Damaged",
             _ => "Unknown"
         };
-    }
-
-    private void UpdatePageNumbers()
-    {
-        PageNumbers.Clear();
-        var startPage = Math.Max(1, CurrentPage - 2);
-        var endPage = Math.Min(TotalPages, startPage + 4);
-        startPage = Math.Max(1, endPage - 4);
-
-        for (var i = startPage; i <= endPage; i++)
-        {
-            PageNumbers.Add(i);
-        }
-    }
-
-    private void UpdatePaginationText(int totalCount)
-    {
-        PaginationText = PaginationTextHelper.FormatPaginationText(
-            totalCount, CurrentPage, PageSize, TotalPages, "item");
     }
 
     #endregion

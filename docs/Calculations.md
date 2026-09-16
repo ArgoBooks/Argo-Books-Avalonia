@@ -32,10 +32,11 @@ Tax we collect from customers is money we owe the government, not money we keep.
 - **"Total Revenue" stat card / charts / customer billings** → use `EffectiveTotalUSD` (gross, includes tax). This is what the user typed on the invoice and matches the Revenue page.
 - **"Net Profit" / "Profit Margin" / "Profit Over Time"** → use `EffectiveSubtotalUSD` (pre-tax) on the revenue side. This excludes the tax we owe out.
 - **Expenses** always use `EffectiveTotalUSD` (gross). Tax we paid suppliers is real cash out the door, not a separate liability we can ignore.
+- **Tracked stock** is the exception, on the profit side only. What a purchase spent on products that track inventory is stock, not an expense, and comes off profit as cost of goods sold when it sells (§14). The Expenses card and page still show every dollar spent.
 
 ```
 Total Revenue (display)  = Σ Revenue.EffectiveTotalUSD
-Net Profit               = Σ Revenue.EffectiveSubtotalUSD − Σ Expense.EffectiveTotalUSD − Refunds(pre-tax)
+Net Profit               = Σ Revenue.EffectiveSubtotalUSD − Σ OperatingExpenseUSD(expense) − Σ CostOfGoodsSoldUSD(revenue) − Refunds(pre-tax)
 Profit Margin            = Net Profit / Σ Revenue.EffectiveSubtotalUSD
 Tax Owed to Government   = Σ Revenue.EffectiveTaxAmountUSD     (collected) − tax paid on expenses (if user is tracking it)
 ```
@@ -105,9 +106,11 @@ The app never substitutes a different date's rate or shows a raw cross-currency 
 
 Phase 2 extends this to aggregates: each transaction is converted at its own date before summing,
 so totals match the sum of the displayed rows to the cent (supersedes the "convert the USD sum at
-one date" step in Rule 3 for non-USD display currencies). Until then, the report/accounting callers
-of `ExchangeRateService.ConvertFromUSD` still show the USD amount on a miss (rare after the import
-gate); this is the one bounded surface not yet on the strict path.
+one date" step in Rule 3 for non-USD display currencies). A card or total on screen shows Pending
+while any row it converts lacks its rate (`CurrencyService.FormatTotalOrPending`,
+`FormatSumDisplayFromUSD`). A report or an Insights run picks one currency for the whole document
+with `DisplayCurrency.Resolve`: the company currency when every date it converts at has an exact
+rate, otherwise USD throughout, so a printed report never mixes currencies.
 
 ---
 
@@ -297,6 +300,7 @@ Expenses are simpler than revenue because there's no "paid vs unpaid" distinctio
 
 - All expense aggregations use `EffectiveTotalUSD`. The full amount paid to the supplier (including any tax paid) is the expense.
 - The "Expenses" stat card, "Expenses Over Time" chart, "Revenue vs Expenses" chart, all use the same Total figure.
+- Profit is the exception: it does not subtract a purchase's tracked stock lines. `CostOfGoodsAggregator.OperatingExpenseUSD` is the expense less those lines' pre-tax amount at the expense's own rate; tax, shipping and fees stay expenses. See §14.
 - Sales tax paid on expenses *can* in principle be deducted from sales tax collected, but Argo Books does **not** net these automatically. The user reports total tax collected; tax deductions are a manual / advisor conversation, in keeping with the "simple bookkeeping, not accounting" philosophy.
 
 ---
@@ -308,7 +312,7 @@ Expenses are simpler than revenue because there's no "paid vs unpaid" distinctio
 - They use `EffectiveSubtotalUSD` for revenue **and** expense, because formal reports break tax out as a separate liability line.
 - They include all invoiced revenue, not just collected, formal reports typically follow accrual basis. (If the user toggles cash-basis on a report, the report layer applies the paid-only filter itself.)
 - `GetCashFlowData` is the exception inside this service: it correctly uses paid-only revenue plus all Payment cash events plus all Expense rows (which are themselves cash-out events, there is no `PaymentStatus` on expenses).
-- The Balance Sheet lists **Inventory** as a current asset. Its value is computed by `InventoryValuationService.TotalValueAsOf`, which reconstructs each item's stock-on-hand as of the report end date by rolling back, from the current `InStock`, the signed quantity delta of every `StockAdjustment` whose effective date is after that date. An adjustment's effective date is its linked transaction's `Date` when `ReferenceNumber` resolves to a Revenue/Expense, otherwise its own `Timestamp`, read as the local day it was made on (timestamps are stored in UTC, and the report date is a local day). Quantity is reconstructed historically; **cost is not** (the app keeps no per-date cost history), so value uses each item's current `UnitCost`, treated as USD-equivalent. The Income Statement and dashboard profit remain cash-basis and unchanged: buying stock is still expensed when purchased, with no COGS matching. Adding inventory as an asset only affects the Balance Sheet's asset total and the derived Retained Earnings balancing figure.
+- The Balance Sheet lists **Inventory** as a current asset. Its value is computed by `InventoryValuationService.TotalValueAsOf`, which reconstructs each item's stock-on-hand as of the report end date by rolling back, from the current `InStock`, the signed quantity delta of every `StockAdjustment` whose effective date is after that date. An adjustment's effective date is its linked transaction's `Date` when `ReferenceNumber` resolves to a Revenue/Expense, otherwise its own `Timestamp`, read as the local day it was made on (timestamps are stored in UTC, and the report date is a local day). Quantity is reconstructed historically; **cost is not** (the app keeps no per-date cost history), so value uses each item's current `UnitCost`, treated as USD-equivalent. Profit on the Income Statement and the dashboard matches tracked stock to the sale that used it, as cost of goods sold (§14): buying tracked stock is not an expense, and the Income Statement shows a Cost of Goods Sold line and Gross Profit whenever a sale in range carries a cost. Stock bought before cost of goods sold began was expensed when bought and stays that way.
 - The Balance Sheet lists **Security Deposits** as a liability: the deposit on every issued invoice as of the report end date, less what refunds dated by then gave back and any deposit kept by then (`SecurityDeposits.StillHeld`). The invoice total carrying a deposit sits in cash or receivables from the day it is issued, and a deposit is not earned (§4), so without this line it would land in Retained Earnings.
 
 If you find yourself touching these services, do not "fix" them to match the dashboard, they are correct for their context.
@@ -341,12 +345,13 @@ Bank Matching (`BankMatchingService`) is a non-financial reference layer: it imp
 |---|---|---|---|---|
 | Total Revenue stat card | `EffectiveTotalUSD` | — | Yes | Full amount |
 | Total Expenses stat card | — | `EffectiveTotalUSD` | n/a | n/a |
-| Net Profit stat card | `EffectiveSubtotalUSD` | `EffectiveTotalUSD` | Yes | Pre-tax portion |
-| Profit Margin (Analytics) | `EffectiveSubtotalUSD` | `EffectiveTotalUSD` | Yes | Pre-tax portion |
+| Net Profit stat card | `EffectiveSubtotalUSD` | `OperatingExpenseUSD`, plus cost of goods sold (§14) | Yes | Pre-tax portion |
+| Profit Margin (Analytics) | `EffectiveSubtotalUSD` | `OperatingExpenseUSD`, plus cost of goods sold (§14) | Yes | Pre-tax portion |
 | Revenue Over Time | `EffectiveTotalUSD` | — | Yes | Full amount |
 | Expenses Over Time | — | `EffectiveTotalUSD` | n/a | n/a |
-| Profit Over Time | `EffectiveSubtotalUSD` | `EffectiveTotalUSD` | Yes | Pre-tax portion |
+| Profit Over Time | `EffectiveSubtotalUSD` | `OperatingExpenseUSD`, plus cost of goods sold (§14) | Yes | Pre-tax portion |
 | Revenue vs Expenses | `EffectiveTotalUSD` | `EffectiveTotalUSD` | Yes (revenue side) | Full amount (revenue side) |
+| Report Summary box | `EffectiveTotalUSD` (Revenue); Net Profit card rule for any other type | `EffectiveTotalUSD` | Yes (revenue side) | Full amount (revenue side) |
 | Top Customers by Revenue | `EffectiveTotalUSD` | — | Yes | Full amount |
 | Customer Lifetime Value | `EffectiveTotalUSD` | — | Yes | Full amount |
 | Revenue Growth (Analytics) | `EffectiveTotalUSD` | — | Yes | Full amount |
@@ -357,7 +362,7 @@ Bank Matching (`BankMatchingService`) is a non-financial reference layer: it imp
 | Outstanding Invoices stat | `EffectiveBalanceUSD` | — | **No** (by design) | n/a |
 | Overdue Invoices stat | `EffectiveBalanceUSD` | — | **No** (by design) | n/a |
 | Revenue page list | `EffectiveTotalUSD` | — | **No** (shows all) | n/a |
-| Income Statement / GL | `EffectiveSubtotalUSD` | `EffectiveSubtotalUSD` | No (accrual) | Pre-tax portion |
+| Income Statement / GL | `EffectiveSubtotalUSD` | `EffectiveSubtotalUSD` (Income Statement: less tracked stock lines, plus cost of goods sold, §14) | No (accrual) | Pre-tax portion |
 | Sales by Product (Analytics tab) | `EffectiveTotalUSD` (allocated per line item) | — | Yes | Not applied (see §13) |
 | Sales by Product (Report) | `EffectiveTotalUSD` (allocated per line item) | — | No (accrual) | Not applied (see §13) |
 
@@ -377,7 +382,9 @@ When writing or reviewing aggregation code:
 - `RefundAggregator.GroupRefundsByDayUSD(payments, start, end)`: per-day refund map for time-series charts.
 - `ProfitCalculator.CalculateNetProfitUSD(data, start, end)`: the cross-cutting net profit formula. Use this; don't re-derive.
 - `ProfitCalculator.CalculateNetProfitByDayUSD(data, start, end)`: per-day profit for charts.
-- `ComparisonPeriod.For(preset, start, end)`: the period every "vs previous period" figure compares against (dashboard, Analytics, Insights trends). This month, quarter or year so far compares with the same days of the one before, stopping at its end when it is shorter (This Month on Sep 11 is Aug 1 to Aug 11; This Year on Feb 29 is Jan 1 to Feb 28). Last month, quarter or year compares with the whole calendar period before it. Everything else compares with the same number of days just before.
+- `CostOfGoodsAggregator`: cost of goods sold on sales (`SumCostOfGoodsSoldUSD`, paid-only or not) and expenses without the tracked stock they bought (`SumOperatingExpensesUSD`). `ProfitCalculator` uses both; never subtract `ExpenseAggregator` totals from revenue to get profit.
+- `InventoryStockService`: the only place stock moves for a purchase, a sale, an edit or delete of either, an import or a transfer, and the only place cost of goods sold is fixed on a line.
+- `ComparisonPeriod.For(preset, start, end)`: the period every "vs previous period" figure compares against (dashboard, Analytics, Insights trends, and the report Summary box's growth rate). Report presets This Week, This Month and This Quarter run to the end of today, as the dashboard's do. This month, quarter or year so far compares with the same days of the one before, stopping at its end when it is shorter (This Month on Sep 11 is Aug 1 to Aug 11; This Year on Feb 29 is Jan 1 to Feb 28). Last month, quarter or year compares with the whole calendar period before it. Everything else compares with the same number of days just before.
 - `InvoiceTotalsService.Recalculate(invoice, allPayments)`: call after any mutation to an invoice's payment list.
 - `InvoiceMath`: the §4 per-invoice formula (subtotal, discount, fee, taxable base, tax, total). Anything that needs an invoice figure calls it rather than re-deriving the arithmetic.
 
@@ -398,7 +405,7 @@ When writing or reviewing aggregation code:
 
 The Analytics "Products" tab and the Report Builder "Sales by Product" template both break **revenue and units** down per product. `ProductSalesService` is the single source of truth; both surfaces call it so their math never diverges, only the basis differs (see below).
 
-**Why revenue, not profit.** Per-product *profit* is deliberately **not** computed. Profit would need a trustworthy cost of goods sold per product, and Argo can't produce one: a product's cost is an optional, manually-entered default (`Product.CostPrice`), the system does no COGS matching (§10: stock is expensed when bought, never matched to the sale), and anything you assemble or make (a pizza built from flour and cheese) has no purchasable "cost of itself" at all. Rather than show a misleading margin, these surfaces report only what is always true: how much each product sold for and how many units moved.
+**Why revenue, not profit.** Per-product *profit* is deliberately **not** computed. Profit would need a trustworthy cost of goods sold per product, and Argo can't produce one: cost of goods sold exists only for products that track inventory, and reads low while stock from before it began is still selling (§14), and anything you assemble or make (a pizza built from flour and cheese) has no purchasable "cost of itself" at all. Rather than show a misleading margin, these surfaces report only what is always true: how much each product sold for and how many units moved.
 
 ### Revenue per product (gross, USD)
 
@@ -432,3 +439,94 @@ Consistent with Rule 2 and §10, the two surfaces deliberately differ and `Produ
 ### Refunds are not attributed per-product
 
 Refunds are recorded as invoice-level `Payment` rows (§8) with no line-item breakdown, so there is no reliable way to subtract a refund from the specific product it concerned. Per-product revenue therefore does **not** subtract refunds, and will read slightly high for products that were later refunded. Customer-returned items and lost/damaged stock already have their own per-product surfaces (Returns by Product, Losses by Product).
+
+---
+
+## 14. Cost of goods sold
+
+Products with **Track Inventory** turned on are bought and sold as one item with one stock count, so both the purchase and the sale forms offer them. For those products, profit matches what stock cost to the sale that used it, instead of counting stock as an expense the day it was bought. Products that don't track inventory are unaffected.
+
+`InventoryStockService` is the only place stock moves for a purchase, a sale, an edit or delete of either, a Stripe or Argo Books API import, or a transfer. `CostOfGoodsAggregator` is the only place the resulting figures are summed.
+
+### Buying tracked stock
+
+A purchase line whose product tracks inventory adds its quantity to stock and is marked `LineItem.IsStockPurchase`. Its pre-tax amount is stock, not an expense:
+
+```
+stockPurchaseUSD(expense)    = min( Σ over stock lines of li.Subtotal × (expense.EffectiveTotalUSD / expense.Total),
+                                    expense.EffectiveTotalUSD )
+operatingExpenseUSD(expense) = expense.EffectiveTotalUSD − stockPurchaseUSD(expense)
+```
+
+Tax, shipping and fees on the purchase stay expenses. The stock record's `UnitCost` becomes the line's pre-tax price per unit in USD, at the purchase's own rate (left alone while the rate is pending). When the purchase is in the company currency, the product's `CostPrice` becomes the line's unit price, so nobody has to keep a cost price current by hand.
+
+### Selling tracked stock
+
+A sale line whose product tracks inventory takes its quantity out of stock and fixes its cost on the line, in USD, when the sale is saved:
+
+```
+openingUsed(li)   = min(item.OpeningUnits, li.Quantity)
+li.CostOfGoodsUSD = (li.Quantity − openingUsed(li)) × item.UnitCost
+```
+
+The cost is saved, not recalculated, so a later change to a cost price never rewrites past profit. A sale pending currency conversion counts no cost, as it counts no revenue.
+
+### Profit
+
+```
+Net Profit = Σ Revenue.EffectiveSubtotalUSD − Σ operatingExpenseUSD − Σ li.CostOfGoodsUSD − Refunds(pre-tax)
+```
+
+The dashboard counts paid sales for both revenue and cost of goods sold (Rule 2). The Income Statement counts every sale in range, shows **Cost of Goods Sold** and **Gross Profit** under revenue whenever that cost is not zero, and leaves tracked stock lines out of its expense categories. The Expenses card, the Expenses page and cash flow still count every purchase in full, because that money did leave the business.
+
+### Stock on hand when this began (opening units)
+
+Stock bought before cost of goods sold existed was expensed at the time, so counting it again when it sells would take it off profit twice. The first time a company opens in a version with cost of goods sold, `CompanyManager.StartCostOfGoodsIfNeeded` records each stock record's units on hand as `InventoryItem.OpeningUnits`. Sales use opening units first, at no cost (`LineItem.OpeningUnitsUsed`), and editing or deleting a sale gives them back. A transfer moves opening units in proportion to the stock it moves. Editing a purchase or sale saved before cost of goods sold began keeps its old treatment: it moves stock, stays a full expense or carries no cost, and uses no opening units.
+
+### Locations
+
+A line takes stock from, or adds it to, the stock record at `LineItem.LocationId`. The form only asks when the product is stocked at two or more locations; otherwise the product's first stock record is used, or a new one is made at the company's first location. The location is saved on the line, so editing or deleting the transaction later returns stock to the same place. Editing or deleting takes back only what the transaction's own stock adjustments show it moved, so a transaction saved before its product tracked stock, or brought in by the spreadsheet import, has nothing to take back.
+
+### Not matched
+
+- **Returns** record the return only (§10). They don't restock or take back the sale's cost of goods sold.
+- **Receipt scans and revenue created from invoices** move no stock, as before.
+- **Per-product profit** is still not shown (§13).
+
+---
+
+## 15. Rentals
+
+`RentalBookings` holds the rental math. A rental has one or more lines, each with an item, a quantity, a rate type and a per-unit deposit. A record saved by the old Rent Out action has no lines and keeps one on the record itself, where the deposit is the total; `RentalRecord.EffectiveLineItems()` turns it into a line.
+
+### Charges
+
+```
+days            = max(1, returnDate.Date − startDate.Date)
+line (Daily)    = rate × days × quantity
+line (Weekly)   = rate × ceil(days / 7) × quantity
+line (Monthly)  = rate × ceil(days / 30) × quantity
+TotalCost       = Σ lines + ExtraCharges
+```
+
+Dates count, not times: out Monday and back Wednesday is two days. The add form and Rent Out estimate the same way, to the due date. An invoice made from a rental has one line per item, charged to the return date, or to the due date while the rental is still out, plus a line for any extra charges.
+
+### Deposits and extra charges
+
+The rental's `SecurityDeposit` is Σ per-unit deposit × quantity. At return, anything from nothing to the whole deposit can be refunded (`DepositRefunded`) and the rest is kept. A kept deposit on an invoice becomes revenue on the return date (§4). When that invoice was paid online, confirming the return opens its refund window with only the deposit selected, at the amount refunded, so the money goes back through the provider and the balance sheet stops holding it once the refund syncs. Extra charges, such as a late fee or damage, are billed on top of the rental and don't come out of the deposit.
+
+### Paid without an invoice
+
+Marking a rental paid when it has no invoice records a revenue row for `TotalCost` plus any kept deposit, in the company currency and converted at its own date (Rule 3a). It is dated on the return when marked paid there, otherwise on the day it was marked. `RentalRecord.RevenueId` links it, so marking it unpaid or deleting the rental removes it. A rental with an invoice counts through the invoice instead, and a paid rental can't be invoiced, so the money is never counted twice.
+
+### Stock and reservations
+
+A rental starting after today is **Reserved** and leaves stock alone. Checking it out makes it Active and takes its units out of stock, and returning it puts them back. Before a rental is saved or checked out, each item needs enough units free on every day it covers:
+
+```
+owned  = InStock + units out on active and overdue rentals
+booked = most units other rentals take on any one day of this rental's dates
+free   = owned − booked
+```
+
+A reservation takes its start to due dates. A rental that is out takes its dates and, once late, every day up to today. A rental that takes stock now also can't take more than is in stock, plus what it already has out when it is being edited.

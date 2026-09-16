@@ -20,34 +20,12 @@
                            CloseOnBackdropClick="{Binding !IsDownloading}">
         <controls:ModalOverlay.ModalContent>
             <!-- Modal Container -->
-            <Border Background="{DynamicResource SurfaceBrush}"
-                BorderBrush="{DynamicResource BorderBrush}"
-                BorderThickness="1"
-                CornerRadius="12"
-                Width="420"
-                HorizontalAlignment="Center"
-                VerticalAlignment="Center"
-                BoxShadow="0 8 32 0 #40000000">
+            <Border Classes="modal-card"
+                Width="420">
 
             <StackPanel>
                 <!-- Header -->
-                <Border Padding="24,20"
-                        BorderBrush="{DynamicResource BorderBrush}"
-                        BorderThickness="0,0,0,1">
-                    <Grid ColumnDefinitions="*,Auto">
-                        <TextBlock Grid.Column="0"
-                                   Text="{loc:Loc 'Check for Updates'}"
-                                   FontSize="18"
-                                   FontWeight="SemiBold"
-                                   Foreground="{DynamicResource TextPrimaryBrush}" />
-                        <Button Grid.Column="1"
-                                Classes="icon-button"
-                                Command="{Binding CloseCommand}">
-                            <PathIcon Data="{x:Static local:Icons.Close}"
-                                      Width="20" Height="20" />
-                        </Button>
-                    </Grid>
-                </Border>
+                <controls:ModalHeader Title="{loc:Loc 'Check for Updates'}" CloseCommand="{Binding CloseCommand}" />
 
                 <!-- Content -->
                 <StackPanel Margin="24" Spacing="24">
@@ -109,10 +87,6 @@
                                            FontSize="14"
                                            FontWeight="Medium"
                                            Foreground="{DynamicResource TextPrimaryBrush}"
-                                           HorizontalAlignment="Center" />
-                                <TextBlock Text="{Binding LastChecked, StringFormat='Last checked: {0}'}"
-                                           FontSize="12"
-                                           Foreground="{DynamicResource TextTertiaryBrush}"
                                            HorizontalAlignment="Center" />
                             </StackPanel>
 
@@ -242,9 +216,7 @@
                 </StackPanel>
 
                 <!-- Footer -->
-                <Border Padding="24,16"
-                        BorderBrush="{DynamicResource BorderBrush}"
-                        BorderThickness="0,1,0,0">
+                <Border Classes="modal-footer">
                     <Button Classes="link-button"
                             Content="{loc:Loc 'View Release Notes'}"
                             Command="{Binding ViewReleaseNotesCommand}"

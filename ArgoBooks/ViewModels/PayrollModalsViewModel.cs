@@ -621,16 +621,28 @@ public partial class PayrollModalsViewModel : ViewModelBase
             FilterProvince = "All";
         }
 
-        _filterSnapshot = FilterSnapshot();
+        Filters.Capture();
         IsFilterModalOpen = true;
     }
 
-    private string _filterSnapshot = string.Empty;
+    private sealed record FilterValues(string Status, string Province, string PayType, string Frequency)
+    {
+        public static readonly FilterValues Default = new("All", "All", "All", "All");
+    }
 
-    private string FilterSnapshot() =>
-        string.Join('', FilterStatus, FilterProvince, FilterPayType, FilterFrequency);
+    private FilterSnapshot<FilterValues>? _filters;
 
-    public bool HasFilterModalChanges => FilterSnapshot() != _filterSnapshot;
+    private FilterSnapshot<FilterValues> Filters => _filters ??= new(FilterValues.Default,
+        () => new(FilterStatus, FilterProvince, FilterPayType, FilterFrequency),
+        v =>
+        {
+            FilterStatus = v.Status;
+            FilterProvince = v.Province;
+            FilterPayType = v.PayType;
+            FilterFrequency = v.Frequency;
+        });
+
+    public bool HasFilterModalChanges => Filters.HasChanges;
 
     /// <summary>
     /// Filters are live properties, so abandoning the modal has to put them back. Without the
@@ -639,28 +651,13 @@ public partial class PayrollModalsViewModel : ViewModelBase
     [RelayCommand]
     public async Task RequestCloseFilterModalAsync()
     {
-        if (HasFilterModalChanges)
+        if (await Filters.ConfirmDiscardAsync(ConfirmDiscardFiltersAsync))
         {
-            if (!await ConfirmDiscardFiltersAsync())
-            {
-                return;
-            }
-
-            string[] original = _filterSnapshot.Split('');
-            if (original.Length == 4)
-            {
-                FilterStatus = original[0];
-                FilterProvince = original[1];
-                FilterPayType = original[2];
-                FilterFrequency = original[3];
-            }
+            CloseFilterModal();
         }
-
-        CloseFilterModal();
     }
 
-    [RelayCommand]
-    public void CloseFilterModal() => IsFilterModalOpen = false;
+    private void CloseFilterModal() => IsFilterModalOpen = false;
 
     [RelayCommand]
     public void ApplyFilters()
@@ -672,10 +669,7 @@ public partial class PayrollModalsViewModel : ViewModelBase
     [RelayCommand]
     public void ClearFilters()
     {
-        FilterStatus = "All";
-        FilterProvince = "All";
-        FilterPayType = "All";
-        FilterFrequency = "All";
+        Filters.Reset();
         FiltersCleared?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
     }

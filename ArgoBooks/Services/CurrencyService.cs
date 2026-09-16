@@ -253,6 +253,24 @@ public static class CurrencyService
             ? Format(total) : PendingMarker;
 
     /// <summary>
+    /// Formats a total that converts each transaction at its own date, or returns <see cref="PendingMarker"/>
+    /// when any of them is still waiting for its exact-date rate. Pass the aggregate as a function of the
+    /// converter, e.g. <c>convert =&gt; ProfitCalculator.CalculateNetProfitDisplay(data, start, end, convert)</c>.
+    /// </summary>
+    public static string FormatTotalOrPending(Func<Func<decimal, DateTime, decimal>, decimal> total)
+    {
+        var complete = true;
+        var amount = total((amountUSD, date) =>
+        {
+            if (TryDisplayFromUSD(amountUSD, date, out var converted))
+                return converted;
+            complete = false;
+            return amountUSD;
+        });
+        return complete ? Format(amount) : PendingMarker;
+    }
+
+    /// <summary>
     /// Ensures today's exact-date USD-&gt;display-currency rate is cached, fetching it if missing and
     /// online. "As of now" aggregate displays (e.g. the profit chart title) convert at today's rate,
     /// which is never fetched on its own when no transaction is dated today and the currency wasn't

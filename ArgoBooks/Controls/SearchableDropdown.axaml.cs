@@ -9,6 +9,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Data;
 using Avalonia.Input;
+using Avalonia.Media;
 using System.Collections.Concurrent;
 using System.Reflection;
 using ArgoBooks.Utilities;
@@ -32,6 +33,12 @@ public partial class SearchableDropdown : UserControl, INotifyPropertyChanged
     private int _highlightedIndex = -1;
     private bool _isSettingFromSelectedItem;
 
+    // Opened on the picked item's own text: list everything until the user types.
+    private bool _showAll;
+
+    // Exact, prefix, word-start or contains, but not a fuzzy guess.
+    private const double StrongMatchScore = 0.8;
+
     // Debounce typing so the fuzzy-scoring filter over the whole source list doesn't run per keystroke.
     private const int SearchDebounceMs = 120;
     private CancellationTokenSource? _searchDebounceCts;
@@ -53,6 +60,15 @@ public partial class SearchableDropdown : UserControl, INotifyPropertyChanged
 
     public static readonly StyledProperty<string?> DisplayMemberPathProperty =
         AvaloniaProperty.Register<SearchableDropdown, string?>(nameof(DisplayMemberPath));
+
+    public static readonly StyledProperty<string?> SelectedDisplayMemberPathProperty =
+        AvaloniaProperty.Register<SearchableDropdown, string?>(nameof(SelectedDisplayMemberPath));
+
+    public static readonly StyledProperty<string?> SearchMemberPathProperty =
+        AvaloniaProperty.Register<SearchableDropdown, string?>(nameof(SearchMemberPath));
+
+    public static readonly StyledProperty<string?> ImageMemberPathProperty =
+        AvaloniaProperty.Register<SearchableDropdown, string?>(nameof(ImageMemberPath));
 
     public static readonly StyledProperty<string?> LabelProperty =
         AvaloniaProperty.Register<SearchableDropdown, string?>(nameof(Label));
@@ -102,6 +118,9 @@ public partial class SearchableDropdown : UserControl, INotifyPropertyChanged
     public static readonly StyledProperty<IEnumerable?> PriorityItemsProperty =
         AvaloniaProperty.Register<SearchableDropdown, IEnumerable?>(nameof(PriorityItems));
 
+    public static readonly StyledProperty<bool> EnterSelectsBestMatchProperty =
+        AvaloniaProperty.Register<SearchableDropdown, bool>(nameof(EnterSelectsBestMatch));
+
     #endregion
 
     #region Properties
@@ -135,6 +154,38 @@ public partial class SearchableDropdown : UserControl, INotifyPropertyChanged
         get => GetValue(DisplayMemberPathProperty);
         set => SetValue(DisplayMemberPathProperty, value);
     }
+
+    /// <summary>
+    /// Gets or sets the property shown in the closed box once an item is picked, such as a short code where
+    /// the list shows a longer name. Falls back to <see cref="DisplayMemberPath"/>.
+    /// </summary>
+    public string? SelectedDisplayMemberPath
+    {
+        get => GetValue(SelectedDisplayMemberPathProperty);
+        set => SetValue(SelectedDisplayMemberPathProperty, value);
+    }
+
+    /// <summary>
+    /// Gets or sets a second property that search also matches, such as an ID that is not displayed.
+    /// </summary>
+    public string? SearchMemberPath
+    {
+        get => GetValue(SearchMemberPathProperty);
+        set => SetValue(SearchMemberPathProperty, value);
+    }
+
+    /// <summary>
+    /// Gets or sets the property holding each item's image, such as a flag, shown before its text.
+    /// </summary>
+    public string? ImageMemberPath
+    {
+        get => GetValue(ImageMemberPathProperty);
+        set => SetValue(ImageMemberPathProperty, value);
+    }
+
+    /// <summary>The selected item's image, shown in the closed box.</summary>
+    public IImage? SelectedItemImage =>
+        SelectedItem is { } item ? GetMemberValue(item, ImageMemberPath) as IImage : null;
 
     /// <summary>
     /// Gets or sets the label text.
@@ -263,6 +314,16 @@ public partial class SearchableDropdown : UserControl, INotifyPropertyChanged
     {
         get => GetValue(PriorityItemsProperty);
         set => SetValue(PriorityItemsProperty, value);
+    }
+
+    /// <summary>
+    /// Gets or sets whether Enter with nothing highlighted picks the top item when it clearly matches the typed
+    /// text. For pure pickers only: a box that also takes new free-text names would swap them for an existing item.
+    /// </summary>
+    public bool EnterSelectsBestMatch
+    {
+        get => GetValue(EnterSelectsBestMatchProperty);
+        set => SetValue(EnterSelectsBestMatchProperty, value);
     }
 
     /// <summary>
@@ -422,12 +483,17 @@ public partial class SearchableDropdown : UserControl, INotifyPropertyChanged
         else if (change.Property == SelectedItemProperty)
         {
             // Sync SearchText when SelectedItem is set programmatically
-            OnSelectedItemChanged(change.NewValue);
+            OnSelectedItemChanged(change.OldValue, change.NewValue);
+        }
+        else if (change.Property == SelectedDisplayMemberPathProperty && SelectedItem != null)
+        {
+            OnSelectedItemChanged(SelectedItem, SelectedItem);
         }
         else if (change.Property == IsDropdownOpenProperty)
         {
             if (change.NewValue is true)
             {
+                _showAll = SelectedItem != null && SearchText == GetSelectedText(SelectedItem);
                 // Refresh filtered items when dropdown opens to ensure latest data
                 UpdateFilteredItems();
                 // Don't highlight any item by default - wait for user to press a key
@@ -448,17 +514,23 @@ public partial class SearchableDropdown : UserControl, INotifyPropertyChanged
         UpdateFilteredItems();
     }
 
-    private void OnSelectedItemChanged(object? newValue)
+    private void OnSelectedItemChanged(object? oldValue, object? newValue)
     {
         _isSettingFromSelectedItem = true;
         try
         {
-            SearchText = newValue != null ? GetDisplayText(newValue) : string.Empty;
+            if (newValue != null)
+                SearchText = GetSelectedText(newValue);
+            // A consumer dropping the pick while someone types over it leaves their text alone.
+            else if (_searchTextBox?.IsFocused != true || oldValue == null || SearchText == GetSelectedText(oldValue))
+                SearchText = string.Empty;
         }
         finally
         {
             _isSettingFromSelectedItem = false;
         }
+
+        RaisePropertyChanged(nameof(SelectedItemImage));
     }
 
     protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
@@ -558,9 +630,11 @@ public partial class SearchableDropdown : UserControl, INotifyPropertyChanged
                 break;
 
             case Key.Enter:
-                if (IsDropdownOpen && _highlightedIndex >= 0)
+                if (IsDropdownOpen)
                 {
-                    var itemToSelect = GetItemByIndex(_highlightedIndex);
+                    var itemToSelect = _highlightedIndex >= 0 ? GetItemByIndex(_highlightedIndex)
+                        : EnterSelectsBestMatch ? FindEnterMatch()
+                        : null;
                     if (itemToSelect != null)
                     {
                         SelectItem(itemToSelect);
@@ -574,6 +648,30 @@ public partial class SearchableDropdown : UserControl, INotifyPropertyChanged
                 e.Handled = true;
                 break;
         }
+    }
+
+    /// <summary>
+    /// The item Enter picks with nothing highlighted: the top of the list, only when it clearly matches the
+    /// typed text rather than a fuzzy guess.
+    /// </summary>
+    private object? FindEnterMatch()
+    {
+        var text = SearchText?.Trim();
+        if (string.IsNullOrEmpty(text))
+            return null;
+
+        if (_showAll)
+            return SelectedItem;
+
+        // A keystroke still inside the debounce window hasn't filtered the list yet.
+        _searchDebounceCts?.Cancel();
+        UpdateFilteredItems();
+
+        var first = GetItemByIndex(0);
+        return first != null
+               && LevenshteinDistance.BestScore(text, GetDisplayText(first), GetMemberText(first, SearchMemberPath)) >= StrongMatchScore
+            ? first
+            : null;
     }
 
     private void MoveHighlight(int direction)
@@ -632,7 +730,7 @@ public partial class SearchableDropdown : UserControl, INotifyPropertyChanged
             return;
 
         SelectedItem = item;
-        SearchText = GetDisplayText(item);
+        SearchText = GetSelectedText(item);
 
         // Rebuild the filtered list synchronously before closing, cancelling any debounced pass.
         // This is what keeps the popup's teardown safe: UpdateFilteredItems' Clear() detaches the
@@ -650,6 +748,19 @@ public partial class SearchableDropdown : UserControl, INotifyPropertyChanged
 
     private void OnSearchTextChanged()
     {
+        if (!_isSettingFromSelectedItem)
+            _showAll = false;
+
+        // Typing over the picked item's name, or deleting it, drops the pick. Without this the box can
+        // read empty while the form still holds the item, and a save writes to the hidden one. Only
+        // while the user types: a consumer setting the text (a pre-filled row, a pending new name)
+        // must not clear what it just selected.
+        if (!_isSettingFromSelectedItem && _searchTextBox?.IsFocused == true
+            && SelectedItem is { } picked && SearchText != GetSelectedText(picked))
+        {
+            SelectedItem = null;
+        }
+
         // Open dropdown only when the user is actually typing (search box focused), not when the
         // text is set programmatically / via binding (e.g. pre-filled rows in the bank importer).
         if (!_isSettingFromSelectedItem && !string.IsNullOrEmpty(SearchText) && !IsDropdownOpen
@@ -696,7 +807,7 @@ public partial class SearchableDropdown : UserControl, INotifyPropertyChanged
         if (ItemsSource == null)
             return;
 
-        var searchText = SearchText ?? string.Empty;
+        var searchText = _showAll ? string.Empty : SearchText ?? string.Empty;
         var prioritySet = new HashSet<object>();
 
         // Build a set of priority items for quick lookup
@@ -730,47 +841,19 @@ public partial class SearchableDropdown : UserControl, INotifyPropertyChanged
         }
         else
         {
-            // Use Levenshtein distance for fuzzy matching
-            var scoredPriorityItems = new List<(object Item, double Score)>();
-            var scoredItems = new List<(object Item, double Score)>();
-
-            // Score priority items
-            foreach (var item in PriorityItems ?? Enumerable.Empty<object>())
-            {
-                if (item == null)
-                    continue;
-
-                var displayText = GetDisplayText(item);
-                var score = LevenshteinDistance.ComputeSearchScore(searchText, displayText);
-
-                if (score >= 0)
-                {
-                    scoredPriorityItems.Add((item, score));
-                }
-            }
-
-            // Score regular items (excluding priority items)
-            foreach (var item in ItemsSource)
-            {
-                if (item == null || prioritySet.Contains(item))
-                    continue;
-
-                var displayText = GetDisplayText(item);
-                var score = LevenshteinDistance.ComputeSearchScore(searchText, displayText);
-
-                if (score >= 0)
-                {
-                    scoredItems.Add((item, score));
-                }
-            }
-
-            // Sort by score descending and add to filtered items
-            foreach (var (item, _) in scoredPriorityItems.OrderByDescending(x => x.Score))
+            var priorityMatches = (PriorityItems ?? Enumerable.Empty<object>())
+                .OfType<object>()
+                .RankBySearch(searchText, i => [GetDisplayText(i), GetMemberText(i, SearchMemberPath)]);
+            foreach (var item in priorityMatches)
             {
                 FilteredPriorityItems.Add(item);
             }
 
-            foreach (var (item, _) in scoredItems.OrderByDescending(x => x.Score))
+            var matches = ItemsSource
+                .OfType<object>()
+                .Where(i => !prioritySet.Contains(i))
+                .RankBySearch(searchText, i => [GetDisplayText(i), GetMemberText(i, SearchMemberPath)]);
+            foreach (var item in matches)
             {
                 FilteredItems.Add(item);
             }
@@ -790,9 +873,24 @@ public partial class SearchableDropdown : UserControl, INotifyPropertyChanged
         if (string.IsNullOrEmpty(DisplayMemberPath))
             return item.ToString() ?? string.Empty;
 
+        return GetMemberText(item, DisplayMemberPath) ?? item.ToString() ?? string.Empty;
+    }
+
+    private string GetSelectedText(object item) =>
+        string.IsNullOrEmpty(SelectedDisplayMemberPath)
+            ? GetDisplayText(item)
+            : GetMemberText(item, SelectedDisplayMemberPath) ?? GetDisplayText(item);
+
+    private static string? GetMemberText(object item, string? path) => GetMemberValue(item, path)?.ToString();
+
+    private static object? GetMemberValue(object item, string? path)
+    {
+        if (string.IsNullOrEmpty(path))
+            return null;
+
         var property = DisplayPropertyCache.GetOrAdd(
-            (item.GetType(), DisplayMemberPath!),
+            (item.GetType(), path),
             static key => key.Item1.GetProperty(key.Item2));
-        return property?.GetValue(item)?.ToString() ?? item.ToString() ?? string.Empty;
+        return property?.GetValue(item);
     }
 }

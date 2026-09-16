@@ -60,14 +60,6 @@
                                 ItemsSource="{Binding Adjustments}"
                                 SearchQuery="{Binding SearchQuery, Mode=TwoWay}"
                                 SearchPlaceholder="{loc:Loc 'Search adjustments...'}"
-                                SearchBoxWidth="{Binding ResponsiveHeader.SearchBoxWidth}"
-                                SearchBoxMinHeight="{Binding ResponsiveHeader.SearchBoxMinHeight}"
-                                SearchIconMargin="{Binding ResponsiveHeader.SearchIconMargin}"
-                                HeaderPadding="{Binding ResponsiveHeader.HeaderPadding}"
-                                HeaderSpacing="{Binding ResponsiveHeader.HeaderSpacing}"
-                                IsCompactMode="{Binding ResponsiveHeader.IsCompactMode}"
-                                IsMediumMode="{Binding ResponsiveHeader.IsMediumMode}"
-                                ShowButtonText="{Binding ResponsiveHeader.ShowButtonText}"
                                 FilterCommand="{Binding OpenFilterModalCommand}"
                                 AddCommand="{Binding OpenAddModalCommand}"
                                 AddButtonText="{loc:Loc 'New Adjustment'}"
@@ -83,9 +75,7 @@
                                 ToggleColumnMenuCommand="{Binding ToggleColumnMenuCommand}"
                                 EmptyIcon="{x:Static icons:Icons.Adjustments}"
                                 EmptyTitle="{loc:Loc 'No adjustments found'}"
-                                EmptyMessage="{loc:Loc 'Stock adjustments will appear here when you add, remove, or set inventory quantities.'}"
-                                BorderSizeChanged="OnHeaderSizeChanged"
-                                TableGridSizeChanged="OnTableSizeChanged">
+                                EmptyMessage="{loc:Loc 'Stock adjustments will appear here when you add, remove, or set inventory quantities.'}">
 
                 <!-- Table Header Content - Using ArgoTableHeader for reduced boilerplate -->
                 <table:ArgoTable.HeaderContent>
@@ -218,12 +208,12 @@
                                         </table:ArgoTableCell>
 
                                         <!-- Previous Stock -->
-                                        <table:ArgoTableCell Text="{Binding PreviousStock}"
+                                        <table:ArgoTableCell Text="{Binding PreviousStockText}"
                                                                  ColumnWidth="{Binding $parent[ItemsControl].((vm:StockAdjustmentsPageViewModel)DataContext).ColumnWidths.PreviousColumnWidth}"
                                                                  IsColumnVisible="{Binding $parent[ItemsControl].((vm:StockAdjustmentsPageViewModel)DataContext).ShowPreviousColumn}" />
 
                                         <!-- New Stock -->
-                                        <table:ArgoTableCell Text="{Binding NewStock}"
+                                        <table:ArgoTableCell Text="{Binding NewStockText}"
                                                                  ColumnWidth="{Binding $parent[ItemsControl].((vm:StockAdjustmentsPageViewModel)DataContext).ColumnWidths.NewColumnWidth}"
                                                                  IsColumnVisible="{Binding $parent[ItemsControl].((vm:StockAdjustmentsPageViewModel)DataContext).ShowNewColumn}" />
 

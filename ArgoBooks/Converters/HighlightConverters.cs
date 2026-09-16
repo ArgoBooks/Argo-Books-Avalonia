@@ -17,14 +17,7 @@ public class HighlightBrushMultiConverter : IMultiValueConverter
         if (values.Count < 2 || !ConverterUtils.AreEqual(values[0], values[1]))
             return Brushes.Transparent;
 
-        // Return SurfaceHoverBrush to match menu-item :focus style
-        if (Application.Current?.Resources != null &&
-            Application.Current.Resources.TryGetResource("SurfaceHoverBrush", Application.Current.ActualThemeVariant, out var resource))
-        {
-            return resource;
-        }
-        // Fallback hover color
-        return new SolidColorBrush(Color.Parse(AppColors.GrayLightest));
+        return ConverterUtils.ThemeBrush("SurfaceHoverBrush", AppColors.GrayLightest);
     }
 }
 
@@ -39,14 +32,7 @@ public class HighlightBorderBrushMultiConverter : IMultiValueConverter
         if (values.Count < 2 || !ConverterUtils.AreEqual(values[0], values[1]))
             return Brushes.Transparent;
 
-        // Return PrimaryBrush to match menu-item :focus border style
-        if (Application.Current?.Resources != null &&
-            Application.Current.Resources.TryGetResource("PrimaryBrush", Application.Current.ActualThemeVariant, out var resource))
-        {
-            return resource;
-        }
-        // Fallback primary color
-        return new SolidColorBrush(Color.Parse(AppColors.Primary));
+        return ConverterUtils.ThemeBrush("PrimaryBrush", AppColors.Primary);
     }
 }
 

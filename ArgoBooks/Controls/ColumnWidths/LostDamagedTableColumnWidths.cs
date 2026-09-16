@@ -37,6 +37,6 @@ public partial class LostDamagedTableColumnWidths : TableColumnWidthsBase
         RegisterColumn("Loss", new ColumnDef { StarValue = 0.6, MinWidth = 60, PreferredWidth = 80 }, w => LossColumnWidth = w);
         RegisterColumn("Actions", new ColumnDef { IsFixed = true, FixedWidth = ActionsWidth(2), MinWidth = ActionsWidth(2) }, w => ActionsColumnWidth = w);
 
-        InitializeColumnWidths();
+        RecalculateWidths();
     }
 }

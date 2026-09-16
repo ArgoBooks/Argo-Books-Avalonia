@@ -24,10 +24,42 @@ public partial class CustomerModalsViewModel : ViewModelBase
     #region Modal State
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsFormOpen))]
     private bool _isAddModalOpen;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsFormOpen))]
     private bool _isEditModalOpen;
+
+    /// <summary>Add and edit share one form, open while either flag is set.</summary>
+    public bool IsFormOpen => IsAddModalOpen || IsEditModalOpen;
+
+    // Set when the form opens and kept on close, so the title doesn't change while it closes.
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FormTitle), nameof(FormSaveText), nameof(ModalIdPlaceholder))]
+    private bool _isEditMode;
+
+    public string FormTitle => IsEditMode ? "Edit Customer".Translate() : "Add Customer".Translate();
+    public string FormSaveText => IsEditMode ? "Save Changes".Translate() : "Add Customer".Translate();
+
+    // A blank ID is generated on add but rejected on edit, so only add hints at the format.
+    public string ModalIdPlaceholder => IsEditMode ? string.Empty : "CUS-xxx".Translate();
+
+    partial void OnIsAddModalOpenChanged(bool value)
+    {
+        if (value) IsEditMode = false;
+    }
+
+    partial void OnIsEditModalOpenChanged(bool value)
+    {
+        if (value) IsEditMode = true;
+    }
+
+    [RelayCommand]
+    private Task RequestCloseFormAsync() => IsEditMode ? RequestCloseEditModalAsync() : RequestCloseAddModalAsync();
+
+    [RelayCommand]
+    private Task SaveFormAsync() => IsEditMode ? SaveEditedCustomerAsync() : SaveNewCustomerAsync();
 
     [ObservableProperty]
     private bool _isFilterModalOpen;
@@ -83,7 +115,7 @@ public partial class CustomerModalsViewModel : ViewModelBase
     private string _modalStateProvince = string.Empty;
 
     [ObservableProperty]
-    private string _modalZipCode = string.Empty;
+    private string _modalPostalCode = string.Empty;
 
     [ObservableProperty]
     private string _modalCountry = string.Empty;
@@ -144,25 +176,7 @@ public partial class CustomerModalsViewModel : ViewModelBase
     /// driven from ModalFirstName + ModalLastName so the avatar circle in the
     /// modal updates as the user types.
     /// </summary>
-    public string ModalInitialsPreview
-    {
-        get
-        {
-            var first = ModalFirstName?.Trim() ?? string.Empty;
-            var last = ModalLastName?.Trim() ?? string.Empty;
-            if (first.Length > 0 && last.Length > 0)
-                return $"{char.ToUpperInvariant(first[0])}{char.ToUpperInvariant(last[0])}";
-            if (first.Length >= 2)
-                return first[..2].ToUpperInvariant();
-            if (first.Length == 1)
-                return first.ToUpperInvariant();
-            if (last.Length >= 2)
-                return last[..2].ToUpperInvariant();
-            if (last.Length == 1)
-                return last.ToUpperInvariant();
-            return "?";
-        }
-    }
+    public string ModalInitialsPreview => Helpers.InitialsHelper.From(ModalFirstName, ModalLastName);
 
     partial void OnModalFirstNameChanged(string value)
     {
@@ -199,19 +213,18 @@ public partial class CustomerModalsViewModel : ViewModelBase
     /// </summary>
     private CustomerDisplayItem? _historyCustomer;
 
-    // Original values for change detection in edit mode
-    private string _originalId = string.Empty;
-    private string _originalFirstName = string.Empty;
-    private string _originalLastName = string.Empty;
-    private string _originalCompanyName = string.Empty;
-    private string _originalEmail = string.Empty;
-    private string _originalPhone = string.Empty;
-    private string _originalStreetAddress = string.Empty;
-    private string _originalCity = string.Empty;
-    private string _originalStateProvince = string.Empty;
-    private string _originalZipCode = string.Empty;
-    private string _originalCountry = string.Empty;
-    private string _originalNotes = string.Empty;
+    private sealed record EditState(
+        string Id, string FirstName, string LastName, string CompanyName, string Email, string Phone,
+        string StreetAddress, string City, string StateProvince, string PostalCode, string Country, string Notes,
+        bool AvatarChanged);
+
+    // The form as the edit modal opened, for change detection.
+    private EditState? _original;
+
+    private EditState Capture() => new(
+        ModalId.Trim(), ModalFirstName, ModalLastName, ModalCompanyName, ModalEmail, ModalPhone,
+        ModalStreetAddress, ModalCity, ModalStateProvince, ModalPostalCode, ModalCountry, ModalNotes,
+        _pendingAvatarSourcePath != null || _shouldRemoveAvatarOnSave);
 
     /// <summary>
     /// Returns true if any data has been entered in the Add modal.
@@ -225,7 +238,7 @@ public partial class CustomerModalsViewModel : ViewModelBase
         !string.IsNullOrWhiteSpace(ModalStreetAddress) ||
         !string.IsNullOrWhiteSpace(ModalCity) ||
         !string.IsNullOrWhiteSpace(ModalStateProvince) ||
-        !string.IsNullOrWhiteSpace(ModalZipCode) ||
+        !string.IsNullOrWhiteSpace(ModalPostalCode) ||
         !string.IsNullOrWhiteSpace(ModalCountry) ||
         !string.IsNullOrWhiteSpace(ModalNotes) ||
         HasModalAvatar;
@@ -233,21 +246,7 @@ public partial class CustomerModalsViewModel : ViewModelBase
     /// <summary>
     /// Returns true if any changes have been made in the Edit modal.
     /// </summary>
-    public bool HasEditModalChanges =>
-        ModalId.Trim() != _originalId ||
-        ModalFirstName != _originalFirstName ||
-        ModalLastName != _originalLastName ||
-        ModalCompanyName != _originalCompanyName ||
-        ModalEmail != _originalEmail ||
-        ModalPhone != _originalPhone ||
-        ModalStreetAddress != _originalStreetAddress ||
-        ModalCity != _originalCity ||
-        ModalStateProvince != _originalStateProvince ||
-        ModalZipCode != _originalZipCode ||
-        ModalCountry != _originalCountry ||
-        ModalNotes != _originalNotes ||
-        _pendingAvatarSourcePath != null ||
-        _shouldRemoveAvatarOnSave;
+    public bool HasEditModalChanges => Capture() != _original;
 
     #endregion
 
@@ -274,14 +273,29 @@ public partial class CustomerModalsViewModel : ViewModelBase
     [ObservableProperty]
     private DateTime? _filterLastRentalTo;
 
-    // Original filter values for change detection (captured when modal opens)
-    private string _originalFilterPaymentStatus = "All";
-    private string _originalFilterCustomerStatus = "All";
-    private string _originalFilterCountry = "All";
-    private string? _originalFilterOutstandingMin;
-    private string? _originalFilterOutstandingMax;
-    private DateTime? _originalFilterLastRentalFrom;
-    private DateTime? _originalFilterLastRentalTo;
+    private sealed record FilterValues(
+        string PaymentStatus, string CustomerStatus, string Country,
+        string? OutstandingMin, string? OutstandingMax,
+        DateTime? LastRentalFrom, DateTime? LastRentalTo)
+    {
+        public static readonly FilterValues Default = new("All", "All", "All", null, null, null, null);
+    }
+
+    private FilterSnapshot<FilterValues>? _filters;
+
+    private FilterSnapshot<FilterValues> Filters => _filters ??= new(FilterValues.Default,
+        () => new(FilterPaymentStatus, FilterCustomerStatus, FilterCountry,
+            FilterOutstandingMin, FilterOutstandingMax, FilterLastRentalFrom, FilterLastRentalTo),
+        v =>
+        {
+            FilterPaymentStatus = v.PaymentStatus;
+            FilterCustomerStatus = v.CustomerStatus;
+            FilterCountry = v.Country;
+            FilterOutstandingMin = v.OutstandingMin;
+            FilterOutstandingMax = v.OutstandingMax;
+            FilterLastRentalFrom = v.LastRentalFrom;
+            FilterLastRentalTo = v.LastRentalTo;
+        });
 
     #endregion
 
@@ -456,7 +470,7 @@ public partial class CustomerModalsViewModel : ViewModelBase
                 Street = ModalStreetAddress.Trim(),
                 City = ModalCity.Trim(),
                 State = ModalStateProvince.Trim(),
-                ZipCode = ModalZipCode.Trim(),
+                ZipCode = ModalPostalCode.Trim(),
                 Country = ModalCountry.Trim()
             },
             Notes = ModalNotes.Trim(),
@@ -555,7 +569,7 @@ public partial class CustomerModalsViewModel : ViewModelBase
         ModalStreetAddress = customer.Address.Street;
         ModalCity = customer.Address.City;
         ModalStateProvince = customer.Address.State;
-        ModalZipCode = customer.Address.ZipCode;
+        ModalPostalCode = customer.Address.ZipCode;
         ModalCountry = customer.Address.Country;
         ModalNotes = customer.Notes;
         ModalStatus = customer.Status switch
@@ -565,20 +579,6 @@ public partial class CustomerModalsViewModel : ViewModelBase
             EntityStatus.Archived => "Banned",
             _ => "Active"
         };
-
-        // Store original values for change detection
-        _originalId = ModalId;
-        _originalFirstName = ModalFirstName;
-        _originalLastName = ModalLastName;
-        _originalCompanyName = ModalCompanyName;
-        _originalEmail = ModalEmail;
-        _originalPhone = ModalPhone;
-        _originalStreetAddress = ModalStreetAddress;
-        _originalCity = ModalCity;
-        _originalStateProvince = ModalStateProvince;
-        _originalZipCode = ModalZipCode;
-        _originalCountry = ModalCountry;
-        _originalNotes = ModalNotes;
 
         // Load existing avatar (if any) into the modal preview.
         // _originalHasAvatar tracks the persisted state (used for change detection so
@@ -606,6 +606,7 @@ public partial class CustomerModalsViewModel : ViewModelBase
         }
         OnPropertyChanged(nameof(ModalInitialsPreview));
 
+        _original = Capture();
         ClearModalErrors();
         IsEditModalOpen = true;
     }
@@ -669,7 +670,7 @@ public partial class CustomerModalsViewModel : ViewModelBase
             Street = ModalStreetAddress.Trim(),
             City = ModalCity.Trim(),
             State = ModalStateProvince.Trim(),
-            ZipCode = ModalZipCode.Trim(),
+            ZipCode = ModalPostalCode.Trim(),
             Country = ModalCountry.Trim()
         };
         var newNotes = ModalNotes.Trim();
@@ -835,99 +836,54 @@ public partial class CustomerModalsViewModel : ViewModelBase
             if (item == null)
                 return;
 
-            // Check if customer is in use
-            var cd = App.CompanyManager?.CompanyData;
-            if (cd != null)
-            {
-                var usages = new List<string>();
-                if (cd.Invoices.Any(i => i.CustomerId == item.Id))
-                    usages.Add("Invoice".Translate());
-                if (cd.Revenues.Any(r => r.CustomerId == item.Id))
-                    usages.Add("Revenue".Translate());
-                if (cd.Rentals.Any(r => r.CustomerId == item.Id))
-                    usages.Add("Rental".Translate());
-                if (cd.RecurringInvoices.Any(ri => ri.CustomerId == item.Id))
-                    usages.Add("Recurring Invoice".Translate());
-                if (RecurringTransactionService.IsCustomerInUse(cd, item.Id))
-                    usages.Add("Recurring Revenue".Translate());
-                if (cd.Payments.Any(p => p.CustomerId == item.Id))
-                    usages.Add("Payment".Translate());
-                if (cd.Returns.Any(r => r.CustomerId == item.Id))
-                    usages.Add("Return".Translate());
-                if (usages.Count > 0)
-                {
-                    await App.ShowWarningMessageBoxAsync(
-                        "Cannot Delete".Translate(),
-                        "This customer cannot be deleted because it is referenced by one or more: {0}.".TranslateFormat(string.Join(", ", usages)));
-                    return;
-                }
-            }
-
-            var dialog = App.ConfirmationDialog;
-            if (dialog == null)
-                return;
-
-            var result = await dialog.ShowAsync(new ConfirmationDialogOptions
-            {
-                Title = "Delete Customer".Translate(),
-                Message = "Are you sure you want to delete this customer?\n\n{0}".TranslateFormat(item.Name),
-                PrimaryButtonText = "Delete".Translate(),
-                CancelButtonText = "Cancel".Translate(),
-                IsPrimaryDestructive = true
-            });
-
-            if (result != ConfirmationResult.Primary)
-                return;
-
             var companyData = App.CompanyManager?.CompanyData;
             if (companyData == null)
                 return;
 
+            if (await BlockIfInUseAsync(
+                    usages => "This customer cannot be deleted because it is referenced by one or more: {0}.".TranslateFormat(usages),
+                    (companyData.Invoices.Any(i => i.CustomerId == item.Id), "Invoice".Translate()),
+                    (companyData.Revenues.Any(r => r.CustomerId == item.Id), "Revenue".Translate()),
+                    (companyData.Rentals.Any(r => r.CustomerId == item.Id), "Rental".Translate()),
+                    (companyData.RecurringInvoices.Any(ri => ri.CustomerId == item.Id), "Recurring Invoice".Translate()),
+                    (RecurringTransactionService.IsCustomerInUse(companyData, item.Id), "Recurring Revenue".Translate()),
+                    (companyData.Payments.Any(p => p.CustomerId == item.Id), "Payment".Translate()),
+                    (companyData.Returns.Any(r => r.CustomerId == item.Id), "Return".Translate())))
+                return;
+
+            if (!await ConfirmDeleteAsync("Delete Customer".Translate(),
+                    "Are you sure you want to delete this customer?\n\n{0}".TranslateFormat(item.Name)))
+                return;
+
             var customer = companyData.Customers.FirstOrDefault(c => c.Id == item.Id);
-            if (customer != null)
+            if (customer == null)
             {
-                var deletedCustomer = customer;
-
-                // Snapshot the avatar bytes BEFORE deleting so undo can restore the
-                // file alongside the customer record. The customer's AvatarFileName is
-                // also captured implicitly, the customer object stays alive in the
-                // closure and is mutated in place by RestoreCustomerAvatar.
-                var deletedAvatarBytes = App.CompanyManager?.ReadCustomerAvatarBytes(deletedCustomer);
-                var savedAvatarFileName = deletedCustomer.AvatarFileName;
-
-                // Clean up the avatar file before removing the customer. This avoids
-                // bloat (and retention of deleted-customer images) inside the .argo
-                // archive on next save.
-                if (App.CompanyManager != null && !string.IsNullOrEmpty(savedAvatarFileName))
-                {
-                    try { await App.CompanyManager.RemoveCustomerAvatarAsync(deletedCustomer); }
-                    catch (Exception ex) { App.ErrorLogger?.LogWarning($"Failed to remove customer avatar on delete: {ex.Message}", "Customer.Delete"); }
-                }
-
-                companyData.Customers.Remove(customer);
-                companyData.MarkAsModified();
-
-                App.UndoRedoManager.RecordAction(new DelegateAction(
-                    $"Delete customer '{deletedCustomer.Name}'",
-                    () =>
-                    {
-                        companyData.Customers.Add(deletedCustomer);
-                        if (deletedAvatarBytes != null)
-                            App.CompanyManager?.RestoreCustomerAvatar(deletedCustomer, deletedAvatarBytes);
-                        companyData.MarkAsModified();
-                        CustomerDeleted?.Invoke(this, EventArgs.Empty);
-                    },
-                    () =>
-                    {
-                        if (deletedAvatarBytes != null)
-                            App.CompanyManager?.RestoreCustomerAvatar(deletedCustomer, null);
-                        companyData.Customers.Remove(deletedCustomer);
-                        companyData.MarkAsModified();
-                        CustomerDeleted?.Invoke(this, EventArgs.Empty);
-                    }));
+                CustomerDeleted?.Invoke(this, EventArgs.Empty);
+                return;
             }
 
-            CustomerDeleted?.Invoke(this, EventArgs.Empty);
+            // Snapshot the avatar bytes before deleting so undo can restore the file with the
+            // record, then remove the file so a deleted customer's image isn't kept in the .argo archive.
+            var avatarBytes = App.CompanyManager?.ReadCustomerAvatarBytes(customer);
+            if (App.CompanyManager != null && !string.IsNullOrEmpty(customer.AvatarFileName))
+            {
+                try { await App.CompanyManager.RemoveCustomerAvatarAsync(customer); }
+                catch (Exception ex) { App.ErrorLogger?.LogWarning($"Failed to remove customer avatar on delete: {ex.Message}", "Customer.Delete"); }
+            }
+
+            RemoveWithUndo(companyData, companyData.Customers, customer, $"Delete customer '{customer.Name}'",
+                () => CustomerDeleted?.Invoke(this, EventArgs.Empty),
+                onRemove: () =>
+                {
+                    // Only a redo finds the file back; the first removal deleted it above.
+                    if (!string.IsNullOrEmpty(customer.AvatarFileName))
+                        App.CompanyManager?.RestoreCustomerAvatar(customer, null);
+                },
+                onRestore: () =>
+                {
+                    if (avatarBytes != null)
+                        App.CompanyManager?.RestoreCustomerAvatar(customer, avatarBytes);
+                });
         }
         catch (Exception ex)
         {
@@ -939,96 +895,38 @@ public partial class CustomerModalsViewModel : ViewModelBase
 
     #region Filter Modal
 
-    /// <summary>
-    /// Returns true if any filter has been changed from the state when the modal was opened.
-    /// </summary>
-    public bool HasFilterModalChanges =>
-        FilterPaymentStatus != _originalFilterPaymentStatus ||
-        FilterCustomerStatus != _originalFilterCustomerStatus ||
-        FilterCountry != _originalFilterCountry ||
-        FilterOutstandingMin != _originalFilterOutstandingMin ||
-        FilterOutstandingMax != _originalFilterOutstandingMax ||
-        FilterLastRentalFrom != _originalFilterLastRentalFrom ||
-        FilterLastRentalTo != _originalFilterLastRentalTo;
-
-    /// <summary>
-    /// Captures the current filter state as original values for change detection.
-    /// </summary>
-    private void CaptureOriginalFilterValues()
-    {
-        _originalFilterPaymentStatus = FilterPaymentStatus;
-        _originalFilterCustomerStatus = FilterCustomerStatus;
-        _originalFilterCountry = FilterCountry;
-        _originalFilterOutstandingMin = FilterOutstandingMin;
-        _originalFilterOutstandingMax = FilterOutstandingMax;
-        _originalFilterLastRentalFrom = FilterLastRentalFrom;
-        _originalFilterLastRentalTo = FilterLastRentalTo;
-    }
+    public bool HasFilterModalChanges => Filters.HasChanges;
 
     [RelayCommand]
     public void OpenFilterModal()
     {
         UpdateCountryOptions();
-        CaptureOriginalFilterValues();
+        Filters.Capture();
         IsFilterModalOpen = true;
     }
 
     private void UpdateCountryOptions()
     {
-        CountryOptions.Clear();
-        CountryOptions.Add("All");
-
-        var companyData = App.CompanyManager?.CompanyData;
-        if (companyData == null) return;
-
-        var countries = companyData.Customers
-            .Select(c => c.Address.Country)
-            .Where(c => !string.IsNullOrWhiteSpace(c))
-            .Distinct()
-            .OrderBy(c => c);
-
-        foreach (var country in countries)
-        {
-            CountryOptions.Add(country);
-        }
+        // The page matches countries after normalising them, so "US" and "United States" are one choice.
+        var addresses = App.CompanyManager?.CompanyData?.Customers.Select(c => c.Address) ?? Enumerable.Empty<Address>();
+        OptionLoader.Fill(CountryOptions,
+            OptionLoader.Countries(addresses)
+                .Select(Core.Data.Countries.NormalizeCountryOrKeep)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(c => c),
+            "All");
     }
 
-    [RelayCommand]
-    public void CloseFilterModal()
-    {
-        IsFilterModalOpen = false;
-    }
+    private void CloseFilterModal() => IsFilterModalOpen = false;
 
+    /// <summary>
+    /// Closes the filter modal, asking first and putting the filters back if they were changed.
+    /// </summary>
     [RelayCommand]
     public async Task RequestCloseFilterModalAsync()
     {
-        if (HasFilterModalChanges)
-        {
-            if (!await ConfirmDiscardFiltersAsync())
-                return;
-
-            // Restore filter values to the state when modal was opened
-            FilterPaymentStatus = _originalFilterPaymentStatus;
-            FilterCustomerStatus = _originalFilterCustomerStatus;
-            FilterCountry = _originalFilterCountry;
-            FilterOutstandingMin = _originalFilterOutstandingMin;
-            FilterOutstandingMax = _originalFilterOutstandingMax;
-            FilterLastRentalFrom = _originalFilterLastRentalFrom;
-            FilterLastRentalTo = _originalFilterLastRentalTo;
-        }
-
-        CloseFilterModal();
-    }
-
-    private void ResetFilterDefaults()
-    {
-        FilterPaymentStatus = "All";
-        FilterCustomerStatus = "All";
-        FilterCountry = "All";
-        FilterOutstandingMin = null;
-        FilterOutstandingMax = null;
-        FilterLastRentalFrom = null;
-        FilterLastRentalTo = null;
+        if (await Filters.ConfirmDiscardAsync(ConfirmDiscardFiltersAsync))
+            CloseFilterModal();
     }
 
     [RelayCommand]
@@ -1041,7 +939,7 @@ public partial class CustomerModalsViewModel : ViewModelBase
     [RelayCommand]
     public void ClearFilters()
     {
-        ResetFilterDefaults();
+        Filters.Reset();
         FiltersCleared?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
     }
@@ -1106,14 +1004,11 @@ public partial class CustomerModalsViewModel : ViewModelBase
         var rentals = companyData.Rentals.Where(r => r.CustomerId == customerId);
         foreach (var rental in rentals)
         {
-            var rentalItem = companyData.RentalInventory?.FirstOrDefault(p => p.Id == rental.RentalItemId);
-            var invItem = rentalItem != null ? companyData.Inventory.FirstOrDefault(i => i.Id == rentalItem.InventoryItemId) : null;
-            var rentalProductName = invItem != null ? companyData.GetProduct(invItem.ProductId)?.Name : null;
             historyItems.Add(new CustomerHistoryItem
             {
                 Date = rental.StartDate,
                 Type = "Rental",
-                Description = $"Rental - {rentalProductName ?? "Unknown Item"}",
+                Description = $"Rental - {Core.Services.RentalBookings.ItemNames(companyData, rental)}",
                 Amount = rental.TotalCost ?? 0,
                 Status = rental.Status.ToString()
             });
@@ -1192,51 +1087,49 @@ public partial class CustomerModalsViewModel : ViewModelBase
         CustomerHistory.Clear();
     }
 
+    private sealed record HistoryFilterValues(
+        string Type, string Status, DateTime? DateFrom, DateTime? DateTo, string? AmountMin, string? AmountMax)
+    {
+        public static readonly HistoryFilterValues Default = new("All", "All", null, null, null, null);
+    }
+
+    private FilterSnapshot<HistoryFilterValues>? _historyFilters;
+
+    private FilterSnapshot<HistoryFilterValues> HistoryFilters => _historyFilters ??= new(HistoryFilterValues.Default,
+        () => new(HistoryFilterType, HistoryFilterStatus, HistoryFilterDateFrom, HistoryFilterDateTo,
+            HistoryFilterAmountMin, HistoryFilterAmountMax),
+        v =>
+        {
+            HistoryFilterType = v.Type;
+            HistoryFilterStatus = v.Status;
+            HistoryFilterDateFrom = v.DateFrom;
+            HistoryFilterDateTo = v.DateTo;
+            HistoryFilterAmountMin = v.AmountMin;
+            HistoryFilterAmountMax = v.AmountMax;
+        });
+
     /// <summary>
-    /// Returns true if any history filter has been changed from its default value.
+    /// Returns true if any history filter has been changed since the history filter modal opened.
     /// </summary>
-    public bool HasHistoryFilterChanges =>
-        HistoryFilterType != "All" ||
-        HistoryFilterStatus != "All" ||
-        HistoryFilterDateFrom != null ||
-        HistoryFilterDateTo != null ||
-        !string.IsNullOrWhiteSpace(HistoryFilterAmountMin) ||
-        !string.IsNullOrWhiteSpace(HistoryFilterAmountMax);
+    public bool HasHistoryFilterChanges => HistoryFilters.HasChanges;
 
     [RelayCommand]
     public void OpenHistoryFilterModal()
     {
+        HistoryFilters.Capture();
         IsHistoryFilterModalOpen = true;
     }
 
-    [RelayCommand]
-    public void CloseHistoryFilterModal()
-    {
-        IsHistoryFilterModalOpen = false;
-    }
+    private void CloseHistoryFilterModal() => IsHistoryFilterModalOpen = false;
 
+    /// <summary>
+    /// Closes the history filter modal, asking first and putting the filters back if they were changed.
+    /// </summary>
     [RelayCommand]
     public async Task RequestCloseHistoryFilterModalAsync()
     {
-        if (HasHistoryFilterChanges)
-        {
-            if (!await ConfirmDiscardFiltersAsync())
-                return;
-
-            ResetHistoryFilterDefaults();
-        }
-
-        CloseHistoryFilterModal();
-    }
-
-    private void ResetHistoryFilterDefaults()
-    {
-        HistoryFilterType = "All";
-        HistoryFilterStatus = "All";
-        HistoryFilterDateFrom = null;
-        HistoryFilterDateTo = null;
-        HistoryFilterAmountMin = null;
-        HistoryFilterAmountMax = null;
+        if (await HistoryFilters.ConfirmDiscardAsync(ConfirmDiscardFiltersAsync))
+            CloseHistoryFilterModal();
     }
 
     [RelayCommand]
@@ -1252,7 +1145,7 @@ public partial class CustomerModalsViewModel : ViewModelBase
     [RelayCommand]
     public void ClearHistoryFilters()
     {
-        ResetHistoryFilterDefaults();
+        HistoryFilters.Reset();
         if (_historyCustomer != null)
         {
             LoadCustomerHistory(_historyCustomer.Id);
@@ -1267,7 +1160,6 @@ public partial class CustomerModalsViewModel : ViewModelBase
     private void ClearModalFields()
     {
         ModalId = string.Empty;
-        _originalId = string.Empty;
         ModalFirstName = string.Empty;
         ModalLastName = string.Empty;
         ModalCompanyName = string.Empty;
@@ -1276,7 +1168,7 @@ public partial class CustomerModalsViewModel : ViewModelBase
         ModalStreetAddress = string.Empty;
         ModalCity = string.Empty;
         ModalStateProvince = string.Empty;
-        ModalZipCode = string.Empty;
+        ModalPostalCode = string.Empty;
         ModalCountry = string.Empty;
         ModalNotes = string.Empty;
         ModalStatus = "Active";

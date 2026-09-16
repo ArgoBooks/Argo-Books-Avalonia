@@ -58,8 +58,8 @@ public partial class RentalRecordsTableColumnWidths : TableColumnWidthsBase
         RegisterColumn("Deposit", new ColumnDef { StarValue = 0.6, MinWidth = 55, PreferredWidth = 80 }, w => DepositColumnWidth = w);
         RegisterColumn("Paid", new ColumnDef { StarValue = 0.4, MinWidth = 40, PreferredWidth = 55 }, w => PaidColumnWidth = w);
         RegisterColumn("Invoice", new ColumnDef { StarValue = 0.7, MinWidth = 65, PreferredWidth = 90 }, w => InvoiceColumnWidth = w);
-        RegisterColumn("Actions", new ColumnDef { IsFixed = true, FixedWidth = ActionsWidth(4), MinWidth = ActionsWidth(4) }, w => ActionsColumnWidth = w);
+        RegisterColumn("Actions", new ColumnDef { IsFixed = true, FixedWidth = ActionsWidth(5), MinWidth = ActionsWidth(5) }, w => ActionsColumnWidth = w);
 
-        InitializeColumnWidths();
+        RecalculateWidths();
     }
 }

@@ -1,3 +1,4 @@
+using ArgoBooks.Core.Services;
 using Xunit;
 
 namespace ArgoBooks.Tests.Services;
@@ -7,46 +8,26 @@ namespace ArgoBooks.Tests.Services;
 /// </summary>
 public class AppInfoTests
 {
-    #region VersionNumber Tests
-
-    [Fact]
-    public void VersionNumber_IsNotNullOrEmpty()
-    {
-        var version = Core.Services.AppInfo.VersionNumber;
-
-        Assert.False(string.IsNullOrEmpty(version));
-    }
-
     [Fact]
     public void VersionNumber_MatchesXDotXDotXFormat()
     {
-        var version = Core.Services.AppInfo.VersionNumber;
-
-        // Should match pattern like "1.0.0" or "2.3.1"
-        Assert.Matches(@"^\d+\.\d+\.\d+$", version);
+        Assert.Matches(@"^\d+\.\d+\.\d+$", AppInfo.VersionNumber);
     }
 
     [Fact]
-    public void VersionNumber_IsCached()
+    public void VersionNumber_IsTheSharedProductVersion()
     {
-        var first = Core.Services.AppInfo.VersionNumber;
-        var second = Core.Services.AppInfo.VersionNumber;
+        // The test assembly gets its version from the same Directory.Build.props, so this fails if
+        // AppInfo reports the test host's version or falls back to "1.0.0".
+        var shared = typeof(AppInfoTests).Assembly.GetName().Version!;
 
-        Assert.Equal(first, second);
+        Assert.Equal($"{shared.Major}.{shared.Minor}.{shared.Build}", AppInfo.VersionNumber);
+        Assert.Equal(shared.ToString(3), AppInfo.AssemblyVersion?.ToString(3));
     }
-
-    #endregion
-
-    #region AssemblyVersion Tests
 
     [Fact]
-    public void AssemblyVersion_DoesNotThrow()
+    public void Version_IsVPrefixedVersionNumber()
     {
-        // AssemblyVersion may be null in test context (no entry assembly)
-        // but accessing it should not throw
-        // Accessing AssemblyVersion should not throw even when entry assembly is null
-        _ = Core.Services.AppInfo.AssemblyVersion;
+        Assert.Equal($"V.{AppInfo.VersionNumber}", AppInfo.Version);
     }
-
-    #endregion
 }

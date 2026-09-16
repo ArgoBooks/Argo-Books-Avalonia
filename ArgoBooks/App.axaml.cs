@@ -295,12 +295,12 @@ public partial class App : Application
     /// <summary>
     /// Gets the categories tutorial view model for first-visit tutorial.
     /// </summary>
-    public static CategoriesTutorialViewModel? CategoriesTutorialViewModel => _mainWindowViewModel?.CategoriesTutorialViewModel;
+    public static PageTutorialViewModel? CategoriesTutorialViewModel => _mainWindowViewModel?.CategoriesTutorialViewModel;
 
     /// <summary>
     /// Gets the products tutorial view model for first-visit tutorial.
     /// </summary>
-    public static ProductsTutorialViewModel? ProductsTutorialViewModel => _mainWindowViewModel?.ProductsTutorialViewModel;
+    public static PageTutorialViewModel? ProductsTutorialViewModel => _mainWindowViewModel?.ProductsTutorialViewModel;
 
     /// <summary>
     /// Adds a notification to the notification panel.
@@ -885,7 +885,7 @@ public partial class App : Application
     /// lowered stock into a new status. Transactions call this on every stock change, so without the
     /// check each sale from an already-low item would repeat the same alert.
     /// </summary>
-    public static void CheckAndNotifyStockStatus(InventoryItem item, int previousStock)
+    public static void CheckAndNotifyStockStatus(InventoryItem item, decimal previousStock)
     {
         if (item.InStock >= previousStock || item.CalculateStatus(previousStock) == item.CalculateStatus())
             return;
@@ -1306,7 +1306,7 @@ public partial class App : Application
             SharedHttpClient = httpClient;
             var geoLocationService = new GeoLocationService(httpClient, errorLogger);
             var telemetryStorageService = new TelemetryStorageService(errorLogger: errorLogger);
-            var appVersion = Services.AppInfo.VersionNumber;
+            var appVersion = AppInfo.VersionNumber;
             var telemetryUploadService = new TelemetryUploadService(telemetryStorageService, httpClient, errorLogger, appVersion);
             TelemetryManager = new TelemetryManager(
                 telemetryStorageService,
@@ -1558,8 +1558,8 @@ public partial class App : Application
             // Initialize tutorial ViewModels for first-time user experience
             _mainWindowViewModel.TutorialWelcomeViewModel = new TutorialWelcomeViewModel();
             _mainWindowViewModel.AppTourViewModel = new AppTourViewModel();
-            _mainWindowViewModel.CategoriesTutorialViewModel = new CategoriesTutorialViewModel();
-            _mainWindowViewModel.ProductsTutorialViewModel = new ProductsTutorialViewModel();
+            _mainWindowViewModel.CategoriesTutorialViewModel = new PageTutorialViewModel(TutorialService.Pages.Categories, PageTutorialViewModel.CategoriesSteps);
+            _mainWindowViewModel.ProductsTutorialViewModel = new PageTutorialViewModel(TutorialService.Pages.Products, PageTutorialViewModel.ProductsSteps);
 
             // Wire up tutorial flow: Welcome -> App Tour
             _mainWindowViewModel.TutorialWelcomeViewModel.StartTourRequested += (_, _) =>
@@ -1695,7 +1695,7 @@ public partial class App : Application
             // best-effort and run off the UI thread so launch isn't blocked.
             try
             {
-                var flushVersion = Services.AppInfo.VersionNumber;
+                var flushVersion = AppInfo.VersionNumber;
                 _ = Task.Run(async () =>
                 {
                     try
@@ -1735,7 +1735,7 @@ public partial class App : Application
             // is disposed inside the task so it doesn't leak past the one-shot report.
             try
             {
-                var appVersion = Services.AppInfo.VersionNumber;
+                var appVersion = AppInfo.VersionNumber;
                 var capturedErrorLogger = ErrorLogger;
                 _ = Task.Run(async () =>
                 {
@@ -1787,7 +1787,7 @@ public partial class App : Application
                 // Refresh cached translations once per app version. Without this, users
                 // never see translations added after their first language download because
                 // DownloadAndCacheLanguageAsync skips when a cached file exists.
-                var currentVersion = Services.AppInfo.VersionNumber;
+                var currentVersion = AppInfo.VersionNumber;
                 if (SettingsService.GlobalSettings.Ui.LastLanguageVersion != currentVersion)
                 {
                     _ = Task.Run(async () =>
@@ -2475,7 +2475,7 @@ public partial class App : Application
         if (!Version.TryParse(sampleVersion, out var sampleVer))
             return false;
 
-        var appVersion = Services.AppInfo.AssemblyVersion;
+        var appVersion = AppInfo.AssemblyVersion;
         if (appVersion == null)
             return false;
 
@@ -4521,10 +4521,6 @@ public partial class App : Application
             {
                 _productsPageViewModel = new ProductsPageViewModel();
             }
-            // Update plan status each time (may have changed)
-            _productsPageViewModel.HasPremium = _appShellViewModel!.SidebarViewModel.HasPremium;
-            // Reset modal state
-            _productsPageViewModel.IsAddModalOpen = false;
             _productsPageViewModel.HighlightTransactionId = null;
             if (param is TransactionNavigationParameter navParam)
             {
@@ -4537,11 +4533,6 @@ public partial class App : Application
                 if (dict.TryGetValue("selectedTabIndex", out var tabIndex) && tabIndex is int index)
                 {
                     _productsPageViewModel.SelectedTabIndex = index;
-                }
-                // Check if we should open the add modal
-                if (dict.TryGetValue("openAddModal", out var openAdd) && openAdd is true)
-                {
-                    _productsPageViewModel.IsAddModalOpen = true;
                 }
             }
             return new ProductsPage { DataContext = _productsPageViewModel };
@@ -4591,19 +4582,12 @@ public partial class App : Application
         navigationService.RegisterPage("Categories", param =>
         {
             _categoriesPageViewModel ??= new CategoriesPageViewModel();
-            // Reset modal state
-            _categoriesPageViewModel.IsAddModalOpen = false;
             if (param is Dictionary<string, object?> dict)
             {
                 // Check if we should select a specific tab (0 = Expenses, 1 = Revenue)
                 if (dict.TryGetValue("selectedTabIndex", out var tabIndex) && tabIndex is int index)
                 {
                     _categoriesPageViewModel.SelectedTabIndex = index;
-                }
-                // Check if we should open the add modal
-                if (dict.TryGetValue("openAddModal", out var openAdd) && openAdd is true)
-                {
-                    _categoriesPageViewModel.IsAddModalOpen = true;
                 }
             }
             return new CategoriesPage { DataContext = _categoriesPageViewModel };
@@ -4620,7 +4604,6 @@ public partial class App : Application
         CategoriesPage CategoriesPageForTab(int tabIndex)
         {
             _categoriesPageViewModel ??= new CategoriesPageViewModel();
-            _categoriesPageViewModel.IsAddModalOpen = false;
             _categoriesPageViewModel.SelectedTabIndex = tabIndex;
             return new CategoriesPage { DataContext = _categoriesPageViewModel };
         }
@@ -4628,8 +4611,6 @@ public partial class App : Application
         ProductsPage ProductsPageForTab(int tabIndex)
         {
             _productsPageViewModel ??= new ProductsPageViewModel();
-            _productsPageViewModel.HasPremium = _appShellViewModel!.SidebarViewModel.HasPremium;
-            _productsPageViewModel.IsAddModalOpen = false;
             _productsPageViewModel.HighlightTransactionId = null;
             _productsPageViewModel.SelectedTabIndex = tabIndex;
             return new ProductsPage { DataContext = _productsPageViewModel };

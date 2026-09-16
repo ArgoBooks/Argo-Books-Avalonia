@@ -1,0 +1,81 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="using:ArgoBooks.Controls"
+             xmlns:loc="using:ArgoBooks.Localization"
+             xmlns:icons="using:ArgoBooks"
+             mc:Ignorable="d" d:DesignWidth="450" d:DesignHeight="350"
+             x:Class="ArgoBooks.Controls.UndoRecordModal"
+             x:DataType="controls:UndoRecordModal"
+             x:Name="Root">
+
+    <controls:ModalOverlay IsOpen="{Binding #Root.IsOpen}"
+                           ClosingCommand="{Binding #Root.CloseCommand}">
+        <controls:ModalOverlay.ModalContent>
+            <Border Classes="modal-card"
+                    Width="450"
+                    MaxHeight="500"
+                    ClipToBounds="True">
+                <Grid RowDefinitions="Auto,*,Auto">
+                    <controls:ModalHeader Grid.Row="0" CloseCommand="{Binding #Root.CloseCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Border Width="40" Height="40"
+                                    CornerRadius="8"
+                                    Background="{DynamicResource WarningLightBrush}">
+                                <PathIcon Data="{x:Static icons:Icons.Returns}"
+                                          Width="20" Height="20"
+                                          Foreground="#D97706" />
+                            </Border>
+                            <TextBlock Classes="modal-title" Text="{Binding #Root.Title}" />
+                        </StackPanel>
+                    </controls:ModalHeader>
+
+                    <StackPanel Grid.Row="1" Spacing="16" Margin="24">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="{Binding #Root.ItemLabel}"
+                                       FontSize="13"
+                                       FontWeight="Medium"
+                                       Foreground="{DynamicResource TextPrimaryBrush}" />
+                            <TextBlock Text="{Binding #Root.Description}"
+                                       FontSize="14"
+                                       FontWeight="Medium"
+                                       Foreground="{DynamicResource TextPrimaryBrush}" />
+                        </StackPanel>
+
+                        <StackPanel Spacing="8">
+                            <TextBlock FontSize="13"
+                                       FontWeight="Medium"
+                                       Foreground="{DynamicResource TextPrimaryBrush}">
+                                <Run Text="{loc:Loc 'Reason for undo'}" />
+                                <Run Text="{loc:Loc '(optional)'}" Foreground="{DynamicResource TextTertiaryBrush}" />
+                            </TextBlock>
+                            <TextBox Text="{Binding #Root.Reason, Mode=TwoWay}"
+                                     PlaceholderText="{Binding #Root.ReasonPlaceholder}"
+                                     Classes="form-input"
+                                     AcceptsReturn="True"
+                                     TextWrapping="Wrap"
+                                     MinHeight="80"
+                                     MaxHeight="120"
+                                     MaxLength="500" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <Border Classes="modal-footer" Grid.Row="2">
+                        <Grid ColumnDefinitions="*,Auto,Auto">
+                            <Button Grid.Column="1"
+                                    Content="{loc:Loc 'Cancel'}"
+                                    Classes="secondary-button"
+                                    Margin="0,0,12,0"
+                                    Command="{Binding #Root.CloseCommand}" />
+                            <Button Grid.Column="2"
+                                    Content="{Binding #Root.ConfirmText}"
+                                    Classes="danger-button"
+                                    Command="{Binding #Root.ConfirmCommand}" />
+                        </Grid>
+                    </Border>
+                </Grid>
+            </Border>
+        </controls:ModalOverlay.ModalContent>
+    </controls:ModalOverlay>
+</UserControl>

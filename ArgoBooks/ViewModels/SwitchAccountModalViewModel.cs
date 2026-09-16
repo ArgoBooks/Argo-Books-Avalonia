@@ -112,15 +112,7 @@ public partial class SwitchAccountModalViewModel : ViewModelBase
         // Filter and score accounts
         var filteredAccounts = _allAccounts
             .Where(a => !a.IsCurrent) // Exclude current account
-            .Select(a => new
-            {
-                Account = a,
-                NameScore = LevenshteinDistance.ComputeSearchScore(query, a.Name),
-                DescScore = LevenshteinDistance.ComputeSearchScore(query, a.Description)
-            })
-            .Where(x => string.IsNullOrEmpty(query) || x.NameScore > 0 || x.DescScore > 0)
-            .OrderByDescending(x => Math.Max(x.NameScore, x.DescScore))
-            .Select(x => x.Account);
+            .RankBySearch(query, a => [a.Name, a.Description]);
 
         foreach (var account in filteredAccounts)
         {

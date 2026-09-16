@@ -29,7 +29,7 @@ public class StripeDetailImporter
             var customerId = ResolveCustomer(data, ch);
             var productId = ResolveProduct(data, ch.ProductName);
 
-            var currency = string.IsNullOrWhiteSpace(ch.Currency) ? "USD" : ch.Currency.ToUpperInvariant();
+            var currency = ImportLookup.NormalizeCurrency(ch.Currency);
             var gross = ArgoMoney.ToDecimal(ch.GrossCents, currency);
             var tax = ArgoMoney.ToDecimal(ch.TaxCents, currency);
             var discount = ArgoMoney.ToDecimal(ch.DiscountCents, currency);
@@ -37,10 +37,9 @@ public class StripeDetailImporter
             var taxRate = subtotal > 0 ? tax / subtotal : 0m;
             var date = DateTimeOffset.FromUnixTimeSeconds(ch.CreatedUnix).LocalDateTime;
 
-            data.IdCounters.Revenue++;
             var rev = new Revenue
             {
-                Id = $"REV-{date:yyyy}-{data.IdCounters.Revenue:D5}",
+                Id = new IdGenerator(data).NextRevenueId(date),
                 Date = date,
                 Description = ch.ProductName,
                 CustomerId = customerId ?? string.Empty,
@@ -75,12 +74,11 @@ public class StripeDetailImporter
 
             if (ch.FeeCents > 0)
             {
-                data.IdCounters.Expense++;
-                var feeCurrency = string.IsNullOrWhiteSpace(ch.FeeCurrency) ? currency : ch.FeeCurrency.ToUpperInvariant();
+                var feeCurrency = ImportLookup.NormalizeCurrency(ch.FeeCurrency, fallback: currency);
                 var feeAmount = ArgoMoney.ToDecimal(ch.FeeCents, feeCurrency);
                 var fee = new Expense
                 {
-                    Id = $"PUR-{date:yyyy}-{data.IdCounters.Expense:D5}",
+                    Id = new IdGenerator(data).NextExpenseId(date),
                     Date = date,
                     Description = "Stripe processing fee",
                     Quantity = 1,
@@ -108,9 +106,7 @@ public class StripeDetailImporter
         if (string.IsNullOrWhiteSpace(key)) return null;
         if (_customerCache.TryGetValue(key, out var cached)) return cached;
 
-        var existing = !string.IsNullOrWhiteSpace(ch.CustomerEmail)
-            ? data.Customers.FirstOrDefault(c => string.Equals(c.Email, ch.CustomerEmail, StringComparison.OrdinalIgnoreCase))
-            : data.Customers.FirstOrDefault(c => string.Equals(c.Name, ch.CustomerName, StringComparison.OrdinalIgnoreCase));
+        var existing = ImportLookup.FindCustomer(data, ch.CustomerEmail, ch.CustomerName);
         if (existing != null) { _customerCache[key] = existing.Id; return existing.Id; }
 
         var customer = new Customer
@@ -127,8 +123,7 @@ public class StripeDetailImporter
     private string ResolveProduct(CompanyData data, string name)
     {
         if (_productCache.TryGetValue(name, out var cached)) return cached;
-        var existing = data.Products.FirstOrDefault(p =>
-            p.Type == CategoryType.Revenue && string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
+        var existing = ImportLookup.FindProduct(data, name, CategoryType.Revenue);
         if (existing != null) { _productCache[name] = existing.Id; return existing.Id; }
 
         var categoryId = ResolveStripeCategory(data);
@@ -156,7 +151,7 @@ public class StripeDetailImporter
         foreach (var ch in charges)
         {
             if (ch.AmountRefundedCents <= 0) continue;
-            var currency = string.IsNullOrWhiteSpace(ch.Currency) ? "USD" : ch.Currency.ToUpperInvariant();
+            var currency = ImportLookup.NormalizeCurrency(ch.Currency);
             var amount = ArgoMoney.ToDecimal(ch.AmountRefundedCents, currency);
 
             var rev = data.Revenues.FirstOrDefault(r => r.ReferenceNumber == ch.ChargeId);
@@ -183,11 +178,11 @@ public class StripeDetailImporter
                 if (data.Expenses.Any(e => e.ReferenceNumber == ch.ChargeId && e.Description == "Stripe refund"))
                     continue;
 
-                data.IdCounters.Expense++;
+                var refundDate = DateTime.Now;
                 var exp = new Expense
                 {
-                    Id = $"PUR-{DateTime.Now:yyyy}-{data.IdCounters.Expense:D5}",
-                    Date = DateTime.Now,
+                    Id = new IdGenerator(data).NextExpenseId(refundDate),
+                    Date = refundDate,
                     Description = "Stripe refund",
                     Quantity = 1,
                     UnitPrice = amount,
@@ -210,14 +205,7 @@ public class StripeDetailImporter
     private string ResolveStripeCategory(CompanyData data)
     {
         if (_stripeCategoryId != null) return _stripeCategoryId;
-        var existing = data.Categories.FirstOrDefault(c =>
-            c.Type == CategoryType.Revenue && string.Equals(c.Name, "Stripe", StringComparison.OrdinalIgnoreCase));
-        if (existing != null) { _stripeCategoryId = existing.Id; return existing.Id; }
-
-        data.IdCounters.Category++;
-        var cat = new Category { Id = $"CAT-SAL-{data.IdCounters.Category:D3}", Name = "Stripe", Type = CategoryType.Revenue };
-        data.Categories.Add(cat);
-        _stripeCategoryId = cat.Id;
-        return cat.Id;
+        _stripeCategoryId = ImportLookup.FindOrCreateCategory(data, CategoryType.Revenue, "Stripe", out _).Id;
+        return _stripeCategoryId;
     }
 }

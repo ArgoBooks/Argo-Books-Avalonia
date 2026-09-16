@@ -227,7 +227,6 @@ public partial class VersionHistoryModalViewModel : ViewModelBase
 
         // Saved events only; unsaved events appear once the file is saved.
         var events = _eventLogService.GetFilteredEvents(
-            searchQuery: null,
             actionFilter: null,
             entityTypeFilter: entityTypeFilter)
             .Where(e => e.IsSaved)
@@ -241,19 +240,8 @@ public partial class VersionHistoryModalViewModel : ViewModelBase
         if (!string.IsNullOrWhiteSpace(SearchQuery))
         {
             filteredEvents = events
-                .Select(e => new
-                {
-                    Event = e,
-                    Score = new[] { e.Description, e.EntityName, e.EntityType }
-                        .Where(f => !string.IsNullOrEmpty(f))
-                        .Select(f => LevenshteinDistance.ComputeSearchScore(SearchQuery, f))
-                        .DefaultIfEmpty(-1)
-                        .Max()
-                })
-                .Where(x => x.Score >= 0)
-                .OrderByDescending(x => x.Score)
-                .ThenByDescending(x => x.Event.Timestamp)
-                .Select(x => x.Event)
+                .OrderByDescending(e => e.Timestamp)
+                .RankBySearch(SearchQuery, e => [e.Description, e.EntityName, e.EntityType])
                 .ToList();
         }
         else
@@ -263,7 +251,7 @@ public partial class VersionHistoryModalViewModel : ViewModelBase
                 .ToList();
         }
 
-        TotalEventCount = _eventLogService.GetFilteredEvents(searchQuery: null).Count(e => e.IsSaved);
+        TotalEventCount = _eventLogService.GetFilteredEvents().Count(e => e.IsSaved);
         FilteredEventCount = filteredEvents.Count;
         HasEvents = TotalEventCount > 0;
         IsFiltered = actionFilter.HasValue

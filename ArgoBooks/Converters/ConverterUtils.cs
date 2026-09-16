@@ -1,3 +1,6 @@
+using Avalonia;
+using Avalonia.Media;
+
 namespace ArgoBooks.Converters;
 
 /// <summary>
@@ -5,15 +8,20 @@ namespace ArgoBooks.Converters;
 /// </summary>
 internal static class ConverterUtils
 {
+    public static bool AreEqual(object? value1, object? value2) => Equals(value1, value2);
+
     /// <summary>
-    /// Checks if two objects are equal using reference equality or Equals.
+    /// Looks up a brush resource for the current theme variant, falling back to a hex color.
     /// </summary>
-    public static bool AreEqual(object? value1, object? value2)
+    public static IBrush ThemeBrush(string key, string fallbackHex)
     {
-        if (value1 == null && value2 == null)
-            return true;
-        if (value1 == null || value2 == null)
-            return false;
-        return ReferenceEquals(value1, value2) || value1.Equals(value2);
+        var app = Application.Current;
+        if (app?.Resources != null &&
+            app.Resources.TryGetResource(key, app.ActualThemeVariant, out var resource) &&
+            resource is IBrush brush)
+        {
+            return brush;
+        }
+        return new SolidColorBrush(Color.Parse(fallbackHex));
     }
 }

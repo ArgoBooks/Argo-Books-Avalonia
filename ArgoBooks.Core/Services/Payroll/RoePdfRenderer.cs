@@ -3,6 +3,7 @@ using ArgoBooks.Core.Models.Payroll;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
+using static ArgoBooks.Core.Services.Payroll.PayrollPdf;
 
 namespace ArgoBooks.Core.Services.Payroll;
 
@@ -197,36 +198,8 @@ public static class RoePdfRenderer
         return ms.ToArray();
     }
 
-    private static IEnumerable<string> AddressLines(Models.Common.Address address)
-    {
-        if (!string.IsNullOrWhiteSpace(address.Street))
-        {
-            yield return address.Street;
-        }
-
-        string cityLine = string.Join(", ",
-            new[] { address.City, address.State, address.ZipCode }.Where(s => !string.IsNullOrWhiteSpace(s)));
-
-        if (!string.IsNullOrWhiteSpace(cityLine))
-        {
-            yield return cityLine;
-        }
-    }
-
     private static void Line(ColumnDescriptor col, string block, string label, string value, bool bold = false) =>
-        col.Item().PaddingTop(2).Row(r =>
-        {
-            r.ConstantItem(52).Text($"Block {block}").FontSize(9).FontColor(Colors.Grey.Darken2);
-
-            var left = r.RelativeItem().Text(label);
-            var right = r.ConstantItem(130).AlignRight().Text(value);
-
-            if (bold)
-            {
-                left.SemiBold();
-                right.SemiBold();
-            }
-        });
+        LabelledRow(col, $"Block {block}", label, value, 52, 130, bold);
 
     private static string Frequency(PayFrequency frequency) => frequency switch
     {
@@ -239,11 +212,4 @@ public static class RoePdfRenderer
     private static string Date(DateTime? value) =>
         value?.ToString("d MMMM yyyy", CultureInfo.CurrentCulture) ?? "not recorded";
 
-    private static string FormatSin(string sin)
-    {
-        string digits = new(sin.Where(char.IsAsciiDigit).ToArray());
-        return digits.Length == 9 ? $"{digits[..3]} {digits[3..6]} {digits[6..]}" : "not provided";
-    }
-
-    private static string Money(decimal value) => $"${value:N2}";
 }

@@ -15,40 +15,21 @@
     </Design.DataContext>
 
     <Panel>
-        <!-- Add Product Modal -->
-        <controls:ModalOverlay IsOpen="{Binding IsAddModalOpen}"
-                               ClosingCommand="{Binding RequestCloseAddModalCommand}">
+        <!-- Add / Edit Product Modal -->
+        <controls:ModalOverlay IsOpen="{Binding IsFormOpen, Mode=OneWay}"
+                               ClosingCommand="{Binding RequestCloseFormCommand}">
             <controls:ModalOverlay.ModalContent>
-                <Border Background="{DynamicResource SurfaceBrush}"
-                    BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="1" CornerRadius="12" Width="500" MaxHeight="700"
-                    HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Border Classes="modal-card"
+                    Width="550" MaxHeight="700">
                 <Grid RowDefinitions="Auto,*,Auto">
-                    <Border Grid.Row="0"
-                            Padding="24,20"
-                            BorderBrush="{DynamicResource BorderBrush}"
-                            BorderThickness="0,0,0,1">
-                        <Grid ColumnDefinitions="*,Auto">
-                            <TextBlock Grid.Column="0"
-                                       Text="{Binding AddModalTitle}"
-                                       FontSize="18"
-                                       FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextPrimaryBrush}" />
-                            <Button Grid.Column="1"
-                                    Classes="icon-button"
-                                    Command="{Binding CloseAddModalCommand}">
-                                <PathIcon Data="{x:Static local:Icons.Close}"
-                                          Width="20" Height="20" />
-                            </Button>
-                        </Grid>
-                    </Border>
+                    <controls:ModalHeader Grid.Row="0" Title="{Binding FormTitle}" CloseCommand="{Binding RequestCloseFormCommand}" />
 
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                         <StackPanel Margin="24" Spacing="16">
                             <Grid ColumnDefinitions="Auto,16,*">
                                 <StackPanel Grid.Column="0" Spacing="6" Width="120">
                                     <TextBlock Text="{loc:Loc 'ID'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                    <TextBox Text="{Binding ModalId, Mode=TwoWay}" Classes="form-input" PlaceholderText="{loc:Loc 'PRD-xxx'}" MaxLength="20" />
+                                    <TextBox Text="{Binding ModalId, Mode=TwoWay}" Classes="form-input" PlaceholderText="{Binding ModalIdPlaceholder}" MaxLength="20" />
                                     <TextBlock Text="{Binding ModalIdError}" FontSize="12" Foreground="{DynamicResource ErrorBrush}" TextWrapping="Wrap"
                                                IsVisible="{Binding ModalIdError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                 </StackPanel>
@@ -87,6 +68,7 @@
                                     </TextBlock>
                                     <controls:CategoryInput Categories="{Binding CategoryItems}"
                                                             SelectedCategoryId="{Binding ModalCategoryId, Mode=TwoWay}"
+                                                            TypedText="{Binding ModalCategoryText, Mode=TwoWay}"
                                                             OpenCategoriesPageCommand="{Binding OpenCategoriesWithAddModalCommand}" />
                                     <TextBlock TextWrapping="Wrap" Text="{Binding ModalCategoryError}" FontSize="12" Foreground="{DynamicResource ErrorBrush}"
                                                IsVisible="{Binding ModalCategoryError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
@@ -95,11 +77,13 @@
 
                             <!-- Supplier and Price Row -->
                             <Grid ColumnDefinitions="*,16,*">
-                                <StackPanel Grid.Column="0" Spacing="6">
+                                <StackPanel Grid.Column="0" Spacing="6" IsVisible="{Binding IsExpensesTab}">
                                     <TextBlock Text="{loc:Loc Supplier}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
                                     <controls:SearchableDropdown ItemsSource="{Binding AvailableSuppliers}"
                                                                 SelectedItem="{Binding ModalSupplier}"
+                                                                SearchText="{Binding ModalSupplierText, Mode=TwoWay}"
                                                                 DisplayMemberPath="Name"
+                                                                SearchMemberPath="Id"
                                                                 Placeholder="{loc:Loc 'Search suppliers...'}"
                                                                 ShowAddNew="True"
                                                                 AddNewText="{loc:Loc 'Create new supplier'}"
@@ -108,7 +92,7 @@
                                                                 EmptyCreateLinkText="{loc:Loc 'Create'}"
                                                                 EmptyCreateCommand="{Binding OpenSuppliersWithAddModalCommand}" />
                                 </StackPanel>
-                                <StackPanel Grid.Column="2" Spacing="6" IsVisible="{Binding !IsExpensesTab}">
+                                <StackPanel Grid.Column="0" Spacing="6" IsVisible="{Binding !IsExpensesTab}">
                                     <TextBlock Text="{loc:Loc 'Default Unit Price'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
                                     <TextBox Text="{Binding ModalUnitPrice, Mode=TwoWay}" Classes="form-input" PlaceholderText="0.00" MaxLength="13" />
                                 </StackPanel>
@@ -123,144 +107,20 @@
                                      IsVisible="{Binding IsProductSelected}"
                                      FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" />
 
-                            <Grid ColumnDefinitions="*,16,*" IsVisible="{Binding ModalTrackInventory}">
-                                <StackPanel Grid.Column="0" Spacing="6">
-                                    <TextBlock Text="{loc:Loc 'Reorder Point'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                    <Grid ColumnDefinitions="*,Auto">
-                                        <TextBox Grid.Column="0" Text="{Binding ModalReorderPoint, Mode=TwoWay}" Classes="form-input" PlaceholderText="0" MaxLength="7" />
-                                        <TextBlock Grid.Column="1" Text="{loc:Loc units}" FontSize="13" Foreground="{DynamicResource TextTertiaryBrush}" VerticalAlignment="Center" Margin="8,0,0,0" />
-                                    </Grid>
-                                </StackPanel>
-                                <StackPanel Grid.Column="2" Spacing="6">
-                                    <TextBlock Text="{loc:Loc 'Overstock Threshold'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                    <Grid ColumnDefinitions="*,Auto">
-                                        <TextBox Grid.Column="0" Text="{Binding ModalOverstockThreshold, Mode=TwoWay}" Classes="form-input" PlaceholderText="0" MaxLength="7" />
-                                        <TextBlock Grid.Column="1" Text="{loc:Loc units}" FontSize="13" Foreground="{DynamicResource TextTertiaryBrush}" VerticalAlignment="Center" Margin="8,0,0,0" />
-                                    </Grid>
-                                </StackPanel>
-                            </Grid>
-                        </StackPanel>
-                    </ScrollViewer>
-
-                    <Border Grid.Row="2" Padding="24,16" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12">
-                            <Button Classes="secondary-button" Content="{loc:Loc Cancel}" Command="{Binding CloseAddModalCommand}" />
-                            <Button Classes="primary-button" Content="{Binding AddModalSaveText}" Command="{Binding SaveNewProductCommand}" />
-                        </StackPanel>
-                    </Border>
-                </Grid>
-                </Border>
-            </controls:ModalOverlay.ModalContent>
-        </controls:ModalOverlay>
-
-        <!-- Edit Product Modal -->
-        <controls:ModalOverlay IsOpen="{Binding IsEditModalOpen}"
-                               ClosingCommand="{Binding RequestCloseEditModalCommand}">
-            <controls:ModalOverlay.ModalContent>
-                <Border Background="{DynamicResource SurfaceBrush}"
-                    BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="1" CornerRadius="12" Width="550" MaxHeight="700"
-                    HorizontalAlignment="Center" VerticalAlignment="Center">
-                <Grid RowDefinitions="Auto,*,Auto">
-                    <Border Grid.Row="0"
-                            Padding="24,20"
-                            BorderBrush="{DynamicResource BorderBrush}"
-                            BorderThickness="0,0,0,1">
-                        <Grid ColumnDefinitions="*,Auto">
-                            <TextBlock Grid.Column="0"
-                                       Text="{Binding EditModalTitle}"
-                                       FontSize="18"
-                                       FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextPrimaryBrush}" />
-                            <Button Grid.Column="1"
-                                    Classes="icon-button"
-                                    Command="{Binding CloseEditModalCommand}">
-                                <PathIcon Data="{x:Static local:Icons.Close}"
-                                          Width="20" Height="20" />
-                            </Button>
-                        </Grid>
-                    </Border>
-
-                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                        <StackPanel Margin="24" Spacing="16">
-                            <Grid ColumnDefinitions="Auto,16,*">
-                                <StackPanel Grid.Column="0" Spacing="6" Width="120">
-                                    <TextBlock Text="{loc:Loc 'ID'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                    <TextBox Text="{Binding ModalId, Mode=TwoWay}" Classes="form-input" MaxLength="20" />
-                                    <TextBlock Text="{Binding ModalIdError}" FontSize="12" Foreground="{DynamicResource ErrorBrush}" TextWrapping="Wrap"
-                                               IsVisible="{Binding ModalIdError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                                </StackPanel>
-                                <StackPanel Grid.Column="2" Spacing="6">
-                                    <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}">
-                                        <Run Text="{loc:Loc 'Product name'}" /><Run Text=" *" Foreground="{DynamicResource ErrorBrush}" />
-                                    </TextBlock>
-                                    <TextBox Text="{Binding ModalProductName, Mode=TwoWay}" Classes="form-input" PlaceholderText="{loc:Loc 'Enter product name'}" MaxLength="100" />
-                                    <TextBlock TextWrapping="Wrap" Text="{Binding ModalProductNameError}" FontSize="12" Foreground="{DynamicResource ErrorBrush}"
-                                               IsVisible="{Binding ModalProductNameError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                                </StackPanel>
-                            </Grid>
-
-                            <StackPanel Spacing="6">
-                                <TextBlock Text="{loc:Loc Description}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                <TextBox Text="{Binding ModalDescription, Mode=TwoWay}" Classes="form-input" PlaceholderText="{loc:Loc 'Enter description'}"
-                                         AcceptsReturn="True" TextWrapping="Wrap" MinHeight="80" MaxHeight="120" MaxLength="500" />
+                            <StackPanel Spacing="6" IsVisible="{Binding ModalTrackInventory}">
+                                <TextBlock Text="{loc:Loc Unit}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                <ComboBox ItemsSource="{Binding UnitOptions}"
+                                          SelectedItem="{Binding ModalUnitOfMeasure, Mode=TwoWay}"
+                                          Classes="form-combobox"
+                                          HorizontalAlignment="Stretch">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Converter={StaticResource TranslateConverter}}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
                             </StackPanel>
 
-                            <Grid ColumnDefinitions="*,16,*">
-                                <StackPanel Grid.Column="0" Spacing="6">
-                                    <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}">
-                                        <Run Text="{loc:Loc 'Item Type'}" /><Run Text=" *" Foreground="{DynamicResource ErrorBrush}" />
-                                    </TextBlock>
-                                    <ComboBox ItemsSource="{Binding ItemTypes}" SelectedItem="{Binding ModalItemType}" Classes="form-combobox" PlaceholderText="{loc:Loc 'Select type'}">
-                                        <ComboBox.ItemTemplate>
-                                            <DataTemplate>
-                                                <TextBlock Text="{Binding Converter={StaticResource TranslateConverter}}" />
-                                            </DataTemplate>
-                                        </ComboBox.ItemTemplate>
-                                    </ComboBox>
-                                </StackPanel>
-                                <StackPanel Grid.Column="2" Spacing="6">
-                                    <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}">
-                                        <Run Text="{loc:Loc Category}" /><Run Text=" *" Foreground="{DynamicResource ErrorBrush}" />
-                                    </TextBlock>
-                                    <controls:CategoryInput Categories="{Binding CategoryItems}"
-                                                            SelectedCategoryId="{Binding ModalCategoryId, Mode=TwoWay}"
-                                                            OpenCategoriesPageCommand="{Binding OpenCategoriesWithAddModalCommand}" />
-                                    <TextBlock TextWrapping="Wrap" Text="{Binding ModalCategoryError}" FontSize="12" Foreground="{DynamicResource ErrorBrush}"
-                                               IsVisible="{Binding ModalCategoryError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                                </StackPanel>
-                            </Grid>
-
-                            <!-- Supplier and Price Row -->
-                            <Grid ColumnDefinitions="*,16,*">
-                                <StackPanel Grid.Column="0" Spacing="6">
-                                    <TextBlock Text="{loc:Loc Supplier}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                    <controls:SearchableDropdown ItemsSource="{Binding AvailableSuppliers}"
-                                                                SelectedItem="{Binding ModalSupplier}"
-                                                                DisplayMemberPath="Name"
-                                                                Placeholder="{loc:Loc 'Search suppliers...'}"
-                                                                ShowAddNew="True"
-                                                                AddNewText="{loc:Loc 'Create new supplier'}"
-                                                                AddNewCommand="{Binding OpenSuppliersWithAddModalCommand}"
-                                                                EmptyMessage="{loc:Loc 'No suppliers.'}"
-                                                                EmptyCreateLinkText="{loc:Loc 'Create'}"
-                                                                EmptyCreateCommand="{Binding OpenSuppliersWithAddModalCommand}" />
-                                </StackPanel>
-                                <StackPanel Grid.Column="2" Spacing="6" IsVisible="{Binding !IsExpensesTab}">
-                                    <TextBlock Text="{loc:Loc 'Default Unit Price'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                    <TextBox Text="{Binding ModalUnitPrice, Mode=TwoWay}" Classes="form-input" PlaceholderText="0.00" MaxLength="13" />
-                                </StackPanel>
-                                <StackPanel Grid.Column="2" Spacing="6" IsVisible="{Binding IsExpensesTab}">
-                                    <TextBlock Text="{loc:Loc 'Default Cost Price'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                    <TextBox Text="{Binding ModalCostPrice, Mode=TwoWay}" Classes="form-input" PlaceholderText="0.00" MaxLength="13" />
-                                </StackPanel>
-                            </Grid>
-
-                            <CheckBox IsChecked="{Binding ModalTrackInventory, Mode=TwoWay}"
-                                     Content="{loc:Loc 'Track Inventory'}"
-                                     IsVisible="{Binding IsProductSelected}"
-                                     FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" />
-
                             <Grid ColumnDefinitions="*,16,*" IsVisible="{Binding ModalTrackInventory}">
                                 <StackPanel Grid.Column="0" Spacing="6">
                                     <TextBlock Text="{loc:Loc 'Reorder Point'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
@@ -280,10 +140,10 @@
                         </StackPanel>
                     </ScrollViewer>
 
-                    <Border Grid.Row="2" Padding="24,16" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12">
-                            <Button Classes="secondary-button" Content="{loc:Loc Cancel}" Command="{Binding CloseEditModalCommand}" />
-                            <Button Classes="primary-button" Content="{loc:Loc 'Save Changes'}" Command="{Binding SaveEditedProductCommand}" />
+                    <Border Classes="modal-footer" Grid.Row="2">
+                        <StackPanel Classes="modal-actions">
+                            <Button Classes="secondary-button" Content="{loc:Loc Cancel}" Command="{Binding RequestCloseFormCommand}" />
+                            <Button Classes="primary-button" Content="{Binding FormSaveText}" Command="{Binding SaveFormCommand}" />
                         </StackPanel>
                     </Border>
                 </Grid>
@@ -295,20 +155,12 @@
         <controls:ModalOverlay IsOpen="{Binding IsFilterModalOpen}"
                                ClosingCommand="{Binding RequestCloseFilterModalCommand}">
             <controls:ModalOverlay.ModalContent>
-                <Border Background="{DynamicResource SurfaceBrush}"
-                    BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="1" CornerRadius="12" Width="400"
-                    HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Border Classes="modal-card"
+                    Width="400">
                 <Grid RowDefinitions="Auto,*,Auto">
-                    <Border Grid.Row="0" Padding="24,20" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
-                        <Grid ColumnDefinitions="*,Auto">
-                            <TextBlock Grid.Column="0" Text="{loc:Loc 'Filter Products'}" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
-                            <Button Grid.Column="1" Classes="icon-button" Command="{Binding CloseFilterModalCommand}">
-                                <PathIcon Data="{x:Static local:Icons.Close}"
-                                          Width="20" Height="20" />
-                            </Button>
-                        </Grid>
-                    </Border>
+                    <controls:ModalHeader Grid.Row="0"
+                                          Title="{loc:Loc 'Filter Products'}"
+                                          CloseCommand="{Binding RequestCloseFilterModalCommand}" />
 
                     <StackPanel Grid.Row="1" Margin="24" Spacing="20">
                         <StackPanel Spacing="6">
@@ -328,20 +180,21 @@
                                                          DisplayMemberPath="Name"
                                                          Placeholder="{loc:Loc 'Search categories...'}" />
                         </StackPanel>
-                        <StackPanel Spacing="6">
+                        <StackPanel Spacing="6" IsVisible="{Binding IsExpensesTab}">
                             <TextBlock Text="{loc:Loc Supplier}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
                             <controls:SearchableDropdown ItemsSource="{Binding AvailableSuppliers}"
                                                          SelectedItem="{Binding FilterSupplier}"
                                                          DisplayMemberPath="Name"
+                                                         SearchMemberPath="Id"
                                                          Placeholder="{loc:Loc 'Search suppliers...'}" />
                         </StackPanel>
                     </StackPanel>
 
-                    <Border Grid.Row="2" Padding="24,16" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
+                    <Border Classes="modal-footer" Grid.Row="2">
                         <Grid ColumnDefinitions="Auto,*,Auto">
                             <Button Grid.Column="0" Classes="secondary-button" Content="{loc:Loc 'Clear filters'}" Command="{Binding ClearFiltersCommand}" />
                             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12">
-                                <Button Classes="secondary-button" Content="{loc:Loc Cancel}" Command="{Binding CloseFilterModalCommand}" />
+                                <Button Classes="secondary-button" Content="{loc:Loc Cancel}" Command="{Binding RequestCloseFilterModalCommand}" />
                                 <Button Classes="primary-button" Content="{loc:Loc Apply}" Command="{Binding ApplyFiltersCommand}" />
                             </StackPanel>
                         </Grid>

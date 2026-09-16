@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using ArgoBooks.Core.Services;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Entities;
 using ArgoBooks.Core.Models.Inventory;
@@ -42,7 +43,7 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
     private string _selectedItemProductName = string.Empty;
 
     [ObservableProperty]
-    private int _currentStock;
+    private decimal _currentStock;
 
     [ObservableProperty]
     private string _adjustmentQuantity = string.Empty;
@@ -71,15 +72,15 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
     {
         get
         {
-            if (!int.TryParse(AdjustmentQuantity, out var qty))
-                return CurrentStock.ToString();
+            if (!decimal.TryParse(AdjustmentQuantity, out var qty))
+                return StockUnits.Format(CurrentStock);
 
             return AdjustmentType switch
             {
-                "Add" => (CurrentStock + qty).ToString(),
-                "Remove" => Math.Max(0, CurrentStock - qty).ToString(),
-                "Set" => qty.ToString(),
-                _ => CurrentStock.ToString()
+                "Add" => StockUnits.Format(CurrentStock + qty),
+                "Remove" => StockUnits.Format(Math.Max(0, CurrentStock - qty)),
+                "Set" => StockUnits.Format(qty),
+                _ => StockUnits.Format(CurrentStock)
             };
         }
     }
@@ -97,6 +98,137 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
     partial void OnAdjustmentTypeChanged(string value)
     {
         OnPropertyChanged(nameof(CalculatedNewStock));
+    }
+
+    public string CurrentStockText => StockUnits.Format(CurrentStock);
+
+    partial void OnCurrentStockChanged(decimal value) => OnPropertyChanged(nameof(CurrentStockText));
+
+    #endregion
+
+    #region Transfer Stock Modal
+
+    [ObservableProperty]
+    private bool _isTransferStockModalOpen;
+
+    [ObservableProperty]
+    private string _transferProductName = string.Empty;
+
+    [ObservableProperty]
+    private string _transferFromLocationName = string.Empty;
+
+    [ObservableProperty]
+    private string _transferAvailableText = string.Empty;
+
+    [ObservableProperty]
+    private Location? _transferToLocation;
+
+    [ObservableProperty]
+    private string _transferQuantity = string.Empty;
+
+    [ObservableProperty]
+    private string _transferNotes = string.Empty;
+
+    [ObservableProperty]
+    private string? _transferError;
+
+    /// <summary>Locations the stock can move to: every location except the one it is at.</summary>
+    public ObservableCollection<Location> TransferLocations { get; } = [];
+
+    private string? _transferItemId;
+
+    partial void OnTransferToLocationChanged(Location? value)
+    {
+        if (value != null)
+            TransferError = null;
+    }
+
+    /// <summary>
+    /// Opens the transfer modal for a stock record.
+    /// </summary>
+    public void OpenTransferStockModal(string itemId)
+    {
+        var companyData = App.CompanyManager?.CompanyData;
+        var item = companyData?.Inventory.FirstOrDefault(i => i.Id == itemId);
+        if (companyData == null || item == null) return;
+
+        _transferItemId = itemId;
+        TransferProductName = companyData.GetProduct(item.ProductId)?.Name ?? "Unknown Product".Translate();
+        TransferFromLocationName = companyData.GetLocation(item.LocationId)?.Name ?? "Unknown".Translate();
+        TransferAvailableText = StockUnits.Format(item.InStock, item.UnitOfMeasure);
+
+        TransferLocations.Clear();
+        foreach (var location in companyData.Locations.Where(l => l.Id != item.LocationId).OrderBy(l => l.Name))
+            TransferLocations.Add(location);
+
+        TransferToLocation = null;
+        TransferQuantity = string.Empty;
+        TransferNotes = string.Empty;
+        TransferError = TransferLocations.Count == 0
+            ? "Add another location before moving stock.".Translate()
+            : null;
+        IsTransferStockModalOpen = true;
+    }
+
+    [RelayCommand]
+    private void CloseTransferStockModal()
+    {
+        IsTransferStockModalOpen = false;
+        _transferItemId = null;
+    }
+
+    /// <summary>
+    /// Moves the stock, recording the transfer and an adjustment at each end, as one undo step.
+    /// </summary>
+    [RelayCommand]
+    private void SaveTransfer()
+    {
+        var companyData = App.CompanyManager?.CompanyData;
+        var item = companyData?.Inventory.FirstOrDefault(i => i.Id == _transferItemId);
+        if (companyData == null || item == null) return;
+
+        if (TransferToLocation == null)
+        {
+            TransferError = "Pick where the stock is going.".Translate();
+            return;
+        }
+
+        if (!decimal.TryParse(TransferQuantity, out var quantity) || quantity <= 0)
+        {
+            TransferError = "Please enter a valid quantity.".Translate();
+            return;
+        }
+
+        if (quantity > item.InStock)
+        {
+            TransferError = "Only {0} in stock here.".TranslateFormat(StockUnits.Format(item.InStock, item.UnitOfMeasure));
+            return;
+        }
+
+        var destinationId = TransferToLocation.Id;
+        var notes = TransferNotes.Trim();
+        var result = InventoryStockService.Transfer(companyData, item, destinationId, quantity, notes);
+        App.CheckAndNotifyStockStatus(item, result.SourceOldStock);
+        companyData.MarkAsModified();
+
+        var productName = TransferProductName;
+        App.UndoRedoManager.RecordAction(new DelegateAction(
+            $"Transfer stock for '{productName}'",
+            () =>
+            {
+                InventoryStockService.RevertTransfer(companyData, result);
+                companyData.MarkAsModified();
+                ItemSaved?.Invoke(this, EventArgs.Empty);
+            },
+            () =>
+            {
+                result = InventoryStockService.Transfer(companyData, item, destinationId, quantity, notes);
+                companyData.MarkAsModified();
+                ItemSaved?.Invoke(this, EventArgs.Empty);
+            }));
+
+        ItemSaved?.Invoke(this, EventArgs.Empty);
+        CloseTransferStockModal();
     }
 
     #endregion
@@ -178,7 +310,7 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
     /// <summary>
     /// Opens the adjust stock modal for an item.
     /// </summary>
-    public void OpenAdjustStockModal(string itemId, string productName, int currentStock)
+    public void OpenAdjustStockModal(string itemId, string productName, decimal currentStock)
     {
         SelectedItemId = itemId;
         SelectedItemProductName = productName;
@@ -234,7 +366,7 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
         HasAdjustmentQuantityError = false;
 
         // Validate quantity
-        if (!int.TryParse(AdjustmentQuantity, out var quantity) || quantity < 0)
+        if (!decimal.TryParse(AdjustmentQuantity, out var quantity) || quantity < 0)
         {
             HasAdjustmentQuantityError = true;
             return;
@@ -506,7 +638,7 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
             hasErrors = true;
         }
 
-        if (!int.TryParse(AddItemQuantity, out var quantity) || quantity < 0)
+        if (!decimal.TryParse(AddItemQuantity, out var quantity) || quantity < 0)
         {
             HasAddItemQuantityError = true;
             hasErrors = true;
@@ -532,8 +664,8 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
         var newId = $"INV-ITM-{companyData.IdCounters.InventoryItem:D5}";
 
         // Parse thresholds
-        int.TryParse(AddItemReorderPoint, out var reorderPoint);
-        int.TryParse(AddItemOverstockThreshold, out var overstockThreshold);
+        decimal.TryParse(AddItemReorderPoint, out var reorderPoint);
+        decimal.TryParse(AddItemOverstockThreshold, out var overstockThreshold);
 
         var newItem = new InventoryItem
         {
@@ -545,6 +677,7 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
             Reserved = 0,
             ReorderPoint = reorderPoint,
             OverstockThreshold = overstockThreshold,
+            UnitOfMeasure = SelectedProduct.UnitOfMeasure,
             UnitCost = SelectedProduct.CostPrice,
             LastUpdated = DateTime.UtcNow
         };
@@ -624,41 +757,31 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
     /// </summary>
     public ObservableCollection<string> FilterStatusOptions { get; } = new(InventoryStatusExtensions.GetFilterOptions());
 
-    // Original filter values for change detection
-    private string _originalFilterCategory = "All";
-    private string _originalFilterLocation = "All";
-    private string _originalFilterStatus = "All";
-
     /// <summary>
-    /// Returns true if any filter has been changed from its original value when the modal was opened.
+    /// Raised when filters are cleared.
     /// </summary>
-    public bool HasFilterModalChanges =>
-        FilterCategory != _originalFilterCategory ||
-        FilterLocation != _originalFilterLocation ||
-        FilterStatus != _originalFilterStatus;
+    public event EventHandler? FiltersCleared;
 
-    /// <summary>
-    /// Captures the current filter values as the original values for change detection.
-    /// </summary>
-    private void CaptureOriginalFilterValues()
+    private sealed record FilterValues(string Category, string Location, string Status)
     {
-        _originalFilterCategory = FilterCategory;
-        _originalFilterLocation = FilterLocation;
-        _originalFilterStatus = FilterStatus;
+        public static readonly FilterValues Default = new("All", "All", "All");
     }
 
-    /// <summary>
-    /// Restores filter values to their original values when the modal was opened.
-    /// </summary>
-    private void RestoreOriginalFilterValues()
-    {
-        FilterCategory = _originalFilterCategory;
-        FilterLocation = _originalFilterLocation;
-        FilterStatus = _originalFilterStatus;
-    }
+    private FilterSnapshot<FilterValues>? _filters;
+
+    private FilterSnapshot<FilterValues> Filters => _filters ??= new(FilterValues.Default,
+        () => new(FilterCategory, FilterLocation, FilterStatus),
+        v =>
+        {
+            FilterCategory = v.Category;
+            FilterLocation = v.Location;
+            FilterStatus = v.Status;
+        });
+
+    public bool HasFilterModalChanges => Filters.HasChanges;
 
     /// <summary>
-    /// Opens the filter modal.
+    /// Opens the filter modal seeded with the page's current filters.
     /// </summary>
     public void OpenFilterModal(IEnumerable<string> categories, IEnumerable<string> locations,
         string currentCategory, string currentLocation, string currentStatus)
@@ -673,38 +796,21 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
         foreach (var loc in locations.Where(l => l != "All"))
             FilterLocations.Add(loc);
 
-        FilterCategory = currentCategory;
-        FilterLocation = currentLocation;
-        FilterStatus = currentStatus;
-
-        CaptureOriginalFilterValues();
+        Filters.Set(new(currentCategory, currentLocation, currentStatus));
+        Filters.Capture();
         IsFilterModalOpen = true;
     }
 
-    /// <summary>
-    /// Closes the filter modal.
-    /// </summary>
-    [RelayCommand]
-    private void CloseFilterModal()
-    {
-        IsFilterModalOpen = false;
-    }
+    private void CloseFilterModal() => IsFilterModalOpen = false;
 
     /// <summary>
-    /// Requests to close the Filter modal, showing confirmation if changes were made.
+    /// Closes the filter modal, asking first and putting the filters back if they were changed.
     /// </summary>
     [RelayCommand]
     public async Task RequestCloseFilterModalAsync()
     {
-        if (HasFilterModalChanges)
-        {
-            if (!await ConfirmDiscardFiltersAsync())
-                return;
-
-            RestoreOriginalFilterValues();
-        }
-
-        CloseFilterModal();
+        if (await Filters.ConfirmDiscardAsync(ConfirmDiscardFiltersAsync))
+            CloseFilterModal();
     }
 
     /// <summary>
@@ -714,7 +820,7 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
     private void ApplyFilters()
     {
         FiltersApplied?.Invoke(this, new FilterAppliedEventArgs(FilterCategory, FilterLocation, FilterStatus));
-        IsFilterModalOpen = false;
+        CloseFilterModal();
     }
 
     /// <summary>
@@ -723,18 +829,9 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
     [RelayCommand]
     private void ClearFilters()
     {
-        ResetFilterDefaults();
+        Filters.Reset();
+        FiltersCleared?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
-    }
-
-    /// <summary>
-    /// Resets filter values to their defaults.
-    /// </summary>
-    private void ResetFilterDefaults()
-    {
-        FilterCategory = "All";
-        FilterLocation = "All";
-        FilterStatus = "All";
     }
 
     #endregion

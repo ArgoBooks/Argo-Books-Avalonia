@@ -1,4 +1,5 @@
 using ArgoBooks.Core.Data;
+using ArgoBooks.Core.Models.Inventory;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Charts;
 using ArgoBooks.Core.Models.Common;
@@ -72,27 +73,15 @@ public class ReportRenderer : IDisposable
         return ShouldShowCurrency(chartType) ? $"{_currencySymbol}{value:N0}" : $"{value:N0}";
     }
 
-    /// <summary>
-    /// Converts a USD amount to the current display currency using cached exchange rates.
-    /// Returns the original amount if the display currency is USD or no rate is available.
-    /// </summary>
-    private double ConvertFromUSD(double amountUSD, DateTime? date = null)
-    {
-        if (string.Equals(_currencyCode, "USD", StringComparison.OrdinalIgnoreCase))
-            return amountUSD;
-
-        var converted = ExchangeRateService.Instance?.ConvertFromUSD(
-            (decimal)amountUSD, _currencyCode, date ?? DateTime.Today);
-        return converted.HasValue ? (double)converted.Value : amountUSD;
-    }
+    private double ConvertFromUSD(double amountUSD, DateTime? date = null) =>
+        (double)DisplayCurrency.FromUSD((decimal)amountUSD, _currencyCode, date ?? DateTime.Today);
 
     /// <summary>
-    /// A single USD amount converted to the report's display currency at its own date
-    /// (docs/Calculations.md §3/§3a). Aggregate <c>Effective*USD</c> through this; never sum the
-    /// native <c>Total</c> field, which silently mixes dollars and euros.
+    /// A single USD amount in the report's display currency at its own date (docs/Calculations.md §3a).
+    /// Aggregate <c>Effective*USD</c> through this; never sum the native <c>Total</c> field.
     /// </summary>
-    private decimal ToDisplayCurrency(decimal amountUSD, DateTime date)
-        => (decimal)ConvertFromUSD((double)amountUSD, date);
+    private decimal ToDisplayCurrency(decimal amountUSD, DateTime date) =>
+        DisplayCurrency.FromUSD(amountUSD, _currencyCode, date);
 
     private string PendingText => Tr("Pending");
 
@@ -125,7 +114,9 @@ public class ReportRenderer : IDisposable
         _errorLogger = errorLogger;
 
         // Resolve currency code and symbol from company settings
-        _currencyCode = companyData?.Settings.Localization.Currency ?? "USD";
+        _currencyCode = companyData == null
+            ? "USD"
+            : DisplayCurrency.Resolve(companyData.Settings.Localization.Currency, DisplayCurrency.ReportDates(companyData, config.Filters.EndDate));
         _currencySymbol = CurrencyInfo.GetSymbol(_currencyCode);
 
         // Initialize chart data service for rendering actual charts
@@ -2834,7 +2825,7 @@ public class ReportRenderer : IDisposable
                         "Date" => r.StartDate.ToString("MM/dd/yyyy"),
                         "Due Date" => r.DueDate.ToString("MM/dd/yyyy"),
                         "Return Date" => r.ReturnDate?.ToString("MM/dd/yyyy") ?? "",
-                        "Rate" => FormatCurrency(r.RateAmount),
+                        "Rate" => r.RateAmount is { } rate ? FormatCurrency(rate) : "",
                         "Total" => FormatCurrency(r.TotalCost),
                         "Status" => r.Status,
                         _ => ""
@@ -2860,9 +2851,9 @@ public class ReportRenderer : IDisposable
                         "Product" => r.ProductName,
                         "SKU" => r.Sku,
                         "Location" => r.LocationName,
-                        "In Stock" => r.InStock.ToString("N0"),
-                        "Reserved" => r.Reserved.ToString("N0"),
-                        "Available" => r.Available.ToString("N0"),
+                        "In Stock" => StockUnits.Format(r.InStock),
+                        "Reserved" => StockUnits.Format(r.Reserved),
+                        "Available" => StockUnits.Format(r.Available),
                         "Unit Cost" => FormatCurrency(r.UnitCost),
                         "Total" => FormatCurrency(r.TotalValue),
                         "Status" => r.Status,
@@ -2890,9 +2881,9 @@ public class ReportRenderer : IDisposable
                         "Date" => r.Timestamp.ToString("MM/dd/yyyy"),
                         "Product" => r.ProductName,
                         "Type" => r.AdjustmentType,
-                        "Qty" => r.Quantity.ToString("N0"),
-                        "Previous" => r.PreviousStock.ToString("N0"),
-                        "New" => r.NewStock.ToString("N0"),
+                        "Qty" => StockUnits.Format(r.Quantity),
+                        "Previous" => StockUnits.Format(r.PreviousStock),
+                        "New" => StockUnits.Format(r.NewStock),
                         "Reason" => r.Reason,
                         _ => ""
                     }).ToList());
@@ -2905,7 +2896,7 @@ public class ReportRenderer : IDisposable
                         "Product" => r.ProductName,
                         "From" => r.SourceLocation,
                         "To" => r.DestinationLocation,
-                        "Qty" => r.Quantity.ToString("N0"),
+                        "Qty" => StockUnits.Format(r.Quantity),
                         "Status" => r.Status,
                         _ => ""
                     }).ToList());
@@ -2918,7 +2909,7 @@ public class ReportRenderer : IDisposable
                         "ID" => r.OriginalTransactionId,
                         "Product" => r.ProductName,
                         "Category" => r.CategoryName,
-                        "Qty" => r.Quantity.ToString("N0"),
+                        "Qty" => StockUnits.Format(r.Quantity),
                         "Total" => FormatRecordedAmount(r.RefundAmount, r.Currency, r.ReturnDate),
                         "Reason" => r.Reason,
                         "Status" => r.Status,
@@ -2932,7 +2923,7 @@ public class ReportRenderer : IDisposable
                         "Date" => r.ReportedDate.ToString("MM/dd/yyyy"),
                         "Product" => r.ProductName,
                         "Category" => r.CategoryName,
-                        "Qty" => r.Quantity.ToString("N0"),
+                        "Qty" => StockUnits.Format(r.Quantity),
                         "Total" => FormatRecordedAmount(r.EstimatedValue, r.Currency, r.ReportedDate),
                         "Reason" => r.Reason,
                         _ => ""
@@ -3338,7 +3329,12 @@ public class ReportRenderer : IDisposable
         if (summary.ShowTotalRevenue)
         {
             var total = CalculateTotalRevenue(summary);
-            var label = summary.TransactionType == TransactionType.Expenses ? Tr("Total Expenses") : Tr("Total Revenue");
+            var label = summary.TransactionType switch
+            {
+                TransactionType.Revenue => Tr("Total Revenue"),
+                TransactionType.Expenses => Tr("Total Expenses"),
+                _ => Tr("Net Profit")
+            };
             lines.Add($"{label}: {FormatCurrency(total)}");
         }
 
@@ -4173,39 +4169,23 @@ public class ReportRenderer : IDisposable
     {
         if (_companyData == null) return 0;
 
-        var (startDate, endDate) = GetFilterDateRange();
-
-        return summary.TransactionType switch
-        {
-            TransactionType.Revenue => _companyData.Revenues
-                .Where(s => s.Date >= startDate && s.Date <= endDate)
-                .Sum(s => ToDisplayCurrency(s.EffectiveTotalUSD, s.Date)),
-            TransactionType.Expenses => _companyData.Expenses
-                .Where(p => p.Date >= startDate && p.Date <= endDate)
-                .Sum(p => ToDisplayCurrency(p.EffectiveTotalUSD, p.Date)),
-            _ => _companyData.Revenues
-                .Where(s => s.Date >= startDate && s.Date <= endDate)
-                .Sum(s => ToDisplayCurrency(s.EffectiveTotalUSD, s.Date)) -
-                 _companyData.Expenses
-                .Where(p => p.Date >= startDate && p.Date <= endDate)
-                .Sum(p => ToDisplayCurrency(p.EffectiveTotalUSD, p.Date))
-        };
+        var (startDate, endDate) = SummaryDateRange();
+        return SummaryAmount(summary.TransactionType, startDate, endDate, ToDisplayCurrency);
     }
 
     private int CalculateTransactionCount(SummaryReportElement summary)
     {
         if (_companyData == null) return 0;
 
-        var (startDate, endDate) = GetFilterDateRange();
+        var (startDate, endDate) = SummaryDateRange();
+        var revenues = RevenueAggregator.OnlyCollected(_companyData.Revenues).Count(s => s.Date >= startDate && s.Date <= endDate);
+        var expenses = _companyData.Expenses.Count(p => p.Date >= startDate && p.Date <= endDate);
 
         return summary.TransactionType switch
         {
-            TransactionType.Revenue => _companyData.Revenues
-                .Count(s => s.Date >= startDate && s.Date <= endDate),
-            TransactionType.Expenses => _companyData.Expenses
-                .Count(p => p.Date >= startDate && p.Date <= endDate),
-            _ => _companyData.Revenues.Count(s => s.Date >= startDate && s.Date <= endDate) +
-                 _companyData.Expenses.Count(p => p.Date >= startDate && p.Date <= endDate)
+            TransactionType.Revenue => revenues,
+            TransactionType.Expenses => expenses,
+            _ => revenues + expenses
         };
     }
 
@@ -4213,113 +4193,64 @@ public class ReportRenderer : IDisposable
     {
         if (_companyData == null) return 0;
 
-        var (startDate, endDate) = GetFilterDateRange();
-
-        var totals = new List<decimal>();
-
-        if (summary.TransactionType is TransactionType.Revenue)
+        var (startDate, endDate) = SummaryDateRange();
+        IEnumerable<decimal> amounts = summary.TransactionType switch
         {
-            var sales = _companyData.Revenues
+            TransactionType.Revenue => RevenueAggregator.OnlyCollected(_companyData.Revenues)
                 .Where(s => s.Date >= startDate && s.Date <= endDate)
-                .Select(s => ToDisplayCurrency(s.EffectiveTotalUSD, s.Date));
-            totals.AddRange(sales);
-        }
-
-        if (summary.TransactionType is TransactionType.Expenses)
-        {
-            var purchases = _companyData.Expenses
+                .Select(s => ToDisplayCurrency(s.EffectiveTotalUSD, s.Date)),
+            TransactionType.Expenses => _companyData.Expenses
                 .Where(p => p.Date >= startDate && p.Date <= endDate)
-                .Select(p => ToDisplayCurrency(p.EffectiveTotalUSD, p.Date));
-            totals.AddRange(purchases);
-        }
+                .Select(p => ToDisplayCurrency(p.EffectiveTotalUSD, p.Date)),
+            _ => []
+        };
 
-        return totals.Count > 0 ? totals.Average() : 0;
+        var list = amounts.ToList();
+        return list.Count > 0 ? list.Average() : 0;
     }
 
     private double CalculateGrowthRate(SummaryReportElement summary)
     {
         if (_companyData == null) return 0;
 
-        var (startDate, endDate) = GetFilterDateRange();
+        var (startDate, endDate) = SummaryDateRange();
+        var (previousStart, previousEnd) = ComparisonPeriod.For(
+            DateRangePresetExtensions.ParseDateRange(_config.Filters.DatePresetName), startDate, endDate);
 
-        if (!startDate.HasValue || !endDate.HasValue)
-            return 0;
+        // A ratio, so it compares USD totals (Calculations.md §3).
+        var current = SummaryAmount(summary.TransactionType, startDate, endDate, (usd, _) => usd);
+        var previous = SummaryAmount(summary.TransactionType, previousStart, previousEnd, (usd, _) => usd);
 
-        // +1 so the period is inclusive of both endpoints (Jan 1-31 is 31 days, not 30). Without it
-        // the previous comparison window was one day shorter than the current one, biasing growth
-        // positive (a flat business showed a few percent "growth").
-        var periodLength = (endDate.Value - startDate.Value).Days + 1;
-        if (periodLength <= 0) return 0;
+        if (previous == 0)
+            return current > 0 ? 100 : 0;
 
-        var previousStart = startDate.Value.AddDays(-periodLength);
-        var previousEnd = startDate.Value.AddTicks(-1);
-
-        decimal currentPeriod, previousPeriod;
-
-        // Growth is a ratio, so aggregate in USD (EffectiveTotalUSD): the percentage is
-        // currency-agnostic and summing native Total would mix currencies (Calculations.md §3).
-        if (summary.TransactionType == TransactionType.Revenue)
-        {
-            currentPeriod = _companyData.Revenues
-                .Where(s => s.Date >= startDate && s.Date <= endDate)
-                .Sum(s => s.EffectiveTotalUSD);
-            previousPeriod = _companyData.Revenues
-                .Where(s => s.Date >= previousStart && s.Date <= previousEnd)
-                .Sum(s => s.EffectiveTotalUSD);
-        }
-        else if (summary.TransactionType == TransactionType.Expenses)
-        {
-            currentPeriod = _companyData.Expenses
-                .Where(p => p.Date >= startDate && p.Date <= endDate)
-                .Sum(p => p.EffectiveTotalUSD);
-            previousPeriod = _companyData.Expenses
-                .Where(p => p.Date >= previousStart && p.Date <= previousEnd)
-                .Sum(p => p.EffectiveTotalUSD);
-        }
-        else
-        {
-            currentPeriod = _companyData.Revenues
-                    .Where(s => s.Date >= startDate && s.Date <= endDate)
-                    .Sum(s => s.EffectiveTotalUSD) -
-                _companyData.Expenses
-                    .Where(p => p.Date >= startDate && p.Date <= endDate)
-                    .Sum(p => p.EffectiveTotalUSD);
-            previousPeriod = _companyData.Revenues
-                     .Where(s => s.Date >= previousStart && s.Date <= previousEnd)
-                     .Sum(s => s.EffectiveTotalUSD) -
-                 _companyData.Expenses
-                     .Where(p => p.Date >= previousStart && p.Date <= previousEnd)
-                     .Sum(p => p.EffectiveTotalUSD);
-        }
-
-        if (previousPeriod == 0)
-            return currentPeriod > 0 ? 100 : 0;
-
-        return (double)((currentPeriod - previousPeriod) / Math.Abs(previousPeriod) * 100);
-    }
-
-    private (DateTime? Start, DateTime? End) GetFilterDateRange()
-    {
-        if (!string.IsNullOrEmpty(_config.Filters.DatePresetName) &&
-            _config.Filters.DatePresetName != DatePresetNames.Custom)
-        {
-            var (start, end) = DatePresetNames.GetDateRange(_config.Filters.DatePresetName, _companyData?.GetEarliestDate());
-            return (start, end);
-        }
-
-        // A custom end date is midnight; run it to the end of that day as tables and charts do
-        // (ReportFilters.GetDateRange), or the last day's transactions are left out.
-        return (_config.Filters.StartDate?.Date, _config.Filters.EndDate?.Date.AddDays(1).AddTicks(-1));
+        return (double)((current - previous) / Math.Abs(previous) * 100);
     }
 
     /// <summary>
-    /// Formats a currency amount using the company's currency setting.
+    /// What the Summary box totals, on the basis of the report's own charts (Calculations.md §11):
+    /// collected revenue less refunds, all expenses, or net profit for any other transaction type.
     /// </summary>
-    private string FormatCurrency(decimal amount)
+    private decimal SummaryAmount(TransactionType type, DateTime start, DateTime end, Func<decimal, DateTime, decimal> convert)
     {
-        var currencyCode = _companyData?.Settings.Localization.Currency ?? "USD";
-        return CurrencyInfo.FormatAmount(amount, currencyCode);
+        var data = _companyData!;
+        return type switch
+        {
+            TransactionType.Revenue =>
+                RevenueAggregator.SumCollectedRevenueDisplay(data.Revenues, start, end, convert)
+                - RefundAggregator.GetRefundedInDateRangeDisplay(data.Payments, start, end, convert),
+            TransactionType.Expenses => ExpenseAggregator.SumExpensesDisplay(data.Expenses, start, end, convert),
+            _ => ProfitCalculator.CalculateNetProfitDisplay(data, start, end, convert)
+        };
     }
+
+    private (DateTime Start, DateTime End) SummaryDateRange() =>
+        _config.Filters.GetDateRange(_companyData?.GetEarliestDate());
+
+    /// <summary>
+    /// Formats an amount in the report's display currency.
+    /// </summary>
+    private string FormatCurrency(decimal amount) => CurrencyInfo.FormatAmount(amount, _currencyCode);
 
     #endregion
 

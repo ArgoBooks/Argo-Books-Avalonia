@@ -12,29 +12,24 @@
              x:DataType="vm:CategoryModalsViewModel">
 
     <Panel>
-        <!-- Add Category Modal -->
-        <controls:ModalOverlay IsOpen="{Binding IsAddModalOpen}"
-                               ClosingCommand="{Binding RequestCloseAddModalCommand}">
+        <!-- Add / Edit Category Modal -->
+        <controls:ModalOverlay IsOpen="{Binding IsFormOpen, Mode=OneWay}"
+                               ClosingCommand="{Binding RequestCloseFormCommand}">
             <controls:ModalOverlay.ModalContent>
-                <Border Background="{DynamicResource SurfaceBrush}"
-                    BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="1" CornerRadius="12" Width="500" MaxHeight="600"
-                    HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Border Classes="modal-card"
+                    Width="500" MaxHeight="600">
                 <Grid RowDefinitions="Auto,*,Auto">
-                    <Border Grid.Row="0" Padding="24,20" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
-                        <Grid ColumnDefinitions="*,Auto">
-                            <StackPanel Grid.Column="0">
-                                <TextBlock Text="{Binding AddModalTitle}"
-                                           FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
-                                <TextBlock Text="{Binding AddingSubCategoryParentName, StringFormat='Under: {0}'}"
-                                           FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}"
-                                           IsVisible="{Binding IsAddingSubCategory}" />
-                            </StackPanel>
-                            <Button Grid.Column="1" Classes="icon-button" Command="{Binding CloseAddModalCommand}">
-                                <PathIcon Data="{x:Static local:Icons.Close}" Width="20" Height="20" />
-                            </Button>
-                        </Grid>
-                    </Border>
+                    <controls:ModalHeader Grid.Row="0" Title="{Binding FormTitle}" CloseCommand="{Binding RequestCloseFormCommand}">
+                        <TextBlock Text="{Binding AddingSubCategoryParentName, StringFormat='Under: {0}'}"
+                                   FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}">
+                            <TextBlock.IsVisible>
+                                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                    <Binding Path="IsAddingSubCategory" />
+                                    <Binding Path="!IsEditMode" />
+                                </MultiBinding>
+                            </TextBlock.IsVisible>
+                        </TextBlock>
+                    </controls:ModalHeader>
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                         <StackPanel Margin="24" Spacing="16">
                             <StackPanel Spacing="6">
@@ -63,66 +58,10 @@
                             </StackPanel>
                         </StackPanel>
                     </ScrollViewer>
-                    <Border Grid.Row="2" Padding="24,16" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12">
-                            <Button Classes="secondary-button" Content="{loc:Loc Cancel}" Command="{Binding CloseAddModalCommand}" />
-                            <Button Classes="primary-button" Content="{loc:Loc 'Add Category'}" Command="{Binding SaveNewCategoryCommand}" />
-                        </StackPanel>
-                    </Border>
-                </Grid>
-                </Border>
-            </controls:ModalOverlay.ModalContent>
-        </controls:ModalOverlay>
-
-        <!-- Edit Category Modal -->
-        <controls:ModalOverlay IsOpen="{Binding IsEditModalOpen}"
-                               ClosingCommand="{Binding RequestCloseEditModalCommand}">
-            <controls:ModalOverlay.ModalContent>
-                <Border Background="{DynamicResource SurfaceBrush}"
-                    BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="1" CornerRadius="12" Width="500" MaxHeight="600"
-                    HorizontalAlignment="Center" VerticalAlignment="Center">
-                <Grid RowDefinitions="Auto,*,Auto">
-                    <Border Grid.Row="0" Padding="24,20" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
-                        <Grid ColumnDefinitions="*,Auto">
-                            <TextBlock Text="{loc:Loc 'Edit Category'}" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
-                            <Button Grid.Column="1" Classes="icon-button" Command="{Binding CloseEditModalCommand}">
-                                <PathIcon Data="{x:Static local:Icons.Close}" Width="20" Height="20" />
-                            </Button>
-                        </Grid>
-                    </Border>
-                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                        <StackPanel Margin="24" Spacing="16">
-                            <StackPanel Spacing="6">
-                                <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}">
-                                    <Run Text="{loc:Loc 'Category Name'}" /><Run Text=" *" Foreground="{DynamicResource ErrorBrush}" />
-                                </TextBlock>
-                                <TextBox Text="{Binding ModalCategoryName, Mode=TwoWay}" Classes="form-input" PlaceholderText="{loc:Loc 'Enter category name'}" MaxLength="100" />
-                                <TextBlock TextWrapping="Wrap" Text="{Binding ModalCategoryNameError}" FontSize="12" Foreground="{DynamicResource ErrorBrush}"
-                                           IsVisible="{Binding ModalCategoryNameError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                            </StackPanel>
-                            <StackPanel Spacing="6">
-                                <TextBlock Text="{loc:Loc Description}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                <TextBox Text="{Binding ModalDescription, Mode=TwoWay}" Classes="form-input" PlaceholderText="{loc:Loc 'Enter description'}"
-                                         AcceptsReturn="True" TextWrapping="Wrap" MinHeight="80" MaxHeight="120" MaxLength="500" />
-                            </StackPanel>
-                            <StackPanel Spacing="6">
-                                <TextBlock Text="{loc:Loc Icon}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                <Button Classes="form-combobox" Command="{Binding OpenEmojiPickerCommand}"
-                                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
-                                        Padding="12,8" CornerRadius="6">
-                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <TextBlock Text="{Binding ModalSelectedIcon}" FontSize="16" VerticalAlignment="Center" />
-                                        <TextBlock Text="{loc:Loc 'Choose...'}" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </Button>
-                            </StackPanel>
-                        </StackPanel>
-                    </ScrollViewer>
-                    <Border Grid.Row="2" Padding="24,16" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12">
-                            <Button Classes="secondary-button" Content="{loc:Loc Cancel}" Command="{Binding CloseEditModalCommand}" />
-                            <Button Classes="primary-button" Content="{loc:Loc 'Save Changes'}" Command="{Binding SaveEditedCategoryCommand}" />
+                    <Border Classes="modal-footer" Grid.Row="2">
+                        <StackPanel Classes="modal-actions">
+                            <Button Classes="secondary-button" Content="{loc:Loc Cancel}" Command="{Binding RequestCloseFormCommand}" />
+                            <Button Classes="primary-button" Content="{Binding FormSaveText}" Command="{Binding SaveFormCommand}" />
                         </StackPanel>
                     </Border>
                 </Grid>
@@ -133,22 +72,13 @@
         <!-- Move Category Modal -->
         <controls:ModalOverlay IsOpen="{Binding IsMoveModalOpen}">
             <controls:ModalOverlay.ModalContent>
-                <Border Background="{DynamicResource SurfaceBrush}"
-                    BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="1" CornerRadius="12" Width="400"
-                    HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Border Classes="modal-card"
+                    Width="400">
                 <Grid RowDefinitions="Auto,*,Auto">
-                    <Border Grid.Row="0" Padding="24,20" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
-                        <Grid ColumnDefinitions="*,Auto">
-                            <StackPanel>
-                                <TextBlock Text="{loc:Loc 'Move Category'}" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
-                                <TextBlock Text="{Binding MovingCategoryName}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" />
-                            </StackPanel>
-                            <Button Grid.Column="1" Classes="icon-button" Command="{Binding CloseMoveModalCommand}">
-                                <PathIcon Data="{x:Static local:Icons.Close}" Width="20" Height="20" />
-                            </Button>
-                        </Grid>
-                    </Border>
+                    <controls:ModalHeader Grid.Row="0"
+                                          Title="{loc:Loc 'Move Category'}"
+                                          Subtitle="{Binding MovingCategoryName}"
+                                          CloseCommand="{Binding CloseMoveModalCommand}" />
                     <StackPanel Grid.Row="1" Margin="24" Spacing="16">
                         <StackPanel Spacing="6">
                             <TextBlock Text="{loc:Loc 'Move to'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
@@ -166,8 +96,8 @@
                         <TextBlock TextWrapping="Wrap" Text="{Binding MoveError}" FontSize="12" Foreground="{DynamicResource ErrorBrush}"
                                    IsVisible="{Binding MoveError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                     </StackPanel>
-                    <Border Grid.Row="2" Padding="24,16" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12">
+                    <Border Classes="modal-footer" Grid.Row="2">
+                        <StackPanel Classes="modal-actions">
                             <Button Classes="secondary-button" Content="{loc:Loc Cancel}" Command="{Binding CloseMoveModalCommand}" />
                             <Button Classes="primary-button" Content="{loc:Loc Move}" Command="{Binding ConfirmMoveCommand}" />
                         </StackPanel>

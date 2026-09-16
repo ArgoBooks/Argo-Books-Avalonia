@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Net.Http.Headers;
-using System.Text;
 using ArgoBooks.Core.Models.AI;
 
 using ArgoBooks.Core.Models.Telemetry;
@@ -14,9 +13,8 @@ namespace ArgoBooks.Core.Services;
 public class GeminiService : IGeminiService, IDisposable
 {
     private const string DefaultModel = "gemini-2.5-flash";
-    private static readonly string ApiEndpoint = $"{ApiConfig.BaseUrl}/api/ai/completions.php";
-
     private readonly HttpClient _httpClient;
+    private readonly AiProxyClient _proxy;
     private readonly IErrorLogger? _errorLogger;
     private readonly ITelemetryManager? _telemetryManager;
 
@@ -26,6 +24,7 @@ public class GeminiService : IGeminiService, IDisposable
     public GeminiService(IErrorLogger? errorLogger = null, ITelemetryManager? telemetryManager = null)
     {
         _httpClient = new HttpClient();
+        _proxy = new AiProxyClient(_httpClient, ApiConfig.BaseUrl, new LicenseApiAuth());
         _errorLogger = errorLogger;
         _telemetryManager = telemetryManager;
         ConfigureHttpClient();
@@ -222,50 +221,6 @@ public class GeminiService : IGeminiService, IDisposable
         }
     }
 
-    /// <inheritdoc />
-    public async Task<string?> SendVisionChatAsync(
-        string systemPrompt,
-        string userPrompt,
-        string base64Image,
-        string mimeType,
-        int maxTokens = 4000,
-        double temperature = 0.1,
-        string? model = null,
-        CancellationToken cancellationToken = default,
-        OperationKind operation = OperationKind.ReceiptScan)
-    {
-        if (!IsConfigured)
-            return null;
-
-        var stopwatch = Stopwatch.StartNew();
-        model ??= DefaultModel;
-        var success = false;
-
-        try
-        {
-            var response = await SendApiRequestAsync(systemPrompt, userPrompt, maxTokens, temperature, base64Image, mimeType, model, cancellationToken, operation: operation);
-            if (!string.IsNullOrEmpty(response))
-                success = true;
-            return response;
-        }
-        catch (OperationCanceledException) { throw; }
-        catch (Exception ex)
-        {
-            _errorLogger?.LogError(ex, ErrorCategory.Api, "Gemini Vision API call failed");
-            return null;
-        }
-        finally
-        {
-            stopwatch.Stop();
-            _ = _telemetryManager?.TrackApiCallAsync(
-                ApiName.Gemini,
-                stopwatch.ElapsedMilliseconds,
-                success,
-                model,
-                cancellationToken: cancellationToken);
-        }
-    }
-
     private void ConfigureHttpClient()
     {
         _httpClient.DefaultRequestHeaders.Clear();
@@ -333,79 +288,51 @@ Respond with JSON only.";
     private async Task<string?> SendApiRequestAsync(
         string systemPrompt,
         string userPrompt,
-        int maxTokens = 500,
-        double temperature = 0.3,
-        string? base64Image = null,
-        string? mimeType = null,
-        string? model = null,
-        CancellationToken cancellationToken = default,
-        OperationKind operation = OperationKind.Completion,
+        int maxTokens,
+        double temperature,
+        CancellationToken cancellationToken,
+        OperationKind operation,
         long? sizeFeature = null)
     {
-        var effectiveModel = model ?? DefaultModel;
-
-        // Uploaded payload bytes for vision calls; also the best up-front size feature when the
-        // caller didn't supply a more specific one (line count, column count, ...).
-        long uploadBytes = base64Image != null ? (long)(base64Image.Length * 0.75) : 0;
-        long? size = sizeFeature ?? (uploadBytes > 0 ? uploadBytes : null);
-        var operationTag = operation.ToServerTag();
-
-        object requestBody = base64Image != null
-            ? new { systemPrompt, userPrompt, model = effectiveModel, maxTokens, temperature, base64Image, mimeType, operation = operationTag, sizeFeature = size, platform = PlatformTag }
-            : new { systemPrompt, userPrompt, model = effectiveModel, maxTokens, temperature, operation = operationTag, sizeFeature = size, platform = PlatformTag };
-
-        var json = JsonSerializer.Serialize(requestBody);
-
-        using var request = new HttpRequestMessage(HttpMethod.Post, ApiEndpoint);
-        request.Content = new StringContent(json, Encoding.UTF8, "application/json");
-        LicenseAuthHelper.AddAuthHeaders(request);
-
-        var wallClock = Stopwatch.StartNew();
-        var response = await _httpClient.SendAsync(request, cancellationToken);
-
-        if (!response.IsSuccessStatusCode)
+        var response = await _proxy.SendAsync(new AiProxyRequest
         {
-            _errorLogger?.LogError($"AI proxy error {response.StatusCode}", ErrorCategory.Api, "AI chat completion");
+            Operation = operation.ToServerTag(),
+            SystemPrompt = systemPrompt,
+            UserPrompt = userPrompt,
+            Model = DefaultModel,
+            MaxTokens = maxTokens,
+            Temperature = temperature,
+            SizeFeature = sizeFeature,
+        }, cancellationToken);
+
+        if (!response.IsHttpSuccess)
+        {
+            _errorLogger?.LogError(
+                $"AI proxy error {response.StatusCode} ({response.Code ?? "no code"}): {response.Message ?? "no message"}",
+                ErrorCategory.Api, "AI chat completion");
             return null;
         }
 
-        var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
-        wallClock.Stop();
-        using var doc = JsonDocument.Parse(responseBody);
-        var root = doc.RootElement;
-
-        RecordTiming(operation, root, wallClock.Elapsed.TotalMilliseconds, uploadBytes);
-
-        if (root.TryGetProperty("success", out var successProp) && successProp.GetBoolean()
-            && root.TryGetProperty("content", out var contentProp))
+        // Feeds the server-measured time into the shared timing service so progress estimates
+        // self-calibrate; the wall clock minus server time trains the upload-speed estimate.
+        if (response.Timing is { } timing)
         {
-            return contentProp.GetString();
+            OperationTimingService.Instance?.RecordResult(
+                operation, timing.ServerMs, response.WallClockMs, response.UploadBytes, timing.LoadFactor);
         }
 
-        return null;
-    }
+        if (!response.Succeeded)
+        {
+            if (response.Message != null || response.Code != null)
+            {
+                _errorLogger?.LogError(
+                    $"AI proxy returned success=false ({response.Code ?? "no code"}): {response.Message ?? "no message"}",
+                    ErrorCategory.Api, "AI chat completion");
+            }
+            return null;
+        }
 
-    /// <summary>Platform tag sent with each AI call for the server-side timing records.</summary>
-    private static readonly string PlatformTag =
-        OperatingSystem.IsWindows() ? "windows"
-        : OperatingSystem.IsMacOS() ? "macos"
-        : OperatingSystem.IsLinux() ? "linux" : "other";
-
-    /// <summary>
-    /// Feeds the server-measured Gemini time (and current load factor) from a response into the
-    /// shared <see cref="OperationTimingService"/> so progress estimates self-calibrate. The
-    /// difference between the client wall clock and the server time trains the upload-speed
-    /// estimate. Best-effort and no-op when the timing service or the response block is absent.
-    /// </summary>
-    private static void RecordTiming(OperationKind operation, JsonElement root, double wallClockMs, long uploadBytes)
-    {
-        var service = OperationTimingService.Instance;
-        if (service == null || !root.TryGetProperty("timing", out var timing))
-            return;
-
-        double serverMs = timing.TryGetProperty("elapsed_ms", out var e) && e.TryGetDouble(out var ev) ? ev : 0;
-        double? loadFactor = timing.TryGetProperty("load_factor", out var lf) && lf.TryGetDouble(out var lv) ? lv : null;
-        service.RecordResult(operation, serverMs, wallClockMs, uploadBytes, loadFactor);
+        return response.Content;
     }
 
     private SupplierCategorySuggestion? ParseResponse(string response, ReceiptAnalysisRequest request)

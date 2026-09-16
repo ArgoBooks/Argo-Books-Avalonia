@@ -1,0 +1,41 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:ArgoBooks.Controls"
+             xmlns:loc="using:ArgoBooks.Localization"
+             x:Class="ArgoBooks.Controls.AddressFields"
+             x:DataType="controls:AddressFields"
+             x:Name="Root">
+
+    <StackPanel Spacing="16">
+        <TextBlock Text="{Binding #Root.Heading}"
+                   IsVisible="{Binding #Root.Heading, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                   FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,8,0,0" />
+
+        <StackPanel Spacing="6">
+            <TextBlock Text="{loc:Loc 'Street address'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
+            <TextBox Text="{Binding #Root.Street, Mode=TwoWay}" Classes="form-input" PlaceholderText="{loc:Loc 'Enter street address'}" MaxLength="200" />
+        </StackPanel>
+
+        <Grid ColumnDefinitions="*,16,*">
+            <StackPanel Grid.Column="0" Spacing="6">
+                <TextBlock Text="{loc:Loc 'Country'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
+                <controls:CountryInput SelectedCountryName="{Binding #Root.Country, Mode=TwoWay}" />
+            </StackPanel>
+            <StackPanel Grid.Column="2" Spacing="6">
+                <TextBlock Text="{Binding #Root.Country, Converter={x:Static controls:RegionInput.LabelConverter}}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
+                <controls:RegionInput Country="{Binding #Root.Country}" Value="{Binding #Root.Region, Mode=TwoWay}" />
+            </StackPanel>
+        </Grid>
+
+        <Grid ColumnDefinitions="*,16,*">
+            <StackPanel Grid.Column="0" Spacing="6">
+                <TextBlock Text="{loc:Loc 'City'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
+                <TextBox Text="{Binding #Root.City, Mode=TwoWay}" Classes="form-input" PlaceholderText="{loc:Loc 'Enter city'}" MaxLength="100" />
+            </StackPanel>
+            <StackPanel Grid.Column="2" Spacing="6">
+                <TextBlock Text="{loc:Loc 'Postal code'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
+                <TextBox Text="{Binding #Root.PostalCode, Mode=TwoWay}" Classes="form-input" PlaceholderText="{loc:Loc 'Enter postal code'}" MaxLength="20" />
+            </StackPanel>
+        </Grid>
+    </StackPanel>
+</UserControl>

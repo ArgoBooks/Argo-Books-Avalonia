@@ -142,8 +142,9 @@ public static class FileFormatConstants
     /// 1: archive encrypted directly with the password-derived key.
     /// 2: envelope encryption, archive encrypted with a random data key that is stored
     ///    wrapped under the password and, when configured, under the recovery key.
+    /// 3: same layout as 2. Stock quantities can hold decimals, which older builds cannot read.
     /// </summary>
-    public const int FormatVersion = 2;
+    public const int FormatVersion = 3;
 
     /// <summary>
     /// Oldest format version this build can still read. Files at any version between this

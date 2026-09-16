@@ -64,14 +64,6 @@
                                     ItemsSource="{Binding DisplayItems}"
                                     SearchQuery="{Binding SearchQuery, Mode=TwoWay}"
                                     SearchPlaceholder="{loc:Loc 'Search inventory...'}"
-                                    SearchBoxWidth="{Binding ResponsiveHeader.SearchBoxWidth}"
-                                    SearchBoxMinHeight="{Binding ResponsiveHeader.SearchBoxMinHeight}"
-                                    SearchIconMargin="{Binding ResponsiveHeader.SearchIconMargin}"
-                                    HeaderPadding="{Binding ResponsiveHeader.HeaderPadding}"
-                                    HeaderSpacing="{Binding ResponsiveHeader.HeaderSpacing}"
-                                    IsCompactMode="{Binding ResponsiveHeader.IsCompactMode}"
-                                    IsMediumMode="{Binding ResponsiveHeader.IsMediumMode}"
-                                    ShowButtonText="{Binding ResponsiveHeader.ShowButtonText}"
                                     FilterCommand="{Binding OpenFilterModalCommand}"
                                     AddCommand="{Binding OpenAddItemModalCommand}"
                                     AddButtonText="{loc:Loc 'Add Item'}"
@@ -86,10 +78,9 @@
                                     GoToNextPageCommand="{Binding GoToNextPageCommand}"
                                     ToggleColumnMenuCommand="{Binding ToggleColumnMenuCommand}"
                                     EmptyIcon="{x:Static icons:Icons.StockLevels}"
-                                    EmptyTitle="{loc:Loc 'No inventory items found'}"
-                                    EmptyMessage="{loc:Loc 'Add products with inventory tracking to see stock levels here.'}"
-                                    BorderSizeChanged="OnHeaderSizeChanged"
-                                    TableGridSizeChanged="OnTableSizeChanged">
+                                    EmptyTitle="{Binding EmptyStateTitle}"
+                                    EmptyMessage="{Binding EmptyStateMessage}"
+                                    ShowEmptyAddButton="{Binding IsAllItemsTabSelected}">
 
                     <!-- Table Header Content - Using ArgoTableHeader for reduced boilerplate -->
                     <table:ArgoTable.HeaderContent>
@@ -199,7 +190,7 @@
                                             <table:ArgoTableCell ColumnWidth="{Binding $parent[ItemsControl].((vm:StockLevelsPageViewModel)DataContext).ColumnWidths.InStockColumnWidth}"
                                                                      IsColumnVisible="{Binding $parent[ItemsControl].((vm:StockLevelsPageViewModel)DataContext).ShowInStockColumn}">
                                                 <table:ArgoTableCell.CellContent>
-                                                    <TextBlock Text="{Binding InStock}"
+                                                    <TextBlock Text="{Binding InStockText}"
                                                                FontSize="14"
                                                                FontWeight="Medium"
                                                                Foreground="{DynamicResource TextPrimaryBrush}"
@@ -207,7 +198,7 @@
                                                 </table:ArgoTableCell.CellContent>
                                             </table:ArgoTableCell>
 
-                                            <table:ArgoTableCell Text="{Binding Reserved}"
+                                            <table:ArgoTableCell Text="{Binding ReservedText}"
                                                                      ColumnWidth="{Binding $parent[ItemsControl].((vm:StockLevelsPageViewModel)DataContext).ColumnWidths.ReservedColumnWidth}"
                                                                      IsColumnVisible="{Binding $parent[ItemsControl].((vm:StockLevelsPageViewModel)DataContext).ShowReservedColumn}" />
 
@@ -215,7 +206,7 @@
                                             <table:ArgoTableCell ColumnWidth="{Binding $parent[ItemsControl].((vm:StockLevelsPageViewModel)DataContext).ColumnWidths.AvailableColumnWidth}"
                                                                      IsColumnVisible="{Binding $parent[ItemsControl].((vm:StockLevelsPageViewModel)DataContext).ShowAvailableColumn}">
                                                 <table:ArgoTableCell.CellContent>
-                                                    <TextBlock Text="{Binding Available}"
+                                                    <TextBlock Text="{Binding AvailableText}"
                                                                FontSize="14"
                                                                FontWeight="Medium"
                                                                Foreground="{DynamicResource TextPrimaryBrush}"
@@ -223,7 +214,7 @@
                                                 </table:ArgoTableCell.CellContent>
                                             </table:ArgoTableCell>
 
-                                            <table:ArgoTableCell Text="{Binding ReorderPoint}"
+                                            <table:ArgoTableCell Text="{Binding ReorderPointText}"
                                                                      ColumnWidth="{Binding $parent[ItemsControl].((vm:StockLevelsPageViewModel)DataContext).ColumnWidths.ReorderPointColumnWidth}"
                                                                      IsColumnVisible="{Binding $parent[ItemsControl].((vm:StockLevelsPageViewModel)DataContext).ShowReorderPointColumn}" />
 
@@ -257,6 +248,13 @@
                                                                 Command="{Binding $parent[ItemsControl].((vm:StockLevelsPageViewModel)DataContext).OpenAdjustStockModalCommand}"
                                                                 CommandParameter="{Binding}">
                                                             <PathIcon Data="{x:Static icons:Icons.Adjustments}"
+                                                                      Width="16" Height="16" />
+                                                        </Button>
+                                                        <Button Classes="icon-button"
+                                                                ToolTip.Tip="{loc:Loc 'Transfer Stock'}"
+                                                                Command="{Binding $parent[ItemsControl].((vm:StockLevelsPageViewModel)DataContext).OpenTransferStockModalCommand}"
+                                                                CommandParameter="{Binding}">
+                                                            <PathIcon Data="{x:Static icons:Icons.SwapType}"
                                                                       Width="16" Height="16" />
                                                         </Button>
                                                     </StackPanel>

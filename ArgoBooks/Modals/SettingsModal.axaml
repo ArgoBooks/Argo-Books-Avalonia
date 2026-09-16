@@ -22,37 +22,14 @@
                                ClosingCommand="{Binding CloseCommand}">
             <controls:ModalOverlay.ModalContent>
                 <!-- Modal Container -->
-                <Border Background="{DynamicResource SurfaceBrush}"
-                BorderBrush="{DynamicResource BorderBrush}"
-                BorderThickness="1"
-                CornerRadius="12"
+                <Border Classes="modal-card"
                 Width="840"
                 MinHeight="750"
-                MaxHeight="750"
-                HorizontalAlignment="Center"
-                VerticalAlignment="Center"
-                BoxShadow="0 8 32 0 #40000000">
+                MaxHeight="750">
 
             <Grid RowDefinitions="Auto,*,Auto">
                 <!-- Header -->
-                <Border Grid.Row="0"
-                        Padding="24,20"
-                        BorderBrush="{DynamicResource BorderBrush}"
-                        BorderThickness="0,0,0,1">
-                    <Grid ColumnDefinitions="*,Auto">
-                        <TextBlock Grid.Column="0"
-                                   Text="{loc:Loc Settings}"
-                                   FontSize="18"
-                                   FontWeight="SemiBold"
-                                   Foreground="{DynamicResource TextPrimaryBrush}" />
-                        <Button Grid.Column="1"
-                                Classes="icon-button"
-                                Command="{Binding CloseCommand}">
-                            <PathIcon Data="{x:Static icons:Icons.Close}"
-                                      Width="20" Height="20" />
-                        </Button>
-                    </Grid>
-                </Border>
+                <controls:ModalHeader Grid.Row="0" Title="{loc:Loc Settings}" CloseCommand="{Binding CloseCommand}" />
 
                 <!-- Body with left navigation rail -->
                 <TabControl Grid.Row="1"
@@ -1736,13 +1713,8 @@
                 </TabControl>
 
                 <!-- Footer -->
-                <Border Grid.Row="2"
-                        Padding="24,16"
-                        BorderBrush="{DynamicResource BorderBrush}"
-                        BorderThickness="0,1,0,0">
-                    <StackPanel Orientation="Horizontal"
-                                HorizontalAlignment="Right"
-                                Spacing="12">
+                <Border Classes="modal-footer" Grid.Row="2">
+                    <StackPanel Classes="modal-actions">
                         <Button Classes="secondary-button"
                                 Content="{loc:Loc Cancel}"
                                 Command="{Binding CloseCommand}" />
@@ -1759,18 +1731,10 @@
         <!-- Add Password Modal -->
         <controls:ModalOverlay IsOpen="{Binding IsAddPasswordModalOpen}" ClosingCommand="{Binding ClosePasswordModalCommand}">
             <controls:ModalOverlay.ModalContent>
-                <Border Background="{DynamicResource SurfaceBrush}"
-                    BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="1"
-                    CornerRadius="12"
-                    Width="400"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
-                    BoxShadow="0 8 32 0 #40000000">
+                <Border Classes="modal-card"
+                    Width="400">
                 <StackPanel>
-                    <Border Padding="20,16" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
-                        <TextBlock Text="{loc:Loc 'Add Password'}" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
-                    </Border>
+                    <controls:ModalHeader Title="{loc:Loc 'Add Password'}" />
                     <StackPanel Margin="20" Spacing="16">
                         <TextBlock Text="{loc:Loc 'Create a password to protect your company file. You''ll need this password to open the file.'}"
                                    FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
@@ -1856,8 +1820,8 @@
                         <TextBlock TextWrapping="Wrap" Text="{Binding PasswordError}" FontSize="12" Foreground="{DynamicResource ErrorBrush}"
                                    IsVisible="{Binding PasswordError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                     </StackPanel>
-                    <Border Padding="20,16" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12">
+                    <Border Classes="modal-footer">
+                        <StackPanel Classes="modal-actions">
                             <Button Classes="secondary-button" Content="{loc:Loc Cancel}" Command="{Binding ClosePasswordModalCommand}" />
                             <Button Classes="primary-button" Content="{loc:Loc 'Add Password'}" Command="{Binding ConfirmAddPasswordCommand}" />
                         </StackPanel>
@@ -1870,18 +1834,10 @@
         <!-- Change Password Modal -->
         <controls:ModalOverlay IsOpen="{Binding IsChangePasswordModalOpen}" ClosingCommand="{Binding ClosePasswordModalCommand}">
             <controls:ModalOverlay.ModalContent>
-                <Border Background="{DynamicResource SurfaceBrush}"
-                    BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="1"
-                    CornerRadius="12"
-                    Width="400"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
-                    BoxShadow="0 8 32 0 #40000000">
+                <Border Classes="modal-card"
+                    Width="400">
                 <StackPanel>
-                    <Border Padding="20,16" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
-                        <TextBlock Text="{loc:Loc 'Change Password'}" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
-                    </Border>
+                    <controls:ModalHeader Title="{loc:Loc 'Change Password'}" />
                     <StackPanel Margin="20" Spacing="16">
                         <StackPanel Spacing="6">
                             <TextBlock Text="{loc:Loc 'Current Password'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
@@ -1986,8 +1942,8 @@
                         <TextBlock TextWrapping="Wrap" Text="{Binding PasswordError}" FontSize="12" Foreground="{DynamicResource ErrorBrush}"
                                    IsVisible="{Binding PasswordError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                     </StackPanel>
-                    <Border Padding="20,16" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12">
+                    <Border Classes="modal-footer">
+                        <StackPanel Classes="modal-actions">
                             <Button Classes="secondary-button" Content="{loc:Loc Cancel}" Command="{Binding ClosePasswordModalCommand}" />
                             <Button Classes="primary-button" Content="{loc:Loc 'Change Password'}" Command="{Binding ConfirmChangePasswordCommand}" />
                         </StackPanel>
@@ -2000,18 +1956,10 @@
         <!-- Remove Password Modal -->
         <controls:ModalOverlay IsOpen="{Binding IsRemovePasswordModalOpen}" ClosingCommand="{Binding ClosePasswordModalCommand}">
             <controls:ModalOverlay.ModalContent>
-                <Border Background="{DynamicResource SurfaceBrush}"
-                    BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="1"
-                    CornerRadius="12"
-                    Width="400"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
-                    BoxShadow="0 8 32 0 #40000000">
+                <Border Classes="modal-card"
+                    Width="400">
                 <StackPanel>
-                    <Border Padding="20,16" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
-                        <TextBlock Text="{loc:Loc 'Remove Password'}" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
-                    </Border>
+                    <controls:ModalHeader Title="{loc:Loc 'Remove Password'}" />
                     <StackPanel Margin="20" Spacing="16">
                         <TextBlock Text="{loc:Loc 'Are you sure you want to remove password protection? Your company file will no longer be protected.'}"
                                    FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
@@ -2039,8 +1987,8 @@
                         <TextBlock TextWrapping="Wrap" Text="{Binding PasswordError}" FontSize="12" Foreground="{DynamicResource ErrorBrush}"
                                    IsVisible="{Binding PasswordError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                     </StackPanel>
-                    <Border Padding="20,16" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12">
+                    <Border Classes="modal-footer">
+                        <StackPanel Classes="modal-actions">
                             <Button Classes="secondary-button" Content="{loc:Loc Cancel}" Command="{Binding ClosePasswordModalCommand}" />
                             <Button Classes="danger-button" Content="{loc:Loc 'Remove Password'}" Command="{Binding ConfirmRemovePasswordCommand}" />
                         </StackPanel>

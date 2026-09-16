@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using ArgoBooks.Core.Services;
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Entities;
@@ -62,6 +63,10 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
     [ObservableProperty]
     private Supplier? _selectedSupplier;
 
+    /// <summary>What is typed in the Supplier box, so a name matching nothing becomes a new supplier on save.</summary>
+    [ObservableProperty]
+    private string? _selectedSupplierText;
+
     [ObservableProperty]
     private DateTimeOffset? _orderDate = new DateTimeOffset(DateTime.Today);
 
@@ -80,13 +85,18 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
     [ObservableProperty]
     private bool _hasSupplierError;
 
-    // Original values for change detection in edit mode
-    private Supplier? _originalSupplier;
-    private DateTimeOffset? _originalOrderDate;
-    private DateTimeOffset? _originalExpectedDeliveryDate;
-    private string _originalShippingCost = "0";
-    private string _originalNotes = string.Empty;
-    private List<(string ProductId, string Quantity, string UnitCost)> _originalLineItems = [];
+    private sealed record LineState(string ProductId, string Quantity, string UnitCost);
+
+    private sealed record EditState(
+        string? SupplierId, DateTimeOffset? OrderDate, DateTimeOffset? ExpectedDeliveryDate,
+        string ShippingCost, string Notes, Helpers.EquatableArray<LineState> LineItems);
+
+    // The form as the edit modal opened, for change detection.
+    private EditState? _original;
+
+    private EditState Capture() => new(
+        SelectedSupplier?.Id, OrderDate, ExpectedDeliveryDate, ShippingCost, Notes,
+        new Helpers.EquatableArray<LineState>(LineItems.Select(li => new LineState(li.ProductId, li.Quantity, li.UnitCost))));
 
     /// <summary>
     /// Returns true if any data has been entered in the Add modal (when not in edit mode).
@@ -101,33 +111,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
     /// <summary>
     /// Returns true if any changes have been made in the Edit modal.
     /// </summary>
-    public bool HasEditModalChanges
-    {
-        get
-        {
-            if (!IsEditMode) return false;
-
-            if (SelectedSupplier?.Id != _originalSupplier?.Id) return true;
-            if (OrderDate != _originalOrderDate) return true;
-            if (ExpectedDeliveryDate != _originalExpectedDeliveryDate) return true;
-            if (ShippingCost != _originalShippingCost) return true;
-            if (Notes != _originalNotes) return true;
-
-            // Compare line items
-            if (LineItems.Count != _originalLineItems.Count) return true;
-            for (int i = 0; i < LineItems.Count; i++)
-            {
-                var current = LineItems[i];
-                var original = _originalLineItems[i];
-                if (current.ProductId != original.ProductId ||
-                    current.Quantity != original.Quantity ||
-                    current.UnitCost != original.UnitCost)
-                    return true;
-            }
-
-            return false;
-        }
-    }
+    public bool HasEditModalChanges => IsEditMode && Capture() != _original;
 
     /// <summary>
     /// Line items for the order being created/edited.
@@ -300,13 +284,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
         }
         UpdateCalculatedTotals();
 
-        // Store original values for change detection
-        _originalSupplier = SelectedSupplier;
-        _originalOrderDate = OrderDate;
-        _originalExpectedDeliveryDate = ExpectedDeliveryDate;
-        _originalShippingCost = ShippingCost;
-        _originalNotes = Notes;
-        _originalLineItems = LineItems.Select(li => (li.ProductId, li.Quantity, li.UnitCost)).ToList();
+        _original = Capture();
 
         IsAddModalOpen = true;
     }
@@ -474,6 +452,13 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
 
         var hasErrors = false;
 
+        if (SelectedSupplier == null &&
+            QuickCreate.EnsureSupplier(App.CompanyManager?.CompanyData, SelectedSupplierText) is { } typedSupplier)
+        {
+            LoadSuppliers();
+            SelectedSupplier = AvailableSuppliers.FirstOrDefault(s => s.Id == typedSupplier.Id);
+        }
+
         if (SelectedSupplier == null)
         {
             HasSupplierError = true;
@@ -494,7 +479,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
                     li.HasProductError = true;
                     hasErrors = true;
                 }
-                if (!int.TryParse(li.Quantity, out var qty) || qty <= 0)
+                if (!decimal.TryParse(li.Quantity, out var qty) || qty <= 0)
                 {
                     AddModalError = "Please enter valid quantities for all line items.".Translate();
                     hasErrors = true;
@@ -537,7 +522,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
         var lineItems = LineItems.Select(li => new PurchaseOrderLineItem
         {
             ProductId = li.ProductId,
-            Quantity = int.Parse(li.Quantity),
+            Quantity = decimal.Parse(li.Quantity),
             UnitCost = decimal.Parse(li.UnitCost),
             QuantityReceived = 0
         }).ToList();
@@ -659,7 +644,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
         order.LineItems = LineItems.Select(li => new PurchaseOrderLineItem
         {
             ProductId = li.ProductId,
-            Quantity = int.Parse(li.Quantity),
+            Quantity = decimal.Parse(li.Quantity),
             UnitCost = decimal.Parse(li.UnitCost),
             QuantityReceived = 0
         }).ToList();
@@ -730,14 +715,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
 
     private void LoadSuppliers()
     {
-        AvailableSuppliers.Clear();
-        var companyData = App.CompanyManager?.CompanyData;
-        if (companyData?.Suppliers == null) return;
-
-        foreach (var supplier in companyData.Suppliers.OrderBy(s => s.Name))
-        {
-            AvailableSuppliers.Add(supplier);
-        }
+        OptionLoader.Fill(AvailableSuppliers, OptionLoader.Suppliers(App.CompanyManager?.CompanyData));
     }
 
     private void LoadProducts()
@@ -755,6 +733,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
     private void ClearAddModalFields()
     {
         SelectedSupplier = null;
+        SelectedSupplierText = null;
         OrderDate = new DateTimeOffset(DateTime.Today);
         ExpectedDeliveryDate = new DateTimeOffset(DateTime.Today.AddDays(7));
         ShippingCost = "0";
@@ -857,7 +836,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
         // Validate quantities
         foreach (var li in ReceiveLineItems)
         {
-            if (!int.TryParse(li.ReceivingQuantity, out var qty) || qty < 0)
+            if (!decimal.TryParse(li.ReceivingQuantity, out var qty) || qty < 0)
             {
                 ReceiveModalError = "Please enter valid quantities.".Translate();
                 return;
@@ -870,7 +849,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
         }
 
         // Nothing to do if no quantities were entered; skip work and undo record.
-        if (ReceiveLineItems.All(li => !int.TryParse(li.ReceivingQuantity, out var q) || q == 0))
+        if (ReceiveLineItems.All(li => !decimal.TryParse(li.ReceivingQuantity, out var q) || q == 0))
         {
             CloseReceiveModal();
             return;
@@ -889,7 +868,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
         // Apply received quantities
         for (var i = 0; i < ReceiveLineItems.Count && i < order.LineItems.Count; i++)
         {
-            if (int.TryParse(ReceiveLineItems[i].ReceivingQuantity, out var qty) && qty > 0)
+            if (decimal.TryParse(ReceiveLineItems[i].ReceivingQuantity, out var qty) && qty > 0)
             {
                 order.LineItems[i].QuantityReceived += qty;
 
@@ -965,15 +944,15 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
         CloseReceiveModal();
     }
 
-    private sealed record ReceivedStockChange(InventoryItem Item, int OldStock, StockAdjustment Adjustment, bool WasCreated);
+    private sealed record ReceivedStockChange(InventoryItem Item, decimal OldStock, StockAdjustment Adjustment, bool WasCreated);
 
     /// <summary>
     /// Adds received units to stock and records them in the stock ledger, which historical inventory
     /// valuations roll back from. A tracked product with no inventory row gets one, as an expense does.
     /// </summary>
-    private static ReceivedStockChange? ReceiveIntoStock(CompanyData companyData, PurchaseOrderLineItem line, int qty, string reference)
+    private static ReceivedStockChange? ReceiveIntoStock(CompanyData companyData, PurchaseOrderLineItem line, decimal qty, string reference)
     {
-        var inventoryItem = companyData.Inventory.FirstOrDefault(inv => inv.ProductId == line.ProductId);
+        var inventoryItem = InventoryStockService.FindStockItem(companyData, line.ProductId, null);
         var wasCreated = false;
         if (inventoryItem == null)
         {
@@ -986,7 +965,8 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
                 Id = $"INV-ITM-{companyData.IdCounters.InventoryItem:D5}",
                 ProductId = product.Id,
                 Sku = product.Sku,
-                LocationId = "default",
+                LocationId = InventoryStockService.EnsureLocationId(companyData),
+                UnitOfMeasure = product.UnitOfMeasure,
                 UnitCost = line.UnitCost,
                 LastUpdated = DateTime.UtcNow
             };
@@ -1053,46 +1033,16 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
     {
         try
         {
-            var dialog = App.ConfirmationDialog;
-            if (dialog == null) return;
-
-            var result = await dialog.ShowAsync(new ConfirmationDialogOptions
-            {
-                Title = "Delete Purchase Order".Translate(),
-                Message = "Are you sure you want to delete this purchase order?\n\nPO #: {0}\nTotal: {1}".TranslateFormat(item.PoNumber, item.TotalDisplay),
-                PrimaryButtonText = "Delete".Translate(),
-                CancelButtonText = "Cancel".Translate(),
-                IsPrimaryDestructive = true
-            });
-
-            if (result != ConfirmationResult.Primary) return;
+            if (!await ConfirmDeleteAsync("Delete Purchase Order".Translate(),
+                    "Are you sure you want to delete this purchase order?\n\nPO #: {0}\nTotal: {1}".TranslateFormat(item.PoNumber, item.TotalDisplay)))
+                return;
 
             var companyData = App.CompanyManager?.CompanyData;
-
             var order = companyData?.PurchaseOrders.FirstOrDefault(o => o.Id == item.Id);
-            if (order == null) return;
+            if (companyData == null || order == null) return;
 
-            companyData?.PurchaseOrders.Remove(order);
-            companyData?.MarkAsModified();
-
-            // Record undo action
-            var orderPoNumber = item.PoNumber;
-            App.UndoRedoManager.RecordAction(new DelegateAction(
-                $"Delete order '{orderPoNumber}'",
-                () =>
-                {
-                    companyData?.PurchaseOrders.Add(order);
-                    companyData?.MarkAsModified();
-                    OrderDeleted?.Invoke(this, EventArgs.Empty);
-                },
-                () =>
-                {
-                    companyData?.PurchaseOrders.Remove(order);
-                    companyData?.MarkAsModified();
-                    OrderDeleted?.Invoke(this, EventArgs.Empty);
-                }));
-
-            OrderDeleted?.Invoke(this, EventArgs.Empty);
+            RemoveWithUndo(companyData, companyData.PurchaseOrders, order, $"Delete order '{item.PoNumber}'",
+                () => OrderDeleted?.Invoke(this, EventArgs.Empty));
         }
         catch (Exception ex)
         {
@@ -1560,42 +1510,24 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
     public ObservableCollection<string> FilterStatusOptions { get; } =
         new(PurchaseOrderStatusExtensions.GetFilterOptions());
 
-    // Original filter values for change detection
-    private DateTimeOffset? _originalFilterStartDate;
-    private DateTimeOffset? _originalFilterEndDate;
-    private string _originalFilterSupplier = "All";
-    private string _originalFilterStatus = "All";
-
-    /// <summary>
-    /// Returns true if any filter has been changed from its original value when the modal was opened.
-    /// </summary>
-    public bool HasFilterModalChanges =>
-        FilterStartDate != _originalFilterStartDate ||
-        FilterEndDate != _originalFilterEndDate ||
-        FilterSupplier != _originalFilterSupplier ||
-        FilterStatus != _originalFilterStatus;
-
-    /// <summary>
-    /// Captures the current filter values as the original values for change detection.
-    /// </summary>
-    private void CaptureOriginalFilterValues()
+    private sealed record FilterValues(DateTimeOffset? StartDate, DateTimeOffset? EndDate, string Supplier, string Status)
     {
-        _originalFilterStartDate = FilterStartDate;
-        _originalFilterEndDate = FilterEndDate;
-        _originalFilterSupplier = FilterSupplier;
-        _originalFilterStatus = FilterStatus;
+        public static readonly FilterValues Default = new(null, null, "All", "All");
     }
 
-    /// <summary>
-    /// Restores filter values to their original values when the modal was opened.
-    /// </summary>
-    private void RestoreOriginalFilterValues()
-    {
-        FilterStartDate = _originalFilterStartDate;
-        FilterEndDate = _originalFilterEndDate;
-        FilterSupplier = _originalFilterSupplier;
-        FilterStatus = _originalFilterStatus;
-    }
+    private FilterSnapshot<FilterValues>? _filters;
+
+    private FilterSnapshot<FilterValues> Filters => _filters ??= new(FilterValues.Default,
+        () => new(FilterStartDate, FilterEndDate, FilterSupplier, FilterStatus),
+        v =>
+        {
+            FilterStartDate = v.StartDate;
+            FilterEndDate = v.EndDate;
+            FilterSupplier = v.Supplier;
+            FilterStatus = v.Status;
+        });
+
+    public bool HasFilterModalChanges => Filters.HasChanges;
 
     /// <summary>
     /// Opens the filter modal.
@@ -1603,34 +1535,20 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
     public void OpenFilterModal()
     {
         LoadFilterSupplierOptions();
-        CaptureOriginalFilterValues();
+        Filters.Capture();
         IsFilterModalOpen = true;
     }
 
-    /// <summary>
-    /// Closes the filter modal.
-    /// </summary>
-    [RelayCommand]
-    private void CloseFilterModal()
-    {
-        IsFilterModalOpen = false;
-    }
+    private void CloseFilterModal() => IsFilterModalOpen = false;
 
     /// <summary>
-    /// Requests to close the filter modal, showing confirmation if filters have been changed.
+    /// Closes the filter modal, asking first and putting the filters back if they were changed.
     /// </summary>
     [RelayCommand]
     public async Task RequestCloseFilterModalAsync()
     {
-        if (HasFilterModalChanges)
-        {
-            if (!await ConfirmDiscardFiltersAsync())
-                return;
-
-            RestoreOriginalFilterValues();
-        }
-
-        CloseFilterModal();
+        if (await Filters.ConfirmDiscardAsync(ConfirmDiscardFiltersAsync))
+            CloseFilterModal();
     }
 
     /// <summary>
@@ -1649,31 +1567,15 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
     [RelayCommand]
     private void ClearFilters()
     {
-        ResetFilterDefaults();
+        Filters.Reset();
         FiltersCleared?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
     }
 
-    private void ResetFilterDefaults()
-    {
-        FilterStartDate = null;
-        FilterEndDate = null;
-        FilterSupplier = "All";
-        FilterStatus = "All";
-    }
-
     private void LoadFilterSupplierOptions()
     {
-        FilterSupplierOptions.Clear();
-        FilterSupplierOptions.Add("All");
-
-        var companyData = App.CompanyManager?.CompanyData;
-        if (companyData?.Suppliers == null) return;
-
-        foreach (var supplier in companyData.Suppliers.OrderBy(s => s.Name))
-        {
-            FilterSupplierOptions.Add(supplier.Name);
-        }
+        OptionLoader.Fill(FilterSupplierOptions,
+            OptionLoader.Suppliers(App.CompanyManager?.CompanyData).Select(s => s.Name), "All");
     }
 
     #endregion
@@ -1731,7 +1633,7 @@ public partial class OrderLineItemViewModel : ObservableObject
     {
         get
         {
-            if (int.TryParse(Quantity, out var qty) && decimal.TryParse(UnitCost, out var cost))
+            if (decimal.TryParse(Quantity, out var qty) && decimal.TryParse(UnitCost, out var cost))
                 return qty * cost;
             return 0;
         }
@@ -1762,13 +1664,13 @@ public class ViewLineItemDisplay
 {
     public string ProductName { get; set; } = string.Empty;
     public string ProductSku { get; set; } = string.Empty;
-    public int Quantity { get; set; }
-    public int QuantityReceived { get; set; }
+    public decimal Quantity { get; set; }
+    public decimal QuantityReceived { get; set; }
     public decimal UnitCost { get; set; }
     public decimal Total { get; set; }
     public string UnitCostDisplay => CurrencyService.Format(UnitCost);
     public string TotalDisplay => CurrencyService.Format(Total);
-    public string QuantityDisplay => $"{QuantityReceived}/{Quantity}";
+    public string QuantityDisplay => $"{StockUnits.Format(QuantityReceived)}/{StockUnits.Format(Quantity)}";
 }
 
 /// <summary>
@@ -1783,13 +1685,13 @@ public partial class ReceiveLineItemViewModel : ObservableObject
     private string _productName = string.Empty;
 
     [ObservableProperty]
-    private int _ordered;
+    private decimal _ordered;
 
     [ObservableProperty]
-    private int _received;
+    private decimal _received;
 
     [ObservableProperty]
-    private int _remaining;
+    private decimal _remaining;
 
     [ObservableProperty]
     private string _receivingQuantity = "0";

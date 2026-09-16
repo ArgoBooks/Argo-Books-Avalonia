@@ -48,10 +48,6 @@ public partial class MainWindow : Window
         var modalOverlay = this.FindControl<ModalOverlay>("ModalOverlay");
         if (modalOverlay != null)
         {
-            // Get or create modal service
-            ModalService = new ModalService();
-            ModalService.SetOverlay(modalOverlay);
-
             MessageBoxService = new MessageBoxService();
             MessageBoxService.SetOverlay(modalOverlay);
         }
@@ -98,11 +94,6 @@ public partial class MainWindow : Window
         if (this.FindControl<StackPanel>("WindowControls") is { } windowControls)
             windowControls.IsVisible = false;
     }
-
-    /// <summary>
-    /// Gets the modal service for this window.
-    /// </summary>
-    public ModalService? ModalService { get; }
 
     /// <summary>
     /// Gets the message box service for this window.

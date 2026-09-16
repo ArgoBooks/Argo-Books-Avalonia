@@ -24,10 +24,42 @@ public partial class SupplierModalsViewModel : ViewModelBase
     #region Modal State
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsFormOpen))]
     private bool _isAddModalOpen;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsFormOpen))]
     private bool _isEditModalOpen;
+
+    /// <summary>Add and edit share one form, open while either flag is set.</summary>
+    public bool IsFormOpen => IsAddModalOpen || IsEditModalOpen;
+
+    // Set when the form opens and kept on close, so the title doesn't change while it closes.
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FormTitle), nameof(FormSaveText), nameof(ModalIdPlaceholder))]
+    private bool _isEditMode;
+
+    public string FormTitle => IsEditMode ? "Edit Supplier".Translate() : "Add Supplier".Translate();
+    public string FormSaveText => IsEditMode ? "Save Changes".Translate() : "Add Supplier".Translate();
+
+    // A blank ID is generated on add but rejected on edit, so only add hints at the format.
+    public string ModalIdPlaceholder => IsEditMode ? string.Empty : "SUP-xxx".Translate();
+
+    partial void OnIsAddModalOpenChanged(bool value)
+    {
+        if (value) IsEditMode = false;
+    }
+
+    partial void OnIsEditModalOpenChanged(bool value)
+    {
+        if (value) IsEditMode = true;
+    }
+
+    [RelayCommand]
+    private Task RequestCloseFormAsync() => IsEditMode ? RequestCloseEditModalAsync() : RequestCloseAddModalAsync();
+
+    [RelayCommand]
+    private Task SaveFormAsync() => IsEditMode ? SaveEditedSupplierAsync() : SaveNewSupplierAsync();
 
     [ObservableProperty]
     private bool _isDeleteConfirmOpen;
@@ -77,7 +109,7 @@ public partial class SupplierModalsViewModel : ViewModelBase
     private string _modalStateProvince = string.Empty;
 
     [ObservableProperty]
-    private string _modalZipCode = string.Empty;
+    private string _modalPostalCode = string.Empty;
 
     [ObservableProperty]
     private string _modalCountry = string.Empty;
@@ -143,21 +175,7 @@ public partial class SupplierModalsViewModel : ViewModelBase
     /// Live preview of the initials shown when no avatar is set.
     /// Driven from ModalSupplierName so the avatar circle updates as the user types.
     /// </summary>
-    public string ModalInitialsPreview
-    {
-        get
-        {
-            var name = ModalSupplierName.Trim();
-            if (name.Length == 0) return "?";
-
-            var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length >= 2)
-                return $"{char.ToUpperInvariant(parts[0][0])}{char.ToUpperInvariant(parts[1][0])}";
-            if (parts[0].Length >= 2)
-                return parts[0][..2].ToUpperInvariant();
-            return parts[0].ToUpperInvariant();
-        }
-    }
+    public string ModalInitialsPreview => Helpers.InitialsHelper.From(ModalSupplierName);
 
     partial void OnModalIdChanged(string value)
     {
@@ -178,18 +196,18 @@ public partial class SupplierModalsViewModel : ViewModelBase
 
     private Supplier? _editingSupplier;
 
-    // Original values for change detection in edit mode
-    private string _originalId = string.Empty;
-    private string _originalSupplierName = string.Empty;
-    private string _originalEmail = string.Empty;
-    private string _originalPhone = string.Empty;
-    private string _originalWebsite = string.Empty;
-    private string _originalStreetAddress = string.Empty;
-    private string _originalCity = string.Empty;
-    private string _originalStateProvince = string.Empty;
-    private string _originalZipCode = string.Empty;
-    private string _originalCountry = string.Empty;
-    private string _originalNotes = string.Empty;
+    private sealed record EditState(
+        string Id, string Name, string Email, string Phone, string Website,
+        string StreetAddress, string City, string StateProvince, string PostalCode, string Country, string Notes,
+        bool AvatarChanged);
+
+    // The form as the edit modal opened, for change detection.
+    private EditState? _original;
+
+    private EditState Capture() => new(
+        ModalId.Trim(), ModalSupplierName, ModalEmail, ModalPhone, ModalWebsite,
+        ModalStreetAddress, ModalCity, ModalStateProvince, ModalPostalCode, ModalCountry, ModalNotes,
+        _pendingAvatarSourcePath != null || _pendingFaviconBytes != null || _shouldRemoveAvatarOnSave);
 
     /// <summary>
     /// Returns true if any data has been entered in the Add modal.
@@ -202,28 +220,15 @@ public partial class SupplierModalsViewModel : ViewModelBase
         !string.IsNullOrWhiteSpace(ModalStreetAddress) ||
         !string.IsNullOrWhiteSpace(ModalCity) ||
         !string.IsNullOrWhiteSpace(ModalStateProvince) ||
-        !string.IsNullOrWhiteSpace(ModalZipCode) ||
+        !string.IsNullOrWhiteSpace(ModalPostalCode) ||
         !string.IsNullOrWhiteSpace(ModalCountry) ||
-        !string.IsNullOrWhiteSpace(ModalNotes);
+        !string.IsNullOrWhiteSpace(ModalNotes) ||
+        HasModalAvatar;
 
     /// <summary>
     /// Returns true if any changes have been made in the Edit modal.
     /// </summary>
-    public bool HasEditModalChanges =>
-        ModalId.Trim() != _originalId ||
-        ModalSupplierName != _originalSupplierName ||
-        ModalEmail != _originalEmail ||
-        ModalPhone != _originalPhone ||
-        ModalWebsite != _originalWebsite ||
-        ModalStreetAddress != _originalStreetAddress ||
-        ModalCity != _originalCity ||
-        ModalStateProvince != _originalStateProvince ||
-        ModalZipCode != _originalZipCode ||
-        ModalCountry != _originalCountry ||
-        ModalNotes != _originalNotes ||
-        _pendingAvatarSourcePath != null ||
-        _pendingFaviconBytes != null ||
-        _shouldRemoveAvatarOnSave;
+    public bool HasEditModalChanges => Capture() != _original;
 
     #endregion
 
@@ -238,25 +243,22 @@ public partial class SupplierModalsViewModel : ViewModelBase
     public ObservableCollection<string> CountryOptions { get; } = ["All"];
     public ObservableCollection<string> StatusOptions { get; } = ["All", "Active", "Inactive"];
 
-    // Original filter values for change detection (captured when modal opens)
-    private string _originalFilterCountry = "All";
-    private string _originalFilterStatus = "All";
-
-    /// <summary>
-    /// Returns true if any filter has been changed from the state when the modal was opened.
-    /// </summary>
-    public bool HasFilterModalChanges =>
-        FilterCountry != _originalFilterCountry ||
-        FilterStatus != _originalFilterStatus;
-
-    /// <summary>
-    /// Captures the current filter state as original values for change detection.
-    /// </summary>
-    private void CaptureOriginalFilterValues()
+    private sealed record FilterValues(string Country, string Status)
     {
-        _originalFilterCountry = FilterCountry;
-        _originalFilterStatus = FilterStatus;
+        public static readonly FilterValues Default = new("All", "All");
     }
+
+    private FilterSnapshot<FilterValues>? _filters;
+
+    private FilterSnapshot<FilterValues> Filters => _filters ??= new(FilterValues.Default,
+        () => new(FilterCountry, FilterStatus),
+        v =>
+        {
+            FilterCountry = v.Country;
+            FilterStatus = v.Status;
+        });
+
+    public bool HasFilterModalChanges => Filters.HasChanges;
 
     #endregion
 
@@ -456,7 +458,7 @@ public partial class SupplierModalsViewModel : ViewModelBase
                 Street = string.IsNullOrWhiteSpace(ModalStreetAddress) ? string.Empty : ModalStreetAddress.Trim(),
                 City = string.IsNullOrWhiteSpace(ModalCity) ? string.Empty : ModalCity.Trim(),
                 State = string.IsNullOrWhiteSpace(ModalStateProvince) ? string.Empty : ModalStateProvince.Trim(),
-                ZipCode = string.IsNullOrWhiteSpace(ModalZipCode) ? string.Empty : ModalZipCode.Trim(),
+                ZipCode = string.IsNullOrWhiteSpace(ModalPostalCode) ? string.Empty : ModalPostalCode.Trim(),
                 Country = string.IsNullOrWhiteSpace(ModalCountry) ? string.Empty : ModalCountry.Trim()
             },
             Notes = string.IsNullOrWhiteSpace(ModalNotes) ? string.Empty : ModalNotes.Trim(),
@@ -540,7 +542,6 @@ public partial class SupplierModalsViewModel : ViewModelBase
 
         _editingSupplier = supplier;
         ModalId = supplier.Id;
-        _originalId = supplier.Id;
         ModalSupplierName = supplier.Name;
         ModalEmail = supplier.Email;
         ModalPhone = supplier.Phone;
@@ -575,21 +576,11 @@ public partial class SupplierModalsViewModel : ViewModelBase
         ModalStreetAddress = supplier.Address.Street;
         ModalCity = supplier.Address.City;
         ModalStateProvince = supplier.Address.State;
-        ModalZipCode = supplier.Address.ZipCode;
+        ModalPostalCode = supplier.Address.ZipCode;
         ModalCountry = supplier.Address.Country;
         ModalNotes = supplier.Notes;
 
-        // Store original values for change detection
-        _originalSupplierName = ModalSupplierName;
-        _originalEmail = ModalEmail;
-        _originalPhone = ModalPhone;
-        _originalWebsite = ModalWebsite;
-        _originalStreetAddress = ModalStreetAddress;
-        _originalCity = ModalCity;
-        _originalStateProvince = ModalStateProvince;
-        _originalZipCode = ModalZipCode;
-        _originalCountry = ModalCountry;
-        _originalNotes = ModalNotes;
+        _original = Capture();
 
         ModalError = null;
         IsEditModalOpen = true;
@@ -651,7 +642,7 @@ public partial class SupplierModalsViewModel : ViewModelBase
             Street = string.IsNullOrWhiteSpace(ModalStreetAddress) ? string.Empty : ModalStreetAddress.Trim(),
             City = string.IsNullOrWhiteSpace(ModalCity) ? string.Empty : ModalCity.Trim(),
             State = string.IsNullOrWhiteSpace(ModalStateProvince) ? string.Empty : ModalStateProvince.Trim(),
-            ZipCode = string.IsNullOrWhiteSpace(ModalZipCode) ? string.Empty : ModalZipCode.Trim(),
+            ZipCode = string.IsNullOrWhiteSpace(ModalPostalCode) ? string.Empty : ModalPostalCode.Trim(),
             Country = string.IsNullOrWhiteSpace(ModalCountry) ? string.Empty : ModalCountry.Trim()
         };
         var newNotes = string.IsNullOrWhiteSpace(ModalNotes) ? string.Empty : ModalNotes.Trim();
@@ -787,84 +778,47 @@ public partial class SupplierModalsViewModel : ViewModelBase
         {
             if (item == null) return;
 
-            // Check if supplier is in use
-            var cd = App.CompanyManager?.CompanyData;
-            if (cd != null)
-            {
-                var usages = new List<string>();
-                if (cd.Products.Any(p => p.SupplierId == item.Id))
-                    usages.Add("Product".Translate());
-                if (cd.Expenses.Any(e => e.SupplierId == item.Id))
-                    usages.Add("Expense".Translate());
-                if (cd.PurchaseOrders.Any(po => po.SupplierId == item.Id))
-                    usages.Add("Purchase Order".Translate());
-                if (cd.Returns.Any(r => r.SupplierId == item.Id))
-                    usages.Add("Return".Translate());
-                if (RecurringTransactionService.IsSupplierInUse(cd, item.Id))
-                    usages.Add("Recurring Expense".Translate());
-                if (usages.Count > 0)
-                {
-                    await App.ShowWarningMessageBoxAsync(
-                        "Cannot Delete".Translate(),
-                        "This supplier cannot be deleted because it is referenced by one or more: {0}.".TranslateFormat(string.Join(", ", usages)));
-                    return;
-                }
-            }
-
-            var dialog = App.ConfirmationDialog;
-            if (dialog == null) return;
-
-            var result = await dialog.ShowAsync(new ConfirmationDialogOptions
-            {
-                Title = "Delete Supplier".Translate(),
-                Message = "Are you sure you want to delete this supplier?\n\n{0}".TranslateFormat(item.Name),
-                PrimaryButtonText = "Delete".Translate(),
-                CancelButtonText = "Cancel".Translate(),
-                IsPrimaryDestructive = true
-            });
-
-            if (result != ConfirmationResult.Primary) return;
-
             var companyData = App.CompanyManager?.CompanyData;
+            if (companyData == null) return;
 
-            var supplier = companyData?.Suppliers.FirstOrDefault(s => s.Id == item.Id);
+            if (await BlockIfInUseAsync(
+                    usages => "This supplier cannot be deleted because it is referenced by one or more: {0}.".TranslateFormat(usages),
+                    (companyData.Products.Any(p => p.SupplierId == item.Id), "Product".Translate()),
+                    (companyData.Expenses.Any(e => e.SupplierId == item.Id), "Expense".Translate()),
+                    (companyData.PurchaseOrders.Any(po => po.SupplierId == item.Id), "Purchase Order".Translate()),
+                    (companyData.Returns.Any(r => r.SupplierId == item.Id), "Return".Translate()),
+                    (RecurringTransactionService.IsSupplierInUse(companyData, item.Id), "Recurring Expense".Translate())))
+                return;
+
+            if (!await ConfirmDeleteAsync("Delete Supplier".Translate(),
+                    "Are you sure you want to delete this supplier?\n\n{0}".TranslateFormat(item.Name)))
+                return;
+
+            var supplier = companyData.Suppliers.FirstOrDefault(s => s.Id == item.Id);
             if (supplier == null) return;
 
-            var deletedSupplier = supplier;
-
-            // Snapshot the avatar bytes BEFORE deleting so undo can restore the
-            // file alongside the supplier record.
-            var deletedAvatarBytes = App.CompanyManager?.ReadSupplierAvatarBytes(deletedSupplier);
-
-            // Clean up the avatar file before removing the supplier, avoids bloat and
-            // retention of deleted-supplier images in the .argo archive on next save.
-            if (App.CompanyManager != null && !string.IsNullOrEmpty(deletedSupplier.AvatarFileName))
+            // Snapshot the avatar bytes before deleting so undo can restore the file with the
+            // record, then remove the file so a deleted supplier's image isn't kept in the .argo archive.
+            var avatarBytes = App.CompanyManager?.ReadSupplierAvatarBytes(supplier);
+            if (App.CompanyManager != null && !string.IsNullOrEmpty(supplier.AvatarFileName))
             {
-                try { await App.CompanyManager.RemoveSupplierAvatarAsync(deletedSupplier); }
+                try { await App.CompanyManager.RemoveSupplierAvatarAsync(supplier); }
                 catch (Exception ex) { App.ErrorLogger?.LogWarning($"Failed to remove supplier avatar on delete: {ex.Message}", "Supplier.Delete"); }
             }
 
-            companyData?.Suppliers.Remove(supplier);
-            companyData?.MarkAsModified();
-
-            App.UndoRedoManager.RecordAction(new DelegateAction(
-                $"Delete supplier '{supplier.Name}'",
-                () => {
-                    companyData?.Suppliers.Add(deletedSupplier);
-                    if (deletedAvatarBytes != null)
-                        App.CompanyManager?.RestoreSupplierAvatar(deletedSupplier, deletedAvatarBytes);
-                    companyData?.MarkAsModified();
-                    SupplierDeleted?.Invoke(this, EventArgs.Empty);
+            RemoveWithUndo(companyData, companyData.Suppliers, supplier, $"Delete supplier '{supplier.Name}'",
+                () => SupplierDeleted?.Invoke(this, EventArgs.Empty),
+                onRemove: () =>
+                {
+                    // Only a redo finds the file back; the first removal deleted it above.
+                    if (!string.IsNullOrEmpty(supplier.AvatarFileName))
+                        App.CompanyManager?.RestoreSupplierAvatar(supplier, null);
                 },
-                () => {
-                    if (deletedAvatarBytes != null)
-                        App.CompanyManager?.RestoreSupplierAvatar(deletedSupplier, null);
-                    companyData?.Suppliers.Remove(deletedSupplier);
-                    companyData?.MarkAsModified();
-                    SupplierDeleted?.Invoke(this, EventArgs.Empty);
-                }));
-
-            SupplierDeleted?.Invoke(this, EventArgs.Empty);
+                onRestore: () =>
+                {
+                    if (avatarBytes != null)
+                        App.CompanyManager?.RestoreSupplierAvatar(supplier, avatarBytes);
+                });
         }
         catch (Exception ex)
         {
@@ -880,33 +834,20 @@ public partial class SupplierModalsViewModel : ViewModelBase
     public void OpenFilterModal()
     {
         UpdateCountryOptions();
-        CaptureOriginalFilterValues();
+        Filters.Capture();
         IsFilterModalOpen = true;
     }
 
-    [RelayCommand]
-    public void CloseFilterModal()
-    {
-        IsFilterModalOpen = false;
-    }
+    private void CloseFilterModal() => IsFilterModalOpen = false;
 
     /// <summary>
-    /// Requests to close the Filter modal, showing confirmation if filters have been changed.
+    /// Closes the filter modal, asking first and putting the filters back if they were changed.
     /// </summary>
     [RelayCommand]
     public async Task RequestCloseFilterModalAsync()
     {
-        if (HasFilterModalChanges)
-        {
-            if (!await ConfirmDiscardFiltersAsync())
-                return;
-
-            // Restore filter values to the state when modal was opened
-            FilterCountry = _originalFilterCountry;
-            FilterStatus = _originalFilterStatus;
-        }
-
-        CloseFilterModal();
+        if (await Filters.ConfirmDiscardAsync(ConfirmDiscardFiltersAsync))
+            CloseFilterModal();
     }
 
     [RelayCommand]
@@ -919,27 +860,15 @@ public partial class SupplierModalsViewModel : ViewModelBase
     [RelayCommand]
     public void ClearFilters()
     {
-        ResetFilterDefaults();
+        Filters.Reset();
         FiltersCleared?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
     }
 
     private void UpdateCountryOptions()
     {
-        CountryOptions.Clear();
-        CountryOptions.Add("All");
-
-        var companyData = App.CompanyManager?.CompanyData;
-        if (companyData == null) return;
-
-        var countries = companyData.Suppliers
-            .Select(s => s.Address.Country)
-            .Where(c => !string.IsNullOrWhiteSpace(c))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(c => c);
-
-        foreach (var country in countries)
-            CountryOptions.Add(country);
+        var addresses = App.CompanyManager?.CompanyData?.Suppliers.Select(s => s.Address) ?? Enumerable.Empty<Address>();
+        OptionLoader.Fill(CountryOptions, OptionLoader.Countries(addresses), "All");
     }
 
     #endregion
@@ -971,12 +900,6 @@ public partial class SupplierModalsViewModel : ViewModelBase
 
     #region Helpers
 
-    private void ResetFilterDefaults()
-    {
-        FilterCountry = "All";
-        FilterStatus = "All";
-    }
-
     private void ClearModalFields()
     {
         // Cancel and dispose any in-flight favicon fetch from a previous open of the modal.
@@ -989,7 +912,6 @@ public partial class SupplierModalsViewModel : ViewModelBase
         _faviconCts = null;
 
         ModalId = string.Empty;
-        _originalId = string.Empty;
         ModalIdError = null;
         ModalSupplierName = string.Empty;
         ModalEmail = string.Empty;
@@ -998,7 +920,7 @@ public partial class SupplierModalsViewModel : ViewModelBase
         ModalStreetAddress = string.Empty;
         ModalCity = string.Empty;
         ModalStateProvince = string.Empty;
-        ModalZipCode = string.Empty;
+        ModalPostalCode = string.Empty;
         ModalCountry = string.Empty;
         ModalNotes = string.Empty;
         ModalError = null;

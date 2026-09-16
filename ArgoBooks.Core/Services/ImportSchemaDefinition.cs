@@ -149,8 +149,8 @@ public static class ImportSchemaDefinition
                 new("Category Name", "string", "Name of the category - ALWAYS provide this, infer from product name/description if not in source data", JsonName: "categoryName"),
                 new("Supplier ID", "string", "Supplier identifier", JsonName: "supplierId"),
                 new("Supplier Name", "string", "Name of the supplier (alternative to ID)"),
-                new("Reorder Point", "int", "Stock level that triggers reorder", JsonName: "reorderPoint"),
-                new("Overstock Threshold", "int", "Stock level considered overstock", JsonName: "overstockThreshold"),
+                new("Reorder Point", "decimal", "Stock level that triggers reorder", JsonName: "reorderPoint"),
+                new("Overstock Threshold", "decimal", "Stock level considered overstock", JsonName: "overstockThreshold"),
             ],
 
             [SpreadsheetSheetType.Categories] =
@@ -224,9 +224,9 @@ public static class ImportSchemaDefinition
                 new("ID", "string", "Unique identifier (e.g., INV-ITM-001)", Required: true, JsonName: "id"),
                 new("Product ID", "string", "Associated product identifier", Required: true, JsonName: "productId"),
                 new("Location ID", "string", "Storage location identifier", JsonName: "locationId"),
-                new("In Stock", "int", "Current stock quantity", JsonName: "inStock"),
-                new("Reserved", "int", "Reserved/allocated quantity", JsonName: "reserved"),
-                new("Reorder Point", "int", "Stock level that triggers reorder", JsonName: "reorderPoint"),
+                new("In Stock", "decimal", "Current stock quantity", JsonName: "inStock"),
+                new("Reserved", "decimal", "Reserved/allocated quantity", JsonName: "reserved"),
+                new("Reorder Point", "decimal", "Stock level that triggers reorder", JsonName: "reorderPoint"),
                 new("Unit Cost", "decimal", "Cost per unit", JsonName: "unitCost"),
                 new("Last Updated", "datetime", "When stock was last counted", JsonName: "lastUpdated"),
             ],
@@ -283,7 +283,7 @@ public static class ImportSchemaDefinition
                 new("Rate Amount", "decimal", "Rate amount per period", JsonName: "rateAmount"),
                 new("Security Deposit", "decimal", "Security deposit amount", JsonName: "securityDeposit"),
                 new("Total Cost", "decimal", "Total cost of the rental", JsonName: "totalCost"),
-                new("Status", "enum:Active,Returned,Overdue,Cancelled", "Rental status", JsonName: "status"),
+                new("Status", "enum:Reserved,Active,Returned,Overdue,Cancelled", "Rental status", JsonName: "status"),
                 new("Paid", "enum:Yes,No", "Whether the rental has been paid", JsonName: "paid"),
             ],
 
@@ -303,9 +303,9 @@ public static class ImportSchemaDefinition
                 new("ID", "string", "Unique identifier (e.g., ADJ-001)", Required: true, JsonName: "id"),
                 new("Inventory Item ID", "string", "Inventory item identifier", Required: true, JsonName: "inventoryItemId"),
                 new("Type", "enum:Set,Add,Remove", "Type of stock adjustment", JsonName: "adjustmentType"),
-                new("Quantity", "int", "Adjustment quantity", JsonName: "quantity"),
-                new("Previous Stock", "int", "Stock before adjustment", JsonName: "previousStock"),
-                new("New Stock", "int", "Stock after adjustment", JsonName: "newStock"),
+                new("Quantity", "decimal", "Adjustment quantity", JsonName: "quantity"),
+                new("Previous Stock", "decimal", "Stock before adjustment", JsonName: "previousStock"),
+                new("New Stock", "decimal", "Stock after adjustment", JsonName: "newStock"),
                 new("Reason", "string", "Reason for adjustment", JsonName: "reason"),
                 new("Timestamp", "datetime", "When adjustment was made", JsonName: "timestamp"),
             ],
@@ -339,9 +339,9 @@ public static class ImportSchemaDefinition
             [
                 new("PO ID", "string", "Purchase order identifier", Required: true, JsonName: "poId"),
                 new("Product ID", "string", "Product identifier", Required: true, JsonName: "productId"),
-                new("Quantity", "int", "Ordered quantity", JsonName: "quantity"),
+                new("Quantity", "decimal", "Ordered quantity", JsonName: "quantity"),
                 new("Unit Cost", "decimal", "Cost per unit", JsonName: "unitCost"),
-                new("Quantity Received", "int", "Quantity received so far", JsonName: "quantityReceived"),
+                new("Quantity Received", "decimal", "Quantity received so far", JsonName: "quantityReceived"),
             ],
 
             [SpreadsheetSheetType.Employees] =

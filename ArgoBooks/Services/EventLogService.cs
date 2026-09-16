@@ -238,7 +238,6 @@ public class EventLogService
     /// Gets events filtered by criteria, newest first.
     /// </summary>
     public IEnumerable<AuditEvent> GetFilteredEvents(
-        string? searchQuery = null,
         AuditAction? actionFilter = null,
         string? entityTypeFilter = null,
         DateTime? fromDate = null,
@@ -257,15 +256,6 @@ public class EventLogService
 
         if (toDate.HasValue)
             results = results.Where(e => e.Timestamp <= toDate.Value);
-
-        if (!string.IsNullOrWhiteSpace(searchQuery))
-        {
-            var query = searchQuery.Trim();
-            results = results.Where(e =>
-                e.Description.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-                e.EntityName.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-                e.EntityType.Contains(query, StringComparison.OrdinalIgnoreCase));
-        }
 
         return results;
     }

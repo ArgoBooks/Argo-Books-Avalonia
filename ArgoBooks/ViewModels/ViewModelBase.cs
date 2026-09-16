@@ -1,5 +1,7 @@
+using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Localization;
+using ArgoBooks.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace ArgoBooks.ViewModels;
@@ -121,6 +123,85 @@ public abstract partial class ViewModelBase : ObservableObject
 
         return result == ConfirmationResult.Primary;
     }
+
+    #region Delete
+
+    /// <summary>
+    /// Shows the standard delete confirmation. Returns true only when the user confirmed.
+    /// </summary>
+    /// <param name="title">Translated dialog title.</param>
+    /// <param name="message">Translated dialog message.</param>
+    protected static async Task<bool> ConfirmDeleteAsync(string title, string message)
+    {
+        var dialog = App.ConfirmationDialog;
+        if (dialog == null) return false;
+
+        var result = await dialog.ShowAsync(new ConfirmationDialogOptions
+        {
+            Title = title,
+            Message = message,
+            PrimaryButtonText = "Delete".Translate(),
+            CancelButtonText = "Cancel".Translate(),
+            IsPrimaryDestructive = true
+        });
+
+        return result == ConfirmationResult.Primary;
+    }
+
+    /// <summary>
+    /// Shows "Cannot Delete" listing the kinds of record that still refer to this one.
+    /// Returns true when any check found a use, in which case the delete must not go ahead.
+    /// </summary>
+    /// <param name="message">Builds the translated message from the comma-joined labels.</param>
+    /// <param name="checks">Each kind of record and whether it refers to the one being deleted.</param>
+    protected static async Task<bool> BlockIfInUseAsync(Func<string, string> message, params (bool Used, string Label)[] checks)
+    {
+        var usages = checks.Where(c => c.Used).Select(c => c.Label).ToList();
+        if (usages.Count == 0) return false;
+
+        await App.ShowWarningMessageBoxAsync("Cannot Delete".Translate(), message(string.Join(", ", usages)));
+        return true;
+    }
+
+    /// <summary>
+    /// Removes a record, marks the company modified, records an undo entry that puts it back,
+    /// and raises <paramref name="notify"/>. <paramref name="onRemove"/> runs after the first
+    /// removal and after every redo; <paramref name="onRestore"/> runs after every undo.
+    /// </summary>
+    protected static void RemoveWithUndo<T>(
+        CompanyData companyData,
+        IList<T> list,
+        T item,
+        string description,
+        Action? notify,
+        Action? onRemove = null,
+        Action? onRestore = null)
+    {
+        list.Remove(item);
+        onRemove?.Invoke();
+        companyData.MarkAsModified();
+
+        App.UndoRedoManager.RecordAction(new DelegateAction(
+            description,
+            () =>
+            {
+                list.Add(item);
+                onRestore?.Invoke();
+                companyData.MarkAsModified();
+                notify?.Invoke();
+            },
+            () =>
+            {
+                list.Remove(item);
+                onRemove?.Invoke();
+                companyData.MarkAsModified();
+                notify?.Invoke();
+            }));
+
+        notify?.Invoke();
+    }
+
+    #endregion
 
     /// <summary>
     /// Executes an async operation while showing a busy indicator.

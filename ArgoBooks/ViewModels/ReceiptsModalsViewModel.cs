@@ -120,54 +120,29 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
     /// </summary>
     public ObservableCollection<string> FileTypeOptions { get; } = ["All", "Image", "PDF"];
 
-    // Original filter values for change detection
-    private string _originalFilterType = "All";
-    private DateTimeOffset? _originalFilterDateFrom;
-    private DateTimeOffset? _originalFilterDateTo;
-    private string? _originalFilterAmountMin;
-    private string? _originalFilterAmountMax;
-    private string _originalFilterSource = "All";
-    private string _originalFilterFileType = "All";
-
-    /// <summary>
-    /// Returns true if any filter has been changed from its original value when the modal was opened.
-    /// </summary>
-    public bool HasFilterModalChanges =>
-        FilterType != _originalFilterType ||
-        FilterDateFrom != _originalFilterDateFrom ||
-        FilterDateTo != _originalFilterDateTo ||
-        FilterAmountMin != _originalFilterAmountMin ||
-        FilterAmountMax != _originalFilterAmountMax ||
-        FilterSource != _originalFilterSource ||
-        FilterFileType != _originalFilterFileType;
-
-    /// <summary>
-    /// Captures the current filter values as the original values for change detection.
-    /// </summary>
-    private void CaptureOriginalFilterValues()
+    private sealed record FilterValues(
+        string Type, DateTimeOffset? DateFrom, DateTimeOffset? DateTo,
+        string? AmountMin, string? AmountMax, string Source, string FileType)
     {
-        _originalFilterType = FilterType;
-        _originalFilterDateFrom = FilterDateFrom;
-        _originalFilterDateTo = FilterDateTo;
-        _originalFilterAmountMin = FilterAmountMin;
-        _originalFilterAmountMax = FilterAmountMax;
-        _originalFilterSource = FilterSource;
-        _originalFilterFileType = FilterFileType;
+        public static readonly FilterValues Default = new("All", null, null, null, null, "All", "All");
     }
 
-    /// <summary>
-    /// Restores filter values to their original values when the modal was opened.
-    /// </summary>
-    private void RestoreOriginalFilterValues()
-    {
-        FilterType = _originalFilterType;
-        FilterDateFrom = _originalFilterDateFrom;
-        FilterDateTo = _originalFilterDateTo;
-        FilterAmountMin = _originalFilterAmountMin;
-        FilterAmountMax = _originalFilterAmountMax;
-        FilterSource = _originalFilterSource;
-        FilterFileType = _originalFilterFileType;
-    }
+    private FilterSnapshot<FilterValues>? _filters;
+
+    private FilterSnapshot<FilterValues> Filters => _filters ??= new(FilterValues.Default,
+        () => new(FilterType, FilterDateFrom, FilterDateTo, FilterAmountMin, FilterAmountMax, FilterSource, FilterFileType),
+        v =>
+        {
+            FilterType = v.Type;
+            FilterDateFrom = v.DateFrom;
+            FilterDateTo = v.DateTo;
+            FilterAmountMin = v.AmountMin;
+            FilterAmountMax = v.AmountMax;
+            FilterSource = v.Source;
+            FilterFileType = v.FileType;
+        });
+
+    public bool HasFilterModalChanges => Filters.HasChanges;
 
     #endregion
 
@@ -178,34 +153,20 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
     /// </summary>
     public void OpenFilterModal()
     {
-        CaptureOriginalFilterValues();
+        Filters.Capture();
         IsFilterModalOpen = true;
     }
 
-    /// <summary>
-    /// Closes the filter modal.
-    /// </summary>
-    [RelayCommand]
-    private void CloseFilterModal()
-    {
-        IsFilterModalOpen = false;
-    }
+    private void CloseFilterModal() => IsFilterModalOpen = false;
 
     /// <summary>
-    /// Requests to close the filter modal, showing confirmation if there are unapplied changes.
+    /// Closes the filter modal, asking first and putting the filters back if they were changed.
     /// </summary>
     [RelayCommand]
     public async Task RequestCloseFilterModalAsync()
     {
-        if (HasFilterModalChanges)
-        {
-            if (!await ConfirmDiscardFiltersAsync())
-                return;
-
-            RestoreOriginalFilterValues();
-        }
-
-        CloseFilterModal();
+        if (await Filters.ConfirmDiscardAsync(ConfirmDiscardFiltersAsync))
+            CloseFilterModal();
     }
 
     /// <summary>
@@ -224,7 +185,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
     [RelayCommand]
     private void ClearFilters()
     {
-        ResetFilterDefaults();
+        Filters.Reset();
         FiltersCleared?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
     }
@@ -1574,8 +1535,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
 
             if (isRevenue)
             {
-                companyData.IdCounters.Revenue++;
-                var revenueId = $"REV-{DateTime.Now:yyyy}-{companyData.IdCounters.Revenue:D5}";
+                var revenueId = new Core.Data.IdGenerator(companyData).NextRevenueId(transactionDate);
 
                 var revenue = new Revenue
                 {
@@ -1608,8 +1568,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             }
             else
             {
-                companyData.IdCounters.Expense++;
-                var expenseId = $"PUR-{DateTime.Now:yyyy}-{companyData.IdCounters.Expense:D5}";
+                var expenseId = new Core.Data.IdGenerator(companyData).NextExpenseId(transactionDate);
 
                 var expense = new Expense
                 {
@@ -2694,13 +2653,13 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         decimal total, decimal subtotal, decimal taxAmount, decimal discount, decimal shipping, List<LineItem> lineItems)
     {
         var currency = ScanCurrencyCode;
-        companyData.IdCounters.Expense++;
-        var expenseId = $"PUR-{DateTime.Now:yyyy}-{companyData.IdCounters.Expense:D5}";
+        var expenseDate = ExtractedDate?.DateTime ?? DateTime.Now;
+        var expenseId = new Core.Data.IdGenerator(companyData).NextExpenseId(expenseDate);
 
         var expense = new Expense
         {
             Id = expenseId,
-            Date = ExtractedDate?.DateTime ?? DateTime.Now,
+            Date = expenseDate,
             SupplierId = SelectedSupplier?.Id,
             Description = lineItems.Count > 0 ? lineItems[0].Description : ExtractedSupplier,
             LineItems = lineItems,
@@ -2769,13 +2728,13 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         decimal total, decimal subtotal, decimal taxAmount, decimal discount, decimal shipping, List<LineItem> lineItems)
     {
         var currency = ScanCurrencyCode;
-        companyData.IdCounters.Revenue++;
-        var revenueId = $"REV-{DateTime.Now:yyyy}-{companyData.IdCounters.Revenue:D5}";
+        var revenueDate = ExtractedDate?.DateTime ?? DateTime.Now;
+        var revenueId = new Core.Data.IdGenerator(companyData).NextRevenueId(revenueDate);
 
         var revenue = new Revenue
         {
             Id = revenueId,
-            Date = ExtractedDate?.DateTime ?? DateTime.Now,
+            Date = revenueDate,
             CustomerId = null, // Could be linked to customer if we add customer selection later
             Description = lineItems.Count > 0 ? lineItems[0].Description : ExtractedSupplier,
             LineItems = lineItems,
@@ -2922,10 +2881,9 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             var aiCategory = _aiSuggestion?.NewCategory;
             var categoryName = aiCategory?.Name ?? "General Expenses";
 
-            companyData.IdCounters.Category++;
             category = new Category
             {
-                Id = $"CAT-PUR-{companyData.IdCounters.Category:D3}",
+                Id = new Core.Data.IdGenerator(companyData).NextCategoryId(CategoryType.Expense),
                 Name = categoryName,
                 Type = CategoryType.Expense,
                 Description = aiCategory?.Description
@@ -3458,17 +3416,6 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
 
     #region Helper Methods
 
-    private void ResetFilterDefaults()
-    {
-        FilterType = "All";
-        FilterDateFrom = null;
-        FilterDateTo = null;
-        FilterAmountMin = null;
-        FilterAmountMax = null;
-        FilterSource = "All";
-        FilterFileType = "All";
-    }
-
     private void ResetScanModal()
     {
         IsScanning = false;
@@ -3525,14 +3472,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
 
     private void LoadSupplierOptions()
     {
-        SupplierOptions.Clear();
-        var companyData = App.CompanyManager?.CompanyData;
-        if (companyData?.Suppliers == null) return;
-
-        foreach (var supplier in companyData.Suppliers.OrderBy(s => s.Name))
-        {
-            SupplierOptions.Add(new SupplierOption { Id = supplier.Id, Name = supplier.Name });
-        }
+        OptionLoader.Fill(SupplierOptions, OptionLoader.Suppliers(App.CompanyManager?.CompanyData).AsOptions<SupplierOption>());
     }
 
     private void LoadProductOptions()

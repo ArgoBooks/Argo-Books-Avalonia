@@ -59,4 +59,25 @@ public class RentalInventoryModalsViewModelTests : ModalViewModelTestBase
 
         Assert.Equal("INV-2", item.InventoryItemId);
     }
+
+    // Rent Out saved one deposit however many units went out.
+    [Fact]
+    public void RentOut_ThreeUnits_TakesADepositAndStockForEach()
+    {
+        Company.Customers.Add(new Customer { Id = "CUST-1", Name = "Bob" });
+        Company.Products.Add(new Product { Id = "P1", Name = "Ladder" });
+        var stock = new InventoryItem { Id = "INV-1", ProductId = "P1", InStock = 5 };
+        Company.Inventory.Add(stock);
+        Company.RentalInventory.Add(new RentalItem { Id = "RI-1", InventoryItemId = "INV-1", DailyRate = 10m, SecurityDeposit = 20m });
+        var vm = new RentalInventoryModalsViewModel();
+
+        vm.OpenRentOutModal(new RentalItemDisplayItem { Id = "RI-1", Name = "Ladder" });
+        vm.RentOutCustomer = vm.AvailableCustomers.Single();
+        vm.RentOutQuantity = "3";
+        vm.ConfirmRentOut();
+
+        var rental = Assert.Single(Company.Rentals);
+        Assert.Equal((60m, 20m, 3), (rental.SecurityDeposit, rental.LineItems.Single().SecurityDeposit, rental.Quantity));
+        Assert.Equal(2m, stock.InStock);
+    }
 }

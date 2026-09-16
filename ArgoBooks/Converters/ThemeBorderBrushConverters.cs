@@ -1,8 +1,6 @@
 using System.Globalization;
 using ArgoBooks.Core;
-using Avalonia;
 using Avalonia.Data.Converters;
-using Avalonia.Media;
 
 namespace ArgoBooks.Converters;
 
@@ -16,40 +14,11 @@ public class ThemeBorderBrushMultiConverter : IMultiValueConverter
 {
     public object? Convert(IList<object?> values, Type targetType, object? parameter, CultureInfo culture)
     {
-        if (values.Count < 1)
-            return GetBorderBrush();
+        var isSelected = values.Count >= 1 &&
+                         string.Equals(values[0] as string, parameter as string, StringComparison.OrdinalIgnoreCase);
 
-        var selectedTheme = values[0] as string;
-        var compareValue = parameter as string;
-
-        // Values[1] is SelectedAccentColor - we don't use its value directly,
-        // but binding to it ensures this converter re-runs when accent color changes
-
-        bool isSelected = string.Equals(selectedTheme, compareValue, StringComparison.OrdinalIgnoreCase);
-
-        // Get the appropriate brush from Application resources
-        if (Application.Current?.Resources != null)
-        {
-            var resourceKey = isSelected ? "PrimaryBrush" : "BorderBrush";
-            if (Application.Current.Resources.TryGetResource(resourceKey, Application.Current.ActualThemeVariant, out var resource))
-            {
-                return resource;
-            }
-        }
-
-        // Fallback colors
         return isSelected
-            ? new SolidColorBrush(Color.Parse(AppColors.Primary))
-            : new SolidColorBrush(Color.Parse(AppColors.ChartGrid));
-    }
-
-    private static IBrush GetBorderBrush()
-    {
-        if (Application.Current?.Resources != null &&
-            Application.Current.Resources.TryGetResource("BorderBrush", Application.Current.ActualThemeVariant, out var resource))
-        {
-            return resource as IBrush ?? new SolidColorBrush(Color.Parse(AppColors.ChartGrid));
-        }
-        return new SolidColorBrush(Color.Parse(AppColors.ChartGrid));
+            ? ConverterUtils.ThemeBrush("PrimaryBrush", AppColors.Primary)
+            : ConverterUtils.ThemeBrush("BorderBrush", AppColors.ChartGrid);
     }
 }

@@ -29,19 +29,19 @@ public class StockAdjustment
     /// Quantity to adjust by.
     /// </summary>
     [JsonPropertyName("quantity")]
-    public int Quantity { get; set; }
+    public decimal Quantity { get; set; }
 
     /// <summary>
     /// Stock level before adjustment.
     /// </summary>
     [JsonPropertyName("previousStock")]
-    public int PreviousStock { get; set; }
+    public decimal PreviousStock { get; set; }
 
     /// <summary>
     /// Stock level after adjustment.
     /// </summary>
     [JsonPropertyName("newStock")]
-    public int NewStock { get; set; }
+    public decimal NewStock { get; set; }
 
     /// <summary>
     /// Reason for adjustment.

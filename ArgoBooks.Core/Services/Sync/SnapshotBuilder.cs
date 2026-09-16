@@ -1,4 +1,5 @@
 using System.Globalization;
+using ArgoBooks.Core.Models.Inventory;
 using ArgoBooks.Core.Data;
 
 namespace ArgoBooks.Core.Services.Sync;
@@ -100,7 +101,7 @@ public static class SnapshotBuilder
         {
             Title = p.Name,
             Subtitle = p.Sku,
-            Amount = $"{SumStockOnHand(data, p.Id)} in stock"
+            Amount = $"{StockUnits.Format(SumStockOnHand(data, p.Id), p.UnitOfMeasure)} in stock"
         })
         .ToList();
 
@@ -124,7 +125,7 @@ public static class SnapshotBuilder
         .Where(e => e.SupplierId == supplierId)
         .Sum(e => e.EffectiveTotalUSD);
 
-    private static int SumStockOnHand(CompanyData data, string productId) => data.Inventory
+    private static decimal SumStockOnHand(CompanyData data, string productId) => data.Inventory
         .Where(i => i.ProductId == productId)
         .Sum(i => i.InStock);
 

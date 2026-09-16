@@ -16,27 +16,16 @@
         <controls:ModalOverlay IsOpen="{Binding IsCandidateModalOpen}"
                                ClosingCommand="{Binding CloseCandidateModalCommand}">
             <controls:ModalOverlay.ModalContent>
-                <Border Background="{DynamicResource SurfaceBrush}"
-                        BorderBrush="{DynamicResource BorderBrush}"
-                        BorderThickness="1" CornerRadius="12"
-                        Width="560" MaxHeight="600"
-                        HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Border Classes="modal-card"
+                        Width="560" MaxHeight="600">
                     <Grid RowDefinitions="Auto,*,Auto">
-                        <Border Grid.Row="0" Padding="24,20" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
-                            <Grid ColumnDefinitions="*,Auto">
-                                <StackPanel Grid.Column="0" Spacing="2">
-                                    <TextBlock Text="{loc:Loc 'Choose matching book entry'}"
-                                               FontSize="18" FontWeight="SemiBold"
-                                               Foreground="{DynamicResource TextPrimaryBrush}" />
-                                    <TextBlock Text="{Binding LineDescription}" FontSize="13"
-                                               TextTrimming="CharacterEllipsis"
-                                               Foreground="{DynamicResource TextSecondaryBrush}" />
-                                </StackPanel>
-                                <Button Grid.Column="1" Classes="icon-button" Command="{Binding CloseCandidateModalCommand}">
-                                    <PathIcon Data="{x:Static local:Icons.Close}" Width="20" Height="20" />
-                                </Button>
-                            </Grid>
-                        </Border>
+                        <controls:ModalHeader Grid.Row="0"
+                                              Title="{loc:Loc 'Choose matching book entry'}"
+                                              CloseCommand="{Binding CloseCandidateModalCommand}">
+                            <TextBlock Text="{Binding LineDescription}" FontSize="13"
+                                       TextTrimming="CharacterEllipsis"
+                                       Foreground="{DynamicResource TextSecondaryBrush}" />
+                        </controls:ModalHeader>
 
                         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
                             <StackPanel Margin="24" Spacing="8">
@@ -106,7 +95,7 @@
                             </StackPanel>
                         </ScrollViewer>
 
-                        <Border Grid.Row="2" Padding="24" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
+                        <Border Classes="modal-footer" Grid.Row="2">
                             <Button Classes="secondary-button" HorizontalAlignment="Right"
                                     Command="{Binding CloseCandidateModalCommand}"
                                     Content="{loc:Loc Cancel}" />
@@ -118,22 +107,13 @@
 
         <!-- Filter bank lines -->
         <controls:ModalOverlay IsOpen="{Binding IsFilterModalOpen}"
-                               ClosingCommand="{Binding CloseFilterModalCommand}">
+                               ClosingCommand="{Binding RequestCloseFilterModalCommand}">
             <controls:ModalOverlay.ModalContent>
-                <Border Background="{DynamicResource SurfaceBrush}"
-                        BorderBrush="{DynamicResource BorderBrush}"
-                        BorderThickness="1" CornerRadius="12" Width="480"
-                        HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Border Classes="modal-card"
+                        Width="480">
                     <StackPanel>
-                        <Border Padding="24,20" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
-                            <Grid ColumnDefinitions="*,Auto">
-                                <TextBlock Text="{loc:Loc 'Filter bank lines'}" FontSize="18" FontWeight="SemiBold"
-                                           Foreground="{DynamicResource TextPrimaryBrush}" />
-                                <Button Grid.Column="1" Classes="icon-button" Command="{Binding CloseFilterModalCommand}">
-                                    <PathIcon Data="{x:Static local:Icons.Close}" Width="20" Height="20" />
-                                </Button>
-                            </Grid>
-                        </Border>
+                        <controls:ModalHeader Title="{loc:Loc 'Filter bank lines'}"
+                                              CloseCommand="{Binding RequestCloseFilterModalCommand}" />
 
                         <StackPanel Spacing="16" Margin="24">
                             <StackPanel Spacing="6">
@@ -160,12 +140,12 @@
                             </StackPanel>
                         </StackPanel>
 
-                        <Border Padding="24,16" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
+                        <Border Classes="modal-footer">
                             <Grid ColumnDefinitions="Auto,*,Auto,Auto">
                                 <Button Grid.Column="0" Content="{loc:Loc 'Clear filters'}" Classes="secondary-button"
                                         HorizontalAlignment="Left" Command="{Binding ClearFiltersCommand}" />
                                 <Button Grid.Column="2" Content="{loc:Loc Cancel}" Classes="secondary-button"
-                                        Margin="0,0,12,0" Command="{Binding CloseFilterModalCommand}" />
+                                        Margin="0,0,12,0" Command="{Binding RequestCloseFilterModalCommand}" />
                                 <Button Grid.Column="3" Content="{loc:Loc 'Apply Filters'}" Classes="primary-button"
                                         Command="{Binding ApplyFiltersCommand}" />
                             </Grid>
@@ -177,22 +157,13 @@
 
         <!-- Filter missing records -->
         <controls:ModalOverlay IsOpen="{Binding IsMissingFilterModalOpen}"
-                               ClosingCommand="{Binding CloseMissingFilterModalCommand}">
+                               ClosingCommand="{Binding RequestCloseMissingFilterModalCommand}">
             <controls:ModalOverlay.ModalContent>
-                <Border Background="{DynamicResource SurfaceBrush}"
-                        BorderBrush="{DynamicResource BorderBrush}"
-                        BorderThickness="1" CornerRadius="12" Width="480"
-                        HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Border Classes="modal-card"
+                        Width="480">
                     <StackPanel>
-                        <Border Padding="24,20" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
-                            <Grid ColumnDefinitions="*,Auto">
-                                <TextBlock Text="{loc:Loc 'Filter records'}" FontSize="18" FontWeight="SemiBold"
-                                           Foreground="{DynamicResource TextPrimaryBrush}" />
-                                <Button Grid.Column="1" Classes="icon-button" Command="{Binding CloseMissingFilterModalCommand}">
-                                    <PathIcon Data="{x:Static local:Icons.Close}" Width="20" Height="20" />
-                                </Button>
-                            </Grid>
-                        </Border>
+                        <controls:ModalHeader Title="{loc:Loc 'Filter records'}"
+                                              CloseCommand="{Binding RequestCloseMissingFilterModalCommand}" />
 
                         <StackPanel Spacing="16" Margin="24">
                             <StackPanel Spacing="6">
@@ -219,12 +190,12 @@
                             </StackPanel>
                         </StackPanel>
 
-                        <Border Padding="24,16" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
+                        <Border Classes="modal-footer">
                             <Grid ColumnDefinitions="Auto,*,Auto,Auto">
                                 <Button Grid.Column="0" Content="{loc:Loc 'Clear filters'}" Classes="secondary-button"
                                         HorizontalAlignment="Left" Command="{Binding ClearMissingFiltersCommand}" />
                                 <Button Grid.Column="2" Content="{loc:Loc Cancel}" Classes="secondary-button"
-                                        Margin="0,0,12,0" Command="{Binding CloseMissingFilterModalCommand}" />
+                                        Margin="0,0,12,0" Command="{Binding RequestCloseMissingFilterModalCommand}" />
                                 <Button Grid.Column="3" Content="{loc:Loc 'Apply Filters'}" Classes="primary-button"
                                         Command="{Binding ApplyMissingFiltersCommand}" />
                             </Grid>

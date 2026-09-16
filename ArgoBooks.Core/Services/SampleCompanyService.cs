@@ -457,6 +457,25 @@ public class SampleCompanyService
             UpdatedAt = referenceDate
         });
 
+        // Reserved - starts in 3 days, due in 6 days, so its stock is still on the shelf
+        newRentals.Add(new RentalRecord
+        {
+            Id = $"RNT-{++maxId:D3}",
+            RentalItemId = item1.Id,
+            CustomerId = cust2.Id,
+            Quantity = 1,
+            RateType = RateType.Daily,
+            RateAmount = item1.DailyRate,
+            SecurityDeposit = item1.SecurityDeposit,
+            LineItems = [new RentalLineItem { RentalItemId = item1.Id, Quantity = 1, RateType = RateType.Daily, RateAmount = item1.DailyRate, SecurityDeposit = item1.SecurityDeposit }],
+            StartDate = today.AddDays(3),
+            DueDate = today.AddDays(6),
+            Status = RentalStatus.Reserved,
+            Paid = false,
+            CreatedAt = referenceDate,
+            UpdatedAt = referenceDate
+        });
+
         foreach (var rental in newRentals)
         {
             data.Rentals.Add(rental);

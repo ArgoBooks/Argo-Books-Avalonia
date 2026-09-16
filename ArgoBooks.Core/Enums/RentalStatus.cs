@@ -5,6 +5,9 @@ namespace ArgoBooks.Core.Enums;
 /// </summary>
 public enum RentalStatus
 {
+    /// <summary>Booked for later dates. Its units stay in stock until it is checked out.</summary>
+    Reserved,
+
     /// <summary>Rental is currently active.</summary>
     Active,
 
@@ -31,6 +34,7 @@ public static class RentalStatusExtensions
         return
         [
             "All",
+            nameof(RentalStatus.Reserved),
             nameof(RentalStatus.Active),
             nameof(RentalStatus.Returned),
             nameof(RentalStatus.Overdue),

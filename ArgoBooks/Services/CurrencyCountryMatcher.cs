@@ -1,6 +1,6 @@
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Common;
-using ArgoBooks.Data;
+using ArgoBooks.Core.Data;
 using ArgoBooks.Localization;
 using ArgoBooks.ViewModels;
 

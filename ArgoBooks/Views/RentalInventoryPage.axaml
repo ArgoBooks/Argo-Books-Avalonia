@@ -46,14 +46,6 @@
                                 ItemsSource="{Binding Items}"
                                 SearchQuery="{Binding SearchQuery, Mode=TwoWay}"
                                 SearchPlaceholder="{loc:Loc 'Search rental items...'}"
-                                SearchBoxWidth="{Binding ResponsiveHeader.SearchBoxWidth}"
-                                SearchBoxMinHeight="{Binding ResponsiveHeader.SearchBoxMinHeight}"
-                                SearchIconMargin="{Binding ResponsiveHeader.SearchIconMargin}"
-                                HeaderPadding="{Binding ResponsiveHeader.HeaderPadding}"
-                                HeaderSpacing="{Binding ResponsiveHeader.HeaderSpacing}"
-                                IsCompactMode="{Binding ResponsiveHeader.IsCompactMode}"
-                                IsMediumMode="{Binding ResponsiveHeader.IsMediumMode}"
-                                ShowButtonText="{Binding ResponsiveHeader.ShowButtonText}"
                                 FilterCommand="{Binding OpenFilterModalCommand}"
                                 AddCommand="{Binding OpenAddModalCommand}"
                                 AddButtonText="{loc:Loc 'Add Item'}"
@@ -69,9 +61,7 @@
                                 ToggleColumnMenuCommand="{Binding ToggleColumnMenuCommand}"
                                 EmptyIcon="{x:Static icons:Icons.RentalInventory}"
                                 EmptyTitle="{loc:Loc 'No rental items found'}"
-                                EmptyMessage="{loc:Loc 'Add your first rental item to start managing your rental inventory.'}"
-                                BorderSizeChanged="OnHeaderSizeChanged"
-                                TableGridSizeChanged="OnTableSizeChanged">
+                                EmptyMessage="{loc:Loc 'Add your first rental item to start managing your rental inventory.'}">
 
                 <!-- Table Header Content - Using ArgoTableHeader for reduced boilerplate -->
                 <table:ArgoTable.HeaderContent>
@@ -154,11 +144,11 @@
                                                         HorizontalAlignment="Left"
                                                         Padding="8,4"
                                                         CornerRadius="4"
-                                                        Background="{Binding Status, Converter={x:Static local:StringConverters.ToRentalItemStatusBackground}}">
+                                                        Background="{Binding Status, Converter={x:Static local:StatusConverters.RentalItemStatusBackground}}">
                                                     <TextBlock Text="{Binding Status, Converter={StaticResource TranslateConverter}}"
                                                                FontSize="12"
                                                                FontWeight="Medium"
-                                                               Foreground="{Binding Status, Converter={x:Static local:StringConverters.ToRentalItemStatusForeground}}" />
+                                                               Foreground="{Binding Status, Converter={x:Static local:StatusConverters.RentalItemStatusForeground}}" />
                                                 </Border>
                                             </table:ArgoTableCell.CellContent>
                                         </table:ArgoTableCell>
@@ -202,7 +192,7 @@
                                                             ToolTip.Tip="{loc:Loc 'Rent Out'}"
                                                             Command="{Binding $parent[ItemsControl].((vm:RentalInventoryPageViewModel)DataContext).OpenRentOutModalCommand}"
                                                             CommandParameter="{Binding}"
-                                                            IsVisible="{Binding IsAvailable}">
+                                                            IsVisible="{Binding CanRentOut}">
                                                         <PathIcon Data="{x:Static icons:Icons.DocumentNotes}"
                                                                   Width="16" Height="16" />
                                                     </Button>

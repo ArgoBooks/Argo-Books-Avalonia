@@ -54,7 +54,7 @@ public partial class ProductsTableColumnWidths : TableColumnWidthsBase
         RegisterColumn("TrackInventory", new TabColumnDef { ExpensesStar = 0.6, RevenueStar = 0, InRevenue = false, MinWidth = 60, PreferredWidth = 80 }, w => TrackInventoryColumnWidth = w);
         RegisterColumn("Actions", new ColumnDef { IsFixed = true, FixedWidth = ActionsWidth(2), MinWidth = ActionsWidth(2) }, w => ActionsColumnWidth = w);
 
-        InitializeColumnWidths();
+        RecalculateWidths();
     }
 
     /// <summary>

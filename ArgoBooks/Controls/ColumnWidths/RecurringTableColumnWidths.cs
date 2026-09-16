@@ -37,6 +37,6 @@ public partial class RecurringTableColumnWidths : TableColumnWidthsBase
         RegisterColumn("Status", new ColumnDef { StarValue = 0.8, MinWidth = 100, PreferredWidth = 120 }, w => StatusColumnWidth = w);
         RegisterColumn("Actions", new ColumnDef { IsFixed = true, FixedWidth = ActionsWidth(3), MinWidth = ActionsWidth(3) }, w => ActionsColumnWidth = w);
 
-        InitializeColumnWidths();
+        RecalculateWidths();
     }
 }

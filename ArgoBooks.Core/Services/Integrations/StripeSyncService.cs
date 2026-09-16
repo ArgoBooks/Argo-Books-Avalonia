@@ -93,7 +93,7 @@ public class StripeSyncService(StripeApiClient client)
         {
             PreviousCursor = stripe.LastSyncCursor,
             PreviousSyncTime = stripe.LastSyncTime,
-            Pre = StripeImportCreation.CounterSnapshot.From(data.IdCounters)
+            Pre = IntegrationImportCreation.CounterSnapshot.From(data.IdCounters)
         };
 
         int revBefore = data.Revenues.Count, expBefore = data.Expenses.Count,
@@ -129,6 +129,7 @@ public class StripeSyncService(StripeApiClient client)
         // Capture what was created (the tail of each collection) for undo/redo.
         creation.Revenues.AddRange(data.Revenues.Skip(revBefore));
         creation.Expenses.AddRange(data.Expenses.Skip(expBefore));
+        creation.ApplyStock(data);
         creation.Entities.AddRange(data.Customers.Skip(custBefore));
         creation.Entities.AddRange(data.Products.Skip(prodBefore));
         creation.Entities.AddRange(data.Categories.Skip(catBefore));
@@ -136,7 +137,7 @@ public class StripeSyncService(StripeApiClient client)
         creation.Payouts.AddRange(stripe.ImportedPayouts.Skip(payBefore));
         creation.NewCursor = stripe.LastSyncCursor;
         creation.NewSyncTime = stripe.LastSyncTime;
-        creation.Post = StripeImportCreation.CounterSnapshot.From(data.IdCounters);
+        creation.Post = IntegrationImportCreation.CounterSnapshot.From(data.IdCounters);
         return creation;
     }
 

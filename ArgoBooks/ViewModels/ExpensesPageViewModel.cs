@@ -87,92 +87,67 @@ public partial class ExpensesPageViewModel : SortablePageViewModelBase
     /// </summary>
     public TableColumnWidths ColumnWidths => App.ExpensesColumnWidths;
 
-    [ObservableProperty]
-    private bool _showIdColumn = ColumnVisibilityHelper.Load("Expenses", "Id", true);
-
-    [ObservableProperty]
-    private bool _showAccountantColumn = ColumnVisibilityHelper.Load("Expenses", "Accountant", false);
-
-    [ObservableProperty]
-    private bool _showProductColumn = ColumnVisibilityHelper.Load("Expenses", "Product", true);
-
-    [ObservableProperty]
-    private bool _showSupplierColumn = ColumnVisibilityHelper.Load("Expenses", "Supplier", true);
-
-    [ObservableProperty]
-    private bool _showDateColumn = ColumnVisibilityHelper.Load("Expenses", "Date", true);
-
-    [ObservableProperty]
-    private bool _showQuantityColumn = ColumnVisibilityHelper.Load("Expenses", "Quantity", false);
-
-    [ObservableProperty]
-    private bool _showAmountColumn = ColumnVisibilityHelper.Load("Expenses", "Amount", false);
-
-    [ObservableProperty]
-    private bool _showTaxColumn = ColumnVisibilityHelper.Load("Expenses", "Tax", false);
-
-    [ObservableProperty]
-    private bool _showShippingColumn = ColumnVisibilityHelper.Load("Expenses", "Shipping", false);
-
-    [ObservableProperty]
-    private bool _showDiscountColumn = ColumnVisibilityHelper.Load("Expenses", "Discount", false);
-
-    [ObservableProperty]
-    private bool _showFeeColumn = ColumnVisibilityHelper.Load("Expenses", "Fee", false);
-
-    [ObservableProperty]
-    private bool _showTotalColumn = ColumnVisibilityHelper.Load("Expenses", "Total", true);
-
-    [ObservableProperty]
-    private bool _showReceiptColumn = ColumnVisibilityHelper.Load("Expenses", "Receipt", true);
-
-    [ObservableProperty]
-    private bool _showStatusColumn = ColumnVisibilityHelper.Load("Expenses", "Status", true);
-
-    partial void OnShowIdColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Id", value); ColumnVisibilityHelper.Save("Expenses", "Id", value); }
-    partial void OnShowAccountantColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Accountant", value); ColumnVisibilityHelper.Save("Expenses", "Accountant", value); }
-    partial void OnShowProductColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Product", value); ColumnVisibilityHelper.Save("Expenses", "Product", value); }
-    partial void OnShowSupplierColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Supplier", value); ColumnVisibilityHelper.Save("Expenses", "Supplier", value); }
-    partial void OnShowDateColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Date", value); ColumnVisibilityHelper.Save("Expenses", "Date", value); }
-    partial void OnShowQuantityColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Quantity", value); ColumnVisibilityHelper.Save("Expenses", "Quantity", value); }
-    partial void OnShowAmountColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Amount", value); ColumnVisibilityHelper.Save("Expenses", "Amount", value); }
-    partial void OnShowTaxColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Tax", value); ColumnVisibilityHelper.Save("Expenses", "Tax", value); }
-    partial void OnShowShippingColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Shipping", value); ColumnVisibilityHelper.Save("Expenses", "Shipping", value); }
-    partial void OnShowDiscountColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Discount", value); ColumnVisibilityHelper.Save("Expenses", "Discount", value); }
-    partial void OnShowFeeColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Fee", value); ColumnVisibilityHelper.Save("Expenses", "Fee", value); }
-    partial void OnShowTotalColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Total", value); ColumnVisibilityHelper.Save("Expenses", "Total", value); }
-    partial void OnShowReceiptColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Receipt", value); ColumnVisibilityHelper.Save("Expenses", "Receipt", value); }
-    partial void OnShowStatusColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Status", value); ColumnVisibilityHelper.Save("Expenses", "Status", value); }
-
-    [RelayCommand]
-    private void ResetColumnVisibility()
+    private static readonly ColumnVisibilityDefaults ColumnDefaults = new("Expenses", new Dictionary<string, bool>
     {
-        ColumnWidths.ResetWidths();
-        ColumnVisibilityHelper.ResetPage("Expenses");
-        ShowIdColumn = true;
-        ShowAccountantColumn = false;
-        ShowProductColumn = true;
-        ShowSupplierColumn = true;
-        ShowDateColumn = true;
-        ShowQuantityColumn = false;
-        ShowAmountColumn = false;
-        ShowTaxColumn = false;
-        ShowShippingColumn = false;
-        ShowDiscountColumn = false;
-        ShowFeeColumn = false;
-        ShowTotalColumn = true;
-        ShowReceiptColumn = true;
-        ShowStatusColumn = true;
-    }
+        ["Id"] = true,
+        ["Accountant"] = false,
+        ["Product"] = true,
+        ["Supplier"] = true,
+        ["Date"] = true,
+        ["Quantity"] = false,
+        ["Amount"] = false,
+        ["Tax"] = false,
+        ["Shipping"] = false,
+        ["Discount"] = false,
+        ["Fee"] = false,
+        ["Total"] = true,
+        ["Receipt"] = true,
+        ["Status"] = true,
+    });
 
-    #endregion
+    protected override ColumnVisibilityDefaults ColumnVisibility => ColumnDefaults;
 
-    #region Responsive Layout
+    [ObservableProperty]
+    private bool _showIdColumn = ColumnDefaults.Load("Id");
 
-    /// <summary>
-    /// Responsive header helper for adaptive layout.
-    /// </summary>
-    public ResponsiveHeaderHelper ResponsiveHeader { get; } = new();
+    [ObservableProperty]
+    private bool _showAccountantColumn = ColumnDefaults.Load("Accountant");
+
+    [ObservableProperty]
+    private bool _showProductColumn = ColumnDefaults.Load("Product");
+
+    [ObservableProperty]
+    private bool _showSupplierColumn = ColumnDefaults.Load("Supplier");
+
+    [ObservableProperty]
+    private bool _showDateColumn = ColumnDefaults.Load("Date");
+
+    [ObservableProperty]
+    private bool _showQuantityColumn = ColumnDefaults.Load("Quantity");
+
+    [ObservableProperty]
+    private bool _showAmountColumn = ColumnDefaults.Load("Amount");
+
+    [ObservableProperty]
+    private bool _showTaxColumn = ColumnDefaults.Load("Tax");
+
+    [ObservableProperty]
+    private bool _showShippingColumn = ColumnDefaults.Load("Shipping");
+
+    [ObservableProperty]
+    private bool _showDiscountColumn = ColumnDefaults.Load("Discount");
+
+    [ObservableProperty]
+    private bool _showFeeColumn = ColumnDefaults.Load("Fee");
+
+    [ObservableProperty]
+    private bool _showTotalColumn = ColumnDefaults.Load("Total");
+
+    [ObservableProperty]
+    private bool _showReceiptColumn = ColumnDefaults.Load("Receipt");
+
+    [ObservableProperty]
+    private bool _showStatusColumn = ColumnDefaults.Load("Status");
 
     #endregion
 
@@ -185,9 +160,6 @@ public partial class ExpensesPageViewModel : SortablePageViewModelBase
     #endregion
 
     #region Pagination
-
-    [ObservableProperty]
-    private string _paginationText = "0 expenses";
 
     /// <inheritdoc />
     protected override void OnSortOrPageChanged() => FilterExpenses();
@@ -301,15 +273,9 @@ public ExpensesPageViewModel()
         SortColumn = "Date";
         SortDirection = SortDirection.Descending;
 
-        // Initialize column visibility settings
-        InitializeColumnVisibility();
-
         LoadExpenses();
 
-        // Subscribe to undo/redo state changes to refresh UI
-        App.UndoRedoManager.StateChanged += OnUndoRedoStateChanged;
-        if (App.NavigationService != null)
-            App.NavigationService.Navigated += OnNavigated;
+        EnableDeferredUndoRefresh(p => p == PageNames.Expenses, LoadExpenses, beforeCheck: RefreshReviewBanner);
 
         // Subscribe to expense modal events to refresh data
         if (App.ExpenseModalsViewModel != null)
@@ -339,9 +305,6 @@ public ExpensesPageViewModel()
         base.Cleanup();
         RecurringTransactionService.ExpensesGenerated -= OnRecurringGenerated;
         RecurringSchedules.Cleanup();
-        App.UndoRedoManager.StateChanged -= OnUndoRedoStateChanged;
-        if (App.NavigationService != null)
-            App.NavigationService.Navigated -= OnNavigated;
         if (App.ExpenseModalsViewModel != null)
         {
             App.ExpenseModalsViewModel.ExpenseSaved -= OnExpenseSaved;
@@ -351,52 +314,6 @@ public ExpensesPageViewModel()
         }
         DateFormatService.DateFormatChanged -= OnDateFormatChanged;
         CurrencyService.CurrencyChanged -= OnCurrencyChanged;
-    }
-
-    private void InitializeColumnVisibility()
-    {
-        // Set initial visibility for columns that are hidden by default
-        ColumnWidths.SetColumnVisibility("Id", ShowIdColumn);
-        ColumnWidths.SetColumnVisibility("Accountant", ShowAccountantColumn);
-        ColumnWidths.SetColumnVisibility("Product", ShowProductColumn);
-        ColumnWidths.SetColumnVisibility("Supplier", ShowSupplierColumn);
-        ColumnWidths.SetColumnVisibility("Date", ShowDateColumn);
-        ColumnWidths.SetColumnVisibility("Quantity", ShowQuantityColumn);
-        ColumnWidths.SetColumnVisibility("Amount", ShowAmountColumn);
-        ColumnWidths.SetColumnVisibility("Tax", ShowTaxColumn);
-        ColumnWidths.SetColumnVisibility("Shipping", ShowShippingColumn);
-        ColumnWidths.SetColumnVisibility("Discount", ShowDiscountColumn);
-        ColumnWidths.SetColumnVisibility("Fee", ShowFeeColumn);
-        ColumnWidths.SetColumnVisibility("Total", ShowTotalColumn);
-        ColumnWidths.SetColumnVisibility("Receipt", ShowReceiptColumn);
-        ColumnWidths.SetColumnVisibility("Status", ShowStatusColumn);
-        ColumnWidths.SetColumnVisibility("Actions", true); // Actions column is always visible
-
-        // Initial calculation
-        ColumnWidths.RecalculateWidths();
-    }
-
-    private bool _needsRefresh;
-
-    private void OnUndoRedoStateChanged(object? sender, EventArgs e)
-    {
-        RefreshReviewBanner();
-
-        if (App.NavigationService?.CurrentPageName != PageNames.Expenses)
-        {
-            _needsRefresh = true;
-            return;
-        }
-        LoadExpenses();
-    }
-
-    private void OnNavigated(object? sender, NavigationEventArgs e)
-    {
-        if (e.PageName == PageNames.Expenses && _needsRefresh)
-        {
-            _needsRefresh = false;
-            LoadExpenses();
-        }
     }
 
     private void OnExpenseSaved(object? sender, EventArgs e)
@@ -512,17 +429,7 @@ public ExpensesPageViewModel()
         if (!string.IsNullOrWhiteSpace(SearchQuery))
         {
             filtered = filtered
-                .Select(p => new
-                {
-                    Expense = p,
-                    IdScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, p.Id),
-                    DescScore = LevenshteinDistance.ComputeSearchScore(SearchQuery, p.Description),
-                    SupplierScore = LevenshteinDistance.ComputeSearchScore(SearchQuery,
-                        companyData?.GetSupplier(p.SupplierId ?? "")?.Name ?? "")
-                })
-                .Where(x => x.IdScore >= 0 || x.DescScore >= 0 || x.SupplierScore >= 0)
-                .OrderByDescending(x => Math.Max(Math.Max(x.IdScore, x.DescScore), x.SupplierScore))
-                .Select(x => x.Expense)
+                .RankBySearch(SearchQuery, p => [p.Id, p.Description, companyData?.GetSupplier(p.SupplierId ?? "")?.Name])
                 .ToList();
         }
 
@@ -655,19 +562,7 @@ public ExpensesPageViewModel()
         // Navigate to highlighted item if set (from dashboard click)
         NavigateToHighlightedItem(displayItems, x => x.Id);
 
-        // Calculate pagination
-        var totalCount = displayItems.Count;
-        TotalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / PageSize));
-        if (CurrentPage > TotalPages)
-            CurrentPage = TotalPages;
-
-        UpdatePageNumbers();
-        UpdatePaginationText(totalCount);
-
-        // Apply pagination and add to collection
-        var pagedExpenses = displayItems
-            .Skip((CurrentPage - 1) * PageSize)
-            .Take(PageSize);
+        var pagedExpenses = Paginate(displayItems, "expense");
 
         Expenses.ReplaceAll(pagedExpenses);
     }
@@ -690,25 +585,6 @@ public ExpensesPageViewModel()
         if (lostDamagedIds.Contains(purchase.Id)) return "Lost / Damaged";
         if (returnedIds.Contains(purchase.Id)) return "Returned";
         return "Completed";
-    }
-
-    protected override void UpdatePageNumbers()
-    {
-        PageNumbers.Clear();
-        var startPage = Math.Max(1, CurrentPage - 2);
-        var endPage = Math.Min(TotalPages, startPage + 4);
-        startPage = Math.Max(1, endPage - 4);
-
-        for (var i = startPage; i <= endPage; i++)
-        {
-            PageNumbers.Add(i);
-        }
-    }
-
-    private void UpdatePaginationText(int totalCount)
-    {
-        PaginationText = PaginationTextHelper.FormatPaginationText(
-            totalCount, CurrentPage, PageSize, TotalPages, "expense");
     }
 
     #endregion

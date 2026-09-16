@@ -546,13 +546,8 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
         var data = App.CompanyManager?.CompanyData;
 
         ReloadProducts();
-        AvailableSuppliers.Clear();
-        AvailableCustomers.Clear();
-        if (data != null)
-        {
-            foreach (var s in data.Suppliers.OrderBy(s => s.Name)) AvailableSuppliers.Add(s);
-            foreach (var c in data.Customers.OrderBy(c => c.Name)) AvailableCustomers.Add(c);
-        }
+        ReloadSuppliers();
+        ReloadCustomers();
 
         Rows.Clear();
 
@@ -820,23 +815,11 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
                 AvailableProducts.Add(p);
     }
 
-    private void ReloadSuppliers()
-    {
-        var data = App.CompanyManager?.CompanyData;
-        AvailableSuppliers.Clear();
-        if (data != null)
-            foreach (var s in data.Suppliers.OrderBy(s => s.Name))
-                AvailableSuppliers.Add(s);
-    }
+    private void ReloadSuppliers() =>
+        OptionLoader.Fill(AvailableSuppliers, OptionLoader.Suppliers(App.CompanyManager?.CompanyData));
 
-    private void ReloadCustomers()
-    {
-        var data = App.CompanyManager?.CompanyData;
-        AvailableCustomers.Clear();
-        if (data != null)
-            foreach (var c in data.Customers.OrderBy(c => c.Name))
-                AvailableCustomers.Add(c);
-    }
+    private void ReloadCustomers() =>
+        OptionLoader.Fill(AvailableCustomers, OptionLoader.Customers(App.CompanyManager?.CompanyData));
 
     private void RefreshState()
     {

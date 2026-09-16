@@ -72,14 +72,8 @@ public class ForecastAccuracyService : IForecastAccuracyService
             // (EffectiveTotalUSD), and collected-only for revenue (RevenueAggregator.IsCollected).
             // Using pre-tax amounts or counting uncollected revenue made the accuracy score compare
             // two different yardsticks.
-            var actualRevenue = companyData.Revenues
-                .Where(s => s.Date >= record.PeriodStartDate && s.Date <= record.PeriodEndDate)
-                .Where(RevenueAggregator.IsCollected)
-                .Sum(s => s.EffectiveTotalUSD);
-
-            var actualExpenses = companyData.Expenses
-                .Where(p => p.Date >= record.PeriodStartDate && p.Date <= record.PeriodEndDate)
-                .Sum(p => p.EffectiveTotalUSD);
+            var actualRevenue = RevenueAggregator.SumCollectedRevenueUSD(companyData.Revenues, record.PeriodStartDate, record.PeriodEndDate);
+            var actualExpenses = ExpenseAggregator.SumExpensesUSD(companyData.Expenses, record.PeriodStartDate, record.PeriodEndDate);
 
             var actualProfit = actualRevenue - actualExpenses;
 

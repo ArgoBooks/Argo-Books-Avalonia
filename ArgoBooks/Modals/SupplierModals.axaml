@@ -7,23 +7,14 @@
              x:Class="ArgoBooks.Modals.SupplierModals"
              x:DataType="vm:SupplierModalsViewModel">
   <Panel>
-       <!-- Add Supplier Modal -->
-       <controls:ModalOverlay IsOpen="{Binding IsAddModalOpen}"
-                              ClosingCommand="{Binding RequestCloseAddModalCommand}">
+       <!-- Add / Edit Supplier Modal -->
+       <controls:ModalOverlay IsOpen="{Binding IsFormOpen, Mode=OneWay}"
+                              ClosingCommand="{Binding RequestCloseFormCommand}">
            <controls:ModalOverlay.ModalContent>
-               <Border Background="{DynamicResource SurfaceBrush}"
-                   BorderBrush="{DynamicResource BorderBrush}"
-                   BorderThickness="1" CornerRadius="12" Width="550" MaxHeight="700"
-                   HorizontalAlignment="Center" VerticalAlignment="Center">
+               <Border Classes="modal-card"
+                   Width="550" MaxHeight="700">
                <Grid RowDefinitions="Auto,*,Auto">
-                   <Border Grid.Row="0" Padding="24,20" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
-                       <Grid ColumnDefinitions="*,Auto">
-                           <TextBlock Text="{loc:Loc 'Add Supplier'}" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
-                           <Button Grid.Column="1" Classes="icon-button" Command="{Binding CloseAddModalCommand}">
-                               <PathIcon Data="{x:Static local:Icons.Close}" Width="20" Height="20" />
-                           </Button>
-                       </Grid>
-                   </Border>
+                   <controls:ModalHeader Grid.Row="0" Title="{Binding FormTitle}" CloseCommand="{Binding RequestCloseFormCommand}" />
                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                        <StackPanel Margin="24" Spacing="16">
                            <!-- Avatar, auto-fills from website favicon when the user has not picked an image -->
@@ -64,7 +55,7 @@
                            <Grid ColumnDefinitions="Auto,16,*">
                                <StackPanel Grid.Column="0" Spacing="6" Width="120">
                                    <TextBlock Text="{loc:Loc 'ID'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                   <TextBox Text="{Binding ModalId, Mode=TwoWay}" Classes="form-input" PlaceholderText="{loc:Loc 'SUP-xxx'}" MaxLength="20" />
+                                   <TextBox Text="{Binding ModalId, Mode=TwoWay}" Classes="form-input" PlaceholderText="{Binding ModalIdPlaceholder}" MaxLength="20" />
                                    <TextBlock Text="{Binding ModalIdError}" FontSize="12" Foreground="{DynamicResource ErrorBrush}" TextWrapping="Wrap" IsVisible="{Binding ModalIdError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                </StackPanel>
                                <StackPanel Grid.Column="2" Spacing="6">
@@ -75,54 +66,33 @@
                                    <TextBlock TextWrapping="Wrap" Text="{Binding ModalSupplierNameError}" FontSize="12" Foreground="{DynamicResource ErrorBrush}" IsVisible="{Binding ModalSupplierNameError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                </StackPanel>
                            </Grid>
-                           <Grid ColumnDefinitions="*,16,*">
-                               <StackPanel Grid.Column="0" Spacing="6">
-                                   <TextBlock Text="{loc:Loc 'Email'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                   <TextBox Text="{Binding ModalEmail, Mode=TwoWay}" Classes="form-input" PlaceholderText="{loc:Loc 'supplier@email.com'}" MaxLength="254" />
-                                   <TextBlock TextWrapping="Wrap" Text="{Binding ModalEmailError}" FontSize="12" Foreground="{DynamicResource ErrorBrush}" IsVisible="{Binding ModalEmailError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                               </StackPanel>
-                               <StackPanel Grid.Column="2" Spacing="6">
-                                   <TextBlock Text="{loc:Loc 'Phone'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                   <controls:PhoneInput FullPhoneNumber="{Binding ModalPhone, Mode=TwoWay}" />
-                                   <TextBlock TextWrapping="Wrap" Text="{Binding ModalPhoneError}" FontSize="12" Foreground="{DynamicResource ErrorBrush}" IsVisible="{Binding ModalPhoneError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                               </StackPanel>
-                           </Grid>
+                           <StackPanel Spacing="6">
+                               <TextBlock Text="{loc:Loc 'Email'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
+                               <TextBox Text="{Binding ModalEmail, Mode=TwoWay}" Classes="form-input" PlaceholderText="{loc:Loc 'supplier@email.com'}" MaxLength="254" />
+                               <TextBlock TextWrapping="Wrap" Text="{Binding ModalEmailError}" FontSize="12" Foreground="{DynamicResource ErrorBrush}" IsVisible="{Binding ModalEmailError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                           </StackPanel>
+                           <StackPanel Spacing="6">
+                               <TextBlock Text="{loc:Loc 'Phone'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
+                               <controls:PhoneInput FullPhoneNumber="{Binding ModalPhone, Mode=TwoWay}" />
+                               <TextBlock TextWrapping="Wrap" Text="{Binding ModalPhoneError}" FontSize="12" Foreground="{DynamicResource ErrorBrush}" IsVisible="{Binding ModalPhoneError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                           </StackPanel>
                            <StackPanel Spacing="6">
                                <TextBlock Text="{loc:Loc 'Website'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
                                <TextBox Text="{Binding ModalWebsite, Mode=TwoWay}" Classes="form-input" PlaceholderText="{loc:Loc 'https://www.example.com'}" MaxLength="500" />
                            </StackPanel>
-                           <TextBlock Text="{loc:Loc 'Address'}" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,8,0,0" />
-                           <StackPanel Spacing="6">
-                               <TextBlock Text="{loc:Loc 'Street address'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                               <TextBox Text="{Binding ModalStreetAddress, Mode=TwoWay}" Classes="form-input" PlaceholderText="{loc:Loc 'Street address'}" MaxLength="200" />
-                           </StackPanel>
-                           <Grid ColumnDefinitions="*,16,*">
-                               <StackPanel Grid.Column="0" Spacing="6">
-                                   <TextBlock Text="{loc:Loc 'City'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                   <TextBox Text="{Binding ModalCity, Mode=TwoWay}" Classes="form-input" PlaceholderText="{loc:Loc 'City'}" MaxLength="100" />
-                               </StackPanel>
-                               <StackPanel Grid.Column="2" Spacing="6">
-                                   <TextBlock Text="{loc:Loc 'State/Province'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                   <TextBox Text="{Binding ModalStateProvince, Mode=TwoWay}" Classes="form-input" PlaceholderText="{loc:Loc 'State'}" MaxLength="100" />
-                               </StackPanel>
-                           </Grid>
-                           <Grid ColumnDefinitions="*,16,*">
-                               <StackPanel Grid.Column="0" Spacing="6">
-                                   <TextBlock Text="{loc:Loc 'Postal code'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                   <TextBox Text="{Binding ModalZipCode, Mode=TwoWay}" Classes="form-input" PlaceholderText="{loc:Loc 'Postal code'}" MaxLength="20" />
-                               </StackPanel>
-                               <StackPanel Grid.Column="2" Spacing="6">
-                                   <TextBlock Text="{loc:Loc 'Country'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                   <controls:CountryInput SelectedCountryName="{Binding ModalCountry, Mode=TwoWay}" />
-                               </StackPanel>
-                           </Grid>
+                           <controls:AddressFields Heading="{loc:Loc 'Address'}"
+                                                   Street="{Binding ModalStreetAddress, Mode=TwoWay}"
+                                                   Country="{Binding ModalCountry, Mode=TwoWay}"
+                                                   Region="{Binding ModalStateProvince, Mode=TwoWay}"
+                                                   City="{Binding ModalCity, Mode=TwoWay}"
+                                                   PostalCode="{Binding ModalPostalCode, Mode=TwoWay}" />
                            <StackPanel Spacing="6">
                                <TextBlock Text="{loc:Loc 'Notes'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
                                <TextBox Text="{Binding ModalNotes, Mode=TwoWay}" Classes="form-input" PlaceholderText="{loc:Loc 'Enter notes'}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="60" MaxLength="500" />
                            </StackPanel>
                        </StackPanel>
                    </ScrollViewer>
-                   <Border Grid.Row="2" Padding="24,16" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
+                   <Border Classes="modal-footer" Grid.Row="2">
                        <Grid ColumnDefinitions="Auto,*,Auto">
                            <TextBlock Grid.Column="0"
                                       Text="{loc:Loc 'Please enter all required fields'}"
@@ -131,142 +101,8 @@
                                       VerticalAlignment="Center"
                                       IsVisible="{Binding HasValidationMessage}" />
                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12">
-                               <Button Classes="secondary-button" Content="{loc:Loc 'Cancel'}" Command="{Binding CloseAddModalCommand}" />
-                               <Button Classes="primary-button" Content="{loc:Loc 'Add Supplier'}" Command="{Binding SaveNewSupplierCommand}" />
-                           </StackPanel>
-                       </Grid>
-                   </Border>
-               </Grid>
-               </Border>
-           </controls:ModalOverlay.ModalContent>
-       </controls:ModalOverlay>
-
-       <!-- Edit Supplier Modal -->
-       <controls:ModalOverlay IsOpen="{Binding IsEditModalOpen}"
-                              ClosingCommand="{Binding RequestCloseEditModalCommand}">
-           <controls:ModalOverlay.ModalContent>
-               <Border Background="{DynamicResource SurfaceBrush}"
-                   BorderBrush="{DynamicResource BorderBrush}"
-                   BorderThickness="1" CornerRadius="12" Width="550" MaxHeight="700"
-                   HorizontalAlignment="Center" VerticalAlignment="Center">
-               <Grid RowDefinitions="Auto,*,Auto">
-                   <Border Grid.Row="0" Padding="24,20" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
-                       <Grid ColumnDefinitions="*,Auto">
-                           <TextBlock Text="{loc:Loc 'Edit Supplier'}" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
-                           <Button Grid.Column="1" Classes="icon-button" Command="{Binding CloseEditModalCommand}">
-                               <PathIcon Data="{x:Static local:Icons.Close}" Width="20" Height="20" />
-                           </Button>
-                       </Grid>
-                   </Border>
-                   <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                       <StackPanel Margin="24" Spacing="16">
-                           <!-- Avatar, auto-fills from website favicon when the user has not picked an image -->
-                           <Grid HorizontalAlignment="Center" Width="96" Height="96">
-                               <Button Classes="link"
-                                       Padding="0"
-                                       Background="Transparent"
-                                       BorderThickness="0"
-                                       Cursor="Hand"
-                                       ToolTip.Tip="{loc:Loc 'Click to upload photo'}"
-                                       Command="{Binding BrowseAvatarCommand}">
-                                   <Border Width="80" Height="80" CornerRadius="8"
-                                           Background="{DynamicResource PrimaryBrush}"
-                                           ClipToBounds="True">
-                                       <Panel>
-                                           <TextBlock Text="{Binding ModalInitialsPreview}"
-                                                      FontSize="28" FontWeight="SemiBold"
-                                                      Foreground="White"
-                                                      HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                      IsVisible="{Binding !HasModalAvatar}" />
-                                           <Image Source="{Binding ModalAvatarSource}"
-                                                  Stretch="UniformToFill"
-                                                  IsVisible="{Binding HasModalAvatar}" />
-                                       </Panel>
-                                   </Border>
-                               </Button>
-                               <Button Classes="icon-button"
-                                       Width="24" Height="24"
-                                       Padding="0"
-                                       HorizontalAlignment="Right" VerticalAlignment="Top"
-                                       ToolTip.Tip="{loc:Loc 'Remove photo'}"
-                                       Command="{Binding RemoveAvatarCommand}"
-                                       IsVisible="{Binding HasModalAvatar}">
-                                   <PathIcon Data="{x:Static local:Icons.Close}" Width="12" Height="12" />
-                               </Button>
-                           </Grid>
-
-                           <Grid ColumnDefinitions="Auto,16,*">
-                               <StackPanel Grid.Column="0" Spacing="6" Width="120">
-                                   <TextBlock Text="{loc:Loc 'ID'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                   <TextBox Text="{Binding ModalId, Mode=TwoWay}" Classes="form-input" MaxLength="20" />
-                                   <TextBlock Text="{Binding ModalIdError}" FontSize="12" Foreground="{DynamicResource ErrorBrush}" TextWrapping="Wrap" IsVisible="{Binding ModalIdError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                               </StackPanel>
-                               <StackPanel Grid.Column="2" Spacing="6">
-                                   <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}">
-                                       <Run Text="{loc:Loc 'Supplier Name'}" /><Run Text=" *" Foreground="{DynamicResource ErrorBrush}" />
-                                   </TextBlock>
-                                   <TextBox Text="{Binding ModalSupplierName, Mode=TwoWay}" Classes="form-input" PlaceholderText="{loc:Loc 'Enter supplier name'}" MaxLength="100" />
-                                   <TextBlock TextWrapping="Wrap" Text="{Binding ModalSupplierNameError}" FontSize="12" Foreground="{DynamicResource ErrorBrush}" IsVisible="{Binding ModalSupplierNameError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                               </StackPanel>
-                           </Grid>
-                           <Grid ColumnDefinitions="*,16,*">
-                               <StackPanel Grid.Column="0" Spacing="6">
-                                   <TextBlock Text="{loc:Loc 'Email'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                   <TextBox Text="{Binding ModalEmail, Mode=TwoWay}" Classes="form-input" PlaceholderText="{loc:Loc 'supplier@email.com'}" MaxLength="254" />
-                                   <TextBlock TextWrapping="Wrap" Text="{Binding ModalEmailError}" FontSize="12" Foreground="{DynamicResource ErrorBrush}" IsVisible="{Binding ModalEmailError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                               </StackPanel>
-                               <StackPanel Grid.Column="2" Spacing="6">
-                                   <TextBlock Text="{loc:Loc 'Phone'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                   <controls:PhoneInput FullPhoneNumber="{Binding ModalPhone, Mode=TwoWay}" />
-                                   <TextBlock TextWrapping="Wrap" Text="{Binding ModalPhoneError}" FontSize="12" Foreground="{DynamicResource ErrorBrush}" IsVisible="{Binding ModalPhoneError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                               </StackPanel>
-                           </Grid>
-                           <StackPanel Spacing="6">
-                               <TextBlock Text="{loc:Loc 'Website'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                               <TextBox Text="{Binding ModalWebsite, Mode=TwoWay}" Classes="form-input" PlaceholderText="{loc:Loc 'https://www.example.com'}" MaxLength="500" />
-                           </StackPanel>
-                           <TextBlock Text="{loc:Loc 'Address'}" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,8,0,0" />
-                           <StackPanel Spacing="6">
-                               <TextBlock Text="{loc:Loc 'Street address'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                               <TextBox Text="{Binding ModalStreetAddress, Mode=TwoWay}" Classes="form-input" PlaceholderText="{loc:Loc 'Street address'}" MaxLength="200" />
-                           </StackPanel>
-                           <Grid ColumnDefinitions="*,16,*">
-                               <StackPanel Grid.Column="0" Spacing="6">
-                                   <TextBlock Text="{loc:Loc 'City'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                   <TextBox Text="{Binding ModalCity, Mode=TwoWay}" Classes="form-input" PlaceholderText="{loc:Loc 'City'}" MaxLength="100" />
-                               </StackPanel>
-                               <StackPanel Grid.Column="2" Spacing="6">
-                                   <TextBlock Text="{loc:Loc 'State/Province'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                   <TextBox Text="{Binding ModalStateProvince, Mode=TwoWay}" Classes="form-input" PlaceholderText="{loc:Loc 'State'}" MaxLength="100" />
-                               </StackPanel>
-                           </Grid>
-                           <Grid ColumnDefinitions="*,16,*">
-                               <StackPanel Grid.Column="0" Spacing="6">
-                                   <TextBlock Text="{loc:Loc 'Postal code'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                   <TextBox Text="{Binding ModalZipCode, Mode=TwoWay}" Classes="form-input" PlaceholderText="{loc:Loc 'Postal code'}" MaxLength="20" />
-                               </StackPanel>
-                               <StackPanel Grid.Column="2" Spacing="6">
-                                   <TextBlock Text="{loc:Loc 'Country'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                   <controls:CountryInput SelectedCountryName="{Binding ModalCountry, Mode=TwoWay}" />
-                               </StackPanel>
-                           </Grid>
-                           <StackPanel Spacing="6">
-                               <TextBlock Text="{loc:Loc 'Notes'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
-                               <TextBox Text="{Binding ModalNotes, Mode=TwoWay}" Classes="form-input" PlaceholderText="{loc:Loc 'Enter notes'}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="60" MaxLength="500" />
-                           </StackPanel>
-                       </StackPanel>
-                   </ScrollViewer>
-                   <Border Grid.Row="2" Padding="24,16" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
-                       <Grid ColumnDefinitions="Auto,*,Auto">
-                           <TextBlock Grid.Column="0"
-                                      Text="{loc:Loc 'Please enter all required fields'}"
-                                      Foreground="{DynamicResource ErrorBrush}"
-                                      FontSize="13"
-                                      VerticalAlignment="Center"
-                                      IsVisible="{Binding HasValidationMessage}" />
-                           <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12">
-                               <Button Classes="secondary-button" Content="{loc:Loc 'Cancel'}" Command="{Binding CloseEditModalCommand}" />
-                               <Button Classes="primary-button" Content="{loc:Loc 'Save Changes'}" Command="{Binding SaveEditedSupplierCommand}" />
+                               <Button Classes="secondary-button" Content="{loc:Loc 'Cancel'}" Command="{Binding RequestCloseFormCommand}" />
+                               <Button Classes="primary-button" Content="{Binding FormSaveText}" Command="{Binding SaveFormCommand}" />
                            </StackPanel>
                        </Grid>
                    </Border>
@@ -279,19 +115,12 @@
        <controls:ModalOverlay IsOpen="{Binding IsFilterModalOpen}"
                               ClosingCommand="{Binding RequestCloseFilterModalCommand}">
            <controls:ModalOverlay.ModalContent>
-               <Border Background="{DynamicResource SurfaceBrush}"
-                   BorderBrush="{DynamicResource BorderBrush}"
-                   BorderThickness="1" CornerRadius="12" Width="400"
-                   HorizontalAlignment="Center" VerticalAlignment="Center">
+               <Border Classes="modal-card"
+                   Width="400">
                <Grid RowDefinitions="Auto,*,Auto">
-                   <Border Grid.Row="0" Padding="24,20" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
-                       <Grid ColumnDefinitions="*,Auto">
-                           <TextBlock Text="{loc:Loc 'Filter Suppliers'}" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
-                           <Button Grid.Column="1" Classes="icon-button" Command="{Binding CloseFilterModalCommand}">
-                               <PathIcon Data="{x:Static local:Icons.Close}" Width="20" Height="20" />
-                           </Button>
-                       </Grid>
-                   </Border>
+                   <controls:ModalHeader Grid.Row="0"
+                                         Title="{loc:Loc 'Filter Suppliers'}"
+                                         CloseCommand="{Binding RequestCloseFilterModalCommand}" />
                    <StackPanel Grid.Row="1" Margin="24" Spacing="20">
                        <StackPanel Spacing="6">
                            <TextBlock Text="{loc:Loc 'Country'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
@@ -310,11 +139,11 @@
                            </ComboBox>
                        </StackPanel>
                    </StackPanel>
-                   <Border Grid.Row="2" Padding="24,16" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
+                   <Border Classes="modal-footer" Grid.Row="2">
                        <Grid ColumnDefinitions="Auto,*,Auto">
                            <Button Grid.Column="0" Classes="secondary-button" Content="{loc:Loc 'Clear filters'}" Command="{Binding ClearFiltersCommand}" />
                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12">
-                               <Button Classes="secondary-button" Content="{loc:Loc 'Cancel'}" Command="{Binding CloseFilterModalCommand}" />
+                               <Button Classes="secondary-button" Content="{loc:Loc 'Cancel'}" Command="{Binding RequestCloseFilterModalCommand}" />
                                <Button Classes="primary-button" Content="{loc:Loc 'Apply'}" Command="{Binding ApplyFiltersCommand}" />
                            </StackPanel>
                        </Grid>

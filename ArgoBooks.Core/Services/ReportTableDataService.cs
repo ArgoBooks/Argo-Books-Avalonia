@@ -267,24 +267,19 @@ public class ReportTableDataService(CompanyData? companyData, ReportFilters filt
         if (tableConfig.MaxRows > 0)
             query = query.Take(tableConfig.MaxRows);
 
-        var rentalItemLookup = companyData?.RentalInventory.ToDictionary(ri => ri.Id) ?? [];
-        var inventoryItemLookup = companyData?.Inventory.ToDictionary(i => i.Id) ?? [];
-
         return query.Select(r =>
         {
             var customer = companyData?.GetCustomer(r.CustomerId);
-            var rentalItem = rentalItemLookup.GetValueOrDefault(r.RentalItemId);
-            var inventoryItem = rentalItem != null ? inventoryItemLookup.GetValueOrDefault(rentalItem.InventoryItemId) : null;
-            var product = inventoryItem != null ? companyData?.GetProduct(inventoryItem.ProductId) : null;
+            var lines = r.EffectiveLineItems();
             return new RentalRecordTableRow
             {
                 Id = r.Id,
-                ItemName = product?.Name ?? "Unknown",
+                ItemName = RentalBookings.ItemNames(companyData, r),
                 CustomerName = customer?.Name ?? "Unknown",
                 StartDate = r.StartDate,
                 DueDate = r.DueDate,
                 ReturnDate = r.ReturnDate,
-                RateAmount = r.RateAmount,
+                RateAmount = lines.Count == 1 ? lines[0].RateAmount : null,
                 TotalCost = r.TotalCost ?? 0,
                 Status = r.Status.ToString()
             };
@@ -800,120 +795,6 @@ public class ReportTableDataService(CompanyData? companyData, ReportFilters filt
 
     #endregion
 
-    #region Summary Statistics
-
-    /// <summary>
-    /// Gets summary statistics for the filtered data.
-    /// All monetary amounts use USD-converted values for consistent cross-currency aggregation.
-    /// </summary>
-    public ReportSummaryStatistics GetSummaryStatistics()
-    {
-        var (startDate, endDate) = GetDateRange();
-
-        var stats = new ReportSummaryStatistics
-        {
-            StartDate = startDate,
-            EndDate = endDate
-        };
-
-        // Calculate revenue statistics (using USD-converted pre-tax amounts)
-        if (companyData?.Revenues != null &&
-            filters.TransactionType is TransactionType.Revenue)
-        {
-            var sales = companyData.Revenues.Where(s => s.Date >= startDate && s.Date <= endDate).ToList();
-            stats.TotalRevenue = sales.Sum(s => s.EffectiveSubtotalUSD);
-            stats.RevenueTransactionCount = sales.Count;
-            stats.AverageRevenueTransaction = sales.Count > 0 ? stats.TotalRevenue / sales.Count : 0;
-            stats.LargestRevenue = sales.Count > 0 ? sales.Max(s => s.EffectiveSubtotalUSD) : 0;
-            stats.SmallestRevenue = sales.Count > 0 ? sales.Min(s => s.EffectiveSubtotalUSD) : 0;
-        }
-
-        // Calculate expense statistics (using USD-converted gross amounts, including tax paid to
-        // suppliers). This matches ExpenseAggregator/ProfitCalculator and the Dashboard, which treat
-        // the gross amount as the cash that left the business; using the pre-tax subtotal here made
-        // the report's Net Profit disagree with the Dashboard by the supplier tax.
-        if (companyData?.Expenses != null &&
-            filters.TransactionType is TransactionType.Expenses)
-        {
-            var purchases = companyData.Expenses.Where(p => p.Date >= startDate && p.Date <= endDate).ToList();
-            stats.TotalExpenses = purchases.Sum(p => p.EffectiveTotalUSD);
-            stats.ExpenseTransactionCount = purchases.Count;
-            stats.AverageExpenseTransaction = purchases.Count > 0 ? stats.TotalExpenses / purchases.Count : 0;
-            stats.LargestExpense = purchases.Count > 0 ? purchases.Max(p => p.EffectiveTotalUSD) : 0;
-            stats.SmallestExpense = purchases.Count > 0 ? purchases.Min(p => p.EffectiveTotalUSD) : 0;
-        }
-
-        // Calculate profit
-        stats.NetProfit = stats.TotalRevenue - stats.TotalExpenses;
-        stats.ProfitMargin = stats.TotalRevenue > 0 ? (stats.NetProfit / stats.TotalRevenue) * 100 : 0;
-
-        // Calculate returns statistics
-        if (companyData?.Returns != null && filters.IncludeReturns)
-        {
-            var returns = companyData.Returns.Where(r => r.ReturnDate >= startDate && r.ReturnDate <= endDate).ToList();
-            stats.TotalReturns = returns.Count;
-            stats.TotalReturnAmount = returns.Sum(r => r.RefundAmount);
-            stats.ReturnRate = stats.RevenueTransactionCount > 0
-                ? (decimal)stats.TotalReturns / stats.RevenueTransactionCount * 100
-                : 0;
-        }
-
-        // Calculate losses statistics
-        if (companyData?.LostDamaged != null && filters.IncludeLosses)
-        {
-            var losses = companyData.LostDamaged.Where(l => l.DateDiscovered >= startDate && l.DateDiscovered <= endDate).ToList();
-            stats.TotalLosses = losses.Count;
-            stats.TotalLossAmount = losses.Sum(l => l.ValueLost);
-        }
-
-        // Calculate shipping statistics (using USD-converted amounts)
-        if (companyData != null)
-        {
-            var shippingCosts = new List<decimal>();
-
-            shippingCosts.AddRange(companyData.Revenues
-                .Where(s => s.Date >= startDate && s.Date <= endDate)
-                .Select(s => s.EffectiveShippingCostUSD));
-
-            shippingCosts.AddRange(companyData.Expenses
-                .Where(p => p.Date >= startDate && p.Date <= endDate)
-                .Select(p => p.EffectiveShippingCostUSD));
-
-            stats.TotalShippingCosts = shippingCosts.Sum();
-            stats.AverageShippingCost = shippingCosts.Count > 0 ? shippingCosts.Average() : 0;
-        }
-
-        stats.GrowthRate = CalculateGrowthRate(startDate, endDate);
-
-        return stats;
-    }
-
-    private decimal CalculateGrowthRate(DateTime startDate, DateTime endDate)
-    {
-        if (companyData?.Revenues == null)
-            return 0;
-
-        var periodLength = (endDate - startDate).Days;
-        var previousStartDate = startDate.AddDays(-periodLength);
-        var previousEndDate = startDate.AddDays(-1);
-
-        // Use USD-converted amounts for consistent cross-currency comparison
-        var currentRevenue = companyData.Revenues
-            .Where(s => s.Date >= startDate && s.Date <= endDate)
-            .Sum(s => s.EffectiveSubtotalUSD);
-
-        var previousRevenue = companyData.Revenues
-            .Where(s => s.Date >= previousStartDate && s.Date <= previousEndDate)
-            .Sum(s => s.EffectiveSubtotalUSD);
-
-        if (previousRevenue == 0)
-            return currentRevenue > 0 ? 100 : 0;
-
-        return (currentRevenue - previousRevenue) / previousRevenue * 100;
-    }
-
-    #endregion
-
     #region Top/Bottom Analysis
 
     public List<ProductAnalysisRow> GetTopProductsByRevenue(int count = 10)
@@ -1128,7 +1009,8 @@ public class RentalRecordTableRow
     public DateTime StartDate { get; set; }
     public DateTime DueDate { get; set; }
     public DateTime? ReturnDate { get; set; }
-    public decimal RateAmount { get; set; }
+    /// <summary>Null for a rental of several items, which each have their own rate.</summary>
+    public decimal? RateAmount { get; set; }
     public decimal TotalCost { get; set; }
     public string Status { get; set; } = string.Empty;
 }
@@ -1156,9 +1038,9 @@ public class InventoryTableRow
     public string ProductName { get; set; } = string.Empty;
     public string Sku { get; set; } = string.Empty;
     public string LocationName { get; set; } = string.Empty;
-    public int InStock { get; set; }
-    public int Reserved { get; set; }
-    public int Available { get; set; }
+    public decimal InStock { get; set; }
+    public decimal Reserved { get; set; }
+    public decimal Available { get; set; }
     public decimal UnitCost { get; set; }
     public decimal TotalValue { get; set; }
     public string Status { get; set; } = string.Empty;
@@ -1186,9 +1068,9 @@ public class StockAdjustmentTableRow
     public string Id { get; set; } = string.Empty;
     public string ProductName { get; set; } = string.Empty;
     public string AdjustmentType { get; set; } = string.Empty;
-    public int Quantity { get; set; }
-    public int PreviousStock { get; set; }
-    public int NewStock { get; set; }
+    public decimal Quantity { get; set; }
+    public decimal PreviousStock { get; set; }
+    public decimal NewStock { get; set; }
     public string Reason { get; set; } = string.Empty;
     public DateTime Timestamp { get; set; }
 }
@@ -1202,7 +1084,7 @@ public class StockTransferTableRow
     public string ProductName { get; set; } = string.Empty;
     public string SourceLocation { get; set; } = string.Empty;
     public string DestinationLocation { get; set; } = string.Empty;
-    public int Quantity { get; set; }
+    public decimal Quantity { get; set; }
     public DateTime TransferDate { get; set; }
     public string Status { get; set; } = string.Empty;
 }
@@ -1292,47 +1174,6 @@ public class AccountantTableRow
     public string Email { get; set; } = string.Empty;
     public string Phone { get; set; } = string.Empty;
     public int AssignedTransactions { get; set; }
-}
-
-/// <summary>
-/// Represents summary statistics for a report.
-/// </summary>
-public class ReportSummaryStatistics
-{
-    public DateTime StartDate { get; set; }
-    public DateTime EndDate { get; set; }
-
-    // Revenue
-    public decimal TotalRevenue { get; set; }
-    public int RevenueTransactionCount { get; set; }
-    public decimal AverageRevenueTransaction { get; set; }
-    public decimal LargestRevenue { get; set; }
-    public decimal SmallestRevenue { get; set; }
-
-    // Expenses
-    public decimal TotalExpenses { get; set; }
-    public int ExpenseTransactionCount { get; set; }
-    public decimal AverageExpenseTransaction { get; set; }
-    public decimal LargestExpense { get; set; }
-    public decimal SmallestExpense { get; set; }
-
-    // Profit
-    public decimal NetProfit { get; set; }
-    public decimal ProfitMargin { get; set; }
-    public decimal GrowthRate { get; set; }
-
-    // Returns
-    public int TotalReturns { get; set; }
-    public decimal TotalReturnAmount { get; set; }
-    public decimal ReturnRate { get; set; }
-
-    // Losses
-    public int TotalLosses { get; set; }
-    public decimal TotalLossAmount { get; set; }
-
-    // Shipping
-    public decimal TotalShippingCosts { get; set; }
-    public decimal AverageShippingCost { get; set; }
 }
 
 /// <summary>

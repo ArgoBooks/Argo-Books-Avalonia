@@ -1,4 +1,5 @@
 ﻿using ArgoBooks.Localization;
+using ArgoBooks.Core.Models.Inventory;
 using ArgoBooks.Services;
 using System.Collections.ObjectModel;
 using ArgoBooks.Controls;
@@ -22,19 +23,54 @@ public partial class ProductModalsViewModel : ViewModelBase
     #region Modal State
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsFormOpen))]
     private bool _isAddModalOpen;
 
     /// <summary>Title of the Add modal. Reset to the default on each open; callers can override it
     /// (e.g. the bank importer customizing an AI-proposed product) after calling OpenAddModal.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FormTitle))]
     private string _addModalTitle = "Add Product/Service";
 
-    /// <summary>Text of the Add modal's primary button. Reset to the default on each open.</summary>
     [ObservableProperty]
-    private string _addModalSaveText = "Add Product/Service";
-
-    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsFormOpen))]
     private bool _isEditModalOpen;
+
+    /// <summary>Add and edit share one form, open while either flag is set.</summary>
+    public bool IsFormOpen => IsAddModalOpen || IsEditModalOpen;
+
+    // Set when the form opens and kept on close, so the title doesn't change while it closes.
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FormTitle), nameof(FormSaveText), nameof(ModalIdPlaceholder))]
+    private bool _isEditMode;
+
+    public string FormTitle => IsEditMode ? EditModalTitle : AddModalTitle;
+    public string FormSaveText => IsEditMode
+        ? "Save Changes".Translate()
+        : IsProductSelected ? "Add Product".Translate() : "Add Service".Translate();
+
+    // A blank ID is generated on add but rejected on edit, so only add hints at the format.
+    public string ModalIdPlaceholder => IsEditMode ? string.Empty : "PRD-xxx".Translate();
+
+    partial void OnIsAddModalOpenChanged(bool value)
+    {
+        if (value) IsEditMode = false;
+    }
+
+    partial void OnIsEditModalOpenChanged(bool value)
+    {
+        if (value) IsEditMode = true;
+    }
+
+    [RelayCommand]
+    private Task RequestCloseFormAsync() => IsEditMode ? RequestCloseEditModalAsync() : RequestCloseAddModalAsync();
+
+    [RelayCommand]
+    private void SaveForm()
+    {
+        if (IsEditMode) SaveEditedProduct();
+        else SaveNewProduct();
+    }
 
     [ObservableProperty]
     private bool _isDeleteConfirmOpen;
@@ -68,7 +104,17 @@ public partial class ProductModalsViewModel : ViewModelBase
     {
         OnPropertyChanged(nameof(IsProductSelected));
         OnPropertyChanged(nameof(EditModalTitle));
+        OnPropertyChanged(nameof(FormTitle));
+        OnPropertyChanged(nameof(FormSaveText));
     }
+
+    /// <summary>What is typed in the Category box, so a name matching nothing becomes a new category on save.</summary>
+    [ObservableProperty]
+    private string? _modalCategoryText;
+
+    /// <summary>What is typed in the Supplier box, so a name matching nothing becomes a new supplier on save.</summary>
+    [ObservableProperty]
+    private string? _modalSupplierText;
 
     [ObservableProperty]
     private CategoryOption? _modalCategory;
@@ -86,6 +132,12 @@ public partial class ProductModalsViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool _modalTrackInventory;
+
+    [ObservableProperty]
+    private string _modalUnitOfMeasure = StockUnits.Each;
+
+    /// <summary>Units a tracked product can be stocked in.</summary>
+    public IReadOnlyList<string> UnitOptions => StockUnits.All;
 
     [ObservableProperty]
     private string _modalReorderPoint = string.Empty;
@@ -147,19 +199,18 @@ public partial class ProductModalsViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isExpensesTab = true;
 
-    // Original values for change detection in edit mode
-    private string _originalId = string.Empty;
-    private string _originalProductName = string.Empty;
-    private string _originalDescription = string.Empty;
-    private string _originalItemType = "Product";
-    private string? _originalCategoryId;
-    private string? _originalSupplierId;
-    private bool _originalTrackInventory;
-    private string _originalReorderPoint = string.Empty;
-    private string _originalOverstockThreshold = string.Empty;
-    private string _originalUnitPrice = string.Empty;
-    private string _originalCostPrice = string.Empty;
-    private string _originalSku = string.Empty;
+    private sealed record EditState(
+        string Id, string Name, string Description, string ItemType, string? CategoryId, string? SupplierId,
+        bool TrackInventory, string UnitOfMeasure, string ReorderPoint, string OverstockThreshold,
+        string UnitPrice, string CostPrice, string Sku);
+
+    // The form as the edit modal opened, for change detection.
+    private EditState? _original;
+
+    private EditState Capture() => new(
+        ModalId.Trim(), ModalProductName, ModalDescription, ModalItemType, ModalCategory?.Id, ModalSupplier?.Id,
+        ModalTrackInventory, ModalUnitOfMeasure, ModalReorderPoint, ModalOverstockThreshold,
+        ModalUnitPrice, ModalCostPrice, ModalSku);
 
     /// <summary>
     /// Returns true if any data has been entered in the Add modal.
@@ -178,19 +229,7 @@ public partial class ProductModalsViewModel : ViewModelBase
     /// <summary>
     /// Returns true if any changes have been made in the Edit modal.
     /// </summary>
-    public bool HasEditModalChanges =>
-        ModalId.Trim() != _originalId ||
-        ModalProductName != _originalProductName ||
-        ModalDescription != _originalDescription ||
-        ModalItemType != _originalItemType ||
-        ModalCategory?.Id != _originalCategoryId ||
-        ModalSupplier?.Id != _originalSupplierId ||
-        ModalTrackInventory != _originalTrackInventory ||
-        ModalReorderPoint != _originalReorderPoint ||
-        ModalOverstockThreshold != _originalOverstockThreshold ||
-        ModalUnitPrice != _originalUnitPrice ||
-        ModalCostPrice != _originalCostPrice ||
-        ModalSku != _originalSku;
+    public bool HasEditModalChanges => Capture() != _original;
 
     #endregion
 
@@ -199,34 +238,30 @@ public partial class ProductModalsViewModel : ViewModelBase
     [ObservableProperty]
     private string _filterItemType = "All";
 
+    // The dropdowns select option objects, so these hold the option itself; null means All.
     [ObservableProperty]
-    private string? _filterCategory;
+    private CategoryOption? _filterCategory;
 
     [ObservableProperty]
-    private string? _filterSupplier;
+    private SupplierOption? _filterSupplier;
 
-    // Original filter values for change detection (captured when modal opens)
-    private string _originalFilterItemType = "All";
-    private string? _originalFilterCategory;
-    private string? _originalFilterSupplier;
-
-    /// <summary>
-    /// Returns true if any filter has been changed from the state when the modal was opened.
-    /// </summary>
-    public bool HasFilterModalChanges =>
-        FilterItemType != _originalFilterItemType ||
-        FilterCategory != _originalFilterCategory ||
-        FilterSupplier != _originalFilterSupplier;
-
-    /// <summary>
-    /// Captures the current filter state as original values for change detection.
-    /// </summary>
-    private void CaptureOriginalFilterValues()
+    private sealed record FilterValues(string ItemType, string? CategoryId, string? SupplierId)
     {
-        _originalFilterItemType = FilterItemType;
-        _originalFilterCategory = FilterCategory;
-        _originalFilterSupplier = FilterSupplier;
+        public static readonly FilterValues Default = new("All", null, null);
     }
+
+    private FilterSnapshot<FilterValues>? _filters;
+
+    private FilterSnapshot<FilterValues> Filters => _filters ??= new(FilterValues.Default,
+        () => new(FilterItemType, FilterCategory?.Id, FilterSupplier?.Id),
+        v =>
+        {
+            FilterItemType = v.ItemType;
+            FilterCategory = v.CategoryId == null ? null : AvailableCategories.FirstOrDefault(c => c.Id == v.CategoryId);
+            FilterSupplier = v.SupplierId == null ? null : AvailableSuppliers.FirstOrDefault(s => s.Id == v.SupplierId);
+        });
+
+    public bool HasFilterModalChanges => Filters.HasChanges;
 
     #endregion
 
@@ -266,7 +301,6 @@ public partial class ProductModalsViewModel : ViewModelBase
         ClearModalFields();
         UpdateDropdownOptions();
         AddModalTitle = "Add Product/Service".Translate();
-        AddModalSaveText = "Add Product/Service".Translate();
         IsAddModalOpen = true;
     }
 
@@ -370,8 +404,8 @@ public partial class ProductModalsViewModel : ViewModelBase
             newId = new Core.Data.IdGenerator(companyData).NextProductId();
         }
 
-        var reorderPoint = int.TryParse(ModalReorderPoint, out var rp) ? rp : 0;
-        var overstockThreshold = int.TryParse(ModalOverstockThreshold, out var ot) ? ot : 0;
+        var reorderPoint = decimal.TryParse(ModalReorderPoint, out var rp) ? rp : 0;
+        var overstockThreshold = decimal.TryParse(ModalOverstockThreshold, out var ot) ? ot : 0;
 
         var newProduct = new Product
         {
@@ -385,6 +419,7 @@ public partial class ProductModalsViewModel : ViewModelBase
             UnitPrice = decimal.TryParse(ModalUnitPrice, out var unitPrice) ? unitPrice : 0,
             CostPrice = decimal.TryParse(ModalCostPrice, out var costPrice) ? costPrice : 0,
             TrackInventory = ModalTrackInventory,
+            UnitOfMeasure = ModalUnitOfMeasure,
             ReorderPoint = reorderPoint,
             OverstockThreshold = overstockThreshold,
             Status = EntityStatus.Active,
@@ -436,7 +471,6 @@ public partial class ProductModalsViewModel : ViewModelBase
         UpdateDropdownOptions();
 
         ModalId = product.Id;
-        _originalId = product.Id;
         ModalProductName = product.Name;
         ModalDescription = product.Description;
         ModalSku = product.Sku;
@@ -460,21 +494,11 @@ public partial class ProductModalsViewModel : ViewModelBase
         }
 
         ModalTrackInventory = product.TrackInventory;
+        ModalUnitOfMeasure = string.IsNullOrEmpty(product.UnitOfMeasure) ? StockUnits.Each : product.UnitOfMeasure;
         ModalReorderPoint = product.ReorderPoint > 0 ? product.ReorderPoint.ToString() : string.Empty;
         ModalOverstockThreshold = product.OverstockThreshold > 0 ? product.OverstockThreshold.ToString() : string.Empty;
 
-        // Store original values for change detection
-        _originalProductName = ModalProductName;
-        _originalDescription = ModalDescription;
-        _originalItemType = ModalItemType;
-        _originalCategoryId = ModalCategory?.Id;
-        _originalSupplierId = ModalSupplier?.Id;
-        _originalTrackInventory = ModalTrackInventory;
-        _originalReorderPoint = ModalReorderPoint;
-        _originalOverstockThreshold = ModalOverstockThreshold;
-        _originalUnitPrice = ModalUnitPrice;
-        _originalCostPrice = ModalCostPrice;
-        _originalSku = ModalSku;
+        _original = Capture();
 
         ModalError = null;
         IsEditModalOpen = true;
@@ -529,6 +553,7 @@ public partial class ProductModalsViewModel : ViewModelBase
         var oldUnitPrice = _editingProduct.UnitPrice;
         var oldCostPrice = _editingProduct.CostPrice;
         var oldTrackInventory = _editingProduct.TrackInventory;
+        var oldUnitOfMeasure = _editingProduct.UnitOfMeasure;
         var oldReorderPoint = _editingProduct.ReorderPoint;
         var oldOverstockThreshold = _editingProduct.OverstockThreshold;
 
@@ -542,9 +567,10 @@ public partial class ProductModalsViewModel : ViewModelBase
         var newSupplierId = ModalSupplier?.Id;
         var newUnitPrice = decimal.TryParse(ModalUnitPrice, out var unitPrice) ? unitPrice : 0;
         var newCostPrice = decimal.TryParse(ModalCostPrice, out var costPrice) ? costPrice : 0;
-        var newReorderPoint = int.TryParse(ModalReorderPoint, out var rp) ? rp : 0;
-        var newOverstockThreshold = int.TryParse(ModalOverstockThreshold, out var ot) ? ot : 0;
+        var newReorderPoint = decimal.TryParse(ModalReorderPoint, out var rp) ? rp : 0;
+        var newOverstockThreshold = decimal.TryParse(ModalOverstockThreshold, out var ot) ? ot : 0;
         var newTrackInventory = ModalTrackInventory;
+        var newUnitOfMeasure = ModalUnitOfMeasure;
 
         // Check if anything actually changed
         var hasIdChange = oldId != newId;
@@ -578,6 +604,7 @@ public partial class ProductModalsViewModel : ViewModelBase
         if (oldUnitPrice != newUnitPrice) changes["Unit Price"] = new FieldChange { OldValue = oldUnitPrice.ToString("F2"), NewValue = newUnitPrice.ToString("F2") };
         if (oldCostPrice != newCostPrice) changes["Cost Price"] = new FieldChange { OldValue = oldCostPrice.ToString("F2"), NewValue = newCostPrice.ToString("F2") };
         if (oldTrackInventory != newTrackInventory) changes["Track Inventory"] = new FieldChange { OldValue = oldTrackInventory.ToString(), NewValue = newTrackInventory.ToString() };
+        if (oldUnitOfMeasure != newUnitOfMeasure) changes["Unit"] = new FieldChange { OldValue = oldUnitOfMeasure, NewValue = newUnitOfMeasure };
         if (oldReorderPoint != newReorderPoint) changes["Reorder Point"] = new FieldChange { OldValue = oldReorderPoint.ToString(), NewValue = newReorderPoint.ToString() };
         if (oldOverstockThreshold != newOverstockThreshold) changes["Overstock Threshold"] = new FieldChange { OldValue = oldOverstockThreshold.ToString(), NewValue = newOverstockThreshold.ToString() };
         if (changes.Count > 0) App.EventLogService?.SetPendingChanges(changes);
@@ -608,6 +635,7 @@ public partial class ProductModalsViewModel : ViewModelBase
         productToEdit.UnitPrice = newUnitPrice;
         productToEdit.CostPrice = newCostPrice;
         productToEdit.TrackInventory = newTrackInventory;
+        productToEdit.UnitOfMeasure = newUnitOfMeasure;
         productToEdit.ReorderPoint = newReorderPoint;
         productToEdit.OverstockThreshold = newOverstockThreshold;
         productToEdit.UpdatedAt = DateTime.UtcNow;
@@ -628,6 +656,7 @@ public partial class ProductModalsViewModel : ViewModelBase
                 productToEdit.UnitPrice = oldUnitPrice;
                 productToEdit.CostPrice = oldCostPrice;
                 productToEdit.TrackInventory = oldTrackInventory;
+                productToEdit.UnitOfMeasure = oldUnitOfMeasure;
                 productToEdit.ReorderPoint = oldReorderPoint;
                 productToEdit.OverstockThreshold = oldOverstockThreshold;
                 companyData.MarkAsModified();
@@ -645,6 +674,7 @@ public partial class ProductModalsViewModel : ViewModelBase
                 productToEdit.UnitPrice = newUnitPrice;
                 productToEdit.CostPrice = newCostPrice;
                 productToEdit.TrackInventory = newTrackInventory;
+                productToEdit.UnitOfMeasure = newUnitOfMeasure;
                 productToEdit.ReorderPoint = newReorderPoint;
                 productToEdit.OverstockThreshold = newOverstockThreshold;
                 companyData.MarkAsModified();
@@ -666,85 +696,39 @@ public partial class ProductModalsViewModel : ViewModelBase
             if (item == null)
                 return;
 
-            // Check if product is in use
-            var cd = App.CompanyManager?.CompanyData;
-            if (cd != null)
-            {
-                var usages = new List<string>();
-                if (cd.Revenues.Any(r => r.LineItems.Any(li => li.ProductId == item.Id)))
-                    usages.Add("Revenue".Translate());
-                if (cd.Expenses.Any(e => e.LineItems.Any(li => li.ProductId == item.Id)))
-                    usages.Add("Expense".Translate());
-                if (cd.Invoices.Any(i => i.LineItems.Any(li => li.ProductId == item.Id)))
-                    usages.Add("Invoice".Translate());
-                if (cd.Inventory.Any(i => i.ProductId == item.Id))
-                    usages.Add("Inventory".Translate());
-                if (cd.PurchaseOrders.Any(po => po.LineItems.Any(li => li.ProductId == item.Id)))
-                    usages.Add("Purchase Order".Translate());
-                if (cd.Returns.Any(r => r.Items.Any(ri => ri.ProductId == item.Id)))
-                    usages.Add("Return".Translate());
-                if (cd.LostDamaged.Any(ld => ld.ProductId == item.Id))
-                    usages.Add("Lost / Damaged".Translate());
-                // Both kinds of schedule clone their template's line items into every
-                // occurrence, so a product either of them names is still in use.
-                if (cd.RecurringInvoices.Any(ri => ri.Template != null
-                        && ri.Template.LineItems.Any(li => li.ProductId == item.Id)))
-                    usages.Add("Recurring Invoice".Translate());
-                if (RecurringTransactionService.IsProductInUse(cd, item.Id))
-                    usages.Add("Recurring Transaction".Translate());
-                if (usages.Count > 0)
-                {
-                    await App.ShowWarningMessageBoxAsync(
-                        "Cannot Delete".Translate(),
-                        "This product cannot be deleted because it is referenced by one or more: {0}.".TranslateFormat(string.Join(", ", usages)));
-                    return;
-                }
-            }
-
-            var dialog = App.ConfirmationDialog;
-            if (dialog == null)
-                return;
-
-            var result = await dialog.ShowAsync(new ConfirmationDialogOptions
-            {
-                Title = "Delete Product".Translate(),
-                Message = "Are you sure you want to delete this product?\n\n{0}".TranslateFormat(item.Name),
-                PrimaryButtonText = "Delete".Translate(),
-                CancelButtonText = "Cancel".Translate(),
-                IsPrimaryDestructive = true
-            });
-
-            if (result != ConfirmationResult.Primary)
-                return;
-
             var companyData = App.CompanyManager?.CompanyData;
             if (companyData == null)
                 return;
 
-            var product = companyData.Products.FirstOrDefault(p => p.Id == item.Id);
-            if (product != null)
-            {
-                var deletedProduct = product;
-                companyData.Products.Remove(product);
-                companyData.MarkAsModified();
+            if (await BlockIfInUseAsync(
+                    usages => "This product cannot be deleted because it is referenced by one or more: {0}.".TranslateFormat(usages),
+                    (companyData.Revenues.Any(r => r.LineItems.Any(li => li.ProductId == item.Id)), "Revenue".Translate()),
+                    (companyData.Expenses.Any(e => e.LineItems.Any(li => li.ProductId == item.Id)), "Expense".Translate()),
+                    (companyData.Invoices.Any(i => i.LineItems.Any(li => li.ProductId == item.Id)), "Invoice".Translate()),
+                    (companyData.Inventory.Any(i => i.ProductId == item.Id), "Inventory".Translate()),
+                    (companyData.PurchaseOrders.Any(po => po.LineItems.Any(li => li.ProductId == item.Id)), "Purchase Order".Translate()),
+                    (companyData.Returns.Any(r => r.Items.Any(ri => ri.ProductId == item.Id)), "Return".Translate()),
+                    (companyData.LostDamaged.Any(ld => ld.ProductId == item.Id), "Lost / Damaged".Translate()),
+                    // Both kinds of schedule clone their template's line items into every
+                    // occurrence, so a product either of them names is still in use.
+                    (companyData.RecurringInvoices.Any(ri => ri.Template != null
+                        && ri.Template.LineItems.Any(li => li.ProductId == item.Id)), "Recurring Invoice".Translate()),
+                    (RecurringTransactionService.IsProductInUse(companyData, item.Id), "Recurring Transaction".Translate())))
+                return;
 
-                App.UndoRedoManager.RecordAction(new DelegateAction(
-                    $"Delete product '{deletedProduct.Name}'",
-                    () =>
-                    {
-                        companyData.Products.Add(deletedProduct);
-                        companyData.MarkAsModified();
-                        ProductDeleted?.Invoke(this, EventArgs.Empty);
-                    },
-                    () =>
-                    {
-                        companyData.Products.Remove(deletedProduct);
-                        companyData.MarkAsModified();
-                        ProductDeleted?.Invoke(this, EventArgs.Empty);
-                    }));
+            if (!await ConfirmDeleteAsync("Delete Product".Translate(),
+                    "Are you sure you want to delete this product?\n\n{0}".TranslateFormat(item.Name)))
+                return;
+
+            var product = companyData.Products.FirstOrDefault(p => p.Id == item.Id);
+            if (product == null)
+            {
+                ProductDeleted?.Invoke(this, EventArgs.Empty);
+                return;
             }
 
-            ProductDeleted?.Invoke(this, EventArgs.Empty);
+            RemoveWithUndo(companyData, companyData.Products, product, $"Delete product '{product.Name}'",
+                () => ProductDeleted?.Invoke(this, EventArgs.Empty));
         }
         catch (Exception ex)
         {
@@ -759,8 +743,12 @@ public partial class ProductModalsViewModel : ViewModelBase
     [RelayCommand]
     public void OpenFilterModal()
     {
+        var current = Filters.Current;
         UpdateDropdownOptions();
-        CaptureOriginalFilterValues();
+        // The reload replaced the option objects (and the category list follows the tab), so point
+        // the selections at the new ones; a category from the other tab drops back to All.
+        Filters.Set(current);
+        Filters.Capture();
         IsFilterModalOpen = true;
     }
 
@@ -770,30 +758,16 @@ public partial class ProductModalsViewModel : ViewModelBase
         OpenFilterModal();
     }
 
-    [RelayCommand]
-    public void CloseFilterModal()
-    {
-        IsFilterModalOpen = false;
-    }
+    private void CloseFilterModal() => IsFilterModalOpen = false;
 
     /// <summary>
-    /// Requests to close the Filter modal, showing confirmation if filter changes exist.
+    /// Closes the filter modal, asking first and putting the filters back if they were changed.
     /// </summary>
     [RelayCommand]
     public async Task RequestCloseFilterModalAsync()
     {
-        if (HasFilterModalChanges)
-        {
-            if (!await ConfirmDiscardFiltersAsync())
-                return;
-
-            // Restore filter values to the state when modal was opened
-            FilterItemType = _originalFilterItemType;
-            FilterCategory = _originalFilterCategory;
-            FilterSupplier = _originalFilterSupplier;
-        }
-
-        CloseFilterModal();
+        if (await Filters.ConfirmDiscardAsync(ConfirmDiscardFiltersAsync))
+            CloseFilterModal();
     }
 
     [RelayCommand]
@@ -806,16 +780,9 @@ public partial class ProductModalsViewModel : ViewModelBase
     [RelayCommand]
     public void ClearFilters()
     {
-        ResetFilterDefaults();
+        Filters.Reset();
         FiltersCleared?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
-    }
-
-    private void ResetFilterDefaults()
-    {
-        FilterItemType = "All";
-        FilterCategory = null;
-        FilterSupplier = null;
     }
 
     #endregion
@@ -828,43 +795,28 @@ public partial class ProductModalsViewModel : ViewModelBase
         if (companyData == null)
             return;
 
-        AvailableCategories.Clear();
-        var targetType = IsExpensesTab ? CategoryType.Expense : CategoryType.Revenue;
-        var categories = companyData.Categories
-            .Where(c => c.Type == targetType)
-            .OrderBy(c => c.Name);
-
-        foreach (var cat in categories)
-        {
-            AvailableCategories.Add(new CategoryOption { Id = cat.Id, Name = cat.Name });
-        }
-
-        CategoryItems.Clear();
-        foreach (var cat in categories)
-        {
-            CategoryItems.Add(new CategoryItem { Id = cat.Id, Name = cat.Name });
-        }
+        var categories = OptionLoader.Categories(companyData, IsExpensesTab ? CategoryType.Expense : CategoryType.Revenue).ToList();
+        OptionLoader.Fill(AvailableCategories, categories.AsOptions<CategoryOption>());
+        OptionLoader.Fill(CategoryItems, categories.Select(cat => new CategoryItem { Id = cat.Id, Name = cat.Name }));
         OnPropertyChanged(nameof(HasCategories));
 
-        AvailableSuppliers.Clear();
-        foreach (var supplier in companyData.Suppliers.OrderBy(s => s.Name))
-        {
-            AvailableSuppliers.Add(new SupplierOption { Id = supplier.Id, Name = supplier.Name });
-        }
+        OptionLoader.Fill(AvailableSuppliers, OptionLoader.Suppliers(companyData).AsOptions<SupplierOption>());
     }
 
     private void ClearModalFields()
     {
         ModalId = string.Empty;
-        _originalId = string.Empty;
         ModalIdError = null;
         ModalProductName = string.Empty;
         ModalDescription = string.Empty;
         ModalItemType = "Product";
         ModalCategory = null;
         ModalCategoryId = null;
+        ModalCategoryText = null;
+        ModalSupplierText = null;
         ModalSupplier = null;
         ModalTrackInventory = false;
+        ModalUnitOfMeasure = StockUnits.Each;
         ModalReorderPoint = string.Empty;
         ModalOverstockThreshold = string.Empty;
         ModalUnitPrice = string.Empty;
@@ -925,6 +877,8 @@ public partial class ProductModalsViewModel : ViewModelBase
             }
         }
 
+        ResolveTypedPickers();
+
         if (string.IsNullOrEmpty(ModalCategoryId))
         {
             ModalCategoryError = HasCategories
@@ -934,6 +888,29 @@ public partial class ProductModalsViewModel : ViewModelBase
         }
 
         return isValid;
+    }
+
+    /// <summary>
+    /// Creates the category or supplier the user typed but never picked from the list, so a name that
+    /// isn't on the list yet saves instead of failing validation.
+    /// </summary>
+    private void ResolveTypedPickers()
+    {
+        var companyData = App.CompanyManager?.CompanyData;
+        if (companyData == null)
+            return;
+
+        var type = IsExpensesTab ? CategoryType.Expense : CategoryType.Revenue;
+        var category = ModalCategory == null ? QuickCreate.EnsureCategory(companyData, type, ModalCategoryText) : null;
+        var supplier = ModalSupplier == null ? QuickCreate.EnsureSupplier(companyData, ModalSupplierText) : null;
+        if (category == null && supplier == null)
+            return;
+
+        UpdateDropdownOptions();
+        if (category != null)
+            ModalCategoryId = category.Id;
+        if (supplier != null)
+            ModalSupplier = AvailableSuppliers.FirstOrDefault(s => s.Id == supplier.Id);
     }
 
     #endregion

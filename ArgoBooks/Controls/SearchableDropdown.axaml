@@ -17,6 +17,7 @@
         <converters:HighlightBorderBrushMultiConverter x:Key="HighlightBorderBrushMultiConverter" />
         <converters:HighlightBorderThicknessMultiConverter x:Key="HighlightBorderThicknessMultiConverter" />
         <converters:DisplayMemberMultiConverter x:Key="DisplayMemberMultiConverter" />
+        <converters:ImageMemberMultiConverter x:Key="ImageMemberMultiConverter" />
     </UserControl.Resources>
 
     <UserControl.Styles>
@@ -96,10 +97,18 @@
                 </Style>
             </Border.Styles>
 
-            <Grid ColumnDefinitions="*,Auto">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <Image Grid.Column="0"
+                       Source="{Binding SelectedItemImage, RelativeSource={RelativeSource AncestorType=controls:SearchableDropdown}}"
+                       Width="20" Height="14"
+                       Stretch="Uniform"
+                       VerticalAlignment="Center"
+                       Margin="10,0,0,0"
+                       IsVisible="{Binding SelectedItemImage, RelativeSource={RelativeSource AncestorType=controls:SearchableDropdown}, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
                 <!-- Search TextBox -->
                 <TextBox x:Name="SearchTextBox"
-                         Grid.Column="0"
+                         Grid.Column="1"
                          Text="{Binding SearchText, RelativeSource={RelativeSource AncestorType=controls:SearchableDropdown}, Mode=TwoWay}"
                          PlaceholderText="{Binding Placeholder, RelativeSource={RelativeSource AncestorType=controls:SearchableDropdown}}"
                          Background="Transparent"
@@ -109,7 +118,7 @@
                          MaxLength="100" />
 
                 <!-- Dropdown Arrow -->
-                <Button Grid.Column="1"
+                <Button Grid.Column="2"
                         Classes="icon"
                         Width="32" Height="32"
                         Margin="0"
@@ -237,14 +246,27 @@
                                                 <Binding Path="$parent[controls:SearchableDropdown].HighlightedItem" />
                                             </MultiBinding>
                                         </Button.BorderThickness>
-                                        <TextBlock>
-                                            <TextBlock.Text>
-                                                <MultiBinding Converter="{StaticResource DisplayMemberMultiConverter}">
-                                                    <Binding Path="." />
-                                                    <Binding Path="$parent[controls:SearchableDropdown].DisplayMemberPath" />
-                                                </MultiBinding>
-                                            </TextBlock.Text>
-                                        </TextBlock>
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <Image Width="20" Height="14"
+                                                   Stretch="Uniform"
+                                                   VerticalAlignment="Center"
+                                                   IsVisible="{Binding $parent[controls:SearchableDropdown].ImageMemberPath, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                                <Image.Source>
+                                                    <MultiBinding Converter="{StaticResource ImageMemberMultiConverter}">
+                                                        <Binding Path="." />
+                                                        <Binding Path="$parent[controls:SearchableDropdown].ImageMemberPath" />
+                                                    </MultiBinding>
+                                                </Image.Source>
+                                            </Image>
+                                            <TextBlock VerticalAlignment="Center">
+                                                <TextBlock.Text>
+                                                    <MultiBinding Converter="{StaticResource DisplayMemberMultiConverter}">
+                                                        <Binding Path="." />
+                                                        <Binding Path="$parent[controls:SearchableDropdown].DisplayMemberPath" />
+                                                    </MultiBinding>
+                                                </TextBlock.Text>
+                                            </TextBlock>
+                                        </StackPanel>
                                     </Button>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
@@ -285,14 +307,27 @@
                                                 <Binding Path="$parent[controls:SearchableDropdown].HighlightedItem" />
                                             </MultiBinding>
                                         </Button.BorderThickness>
-                                        <TextBlock>
-                                            <TextBlock.Text>
-                                                <MultiBinding Converter="{StaticResource DisplayMemberMultiConverter}">
-                                                    <Binding Path="." />
-                                                    <Binding Path="$parent[controls:SearchableDropdown].DisplayMemberPath" />
-                                                </MultiBinding>
-                                            </TextBlock.Text>
-                                        </TextBlock>
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <Image Width="20" Height="14"
+                                                   Stretch="Uniform"
+                                                   VerticalAlignment="Center"
+                                                   IsVisible="{Binding $parent[controls:SearchableDropdown].ImageMemberPath, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                                <Image.Source>
+                                                    <MultiBinding Converter="{StaticResource ImageMemberMultiConverter}">
+                                                        <Binding Path="." />
+                                                        <Binding Path="$parent[controls:SearchableDropdown].ImageMemberPath" />
+                                                    </MultiBinding>
+                                                </Image.Source>
+                                            </Image>
+                                            <TextBlock VerticalAlignment="Center">
+                                                <TextBlock.Text>
+                                                    <MultiBinding Converter="{StaticResource DisplayMemberMultiConverter}">
+                                                        <Binding Path="." />
+                                                        <Binding Path="$parent[controls:SearchableDropdown].DisplayMemberPath" />
+                                                    </MultiBinding>
+                                                </TextBlock.Text>
+                                            </TextBlock>
+                                        </StackPanel>
                                     </Button>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>

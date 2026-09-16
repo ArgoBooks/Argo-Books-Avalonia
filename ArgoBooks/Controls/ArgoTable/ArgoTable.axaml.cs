@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
 using ArgoBooks.Controls.ColumnWidths;
+using ArgoBooks.Helpers;
 using ArgoBooks.Shared.Telemetry;
 using Avalonia;
 using Avalonia.Controls;
@@ -107,6 +108,9 @@ public partial class ArgoTable : UserControl, INotifyPropertyChanged
 
     public static readonly StyledProperty<bool> ShowAddButtonProperty =
         AvaloniaProperty.Register<ArgoTable, bool>(nameof(ShowAddButton), true);
+
+    public static readonly StyledProperty<bool> ShowEmptyAddButtonProperty =
+        AvaloniaProperty.Register<ArgoTable, bool>(nameof(ShowEmptyAddButton), true);
 
     public static readonly StyledProperty<bool> IsAddButtonEnabledProperty =
         AvaloniaProperty.Register<ArgoTable, bool>(nameof(IsAddButtonEnabled), true);
@@ -335,6 +339,16 @@ public partial class ArgoTable : UserControl, INotifyPropertyChanged
         set => SetValue(ShowAddButtonProperty, value);
     }
 
+    /// <summary>
+    /// Whether the empty state offers the add button as well. Turn it off where an empty table means a
+    /// filter matched nothing rather than that nothing has been added yet.
+    /// </summary>
+    public bool ShowEmptyAddButton
+    {
+        get => GetValue(ShowEmptyAddButtonProperty);
+        set => SetValue(ShowEmptyAddButtonProperty, value);
+    }
+
     public bool IsAddButtonEnabled
     {
         get => GetValue(IsAddButtonEnabledProperty);
@@ -517,11 +531,6 @@ public partial class ArgoTable : UserControl, INotifyPropertyChanged
     public event EventHandler<PointerPressedEventArgs>? HeaderRightClicked;
 
     /// <summary>
-    /// Raised when the border size changes (for responsive header).
-    /// </summary>
-    public event EventHandler<SizeChangedEventArgs>? BorderSizeChanged;
-
-    /// <summary>
     /// Raised when the table grid size changes (for column width calculation).
     /// </summary>
     public event EventHandler<SizeChangedEventArgs>? TableGridSizeChanged;
@@ -684,9 +693,23 @@ public partial class ArgoTable : UserControl, INotifyPropertyChanged
         }
     }
 
+    private readonly ResponsiveHeaderHelper _responsiveHeader = new();
+
     private void OnBorderSizeChanged(object? sender, SizeChangedEventArgs e)
     {
-        BorderSizeChanged?.Invoke(this, e);
+        if (!e.WidthChanged)
+            return;
+
+        // SetCurrentValue rather than SetValue, so a page that binds one of these explicitly still wins.
+        _responsiveHeader.HeaderWidth = e.NewSize.Width;
+        SetCurrentValue(IsCompactModeProperty, _responsiveHeader.IsCompactMode);
+        SetCurrentValue(IsMediumModeProperty, _responsiveHeader.IsMediumMode);
+        SetCurrentValue(ShowButtonTextProperty, _responsiveHeader.ShowButtonText);
+        SetCurrentValue(SearchBoxWidthProperty, _responsiveHeader.SearchBoxWidth);
+        SetCurrentValue(HeaderSpacingProperty, _responsiveHeader.HeaderSpacing);
+        SetCurrentValue(SearchIconMarginProperty, _responsiveHeader.SearchIconMargin);
+        SetCurrentValue(HeaderPaddingProperty, _responsiveHeader.HeaderPadding);
+        SetCurrentValue(SearchBoxMinHeightProperty, _responsiveHeader.SearchBoxMinHeight);
     }
 
     private void OnTableGridSizeChanged(object? sender, SizeChangedEventArgs e)

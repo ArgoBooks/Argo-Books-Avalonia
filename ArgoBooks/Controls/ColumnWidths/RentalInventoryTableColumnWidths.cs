@@ -40,6 +40,6 @@ public partial class RentalInventoryTableColumnWidths : TableColumnWidthsBase
         RegisterColumn("Deposit", new ColumnDef { StarValue = 0.7, MinWidth = 70, PreferredWidth = 90 }, w => DepositColumnWidth = w);
         RegisterColumn("Actions", new ColumnDef { IsFixed = true, FixedWidth = ActionsWidth(4), MinWidth = ActionsWidth(4) }, w => ActionsColumnWidth = w);
 
-        InitializeColumnWidths();
+        RecalculateWidths();
     }
 }

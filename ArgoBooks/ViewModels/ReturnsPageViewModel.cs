@@ -13,17 +13,8 @@ namespace ArgoBooks.ViewModels;
 /// <summary>
 /// ViewModel for the Returns page displaying expense and customer returns.
 /// </summary>
-public partial class ReturnsPageViewModel : ViewModelBase, ICleanupViewModel
+public partial class ReturnsPageViewModel : SortablePageViewModelBase
 {
-    #region Responsive Header
-
-    /// <summary>
-    /// Helper for responsive header layout calculations.
-    /// </summary>
-    public ResponsiveHeaderHelper ResponsiveHeader { get; } = new();
-
-    #endregion
-
     #region Table Column Widths
 
     /// <summary>
@@ -31,58 +22,35 @@ public partial class ReturnsPageViewModel : ViewModelBase, ICleanupViewModel
     /// </summary>
     public ReturnsTableColumnWidths ColumnWidths => App.ReturnsColumnWidths;
 
-    [ObservableProperty]
-    private bool _isColumnMenuOpen;
-
-    [ObservableProperty]
-    private bool _showIdColumn = ColumnVisibilityHelper.Load("Returns", "Id", true);
-
-    [ObservableProperty]
-    private bool _showProductColumn = ColumnVisibilityHelper.Load("Returns", "Product", true);
-
-    [ObservableProperty]
-    private bool _showSupplierCustomerColumn = ColumnVisibilityHelper.Load("Returns", "SupplierCustomer", true);
-
-    [ObservableProperty]
-    private bool _showDateColumn = ColumnVisibilityHelper.Load("Returns", "Date", true);
-
-    [ObservableProperty]
-    private bool _showReasonColumn = ColumnVisibilityHelper.Load("Returns", "Reason", true);
-
-    [ObservableProperty]
-    private bool _showRefundColumn = ColumnVisibilityHelper.Load("Returns", "Refund", true);
-
-    partial void OnShowIdColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Id", value); ColumnVisibilityHelper.Save("Returns", "Id", value); }
-    partial void OnShowProductColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Product", value); ColumnVisibilityHelper.Save("Returns", "Product", value); }
-    partial void OnShowSupplierCustomerColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("SupplierCustomer", value); ColumnVisibilityHelper.Save("Returns", "SupplierCustomer", value); }
-    partial void OnShowDateColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Date", value); ColumnVisibilityHelper.Save("Returns", "Date", value); }
-    partial void OnShowReasonColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Reason", value); ColumnVisibilityHelper.Save("Returns", "Reason", value); }
-    partial void OnShowRefundColumnChanged(bool value) { ColumnWidths.SetColumnVisibility("Refund", value); ColumnVisibilityHelper.Save("Returns", "Refund", value); }
-
-    [RelayCommand]
-    private void ToggleColumnMenu()
+    private static readonly ColumnVisibilityDefaults ColumnDefaults = new("Returns", new Dictionary<string, bool>
     {
-        IsColumnMenuOpen = !IsColumnMenuOpen;
-    }
+        ["Id"] = true,
+        ["Product"] = true,
+        ["SupplierCustomer"] = true,
+        ["Date"] = true,
+        ["Reason"] = true,
+        ["Refund"] = true,
+    });
 
-    [RelayCommand]
-    private void CloseColumnMenu()
-    {
-        IsColumnMenuOpen = false;
-    }
+    protected override ColumnVisibilityDefaults ColumnVisibility => ColumnDefaults;
 
-    [RelayCommand]
-    private void ResetColumnVisibility()
-    {
-        ColumnWidths.ResetWidths();
-        ColumnVisibilityHelper.ResetPage("Returns");
-        ShowIdColumn = true;
-        ShowProductColumn = true;
-        ShowSupplierCustomerColumn = true;
-        ShowDateColumn = true;
-        ShowReasonColumn = true;
-        ShowRefundColumn = true;
-    }
+    [ObservableProperty]
+    private bool _showIdColumn = ColumnDefaults.Load("Id");
+
+    [ObservableProperty]
+    private bool _showProductColumn = ColumnDefaults.Load("Product");
+
+    [ObservableProperty]
+    private bool _showSupplierCustomerColumn = ColumnDefaults.Load("SupplierCustomer");
+
+    [ObservableProperty]
+    private bool _showDateColumn = ColumnDefaults.Load("Date");
+
+    [ObservableProperty]
+    private bool _showReasonColumn = ColumnDefaults.Load("Reason");
+
+    [ObservableProperty]
+    private bool _showRefundColumn = ColumnDefaults.Load("Refund");
 
     #endregion
 
@@ -141,58 +109,8 @@ public partial class ReturnsPageViewModel : ViewModelBase, ICleanupViewModel
 
     #region Pagination
 
-    [ObservableProperty]
-    private int _currentPage = 1;
-
-    [ObservableProperty]
-    private int _totalPages = 1;
-
-    [ObservableProperty]
-    private int _pageSize = 10;
-
-    public ObservableCollection<int> PageSizeOptions { get; } = [5, 10, 15, 25, 50];
-
-    partial void OnPageSizeChanged(int value)
-    {
-        CurrentPage = 1;
-        FilterReturns();
-    }
-
-    [ObservableProperty]
-    private string _paginationText = "0 returns";
-
-    public ObservableCollection<int> PageNumbers { get; } = [];
-
-    public bool CanGoToPreviousPage => CurrentPage > 1;
-    public bool CanGoToNextPage => CurrentPage < TotalPages;
-
-    partial void OnCurrentPageChanged(int value)
-    {
-        OnPropertyChanged(nameof(CanGoToPreviousPage));
-        OnPropertyChanged(nameof(CanGoToNextPage));
-        FilterReturns();
-    }
-
-    [RelayCommand]
-    private void GoToPreviousPage()
-    {
-        if (CanGoToPreviousPage)
-            CurrentPage--;
-    }
-
-    [RelayCommand]
-    private void GoToNextPage()
-    {
-        if (CanGoToNextPage)
-            CurrentPage++;
-    }
-
-    [RelayCommand]
-    private void GoToPage(int page)
-    {
-        if (page >= 1 && page <= TotalPages)
-            CurrentPage = page;
-    }
+    /// <inheritdoc />
+    protected override void OnSortOrPageChanged() => FilterReturns();
 
     #endregion
 
@@ -200,13 +118,9 @@ public partial class ReturnsPageViewModel : ViewModelBase, ICleanupViewModel
 
     public ReturnsPageViewModel()
     {
-        ColumnVisibilityHelper.SyncToManager(this);
         LoadReturns();
 
-        // Subscribe to undo/redo state changes to refresh UI
-        App.UndoRedoManager.StateChanged += OnUndoRedoStateChanged;
-        if (App.NavigationService != null)
-            App.NavigationService.Navigated += OnNavigated;
+        EnableDeferredUndoRefresh(p => p == PageNames.Returns, LoadReturns);
 
         // Subscribe to modal events
         if (App.ReturnsModalsViewModel != null)
@@ -215,35 +129,28 @@ public partial class ReturnsPageViewModel : ViewModelBase, ICleanupViewModel
             App.ReturnsModalsViewModel.FiltersCleared += OnFiltersCleared;
             App.ReturnsModalsViewModel.ReturnUndone += OnReturnUndone;
         }
-
-        // Subscribe to language changes to refresh translated content
-        LanguageService.Instance.LanguageChanged += OnLanguageChanged;
     }
 
     /// <summary>
     /// Unsubscribes from app-level and singleton events so this page VM can be garbage collected when
     /// the company is switched. Called by ClearPageCaches via <see cref="ICleanupViewModel"/>.
     /// </summary>
-    public void Cleanup()
+    public override void Cleanup()
     {
-        CancelPendingSearch();
-        App.UndoRedoManager.StateChanged -= OnUndoRedoStateChanged;
-        if (App.NavigationService != null)
-            App.NavigationService.Navigated -= OnNavigated;
+        base.Cleanup();
         if (App.ReturnsModalsViewModel != null)
         {
             App.ReturnsModalsViewModel.FiltersApplied -= OnFiltersApplied;
             App.ReturnsModalsViewModel.FiltersCleared -= OnFiltersCleared;
             App.ReturnsModalsViewModel.ReturnUndone -= OnReturnUndone;
         }
-        LanguageService.Instance.LanguageChanged -= OnLanguageChanged;
     }
 
-    private void OnLanguageChanged(object? sender, LanguageChangedEventArgs e)
+    protected override void OnLanguageChanged(object? sender, LanguageChangedEventArgs e)
     {
         // Trigger property change notification to refresh translated titles via converters
         OnPropertyChanged(nameof(IsExpenseTabActive));
-        FilterReturns();
+        base.OnLanguageChanged(sender, e);
     }
 
     private void OnFiltersApplied(object? sender, EventArgs e)
@@ -262,27 +169,6 @@ public partial class ReturnsPageViewModel : ViewModelBase, ICleanupViewModel
     private void OnReturnUndone(object? sender, EventArgs e)
     {
         LoadReturns();
-    }
-
-    private bool _needsRefresh;
-
-    private void OnUndoRedoStateChanged(object? sender, EventArgs e)
-    {
-        if (App.NavigationService?.CurrentPageName != PageNames.Returns)
-        {
-            _needsRefresh = true;
-            return;
-        }
-        LoadReturns();
-    }
-
-    private void OnNavigated(object? sender, NavigationEventArgs e)
-    {
-        if (e.PageName == PageNames.Returns && _needsRefresh)
-        {
-            _needsRefresh = false;
-            LoadReturns();
-        }
     }
 
     #endregion
@@ -335,13 +221,7 @@ public partial class ReturnsPageViewModel : ViewModelBase, ICleanupViewModel
         // Apply search filter
         if (!string.IsNullOrWhiteSpace(SearchQuery))
         {
-            var query = SearchQuery.ToLowerInvariant();
-            filtered = filtered.Where(r =>
-                r.Id.ToLowerInvariant().Contains(query) ||
-                r.OriginalTransactionId.ToLowerInvariant().Contains(query) ||
-                GetProductNames(r).ToLowerInvariant().Contains(query) ||
-                GetSupplierOrCustomerName(r).ToLowerInvariant().Contains(query)
-            );
+            filtered = filtered.RankBySearch(SearchQuery, r => [r.Id, r.OriginalTransactionId, GetProductNames(r), GetSupplierOrCustomerName(r)]);
         }
 
         if (filterReason != "All")
@@ -364,19 +244,7 @@ public partial class ReturnsPageViewModel : ViewModelBase, ICleanupViewModel
         var displayItems = filtered.OrderByDescending(r => r.ReturnDate)
             .Select(CreateDisplayItem).ToList();
 
-        // Calculate pagination
-        var totalCount = displayItems.Count;
-        TotalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / PageSize));
-        if (CurrentPage > TotalPages)
-            CurrentPage = TotalPages;
-
-        UpdatePageNumbers();
-        UpdatePaginationText(totalCount);
-
-        // Apply pagination and add to collection
-        var pagedReturns = displayItems
-            .Skip((CurrentPage - 1) * PageSize)
-            .Take(PageSize);
+        var pagedReturns = Paginate(displayItems, "return");
 
         Returns.ReplaceAll(pagedReturns);
     }
@@ -451,25 +319,6 @@ public partial class ReturnsPageViewModel : ViewModelBase, ICleanupViewModel
 
         var accountant = companyData.GetAccountant(returnRecord.ProcessedBy ?? "");
         return accountant?.Name ?? returnRecord.ProcessedBy ?? "Unknown";
-    }
-
-    private void UpdatePageNumbers()
-    {
-        PageNumbers.Clear();
-        var startPage = Math.Max(1, CurrentPage - 2);
-        var endPage = Math.Min(TotalPages, startPage + 4);
-        startPage = Math.Max(1, endPage - 4);
-
-        for (var i = startPage; i <= endPage; i++)
-        {
-            PageNumbers.Add(i);
-        }
-    }
-
-    private void UpdatePaginationText(int totalCount)
-    {
-        PaginationText = PaginationTextHelper.FormatPaginationText(
-            totalCount, CurrentPage, PageSize, TotalPages, "return");
     }
 
     #endregion
