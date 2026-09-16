@@ -233,6 +233,8 @@ The app verifies an Ed25519 signature on every update it downloads, and refuses 
 
    The filenames matter: `get_avalonia_installer.php` builds the download links from those exact patterns, and the app fetches translations from `/resources/downloads/{version}/languages/{iso}.json` (`LanguageService.DownloadUrlTemplate`).
 
+8. Check the website repo's **Verify release signatures** workflow on GitHub. The push in step 6 starts it, and it keeps rechecking for 45 minutes while the upload finishes. It downloads each file in `avalonia-update.xml` and fails if a file is missing or its signature doesn't match, which is what would make the app refuse the update.
+
 The release is now live. The website download buttons serve the new version, and existing installs will show the "A new version is available" banner the next time they check for updates. Test the auto-update by opening the previous version of the app and letting it update, then confirm that the old version was uninstalled and the new one is installed. Once that works, the release is done.
 
 ## Once a Year: Province and State Flags
