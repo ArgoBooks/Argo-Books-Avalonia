@@ -965,7 +965,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
                 Id = $"INV-ITM-{companyData.IdCounters.InventoryItem:D5}",
                 ProductId = product.Id,
                 Sku = product.Sku,
-                LocationId = companyData.Locations.FirstOrDefault()?.Id ?? InventoryStockService.NoLocationId,
+                LocationId = InventoryStockService.EnsureLocationId(companyData),
                 UnitOfMeasure = product.UnitOfMeasure,
                 UnitCost = line.UnitCost,
                 LastUpdated = DateTime.UtcNow

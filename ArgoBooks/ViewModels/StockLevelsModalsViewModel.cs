@@ -154,7 +154,7 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
 
         _transferItemId = itemId;
         TransferProductName = companyData.GetProduct(item.ProductId)?.Name ?? "Unknown Product".Translate();
-        TransferFromLocationName = companyData.GetLocation(item.LocationId)?.Name ?? "Default".Translate();
+        TransferFromLocationName = companyData.GetLocation(item.LocationId)?.Name ?? "Unknown".Translate();
         TransferAvailableText = StockUnits.Format(item.InStock, item.UnitOfMeasure);
 
         TransferLocations.Clear();

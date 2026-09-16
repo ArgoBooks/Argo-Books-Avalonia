@@ -572,7 +572,7 @@ public partial class QuickActionsViewModel : ViewModelBase
             var productName = product?.Name ?? "";
             var score = LevenshteinDistance.BestScore(query, productName, i.Sku, product?.Sku ?? "", location?.Name ?? "");
             if (score > 0)
-                results.Add((new QuickActionItem($"{productName} @ {location?.Name ?? "Default"}", $"SKU: {i.Sku} · In Stock: {i.InStock}", Icons.StockLevels, QuickActionType.SearchResult, "StockLevels", entityId: i.Id), score));
+                results.Add((new QuickActionItem($"{productName} @ {location?.Name ?? "Unknown"}", $"SKU: {i.Sku} · In Stock: {i.InStock}", Icons.StockLevels, QuickActionType.SearchResult, "StockLevels", entityId: i.Id), score));
         }
 
         foreach (var po in companyData.PurchaseOrders)

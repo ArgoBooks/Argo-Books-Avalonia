@@ -357,9 +357,9 @@ public partial class StockAdjustmentsModalsViewModel : ViewModelBase
             AvailableInventoryItems.Add(new InventoryItemDisplayOption
             {
                 InventoryItem = item,
-                DisplayText = $"{product?.Name ?? "Unknown"} @ {location?.Name ?? "Default"}",
+                DisplayText = $"{product?.Name ?? "Unknown"} @ {location?.Name ?? "Unknown"}",
                 ProductName = product?.Name ?? "Unknown",
-                LocationName = location?.Name ?? "Default",
+                LocationName = location?.Name ?? "Unknown",
                 CurrentStock = item.InStock
             });
         }

@@ -861,7 +861,7 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
             var product = companyData.Products.FirstOrDefault(p => p.Id == invItem.ProductId);
             var location = companyData.Locations.FirstOrDefault(l => l.Id == invItem.LocationId);
             var productName = product?.Name ?? "Unknown";
-            var locationName = location?.Name ?? "Default";
+            var locationName = location?.Name ?? "Unknown";
             AvailableInventoryItems.Add(new InventoryItemOption
             {
                 Id = invItem.Id,

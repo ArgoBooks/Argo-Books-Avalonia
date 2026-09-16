@@ -1578,7 +1578,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
                 lineItem.LocationOptions.Add(new LocationOption
                 {
                     Id = item.LocationId,
-                    Name = companyData.GetLocation(item.LocationId)?.Name ?? "Default".Translate(),
+                    Name = companyData.GetLocation(item.LocationId)?.Name ?? "Unknown".Translate(),
                     StockText = StockUnits.Format(item.InStock, item.UnitOfMeasure)
                 });
             }

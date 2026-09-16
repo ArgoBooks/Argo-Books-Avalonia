@@ -259,7 +259,7 @@ public class InventoryStockServiceTests
     }
 
     [Fact]
-    public void Purchase_WithNoStockRecord_GoesToTheFirstLocation_OrNoLocation()
+    public void Purchase_WithNoStockRecord_GoesToTheFirstLocation_OrANewOne()
     {
         var withLocations = Company(Warehouse, Shop);
         var purchase = Purchase(Line("PRD-1", 1, 3m));
@@ -270,7 +270,11 @@ public class InventoryStockServiceTests
         var withoutLocations = Company();
         var another = Purchase(Line("PRD-1", 1, 3m));
         InventoryStockService.Apply(withoutLocations, another.LineItems, another, isPurchase: true);
-        Assert.Equal(InventoryStockService.NoLocationId, Assert.Single(withoutLocations.Inventory).LocationId);
+        // A company with no locations gets a real one, not a placeholder that shows as "Default"
+        // in the pickers and cannot be renamed or deleted.
+        var created = Assert.Single(withoutLocations.Locations);
+        Assert.Equal("Main", created.Name);
+        Assert.Equal(created.Id, Assert.Single(withoutLocations.Inventory).LocationId);
     }
 
     [Fact]

@@ -15,7 +15,20 @@ namespace ArgoBooks.Core.Services;
 public static class InventoryStockService
 {
     /// <summary>The location id stock is given when the company has no locations yet.</summary>
-    public const string NoLocationId = "default";
+    /// <summary>
+    /// The location stock belongs to when the caller names none: the company's first location, or a
+    /// real one created for it. Every stock row points at a location that exists on the Locations page.
+    /// </summary>
+    public static string EnsureLocationId(CompanyData data)
+    {
+        var existing = data.Locations.FirstOrDefault();
+        if (existing != null)
+            return existing.Id;
+
+        var location = new Location { Id = new IdGenerator(data).NextLocationId(), Name = "Main" };
+        data.Locations.Add(location);
+        return location.Id;
+    }
 
     /// <summary>
     /// Applies a newly saved purchase or sale to stock. Only lines whose product tracks inventory
@@ -399,7 +412,7 @@ public static class InventoryStockService
             Sku = sku,
             LocationId = !string.IsNullOrEmpty(locationId)
                 ? locationId
-                : data.Locations.FirstOrDefault()?.Id ?? NoLocationId,
+                : EnsureLocationId(data),
             LastUpdated = DateTime.UtcNow
         };
         data.Inventory.Add(item);

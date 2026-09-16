@@ -435,7 +435,7 @@ public partial class StockLevelsPageViewModel : SortablePageViewModelBase
                 ProductName = product?.Name ?? "Unknown Product",
                 Sku = item.Sku,
                 CategoryName = category?.Name ?? "-",
-                LocationName = location?.Name ?? "Default",
+                LocationName = location?.Name ?? "Unknown",
                 UnitOfMeasure = product?.UnitOfMeasure ?? StockUnits.Each,
                 InStock = item.InStock,
                 Reserved = item.Reserved,

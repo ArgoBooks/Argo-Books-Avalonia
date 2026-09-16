@@ -410,7 +410,7 @@ public partial class StockAdjustmentsPageViewModel : SortablePageViewModelBase
                 ProductName = product?.Name ?? "Unknown Product",
                 ProductSku = invItem?.Sku ?? product?.Sku ?? "",
                 LocationId = invItem?.LocationId ?? "",
-                LocationName = location?.Name ?? "Default",
+                LocationName = location?.Name ?? "Unknown",
                 AdjustmentType = adjustment.AdjustmentType,
                 TypeDisplay = adjustment.AdjustmentType.ToString(),
                 Quantity = adjustment.Quantity,
