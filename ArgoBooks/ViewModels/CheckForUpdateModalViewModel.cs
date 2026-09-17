@@ -120,6 +120,26 @@ public partial class CheckForUpdateModalViewModel : ViewModelBase
     }
 
     /// <summary>
+    /// Opens the modal and takes the update as far as it can without another click: checks if
+    /// the background check has not found one yet, then downloads. Used when a company file
+    /// needs a newer version, so the user has already said they want the update.
+    /// </summary>
+    [RelayCommand]
+    private async Task OpenAndUpdate()
+    {
+        IsOpen = true;
+
+        if (IsDownloading || IsChecking || IsReadyToInstall)
+            return;
+
+        if (!HasUpdate)
+            await CheckForUpdates();
+
+        if (HasUpdate)
+            await DownloadUpdate();
+    }
+
+    /// <summary>
     /// Closes the modal. Any in-progress download continues in the background.
     /// </summary>
     [RelayCommand]

@@ -234,6 +234,15 @@
                                     VerticalAlignment="Stretch"
                                     ZIndex="175" />
 
+        <!-- Update modal over the welcome screen, for a company file that needs a newer version.
+             The app shell's copy of this modal sits under the welcome screen, so this one is
+             only shown while the welcome screen is up to avoid two stacked backdrops. -->
+        <modals:CheckForUpdateModal DataContext="{Binding CheckForUpdateModalViewModel}"
+                                    IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).ShowWelcomeScreen}"
+                                    HorizontalAlignment="Stretch"
+                                    VerticalAlignment="Stretch"
+                                    ZIndex="180" />
+
         <!-- Create Company Wizard (full-screen overlay above everything) -->
         <modals:CreateCompanyWizard DataContext="{Binding CreateCompanyViewModel}"
                                     HorizontalAlignment="Stretch"
