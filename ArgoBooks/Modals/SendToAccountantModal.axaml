@@ -1,0 +1,127 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:ArgoBooks.ViewModels"
+             xmlns:controls="using:ArgoBooks.Controls"
+             xmlns:loc="using:ArgoBooks.Localization"
+             mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="760"
+             x:Class="ArgoBooks.Modals.SendToAccountantModal"
+             x:DataType="vm:SendToAccountantModalViewModel">
+
+    <Design.DataContext>
+        <vm:SendToAccountantModalViewModel />
+    </Design.DataContext>
+
+    <Panel>
+        <controls:ModalOverlay IsOpen="{Binding IsOpen}" ClosingCommand="{Binding CloseCommand}">
+            <controls:ModalOverlay.ModalContent>
+                <Border Classes="modal-card" Width="560" MaxHeight="780">
+                    <Grid RowDefinitions="Auto,*,Auto">
+
+                        <controls:ModalHeader Grid.Row="0" Title="{loc:Loc 'Send to Accountant'}" CloseCommand="{Binding CloseCommand}">
+                            <TextBlock Text="{loc:Loc 'Your statements, transactions and receipts for the year, ready for your accountant'}"
+                                       FontSize="12" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextSecondaryBrush}" />
+                        </controls:ModalHeader>
+
+                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <StackPanel Margin="24" Spacing="16">
+
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="{loc:Loc 'Tax year'}" FontSize="12"
+                                               Foreground="{DynamicResource TextSecondaryBrush}" />
+                                    <ComboBox ItemsSource="{Binding Periods}"
+                                              SelectedItem="{Binding SelectedPeriod, Mode=TwoWay}"
+                                              Classes="form-combobox" HorizontalAlignment="Stretch" />
+                                </StackPanel>
+
+                                <Grid ColumnDefinitions="*,16,*" IsVisible="{Binding IsCustomRange}">
+                                    <StackPanel Grid.Column="0" Spacing="6">
+                                        <TextBlock Text="{loc:Loc 'From'}" FontSize="12"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        <DatePicker SelectedDate="{Binding CustomStart, Mode=TwoWay}"
+                                                    Classes="form-datepicker" MinWidth="0" HorizontalAlignment="Stretch" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2" Spacing="6">
+                                        <TextBlock Text="{loc:Loc 'To'}" FontSize="12"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        <DatePicker SelectedDate="{Binding CustomEnd, Mode=TwoWay}"
+                                                    Classes="form-datepicker" MinWidth="0" HorizontalAlignment="Stretch" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <Border Background="{DynamicResource SurfaceAltBrush}" CornerRadius="8" Padding="16">
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="{loc:Loc 'Include'}" FontSize="13" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                                        <CheckBox IsChecked="{Binding IncludeReports, Mode=TwoWay}">
+                                            <TextBlock TextWrapping="Wrap"
+                                                       Text="{loc:Loc 'Income Statement, Balance Sheet, Cash Flow Statement, General Ledger and Tax Summary (PDF)'}" />
+                                        </CheckBox>
+                                        <CheckBox IsChecked="{Binding IncludeTransactions, Mode=TwoWay}">
+                                            <TextBlock TextWrapping="Wrap" Text="{loc:Loc 'Every transaction in the period (Excel)'}" />
+                                        </CheckBox>
+                                        <CheckBox IsChecked="{Binding IncludeReceipts, Mode=TwoWay}">
+                                            <TextBlock TextWrapping="Wrap" Text="{loc:Loc 'Receipts'}" />
+                                        </CheckBox>
+                                        <TextBlock Text="{Binding SizeText}" FontSize="11" TextWrapping="Wrap" Margin="28,0,0,0"
+                                                   Foreground="{DynamicResource TextTertiaryBrush}"
+                                                   IsVisible="{Binding SizeText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Grid ColumnDefinitions="*,16,*">
+                                    <StackPanel Grid.Column="0" Spacing="6">
+                                        <TextBlock Text="{loc:Loc 'Accountant name'}" FontSize="12"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        <TextBox Text="{Binding AccountantName, Mode=TwoWay}" Classes="form-input"
+                                                 PlaceholderText="{loc:Loc 'Optional'}" MaxLength="100" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2" Spacing="6">
+                                        <TextBlock Text="{loc:Loc 'Accountant email'}" FontSize="12"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        <TextBox Text="{Binding AccountantEmail, Mode=TwoWay}" Classes="form-input"
+                                                 PlaceholderText="name@example.com" MaxLength="254" />
+                                        <TextBlock Text="{Binding EmailError}" FontSize="12" TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource ErrorBrush}"
+                                                   IsVisible="{Binding EmailError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="{loc:Loc 'Note to your accountant'}" FontSize="12"
+                                               Foreground="{DynamicResource TextSecondaryBrush}" />
+                                    <TextBox Text="{Binding Note, Mode=TwoWay}" Classes="form-input"
+                                             AcceptsReturn="True" TextWrapping="Wrap" MinHeight="72" MaxLength="2000"
+                                             PlaceholderText="{loc:Loc 'Optional'}" />
+                                </StackPanel>
+
+                                <TextBlock Text="{Binding ErrorMessage}" FontSize="12" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource ErrorBrush}"
+                                           IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                <TextBlock Text="{Binding StatusMessage}" FontSize="12" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource SuccessBrush}"
+                                           IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                            </StackPanel>
+                        </ScrollViewer>
+
+                        <Border Classes="modal-footer" Grid.Row="2">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Grid.Column="0" Text="{Binding BusyText}" FontSize="12" TextWrapping="Wrap"
+                                           VerticalAlignment="Center" Margin="0,0,12,0"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                                <StackPanel Grid.Column="1" Classes="modal-actions">
+                                    <Button Classes="secondary-button" Content="{loc:Loc 'Save as Zip'}"
+                                            Command="{Binding SaveAsZipCommand}" />
+                                    <Button Classes="primary-button" Content="{loc:Loc 'Email to Accountant'}"
+                                            Command="{Binding EmailToAccountantCommand}" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Border>
+            </controls:ModalOverlay.ModalContent>
+        </controls:ModalOverlay>
+    </Panel>
+</UserControl>

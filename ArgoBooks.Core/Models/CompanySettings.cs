@@ -179,6 +179,15 @@ public class CompanyInfo
     /// </summary>
     [JsonPropertyName("remitterType")]
     public Payroll.RemitterType RemitterType { get; set; } = Payroll.RemitterType.Regular;
+
+    /// <summary>
+    /// The outside accountant the year-end books are sent to, remembered from the last send.
+    /// </summary>
+    [JsonPropertyName("accountantName")]
+    public string? AccountantName { get; set; }
+
+    [JsonPropertyName("accountantEmail")]
+    public string? AccountantEmail { get; set; }
 }
 
 public class LocalizationSettings

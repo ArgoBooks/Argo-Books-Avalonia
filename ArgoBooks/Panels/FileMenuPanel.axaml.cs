@@ -13,7 +13,7 @@ namespace ArgoBooks.Panels;
 public partial class FileMenuPanel : UserControl
 {
     private int _focusedIndex = -1;
-    private readonly int _menuItemCount = 9; // Total menu items (0-8)
+    private readonly int _menuItemCount = 10; // Total menu items (0-9)
     private readonly int _submenuItemCount = 4; // Submenu items (0-3)
     private int _submenuFocusedIndex = -1;
     private bool _isInSubmenu;

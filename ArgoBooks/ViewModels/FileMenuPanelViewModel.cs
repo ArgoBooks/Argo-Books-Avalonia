@@ -221,6 +221,16 @@ public partial class FileMenuPanelViewModel : ViewModelBase
     }
 
     /// <summary>
+    /// Opens Send to Accountant.
+    /// </summary>
+    [RelayCommand]
+    private void SendToAccountant()
+    {
+        Close();
+        SendToAccountantRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
     /// Shows the company file in the file explorer.
     /// </summary>
     [RelayCommand]
@@ -242,6 +252,7 @@ public partial class FileMenuPanelViewModel : ViewModelBase
     public event EventHandler? CloseCompanyRequested;
     public event EventHandler? ImportRequested;
     public event EventHandler? ExportAsRequested;
+    public event EventHandler? SendToAccountantRequested;
     public event EventHandler? ShowInFolderRequested;
 
     #endregion

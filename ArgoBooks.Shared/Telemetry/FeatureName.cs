@@ -92,5 +92,8 @@ public enum FeatureName
 
     // The dashboard editor
     DashboardCustomized,
-    DashboardReset
+    DashboardReset,
+
+    // Year-end books sent to an accountant
+    AccountantPackSent
 }

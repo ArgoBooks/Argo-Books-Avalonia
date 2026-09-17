@@ -258,6 +258,7 @@
 
         <!-- Export As Modal -->
         <modals:ExportAsModal DataContext="{Binding ExportAsModalViewModel}" />
+        <modals:SendToAccountantModal DataContext="{Binding SendToAccountantModalViewModel}" />
 
         <!-- Switch Account Modal -->
         <modals:SwitchAccountModal DataContext="{Binding SwitchAccountModalViewModel}" />

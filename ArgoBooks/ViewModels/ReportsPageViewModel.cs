@@ -124,6 +124,9 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
     public Func<Task<bool>>? ConfirmDiscardChangesAsync { get; set; }
 
     [RelayCommand]
+    private void OpenSendToAccountant() => App.SendToAccountantModalViewModel?.Open();
+
+    [RelayCommand]
     private async Task GoToPreviousStepAsync()
     {
         if (CurrentStep > 1)

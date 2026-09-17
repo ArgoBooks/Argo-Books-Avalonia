@@ -36,6 +36,7 @@ public partial class AppShellViewModel : ViewModelBase
     private PayrollModalsViewModel? _payrollModalsViewModel;
     private PayRunModalsViewModel? _payRunModalsViewModel;
     private YearEndModalViewModel? _yearEndModalViewModel;
+    private SendToAccountantModalViewModel? _sendToAccountantModalViewModel;
     private StockAdjustmentsModalsViewModel? _stockAdjustmentsModalsViewModel;
     private BankMatchingModalsViewModel? _bankMatchingModalsViewModel;
     private BankStatementImportModalViewModel? _bankStatementImportModalViewModel;
@@ -415,6 +416,19 @@ public partial class AppShellViewModel : ViewModelBase
         }
     }
 
+    public SendToAccountantModalViewModel SendToAccountantModalViewModel
+    {
+        get
+        {
+            if (_sendToAccountantModalViewModel == null)
+            {
+                _sendToAccountantModalViewModel = new SendToAccountantModalViewModel();
+                OnPropertyChanged();
+            }
+            return _sendToAccountantModalViewModel;
+        }
+    }
+
     public StockAdjustmentsModalsViewModel StockAdjustmentsModalsViewModel
     {
         get
@@ -740,6 +754,7 @@ public partial class AppShellViewModel : ViewModelBase
 
         // Wire up file menu's export as to open the export as modal
         FileMenuPanelViewModel.ExportAsRequested += (_, _) => ExportAsModalViewModel.OpenCommand.Execute(null);
+        FileMenuPanelViewModel.SendToAccountantRequested += (_, _) => SendToAccountantModalViewModel.Open();
 
         // Sync search query between header and quick actions
         HeaderViewModel.PropertyChanged += (_, e) =>
