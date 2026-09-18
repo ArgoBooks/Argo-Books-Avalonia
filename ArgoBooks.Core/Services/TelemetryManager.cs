@@ -19,10 +19,11 @@ public class TelemetryManager : ITelemetryManager
     /// <summary>
     /// Heartbeats between periodic uploads, i.e. one flush every 20 minutes.
     /// <para>
-    /// Sized against the server's free-tier ceiling of 6 uploads per hour per device: at
-    /// most 3 periodic flushes, plus the startup flush and the one on close, leaves
-    /// headroom. Quiet ticks are free because UploadPendingDataAsync returns without a
-    /// request when nothing is pending.
+    /// Sized against the server's free-tier ceiling (RL_TELEMETRY_UPLOAD_FREE_MAX on the
+    /// website, 30 per hour per device). Each run also flushes on start and on close, so
+    /// the ceiling has to leave room for someone who restarts the app several times in an
+    /// hour; a 429 is not retried and the events wait for a later flush. Quiet ticks are
+    /// free because UploadPendingDataAsync returns without a request when nothing is pending.
     /// </para>
     /// </summary>
     private const int HeartbeatsPerUpload = 20;

@@ -881,7 +881,21 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
             OperationKind.BankPdfExtract, pct => CategorizeProgress = pct * 0.6, uploadBytes: bytes.Length))
         {
             ticker.Start();
-            extracted = await App.PdfStatementExtractor.ExtractAsync(bytes, Path.GetFileName(filePath));
+            try
+            {
+                extracted = await App.PdfStatementExtractor.ExtractAsync(bytes, Path.GetFileName(filePath));
+            }
+            catch (ServerRateLimitedException ex)
+            {
+                // Nothing was read, so nothing is charged; the file itself may be fine.
+                if (IsOpen)
+                {
+                    IsOpen = false;
+                    IsLoading = false;
+                    await App.ShowInfoMessageBoxAsync("Import Bank Statement".Translate(), ex.Message);
+                }
+                return [];
+            }
             ticker.Complete();
         }
         _categorizeProgressFloor = 60;

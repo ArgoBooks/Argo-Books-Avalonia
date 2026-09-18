@@ -3455,7 +3455,18 @@ public partial class App : Application
         try
         {
             var bytes = await SharedFileReader.ReadAllBytesAsync(filePath);
-            var extracted = await PdfStatementExtractor.ExtractAsync(bytes, Path.GetFileName(filePath));
+            List<Core.Models.BankMatching.BankStatementLine> extracted;
+            try
+            {
+                extracted = await PdfStatementExtractor.ExtractAsync(bytes, Path.GetFileName(filePath));
+            }
+            catch (ServerRateLimitedException ex)
+            {
+                // Nothing was read, so nothing is charged; the file itself may be fine.
+                HideBusyOverlay();
+                await ShowInfoMessageBoxAsync("Import Bank Statement".Translate(), ex.Message);
+                return [];
+            }
             HideBusyOverlay();
             if (extracted.Count == 0)
             {
