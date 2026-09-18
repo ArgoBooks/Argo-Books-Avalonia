@@ -1823,7 +1823,7 @@ public partial class InvoiceModalsViewModel : ViewModelBase
                         return;
                     }
 
-                    var limit = usage.MonthlyLimit > 0 ? usage.MonthlyLimit : InvoicesPageViewModel.DefaultFreeInvoiceLimit;
+                    var limit = usage.MonthlyLimit > 0 ? usage.MonthlyLimit : FreePlanLimits.InvoiceMonthly;
                     await UpgradePromptHelper.ShowInvoiceLimitPromptAsync(limit);
                     return;
                 }

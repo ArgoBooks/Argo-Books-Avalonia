@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using ArgoBooks.Core.Platform;
+using ArgoBooks.Core.Services;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -82,8 +83,8 @@ public partial class SetupChecklistViewModel : ViewModelBase
     public string FreeTierSummary =>
         "You can use Argo Books for free: all core features, plus {0} invoices and {1} AI receipt scans every month."
             .TranslateFormat(
-                UpgradeModalViewModel.FreeInvoiceMonthlyLimit,
-                UpgradeModalViewModel.FreeReceiptScanMonthlyLimit);
+                FreePlanLimits.InvoiceMonthly,
+                FreePlanLimits.ReceiptScanMonthly);
 
     public SetupChecklistViewModel()
     {
@@ -93,7 +94,7 @@ public partial class SetupChecklistViewModel : ViewModelBase
 
         // The card may already be on screen with the fallback limits when the plans fetch
         // lands, so re-read them when the server answers.
-        UpgradeModalViewModel.FreeLimitsChanged += (_, _) => OnPropertyChanged(nameof(FreeTierSummary));
+        FreePlanLimits.Changed += (_, _) => OnPropertyChanged(nameof(FreeTierSummary));
 
         App.PlanStatusChanged += OnPlanStatusChanged;
     }

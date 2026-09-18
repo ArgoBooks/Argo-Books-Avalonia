@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using ArgoBooks.Controls;
 using ArgoBooks.Controls.ColumnWidths;
 using ArgoBooks.Core.Data;
@@ -171,14 +171,6 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
 
     #region Plan Status and Invoice Limits
 
-    /// <summary>
-    /// Default fallback limit used when the server hasn't been reached yet.
-    /// </summary>
-    // Must match the server's free-tier default (config/pricing.php
-    // FREE_INVOICE_MONTHLY_LIMIT). Used only as a fallback before the
-    // server check completes; the real value comes from CheckUsageAsync.
-    internal const int DefaultFreeInvoiceLimit = 25;
-
     [ObservableProperty]
     private bool _hasPremium;
 
@@ -207,7 +199,7 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
     private int _sentInvoicesThisMonthCount;
 
     [ObservableProperty]
-    private int _invoiceMonthlyLimit = DefaultFreeInvoiceLimit;
+    private int _invoiceMonthlyLimit = FreePlanLimits.InvoiceMonthly;
 
     /// <summary>
     /// Gets remaining invoices the user can send (on the Free plan).
