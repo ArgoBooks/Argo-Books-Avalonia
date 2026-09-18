@@ -50,7 +50,7 @@
                             </StackPanel>
 
                             <Grid ColumnDefinitions="*,16,*">
-                                <StackPanel Grid.Column="0" Spacing="6">
+                                <StackPanel Grid.Column="0" Spacing="6" IsVisible="{Binding !IsForInventory}">
                                     <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}">
                                         <Run Text="{loc:Loc 'Item Type'}" /><Run Text=" *" Foreground="{DynamicResource ErrorBrush}" />
                                     </TextBlock>
@@ -104,7 +104,7 @@
 
                             <CheckBox IsChecked="{Binding ModalTrackInventory, Mode=TwoWay}"
                                      Content="{loc:Loc 'Track Inventory'}"
-                                     IsVisible="{Binding IsProductSelected}"
+                                     IsVisible="{Binding ShowTrackInventoryOption}"
                                      FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" />
 
                             <StackPanel Spacing="6" IsVisible="{Binding ModalTrackInventory}">

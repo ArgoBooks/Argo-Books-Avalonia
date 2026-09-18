@@ -103,6 +103,7 @@ public partial class ProductModalsViewModel : ViewModelBase
     partial void OnModalItemTypeChanged(string value)
     {
         OnPropertyChanged(nameof(IsProductSelected));
+        OnPropertyChanged(nameof(ShowTrackInventoryOption));
         OnPropertyChanged(nameof(EditModalTitle));
         OnPropertyChanged(nameof(FormTitle));
         OnPropertyChanged(nameof(FormSaveText));
@@ -132,6 +133,16 @@ public partial class ProductModalsViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool _modalTrackInventory;
+
+    /// <summary>
+    /// Set when the stock form opens this to create a product it can stock. That form only lists
+    /// tracked products, so tracking is forced on and neither the checkbox nor Service is offered.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowTrackInventoryOption))]
+    private bool _isForInventory;
+
+    public bool ShowTrackInventoryOption => IsProductSelected && !IsForInventory;
 
     [ObservableProperty]
     private string _modalUnitOfMeasure = StockUnits.Each;
@@ -308,6 +319,15 @@ public partial class ProductModalsViewModel : ViewModelBase
     {
         IsExpensesTab = isExpensesTab;
         OpenAddModal();
+    }
+
+    /// <summary>Opens the Add modal for a product that goes straight into stock.</summary>
+    public void OpenAddInventoryProductModal()
+    {
+        OpenAddModal();
+        IsForInventory = true;
+        ModalTrackInventory = true;
+        AddModalTitle = "Add Product".Translate();
     }
 
     [RelayCommand]
@@ -816,6 +836,7 @@ public partial class ProductModalsViewModel : ViewModelBase
         ModalSupplierText = null;
         ModalSupplier = null;
         ModalTrackInventory = false;
+        IsForInventory = false;
         ModalUnitOfMeasure = StockUnits.Each;
         ModalReorderPoint = string.Empty;
         ModalOverstockThreshold = string.Empty;

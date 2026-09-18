@@ -3392,7 +3392,7 @@ public partial class SettingsModalViewModel : ViewModelBase
                 var success = await LanguageService.Instance.SetLanguageAsync(SelectedLanguage);
                 if (success)
                 {
-                    _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.LanguageChanged);
+                    _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.LanguageChanged, SelectedLanguage);
                     // Notify that language was saved successfully
                     LanguageSettingsChanged?.Invoke(this, new LanguageSettingsChangedEventArgs(SelectedLanguage, true));
                 }

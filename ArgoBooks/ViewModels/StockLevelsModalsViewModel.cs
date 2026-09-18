@@ -522,7 +522,7 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
                 if (newProduct != null)
                     SelectedProduct = newProduct;
             });
-        productModals.OpenAddModal();
+        productModals.OpenAddInventoryProductModal();
     }
 
     private void ReloadAvailableProducts()
