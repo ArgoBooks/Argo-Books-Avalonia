@@ -1056,6 +1056,7 @@ public partial class App : Application
     // before the shell is built, which is what _macActivationFile holds it for.
     private static string? _macActivationFile;
     private static bool _startupCompanyHandled;
+    private static string? _fileToOpenAfterUpdate;
 
     // Cached page ViewModels to improve performance and prevent memory leaks from event subscriptions
     private static DashboardPageViewModel? _dashboardPageViewModel;
@@ -1546,6 +1547,7 @@ public partial class App : Application
 
             // Share PasswordPromptModalViewModel with MainWindow for password dialog overlay
             _mainWindowViewModel.PasswordPromptModalViewModel = _appShellViewModel.PasswordPromptModalViewModel;
+            _mainWindowViewModel.CheckForUpdateModalViewModel = _appShellViewModel.CheckForUpdateModalViewModel;
 
             // Share ConfirmationDialogViewModel with MainWindow for confirmation dialogs
             _mainWindowViewModel.ConfirmationDialogViewModel = ConfirmationDialog;
@@ -1940,6 +1942,7 @@ public partial class App : Application
                 {
                     // Flag that we're updating so we can auto-reopen the company after restart
                     SettingsService.GlobalSettings.Updates.AutoOpenRecentAfterUpdate = true;
+                    SettingsService.GlobalSettings.Updates.FileToOpenAfterUpdate = _fileToOpenAfterUpdate;
                     Task.Run(async () => await SettingsService.SaveGlobalSettingsAsync())
                         .GetAwaiter().GetResult();
                 }
@@ -2101,13 +2104,16 @@ public partial class App : Application
         _startupCompanyHandled = true;
 
         var reopenAfterUpdate = false;
+        string? fileFromUpdatePrompt = null;
         if (SettingsService != null)
         {
             var updateSettings = SettingsService.GlobalSettings.Updates;
             reopenAfterUpdate = updateSettings.AutoOpenRecentAfterUpdate;
-            if (reopenAfterUpdate)
+            fileFromUpdatePrompt = updateSettings.FileToOpenAfterUpdate;
+            if (reopenAfterUpdate || fileFromUpdatePrompt != null)
             {
                 updateSettings.AutoOpenRecentAfterUpdate = false;
+                updateSettings.FileToOpenAfterUpdate = null;
                 await SettingsService.SaveGlobalSettingsAsync();
             }
         }
@@ -2116,7 +2122,11 @@ public partial class App : Application
         {
             if (requestedFile == null && reopenAfterUpdate)
             {
-                requestedFile = SettingsService?.GetValidRecentCompanies().FirstOrDefault(File.Exists);
+                // The file that needed the update comes first: it is the one the user was
+                // trying to open, and a failed open never added it to the recent list.
+                requestedFile = fileFromUpdatePrompt is { } pending && File.Exists(pending)
+                    ? pending
+                    : SettingsService?.GetValidRecentCompanies().FirstOrDefault(File.Exists);
             }
 
             if (requestedFile == null)
@@ -3445,7 +3455,18 @@ public partial class App : Application
         try
         {
             var bytes = await SharedFileReader.ReadAllBytesAsync(filePath);
-            var extracted = await PdfStatementExtractor.ExtractAsync(bytes, Path.GetFileName(filePath));
+            List<Core.Models.BankMatching.BankStatementLine> extracted;
+            try
+            {
+                extracted = await PdfStatementExtractor.ExtractAsync(bytes, Path.GetFileName(filePath));
+            }
+            catch (ServerRateLimitedException ex)
+            {
+                // Nothing was read, so nothing is charged; the file itself may be fine.
+                HideBusyOverlay();
+                await ShowInfoMessageBoxAsync("Import Bank Statement".Translate(), ex.Message);
+                return [];
+            }
             HideBusyOverlay();
             if (extracted.Count == 0)
             {
@@ -3835,14 +3856,21 @@ public partial class App : Application
             // newer build) that already shows the user the "Update Argo Books" dialog below.
             if (ConfirmationDialog != null)
             {
-                await ConfirmationDialog.ShowAsync(new ConfirmationDialogOptions
+                var result = await ConfirmationDialog.ShowAsync(new ConfirmationDialogOptions
                 {
                     Title = "Update Argo Books".Translate(),
                     Message = "This company file was created by Argo Books {0}. You are running Argo Books {1}. Please update to Argo Books {0} or later to open it.".TranslateFormat(ex.FileVersion, ex.AppVersion),
-                    PrimaryButtonText = "OK".Translate(),
+                    PrimaryButtonText = "Update Now".Translate(),
                     SecondaryButtonText = null,
-                    CancelButtonText = null
+                    CancelButtonText = "Not Now".Translate()
                 });
+
+                if (result == ConfirmationResult.Primary && _appShellViewModel != null)
+                {
+                    // Reopened by TryOpenStartupCompanyAsync once the updated app restarts.
+                    _fileToOpenAfterUpdate = filePath;
+                    _appShellViewModel.CheckForUpdateModalViewModel.OpenAndUpdateCommand.Execute(null);
+                }
             }
         }
         catch (CompanyAlreadyOpenException)

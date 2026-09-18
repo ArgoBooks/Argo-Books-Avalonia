@@ -28,6 +28,14 @@ public class PendingConversionService
     private CompanyData? _scopeCompany;
     private string? _scopeFilePath;
 
+    // Currency and date pairs whose rate could not be had, and when to ask again. The app
+    // retries every 15 seconds, so without this one row that could not be priced asked the
+    // server four times a minute for as long as the app stayed open. Capped low enough that
+    // rows still convert within minutes of the connection coming back.
+    private readonly Dictionary<string, (int Misses, DateTime RetryAtUtc)> _rateBackoff = [];
+    private static readonly TimeSpan RateBackoffBase = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan RateBackoffCap = TimeSpan.FromMinutes(10);
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
@@ -205,6 +213,38 @@ public class PendingConversionService
         await SaveToDiskAsync();
     }
 
+    private static string RateKey(PendingConversion entry) =>
+        entry.OriginalCurrency + "|" + entry.TransactionDate.ToString("yyyy-MM-dd");
+
+    private bool IsBackingOff(string rateKey)
+    {
+        lock (_lock)
+        {
+            return _rateBackoff.TryGetValue(rateKey, out var state) && DateTime.UtcNow < state.RetryAtUtc;
+        }
+    }
+
+    /// <summary>Doubles the wait for this currency and date, up to the cap.</summary>
+    private void RecordRateMiss(string rateKey)
+    {
+        lock (_lock)
+        {
+            var misses = _rateBackoff.TryGetValue(rateKey, out var state) ? state.Misses + 1 : 1;
+            var delay = TimeSpan.FromTicks(Math.Min(
+                RateBackoffCap.Ticks,
+                RateBackoffBase.Ticks * (1L << Math.Min(misses - 1, 10))));
+            _rateBackoff[rateKey] = (misses, DateTime.UtcNow + delay);
+        }
+    }
+
+    private void ClearRateMiss(string rateKey)
+    {
+        lock (_lock)
+        {
+            _rateBackoff.Remove(rateKey);
+        }
+    }
+
     /// <summary>
     /// Attempts to process all pending conversions by fetching exchange rates.
     /// Only processes entries where rates are available (online).
@@ -231,6 +271,15 @@ public class PendingConversionService
 
         foreach (var entry in toProcess)
         {
+            // No rate exists yet for a date that has not happened. A day of slack keeps a row
+            // dated today in a timezone ahead of UTC from being skipped.
+            if (entry.TransactionDate.Date > DateTime.UtcNow.Date.AddDays(1))
+                continue;
+
+            var rateKey = RateKey(entry);
+            if (IsBackingOff(rateKey))
+                continue;
+
             try
             {
                 // Convert ONLY at the exact transaction-date rate (fetching it if missing). Never
@@ -240,7 +289,12 @@ public class PendingConversionService
                     entry.OriginalCurrency, "USD", entry.TransactionDate, fetchIfMissing: true);
 
                 if (rate <= 0)
-                    continue; // Exact-date rate unavailable (offline, or future-dated); stay pending
+                {
+                    RecordRateMiss(rateKey); // Exact-date rate unavailable (offline); stay pending
+                    continue;
+                }
+
+                ClearRateMiss(rateKey);
 
                 // Apply the conversion to the matching record (a no-op if it was deleted since it
                 // was enqueued); either way the entry is done and leaves the queue.
@@ -249,6 +303,7 @@ public class PendingConversionService
             }
             catch (Exception ex)
             {
+                RecordRateMiss(rateKey);
                 _errorLogger?.LogWarning($"Failed to process pending conversion for {entry.TransactionId}: {ex.Message}", "PendingConversionService");
             }
         }

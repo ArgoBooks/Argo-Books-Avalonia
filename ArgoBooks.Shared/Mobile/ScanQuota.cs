@@ -1,3 +1,5 @@
+using ArgoBooks.Core.Services;
+
 namespace ArgoBooks.Shared.Mobile;
 
 /// <summary>
@@ -8,11 +10,11 @@ namespace ArgoBooks.Shared.Mobile;
 /// </summary>
 public static class ScanQuota
 {
-    /// <summary>Free-tier scans allowed per calendar month. This mirrors the number the AI proxy
-    /// enforces server-side for a device's own X-Device-Id (the real, authoritative check);
-    /// ScanUsageStore's local count is only a best-effort local mirror of it - see that class's
-    /// doc comment.</summary>
-    public const int FreeMonthlyLimit = 10;
+    /// <summary>Free-tier scans allowed per calendar month, as the server last reported it
+    /// (<see cref="FreePlanLimits"/>). The AI proxy enforces the real figure server-side for a
+    /// device's own X-Device-Id; ScanUsageStore's local count is only a best-effort local mirror
+    /// of it - see that class's doc comment.</summary>
+    public static int FreeMonthlyLimit => FreePlanLimits.ReceiptScanMonthly;
 
     /// <summary>The calendar-month bucket key (UTC) a scan count is stored/compared against, e.g.
     /// "2026-07". A count recorded under an earlier month key no longer applies.</summary>

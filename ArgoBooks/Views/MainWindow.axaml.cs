@@ -260,6 +260,10 @@ public partial class MainWindow : Window
 
     private bool _isClosingConfirmed;
 
+    // Set once shutdown starts. The telemetry upload can take seconds on a slow connection,
+    // and a second click on X meanwhile would end the session and upload everything again.
+    private bool _isEndingSession;
+
     private async void OnWindowClosing(object? sender, WindowClosingEventArgs e)
     {
         try
@@ -268,6 +272,12 @@ public partial class MainWindow : Window
             if (_isClosingConfirmed)
             {
                 SaveWindowState();
+                return;
+            }
+
+            if (_isEndingSession)
+            {
+                e.Cancel = true;
                 return;
             }
 
@@ -372,6 +382,7 @@ public partial class MainWindow : Window
     /// </summary>
     private async Task EndTelemetryAndCloseAsync()
     {
+        _isEndingSession = true;
         SaveWindowState();
         if (App.TelemetryManager != null)
         {

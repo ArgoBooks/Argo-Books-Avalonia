@@ -1,3 +1,4 @@
+using ArgoBooks.Core.Services;
 using System.Net;
 using System.Text;
 using ArgoBooks.Shared.Sync;
@@ -163,15 +164,21 @@ public class MobileSyncClientTests
         Assert.Null(result);
     }
 
+    /// <summary>
+    /// A rate limit is not a bad code. Returning null here told the user their code had expired.
+    /// </summary>
     [Fact]
-    public async Task ClaimPairing_returns_null_on_429()
+    public async Task ClaimPairing_throws_rate_limited_on_429_with_the_servers_wording()
     {
-        var handler = new CannedHandler("{\"error\":\"rate_limited\"}", HttpStatusCode.TooManyRequests);
+        var handler = new CannedHandler(
+            "{\"success\":false,\"message\":\"Too many requests. Please try again in 15 minutes.\",\"errorCode\":\"RATE_LIMITED\"}",
+            HttpStatusCode.TooManyRequests);
         var client = new MobileSyncClient(new HttpClient(handler), "http://localhost:5000");
 
-        var result = await client.ClaimPairingAsync("123456", "pubkey-base64", "My Phone", CancellationToken.None);
+        var ex = await Assert.ThrowsAsync<ServerRateLimitedException>(
+            () => client.ClaimPairingAsync("123456", "pubkey-base64", "My Phone", CancellationToken.None));
 
-        Assert.Null(result);
+        Assert.Equal("Too many requests. Please try again in 15 minutes.", ex.Message);
     }
 
     [Fact]

@@ -61,6 +61,20 @@ public static class AccountantPack
         return result;
     }
 
+    /// <summary>
+    /// Whether anything at all falls in the range, so an empty year is caught before it is sent
+    /// as a set of blank statements.
+    /// </summary>
+    public static bool HasDataInRange(CompanyData data, DateTime start, DateTime end)
+    {
+        bool InRange(DateTime date) => date.Date >= start.Date && date.Date <= end.Date;
+
+        return data.Expenses.Any(e => InRange(e.Date))
+               || data.Revenues.Any(r => InRange(r.Date))
+               || data.Invoices.Any(i => InRange(i.IssueDate))
+               || data.Payments.Any(p => InRange(p.Date));
+    }
+
     /// <summary>The number of bytes a base64 string decodes to, without decoding it.</summary>
     public static long DecodedSize(string base64)
     {

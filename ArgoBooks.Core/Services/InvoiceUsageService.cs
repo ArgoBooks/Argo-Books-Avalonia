@@ -15,10 +15,6 @@ public class InvoiceUsageService(
     : IDisposable
 {
     private static readonly string UsageApiUrl = $"{ApiConfig.BaseUrl}/api/invoice/usage.php";
-    // Must match the server's free-tier default (config/pricing.php
-    // FREE_INVOICE_MONTHLY_LIMIT). Used only as a fallback when the
-    // server check fails or hasn't completed yet.
-    private const int DefaultFreeLimit = 25;
 
     private readonly bool _ownsHttpClient;
     private bool _disposed;
@@ -37,7 +33,7 @@ public class InvoiceUsageService(
     /// <summary>
     /// Gets the cached monthly limit, or the default if not yet fetched.
     /// </summary>
-    public int MonthlyLimit => _cachedUsage?.MonthlyLimit ?? DefaultFreeLimit;
+    public int MonthlyLimit => _cachedUsage?.MonthlyLimit ?? FreePlanLimits.InvoiceMonthly;
 
     /// <summary>
     /// Checks current invoice send usage with the server.
@@ -93,7 +89,7 @@ public class InvoiceUsageService(
                 Success = false,
                 ErrorMessage = response.Error ?? "Failed to check usage",
                 CanSend = hasFreshCache && _cachedUsage!.CanSend,
-                MonthlyLimit = hasFreshCache ? _cachedUsage!.MonthlyLimit : DefaultFreeLimit
+                MonthlyLimit = hasFreshCache ? _cachedUsage!.MonthlyLimit : FreePlanLimits.InvoiceMonthly
             };
         }
         catch (Exception ex)
@@ -115,8 +111,8 @@ public class InvoiceUsageService(
                 Success = false,
                 CanSend = hasFreshCache && _cachedUsage!.CanSend,
                 SendCount = hasFreshCache ? _cachedUsage!.SendCount : 0,
-                MonthlyLimit = hasFreshCache ? _cachedUsage!.MonthlyLimit : DefaultFreeLimit,
-                Remaining = hasFreshCache ? _cachedUsage!.Remaining : DefaultFreeLimit,
+                MonthlyLimit = hasFreshCache ? _cachedUsage!.MonthlyLimit : FreePlanLimits.InvoiceMonthly,
+                Remaining = hasFreshCache ? _cachedUsage!.Remaining : FreePlanLimits.InvoiceMonthly,
                 ErrorMessage = errorMessage
             };
         }

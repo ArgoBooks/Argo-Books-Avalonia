@@ -346,6 +346,8 @@ public class SpreadsheetAnalysisService(
 
             // An unreadable reply isn't retried: the same rows at temperature 0 would most likely
             // come back the same, and every answered call counts against the server's rate limit.
+            // A rate limit counts as answered for the same reason: retrying it only spends more of
+            // the budget that just ran out.
             if (result != null || answered || attempt >= MaxChunkAttempts)
                 return result;
 
@@ -373,9 +375,12 @@ public class SpreadsheetAnalysisService(
         string? response;
         try
         {
-            response = await geminiService.SendChatAsync(
+            var reply = await geminiService.SendChatWithStatusAsync(
                 systemPrompt, userPrompt, maxTokens: 16000, temperature: 0.0, cancellationToken,
                 operation: OperationKind.SpreadsheetProcess, sizeFeature: rows.Count);
+            if (reply.RateLimited)
+                return (null, true);
+            response = reply.Content;
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {

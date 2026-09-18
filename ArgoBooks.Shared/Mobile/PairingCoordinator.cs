@@ -1,4 +1,5 @@
 using System.Text.Json;
+using ArgoBooks.Core.Services;
 using ArgoBooks.Shared.Sync;
 
 namespace ArgoBooks.Shared.Mobile;
@@ -140,6 +141,11 @@ public class PairingCoordinator
         try
         {
             claim = await _client.ClaimPairingAsync(normalizedCode, keyPair.PublicKeyBase64, deviceLabel, ct);
+        }
+        catch (ServerRateLimitedException ex)
+        {
+            // The code may be fine; this connection has just tried too many.
+            return PairingOutcome.Fail(ex.Message);
         }
         catch (Exception)
         {

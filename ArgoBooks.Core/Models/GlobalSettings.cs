@@ -34,6 +34,13 @@ public class UpdateSettings
 {
     public DateTime? LastUpdateCheck { get; set; }
     public bool AutoOpenRecentAfterUpdate { get; set; } = true;
+
+    /// <summary>
+    /// A company file that could not open because it was saved by a newer version, when the
+    /// user chose to update from that prompt. Opened in place of the most recent company after
+    /// the restart.
+    /// </summary>
+    public string? FileToOpenAfterUpdate { get; set; }
 }
 
 public class UiSettings
