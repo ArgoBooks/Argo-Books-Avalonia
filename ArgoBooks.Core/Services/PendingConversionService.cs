@@ -267,6 +267,38 @@ public class PendingConversionService
         if (toProcess.Count == 0)
             return;
 
+        // Price every date the loop below needs in one bulk request, so it converts from the
+        // cache. Each entry otherwise costs its own web request on a cache miss: opening the
+        // sample company sent about 230 of them, one per dated row, before it finished opening.
+        var datesToPrice = toProcess
+            .Where(e => e.TransactionDate.Date <= DateTime.UtcNow.Date.AddDays(1)
+                        && !string.Equals(e.OriginalCurrency, "USD", StringComparison.OrdinalIgnoreCase)
+                        && !IsBackingOff(RateKey(e)))
+            .Select(e => e.TransactionDate.Date)
+            .Distinct()
+            .ToList();
+
+        if (datesToPrice.Count > 1)
+        {
+            try
+            {
+                await exchangeService.PreloadRatesAsync(datesToPrice);
+            }
+            catch (RateLimitedException)
+            {
+                // The loop would hit the same limit one request at a time. Back every date off so
+                // the next pass waits, and leave the entries queued.
+                foreach (var entry in toProcess)
+                    RecordRateMiss(RateKey(entry));
+                return;
+            }
+            catch (Exception ex)
+            {
+                // The per-entry path below still works, just a request at a time.
+                _errorLogger?.LogWarning($"Bulk rate preload failed: {ex.Message}", "PendingConversionService");
+            }
+        }
+
         var processed = new List<PendingConversion>();
 
         foreach (var entry in toProcess)
