@@ -739,10 +739,6 @@ public partial class AppShellViewModel : ViewModelBase
         // Wire up sidebar navigation to close all panels
         SidebarViewModel.NavigationRequested += (_, _) => CloseAllPanels();
 
-        // Wire up company switcher's create new company to open the wizard (prompts to save first
-        // if the current company has unsaved changes).
-        CompanySwitcherPanelViewModel.CreateNewCompanyRequested += (_, _) => _ = App.RequestCreateNewCompanyAsync();
-
         // Wire up help panel's check for updates to open the check for update modal
         HelpPanelViewModel.CheckForUpdatesRequested += (_, _) => CheckForUpdateModalViewModel.OpenCommand.Execute(null);
 

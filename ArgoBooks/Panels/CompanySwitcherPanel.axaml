@@ -49,22 +49,28 @@
                 <Border Padding="16,16,16,12"
                         BorderBrush="{DynamicResource BorderBrush}"
                         BorderThickness="0,0,0,1">
-                    <TextBlock Text="{loc:Loc 'Switch Company'}"
+                    <TextBlock Text="{loc:Loc 'Switch company'}"
                                FontSize="14"
                                FontWeight="SemiBold"
                                Foreground="{DynamicResource TextSecondaryBrush}" />
                 </Border>
 
-                <!-- Current Company -->
-                <Border Padding="8,8,8,0">
+                <!-- The open company is a heading, not a row: there is nowhere to switch to here. -->
+                <StackPanel Margin="8,12,8,0" Spacing="6">
+                    <TextBlock Text="{loc:Loc 'CURRENTLY OPEN'}"
+                               FontSize="11"
+                               FontWeight="SemiBold"
+                               Margin="8,0,0,0"
+                               Foreground="{DynamicResource TextTertiaryBrush}" />
+
                     <Border Classes="current-company-card"
                             Background="{DynamicResource SurfaceAltBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}"
+                            BorderThickness="1"
                             CornerRadius="8"
                             Padding="8">
-                        <Grid ColumnDefinitions="Auto,*,Auto,Auto">
-                            <!-- Company Logo/Initial -->
-                            <controls:CompanyAvatar
-                                                    Grid.Column="0"
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <controls:CompanyAvatar Grid.Column="0"
                                                     Margin="0,0,12,0"
                                                     Width="40" Height="40"
                                                     CornerRadius="8"
@@ -72,63 +78,51 @@
                                                     Logo="{Binding CurrentCompanyLogo}"
                                                     Initial="{Binding CurrentCompanyInitial}" />
 
-                            <!-- Company Name -->
                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                                 <TextBlock Text="{Binding CurrentCompanyName}"
                                            FontSize="14"
                                            FontWeight="Medium"
                                            Foreground="{DynamicResource TextPrimaryBrush}"
                                            TextTrimming="CharacterEllipsis" />
-                                <TextBlock Text="{loc:Loc Current}"
-                                           FontSize="12"
-                                           Foreground="{DynamicResource TextTertiaryBrush}" />
+                                <!-- The file, so two companies with similar names can be told apart -->
+                                <TextBlock Text="{Binding CurrentCompanyPathDisplay}"
+                                           FontSize="11"
+                                           Foreground="{DynamicResource TextTertiaryBrush}"
+                                           TextTrimming="CharacterEllipsis"
+                                           ToolTip.Tip="{Binding CurrentCompanyPath}" />
                             </StackPanel>
 
-                            <!-- Edit Button (inside card) -->
                             <Button Grid.Column="2"
                                     Classes="edit-button-inline"
                                     Command="{Binding EditCompanyCommand}"
                                     ToolTip.Tip="{loc:Loc 'Edit Company'}"
                                     VerticalAlignment="Center"
-                                    Margin="8,0,8,0">
+                                    Margin="8,0,0,0">
                                 <PathIcon Data="{x:Static local:Icons.Edit}"
                                           Width="14" Height="14" />
                             </Button>
-
-                            <!-- Checkmark -->
-                            <Border Grid.Column="3"
-                                    Width="24" Height="24"
-                                    CornerRadius="12"
-                                    Background="{DynamicResource SuccessBrush}"
-                                    VerticalAlignment="Center">
-                                <PathIcon Data="{x:Static local:Icons.Check}"
-                                          Width="14" Height="14"
-                                          Foreground="White" />
-                            </Border>
                         </Grid>
                     </Border>
-                </Border>
+                </StackPanel>
 
-                <!-- Recent Companies Section -->
-                <StackPanel IsVisible="{Binding HasFilteredRecentCompanies}">
-                    <Border Padding="16,16,16,8">
-                        <TextBlock Text="{loc:Loc Recent}"
-                                   FontSize="12"
-                                   FontWeight="Medium"
-                                   Foreground="{DynamicResource TextTertiaryBrush}" />
-                    </Border>
+                <!-- Everything below is somewhere you can actually go -->
+                <StackPanel Margin="8,16,8,0" Spacing="6">
+                    <TextBlock Text="{loc:Loc 'SWITCH TO'}"
+                               FontSize="11"
+                               FontWeight="SemiBold"
+                               Margin="8,0,0,0"
+                               Foreground="{DynamicResource TextTertiaryBrush}" />
 
                     <ItemsControl ItemsSource="{Binding FilteredRecentCompanies}"
-                                  Margin="8,0">
+                                  IsVisible="{Binding HasFilteredRecentCompanies}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="vm:CompanyItem">
                                 <Button Classes="company-item"
                                         Command="{Binding $parent[ItemsControl].((vm:CompanySwitcherPanelViewModel)DataContext).SwitchCompanyCommand}"
-                                        CommandParameter="{Binding}">
-                                    <Grid ColumnDefinitions="Auto,*">
-                                        <!-- Company Initial -->
-                                        <controls:CompanyAvatar
-                                                                Grid.Column="0"
+                                        CommandParameter="{Binding}"
+                                        ToolTip.Tip="{Binding FilePath}">
+                                    <Grid ColumnDefinitions="Auto,*,Auto">
+                                        <controls:CompanyAvatar Grid.Column="0"
                                                                 Margin="0,0,12,0"
                                                                 Width="36" Height="36"
                                                                 CornerRadius="8"
@@ -136,18 +130,34 @@
                                                                 Logo="{Binding Logo}"
                                                                 Initial="{Binding Initial}" />
 
-                                        <!-- Company Name -->
-                                        <TextBlock Grid.Column="1"
-                                                   Text="{Binding Name}"
-                                                   FontSize="14"
-                                                   Foreground="{DynamicResource TextPrimaryBrush}"
-                                                   VerticalAlignment="Center"
-                                                   TextTrimming="CharacterEllipsis" />
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                            <TextBlock Text="{Binding Name}"
+                                                       FontSize="14"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                                       TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding LastOpenedDisplay}"
+                                                       FontSize="11"
+                                                       Foreground="{DynamicResource TextTertiaryBrush}" />
+                                        </StackPanel>
+
+                                        <PathIcon Grid.Column="2"
+                                                  Data="{x:Static local:Icons.ChevronRight}"
+                                                  Width="12" Height="12"
+                                                  Margin="8,0,4,0"
+                                                  VerticalAlignment="Center"
+                                                  Foreground="{DynamicResource TextTertiaryBrush}" />
                                     </Grid>
                                 </Button>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+
+                    <TextBlock Text="{loc:Loc 'This is your only company. Open another file to switch between them.'}"
+                               IsVisible="{Binding !HasFilteredRecentCompanies}"
+                               Margin="8,4,8,8"
+                               FontSize="12"
+                               TextWrapping="Wrap"
+                               Foreground="{DynamicResource TextTertiaryBrush}" />
                 </StackPanel>
 
                 <!-- Divider -->
@@ -155,54 +165,21 @@
                         Background="{DynamicResource BorderBrush}"
                         Margin="16,12" />
 
-                <!-- Actions -->
-                <StackPanel Margin="8,0,8,8" Spacing="4">
-                    <!-- Create New Company -->
-                    <Button Classes="action-item"
-                            Command="{Binding CreateNewCompanyCommand}">
-                        <Grid ColumnDefinitions="Auto,*">
-                            <Border Grid.Column="0"
-                                    Width="36" Height="36"
-                                    CornerRadius="8"
-                                    Background="{DynamicResource PrimaryBrush}"
-                                    Margin="0,0,12,0">
-                                <PathIcon Data="{x:Static local:Icons.Add}"
-                                          Width="18" Height="18"
-                                          Foreground="White" />
-                            </Border>
-                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                                <TextBlock Text="{loc:Loc 'Create New Company'}"
-                                           FontSize="14"
-                                           FontWeight="Medium"
-                                           Foreground="{DynamicResource TextPrimaryBrush}" />
-                                <TextBlock Text="{loc:Loc 'Start fresh with a new company file'}"
-                                           FontSize="12"
-                                           Foreground="{DynamicResource TextTertiaryBrush}" />
-                            </StackPanel>
-                        </Grid>
-                    </Button>
-
-                    <!-- Open Company -->
+                <!-- Creating a company lives in the File menu; this is only for one not in the list -->
+                <StackPanel Margin="8,0,8,8">
                     <Button Classes="action-item"
                             Command="{Binding OpenCompanyCommand}">
                         <Grid ColumnDefinitions="Auto,*">
-                            <Border Grid.Column="0"
-                                    Width="36" Height="36"
-                                    CornerRadius="8"
-                                    Background="{DynamicResource SurfaceAltBrush}"
-                                    Margin="0,0,12,0">
-                                <PathIcon Data="{x:Static local:Icons.Folder}"
-                                          Width="18" Height="18"
-                                          Foreground="{DynamicResource TextSecondaryBrush}" />
-                            </Border>
-                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                                <TextBlock FontSize="14"
-                                           FontWeight="Medium"
-                                           Foreground="{DynamicResource TextPrimaryBrush}"><Run Text="{loc:Loc 'Open Company'}" /><Run Text="..." /></TextBlock>
-                                <TextBlock Text="{loc:Loc 'Browse for a company file'}"
-                                           FontSize="12"
-                                           Foreground="{DynamicResource TextTertiaryBrush}" />
-                            </StackPanel>
+                            <PathIcon Grid.Column="0"
+                                      Data="{x:Static local:Icons.Folder}"
+                                      Width="16" Height="16"
+                                      Margin="10,0,12,0"
+                                      VerticalAlignment="Center"
+                                      Foreground="{DynamicResource TextSecondaryBrush}" />
+                            <TextBlock Grid.Column="1"
+                                       VerticalAlignment="Center"
+                                       FontSize="13"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"><Run Text="{loc:Loc 'Open another company file'}" /><Run Text="..." /></TextBlock>
                         </Grid>
                     </Button>
                 </StackPanel>
