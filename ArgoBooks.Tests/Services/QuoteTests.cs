@@ -134,7 +134,7 @@ public class QuoteTests
         data.Quotes.Add(quote);
 
         var respondedAt = new DateTime(2026, 9, 20, 14, 3, 0, DateTimeKind.Utc);
-        var (confirmIds, applied) = PaymentPortalService.ApplyQuoteResponses(
+        var (settledIds, localIds, changed) = PaymentPortalService.ApplyQuoteResponses(
         [
             new PortalQuoteResponseRecord
             {
@@ -145,8 +145,9 @@ public class QuoteTests
             }
         ], data);
 
-        Assert.Equal(1, applied);
-        Assert.Equal([quote.Id], confirmIds);
+        Assert.Equal(1, changed);
+        Assert.Empty(settledIds);
+        Assert.Equal([quote.Id], localIds);
         Assert.Equal(QuoteStatus.Accepted, quote.Status);
         Assert.Equal(respondedAt, quote.RespondedAt);
         Assert.Equal("Looks good, go ahead.", quote.ResponseNote);
@@ -162,16 +163,17 @@ public class QuoteTests
         quote.ConvertedInvoiceId = "INV-2026-00001";
         data.Quotes.Add(quote);
 
-        var (confirmIds, applied) = PaymentPortalService.ApplyQuoteResponses(
+        var (settledIds, localIds, changed) = PaymentPortalService.ApplyQuoteResponses(
         [
             new PortalQuoteResponseRecord { QuoteId = quote.Id, Status = "declined", RespondedAt = DateTime.UtcNow }
         ], data);
 
-        Assert.Equal(0, applied);
+        Assert.Equal(0, changed);
         Assert.Equal(QuoteStatus.Converted, quote.Status);
         Assert.Null(quote.RespondedAt);
-        // Still confirmed, or the server keeps handing the same answer back for ever.
-        Assert.Equal([quote.Id], confirmIds);
+        // The quote is here, so its id waits on a save before the server is told to drop it.
+        Assert.Empty(settledIds);
+        Assert.Equal([quote.Id], localIds);
     }
 
     [Fact]
@@ -226,13 +228,15 @@ public class QuoteTests
     {
         var data = new CompanyData();
 
-        var (confirmIds, applied) = PaymentPortalService.ApplyQuoteResponses(
+        var (settledIds, localIds, changed) = PaymentPortalService.ApplyQuoteResponses(
         [
             new PortalQuoteResponseRecord { QuoteId = "QUO-2026-09999", Status = "accepted", RespondedAt = DateTime.UtcNow }
         ], data);
 
-        Assert.Equal(0, applied);
-        Assert.Equal(["QUO-2026-09999"], confirmIds);
+        // Nothing local to lose, so it is confirmed at once rather than coming back for ever.
+        Assert.Equal(0, changed);
+        Assert.Equal(["QUO-2026-09999"], settledIds);
+        Assert.Empty(localIds);
     }
 
     #endregion

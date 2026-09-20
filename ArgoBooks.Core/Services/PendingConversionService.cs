@@ -286,11 +286,12 @@ public class PendingConversionService
             }
             catch (RateLimitedException)
             {
-                // The loop would hit the same limit one request at a time. Back every date off so
-                // the next pass waits, and leave the entries queued.
-                foreach (var entry in toProcess)
+                // The loop would hit the same limit one request at a time. Back off only what the
+                // preload was actually asking for: an entry it never covered, a USD one above all,
+                // has nothing to wait for and should still convert on this pass.
+                var refused = datesToPrice.ToHashSet();
+                foreach (var entry in toProcess.Where(e => refused.Contains(e.TransactionDate.Date)))
                     RecordRateMiss(RateKey(entry));
-                return;
             }
             catch (Exception ex)
             {

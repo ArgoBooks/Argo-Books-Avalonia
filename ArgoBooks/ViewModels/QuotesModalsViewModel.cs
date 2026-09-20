@@ -79,6 +79,27 @@ public partial class QuotesModalsViewModel : ViewModelBase
 
     private string? _editingQuoteId;
 
+    /// <summary>The currency the quote in the editor is priced in, which is not always the one
+    /// the app is currently showing amounts in.</summary>
+    private string _editorCurrencyCode = CurrencyService.CurrentCurrencyCode;
+
+    /// <summary>
+    /// The save button. A quote the customer already has is not going back to being a draft, so
+    /// saving it is saving changes.
+    /// </summary>
+    [ObservableProperty]
+    private string _saveButtonText = "Save as draft";
+
+    /// <summary>
+    /// A quote is priced once and keeps that currency. Opening one later, while the app is showing
+    /// a different currency, must not relabel its figures on the paper.
+    /// </summary>
+    private void SetEditorCurrency(string? code)
+    {
+        _editorCurrencyCode = string.IsNullOrEmpty(code) ? CurrencyService.CurrentCurrencyCode : code;
+        OnPropertyChanged(nameof(TotalsConfigJson));
+    }
+
     [ObservableProperty]
     private CustomerOption? _selectedCustomer;
 
@@ -357,6 +378,8 @@ public partial class QuotesModalsViewModel : ViewModelBase
         IsEditMode = true;
         _editingQuoteId = quote.Id;
         ModalTitle = "Edit Quote";
+        SetEditorCurrency(quote.OriginalCurrency);
+        SaveButtonText = quote.HasBeenPublished ? "Save changes" : "Save as draft";
         SelectedCustomer = CustomerOptions.FirstOrDefault(c => c.Id == quote.CustomerId);
         IssueDate = new DateTimeOffset(quote.IssueDate);
         ValidUntil = new DateTimeOffset(quote.ValidUntil);
@@ -486,7 +509,19 @@ public partial class QuotesModalsViewModel : ViewModelBase
     [RelayCommand]
     private void SaveAsDraft()
     {
-        if (TrySaveQuote(validate: false) == null) return;
+        var savedId = TrySaveQuote(validate: false);
+        if (savedId == null) return;
+
+        // Editing a quote the customer already has changes nothing on their end until it goes out
+        // again, and nothing else on screen would tell them that.
+        var saved = App.CompanyManager?.CompanyData?.Quotes.FirstOrDefault(q => q.Id == savedId);
+        if (saved?.HasBeenPublished == true)
+        {
+            App.AddNotification(
+                "Quote saved".Translate(),
+                "Your customer still sees the version you sent. Resend the quote to give them this one.".Translate(),
+                NotificationType.Info);
+        }
 
         QuoteSaved?.Invoke(this, EventArgs.Empty);
         CloseEditor();
@@ -559,7 +594,7 @@ public partial class QuotesModalsViewModel : ViewModelBase
             ValidUntil = ValidUntil?.DateTime ?? DateTime.Today.AddDays(30),
             Status = QuoteStatus.Draft,
             TemplateId = SelectedTemplate?.Id ?? string.Empty,
-            OriginalCurrency = CurrencyService.CurrentCurrencyCode,
+            OriginalCurrency = _editorCurrencyCode,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
@@ -737,6 +772,8 @@ public partial class QuotesModalsViewModel : ViewModelBase
         _editingQuoteId = null;
         _original = null;
         _paperLogo = null;
+        SetEditorCurrency(null);
+        SaveButtonText = "Save as draft";
 
         AbortSend();
         SendRecipientEmail = string.Empty;
@@ -910,7 +947,7 @@ public partial class QuotesModalsViewModel : ViewModelBase
             IssueDate = IssueDate?.DateTime ?? DateTime.Today,
             ValidUntil = ValidUntil?.DateTime ?? DateTime.Today.AddDays(30),
             TemplateId = SelectedTemplate?.Id ?? string.Empty,
-            OriginalCurrency = CurrencyService.CurrentCurrencyCode
+            OriginalCurrency = _editorCurrencyCode
         };
 
         // Every row, including ones still blank, so the paper keeps the empty line the user is
@@ -1009,7 +1046,7 @@ public partial class QuotesModalsViewModel : ViewModelBase
     {
         get
         {
-            var code = CurrencyService.CurrentCurrencyCode;
+            var code = _editorCurrencyCode;
             return System.Text.Json.JsonSerializer.Serialize(new
             {
                 symbol = CurrencyService.GetSymbol(code),
@@ -1342,15 +1379,22 @@ public partial class QuotesModalsViewModel : ViewModelBase
                 revision: isRevision,
                 cancellationToken: ct);
 
+            // The request went out and the reply did not come back. Record it as published before
+            // anything else returns: the customer may be holding this quote, and only a quote the
+            // app believes is out there gets its link cancelled when it is deleted.
+            if (!response.Success && response.MayHavePublished)
+            {
+                MarkMaybePublished(quote, companyData, recipient);
+                QuoteSaved?.Invoke(this, EventArgs.Empty);
+            }
+
             // The user cancelled mid-flight. A server that already accepted the send cannot be
             // un-sent, so only the failure path is swallowed.
             if (!response.Success && ct.IsCancellationRequested) return;
 
             if (!response.Success)
             {
-                SendError = string.IsNullOrEmpty(response.Message)
-                    ? "The payment portal rejected the request.".Translate()
-                    : response.Message;
+                SendError = SendFailureMessage(response);
                 return;
             }
 
@@ -1427,11 +1471,14 @@ public partial class QuotesModalsViewModel : ViewModelBase
 
             if (!response.Success)
             {
+                if (response.MayHavePublished)
+                {
+                    MarkMaybePublished(quote, companyData, recipient);
+                    QuoteSaved?.Invoke(this, EventArgs.Empty);
+                }
+
                 await App.ShowErrorMessageBoxAsync(
-                    "Failed to resend quote".Translate(),
-                    string.IsNullOrEmpty(response.Message)
-                        ? "The payment portal rejected the request.".Translate()
-                        : response.Message);
+                    "Failed to resend quote".Translate(), SendFailureMessage(response));
                 return;
             }
 
@@ -1458,6 +1505,42 @@ public partial class QuotesModalsViewModel : ViewModelBase
         {
             App.HideBusyOverlay();
         }
+    }
+
+    /// <summary>
+    /// The wording for a send that did not come back with a success. When the request may have
+    /// reached the server, the user has to know before they try again, or the customer gets the
+    /// same quote twice.
+    /// </summary>
+    private static string SendFailureMessage(PortalQuotePublishResponse response)
+    {
+        var detail = string.IsNullOrEmpty(response.Message)
+            ? "The payment portal rejected the request.".Translate()
+            : response.Message;
+
+        return response.MayHavePublished
+            ? detail + "\n\n" + "It may still have reached your customer. Check with them before sending it again.".Translate()
+            : detail;
+    }
+
+    /// <summary>
+    /// Records that a customer-facing link probably exists, for a send whose reply never arrived.
+    /// Without this the quote looks unsent: deleting it would leave the link live, and sending it
+    /// again would read as a first send rather than a second copy.
+    /// </summary>
+    private static void MarkMaybePublished(Quote quote, CompanyData companyData, string recipient)
+    {
+        if (quote.SentAt.HasValue) return;
+
+        quote.SentAt = DateTime.UtcNow;
+        quote.UpdatedAt = DateTime.UtcNow;
+        quote.History.Add(new InvoiceHistoryEntry
+        {
+            Action = "Send unconfirmed",
+            Details = $"The portal did not answer. The quote may have reached {recipient}.",
+            Timestamp = DateTime.UtcNow
+        });
+        companyData.MarkAsModified();
     }
 
     /// <summary>Aborts an in-flight send from the sending card.</summary>

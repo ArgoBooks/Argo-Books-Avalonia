@@ -247,6 +247,7 @@
                                                         <!-- Send / Resend -->
                                                         <Button Classes="icon-button"
                                                                 IsVisible="{Binding CanSend}"
+                                                                IsEnabled="{Binding $parent[ItemsControl].((vm:QuotesPageViewModel)DataContext).CanSendQuote}"
                                                                 ToolTip.Tip="{Binding SendTooltip, Converter={StaticResource TranslateConverter}}"
                                                                 Command="{Binding $parent[ItemsControl].((vm:QuotesPageViewModel)DataContext).SendQuoteCommand}"
                                                                 CommandParameter="{Binding}">

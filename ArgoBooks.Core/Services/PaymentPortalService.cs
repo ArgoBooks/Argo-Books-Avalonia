@@ -437,6 +437,12 @@ public class PaymentPortalService : IDisposable
         {
             return new PortalQuoteSyncResponse { Success = false, Message = await ConnectivityMessage.ResolveAsync(), ErrorCode = "NETWORK_ERROR" };
         }
+        catch (Exception)
+        {
+            // A pull that fails is only a pull that has to happen again, and the same answers are
+            // still waiting on the server. Never let it take down the caller's sync pass.
+            return new PortalQuoteSyncResponse { Success = false, Message = "An unexpected error occurred. Please try again.", ErrorCode = "UNKNOWN_ERROR" };
+        }
     }
 
     /// <summary>
@@ -470,30 +476,48 @@ public class PaymentPortalService : IDisposable
     /// Applies customer answers to the local quotes.
     /// </summary>
     /// <returns>
-    /// The ids to confirm, and how many quotes actually changed. EVERY id the server returned is
-    /// confirmed, including ones with no local quote: a quote deleted here, or answered on another
-    /// machine, would otherwise come back on every sync forever.
+    /// The ids split by what confirming them would cost, and how many quotes actually changed.
+    /// <para>
+    /// <c>SettledIds</c> have no local quote at all: deleted here, or answered on another machine.
+    /// Nothing can be lost by confirming them, and leaving them unconfirmed brings the same answer
+    /// back on every sync forever.
+    /// </para>
+    /// <para>
+    /// <c>LocalIds</c> name a quote in this company, whether or not this pass changed it. An
+    /// unchanged one may only look unchanged because an earlier pass already applied it in memory
+    /// and could not save. Confirming makes the server drop the answer for good, so the caller
+    /// must not confirm these until the company file has been written.
+    /// </para>
+    /// <para>
+    /// <c>Changed</c> counts the quotes this pass actually updated, so a repeat pass over answers
+    /// that could not be confirmed yet does not announce them again.
+    /// </para>
     /// </returns>
-    public static (List<string> ConfirmIds, int Applied) ApplyQuoteResponses(
+    public static (List<string> SettledIds, List<string> LocalIds, int Changed) ApplyQuoteResponses(
         IEnumerable<PortalQuoteResponseRecord> records,
         CompanyData companyData)
     {
-        var confirmIds = new List<string>();
-        var applied = 0;
+        var settledIds = new List<string>();
+        var localIds = new List<string>();
+        var changed = 0;
 
         foreach (var record in records)
         {
             if (string.IsNullOrWhiteSpace(record.QuoteId)) continue;
-            confirmIds.Add(record.QuoteId);
 
             var quote = companyData.Quotes.FirstOrDefault(q => q.Id == record.QuoteId);
-            if (quote == null) continue;
+            if (quote == null)
+            {
+                settledIds.Add(record.QuoteId);
+                continue;
+            }
 
+            localIds.Add(record.QuoteId);
             if (ApplyQuoteAnswer(quote, record.Status, record.RespondedAt, record.ResponseNote))
-                applied++;
+                changed++;
         }
 
-        return (confirmIds, applied);
+        return (settledIds, localIds, changed);
     }
 
     /// <summary>

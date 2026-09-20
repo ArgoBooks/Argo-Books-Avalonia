@@ -193,7 +193,7 @@
                                                     Content="{loc:Loc 'Preview'}"
                                                     Click="OnPreviewClick" IsVisible="{Binding !IsEditorPreviewing}" />
                                             <Button Classes="secondary-button" HorizontalAlignment="Stretch"
-                                                    Content="{loc:Loc 'Save as draft'}"
+                                                    Content="{Binding SaveButtonText, Converter={StaticResource TranslateConverter}}"
                                                     Click="OnSaveAsDraftClick" IsVisible="{Binding !IsEditorPreviewing}" />
                                             <Button Classes="primary-button" HorizontalAlignment="Stretch"
                                                     Command="{Binding SendQuoteCommand}"
@@ -205,7 +205,7 @@
                                                 </StackPanel>
                                             </Button>
                                             <Button Classes="secondary-button" HorizontalAlignment="Stretch"
-                                                    Content="{loc:Loc 'Save as draft'}"
+                                                    Content="{Binding SaveButtonText, Converter={StaticResource TranslateConverter}}"
                                                     Click="OnSaveAsDraftClick" IsVisible="{Binding IsEditorPreviewing}" />
                                             <Button Classes="secondary-button" HorizontalAlignment="Stretch"
                                                     Content="{loc:Loc 'Back to edit'}"

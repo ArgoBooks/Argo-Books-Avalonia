@@ -227,6 +227,25 @@ public partial class QuotesPageViewModel : SortablePageViewModelBase
     [RelayCommand]
     private void RefreshQuotes() => LoadQuotes();
 
+    /// <summary>
+    /// Whether the sample company is open. Read live rather than cached, since the page view
+    /// model outlives a company switch.
+    /// </summary>
+    public bool IsSampleCompany => App.CompanyManager?.IsSampleCompany == true;
+
+    /// <summary>Bound to the send button's IsEnabled: the sample company sends nothing.</summary>
+    public bool CanSendQuote => !IsSampleCompany;
+
+    /// <summary>
+    /// Re-reads the two properties above. Save As turns the sample company into the user's own
+    /// without navigating, so the bindings have to be told to look again.
+    /// </summary>
+    public void RefreshSampleCompanyState()
+    {
+        OnPropertyChanged(nameof(IsSampleCompany));
+        OnPropertyChanged(nameof(CanSendQuote));
+    }
+
     private void FilterQuotes()
     {
         var companyData = App.CompanyManager?.CompanyData;
@@ -305,6 +324,11 @@ public partial class QuotesPageViewModel : SortablePageViewModelBase
                 IsExpired = quote.IsExpired,
                 HasBeenPublished = quote.HasBeenPublished,
                 ConvertedInvoiceId = quote.ConvertedInvoiceId,
+                // A converted quote whose invoice was deleted has nothing in the books any more,
+                // so it offers Convert again rather than pointing at an invoice that isn't there.
+                ConvertedInvoiceMissing = quote.Status == QuoteStatus.Converted
+                                          && (string.IsNullOrEmpty(quote.ConvertedInvoiceId)
+                                              || companyData?.Invoices.All(i => i.Id != quote.ConvertedInvoiceId) != false),
                 ResponseNote = quote.ResponseNote,
                 Notes = quote.Notes,
                 IsHighlighted = quote.Id == HighlightTransactionId
@@ -366,7 +390,7 @@ public partial class QuotesPageViewModel : SortablePageViewModelBase
     [RelayCommand]
     private async Task SendQuoteAsync(QuoteDisplayItem? item)
     {
-        if (item == null) return;
+        if (item == null || IsSampleCompany) return;
 
         if (item.HasBeenPublished)
         {
@@ -492,7 +516,13 @@ public partial class QuotesPageViewModel : SortablePageViewModelBase
         var quote = companyData?.Quotes.FirstOrDefault(q => q.Id == item.Id);
         if (companyData == null || quote == null) return;
 
-        if (quote.Status == QuoteStatus.Converted)
+        // Only while that invoice is still in the books. Once it has been deleted the link is
+        // dead, and refusing here would leave the quote with no way back into the books at all.
+        var convertedInvoice = string.IsNullOrEmpty(quote.ConvertedInvoiceId)
+            ? null
+            : companyData.Invoices.FirstOrDefault(i => i.Id == quote.ConvertedInvoiceId);
+
+        if (quote.Status == QuoteStatus.Converted && convertedInvoice != null)
         {
             await App.ShowInfoMessageBoxAsync(
                 "Already converted".Translate(),
@@ -500,8 +530,34 @@ public partial class QuotesPageViewModel : SortablePageViewModelBase
             return;
         }
 
+        // Billing for work the customer turned down, or for a price that has already lapsed, is
+        // worth a second look. Still allowed: they may have said yes after the fact.
+        if (quote.Status == QuoteStatus.Declined || quote.IsExpired)
+        {
+            var warning = quote.Status == QuoteStatus.Declined
+                ? "{0} declined this quote."
+                : "This quote expired on {1}.";
+            var confirmed = await App.ConfirmMessageBoxAsync(
+                "Convert to invoice?".Translate(),
+                warning.TranslateFormat(item.CustomerName, quote.ValidUntil.ToString("MMM dd, yyyy"))
+                + "\n\n" + "A draft invoice will still be created, for you to check before sending.".Translate(),
+                "Convert".Translate(),
+                "Cancel".Translate());
+            if (!confirmed) return;
+        }
+
         var oldStatus = quote.Status;
         var oldConvertedId = quote.ConvertedInvoiceId;
+
+        // The invoice this pointed at is gone, so the quote is not converted any more. Put it back
+        // to the closest thing the record still knows, and let it convert again.
+        if (quote.Status == QuoteStatus.Converted)
+        {
+            quote.Status = quote.RespondedAt.HasValue ? QuoteStatus.Accepted
+                : quote.SentAt.HasValue ? QuoteStatus.Sent
+                : QuoteStatus.Draft;
+            quote.ConvertedInvoiceId = null;
+        }
 
         var invoice = QuoteConversionService.Convert(quote, companyData);
         if (invoice == null) return;
@@ -595,6 +651,10 @@ public partial class QuoteDisplayItem : ObservableObject
     [ObservableProperty]
     private string? _convertedInvoiceId;
 
+    /// <summary>The invoice this was converted into is no longer in the books.</summary>
+    [ObservableProperty]
+    private bool _convertedInvoiceMissing;
+
     [ObservableProperty]
     private string? _responseNote;
 
@@ -629,8 +689,12 @@ public partial class QuoteDisplayItem : ObservableObject
 
     public string ItemsDisplay => ItemCount == 1 ? "1 item" : $"{ItemCount} items";
 
-    /// <summary>Only a draft is still the user's own document to change.</summary>
-    public bool CanEdit => Status == QuoteStatus.Draft;
+    /// <summary>
+    /// Anything the books haven't taken over yet. A quote the customer already has can still be
+    /// revised, which is the whole point of sending a revision; what they see only changes when it
+    /// is resent, and saving one says so.
+    /// </summary>
+    public bool CanEdit => Status != QuoteStatus.Converted;
 
     /// <summary>A converted quote is settled; everything else can go out (again).</summary>
     public bool CanSend => Status != QuoteStatus.Converted;
@@ -638,7 +702,7 @@ public partial class QuoteDisplayItem : ObservableObject
     /// <summary>The Send button says "Resend" once the customer already has it.</summary>
     public string SendTooltip => HasBeenPublished ? "Resend Quote" : "Send Quote";
 
-    public bool CanConvert => Status != QuoteStatus.Converted;
+    public bool CanConvert => Status != QuoteStatus.Converted || ConvertedInvoiceMissing;
 
     public bool CanMarkAccepted => Status is QuoteStatus.Draft or QuoteStatus.Sent or QuoteStatus.Declined;
 

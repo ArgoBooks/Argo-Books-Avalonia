@@ -610,8 +610,15 @@ public partial class App : Application
     /// Pulls the accept / decline answers customers left on the portal and applies them to the
     /// local quotes.
     /// </summary>
+    private static int _isSyncingQuotes;
+
     private static async Task AutoSyncPortalQuoteResponsesAsync()
     {
+        // Its own guard: this runs outside the payment sync's, and two passes over the same
+        // answers would apply them twice and notify twice.
+        if (Interlocked.CompareExchange(ref _isSyncingQuotes, 1, 0) != 0)
+            return;
+
         try
         {
             var portalService = PaymentPortalService;
@@ -627,23 +634,28 @@ public partial class App : Application
             if (!response.Success || response.Quotes.Count == 0 || CompanyChanged())
                 return;
 
-            var (confirmIds, applied) = PaymentPortalService.ApplyQuoteResponses(response.Quotes, companyData);
+            var (settledIds, localIds, applied) = PaymentPortalService.ApplyQuoteResponses(response.Quotes, companyData);
 
-            // Confirm every id the server handed over, including ones with no local quote, or a
-            // quote deleted here comes back on every sync for ever.
-            if (confirmIds.Count > 0)
+            // No local quote to lose, so confirming costs nothing, and leaving them unconfirmed
+            // brings a quote deleted here back on every sync for ever.
+            if (settledIds.Count > 0)
             {
-                await portalService.ConfirmQuoteSyncAsync(confirmIds);
+                await portalService.ConfirmQuoteSyncAsync(settledIds);
                 if (CompanyChanged()) return;
             }
 
-            if (applied == 0) return;
+            if (localIds.Count == 0) return;
 
             // Same rule as the payment sync: only auto-persist when the user has no edits of their
             // own in flight, so a background sync can't commit their half-finished work.
+            var persisted = false;
             if (!CompanyManager!.HasUnsavedChanges)
             {
-                try { await CompanyManager.SavePaymentSyncAsync(companyData); }
+                try
+                {
+                    await CompanyManager.SavePaymentSyncAsync(companyData);
+                    persisted = true;
+                }
                 catch (Exception ex)
                 {
                     ErrorLogger?.LogWarning($"Failed to persist synced quote responses: {ex.Message}", "PortalSync");
@@ -651,6 +663,19 @@ public partial class App : Application
 
                 if (CompanyChanged()) return;
             }
+
+            // Only once the answer is in the file. Confirming an answer that is still only in
+            // memory would lose it outright if the app closed without saving: the server drops it
+            // on confirm and never offers it again. Unconfirmed, it simply arrives again next pass.
+            if (persisted)
+            {
+                await portalService.ConfirmQuoteSyncAsync(localIds);
+                if (CompanyChanged()) return;
+            }
+
+            // Only what this pass changed. A repeat pass over answers that could not be confirmed
+            // yet has already been announced.
+            if (applied == 0) return;
 
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
             {
@@ -666,6 +691,10 @@ public partial class App : Application
         catch
         {
             // Auto-sync failures are non-critical; silently ignore
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _isSyncingQuotes, 0);
         }
     }
 
@@ -3797,6 +3826,7 @@ public partial class App : Application
         // were on whichever page was already open.
         _dashboardPageViewModel?.RefreshSampleCompanyState();
         _invoicesPageViewModel?.RefreshSampleCompanyState();
+        _quotesPageViewModel?.RefreshSampleCompanyState();
     }
 
     internal static async Task RequestCreateNewCompanyAsync()
