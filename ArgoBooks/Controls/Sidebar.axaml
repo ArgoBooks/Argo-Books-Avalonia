@@ -53,33 +53,12 @@
                             Command="{Binding OpenCompanySwitcherCommand}">
                         <Grid ColumnDefinitions="Auto,*">
                             <!-- Logo (40px square) -->
-                            <Border Grid.Column="0"
-                                    Width="40" Height="40"
-                                    CornerRadius="8"
-                                    ClipToBounds="True"
-                                    Background="{DynamicResource SurfaceAltBrush}">
-                                <Panel>
-                                    <Image Source="{Binding CompanyLogo}"
-                                           Stretch="Uniform"
-                                           IsVisible="{Binding HasCompanyLogo}" />
-                                    <!-- Gradient background for initial only -->
-                                    <Border CornerRadius="8"
-                                            IsVisible="{Binding !HasCompanyLogo}">
-                                        <Border.Background>
-                                            <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
-                                                <GradientStop Color="{DynamicResource PrimaryColor}" Offset="0" />
-                                                <GradientStop Color="{DynamicResource AccentColor}" Offset="1" />
-                                            </LinearGradientBrush>
-                                        </Border.Background>
-                                        <TextBlock Text="{Binding CompanyInitial}"
-                                                   FontSize="18"
-                                                   FontWeight="Bold"
-                                                   Foreground="White"
-                                                   HorizontalAlignment="Center"
-                                                   VerticalAlignment="Center" />
-                                    </Border>
-                                </Panel>
-                            </Border>
+                            <controls:CompanyAvatar Grid.Column="0"
+                                                    Width="40" Height="40"
+                                                    CornerRadius="8"
+                                                    FontSize="18"
+                                                    Logo="{Binding CompanyLogo}"
+                                                    Initial="{Binding CompanyInitial}" />
 
                             <!-- Brand Name - auto-shrinks to fit, min effective font ~11px -->
                             <Viewbox Grid.Column="1"
@@ -122,32 +101,12 @@
                             Command="{Binding OpenCompanySwitcherCommand}"
                             ToolTip.Tip="{Binding CompanyName}"
                             HorizontalAlignment="Center">
-                        <Border Width="40" Height="40"
-                                CornerRadius="8"
-                                ClipToBounds="True"
-                                Background="{DynamicResource SurfaceAltBrush}">
-                            <Panel>
-                                <Image Source="{Binding CompanyLogo}"
-                                       Stretch="Uniform"
-                                       IsVisible="{Binding HasCompanyLogo}" />
-                                <!-- Gradient background for initial only -->
-                                <Border CornerRadius="8"
-                                        IsVisible="{Binding !HasCompanyLogo}">
-                                    <Border.Background>
-                                        <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
-                                            <GradientStop Color="{DynamicResource PrimaryColor}" Offset="0" />
-                                            <GradientStop Color="{DynamicResource AccentColor}" Offset="1" />
-                                        </LinearGradientBrush>
-                                    </Border.Background>
-                                    <TextBlock Text="{Binding CompanyInitial}"
-                                               FontSize="18"
-                                               FontWeight="Bold"
-                                               Foreground="White"
-                                               HorizontalAlignment="Center"
-                                               VerticalAlignment="Center" />
-                                </Border>
-                            </Panel>
-                        </Border>
+                        <controls:CompanyAvatar
+                                                Width="40" Height="40"
+                                                CornerRadius="8"
+                                                FontSize="18"
+                                                Logo="{Binding CompanyLogo}"
+                                                Initial="{Binding CompanyInitial}" />
                     </Button>
 
                     <!-- Toggle button below logo when collapsed -->

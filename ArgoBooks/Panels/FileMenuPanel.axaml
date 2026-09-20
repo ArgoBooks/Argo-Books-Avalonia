@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:ArgoBooks.Controls"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:ArgoBooks.ViewModels"
@@ -236,10 +237,14 @@
                                     Command="{Binding $parent[ItemsControl].((vm:FileMenuPanelViewModel)DataContext).OpenRecentCompanyCommand}"
                                     CommandParameter="{Binding}">
                                 <Grid ColumnDefinitions="Auto,*">
-                                    <PathIcon Grid.Column="0"
-                                              Data="{x:Static local:Icons.Departments}"
-                                              Width="16" Height="16"
-                                              Margin="0,0,12,0" />
+                                    <controls:CompanyAvatar
+                                                            Grid.Column="0"
+                                                            Margin="0,0,12,0"
+                                                            Width="20" Height="20"
+                                                            CornerRadius="8"
+                                                            FontSize="11"
+                                                            Logo="{Binding Logo}"
+                                                            Initial="{Binding Initial}" />
                                     <TextBlock Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center" />
                                 </Grid>
                             </Button>

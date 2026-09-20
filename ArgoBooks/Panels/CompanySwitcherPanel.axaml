@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:ArgoBooks.Controls"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:ArgoBooks.ViewModels"
@@ -62,34 +63,14 @@
                             Padding="8">
                         <Grid ColumnDefinitions="Auto,*,Auto,Auto">
                             <!-- Company Logo/Initial -->
-                            <Border Grid.Column="0"
-                                    Width="40" Height="40"
-                                    CornerRadius="8"
-                                    ClipToBounds="True"
-                                    Margin="0,0,12,0"
-                                    Background="{DynamicResource SurfaceAltBrush}">
-                                <Panel>
-                                    <Image Source="{Binding CurrentCompanyLogo}"
-                                           Stretch="Uniform"
-                                           IsVisible="{Binding HasCurrentCompanyLogo}" />
-                                    <!-- Gradient background for initial only -->
-                                    <Border CornerRadius="8"
-                                            IsVisible="{Binding !HasCurrentCompanyLogo}">
-                                        <Border.Background>
-                                            <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
-                                                <GradientStop Color="{DynamicResource PrimaryColor}" Offset="0" />
-                                                <GradientStop Color="{DynamicResource AccentColor}" Offset="1" />
-                                            </LinearGradientBrush>
-                                        </Border.Background>
-                                        <TextBlock Text="{Binding CurrentCompanyInitial}"
-                                                   FontSize="16"
-                                                   FontWeight="Bold"
-                                                   Foreground="White"
-                                                   HorizontalAlignment="Center"
-                                                   VerticalAlignment="Center" />
-                                    </Border>
-                                </Panel>
-                            </Border>
+                            <controls:CompanyAvatar
+                                                    Grid.Column="0"
+                                                    Margin="0,0,12,0"
+                                                    Width="40" Height="40"
+                                                    CornerRadius="8"
+                                                    FontSize="16"
+                                                    Logo="{Binding CurrentCompanyLogo}"
+                                                    Initial="{Binding CurrentCompanyInitial}" />
 
                             <!-- Company Name -->
                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
@@ -146,24 +127,14 @@
                                         CommandParameter="{Binding}">
                                     <Grid ColumnDefinitions="Auto,*">
                                         <!-- Company Initial -->
-                                        <Border Grid.Column="0"
-                                                Width="36" Height="36"
-                                                CornerRadius="8"
-                                                Background="{DynamicResource SurfaceAltBrush}"
-                                                Margin="0,0,12,0">
-                                            <Panel>
-                                                <Image Source="{Binding Logo}"
-                                                       Stretch="Uniform"
-                                                       IsVisible="{Binding HasLogo}" />
-                                                <TextBlock Text="{Binding Initial}"
-                                                           FontSize="14"
-                                                           FontWeight="SemiBold"
-                                                           Foreground="{DynamicResource TextSecondaryBrush}"
-                                                           HorizontalAlignment="Center"
-                                                           VerticalAlignment="Center"
-                                                           IsVisible="{Binding !HasLogo}" />
-                                            </Panel>
-                                        </Border>
+                                        <controls:CompanyAvatar
+                                                                Grid.Column="0"
+                                                                Margin="0,0,12,0"
+                                                                Width="36" Height="36"
+                                                                CornerRadius="8"
+                                                                FontSize="14"
+                                                                Logo="{Binding Logo}"
+                                                                Initial="{Binding Initial}" />
 
                                         <!-- Company Name -->
                                         <TextBlock Grid.Column="1"

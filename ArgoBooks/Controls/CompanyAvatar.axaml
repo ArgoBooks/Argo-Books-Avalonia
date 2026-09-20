@@ -1,0 +1,32 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="ArgoBooks.Controls.CompanyAvatar"
+             x:Name="Root">
+
+    <Border ClipToBounds="True"
+            CornerRadius="{Binding #Root.CornerRadius}"
+            Background="{DynamicResource SurfaceAltBrush}">
+        <Panel>
+            <Image Source="{Binding #Root.Logo}"
+                   Stretch="Uniform"
+                   IsVisible="{Binding #Root.Logo, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+            <!-- No logo: the company's initial on the brand gradient -->
+            <Border CornerRadius="{Binding #Root.CornerRadius}"
+                    IsVisible="{Binding #Root.Logo, Converter={x:Static ObjectConverters.IsNull}}">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                        <GradientStop Color="{DynamicResource PrimaryColor}" Offset="0" />
+                        <GradientStop Color="{DynamicResource AccentColor}" Offset="1" />
+                    </LinearGradientBrush>
+                </Border.Background>
+                <TextBlock Text="{Binding #Root.Initial}"
+                           FontSize="{Binding #Root.FontSize}"
+                           FontWeight="Bold"
+                           Foreground="White"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center" />
+            </Border>
+        </Panel>
+    </Border>
+</UserControl>
