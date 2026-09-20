@@ -1,0 +1,302 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:ArgoBooks.ViewModels"
+             xmlns:controls="using:ArgoBooks.Controls"
+             xmlns:table="using:ArgoBooks.Controls.ArgoTable"
+             xmlns:icons="using:ArgoBooks"
+             xmlns:loc="using:ArgoBooks.Localization"
+             mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="800"
+             x:Class="ArgoBooks.Views.QuotesPage"
+             x:DataType="vm:QuotesPageViewModel">
+
+    <Design.DataContext>
+        <vm:QuotesPageViewModel />
+    </Design.DataContext>
+
+    <Panel>
+        <Grid RowDefinitions="Auto,*">
+            <!-- Tab Bar -->
+            <Border Grid.Row="0"
+                    Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="0,0,0,1">
+                <TabControl SelectedIndex="{Binding SelectedTabIndex}"
+                            Margin="0"
+                            Classes="page-tabs">
+                    <TabItem Header="{loc:Loc All}" />
+                    <TabItem Header="{loc:Loc Draft}" />
+                    <TabItem Header="{loc:Loc Sent}" />
+                    <TabItem Header="{loc:Loc Accepted}" />
+                    <TabItem Header="{loc:Loc Declined}" />
+                    <TabItem Header="{loc:Loc Converted}" />
+                </TabControl>
+            </Border>
+
+            <!-- Main Content -->
+            <Grid Grid.Row="1" RowDefinitions="Auto,*" Margin="24">
+                <!-- Statistics Cards Row -->
+                <controls:StatCardsRow Grid.Row="0" Margin="0,0,0,24">
+                    <controls:StatCard Label="{loc:Loc 'Open Quotes'}"
+                                       Value="{Binding OpenQuotes}"
+                                       Icon="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"
+                                       IconColor="Primary" />
+                    <controls:StatCard Label="{loc:Loc 'Accepted'}"
+                                       Value="{Binding AcceptedQuotes}"
+                                       Icon="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"
+                                       IconColor="Success" />
+                    <controls:StatCard Label="{loc:Loc 'Declined'}"
+                                       Value="{Binding DeclinedQuotes}"
+                                       Icon="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+                                       IconColor="Danger" />
+                    <controls:StatCard Label="{loc:Loc 'Expiring Soon'}"
+                                       Value="{Binding ExpiringSoonQuotes}"
+                                       Icon="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"
+                                       IconColor="Warning" />
+                </controls:StatCardsRow>
+
+                <!-- Main Content Card using ArgoTable -->
+                <table:ArgoTable Grid.Row="1"
+                                 Title="{loc:Loc 'Quotes'}"
+                                 ItemsSource="{Binding Quotes}"
+                                 SearchQuery="{Binding SearchQuery, Mode=TwoWay}"
+                                 SearchPlaceholder="{loc:Loc 'Search quotes...'}"
+                                 FilterCommand="{Binding OpenFilterModalCommand}"
+                                 AddCommand="{Binding OpenAddModalCommand}"
+                                 AddButtonText="{loc:Loc 'New Quote'}"
+                                 AddButtonTooltip="{loc:Loc 'New Quote'}"
+                                 ColumnWidthsManager="{Binding ColumnWidths}"
+                                 CurrentPage="{Binding CurrentPage, Mode=TwoWay}"
+                                 TotalPages="{Binding TotalPages}"
+                                 PageSize="{Binding PageSize, Mode=TwoWay}"
+                                 PaginationText="{Binding PaginationText}"
+                                 GoToPageCommand="{Binding GoToPageCommand}"
+                                 GoToPreviousPageCommand="{Binding GoToPreviousPageCommand}"
+                                 GoToNextPageCommand="{Binding GoToNextPageCommand}"
+                                 ToggleColumnMenuCommand="{Binding ToggleColumnMenuCommand}"
+                                 EmptyIcon="{x:Static icons:Icons.Quotes}"
+                                 EmptyTitle="{loc:Loc 'No quotes found'}"
+                                 EmptyMessage="{loc:Loc 'Quotes let you price work before you invoice it. Nothing here counts as income until you convert it.'}">
+
+                    <table:ArgoTable.HeaderContent>
+                        <StackPanel Orientation="Horizontal">
+                            <table:ArgoTableHeader Header="{loc:Loc 'Quote #'}" ColumnName="QuoteNumber" SortProperty="QuoteNumber"
+                                                   ColumnWidth="{Binding ColumnWidths.QuoteNumberColumnWidth}"
+                                                   IsColumnVisible="{Binding ShowQuoteNumberColumn}"
+                                                   SortColumn="{Binding SortColumn}" SortDirection="{Binding SortDirection}"
+                                                   SortCommand="{Binding SortByCommand}" ColumnWidths="{Binding ColumnWidths}" />
+
+                            <table:ArgoTableHeader Header="{loc:Loc Date}" ColumnName="Date" SortProperty="Date"
+                                                   ColumnWidth="{Binding ColumnWidths.DateColumnWidth}"
+                                                   IsColumnVisible="{Binding ShowDateColumn}"
+                                                   SortColumn="{Binding SortColumn}" SortDirection="{Binding SortDirection}"
+                                                   SortCommand="{Binding SortByCommand}" ColumnWidths="{Binding ColumnWidths}" />
+
+                            <table:ArgoTableHeader Header="{loc:Loc Customer}" ColumnName="Customer" SortProperty="Customer"
+                                                   ColumnWidth="{Binding ColumnWidths.CustomerColumnWidth}"
+                                                   IsColumnVisible="{Binding ShowCustomerColumn}"
+                                                   SortColumn="{Binding SortColumn}" SortDirection="{Binding SortDirection}"
+                                                   SortCommand="{Binding SortByCommand}" ColumnWidths="{Binding ColumnWidths}" />
+
+                            <table:ArgoTableHeader Header="{loc:Loc 'Valid Until'}" ColumnName="ValidUntil" SortProperty="ValidUntil"
+                                                   ColumnWidth="{Binding ColumnWidths.ValidUntilColumnWidth}"
+                                                   IsColumnVisible="{Binding ShowValidUntilColumn}"
+                                                   SortColumn="{Binding SortColumn}" SortDirection="{Binding SortDirection}"
+                                                   SortCommand="{Binding SortByCommand}" ColumnWidths="{Binding ColumnWidths}" />
+
+                            <table:ArgoTableHeader Header="{loc:Loc Total}" ColumnName="Total" SortProperty="Total"
+                                                   ColumnWidth="{Binding ColumnWidths.TotalColumnWidth}"
+                                                   IsColumnVisible="{Binding ShowTotalColumn}"
+                                                   SortColumn="{Binding SortColumn}" SortDirection="{Binding SortDirection}"
+                                                   SortCommand="{Binding SortByCommand}" ColumnWidths="{Binding ColumnWidths}" />
+
+                            <table:ArgoTableHeader Header="{loc:Loc Status}" ColumnName="Status" SortProperty="Status"
+                                                   ColumnWidth="{Binding ColumnWidths.StatusColumnWidth}"
+                                                   IsColumnVisible="{Binding ShowStatusColumn}"
+                                                   SortColumn="{Binding SortColumn}" SortDirection="{Binding SortDirection}"
+                                                   SortCommand="{Binding SortByCommand}" ColumnWidths="{Binding ColumnWidths}" />
+
+                            <table:ArgoTableHeader Header="{loc:Loc Actions}" ColumnName="Actions"
+                                                   ColumnWidth="{Binding ColumnWidths.ActionsColumnWidth}"
+                                                   IsSortable="False" IsResizable="False" ShowSeparator="False" />
+                        </StackPanel>
+                    </table:ArgoTable.HeaderContent>
+
+                    <table:ArgoTable.RowsContent>
+                        <ItemsControl Classes="table-rows" ItemsSource="{Binding Quotes}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="vm:QuoteDisplayItem">
+                                    <Border Padding="24,0"
+                                            BorderBrush="{DynamicResource BorderBrush}"
+                                            BorderThickness="0,0,0,1"
+                                            Classes.highlighted-row="{Binding IsHighlighted}"
+                                            MinHeight="52">
+                                        <StackPanel Orientation="Horizontal">
+                                            <!-- Quote Number -->
+                                            <table:ArgoTableCell ColumnWidth="{Binding $parent[ItemsControl].((vm:QuotesPageViewModel)DataContext).ColumnWidths.QuoteNumberColumnWidth}"
+                                                                 IsColumnVisible="{Binding $parent[ItemsControl].((vm:QuotesPageViewModel)DataContext).ShowQuoteNumberColumn}">
+                                                <table:ArgoTableCell.CellContent>
+                                                    <TextBlock Text="{Binding QuoteNumber}"
+                                                               FontSize="13"
+                                                               FontFamily="Consolas, monospace"
+                                                               FontWeight="Medium"
+                                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                                               VerticalAlignment="Center"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                </table:ArgoTableCell.CellContent>
+                                            </table:ArgoTableCell>
+
+                                            <!-- Issue Date -->
+                                            <table:ArgoTableCell Text="{Binding DateDisplay}"
+                                                                 ColumnWidth="{Binding $parent[ItemsControl].((vm:QuotesPageViewModel)DataContext).ColumnWidths.DateColumnWidth}"
+                                                                 IsColumnVisible="{Binding $parent[ItemsControl].((vm:QuotesPageViewModel)DataContext).ShowDateColumn}" />
+
+                                            <!-- Customer -->
+                                            <table:ArgoTableCell ColumnWidth="{Binding $parent[ItemsControl].((vm:QuotesPageViewModel)DataContext).ColumnWidths.CustomerColumnWidth}"
+                                                                 IsColumnVisible="{Binding $parent[ItemsControl].((vm:QuotesPageViewModel)DataContext).ShowCustomerColumn}">
+                                                <table:ArgoTableCell.CellContent>
+                                                    <TextBlock Text="{Binding CustomerName}"
+                                                               FontSize="14"
+                                                               FontWeight="Medium"
+                                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                                               VerticalAlignment="Center"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                </table:ArgoTableCell.CellContent>
+                                            </table:ArgoTableCell>
+
+                                            <!-- Valid Until -->
+                                            <table:ArgoTableCell ColumnWidth="{Binding $parent[ItemsControl].((vm:QuotesPageViewModel)DataContext).ColumnWidths.ValidUntilColumnWidth}"
+                                                                 IsColumnVisible="{Binding $parent[ItemsControl].((vm:QuotesPageViewModel)DataContext).ShowValidUntilColumn}">
+                                                <table:ArgoTableCell.CellContent>
+                                                    <TextBlock Text="{Binding ValidUntilDisplay}"
+                                                               FontSize="14"
+                                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                                               VerticalAlignment="Center" />
+                                                </table:ArgoTableCell.CellContent>
+                                            </table:ArgoTableCell>
+
+                                            <!-- Total -->
+                                            <table:ArgoTableCell ColumnWidth="{Binding $parent[ItemsControl].((vm:QuotesPageViewModel)DataContext).ColumnWidths.TotalColumnWidth}"
+                                                                 IsColumnVisible="{Binding $parent[ItemsControl].((vm:QuotesPageViewModel)DataContext).ShowTotalColumn}">
+                                                <table:ArgoTableCell.CellContent>
+                                                    <TextBlock Text="{Binding TotalDisplay}"
+                                                               FontSize="14"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                                               VerticalAlignment="Center" />
+                                                </table:ArgoTableCell.CellContent>
+                                            </table:ArgoTableCell>
+
+                                            <!-- Status Badge -->
+                                            <table:ArgoTableCell ColumnWidth="{Binding $parent[ItemsControl].((vm:QuotesPageViewModel)DataContext).ColumnWidths.StatusColumnWidth}"
+                                                                 IsColumnVisible="{Binding $parent[ItemsControl].((vm:QuotesPageViewModel)DataContext).ShowStatusColumn}">
+                                                <table:ArgoTableCell.CellContent>
+                                                    <Border Background="{Binding StatusBackground}"
+                                                            CornerRadius="4"
+                                                            Padding="8,4"
+                                                            HorizontalAlignment="Left"
+                                                            VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding StatusDisplay, Converter={StaticResource TranslateConverter}}"
+                                                                   FontSize="12"
+                                                                   FontWeight="Medium"
+                                                                   Foreground="{Binding StatusColor}" />
+                                                    </Border>
+                                                </table:ArgoTableCell.CellContent>
+                                            </table:ArgoTableCell>
+
+                                            <!-- Actions -->
+                                            <table:ArgoTableCell ColumnWidth="{Binding $parent[ItemsControl].((vm:QuotesPageViewModel)DataContext).ColumnWidths.ActionsColumnWidth}"
+                                                                 ShowSeparator="False">
+                                                <table:ArgoTableCell.CellContent>
+                                                    <StackPanel Orientation="Horizontal"
+                                                                HorizontalAlignment="Left"
+                                                                VerticalAlignment="Center"
+                                                                Spacing="4">
+                                                        <!-- View -->
+                                                        <Button Classes="icon-button"
+                                                                ToolTip.Tip="{loc:Loc 'View Quote'}"
+                                                                Command="{Binding $parent[ItemsControl].((vm:QuotesPageViewModel)DataContext).ViewQuoteCommand}"
+                                                                CommandParameter="{Binding}">
+                                                            <PathIcon Data="{x:Static icons:Icons.Eye}" Width="16" Height="16" />
+                                                        </Button>
+                                                        <!-- Edit (drafts only) -->
+                                                        <Button Classes="icon-button"
+                                                                ToolTip.Tip="{loc:Loc 'Edit Quote'}"
+                                                                IsVisible="{Binding CanEdit}"
+                                                                Command="{Binding $parent[ItemsControl].((vm:QuotesPageViewModel)DataContext).EditQuoteCommand}"
+                                                                CommandParameter="{Binding}">
+                                                            <PathIcon Data="{x:Static icons:Icons.Edit}" Width="16" Height="16" />
+                                                        </Button>
+                                                        <!-- Send / Resend -->
+                                                        <Button Classes="icon-button"
+                                                                IsVisible="{Binding CanSend}"
+                                                                ToolTip.Tip="{Binding SendTooltip, Converter={StaticResource TranslateConverter}}"
+                                                                Command="{Binding $parent[ItemsControl].((vm:QuotesPageViewModel)DataContext).SendQuoteCommand}"
+                                                                CommandParameter="{Binding}">
+                                                            <PathIcon Data="{x:Static icons:Icons.Send}" Width="16" Height="16" />
+                                                        </Button>
+                                                        <!-- Mark accepted -->
+                                                        <Button Classes="icon-button success"
+                                                                ToolTip.Tip="{loc:Loc 'Mark accepted'}"
+                                                                IsVisible="{Binding CanMarkAccepted}"
+                                                                Command="{Binding $parent[ItemsControl].((vm:QuotesPageViewModel)DataContext).MarkAcceptedCommand}"
+                                                                CommandParameter="{Binding}">
+                                                            <PathIcon Data="{x:Static icons:Icons.Check}" Width="16" Height="16" />
+                                                        </Button>
+                                                        <!-- Mark declined -->
+                                                        <Button Classes="icon-button danger"
+                                                                ToolTip.Tip="{loc:Loc 'Mark declined'}"
+                                                                IsVisible="{Binding CanMarkDeclined}"
+                                                                Command="{Binding $parent[ItemsControl].((vm:QuotesPageViewModel)DataContext).MarkDeclinedCommand}"
+                                                                CommandParameter="{Binding}">
+                                                            <PathIcon Data="{x:Static icons:Icons.Close}" Width="16" Height="16" />
+                                                        </Button>
+                                                        <!-- Convert to invoice -->
+                                                        <Button Classes="icon-button info"
+                                                                ToolTip.Tip="{loc:Loc 'Convert to invoice'}"
+                                                                IsVisible="{Binding CanConvert}"
+                                                                Command="{Binding $parent[ItemsControl].((vm:QuotesPageViewModel)DataContext).ConvertToInvoiceCommand}"
+                                                                CommandParameter="{Binding}">
+                                                            <PathIcon Data="{x:Static icons:Icons.Invoices}" Width="16" Height="16" />
+                                                        </Button>
+                                                        <!-- Delete -->
+                                                        <Button Classes="icon-button danger"
+                                                                ToolTip.Tip="{loc:Loc Delete}"
+                                                                Command="{Binding $parent[ItemsControl].((vm:QuotesPageViewModel)DataContext).OpenDeleteConfirmCommand}"
+                                                                CommandParameter="{Binding}">
+                                                            <PathIcon Data="{x:Static icons:Icons.Delete}" Width="16" Height="16" />
+                                                        </Button>
+                                                    </StackPanel>
+                                                </table:ArgoTableCell.CellContent>
+                                            </table:ArgoTableCell>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </table:ArgoTable.RowsContent>
+                </table:ArgoTable>
+            </Grid>
+        </Grid>
+
+        <!-- Column Visibility Menu -->
+        <controls:ColumnVisibilityMenu IsOpen="{Binding IsColumnMenuOpen}"
+                                       MenuX="{Binding ColumnWidths.ColumnMenuX}"
+                                       MenuY="{Binding ColumnWidths.ColumnMenuY}"
+                                       CloseCommand="{Binding CloseColumnMenuCommand}"
+                                       ResetCommand="{Binding ResetColumnVisibilityCommand}">
+            <controls:ColumnVisibilityMenu.ColumnsContent>
+                <StackPanel Spacing="4">
+                    <CheckBox IsChecked="{Binding ShowQuoteNumberColumn}" Content="{loc:Loc 'Quote #'}" Classes="column-toggle" />
+                    <CheckBox IsChecked="{Binding ShowDateColumn}" Content="{loc:Loc Date}" Classes="column-toggle" />
+                    <CheckBox IsChecked="{Binding ShowCustomerColumn}" Content="{loc:Loc Customer}" Classes="column-toggle" />
+                    <CheckBox IsChecked="{Binding ShowValidUntilColumn}" Content="{loc:Loc 'Valid Until'}" Classes="column-toggle" />
+                    <CheckBox IsChecked="{Binding ShowTotalColumn}" Content="{loc:Loc Total}" Classes="column-toggle" />
+                    <CheckBox IsChecked="{Binding ShowStatusColumn}" Content="{loc:Loc Status}" Classes="column-toggle" />
+                </StackPanel>
+            </controls:ColumnVisibilityMenu.ColumnsContent>
+        </controls:ColumnVisibilityMenu>
+    </Panel>
+
+</UserControl>

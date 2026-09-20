@@ -151,6 +151,7 @@ public partial class SidebarViewModel : ViewModelBase
 
         // Revenue Section
         RevenueItems.Add(CreateItem("Revenue", "Revenue", Icons.Revenue));
+        RevenueItems.Add(CreateItem("Quotes", "Quotes", Icons.Quotes));
         _invoicesItem = CreateItem("Invoices", "Invoices", Icons.Invoices);
         _invoicesItem.IsVisible = true; // Available on free tier (with send limits)
         RevenueItems.Add(_invoicesItem);

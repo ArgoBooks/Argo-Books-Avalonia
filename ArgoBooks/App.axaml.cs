@@ -196,6 +196,11 @@ public partial class App : Application
     public static InvoiceModalsViewModel? InvoiceModalsViewModel => _appShellViewModel?.InvoiceModalsViewModel;
 
     /// <summary>
+    /// Gets the quotes modals view model for shared access.
+    /// </summary>
+    public static QuotesModalsViewModel? QuotesModalsViewModel => _appShellViewModel?.QuotesModalsViewModel;
+
+    /// <summary>
     /// Gets the invoice template designer view model for shared access.
     /// </summary>
     public static InvoiceTemplateDesignerViewModel? InvoiceTemplateDesignerViewModel => _appShellViewModel?.InvoiceTemplateDesignerViewModel;
@@ -576,6 +581,74 @@ public partial class App : Application
         finally
         {
             Interlocked.Exchange(ref _isAutoSyncing, 0);
+        }
+
+        // After the payments, on the same trigger and the same connection: an accepted quote is
+        // as time-sensitive as a paid invoice, and nothing else pulls it. Outside the guard above
+        // so a payment sync that bailed early still lets the quote answers through.
+        await AutoSyncPortalQuoteResponsesAsync();
+    }
+
+    /// <summary>
+    /// Pulls the accept / decline answers customers left on the portal and applies them to the
+    /// local quotes.
+    /// </summary>
+    private static async Task AutoSyncPortalQuoteResponsesAsync()
+    {
+        try
+        {
+            var portalService = PaymentPortalService;
+            var companyData = CompanyManager?.CompanyData;
+            if (portalService == null || companyData == null || !PortalSettings.IsConfigured)
+                return;
+
+            // The replies describe the company whose key asked. Opening another swaps both the key
+            // and CompanyData, and nothing from these replies may then land in it.
+            bool CompanyChanged() => !ReferenceEquals(CompanyManager?.CompanyData, companyData);
+
+            var response = await portalService.SyncQuoteResponsesAsync();
+            if (!response.Success || response.Quotes.Count == 0 || CompanyChanged())
+                return;
+
+            var (confirmIds, applied) = PaymentPortalService.ApplyQuoteResponses(response.Quotes, companyData);
+
+            // Confirm every id the server handed over, including ones with no local quote, or a
+            // quote deleted here comes back on every sync for ever.
+            if (confirmIds.Count > 0)
+            {
+                await portalService.ConfirmQuoteSyncAsync(confirmIds);
+                if (CompanyChanged()) return;
+            }
+
+            if (applied == 0) return;
+
+            // Same rule as the payment sync: only auto-persist when the user has no edits of their
+            // own in flight, so a background sync can't commit their half-finished work.
+            if (!CompanyManager!.HasUnsavedChanges)
+            {
+                try { await CompanyManager.SavePaymentSyncAsync(companyData); }
+                catch (Exception ex)
+                {
+                    ErrorLogger?.LogWarning($"Failed to persist synced quote responses: {ex.Message}", "PortalSync");
+                }
+
+                if (CompanyChanged()) return;
+            }
+
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                _quotesPageViewModel?.RefreshQuotesCommand.Execute(null);
+
+                var message = applied == 1
+                    ? "{0} quote was answered by a customer.".TranslateFormat(applied)
+                    : "{0} quotes were answered by customers.".TranslateFormat(applied);
+
+                AddNotification("Quote response".Translate(), message, NotificationType.Info);
+            });
+        }
+        catch
+        {
+            // Auto-sync failures are non-critical; silently ignore
         }
     }
 
@@ -1031,6 +1104,11 @@ public partial class App : Application
     /// </summary>
     public static Controls.ColumnWidths.PurchaseOrdersTableColumnWidths PurchaseOrdersColumnWidths { get; } = new();
 
+    /// <summary>
+    /// Gets the shared column widths for the Quotes table.
+    /// </summary>
+    public static Controls.ColumnWidths.QuotesTableColumnWidths QuotesColumnWidths { get; } = new();
+
     #endregion
 
     // View models stored for event wiring
@@ -1066,6 +1144,7 @@ public partial class App : Application
     private static RevenuePageViewModel? _revenuePageViewModel;
     private static ExpensesPageViewModel? _expensesPageViewModel;
     private static InvoicesPageViewModel? _invoicesPageViewModel;
+    private static QuotesPageViewModel? _quotesPageViewModel;
     private static BankMatchingPageViewModel? _bankMatchingPageViewModel;
     private static ProductsPageViewModel? _productsPageViewModel;
     private static StockLevelsPageViewModel? _stockLevelsPageViewModel;
@@ -1097,7 +1176,7 @@ public partial class App : Application
         foreach (var vm in new object?[]
         {
             _dashboardPageViewModel, _analyticsPageViewModel, _insightsPageViewModel, _reportsPageViewModel,
-            _revenuePageViewModel, _expensesPageViewModel, _invoicesPageViewModel,
+            _revenuePageViewModel, _expensesPageViewModel, _invoicesPageViewModel, _quotesPageViewModel,
             _bankMatchingPageViewModel, _productsPageViewModel, _stockLevelsPageViewModel, _locationsPageViewModel,
             _stockAdjustmentsPageViewModel, _purchaseOrdersPageViewModel, _categoriesPageViewModel,
             _customersPageViewModel, _suppliersPageViewModel, _rentalInventoryPageViewModel,
@@ -1113,6 +1192,7 @@ public partial class App : Application
         _revenuePageViewModel = null;
         _expensesPageViewModel = null;
         _invoicesPageViewModel = null;
+        _quotesPageViewModel = null;
         _bankMatchingPageViewModel = null;
         _productsPageViewModel = null;
         _stockLevelsPageViewModel = null;
@@ -3501,6 +3581,7 @@ public partial class App : Application
             data.Revenues,
             data.Expenses,
             data.Invoices,
+            data.Quotes,
             data.Payments,
             data.RecurringInvoices,
             data.RecurringTransactions,
@@ -3573,6 +3654,7 @@ public partial class App : Application
                 data.IdCounters.Revenue = restoredCounters.Revenue;
                 data.IdCounters.Expense = restoredCounters.Expense;
                 data.IdCounters.Invoice = restoredCounters.Invoice;
+                data.IdCounters.Quote = restoredCounters.Quote;
                 data.IdCounters.Payment = restoredCounters.Payment;
                 data.IdCounters.RecurringInvoice = restoredCounters.RecurringInvoice;
                 data.IdCounters.InventoryItem = restoredCounters.InventoryItem;
@@ -3600,6 +3682,7 @@ public partial class App : Application
         RestoreList(data.Revenues, "Revenues");
         RestoreList(data.Expenses, "Expenses");
         RestoreList(data.Invoices, "Invoices");
+        RestoreList(data.Quotes, "Quotes");
         RestoreList(data.Payments, "Payments");
         RestoreList(data.RecurringInvoices, "RecurringInvoices");
         RestoreList(data.RecurringTransactions, "RecurringTransactions");
@@ -4495,6 +4578,23 @@ public partial class App : Application
                 _expensesPageViewModel.ApplyHighlight();
             }
             return new ExpensesPage { DataContext = _expensesPageViewModel };
+        });
+        navigationService.RegisterPage("Quotes", param =>
+        {
+            _quotesPageViewModel ??= new QuotesPageViewModel();
+            _quotesPageViewModel.HighlightTransactionId = null;
+            // The VM is cached across navigations, so re-read CompanyData on every arrival.
+            _quotesPageViewModel.RefreshQuotesCommand.Execute(null);
+            if (param is TransactionNavigationParameter navParam)
+            {
+                _quotesPageViewModel.HighlightTransactionId = navParam.TransactionId;
+                _quotesPageViewModel.ApplyHighlight();
+            }
+
+            // The answers a customer gave while the app was elsewhere are what makes this page
+            // worth opening, so pull them on arrival rather than waiting out the timer.
+            _ = AutoSyncPortalPaymentsAsync();
+            return new QuotesPage { DataContext = _quotesPageViewModel };
         });
         navigationService.RegisterPage("Invoices", param =>
         {

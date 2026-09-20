@@ -126,6 +126,13 @@ public class CompanyData
     public List<Invoice> Invoices { get; init; } = [];
 
     /// <summary>
+    /// All quotes offered to customers. Kept apart from <see cref="Invoices"/> so a quote can
+    /// never be counted as money owed or earned.
+    /// </summary>
+    [JsonPropertyName("quotes")]
+    public List<Quote> Quotes { get; init; } = [];
+
+    /// <summary>
     /// All payments received.
     /// </summary>
     [JsonPropertyName("payments")]
@@ -493,6 +500,9 @@ public class IdCounters
 
     [JsonPropertyName("invoice")]
     public int Invoice { get; set; }
+
+    [JsonPropertyName("quote")]
+    public int Quote { get; set; }
 
     [JsonPropertyName("payment")]
     public int Payment { get; set; }

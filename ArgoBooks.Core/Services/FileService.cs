@@ -65,6 +65,7 @@ public class FileService(
             await WriteJsonAsync(companyDir, "revenues.json", companyData.Revenues, cancellationToken);
             await WriteJsonAsync(companyDir, "expenses.json", companyData.Expenses, cancellationToken);
             await WriteJsonAsync(companyDir, "invoices.json", companyData.Invoices, cancellationToken);
+            await WriteJsonAsync(companyDir, "quotes.json", companyData.Quotes, cancellationToken);
             await WriteJsonAsync(companyDir, "payments.json", companyData.Payments, cancellationToken);
             await WriteJsonAsync(companyDir, "recurringInvoices.json", companyData.RecurringInvoices, cancellationToken);
             await WriteJsonAsync(companyDir, "recurringTransactions.json", companyData.RecurringTransactions, cancellationToken);
@@ -454,6 +455,9 @@ public class FileService(
         var revenuesTask          = ReadJsonAsync<List<Models.Transactions.Revenue>>(tempDirectory, "revenues.json", cancellationToken);
         var expensesTask          = ReadJsonAsync<List<Models.Transactions.Expense>>(tempDirectory, "expenses.json", cancellationToken);
         var invoicesTask          = ReadJsonAsync<List<Models.Transactions.Invoice>>(tempDirectory, "invoices.json", cancellationToken);
+        // Absent from every file written before quotes shipped, which ReadJsonAsync handles by
+        // returning null, so those open with no quotes rather than failing.
+        var quotesTask            = ReadJsonAsync<List<Models.Transactions.Quote>>(tempDirectory, "quotes.json", cancellationToken);
         var paymentsTask          = ReadJsonAsync<List<Models.Transactions.Payment>>(tempDirectory, "payments.json", cancellationToken);
         var recurringInvoicesTask = ReadJsonAsync<List<Models.Transactions.RecurringInvoice>>(tempDirectory, "recurringInvoices.json", cancellationToken);
         var recurringTransactionsTask = ReadJsonAsync<List<Models.Transactions.RecurringTransaction>>(tempDirectory, "recurringTransactions.json", cancellationToken);
@@ -490,7 +494,7 @@ public class FileService(
         [
             idCountersTask, customersTask, productsTask, suppliersTask,
             categoriesTask, accountantsTask, locationsTask,
-            revenuesTask, expensesTask, invoicesTask, paymentsTask, recurringInvoicesTask,
+            revenuesTask, expensesTask, invoicesTask, quotesTask, paymentsTask, recurringInvoicesTask,
             recurringTransactionsTask,
             inventoryTask, stockAdjustmentsTask, stockTransfersTask, purchaseOrdersTask,
             rentalInventoryTask, rentalsTask, returnsTask, lostDamagedTask, receiptsTask,
@@ -527,6 +531,7 @@ public class FileService(
             Revenues = revenuesTask.Result ?? [],
             Expenses = expensesTask.Result ?? [],
             Invoices = invoicesTask.Result ?? [],
+            Quotes = quotesTask.Result ?? [],
             Payments = paymentsTask.Result ?? [],
             RecurringInvoices = recurringInvoicesTask.Result ?? [],
             RecurringTransactions = recurringTransactionsTask.Result ?? [],
@@ -589,6 +594,7 @@ public class FileService(
         await WriteJsonAsync(companyDirectory, "revenues.json", data.Revenues, cancellationToken);
         await WriteJsonAsync(companyDirectory, "expenses.json", data.Expenses, cancellationToken);
         await WriteJsonAsync(companyDirectory, "invoices.json", data.Invoices, cancellationToken);
+        await WriteJsonAsync(companyDirectory, "quotes.json", data.Quotes, cancellationToken);
         await WriteJsonAsync(companyDirectory, "payments.json", data.Payments, cancellationToken);
         await WriteJsonAsync(companyDirectory, "recurringInvoices.json", data.RecurringInvoices, cancellationToken);
         await WriteJsonAsync(companyDirectory, "recurringTransactions.json", data.RecurringTransactions, cancellationToken);

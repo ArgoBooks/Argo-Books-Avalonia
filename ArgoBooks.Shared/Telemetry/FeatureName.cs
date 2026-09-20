@@ -18,6 +18,9 @@ public enum FeatureName
 
     // Transactions
     InvoiceCreated,
+    QuoteCreated,
+    QuoteSent,
+    QuoteConverted,
     ExpenseCreated,
     RevenueCreated,
     PaymentRecorded,

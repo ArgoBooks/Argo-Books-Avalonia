@@ -27,6 +27,7 @@ public partial class AppShellViewModel : ViewModelBase
     private RentalRecordsModalsViewModel? _rentalRecordsModalsViewModel;
     private PaymentModalsViewModel? _paymentModalsViewModel;
     private InvoiceModalsViewModel? _invoiceModalsViewModel;
+    private QuotesModalsViewModel? _quotesModalsViewModel;
     private RefundModalsViewModel? _refundModalsViewModel;
     private InvoiceTemplateDesignerViewModel? _invoiceTemplateDesignerViewModel;
     private ExpenseModalsViewModel? _expenseModalsViewModel;
@@ -298,6 +299,21 @@ public partial class AppShellViewModel : ViewModelBase
                 OnPropertyChanged();
             }
             return _invoiceModalsViewModel;
+        }
+    }
+
+    public QuotesModalsViewModel QuotesModalsViewModel
+    {
+        get
+        {
+            if (_quotesModalsViewModel == null)
+            {
+                _quotesModalsViewModel = new QuotesModalsViewModel();
+                _quotesModalsViewModel.QuoteSaved += RaiseUnsavedChanges;
+                _quotesModalsViewModel.QuoteDeleted += RaiseUnsavedChanges;
+                OnPropertyChanged();
+            }
+            return _quotesModalsViewModel;
         }
     }
 

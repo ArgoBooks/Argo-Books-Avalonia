@@ -5221,6 +5221,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             GetMaxIdNumber(data.Revenues.Select(x => x.Id), "REV-")));
         c.Expense = Math.Max(c.Expense, GetMaxIdNumber(data.Expenses.Select(x => x.Id), "PUR-"));
         c.Invoice = Math.Max(c.Invoice, GetMaxIdNumber(data.Invoices.Select(x => x.Id), "INV-"));
+        c.Quote = Math.Max(c.Quote, GetMaxIdNumber(data.Quotes.Select(x => x.Id), "QUO-"));
         c.Payment = Math.Max(c.Payment, GetMaxIdNumber(data.Payments.Select(x => x.Id), "PAY-"));
         c.RecurringInvoice = Math.Max(c.RecurringInvoice, GetMaxIdNumber(data.RecurringInvoices.Select(x => x.Id), "REC-INV-"));
         c.InventoryItem = Math.Max(c.InventoryItem, GetMaxIdNumber(data.Inventory.Select(x => x.Id), "INV-ITM-"));

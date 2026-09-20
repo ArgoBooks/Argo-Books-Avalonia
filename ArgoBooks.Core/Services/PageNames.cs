@@ -9,6 +9,7 @@ public static class PageNames
     public const string Analytics = "Analytics";
     public const string Revenue = "Revenue";
     public const string Expenses = "Expenses";
+    public const string Quotes = "Quotes";
     public const string Invoices = "Invoices";
     public const string BankMatching = "BankMatching";
     public const string Products = "Products";

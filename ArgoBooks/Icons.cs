@@ -30,6 +30,9 @@ public static class Icons
     /// <summary>Up arrow icon for Revenue.</summary>
     public const string Revenue = "M4 12l1 1L11 8V20h2V8l5 5L20 12l-8-8-8 8z";
 
+    /// <summary>Price tag icon for Quotes (Sell).</summary>
+    public const string Quotes = "M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58.55 0 1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41 0-.55-.23-1.06-.59-1.42zM5.5 7C4.67 7 4 6.33 4 5.5S4.67 4 5.5 4 7 4.67 7 5.5 6.33 7 5.5 7z";
+
     /// <summary>Invoice/document icon for Invoices (RequestQuote).</summary>
     public const string Invoices = "M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm1 10h-4v1h3c.55 0 1 .45 1 1v3c0 .55-.45 1-1 1h-1v1h-2v-1H9v-2h4v-1h-3c-.55 0-1-.45-1-1v-3c0-.55.45-1 1-1h1V9h2v1h2v2zm-2-4V3.5L17.5 8H13z";
 

@@ -1,0 +1,394 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:ArgoBooks.ViewModels"
+             xmlns:controls="using:ArgoBooks.Controls"
+             xmlns:local="using:ArgoBooks.Converters"
+             xmlns:loc="using:ArgoBooks.Localization"
+             xmlns:icons="using:ArgoBooks"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
+             x:Class="ArgoBooks.Modals.QuotesModals"
+             x:DataType="vm:QuotesModalsViewModel">
+
+    <UserControl.Styles>
+        <Style Selector="TextBlock.sidebar-label">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="Foreground" Value="{DynamicResource TextTertiaryBrush}" />
+            <Setter Property="Margin" Value="0,0,0,6" />
+        </Style>
+    </UserControl.Styles>
+
+    <Panel>
+        <!-- ======================= CREATE / EDIT / SEND QUOTE EDITOR ======================= -->
+        <!-- One modal for the whole flow: write it, preview it, send it. -->
+        <controls:ModalOverlay IsOpen="{Binding IsEditorOpen}"
+                               ClosingCommand="{Binding RequestCloseEditorCommand}">
+            <controls:ModalOverlay.ModalContent>
+                <Panel>
+                <!-- The editor itself. Hidden while sending / on success, which show as a
+                     normal-sized card below instead of inside a 1040px frame. -->
+                <Border HorizontalAlignment="Center"
+                        VerticalAlignment="Stretch"
+                        Width="1040"
+                        MaxWidth="1040"
+                        Margin="24,32"
+                        Background="{DynamicResource SurfaceBrush}"
+                        CornerRadius="12"
+                        ClipToBounds="True"
+                        IsVisible="{Binding ShowEditorBody}"
+                        BoxShadow="0 8 32 0 #40000000">
+                    <Grid RowDefinitions="Auto,*">
+
+                        <!-- Header -->
+                        <Border Grid.Row="0" Padding="20,14"
+                                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Grid.Column="0" Text="{Binding ModalTitle, Converter={StaticResource TranslateConverter}}"
+                                           FontSize="18" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                                <Button Grid.Column="1" Classes="icon-button" Command="{Binding RequestCloseEditorCommand}">
+                                    <PathIcon Data="{x:Static icons:Icons.Close}" Width="20" Height="20" />
+                                </Button>
+                            </Grid>
+                        </Border>
+
+                        <!-- Body: paper + sidebar -->
+                        <Grid Grid.Row="1" ColumnDefinitions="*,320">
+
+                            <!-- PAPER: the real customer-facing quote, edited in place -->
+                            <controls:InvoicePreviewControl x:Name="EditorPreview"
+                                                            Grid.Column="0"
+                                                            Html="{Binding PreviewHtml}"
+                                                            IsEditable="{Binding !IsEditorPreviewing}"
+                                                            ProductsJson="{Binding ProductsJson}"
+                                                            CustomersJson="{Binding CustomersJson}"
+                                                            TotalsConfigJson="{Binding TotalsConfigJson}"
+                                                            OpenInBrowserCommand="{Binding OpenEditorPreviewInBrowserCommand}">
+                                <controls:InvoicePreviewControl.IsVisible>
+                                    <!-- The native web view draws above Avalonia content, so it steps aside
+                                         whenever something else needs to be on top of it: a nested create
+                                         modal, a confirmation dialog, the sending and success cards. -->
+                                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                        <Binding Path="IsEditorOpen" />
+                                        <Binding Path="!IsNestedModalOpen" />
+                                        <Binding Path="ShowEditorBody" />
+                                    </MultiBinding>
+                                </controls:InvoicePreviewControl.IsVisible>
+                            </controls:InvoicePreviewControl>
+
+                            <!-- SIDEBAR -->
+                            <Border Grid.Column="1" Background="{DynamicResource SurfaceBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1,0,0,0">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                    <StackPanel Margin="16" Spacing="16">
+
+                                        <Border Background="{DynamicResource SurfaceAltBrush}"
+                                                BorderBrush="{DynamicResource BorderBrush}"
+                                                BorderThickness="1" CornerRadius="8" Padding="12"
+                                                IsVisible="{Binding !IsEditorPreviewing}">
+                                            <Grid ColumnDefinitions="Auto,8,*">
+                                                <PathIcon Grid.Column="0" Data="{x:Static icons:Icons.Info}" Width="14" Height="14"
+                                                          Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Top" Margin="0,1,0,0" />
+                                                <TextBlock Grid.Column="2" FontSize="12" TextWrapping="Wrap"
+                                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                                           Text="{loc:Loc 'A quote is a price you are offering. It stays out of your income until you convert it to an invoice.'}" />
+                                            </Grid>
+                                        </Border>
+
+                                        <!-- ===== Writing the quote ===== -->
+                                        <StackPanel IsVisible="{Binding !IsEditorPreviewing}">
+                                            <TextBlock Text="{loc:Loc 'TEMPLATE'}" Classes="sidebar-label" />
+                                            <ComboBox ItemsSource="{Binding TemplateOptions}" SelectedItem="{Binding SelectedTemplate}"
+                                                      Classes="form-combobox" HorizontalAlignment="Stretch">
+                                                <ComboBox.ItemTemplate>
+                                                    <DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate>
+                                                </ComboBox.ItemTemplate>
+                                            </ComboBox>
+                                        </StackPanel>
+
+                                        <StackPanel IsVisible="{Binding !IsEditorPreviewing}">
+                                            <TextBlock Text="{loc:Loc 'CUSTOMER'}" Classes="sidebar-label" />
+                                            <controls:SearchableDropdown ItemsSource="{Binding CustomerOptions}"
+                                                                         SelectedItem="{Binding SelectedCustomer}"
+                                                                         DisplayMemberPath="Name"
+                                                                         SearchMemberPath="Id"
+                                                                         Placeholder="{loc:Loc 'Search customers...'}"
+                                                                         ShowAddNew="True"
+                                                                         AddNewText="{loc:Loc 'Create new customer'}"
+                                                                         AddNewCommand="{Binding OpenCreateCustomerCommand}"
+                                                                         EmptyMessage="{loc:Loc 'No customers.'}"
+                                                                         EmptyCreateLinkText="{loc:Loc 'Create one'}"
+                                                                         EmptyCreateCommand="{Binding OpenCreateCustomerCommand}" />
+                                        </StackPanel>
+
+                                        <StackPanel IsVisible="{Binding !IsEditorPreviewing}">
+                                            <TextBlock Text="{loc:Loc 'ISSUE DATE'}" Classes="sidebar-label" />
+                                            <DatePicker SelectedDate="{Binding IssueDate}" Classes="form-datepicker" HorizontalAlignment="Stretch" />
+                                        </StackPanel>
+
+                                        <StackPanel IsVisible="{Binding !IsEditorPreviewing}">
+                                            <TextBlock Text="{loc:Loc 'VALID UNTIL'}" Classes="sidebar-label" />
+                                            <DatePicker SelectedDate="{Binding ValidUntil}" Classes="form-datepicker" HorizontalAlignment="Stretch" />
+                                        </StackPanel>
+
+                                        <!-- Line items, tax, shipping, discount and fees are edited directly
+                                             on the quote paper. -->
+
+                                        <!-- ===== Sending it ===== -->
+                                        <Border Background="{DynamicResource SurfaceAltBrush}"
+                                                BorderBrush="{DynamicResource BorderBrush}"
+                                                BorderThickness="1" CornerRadius="8" Padding="12">
+                                            <Border.IsVisible>
+                                                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                                    <Binding Path="IsEditorPreviewing" />
+                                                    <Binding Path="!IsPortalReady" />
+                                                </MultiBinding>
+                                            </Border.IsVisible>
+                                            <Grid ColumnDefinitions="Auto,8,*">
+                                                <PathIcon Grid.Column="0" Data="{x:Static icons:Icons.Info}" Width="14" Height="14"
+                                                          Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Top" Margin="0,1,0,0" />
+                                                <TextBlock Grid.Column="2" FontSize="12" TextWrapping="Wrap"
+                                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                                           Text="{loc:Loc 'Sending a quote needs the payment portal set up first: it hosts the page where your customer accepts or declines. You can still save this one as a draft.'}" />
+                                            </Grid>
+                                        </Border>
+
+                                        <StackPanel IsVisible="{Binding IsEditorPreviewing}">
+                                            <TextBlock Text="{loc:Loc 'SEND TO'}" Classes="sidebar-label" />
+                                            <TextBox Text="{Binding SendRecipientEmail, Mode=TwoWay}"
+                                                     Classes="form-input"
+                                                     PlaceholderText="customer@example.com" />
+                                        </StackPanel>
+
+                                        <StackPanel IsVisible="{Binding IsEditorPreviewing}" Spacing="6">
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <TextBlock Grid.Column="0" Text="{loc:Loc 'MESSAGE (OPTIONAL)'}" Classes="sidebar-label" />
+                                                <TextBlock Grid.Column="1" Text="{Binding SendMessageCounter}"
+                                                           FontSize="11" Margin="0,0,0,6"
+                                                           Foreground="{DynamicResource TextTertiaryBrush}" />
+                                            </Grid>
+                                            <TextBox Text="{Binding SendMessage, Mode=TwoWay}"
+                                                     Classes="form-input"
+                                                     AcceptsReturn="True"
+                                                     TextWrapping="Wrap"
+                                                     MinHeight="110"
+                                                     MaxHeight="180"
+                                                     MaxLength="500"
+                                                     PlaceholderText="{loc:Loc 'Add a line or two for your customer...'}" />
+                                            <TextBlock Text="{loc:Loc 'The rest of the email is written for you: your business name, the amount, the valid-until date and the link.'}"
+                                                       FontSize="11" TextWrapping="Wrap"
+                                                       Foreground="{DynamicResource TextTertiaryBrush}" />
+                                        </StackPanel>
+
+                                        <!-- Validation / send errors -->
+                                        <Border Background="{DynamicResource ErrorLightBrush}" BorderBrush="{DynamicResource ErrorBrush}"
+                                                BorderThickness="1" CornerRadius="6" Padding="10,8" IsVisible="{Binding HasValidationMessage}">
+                                            <TextBlock Text="{Binding ValidationMessage}" Foreground="{DynamicResource ErrorTextBrush}"
+                                                       FontSize="12" TextWrapping="Wrap" />
+                                        </Border>
+                                        <Border Background="{DynamicResource ErrorLightBrush}" BorderBrush="{DynamicResource ErrorBrush}"
+                                                BorderThickness="1" CornerRadius="6" Padding="10,8" IsVisible="{Binding HasSendError}">
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <TextBlock Grid.Column="0" Text="{Binding SendError}" Foreground="{DynamicResource ErrorTextBrush}"
+                                                           FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                                <Button Grid.Column="1" Classes="icon-button-small" Width="24" Height="24"
+                                                        Command="{Binding DismissSendErrorCommand}" VerticalAlignment="Center"
+                                                        ToolTip.Tip="{loc:Loc 'Dismiss'}">
+                                                    <PathIcon Data="{x:Static icons:Icons.Close}" Width="10" Height="10"
+                                                              Foreground="{DynamicResource ErrorTextBrush}" />
+                                                </Button>
+                                            </Grid>
+                                        </Border>
+
+                                        <!-- Actions -->
+                                        <StackPanel Spacing="8" Margin="0,4,0,0">
+                                            <Button Classes="primary-button" HorizontalAlignment="Stretch"
+                                                    Content="{loc:Loc 'Preview'}"
+                                                    Click="OnPreviewClick" IsVisible="{Binding !IsEditorPreviewing}" />
+                                            <Button Classes="secondary-button" HorizontalAlignment="Stretch"
+                                                    Content="{loc:Loc 'Save as draft'}"
+                                                    Click="OnSaveAsDraftClick" IsVisible="{Binding !IsEditorPreviewing}" />
+                                            <Button Classes="primary-button" HorizontalAlignment="Stretch"
+                                                    Command="{Binding SendQuoteCommand}"
+                                                    IsVisible="{Binding IsEditorPreviewing}"
+                                                    IsEnabled="{Binding IsPortalReady}">
+                                                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                                                    <PathIcon Data="{x:Static icons:Icons.Send}" Width="15" Height="15" />
+                                                    <TextBlock Text="{loc:Loc 'Send quote'}" />
+                                                </StackPanel>
+                                            </Button>
+                                            <Button Classes="secondary-button" HorizontalAlignment="Stretch"
+                                                    Content="{loc:Loc 'Save as draft'}"
+                                                    Click="OnSaveAsDraftClick" IsVisible="{Binding IsEditorPreviewing}" />
+                                            <Button Classes="secondary-button" HorizontalAlignment="Stretch"
+                                                    Content="{loc:Loc 'Back to edit'}"
+                                                    Command="{Binding BackToEditorCommand}" IsVisible="{Binding IsEditorPreviewing}" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </Border>
+                        </Grid>
+                    </Grid>
+                </Border>
+
+                <!-- Sending / success: a normal-sized centered card, not the full editor width. -->
+                <Border Width="440" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="24"
+                        Background="{DynamicResource SurfaceBrush}" CornerRadius="12" ClipToBounds="True"
+                        BoxShadow="0 8 32 0 #40000000">
+                    <Border.IsVisible>
+                        <MultiBinding Converter="{x:Static BoolConverters.Or}">
+                            <Binding Path="IsSendSuccess" />
+                            <Binding Path="IsSending" />
+                        </MultiBinding>
+                    </Border.IsVisible>
+                    <Panel MinHeight="300">
+                        <!-- Success. The wording changes when the server kept an answer the customer
+                             had already given and emailed nobody. -->
+                        <controls:SuccessAnimation Title="{Binding SendSuccessTitle, Converter={StaticResource TranslateConverter}}"
+                                                   Message="{Binding SendSuccessDetail, Converter={StaticResource TranslateConverter}}"
+                                                   ShowContinueButton="True"
+                                                   ContinueButtonText="{loc:Loc Done}"
+                                                   ContinueButtonDelayMs="300"
+                                                   ContinueCommand="{Binding CloseEditorCommand}"
+                                                   IsPlaying="{Binding IsSendSuccess}"
+                                                   IsVisible="{Binding IsSendSuccess}" />
+                        <!-- Sending -->
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="20" Margin="24"
+                                    IsVisible="{Binding IsSending}">
+                            <ProgressBar IsIndeterminate="True" Width="220" Height="4" />
+                            <TextBlock Text="{loc:Loc 'Sending quote...'}" FontSize="16" FontWeight="Medium"
+                                       Foreground="{DynamicResource TextPrimaryBrush}" HorizontalAlignment="Center" />
+                            <TextBlock Text="{loc:Loc 'Publishing to the portal and emailing your customer.'}" FontSize="13"
+                                       Foreground="{DynamicResource TextSecondaryBrush}" HorizontalAlignment="Center"
+                                       TextAlignment="Center" MaxWidth="320" TextWrapping="Wrap" />
+                            <Button Classes="secondary-button" HorizontalAlignment="Center"
+                                    Content="{loc:Loc 'Cancel'}" Command="{Binding CancelSendCommand}" />
+                        </StackPanel>
+                    </Panel>
+                </Border>
+                </Panel>
+            </controls:ModalOverlay.ModalContent>
+        </controls:ModalOverlay>
+
+        <!-- View Quote Modal -->
+        <controls:ModalOverlay IsOpen="{Binding IsViewModalOpen}"
+                               ClosingCommand="{Binding CloseViewModalCommand}">
+            <controls:ModalOverlay.ModalContent>
+                <Border Classes="modal-card"
+                        Width="900"
+                        Height="760">
+                    <Grid RowDefinitions="Auto,*,Auto">
+                        <controls:ModalHeader Grid.Row="0"
+                                              Title="{loc:Loc 'Quote Details'}"
+                                              CloseCommand="{Binding CloseViewModalCommand}">
+                            <TextBlock DataContext="{Binding ViewingQuote}" x:CompileBindings="False"
+                                       Text="{Binding QuoteNumber}"
+                                       FontSize="13"
+                                       FontFamily="Consolas, monospace"
+                                       Foreground="{DynamicResource PrimaryBrush}" />
+                        </controls:ModalHeader>
+
+                        <!-- The quote exactly as the customer sees it -->
+                        <controls:InvoicePreviewControl Grid.Row="1"
+                                                        Html="{Binding ViewPreviewHtml}"
+                                                        IsVisible="{Binding IsViewModalOpen}"
+                                                        OpenInBrowserCommand="{Binding OpenViewInBrowserCommand}" />
+
+                        <Border Classes="modal-footer" Grid.Row="2">
+                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                <Button Grid.Column="0" Classes="secondary-button" Command="{Binding OpenViewInBrowserCommand}">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <PathIcon Data="{x:Static icons:Icons.OpenExternal}" Width="14" Height="14" />
+                                        <TextBlock Text="{loc:Loc 'Open in Browser'}" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Grid.Column="2" Classes="secondary-button" Content="{loc:Loc 'Close'}" Command="{Binding CloseViewModalCommand}" />
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Border>
+            </controls:ModalOverlay.ModalContent>
+        </controls:ModalOverlay>
+
+        <!-- Filter Modal -->
+        <controls:ModalOverlay IsOpen="{Binding IsFilterModalOpen}"
+                               ClosingCommand="{Binding RequestCloseFilterModalCommand}">
+            <controls:ModalOverlay.ModalContent>
+                <Border Classes="modal-card" Width="480">
+                    <StackPanel>
+                        <controls:ModalHeader Title="{loc:Loc 'Filter Quotes'}"
+                                              CloseCommand="{Binding RequestCloseFilterModalCommand}" />
+
+                        <StackPanel Spacing="16" Margin="24">
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="{loc:Loc 'Date Range'}"
+                                           FontSize="13"
+                                           FontWeight="Medium"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                                <Grid ColumnDefinitions="*,8,*">
+                                    <StackPanel Grid.Column="0" Spacing="4">
+                                        <TextBlock Text="{loc:Loc 'From'}" FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}" />
+                                        <DatePicker SelectedDate="{Binding FilterStartDate}" Classes="form-datepicker" MinWidth="0" HorizontalAlignment="Stretch" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2" Spacing="4">
+                                        <TextBlock Text="{loc:Loc 'To'}" FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}" />
+                                        <DatePicker SelectedDate="{Binding FilterEndDate}" Classes="form-datepicker" MinWidth="0" HorizontalAlignment="Stretch" />
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="{loc:Loc 'Customer'}"
+                                           FontSize="13"
+                                           FontWeight="Medium"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                                <controls:SearchableDropdown ItemsSource="{Binding FilterCustomerOptions}"
+                                                             SelectedItem="{Binding FilterCustomer}"
+                                                             Placeholder="{loc:Loc 'Search customers...'}" />
+                            </StackPanel>
+
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="{loc:Loc 'Status'}"
+                                           FontSize="13"
+                                           FontWeight="Medium"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                                <ComboBox ItemsSource="{Binding FilterStatusOptions}"
+                                          SelectedItem="{Binding FilterStatus}"
+                                          Classes="form-combobox"
+                                          HorizontalAlignment="Stretch">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Converter={StaticResource TranslateConverter}}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <Border Classes="modal-footer">
+                            <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                                <Button Grid.Column="0"
+                                        Content="{loc:Loc 'Clear filters'}"
+                                        Classes="secondary-button"
+                                        HorizontalAlignment="Left"
+                                        Command="{Binding ClearFiltersCommand}" />
+                                <Button Grid.Column="2"
+                                        Content="{loc:Loc 'Cancel'}"
+                                        Classes="secondary-button"
+                                        Margin="0,0,12,0"
+                                        Command="{Binding RequestCloseFilterModalCommand}" />
+                                <Button Grid.Column="3"
+                                        Content="{loc:Loc 'Apply Filters'}"
+                                        Classes="primary-button"
+                                        Command="{Binding ApplyFiltersCommand}" />
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </Border>
+            </controls:ModalOverlay.ModalContent>
+        </controls:ModalOverlay>
+
+    </Panel>
+</UserControl>

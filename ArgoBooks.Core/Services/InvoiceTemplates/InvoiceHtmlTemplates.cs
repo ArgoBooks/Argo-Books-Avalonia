@@ -18,7 +18,7 @@ public static class InvoiceHtmlTemplates
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light">
-    <title>Invoice {{InvoiceNumber}}</title>
+    <title>{{DocumentName}} {{InvoiceNumber}}</title>
 </head>
 <body style="margin: 0; padding: 0; font-family: {{FontFamily}}; background-color: #f3f4f6;">
     <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f3f4f6;">
@@ -62,7 +62,7 @@ public static class InvoiceHtmlTemplates
                                     <td style="vertical-align: top; text-align: right;">
                                         <table role="presentation" cellpadding="0" cellspacing="0" style="margin-left: auto;">
                                             <tr>
-                                                <td style="padding: 4px 15px 4px 0; font-size: 13px; color: #6b7280;">Invoice #</td>
+                                                <td style="padding: 4px 15px 4px 0; font-size: 13px; color: #6b7280;">{{NumberLabel}}</td>
                                                 <td style="padding: 4px 0; font-size: 13px; font-weight: 600; color: {{TextColor}};">{{InvoiceNumber}}</td>
                                             </tr>
                                             <tr>
@@ -70,14 +70,14 @@ public static class InvoiceHtmlTemplates
                                                 <td style="padding: 4px 0; font-size: 13px; color: {{TextColor}};"><span data-field="issueDate" data-iso="{{IssueDateIso}}">{{IssueDate}}</span></td>
                                             </tr>
                                             <tr>
-                                                <td style="padding: 4px 15px 4px 0; font-size: 13px; color: #6b7280;">Due Date</td>
+                                                <td style="padding: 4px 15px 4px 0; font-size: 13px; color: #6b7280;">{{DueDateLabel}}</td>
                                                 <td style="padding: 4px 0; font-size: 13px; {{#IsOverdue}}color: #dc2626; font-weight: 600;{{/IsOverdue}}{{^IsOverdue}}color: {{TextColor}};{{/IsOverdue}}"><span data-field="dueDate" data-iso="{{DueDateIso}}">{{DueDate}}</span></td>
                                             </tr>
                                             {{#ShowDueDateProminent}}
                                             <tr>
                                                 <td colspan="2" style="padding-top: 10px;">
                                                     <span style="display: inline-block; background-color: {{#IsOverdue}}#fef2f2{{/IsOverdue}}{{^IsOverdue}}#f0fdf4{{/IsOverdue}}; color: {{#IsOverdue}}#dc2626{{/IsOverdue}}{{^IsOverdue}}{{AccentColor}}{{/IsOverdue}}; padding: 6px 12px; border-radius: 4px; font-size: 12px; font-weight: 600;">
-                                                        {{#IsOverdue}}OVERDUE{{/IsOverdue}}{{^IsOverdue}}DUE: {{DueDate}}{{/IsOverdue}}
+                                                        {{#IsOverdue}}OVERDUE{{/IsOverdue}}{{^IsOverdue}}{{DueLabelShortUpper}}: {{DueDate}}{{/IsOverdue}}
                                                     </span>
                                                 </td>
                                             </tr>
@@ -224,7 +224,7 @@ public static class InvoiceHtmlTemplates
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light">
-    <title>Invoice {{InvoiceNumber}}</title>
+    <title>{{DocumentName}} {{InvoiceNumber}}</title>
 </head>
 <body style="margin: 0; padding: 0; font-family: {{FontFamily}}; background-color: #f0f4f8;">
     <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f0f4f8;">
@@ -279,14 +279,14 @@ public static class InvoiceHtmlTemplates
                                                             <td style="padding: 4px 0; font-size: 13px; font-weight: 500; color: {{TextColor}}; text-align: right;"><span data-field="issueDate" data-iso="{{IssueDateIso}}">{{IssueDate}}</span></td>
                                                         </tr>
                                                         <tr>
-                                                            <td style="padding: 4px 0; font-size: 12px; color: #6b7280;">Due Date</td>
+                                                            <td style="padding: 4px 0; font-size: 12px; color: #6b7280;">{{DueDateLabel}}</td>
                                                             <td style="padding: 4px 0; font-size: 13px; font-weight: 500; text-align: right; {{#IsOverdue}}color: #dc2626;{{/IsOverdue}}{{^IsOverdue}}color: {{TextColor}};{{/IsOverdue}}"><span data-field="dueDate" data-iso="{{DueDateIso}}">{{DueDate}}</span></td>
                                                         </tr>
                                                         {{#ShowDueDateProminent}}
                                                         <tr>
                                                             <td colspan="2" style="padding-top: 10px;">
                                                                 <span style="display: inline-block; width: 100%; text-align: center; background-color: {{#IsOverdue}}#fef2f2{{/IsOverdue}}{{^IsOverdue}}{{BackgroundColor}}{{/IsOverdue}}; color: {{#IsOverdue}}#dc2626{{/IsOverdue}}{{^IsOverdue}}{{PrimaryColor}}{{/IsOverdue}}; padding: 8px 0; border-radius: 4px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
-                                                                    {{#IsOverdue}}⚠ Overdue{{/IsOverdue}}{{^IsOverdue}}Due: {{DueDate}}{{/IsOverdue}}
+                                                                    {{#IsOverdue}}⚠ Overdue{{/IsOverdue}}{{^IsOverdue}}{{DueLabelShort}}: {{DueDate}}{{/IsOverdue}}
                                                                 </span>
                                                             </td>
                                                         </tr>
@@ -449,7 +449,7 @@ public static class InvoiceHtmlTemplates
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light">
-    <title>Invoice {{InvoiceNumber}}</title>
+    <title>{{DocumentName}} {{InvoiceNumber}}</title>
 </head>
 <body style="margin: 0; padding: 0; font-family: {{FontFamily}}; background-color: #ffffff;">
     <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color: #ffffff;">
@@ -474,9 +474,9 @@ public static class InvoiceHtmlTemplates
                                     </td>
                                     <td style="width: 40%; text-align: right; vertical-align: top;">
                                         <p style="margin: 0; font-size: 28px; font-weight: bold; color: {{HeaderColor}};">{{HeaderText}}</p>
-                                        <p style="margin: 10px 0 0 0; font-size: 14px; color: {{TextColor}};"><strong>Invoice #:</strong> {{InvoiceNumber}}</p>
+                                        <p style="margin: 10px 0 0 0; font-size: 14px; color: {{TextColor}};"><strong>{{NumberLabel}}:</strong> {{InvoiceNumber}}</p>
                                         <p style="margin: 5px 0 0 0; font-size: 14px; color: {{TextColor}};"><strong>Date:</strong> <span data-field="issueDate" data-iso="{{IssueDateIso}}">{{IssueDate}}</span></p>
-                                        <p style="margin: 5px 0 0 0; font-size: 14px; {{#IsOverdue}}color: #dc2626;{{/IsOverdue}}{{^IsOverdue}}color: {{TextColor}};{{/IsOverdue}}"><strong>Due:</strong> <span data-field="dueDate" data-iso="{{DueDateIso}}">{{DueDate}}</span></p>
+                                        <p style="margin: 5px 0 0 0; font-size: 14px; {{#IsOverdue}}color: #dc2626;{{/IsOverdue}}{{^IsOverdue}}color: {{TextColor}};{{/IsOverdue}}"><strong>{{DueLabelShort}}:</strong> <span data-field="dueDate" data-iso="{{DueDateIso}}">{{DueDate}}</span></p>
                                     </td>
                                 </tr>
                             </table>
@@ -628,7 +628,7 @@ public static class InvoiceHtmlTemplates
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light">
-    <title>Invoice {{InvoiceNumber}}</title>
+    <title>{{DocumentName}} {{InvoiceNumber}}</title>
 </head>
 <body style="margin: 0; padding: 0; font-family: {{FontFamily}}; background-color: #f8f9fa;">
     <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f8f9fa;">
@@ -928,17 +928,17 @@ public static class InvoiceHtmlTemplates
                 <div style="flex: 0.2;"></div>
                 <div style="flex: 1.4;">
                     <div style="display: grid; grid-template-columns: auto 1fr; gap: 5px 20px;">
-                        <span style="font-weight: bold; color: {{HeaderColor}}; font-size: 16px; text-transform: uppercase; white-space: nowrap;">Receipt #</span>
+                        <span style="font-weight: bold; color: {{HeaderColor}}; font-size: 16px; text-transform: uppercase; white-space: nowrap;">{{ReceiptNumberLabel}}</span>
                         <span style="text-align: right; color: {{TextColor}}; font-size: 14px; white-space: nowrap;">{{InvoiceNumber}}</span>
                         <span style="font-weight: bold; color: {{HeaderColor}}; font-size: 16px; text-transform: uppercase; white-space: nowrap;">Receipt Date</span>
                         <span style="text-align: right; color: {{TextColor}}; font-size: 14px; white-space: nowrap;"><span data-field="issueDate" data-iso="{{IssueDateIso}}">{{IssueDate}}</span></span>
-                        <span style="font-weight: bold; color: {{HeaderColor}}; font-size: 16px; text-transform: uppercase; white-space: nowrap;">Due Date</span>
+                        <span style="font-weight: bold; color: {{HeaderColor}}; font-size: 16px; text-transform: uppercase; white-space: nowrap;">{{DueDateLabel}}</span>
                         <span style="text-align: right; font-size: 14px; white-space: nowrap; {{#IsOverdue}}color: #dc2626; font-weight: bold;{{/IsOverdue}}{{^IsOverdue}}color: {{TextColor}};{{/IsOverdue}}"><span data-field="dueDate" data-iso="{{DueDateIso}}">{{DueDate}}</span></span>
                     </div>
                     {{#ShowDueDateProminent}}
                     <div style="text-align: right; margin-top: 10px;">
                         <span style="display: inline-block; background-color: {{#IsOverdue}}#fef2f2{{/IsOverdue}}{{^IsOverdue}}#f0fdf4{{/IsOverdue}}; color: {{#IsOverdue}}#dc2626{{/IsOverdue}}{{^IsOverdue}}{{AccentColor}}{{/IsOverdue}}; padding: 6px 12px; border-radius: 4px; font-size: 12px; font-weight: 600;">
-                            {{#IsOverdue}}OVERDUE{{/IsOverdue}}{{^IsOverdue}}DUE: {{DueDate}}{{/IsOverdue}}
+                            {{#IsOverdue}}OVERDUE{{/IsOverdue}}{{^IsOverdue}}{{DueLabelShortUpper}}: {{DueDate}}{{/IsOverdue}}
                         </span>
                     </div>
                     {{/ShowDueDateProminent}}
