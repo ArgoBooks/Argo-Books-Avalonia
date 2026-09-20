@@ -2441,14 +2441,11 @@ public partial class InvoiceModalsViewModel : ViewModelBase
     [RelayCommand]
     private async Task SaveAsDraft()
     {
-        // Validation - less strict for drafts
-        if (SelectedCustomer == null || string.IsNullOrEmpty(SelectedCustomer.Id))
-        {
-            HasCustomerError = true;
-            ValidationMessage = "Please select a customer.".Translate();
-            HasValidationMessage = true;
-            return;
-        }
+        // A draft goes to nobody, so nothing is required to save one. The customer and the
+        // rest are checked on the send instead.
+        HasCustomerError = false;
+        ValidationMessage = string.Empty;
+        HasValidationMessage = false;
 
         var companyData = App.CompanyManager?.CompanyData;
         if (companyData == null) return;
@@ -2480,7 +2477,7 @@ public partial class InvoiceModalsViewModel : ViewModelBase
         if (existingDraft != null)
         {
             invoice = existingDraft;
-            invoice.CustomerId = SelectedCustomer!.Id!;
+            invoice.CustomerId = SelectedCustomer?.Id ?? string.Empty;
             invoice.IssueDate = ModalIssueDate?.DateTime ?? DateTime.Now;
             invoice.DueDate = ModalDueDate?.DateTime ?? DateTime.Now.AddMonths(1);
             invoice.TaxRate = TaxRate;
@@ -2502,7 +2499,7 @@ public partial class InvoiceModalsViewModel : ViewModelBase
             {
                 Id = idGenerator.NextInvoiceId(),
                 InvoiceNumber = idGenerator.NextInvoiceNumber(),
-                CustomerId = SelectedCustomer!.Id!,
+                CustomerId = SelectedCustomer?.Id ?? string.Empty,
                 IssueDate = ModalIssueDate?.DateTime ?? DateTime.Now,
                 DueDate = ModalDueDate?.DateTime ?? DateTime.Now.AddMonths(1),
                 TaxRate = TaxRate,
