@@ -296,6 +296,6 @@ public class RecentCompanyItem
     public bool HasLogo => Logo != null;
 
     /// <summary>Stands in for a missing logo, the same as the company tile inside the app.</summary>
-    public string Initial => string.IsNullOrWhiteSpace(Name) ? "?" : Name.Trim()[..1].ToUpperInvariant();
+    public string Initial => Helpers.InitialsHelper.From(Name);
     public DateTime LastOpened { get; set; } = DateTime.Now;
 }

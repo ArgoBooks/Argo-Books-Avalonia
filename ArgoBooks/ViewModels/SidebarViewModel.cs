@@ -39,7 +39,7 @@ public partial class SidebarViewModel : ViewModelBase
     private string? _companyName = "Argo Books";
 
     [ObservableProperty]
-    private string _companyInitial = "A";
+    private string _companyInitial = "AB";
 
     [ObservableProperty]
     private Bitmap? _companyLogo;
@@ -224,7 +224,7 @@ public partial class SidebarViewModel : ViewModelBase
     /// </summary>
     partial void OnCompanyNameChanged(string? value)
     {
-        CompanyInitial = string.IsNullOrEmpty(value) ? "A" : value[0].ToString().ToUpper();
+        CompanyInitial = Helpers.InitialsHelper.From(value);
     }
 
     /// <summary>

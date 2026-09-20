@@ -19,7 +19,7 @@ public partial class CompanySwitcherPanelViewModel : ViewModelBase
     private string _currentCompanyName = "Argo Books";
 
     [ObservableProperty]
-    private string _currentCompanyInitial = "A";
+    private string _currentCompanyInitial = "AB";
 
     [ObservableProperty]
     private Bitmap? _currentCompanyLogo;
@@ -58,19 +58,19 @@ public partial class CompanySwitcherPanelViewModel : ViewModelBase
         RecentCompanies.Add(new CompanyItem
         {
             Name = "My Company Inc.",
-            Initial = "M",
+            Initial = "MC",
             FilePath = "/path/to/my-company.argo"
         });
         RecentCompanies.Add(new CompanyItem
         {
             Name = "Side Business LLC",
-            Initial = "S",
+            Initial = "SB",
             FilePath = "/path/to/side-business.argo"
         });
         RecentCompanies.Add(new CompanyItem
         {
             Name = "Consulting Services",
-            Initial = "C",
+            Initial = "CO",
             FilePath = "/path/to/consulting.argo"
         });
     }
@@ -162,7 +162,7 @@ public partial class CompanySwitcherPanelViewModel : ViewModelBase
     public void SetCurrentCompany(string name, string? path = null, Bitmap? logo = null)
     {
         CurrentCompanyName = name;
-        CurrentCompanyInitial = string.IsNullOrEmpty(name) ? "A" : name[0].ToString().ToUpper();
+        CurrentCompanyInitial = Helpers.InitialsHelper.From(name);
         CurrentCompanyPath = path;
         CurrentCompanyLogo = logo;
         HasCurrentCompanyLogo = logo != null;
@@ -184,7 +184,7 @@ public partial class CompanySwitcherPanelViewModel : ViewModelBase
         RecentCompanies.Insert(0, new CompanyItem
         {
             Name = name,
-            Initial = string.IsNullOrEmpty(name) ? "?" : name[0].ToString().ToUpper(),
+            Initial = Helpers.InitialsHelper.From(name),
             FilePath = filePath,
             Logo = logo
         });
