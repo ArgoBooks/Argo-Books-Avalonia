@@ -109,21 +109,6 @@
                                         </StackPanel>
 
                                         <StackPanel IsVisible="{Binding !IsEditorPreviewing}">
-                                            <TextBlock Text="{loc:Loc 'CUSTOMER'}" Classes="sidebar-label" />
-                                            <controls:SearchableDropdown ItemsSource="{Binding CustomerOptions}"
-                                                                         SelectedItem="{Binding SelectedCustomer}"
-                                                                         DisplayMemberPath="Name"
-                                                                         SearchMemberPath="Id"
-                                                                         Placeholder="{loc:Loc 'Search customers...'}"
-                                                                         ShowAddNew="True"
-                                                                         AddNewText="{loc:Loc 'Create new customer'}"
-                                                                         AddNewCommand="{Binding OpenCreateCustomerCommand}"
-                                                                         EmptyMessage="{loc:Loc 'No customers.'}"
-                                                                         EmptyCreateLinkText="{loc:Loc 'Create one'}"
-                                                                         EmptyCreateCommand="{Binding OpenCreateCustomerCommand}" />
-                                        </StackPanel>
-
-                                        <StackPanel IsVisible="{Binding !IsEditorPreviewing}">
                                             <TextBlock Text="{loc:Loc 'ISSUE DATE'}" Classes="sidebar-label" />
                                             <DatePicker SelectedDate="{Binding IssueDate}" Classes="form-datepicker" HorizontalAlignment="Stretch" />
                                         </StackPanel>

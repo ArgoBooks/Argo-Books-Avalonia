@@ -359,12 +359,28 @@ public partial class QuotesPageViewModel : SortablePageViewModelBase
         App.QuotesModalsViewModel?.OpenEditorFor(item);
     }
 
+    /// <summary>
+    /// Sends a quote for the first time, or resends one the customer already has. A resend has
+    /// nothing to fill in, so it asks in a message box rather than reopening the editor.
+    /// </summary>
     [RelayCommand]
-    private void SendQuote(QuoteDisplayItem? item)
+    private async Task SendQuoteAsync(QuoteDisplayItem? item)
     {
         if (item == null) return;
+
+        if (item.HasBeenPublished)
+        {
+            if (App.QuotesModalsViewModel is { } modals)
+                await modals.ResendQuoteAsync(item);
+            return;
+        }
+
         App.QuotesModalsViewModel?.OpenEditorForSend(item);
     }
+
+    /// <summary>Quotes render with the invoice templates, so this is the same designer.</summary>
+    [RelayCommand]
+    private void OpenTemplateDesigner() => App.InvoiceTemplateDesignerViewModel?.OpenTemplateList();
 
     [RelayCommand]
     private void OpenDeleteConfirm(QuoteDisplayItem? item)
@@ -374,16 +390,20 @@ public partial class QuotesPageViewModel : SortablePageViewModelBase
     }
 
     [RelayCommand]
-    private void MarkAccepted(QuoteDisplayItem? item) => SetStatus(item, QuoteStatus.Accepted);
+    private Task MarkAcceptedAsync(QuoteDisplayItem? item) => SetStatusAsync(item, QuoteStatus.Accepted);
 
     [RelayCommand]
-    private void MarkDeclined(QuoteDisplayItem? item) => SetStatus(item, QuoteStatus.Declined);
+    private Task MarkDeclinedAsync(QuoteDisplayItem? item) => SetStatusAsync(item, QuoteStatus.Declined);
 
     /// <summary>
     /// Records an answer the customer gave off the portal (over the phone, by reply). Mirrors what
     /// a synced answer writes, so the two look the same afterwards.
     /// </summary>
-    private void SetStatus(QuoteDisplayItem? item, QuoteStatus status)
+    /// <remarks>
+    /// Asks first: this is the user speaking for the customer, and on a quote that already has an
+    /// answer it replaces one.
+    /// </remarks>
+    private async Task SetStatusAsync(QuoteDisplayItem? item, QuoteStatus status)
     {
         if (item == null) return;
 
@@ -394,6 +414,8 @@ public partial class QuotesPageViewModel : SortablePageViewModelBase
         var oldStatus = quote.Status;
         var oldRespondedAt = quote.RespondedAt;
         if (oldStatus == status) return;
+
+        if (!await ConfirmAnswerAsync(item, quote, status, oldStatus)) return;
 
         quote.Status = status;
         quote.RespondedAt = DateTime.UtcNow;
@@ -423,6 +445,37 @@ public partial class QuotesPageViewModel : SortablePageViewModelBase
             }));
 
         LoadQuotes();
+    }
+
+    /// <summary>
+    /// Confirms recording an answer by hand, naming the quote and who it is for. Nothing is
+    /// emailed either way, so the dialog says where the answer is going.
+    /// </summary>
+    private static Task<bool> ConfirmAnswerAsync(
+        QuoteDisplayItem item, Quote quote, QuoteStatus status, QuoteStatus oldStatus)
+    {
+        var accepting = status == QuoteStatus.Accepted;
+        var who = string.IsNullOrWhiteSpace(item.CustomerName) ? "the customer".Translate() : item.CustomerName;
+        var amount = CurrencyService.Format(quote.Total, includeCode: true);
+
+        var message = (accepting
+                ? "Record that {0} accepted quote {1} for {2}?"
+                : "Record that {0} declined quote {1} for {2}?")
+            .TranslateFormat(who, item.QuoteNumber, amount);
+        message += "\n\n" + "Nothing is emailed. Use this when they gave you their answer directly, rather than on the quote page.".Translate();
+
+        if (oldStatus is QuoteStatus.Accepted or QuoteStatus.Declined)
+        {
+            message += "\n\n" + (oldStatus == QuoteStatus.Accepted
+                ? "This replaces the accepted answer already on the quote."
+                : "This replaces the declined answer already on the quote.").Translate();
+        }
+
+        return App.ConfirmMessageBoxAsync(
+            (accepting ? "Mark as accepted?" : "Mark as declined?").Translate(),
+            message,
+            (accepting ? "Mark accepted" : "Mark declined").Translate(),
+            "Cancel".Translate());
     }
 
     /// <summary>
@@ -476,9 +529,11 @@ public partial class QuotesPageViewModel : SortablePageViewModelBase
 
         LoadQuotes();
 
-        // Hand the user straight to the draft so they can check it before it goes anywhere.
+        // Hand the user straight to the draft, open for editing, so they can adjust it and send it
+        // rather than only look at it.
         App.NavigationService?.NavigateTo("Invoices", new TransactionNavigationParameter(invoice.Id));
-        Avalonia.Threading.Dispatcher.UIThread.Post(() => App.InvoiceModalsViewModel?.OpenViewInvoice(invoice.Id));
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            App.InvoiceModalsViewModel?.ContinueDraftInvoice(new InvoiceDisplayItem { Id = invoice.Id }));
     }
 
     #endregion

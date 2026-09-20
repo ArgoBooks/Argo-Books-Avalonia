@@ -79,6 +79,22 @@
                                  EmptyTitle="{loc:Loc 'No quotes found'}"
                                  EmptyMessage="{loc:Loc 'Quotes let you price work before you invoice it. Nothing here counts as income until you convert it.'}">
 
+                    <!-- Quotes use the same templates as invoices, so this opens the same designer. -->
+                    <table:ArgoTable.ExtraButtonsContent>
+                        <Button Classes="secondary-button"
+                                Classes.compact="{Binding $parent[table:ArgoTable].IsCompactMode}"
+                                Classes.medium="{Binding $parent[table:ArgoTable].IsMediumMode}"
+                                Command="{Binding OpenTemplateDesignerCommand}"
+                                ToolTip.Tip="{loc:Loc 'Templates'}">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <PathIcon Data="{x:Static icons:Icons.DocumentList}"
+                                          Width="16" Height="16" />
+                                <TextBlock Text="{loc:Loc Templates}"
+                                           IsVisible="{Binding $parent[table:ArgoTable].ShowButtonText}" />
+                            </StackPanel>
+                        </Button>
+                    </table:ArgoTable.ExtraButtonsContent>
+
                     <table:ArgoTable.HeaderContent>
                         <StackPanel Orientation="Horizontal">
                             <table:ArgoTableHeader Header="{loc:Loc 'Quote #'}" ColumnName="QuoteNumber" SortProperty="QuoteNumber"

@@ -493,6 +493,37 @@ public partial class QuotesModalsViewModel : ViewModelBase
     }
 
     /// <summary>
+    /// The checks a quote must pass before a customer can receive it. Separate from saving so the
+    /// send can complain, and be confirmed, before anything is written.
+    /// </summary>
+    private bool ValidateForSend()
+    {
+        ValidationMessage = string.Empty;
+        HasCustomerError = false;
+
+        var errors = new List<string>();
+
+        if (SelectedCustomer == null || string.IsNullOrEmpty(SelectedCustomer.Id))
+        {
+            HasCustomerError = true;
+            errors.Add("Choose a customer in the Bill To box.".Translate());
+        }
+
+        // A line the user never filled in is not an error, it is an empty row on the paper.
+        // Only the absence of ANY priced line is.
+        if (BuildLineItems().Count == 0)
+            errors.Add("Add at least one line with a description.".Translate());
+
+        if (ValidUntil?.DateTime.Date < IssueDate?.DateTime.Date)
+            errors.Add("The valid-until date cannot be before the issue date.".Translate());
+
+        if (errors.Count == 0) return true;
+
+        ValidationMessage = string.Join("\n", errors);
+        return false;
+    }
+
+    /// <summary>
     /// Persists the quote. Returns the saved id, or null when it could not be saved.
     /// </summary>
     /// <param name="validate">
@@ -501,34 +532,12 @@ public partial class QuotesModalsViewModel : ViewModelBase
     /// </param>
     private string? TrySaveQuote(bool validate = true)
     {
+        if (validate && !ValidateForSend()) return null;
+
         ValidationMessage = string.Empty;
         HasCustomerError = false;
 
-        var errors = new List<string>();
         var lines = BuildLineItems();
-
-        if (validate)
-        {
-            if (SelectedCustomer == null || string.IsNullOrEmpty(SelectedCustomer.Id))
-            {
-                HasCustomerError = true;
-                errors.Add("Choose a customer in the Bill To box.".Translate());
-            }
-
-            // A line the user never filled in is not an error, it is an empty row on the paper.
-            // Only the absence of ANY priced line is.
-            if (lines.Count == 0)
-                errors.Add("Add at least one line with a description.".Translate());
-
-            if (ValidUntil?.DateTime.Date < IssueDate?.DateTime.Date)
-                errors.Add("The valid-until date cannot be before the issue date.".Translate());
-        }
-
-        if (errors.Count > 0)
-        {
-            ValidationMessage = string.Join("\n", errors);
-            return null;
-        }
 
         var companyData = App.CompanyManager?.CompanyData;
         if (companyData == null) return null;
@@ -1273,8 +1282,26 @@ public partial class QuotesModalsViewModel : ViewModelBase
             return;
         }
 
-        // Save what is on the paper first, so the stored quote and the emailed one can never
-        // disagree. Validation failures land in the sidebar as usual.
+        // Check the paper before asking, so the dialog is never followed by a complaint.
+        if (!ValidateForSend()) return;
+
+        // Confirm before anything is written: saying no to a brand new quote must leave no row
+        // behind on the list. The figures come from the editor, which is what the user is
+        // looking at and what is about to be saved.
+        //
+        // Sending over an answer the customer already gave is destructive, and the server only
+        // does it when the request says so. This confirmation is what says so.
+        var existing = IsEditMode && !string.IsNullOrEmpty(_editingQuoteId)
+            ? companyData.Quotes.FirstOrDefault(q => q.Id == _editingQuoteId)
+            : null;
+        var currentStatus = existing?.Status ?? QuoteStatus.Draft;
+        var isRevision = currentStatus is QuoteStatus.Accepted or QuoteStatus.Declined;
+        if (!await ConfirmSendAsync(
+                SelectedCustomer?.Name ?? string.Empty, recipient,
+                BuildPreviewQuote().Total, isRevision, currentStatus))
+            return;
+
+        // Save what is on the paper, so the stored quote and the emailed one can never disagree.
         var savedId = TrySaveQuote();
         if (savedId == null) return;
 
@@ -1288,12 +1315,6 @@ public partial class QuotesModalsViewModel : ViewModelBase
         _editingQuoteId = savedId;
         IsEditMode = true;
         _original = Capture();
-
-        // Sending over an answer the customer already gave is destructive, and the server only
-        // does it when the request says so. The confirmation below is what says so.
-        var isRevision = quote.Status is QuoteStatus.Accepted or QuoteStatus.Declined;
-        if (!await ConfirmSendAsync(SelectedCustomer?.Name ?? string.Empty, recipient, quote.Total, isRevision, quote.Status))
-            return;
 
         // Save the address the user actually typed, so the next send starts there.
         var customer = companyData.GetCustomer(quote.CustomerId);
@@ -1353,6 +1374,89 @@ public partial class QuotesModalsViewModel : ViewModelBase
         finally
         {
             IsSending = false;
+        }
+    }
+
+    /// <summary>
+    /// Sends a quote the customer already has again, without opening the editor. The paper is
+    /// unchanged and goes to the address already on the customer, so there is nothing to fill in
+    /// first: a confirmation is the whole flow, the same as resending an invoice.
+    /// </summary>
+    public async Task ResendQuoteAsync(QuoteDisplayItem item)
+    {
+        var companyData = App.CompanyManager?.CompanyData;
+        var quote = companyData?.Quotes.FirstOrDefault(q => q.Id == item.Id);
+        if (companyData == null || quote == null) return;
+
+        var portalService = PortalSettings.IsConfigured ? App.PaymentPortalService : null;
+        if (portalService == null)
+        {
+            await App.ShowInfoMessageBoxAsync(
+                "Payment portal not connected".Translate(),
+                "Connect the payment portal in Settings to send quotes.".Translate());
+            return;
+        }
+
+        var customer = companyData.GetCustomer(quote.CustomerId);
+        var recipient = customer?.Email?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(recipient))
+        {
+            await App.ShowErrorMessageBoxAsync(
+                "No email address".Translate(),
+                "This quote's customer has no email address, so there is nowhere to send it.".Translate());
+            return;
+        }
+
+        // Sending over an answer the customer already gave is destructive, and the server only
+        // does it when the request says so. The confirmation below is what says so.
+        var isRevision = quote.Status is QuoteStatus.Accepted or QuoteStatus.Declined;
+        if (!await ConfirmSendAsync(customer?.Name ?? item.CustomerName, recipient, quote.Total, isRevision, quote.Status))
+            return;
+
+        App.ShowBusyOverlay("Sending quote...".Translate());
+        try
+        {
+            var template = ResolveTemplate(companyData, quote.TemplateId);
+            var response = await portalService.PublishQuoteAsync(
+                quote, companyData, template,
+                CurrencyService.GetSymbol(quote.OriginalCurrency),
+                sendEmail: true,
+                message: null,
+                status: "sent",
+                revision: isRevision);
+
+            if (!response.Success)
+            {
+                await App.ShowErrorMessageBoxAsync(
+                    "Failed to resend quote".Translate(),
+                    string.IsNullOrEmpty(response.Message)
+                        ? "The payment portal rejected the request.".Translate()
+                        : response.Message);
+                return;
+            }
+
+            if (ApplySendResult(quote, companyData, recipient, response))
+                _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.QuoteSent);
+
+            QuoteSaved?.Invoke(this, EventArgs.Empty);
+
+            // ApplySendResult writes the wording, so a resend and a send from the editor say the
+            // same thing, including when the server reports an answer instead of a send.
+            await App.ShowInfoMessageBoxAsync(SendSuccessTitle, SendSuccessDetail);
+        }
+        catch (ServerRateLimitedException ex)
+        {
+            // The server's own wording says how long the wait is; a generic failure doesn't.
+            await App.ShowErrorMessageBoxAsync("Failed to resend quote".Translate(), ex.Message);
+        }
+        catch (Exception ex)
+        {
+            App.ErrorLogger?.LogError(ex, ErrorCategory.Validation, "Quote.Resend");
+            await App.ShowErrorMessageBoxAsync("Failed to resend quote".Translate(), ex.Message);
+        }
+        finally
+        {
+            App.HideBusyOverlay();
         }
     }
 

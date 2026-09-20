@@ -330,7 +330,7 @@ public partial class App : Application
     /// <summary>
     /// Shows a modal error message box.
     /// </summary>
-    private static async Task ShowErrorMessageBoxAsync(string title, string message)
+    internal static async Task ShowErrorMessageBoxAsync(string title, string message)
     {
         if (Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
             && desktop.MainWindow is MainWindow mainWindow
@@ -385,6 +385,23 @@ public partial class App : Application
         {
             await messageBoxService.ShowInfoAsync(title, message);
         }
+    }
+
+    /// <summary>
+    /// Asks the user to confirm, returning false when the dialog cannot be shown so a caller
+    /// never takes an irreversible action unasked.
+    /// </summary>
+    internal static async Task<bool> ConfirmMessageBoxAsync(
+        string title, string message, string confirmText, string cancelText)
+    {
+        if (Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
+            && desktop.MainWindow is MainWindow mainWindow
+            && mainWindow.MessageBoxService is { } messageBoxService)
+        {
+            return await messageBoxService.ConfirmAsync(title, message, confirmText, cancelText);
+        }
+
+        return false;
     }
 
     /// <summary>
