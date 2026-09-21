@@ -265,7 +265,7 @@
                         IsVisible="{Binding HasFilteredRecentCompanies}">
                     <Grid ColumnDefinitions="Auto,*">
                         <PathIcon Grid.Column="0"
-                                  Data="{x:Static local:Icons.Delete}"
+                                  Data="{x:Static local:Icons.ListRemove}"
                                   Width="16" Height="16"
                                   Margin="0,0,12,0" />
                         <TextBlock Grid.Column="1" Text="{loc:Loc 'Clear recent'}" VerticalAlignment="Center" />
