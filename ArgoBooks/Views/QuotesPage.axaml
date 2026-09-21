@@ -28,9 +28,6 @@
                     <TabItem Header="{loc:Loc All}" />
                     <TabItem Header="{loc:Loc Draft}" />
                     <TabItem Header="{loc:Loc Sent}" />
-                    <TabItem Header="{loc:Loc Accepted}" />
-                    <TabItem Header="{loc:Loc Declined}" />
-                    <TabItem Header="{loc:Loc Converted}" />
                 </TabControl>
             </Border>
 
@@ -276,6 +273,14 @@
                                                                 Command="{Binding $parent[ItemsControl].((vm:QuotesPageViewModel)DataContext).ConvertToInvoiceCommand}"
                                                                 CommandParameter="{Binding}">
                                                             <PathIcon Data="{x:Static icons:Icons.Invoices}" Width="16" Height="16" />
+                                                        </Button>
+                                                        <!-- View the invoice this became -->
+                                                        <Button Classes="icon-button"
+                                                                ToolTip.Tip="{loc:Loc 'View Invoice'}"
+                                                                IsVisible="{Binding CanViewInvoice}"
+                                                                Command="{Binding $parent[ItemsControl].((vm:QuotesPageViewModel)DataContext).ViewInvoiceCommand}"
+                                                                CommandParameter="{Binding ConvertedInvoiceId}">
+                                                            <PathIcon Data="{x:Static icons:Icons.OpenExternal}" Width="16" Height="16" />
                                                         </Button>
                                                         <!-- Delete -->
                                                         <Button Classes="icon-button danger"

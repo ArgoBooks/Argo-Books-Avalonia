@@ -95,12 +95,8 @@ public partial class QuotesPageViewModel : SortablePageViewModelBase
     {
         ActiveTab = value switch
         {
-            0 => "All",
             1 => "Draft",
             2 => "Sent",
-            3 => "Accepted",
-            4 => "Declined",
-            5 => "Converted",
             _ => "All"
         };
     }
@@ -319,6 +315,7 @@ public partial class QuotesPageViewModel : SortablePageViewModelBase
                 Status = quote.Status,
                 IsExpired = quote.IsExpired,
                 HasBeenPublished = quote.HasBeenPublished,
+                ConvertedInvoiceId = quote.ConvertedInvoiceId,
                 // A converted quote whose invoice was deleted has nothing in the books any more,
                 // so it offers Convert again rather than pointing at an invoice that isn't there.
                 ConvertedInvoiceMissing = quote.Status == QuoteStatus.Converted
@@ -393,6 +390,14 @@ public partial class QuotesPageViewModel : SortablePageViewModelBase
         }
 
         App.QuotesModalsViewModel?.OpenEditorForSend(item);
+    }
+
+    /// <summary>Opens the invoice this quote became.</summary>
+    [RelayCommand]
+    private void ViewInvoice(string? invoiceId)
+    {
+        if (string.IsNullOrEmpty(invoiceId)) return;
+        App.InvoiceModalsViewModel?.OpenViewInvoice(invoiceId);
     }
 
     /// <summary>Quotes render with the invoice templates, so this is the same designer.</summary>
@@ -629,6 +634,9 @@ public partial class QuoteDisplayItem : ObservableObject
     [ObservableProperty]
     private bool _hasBeenPublished;
 
+    [ObservableProperty]
+    private string? _convertedInvoiceId;
+
     /// <summary>The invoice this was converted into is no longer in the books.</summary>
     [ObservableProperty]
     private bool _convertedInvoiceMissing;
@@ -673,6 +681,9 @@ public partial class QuoteDisplayItem : ObservableObject
     public string SendTooltip => HasBeenPublished ? "Resend Quote" : "Send Quote";
 
     public bool CanConvert => Status != QuoteStatus.Converted || ConvertedInvoiceMissing;
+
+    /// <summary>There is an invoice from this quote, and it is still in the books.</summary>
+    public bool CanViewInvoice => !string.IsNullOrEmpty(ConvertedInvoiceId) && !ConvertedInvoiceMissing;
 
     public bool CanMarkAccepted => Status is QuoteStatus.Draft or QuoteStatus.Sent or QuoteStatus.Declined;
 
