@@ -1,8 +1,10 @@
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models;
+using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Models.Payroll;
 using ArgoBooks.Core.Models.Rentals;
+using ArgoBooks.Core.Models.Transactions;
 
 namespace ArgoBooks.Core.Services;
 
@@ -133,6 +135,10 @@ public class SampleCompanyService
             // After the rentals, and off the same reference date, so the pay dates land inside
             // the window the rest of the sample already occupies.
             AddSamplePayroll(context.CompanyData, maxDate);
+
+            // One quote per state, so the Quotes page shows what the feature does instead of an
+            // empty table to someone who opened the sample to look around.
+            AddSampleQuotes(context.CompanyData, maxDate);
 
             // Save company data to temp directory
             await _fileService.SaveCompanyDataAsync(companyDir, context.CompanyData, cancellationToken);
@@ -347,6 +353,107 @@ public class SampleCompanyService
     /// <summary>
     /// Adds additional active rental records to the sample company for richer demo data.
     /// </summary>
+    /// <summary>
+    /// Adds one quote in each state a quote can be in: waiting on the customer, accepted,
+    /// declined, already turned into an invoice, and one still being written.
+    /// </summary>
+    private static void AddSampleQuotes(CompanyData data, DateTime referenceDate)
+    {
+        var customers = data.Customers;
+        var products = data.Products;
+        if (customers.Count == 0 || products.Count == 0) return;
+
+        var counter = 0;
+        var year = referenceDate.Year;
+
+        Quote Build(int customerIndex, int[] productIndexes, decimal[] quantities, DateTime issued, int validForDays)
+        {
+            var quote = new Quote
+            {
+                Id = $"QUO-{year}-{++counter:D5}",
+                QuoteNumber = $"#QUO-{year}-{counter:D5}",
+                CustomerId = customers[customerIndex % customers.Count].Id,
+                IssueDate = issued,
+                ValidUntil = issued.AddDays(validForDays),
+                TaxRate = 8m,
+                OriginalCurrency = "USD",
+                Status = QuoteStatus.Draft,
+                CreatedAt = issued,
+                UpdatedAt = issued,
+                LineItems = [.. productIndexes.Select((pi, n) =>
+                {
+                    var product = products[pi % products.Count];
+                    return new LineItem
+                    {
+                        ProductId = product.Id,
+                        Description = string.IsNullOrWhiteSpace(product.Description) ? product.Name : product.Description,
+                        Quantity = quantities[n],
+                        UnitPrice = product.UnitPrice
+                    };
+                })]
+            };
+
+            quote.Subtotal = InvoiceMath.Subtotal(quote.LineItems);
+            var taxableBase = InvoiceMath.TaxableBase(quote.Subtotal, discount: 0m, customFee: 0m, shipping: 0m);
+            quote.TaxAmount = InvoiceMath.Tax(taxableBase, quote.TaxRate, quote.TaxIsFixed);
+            quote.Total = InvoiceMath.Total(taxableBase, quote.TaxAmount, securityDeposit: 0m);
+            quote.History.Add(new InvoiceHistoryEntry { Action = "Created", Timestamp = issued });
+            return quote;
+        }
+
+        // Still being written, so it has no send date and nothing the customer could answer.
+        var draft = Build(3, [2], [1m], referenceDate.AddDays(-1), 30);
+
+        // Out with the customer, answer still to come. Valid for long enough to still be open and
+        // short enough to land in the "expiring soon" count, so that card is not always zero.
+        var waiting = Build(0, [0, 1], [2m, 1m], referenceDate.AddDays(-4), 8);
+        waiting.Status = QuoteStatus.Sent;
+        waiting.SentAt = waiting.IssueDate;
+        waiting.History.Add(new InvoiceHistoryEntry { Action = "Sent", Timestamp = waiting.IssueDate });
+
+        var accepted = Build(1, [1, 3], [1m, 3m], referenceDate.AddDays(-12), 30);
+        accepted.Status = QuoteStatus.Accepted;
+        accepted.SentAt = accepted.IssueDate;
+        accepted.RespondedAt = accepted.IssueDate.AddDays(3);
+        accepted.ResponseNote = "Looks good, please go ahead.";
+        accepted.History.Add(new InvoiceHistoryEntry { Action = "Sent", Timestamp = accepted.IssueDate });
+        accepted.History.Add(new InvoiceHistoryEntry { Action = "Accepted", Timestamp = accepted.RespondedAt.Value });
+
+        var declined = Build(2, [0], [5m], referenceDate.AddDays(-20), 21);
+        declined.Status = QuoteStatus.Declined;
+        declined.SentAt = declined.IssueDate;
+        declined.RespondedAt = declined.IssueDate.AddDays(2);
+        declined.ResponseNote = "Going with another supplier this time.";
+        declined.History.Add(new InvoiceHistoryEntry { Action = "Sent", Timestamp = declined.IssueDate });
+        declined.History.Add(new InvoiceHistoryEntry { Action = "Declined", Timestamp = declined.RespondedAt.Value });
+
+        var quotes = new List<Quote> { draft, waiting, accepted, declined };
+
+        // Only when there is an invoice to point at: a converted quote whose invoice is missing
+        // reads as one that can be converted again.
+        var invoice = data.Invoices.FirstOrDefault();
+        if (invoice != null)
+        {
+            var converted = Build(0, [1], [2m], referenceDate.AddDays(-35), 30);
+            converted.Status = QuoteStatus.Converted;
+            converted.SentAt = converted.IssueDate;
+            converted.RespondedAt = converted.IssueDate.AddDays(4);
+            converted.ConvertedInvoiceId = invoice.Id;
+            converted.History.Add(new InvoiceHistoryEntry { Action = "Sent", Timestamp = converted.IssueDate });
+            converted.History.Add(new InvoiceHistoryEntry { Action = "Accepted", Timestamp = converted.RespondedAt.Value });
+            converted.History.Add(new InvoiceHistoryEntry
+            {
+                Action = "Converted",
+                Details = $"Converted to invoice {invoice.Id}",
+                Timestamp = converted.RespondedAt.Value.AddDays(1)
+            });
+            quotes.Add(converted);
+        }
+
+        data.Quotes.AddRange(quotes);
+        data.IdCounters.Quote = counter;
+    }
+
     private static void AddSampleActiveRentals(CompanyData data, DateTime referenceDate)
     {
         var items = data.RentalInventory;
@@ -761,6 +868,16 @@ public class SampleCompanyService
         {
             payment.Date = Shift(payment.Date);
             payment.CreatedAt = Shift(payment.CreatedAt);
+        }
+
+        foreach (var quote in data.Quotes)
+        {
+            quote.IssueDate = Shift(quote.IssueDate);
+            quote.ValidUntil = Shift(quote.ValidUntil);
+            quote.SentAt = ShiftNullable(quote.SentAt);
+            quote.RespondedAt = ShiftNullable(quote.RespondedAt);
+            quote.CreatedAt = Shift(quote.CreatedAt);
+            quote.UpdatedAt = Shift(quote.UpdatedAt);
         }
 
         foreach (var rental in data.Rentals)
