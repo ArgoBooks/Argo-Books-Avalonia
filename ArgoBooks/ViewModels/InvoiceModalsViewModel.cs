@@ -688,7 +688,7 @@ public partial class InvoiceModalsViewModel : ViewModelBase
 
     // Amount edits come from typing directly on the paper; only recompute totals here. A full
     // paper re-render would recreate the field mid-keystroke and drop the caret, so the paper is
-    // reconciled on blur (RegeneratePaperFromPaper) or when previewing/saving instead.
+    // rebuilt when previewing or saving instead, by which point the caret has moved on.
     partial void OnTaxRateChanged(decimal value) => UpdateTotals();
     partial void OnCustomFeeAmountChanged(decimal value) => UpdateTotals();
     partial void OnDiscountAmountChanged(decimal value) => UpdateTotals();

@@ -308,29 +308,22 @@ public partial class QuotesPageViewModel : SortablePageViewModelBase
                 QuoteNumber = string.IsNullOrEmpty(quote.QuoteNumber) ? quote.Id : quote.QuoteNumber,
                 IssueDate = quote.IssueDate,
                 DateDisplay = quote.IssueDate.ToString("MMM dd, yyyy"),
-                CustomerId = quote.CustomerId,
                 CustomerName = customer?.Name ?? "Unknown Customer",
-                CustomerEmail = customer?.Email ?? string.Empty,
                 ValidUntil = quote.ValidUntil,
                 ValidUntilDisplay = quote.ValidUntil.ToString("MMM dd, yyyy"),
-                ItemCount = quote.LineItems.Count,
                 Total = quote.Total,
                 // A quote is priced in one currency and shown in that currency: it carries no USD
                 // conversion, so there is nothing to restate it from.
                 TotalDisplay = CurrencyService.GetSymbol(quote.OriginalCurrency) +
                                quote.Total.ToString("N2", System.Globalization.CultureInfo.InvariantCulture),
-                OriginalCurrency = quote.OriginalCurrency,
                 Status = quote.Status,
                 IsExpired = quote.IsExpired,
                 HasBeenPublished = quote.HasBeenPublished,
-                ConvertedInvoiceId = quote.ConvertedInvoiceId,
                 // A converted quote whose invoice was deleted has nothing in the books any more,
                 // so it offers Convert again rather than pointing at an invoice that isn't there.
                 ConvertedInvoiceMissing = quote.Status == QuoteStatus.Converted
                                           && (string.IsNullOrEmpty(quote.ConvertedInvoiceId)
                                               || companyData?.Invoices.All(i => i.Id != quote.ConvertedInvoiceId) != false),
-                ResponseNote = quote.ResponseNote,
-                Notes = quote.Notes,
                 IsHighlighted = quote.Id == HighlightTransactionId
             };
         }).ToList();
@@ -613,13 +606,7 @@ public partial class QuoteDisplayItem : ObservableObject
     private string _dateDisplay = string.Empty;
 
     [ObservableProperty]
-    private string _customerId = string.Empty;
-
-    [ObservableProperty]
     private string _customerName = string.Empty;
-
-    [ObservableProperty]
-    private string _customerEmail = string.Empty;
 
     [ObservableProperty]
     private DateTime _validUntil;
@@ -628,16 +615,10 @@ public partial class QuoteDisplayItem : ObservableObject
     private string _validUntilDisplay = string.Empty;
 
     [ObservableProperty]
-    private int _itemCount;
-
-    [ObservableProperty]
     private decimal _total;
 
     [ObservableProperty]
     private string _totalDisplay = string.Empty;
-
-    [ObservableProperty]
-    private string _originalCurrency = "USD";
 
     [ObservableProperty]
     private QuoteStatus _status;
@@ -648,18 +629,9 @@ public partial class QuoteDisplayItem : ObservableObject
     [ObservableProperty]
     private bool _hasBeenPublished;
 
-    [ObservableProperty]
-    private string? _convertedInvoiceId;
-
     /// <summary>The invoice this was converted into is no longer in the books.</summary>
     [ObservableProperty]
     private bool _convertedInvoiceMissing;
-
-    [ObservableProperty]
-    private string? _responseNote;
-
-    [ObservableProperty]
-    private string _notes = string.Empty;
 
     [ObservableProperty]
     private bool _isHighlighted;
@@ -686,8 +658,6 @@ public partial class QuoteDisplayItem : ObservableObject
         QuoteStatus.Converted => AppColors.VioletLight,
         _ => AppColors.GrayLightest
     };
-
-    public string ItemsDisplay => ItemCount == 1 ? "1 item" : $"{ItemCount} items";
 
     /// <summary>
     /// Anything the books haven't taken over yet. A quote the customer already has can still be
