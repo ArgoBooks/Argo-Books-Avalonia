@@ -988,7 +988,12 @@ public partial class QuotesModalsViewModel : ViewModelBase
         switch (field)
         {
             case "notes":
-                ModalNotes = value;
+                // The paper falls back to the template's footer when the document has no notes of
+                // its own, so a commit handing that same text back is the fallback, not typing.
+                // Taking it would make an untouched document look edited and stop it following
+                // the template.
+                if (value != (SelectedTemplate?.FooterText ?? string.Empty))
+                    ModalNotes = value;
                 break;
             case "description":
                 if (index is int di && di >= 0 && di < LineItems.Count)
