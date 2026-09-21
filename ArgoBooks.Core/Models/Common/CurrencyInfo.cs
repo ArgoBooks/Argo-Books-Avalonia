@@ -1,4 +1,4 @@
-namespace ArgoBooks.Core.Models.Common;
+﻿namespace ArgoBooks.Core.Models.Common;
 
 /// <summary>
 /// Represents information about a currency including its code, symbol, and display name.
@@ -71,7 +71,9 @@ public class CurrencyInfo
         ["ARS"] = new("ARS", "AR$", "Argentine Peso"),
         ["AUD"] = new("AUD", "$", "Australian Dollar"),
         ["BAM"] = new("BAM", "KM", "Bosnia-Herzegovina Mark"),
-        ["BDT"] = new("BDT", "৳", "Bangladeshi Taka"),
+        // "Tk" rather than ৳: macOS Helvetica, which the PDFs render with there, ships no
+        // Bengali glyph, so the symbol prints as an empty box. See CurrencyListTests.
+        ["BDT"] = new("BDT", "Tk", "Bangladeshi Taka"),
         ["BGN"] = new("BGN", "лв", "Bulgarian Lev"),
         ["BRL"] = new("BRL", "R$", "Brazilian Real"),
         ["BYN"] = new("BYN", "Br", "Belarusian Ruble"),
@@ -114,7 +116,8 @@ public class CurrencyInfo
         ["SAR"] = new("SAR", "SAR", "Saudi Riyal"),
         ["SEK"] = new("SEK", "kr", "Swedish Krona"),
         ["SGD"] = new("SGD", "S$", "Singapore Dollar"),
-        ["THB"] = new("THB", "฿", "Thai Baht"),
+        // "THB" rather than ฿: same as BDT, no Thai glyph in the Mac PDF font.
+        ["THB"] = new("THB", "THB", "Thai Baht"),
         ["TRY"] = new("TRY", "₺", "Turkish Lira"),
         ["TWD"] = new("TWD", "NT$", "Taiwan Dollar"),
         ["UAH"] = new("UAH", "₴", "Ukrainian Hryvnia"),
