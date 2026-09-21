@@ -599,7 +599,9 @@
                                                 Command="{Binding OpenAddPasswordCommand}"
                                                 IsEnabled="{Binding !IsSampleCompany}"
                                                 VerticalAlignment="Center"
-                                                MinWidth="140" />
+                                                MinWidth="140"
+                                                Padding="12,6"
+                                                MinHeight="0" />
                                     </Grid>
                                 </Border>
 
@@ -666,7 +668,9 @@
                                                 Command="{Binding UpgradeNowCommand}"
                                                 IsVisible="{Binding !HasPremium}"
                                                 VerticalAlignment="Center"
-                                                MinWidth="140" />
+                                                MinWidth="140"
+                                                Padding="12,6"
+                                                MinHeight="0" />
                                     </Grid>
                                 </Border>
 
