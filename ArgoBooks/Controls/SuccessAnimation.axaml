@@ -76,7 +76,10 @@
                        FontSize="20"
                        FontWeight="SemiBold"
                        Foreground="{DynamicResource SuccessBrush}"
-                       HorizontalAlignment="Center" />
+                       HorizontalAlignment="Center"
+                       TextWrapping="Wrap"
+                       TextAlignment="Center"
+                       MaxWidth="340" />
             <TextBlock x:Name="MessageText"
                        Text="{Binding Message, RelativeSource={RelativeSource AncestorType=controls:SuccessAnimation}}"
                        FontSize="14"

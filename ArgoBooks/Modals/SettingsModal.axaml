@@ -44,7 +44,9 @@
                     <!-- General Tab -->
                     <TabItem Header="{loc:Loc General}">
                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" AllowAutoHide="False" Margin="24,20,16,20" Padding="0,0,8,0">
-                            <StackPanel Spacing="20">
+                            <!-- 16, like every other tab. At 20 this one overflowed by a hair and
+                                 put a scrollbar on a page that has nothing to scroll to. -->
+                            <StackPanel Spacing="16">
                                 <!-- Language -->
                                 <StackPanel Spacing="6">
                                     <TextBlock Text="{loc:Loc Language}"
@@ -126,7 +128,7 @@
 
                                 <!-- Privacy Section. No group heading: it holds a single setting,
                                      and a heading over one row reads as a section that lost its rest. -->
-                                <StackPanel Spacing="8" Margin="0,8,0,0">
+                                <StackPanel Spacing="8">
                                     <Border Classes="settings-row last">
                                         <StackPanel Spacing="12">
                                             <StackPanel Spacing="2">

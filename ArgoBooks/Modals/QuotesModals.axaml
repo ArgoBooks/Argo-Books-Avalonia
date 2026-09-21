@@ -81,7 +81,10 @@
                             <!-- SIDEBAR -->
                             <Border Grid.Column="1" Background="{DynamicResource SurfaceBrush}"
                                     BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1,0,0,0">
-                                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                <!-- Going back is not one of the actions, so it sits on the floor of the
+                                     panel rather than under whatever the fields happen to end at. -->
+                                <Grid RowDefinitions="*,Auto">
+                                <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                                     <StackPanel Margin="16" Spacing="16">
 
                                         <Border Background="{DynamicResource SurfaceAltBrush}"
@@ -201,18 +204,25 @@
                                                     IsEnabled="{Binding IsPortalReady}">
                                                 <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
                                                     <PathIcon Data="{x:Static icons:Icons.Send}" Width="15" Height="15" />
-                                                    <TextBlock Text="{loc:Loc 'Send quote'}" />
+                                                    <TextBlock Text="{Binding SendButtonText, Converter={StaticResource TranslateConverter}}" />
                                                 </StackPanel>
                                             </Button>
                                             <Button Classes="secondary-button" HorizontalAlignment="Stretch"
                                                     Content="{Binding SaveButtonText, Converter={StaticResource TranslateConverter}}"
                                                     Click="OnSaveAsDraftClick" IsVisible="{Binding IsEditorPreviewing}" />
-                                            <Button Classes="secondary-button" HorizontalAlignment="Stretch"
-                                                    Content="{loc:Loc 'Back to edit'}"
-                                                    Command="{Binding BackToEditorCommand}" IsVisible="{Binding IsEditorPreviewing}" />
                                         </StackPanel>
                                     </StackPanel>
                                 </ScrollViewer>
+
+                                <Button Grid.Row="1" Classes="secondary-button" HorizontalAlignment="Stretch"
+                                        Margin="16,0,16,16"
+                                        Command="{Binding BackToEditorCommand}" IsVisible="{Binding IsEditorPreviewing}">
+                                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                                        <PathIcon Data="{x:Static icons:Icons.ArrowBack}" Width="15" Height="15" />
+                                        <TextBlock Text="{loc:Loc 'Back to edit'}" />
+                                    </StackPanel>
+                                </Button>
+                                </Grid>
                             </Border>
                         </Grid>
                     </Grid>

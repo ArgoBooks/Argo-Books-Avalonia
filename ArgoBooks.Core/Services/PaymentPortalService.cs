@@ -521,6 +521,17 @@ public class PaymentPortalService : IDisposable
     }
 
     /// <summary>
+    /// The customer's answer, or null when the portal reported anything else (a plain "sent", a
+    /// cancellation, a status this version does not know).
+    /// </summary>
+    public static QuoteStatus? ParseQuoteAnswer(string? status) => status?.Trim().ToLowerInvariant() switch
+    {
+        "accepted" => QuoteStatus.Accepted,
+        "declined" => QuoteStatus.Declined,
+        _ => null
+    };
+
+    /// <summary>
     /// Writes a customer's accept / decline onto a quote. Shared by the background sync and the
     /// publish response, so an answer looks the same however it reached the app.
     /// </summary>
@@ -531,12 +542,7 @@ public class PaymentPortalService : IDisposable
         // it back to a status that offers "convert" again.
         if (quote.Status == QuoteStatus.Converted) return false;
 
-        var parsed = status?.Trim().ToLowerInvariant() switch
-        {
-            "accepted" => QuoteStatus.Accepted,
-            "declined" => QuoteStatus.Declined,
-            _ => (QuoteStatus?)null
-        };
+        var parsed = ParseQuoteAnswer(status);
         if (parsed == null) return false;
 
         var answeredAt = respondedAt ?? DateTime.UtcNow;

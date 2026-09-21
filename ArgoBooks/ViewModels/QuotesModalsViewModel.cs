@@ -90,6 +90,10 @@ public partial class QuotesModalsViewModel : ViewModelBase
     [ObservableProperty]
     private string _saveButtonText = "Save as draft";
 
+    /// <summary>The send button. A quote the customer already has is being sent again.</summary>
+    [ObservableProperty]
+    private string _sendButtonText = "Send quote";
+
     /// <summary>
     /// A quote is priced once and keeps that currency. Opening one later, while the app is showing
     /// a different currency, must not relabel its figures on the paper.
@@ -380,6 +384,7 @@ public partial class QuotesModalsViewModel : ViewModelBase
         ModalTitle = "Edit Quote";
         SetEditorCurrency(quote.OriginalCurrency);
         SaveButtonText = quote.HasBeenPublished ? "Save changes" : "Save as draft";
+        SendButtonText = quote.HasBeenPublished ? "Resend quote" : "Send quote";
         SelectedCustomer = CustomerOptions.FirstOrDefault(c => c.Id == quote.CustomerId);
         IssueDate = new DateTimeOffset(quote.IssueDate);
         ValidUntil = new DateTimeOffset(quote.ValidUntil);
@@ -774,6 +779,7 @@ public partial class QuotesModalsViewModel : ViewModelBase
         _paperLogo = null;
         SetEditorCurrency(null);
         SaveButtonText = "Save as draft";
+        SendButtonText = "Send quote";
 
         AbortSend();
         SendRecipientEmail = string.Empty;
@@ -1398,6 +1404,12 @@ public partial class QuotesModalsViewModel : ViewModelBase
                 return;
             }
 
+            if (IsForeignAnswer(quote, response))
+            {
+                SendError = ForeignAnswerMessage(quote);
+                return;
+            }
+
             var wasSent = ApplySendResult(quote, companyData, recipient, response);
             if (wasSent)
                 _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.QuoteSent);
@@ -1482,6 +1494,13 @@ public partial class QuotesModalsViewModel : ViewModelBase
                 return;
             }
 
+            if (IsForeignAnswer(quote, response))
+            {
+                await App.ShowErrorMessageBoxAsync(
+                    "Failed to resend quote".Translate(), ForeignAnswerMessage(quote));
+                return;
+            }
+
             if (ApplySendResult(quote, companyData, recipient, response))
                 _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.QuoteSent);
 
@@ -1506,6 +1525,19 @@ public partial class QuotesModalsViewModel : ViewModelBase
             App.HideBusyOverlay();
         }
     }
+
+    /// <summary>
+    /// True when the portal answered with an accept or decline for a quote this app has never
+    /// sent. Nobody can have answered a document that was never delivered, so the portal is
+    /// holding an older quote that used this same number, and applying its answer would mark a
+    /// brand new quote accepted with a stranger's note on it.
+    /// </summary>
+    private static bool IsForeignAnswer(Quote quote, PortalQuotePublishResponse response) =>
+        !quote.SentAt.HasValue && PaymentPortalService.ParseQuoteAnswer(response.Status) != null;
+
+    private static string ForeignAnswerMessage(Quote quote) =>
+        ("Quote {0} is already on the portal with an answer on it, so nothing was emailed. That "
+         + "answer belongs to an earlier quote that used this number.").TranslateFormat(quote.QuoteNumber);
 
     /// <summary>
     /// The wording for a send that did not come back with a success. When the request may have
@@ -1620,11 +1652,21 @@ public partial class QuotesModalsViewModel : ViewModelBase
         if (answered)
         {
             SendSuccessTitle = quote.Status == QuoteStatus.Accepted
-                ? "Your customer already accepted this quote."
-                : "Your customer already declined this quote.";
-            SendSuccessDetail = string.IsNullOrWhiteSpace(quote.ResponseNote)
-                ? "Nothing was emailed. Their answer is now on the quote."
-                : $"They said: {quote.ResponseNote}";
+                ? "Already accepted"
+                : "Already declined";
+
+            // When they answered matters most here: without it this reads as an answer given in
+            // the moment the send went out.
+            var verb = quote.Status == QuoteStatus.Accepted
+                ? "Nothing was emailed. Your customer accepted this quote {0}."
+                : "Nothing was emailed. Your customer declined this quote {0}.";
+            var when = quote.RespondedAt.HasValue
+                ? "on {0}".TranslateFormat(quote.RespondedAt.Value.ToLocalTime().ToString("MMM d, yyyy 'at' h:mm tt"))
+                : "before this send".Translate();
+
+            SendSuccessDetail = verb.TranslateFormat(when);
+            if (!string.IsNullOrWhiteSpace(quote.ResponseNote))
+                SendSuccessDetail += "\n\n" + "They said: {0}".TranslateFormat(quote.ResponseNote);
         }
         else
         {
