@@ -218,18 +218,6 @@ public class PayrollModalsDiscardTests
     }
 
     [Fact]
-    public void ChangingAFilter_CountsAsChanges()
-    {
-        var vm = new PayrollModalsViewModel();
-        vm.OpenFilterModal();
-        Assert.False(vm.HasFilterModalChanges);
-
-        vm.FilterPayType = "Hourly";
-
-        Assert.True(vm.HasFilterModalChanges);
-    }
-
-    [Fact]
     public void AbandoningTheFilterModal_PutsTheFiltersBack()
     {
         // Filters are live properties, so leaving a cancelled choice in place would keep the

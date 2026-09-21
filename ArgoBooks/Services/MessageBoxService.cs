@@ -71,18 +71,6 @@ public class MessageBoxService : IMessageBoxService
     }
 
     /// <inheritdoc />
-    public Task<MessageBoxResult> ShowSuccessAsync(string title, string message)
-    {
-        return ShowAsync(new MessageBoxOptions
-        {
-            Title = title,
-            Message = message,
-            Type = MessageBoxType.Success,
-            Buttons = MessageBoxButtons.Ok
-        });
-    }
-
-    /// <inheritdoc />
     public Task<MessageBoxResult> ShowWarningAsync(string title, string message)
     {
         return ShowAsync(new MessageBoxOptions

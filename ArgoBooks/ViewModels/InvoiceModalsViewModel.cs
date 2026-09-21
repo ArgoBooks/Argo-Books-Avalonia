@@ -965,8 +965,6 @@ public partial class InvoiceModalsViewModel : ViewModelBase
             FilterDueDateTo = v.DueDateTo;
         });
 
-    public bool HasFilterModalChanges => Filters.HasChanges;
-
     #endregion
 
     #region History Modal

@@ -642,8 +642,6 @@ public partial class PayrollModalsViewModel : ViewModelBase
             FilterFrequency = v.Frequency;
         });
 
-    public bool HasFilterModalChanges => Filters.HasChanges;
-
     /// <summary>
     /// Filters are live properties, so abandoning the modal has to put them back. Without the
     /// restore the page would quietly keep filtering by a choice the user cancelled.

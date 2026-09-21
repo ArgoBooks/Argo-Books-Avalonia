@@ -321,16 +321,6 @@ public class SpreadsheetAnalysisService(
     #region Tier 2 Processing
 
     /// <summary>
-    /// Processes a chunk of rows through the LLM to normalize them into entity JSON.
-    /// </summary>
-    public async Task<LlmProcessedData?> ProcessChunkAsync(
-        List<string> headers,
-        List<List<string>> rows,
-        SpreadsheetSheetType entityType,
-        CancellationToken cancellationToken = default)
-        => (await TryProcessChunkAsync(headers, rows, entityType, cancellationToken)).Result;
-
-    /// <summary>
     /// Runs <see cref="TryProcessChunkAsync"/>, retrying with a growing pause when no reply came
     /// back at all (the server's rate limit, a timeout, a dropped connection).
     /// </summary>

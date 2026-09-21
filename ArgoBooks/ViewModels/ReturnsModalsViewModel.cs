@@ -69,8 +69,6 @@ public partial class ReturnsModalsViewModel : ViewModelBase
             FilterReason = v.Reason;
         });
 
-    public bool HasFilterModalChanges => Filters.HasChanges;
-
     /// <summary>
     /// Opens the filter modal.
     /// </summary>

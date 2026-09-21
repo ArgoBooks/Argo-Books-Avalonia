@@ -172,7 +172,4 @@ internal static class MacKeychain
     public static bool HasPassword(string fileId) => Lookup(fileId) != null;
 
     private static byte[] Utf8(string value) => System.Text.Encoding.UTF8.GetBytes(value);
-
-    /// <summary>Exposed for the "not found" case so callers can tell it from a real failure.</summary>
-    public static bool IsNotFound(int status) => status == ItemNotFound;
 }

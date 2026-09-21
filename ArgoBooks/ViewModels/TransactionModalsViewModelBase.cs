@@ -717,8 +717,6 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
 
     #region Filter Modal
 
-    public bool HasFilterModalChanges => Filters.HasChanges;
-
     public void OpenFilterModal()
     {
         var current = Filters.Current;

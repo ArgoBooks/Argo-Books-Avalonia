@@ -778,8 +778,6 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
             FilterStatus = v.Status;
         });
 
-    public bool HasFilterModalChanges => Filters.HasChanges;
-
     /// <summary>
     /// Opens the filter modal seeded with the page's current filters.
     /// </summary>

@@ -210,8 +210,6 @@ public partial class LocationsModalsViewModel : ViewModelBase
             FilterStatus = v.Status;
         });
 
-    public bool HasFilterModalChanges => Filters.HasChanges;
-
     #endregion
 
     #region Add Location

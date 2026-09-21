@@ -258,8 +258,6 @@ public partial class SupplierModalsViewModel : ViewModelBase
             FilterStatus = v.Status;
         });
 
-    public bool HasFilterModalChanges => Filters.HasChanges;
-
     #endregion
 
     #region Events

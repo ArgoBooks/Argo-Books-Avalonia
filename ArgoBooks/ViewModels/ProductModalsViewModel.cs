@@ -272,8 +272,6 @@ public partial class ProductModalsViewModel : ViewModelBase
             FilterSupplier = v.SupplierId == null ? null : AvailableSuppliers.FirstOrDefault(s => s.Id == v.SupplierId);
         });
 
-    public bool HasFilterModalChanges => Filters.HasChanges;
-
     #endregion
 
     #region Dropdown Options

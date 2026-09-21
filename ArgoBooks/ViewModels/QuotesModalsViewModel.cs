@@ -1775,8 +1775,6 @@ public partial class QuotesModalsViewModel : ViewModelBase
             FilterStatus = v.Status;
         });
 
-    public bool HasFilterModalChanges => Filters.HasChanges;
-
     public void OpenFilterModal()
     {
         LoadFilterCustomerOptions();
