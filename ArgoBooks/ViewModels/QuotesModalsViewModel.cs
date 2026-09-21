@@ -224,12 +224,19 @@ public partial class QuotesModalsViewModel : ViewModelBase
     partial void OnSelectedTemplateChanged(InvoiceTemplate? value) => RegeneratePaper();
     partial void OnIssueDateChanged(DateTimeOffset? value) => RegeneratePaper();
     partial void OnValidUntilChanged(DateTimeOffset? value) => RegeneratePaper();
-    partial void OnTaxRateChanged(decimal value) => RegeneratePaper();
+    // Tax, shipping, discount and fee amounts are typed straight into the paper, the same as a
+    // line's description or rate, so they must NOT re-render: rebuilding the page mid-keystroke
+    // recreates the field the caret is in and the next character goes nowhere. The paper keeps
+    // its own totals up to date as you type, and the figures are read back out of it on blur.
+    partial void OnTaxRateChanged(decimal value) { }
+    partial void OnShippingAmountChanged(decimal value) { }
+    partial void OnDiscountAmountChanged(decimal value) { }
+    partial void OnCustomFeeAmountChanged(decimal value) { }
+
+    // Percent against fixed is a click on the swap button, not typing, so a re-render is what
+    // puts the new symbol on the paper.
     partial void OnTaxIsFixedChanged(bool value) => RegeneratePaper();
-    partial void OnShippingAmountChanged(decimal value) => RegeneratePaper();
-    partial void OnDiscountAmountChanged(decimal value) => RegeneratePaper();
     partial void OnDiscountIsPercentChanged(bool value) => RegeneratePaper();
-    partial void OnCustomFeeAmountChanged(decimal value) => RegeneratePaper();
     partial void OnCustomFeeIsPercentChanged(bool value) => RegeneratePaper();
     partial void OnValidationMessageChanged(string value) => HasValidationMessage = !string.IsNullOrEmpty(value);
 
