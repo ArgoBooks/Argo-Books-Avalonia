@@ -268,8 +268,8 @@ public class PendingConversionService
             return;
 
         // Price every date the loop below needs in one bulk request, so it converts from the
-        // cache. Each entry otherwise costs its own web request on a cache miss: opening the
-        // sample company sent about 230 of them, one per dated row, before it finished opening.
+        // cache. Each entry otherwise costs its own web request on a cache miss, which is one
+        // per dated row: a few hundred for a company with a year of history.
         var datesToPrice = toProcess
             .Where(e => e.TransactionDate.Date <= DateTime.UtcNow.Date.AddDays(1)
                         && !string.Equals(e.OriginalCurrency, "USD", StringComparison.OrdinalIgnoreCase)

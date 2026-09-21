@@ -104,8 +104,7 @@ public class CurrencyCountryMatcherTests
     [Fact]
     public void IsMismatch_NewlySupportedCountryWithUsd_ReturnsTrue()
     {
-        // Sri Lanka's rupee is selectable now, so picking USD there is worth a warning. Before
-        // LKR existed the only way to file a Sri Lankan company was under another currency.
+        // Sri Lanka's rupee is selectable, so picking USD there is worth a warning.
         var result = CurrencyCountryMatcher.IsMismatch("Sri Lanka", "USD", out var expected);
 
         Assert.True(result);

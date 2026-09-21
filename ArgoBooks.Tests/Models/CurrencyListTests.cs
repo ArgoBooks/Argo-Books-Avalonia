@@ -63,8 +63,7 @@ public class CurrencyListTests
     public void PickerListMatchesTheCurrencyData()
     {
         // ArgoBooks/Data/Currencies.cs holds the dropdown labels and CurrencyInfo holds the data
-        // behind them. They are separate lists, and they have drifted before: INR was in the
-        // parser and in no dropdown.
+        // behind them. Two lists, so either can gain a currency the other never hears about.
         var picker = ArgoBooks.Data.Currencies.All
             .Select(label =>
             {
