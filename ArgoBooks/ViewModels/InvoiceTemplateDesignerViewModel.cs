@@ -563,6 +563,7 @@ public partial class InvoiceTemplateDesignerViewModel : ViewModelBase
                     .Where(t => t.Id != template.Id && t.IsDefault)
                     .Select(t => t.Id).ToList();
 
+                LogoHistory.RetireLogo(companyData, template, LogoBase64);
                 UpdateTemplateFromForm(template);
                 if (thumbnail != null) template.ThumbnailBase64 = thumbnail;
 

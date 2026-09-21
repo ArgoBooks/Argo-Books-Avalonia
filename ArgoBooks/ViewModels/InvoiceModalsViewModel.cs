@@ -422,8 +422,13 @@ public partial class InvoiceModalsViewModel : ViewModelBase
         var remove = _paperLogo.Length == 0;
         // TemplateOptions holds the company's actual templates, so mutating them here updates the
         // persisted objects directly.
+        var companyData = App.CompanyManager?.CompanyData;
         foreach (var template in TemplateOptions)
         {
+            // Anything already sent under the outgoing logo keeps it.
+            if (companyData != null)
+                LogoHistory.RetireLogo(companyData, template, remove ? null : _paperLogo);
+
             if (remove)
             {
                 template.LogoBase64 = null;

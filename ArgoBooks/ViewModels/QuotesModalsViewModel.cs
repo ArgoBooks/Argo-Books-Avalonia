@@ -1161,8 +1161,13 @@ public partial class QuotesModalsViewModel : ViewModelBase
     {
         if (_paperLogo == null) return;
         var remove = _paperLogo.Length == 0;
+        var companyData = App.CompanyManager?.CompanyData;
         foreach (var template in TemplateOptions)
         {
+            // Anything already sent under the outgoing logo keeps it.
+            if (companyData != null)
+                LogoHistory.RetireLogo(companyData, template, remove ? null : _paperLogo);
+
             if (remove)
             {
                 template.LogoBase64 = null;

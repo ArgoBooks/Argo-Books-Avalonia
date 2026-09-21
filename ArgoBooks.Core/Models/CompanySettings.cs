@@ -98,6 +98,10 @@ public class CompanySettings
     /// </summary>
     [JsonPropertyName("bankCategoryRules")]
     public List<BankMatching.BankCategoryRule> BankCategoryRules { get; set; } = [];
+
+    /// <summary>Logos replaced since documents went out under them. See <see cref="RetiredLogo"/>.</summary>
+    [JsonPropertyName("retiredLogos")]
+    public List<RetiredLogo> RetiredLogos { get; set; } = [];
 }
 
 public class CompanyInfo
@@ -234,4 +238,17 @@ public class SecuritySettings
     public int AutoLockMinutes { get; set; } = 5;
     [JsonPropertyName("biometricEnabled")]
     public bool BiometricEnabled { get; set; } = false;
+}
+
+/// <summary>
+/// A logo that has been replaced, kept because documents sent under it still draw with it.
+/// Stored once and pointed at by id, not copied onto every document.
+/// </summary>
+public class RetiredLogo
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    [JsonPropertyName("base64")]
+    public string Base64 { get; set; } = string.Empty;
 }

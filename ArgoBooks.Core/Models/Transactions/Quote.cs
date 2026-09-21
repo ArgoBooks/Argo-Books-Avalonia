@@ -124,6 +124,11 @@ public partial class Quote : ObservableObject
     [JsonPropertyName("templateId")]
     public string TemplateId { get; set; } = string.Empty;
 
+    /// <summary>The logo this went out with, set when the company logo is replaced after it was
+    /// sent. Null means it follows whatever the template carries.</summary>
+    [JsonPropertyName("logoId")]
+    public string? LogoId { get; set; }
+
     /// <summary>
     /// Additional notes, printed in the document footer.
     /// </summary>
@@ -224,6 +229,7 @@ public partial class Quote : ObservableObject
         ShippingAmount = ShippingAmount,
         Total = Total,
         TemplateId = TemplateId,
+        LogoId = LogoId,
         Notes = Notes,
         OriginalCurrency = OriginalCurrency,
         PassProcessingFee = false

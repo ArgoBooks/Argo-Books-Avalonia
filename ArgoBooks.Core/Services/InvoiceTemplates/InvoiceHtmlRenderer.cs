@@ -272,6 +272,8 @@ public partial class InvoiceHtmlRenderer
         DocumentLabels? labels = null)
     {
         labels ??= DocumentLabels.Invoice;
+        // The logo the document went out with, which is not always the one on the template today.
+        var logo = LogoHistory.LogoFor(invoice.LogoId, companySettings, template);
         var isOverdue = invoice.DueDate.Date < DateTime.UtcNow.Date &&
                         invoice.Balance > 0;
         var decimals = DecimalsFor(invoice);
@@ -340,7 +342,7 @@ public partial class InvoiceHtmlRenderer
             ["PaymentInstructions"] = template.PaymentInstructions,
             // Per-invoice overrides win over the template setting when present (invoice.X ?? template.X).
             // "Show company address" hides the whole company location line (address + city/state/country).
-            ["ShowLogo"] = template.ShowLogo && !string.IsNullOrEmpty(template.LogoBase64),
+            ["ShowLogo"] = !string.IsNullOrEmpty(logo),
             ["ShowCompanyAddress"] = invoice.ShowCompanyAddress ?? template.ShowCompanyAddress,
             ["ShowCompanyPhone"] = invoice.ShowCompanyPhone ?? template.ShowCompanyPhone,
             ["ShowCompanyCity"] = invoice.ShowCompanyAddress ?? template.ShowCompanyCity,
@@ -352,9 +354,7 @@ public partial class InvoiceHtmlRenderer
             ["ShowDueDateProminent"] = invoice.ShowDueDateProminent ?? template.ShowDueDateProminent,
 
             // Logo
-            ["LogoSrc"] = template.ShowLogo && !string.IsNullOrEmpty(template.LogoBase64)
-                ? $"data:image/png;base64,{template.LogoBase64}"
-                : "",
+            ["LogoSrc"] = !string.IsNullOrEmpty(logo) ? $"data:image/png;base64,{logo}" : "",
             ["LogoWidth"] = template.LogoWidth.ToString(),
             ["LockAspectRatio"] = lockAspectRatio,
 
