@@ -179,7 +179,8 @@
                             <TextBlock Grid.Column="1"
                                        VerticalAlignment="Center"
                                        FontSize="13"
-                                       Foreground="{DynamicResource TextSecondaryBrush}"><Run Text="{loc:Loc 'Open another company file'}" /><Run Text="..." /></TextBlock>
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       Text="{loc:Loc 'Open another company file...'}" />
                         </Grid>
                     </Button>
                 </StackPanel>

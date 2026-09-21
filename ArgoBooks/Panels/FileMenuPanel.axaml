@@ -66,7 +66,7 @@
                                   Data="{x:Static local:Icons.Folder}"
                                   Width="18" Height="18"
                                   Margin="0,0,12,0" />
-                        <TextBlock Grid.Column="1" VerticalAlignment="Center"><Run Text="{loc:Loc 'Open Company'}" /><Run Text="..." /></TextBlock>
+                        <TextBlock Grid.Column="1" Text="{loc:Loc 'Open Company...'}" VerticalAlignment="Center" />
                     </Grid>
                 </Button>
 
@@ -167,7 +167,7 @@
                                   Data="{x:Static local:Icons.ExportData}"
                                   Width="18" Height="18"
                                   Margin="0,0,12,0" />
-                        <TextBlock Grid.Column="1" VerticalAlignment="Center"><Run Text="{loc:Loc 'Export As'}" /><Run Text="..." /></TextBlock>
+                        <TextBlock Grid.Column="1" Text="{loc:Loc 'Export As...'}" VerticalAlignment="Center" />
                     </Grid>
                 </Button>
 
@@ -180,7 +180,7 @@
                                   Data="{x:Static local:Icons.Send}"
                                   Width="18" Height="18"
                                   Margin="0,0,12,0" />
-                        <TextBlock Grid.Column="1" VerticalAlignment="Center"><Run Text="{loc:Loc 'Send to Accountant'}" /><Run Text="..." /></TextBlock>
+                        <TextBlock Grid.Column="1" Text="{loc:Loc 'Send to Accountant...'}" VerticalAlignment="Center" />
                     </Grid>
                 </Button>
 
