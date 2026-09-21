@@ -825,6 +825,9 @@ public partial class AppShellViewModel : ViewModelBase
                         case NavigationTarget.Invoices:
                             InvoiceModalsViewModel.OpenCreateModal();
                             break;
+                        case NavigationTarget.Quotes:
+                            QuotesModalsViewModel.OpenEditor();
+                            break;
                         case NavigationTarget.Expenses:
                             ExpenseModalsViewModel.OpenAddModalCommand.Execute(null);
                             break;

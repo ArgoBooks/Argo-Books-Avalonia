@@ -144,6 +144,7 @@ public partial class QuickActionsViewModel : ViewModelBase
         // Quick Actions - Creation tasks
         _allActions.AddRange([
             new QuickActionItem("New Invoice", "Create a new invoice", Icons.Invoices, QuickActionType.QuickAction, "Invoices", "OpenAddModal"),
+            new QuickActionItem("New Quote", "Quote a price before you invoice it", Icons.Quotes, QuickActionType.QuickAction, "Quotes", "OpenAddModal"),
             new QuickActionItem("New Expense", "Record a new expense", Icons.Expenses, QuickActionType.QuickAction, "Expenses", "OpenAddModal"),
             new QuickActionItem("New Revenue", "Record a new revenue entry", Icons.Revenue, QuickActionType.QuickAction, "Revenue", "OpenAddModal"),
             new QuickActionItem("Scan Receipt", "Scan and import a receipt using AI", Icons.ScanReceipt, QuickActionType.QuickAction, "Receipts", "OpenScanModal"),
@@ -171,6 +172,7 @@ public partial class QuickActionsViewModel : ViewModelBase
             new QuickActionItem("Expenses", "View and manage expenses", Icons.Expenses, QuickActionType.Navigation, "Expenses"),
             new QuickActionItem("Revenue", "View and manage revenue", Icons.Revenue, QuickActionType.Navigation, "Revenue"),
             new QuickActionItem("Invoices", "Manage invoices", Icons.Invoices, QuickActionType.Navigation, "Invoices"),
+            new QuickActionItem("Quotes", "Manage quotes", Icons.Quotes, QuickActionType.Navigation, "Quotes"),
             new QuickActionItem("Receipts", "View and manage receipts", Icons.Receipts, QuickActionType.Navigation, "Receipts"),
             new QuickActionItem("Purchase Orders", "Manage purchase orders", Icons.PurchaseOrders, QuickActionType.Navigation, "PurchaseOrders"),
             new QuickActionItem("Returns", "Manage returns", Icons.Returns, QuickActionType.Navigation, "Returns"),
@@ -519,6 +521,15 @@ public partial class QuickActionsViewModel : ViewModelBase
             var score = LevenshteinDistance.BestScore(query, inv.InvoiceNumber, customerName, inv.Status.ToString());
             if (score > 0)
                 results.Add((new QuickActionItem(inv.InvoiceNumber, $"{customerName} · {inv.Status}", Icons.Invoices, QuickActionType.SearchResult, "Invoices", entityId: inv.Id), score));
+        }
+
+        // Quotes
+        foreach (var q in companyData.Quotes)
+        {
+            var customerName = companyData.Customers.FirstOrDefault(c => c.Id == q.CustomerId)?.Name ?? "";
+            var score = LevenshteinDistance.BestScore(query, q.QuoteNumber, customerName, q.Status.ToString());
+            if (score > 0)
+                results.Add((new QuickActionItem(q.QuoteNumber, $"{customerName} · {q.Status}", Icons.Quotes, QuickActionType.SearchResult, "Quotes", entityId: q.Id), score));
         }
 
         // Expenses
