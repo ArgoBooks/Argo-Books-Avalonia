@@ -595,9 +595,9 @@ public class SampleCompanyService
     /// <summary>
     /// Gives the sample company a payroll history.
     ///
-    /// Employees usually come from the workbook's own Employees sheet, which carries names,
-    /// salaries and hire dates but nothing payroll-specific, so those are topped up here. Only
-    /// when the sheet produced none does this invent its own three.
+    /// Employees come from the workbook's own Employees sheet, which carries names, salaries and
+    /// hire dates but nothing payroll-specific, so those are topped up here. Nobody is invented:
+    /// staff written here would sit alongside the imported ones as a second set that no user sees.
     ///
     /// The runs are built through <see cref="PayrollService"/> rather than written out by hand,
     /// so every figure is real CRA arithmetic: the year-to-date totals accumulate, the CPP and EI
@@ -611,10 +611,16 @@ public class SampleCompanyService
     /// </summary>
     internal static void AddSamplePayroll(CompanyData data, DateTime referenceDate)
     {
-        // Keyed on pay runs, not employees. The sample workbook has an Employees sheet, so this
-        // used to see eight imported employees, decide payroll was already set up, and add
-        // nothing at all.
+        // Keyed on pay runs, not employees: the workbook's Employees sheet means there are always
+        // employees, so they say nothing about whether payroll has been set up.
         if (data.PayRuns.Count > 0)
+        {
+            return;
+        }
+
+        // The workbook's Employees sheet is what puts people here. Without them there is nobody to
+        // pay, and running anyway would add pay runs with no lines on them.
+        if (data.Employees.Count == 0)
         {
             return;
         }
@@ -629,29 +635,7 @@ public class SampleCompanyService
         company.PayrollContactEmail = "payroll@samplecompany.com";
         company.RemitterType = RemitterType.Regular;
 
-        DateTime hired = referenceDate.AddYears(-2);
-
-        if (data.Employees.Count == 0)
-        {
-            data.Employees.AddRange(
-            [
-                SampleEmployee("EMP-001", "Sarah Chen", "111111118", "ON", hired,
-                    "118 Bay Street", "Toronto", "M5J2N8",
-                    PayType.Salary, 30000m),
-
-                SampleEmployee("EMP-002", "Marcus Bell", "222222226", "ON", hired.AddMonths(7),
-                    "47 King Street East", "Hamilton", "L8N1A9",
-                    PayType.Hourly, 24.00m),
-
-                SampleEmployee("EMP-003", "Priya Raman", "333333334", "BC", hired.AddMonths(14),
-                    "900 Granville Street", "Vancouver", "V6Z1K3",
-                    PayType.Salary, 32000m),
-            ]);
-        }
-        else
-        {
-            CompletePayrollDetails(data.Employees, hired);
-        }
+        CompletePayrollDetails(data.Employees, referenceDate.AddYears(-2));
 
         var payroll = new PayrollService();
 
@@ -750,37 +734,6 @@ public class SampleCompanyService
             employee.StartDate ??= fallbackHireDate;
         }
     }
-
-    private static Employee SampleEmployee(
-        string id, string name, string sin, string province, DateTime start,
-        string street, string city, string postalCode,
-        PayType payType, decimal payRate) => new()
-        {
-            Id = id,
-            Name = name,
-            Sin = sin,
-            Province = province,
-            PayType = payType,
-            PayRate = payRate,
-            PayFrequency = PayFrequency.Biweekly,
-
-            // Only meaningful for the salaried two, and only for the record of employment, which
-            // wants insurable hours a salaried run never records.
-            StandardHoursPerWeek = payType == PayType.Salary ? 37.5m : null,
-
-            StartDate = start,
-            DentalBenefit = DentalBenefitCode.PayeeOnly,
-            Address = new Models.Common.Address
-            {
-                Street = street,
-                City = city,
-                State = province,
-                ZipCode = postalCode,
-                Country = "Canada",
-            },
-            CreatedAt = start,
-            UpdatedAt = start,
-        };
 
     /// <summary>
     /// Time-shifts all dates in the sample data so that the most recent transaction
