@@ -543,6 +543,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
             setOut('taxRateLabel', taxMode === 'fixed' ? '' : ' (' + String(parseFloat(tax.toFixed(2))) + '%)');
             setOut('subtotal', money(subtotal));
             setOut('processingFee', money(procFee));
+            setOut('total', due(total));
             setOut('amountToPay', due(balance + procFee));
         };
 

@@ -427,9 +427,11 @@ public partial class InvoiceHtmlRenderer
             ["ProcessingFeeAmount"] = showProcessingFeeRow
                 ? $"{currencySymbol}{Money(displayProcessingFee, decimals)}"
                 : "",
-            // The only headline figure on the invoice, so it always renders, including
-            // the 0.00 on a settled invoice. A quote asks for no money and hides it.
+            // One headline figure at the foot of the document, never both. An invoice asks
+            // for money, so it shows what is left to pay; a quote asks for none, so it shows
+            // what the work comes to.
             ["ShowAmountToPay"] = !labels.HidePaymentDetails,
+            ["ShowTotal"] = labels.HidePaymentDetails,
             ["AmountToPay"] = $"{currencySymbol}{Money(NonNegative(invoice.Balance) + estimatedProcessingFee, decimals)}{CurrencyCodeSuffix(invoice)}",
 
             // The footer is where the customer message lives: the invoice's Notes, falling back to the
