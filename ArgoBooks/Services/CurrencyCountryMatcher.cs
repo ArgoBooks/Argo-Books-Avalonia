@@ -13,7 +13,7 @@ namespace ArgoBooks.Services;
 /// Only countries whose official currency is one of the supported currencies
 /// (<see cref="CurrencyInfo.All"/>) are mapped here. For any other country the
 /// expected currency is treated as unknown and no warning is raised, so users in
-/// countries whose currency isn't selectable (e.g. India/INR) are never nagged.
+/// countries whose currency isn't selectable are never nagged.
 /// </summary>
 public static class CurrencyCountryMatcher
 {
@@ -51,6 +51,33 @@ public static class CurrencyCountryMatcher
         ["NO"] = "NOK",
         ["SE"] = "SEK",
         ["DK"] = "DKK",
+        ["IN"] = "INR",
+        ["AE"] = "AED",
+        ["AR"] = "ARS",
+        ["BD"] = "BDT",
+        ["CL"] = "CLP",
+        ["CO"] = "COP",
+        ["EG"] = "EGP",
+        ["GH"] = "GHS",
+        ["HK"] = "HKD",
+        ["ID"] = "IDR",
+        ["IL"] = "ILS",
+        ["KE"] = "KES",
+        ["LK"] = "LKR",
+        ["MA"] = "MAD",
+        ["MX"] = "MXN",
+        ["MY"] = "MYR",
+        ["NG"] = "NGN",
+        ["NZ"] = "NZD",
+        ["PE"] = "PEN",
+        ["PH"] = "PHP",
+        ["PK"] = "PKR",
+        ["QA"] = "QAR",
+        ["SA"] = "SAR",
+        ["SG"] = "SGD",
+        ["TH"] = "THB",
+        ["VN"] = "VND",
+        ["ZA"] = "ZAR",
         // Eurozone (official euro users plus the European microstates)
         ["AT"] = "EUR", ["BE"] = "EUR", ["HR"] = "EUR", ["CY"] = "EUR",
         ["EE"] = "EUR", ["FI"] = "EUR", ["FR"] = "EUR", ["DE"] = "EUR",
