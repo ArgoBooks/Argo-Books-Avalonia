@@ -2063,6 +2063,15 @@ public partial class SkiaReportDesignCanvas : UserControl
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
+        // Select all is the one key here that starts a selection rather than acting on one, so it
+        // runs before the guard below. Everything else needs something selected to act on.
+        if (e.Key == Key.A && e.KeyModifiers.HasCommand())
+        {
+            SelectAll();
+            e.Handled = true;
+            return;
+        }
+
         if (_selectedElements.Count == 0) return;
 
         switch (e.Key)
@@ -2070,11 +2079,6 @@ public partial class SkiaReportDesignCanvas : UserControl
             case Key.Delete:
             case Key.Back:
                 DeleteSelectedElements();
-                e.Handled = true;
-                break;
-
-            case Key.A when e.KeyModifiers.HasCommand():
-                SelectAll();
                 e.Handled = true;
                 break;
 
