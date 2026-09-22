@@ -197,7 +197,7 @@ public partial class AppShell : UserControl
 
             // The search box on whichever list page is open. Works while typing, because
             // reaching for it mid-keystroke is the whole point.
-            case Key.F when e.KeyModifiers.HasCommand():
+            case Key.F when e.KeyModifiers.HasCommand() && !IsModalOpen():
                 if (CurrentTable() is { } searchable)
                 {
                     searchable.FocusSearch();
@@ -208,7 +208,7 @@ public partial class AppShell : UserControl
             // Undo and redo, the same commands the header's buttons run. Skipped while a text
             // box has focus so the box keeps its own undo: reverting a saved transaction
             // because someone wanted their last word back would be the wrong trade.
-            case Key.Z when e.KeyModifiers.HasCommand() && !IsTypingInText():
+            case Key.Z when e.KeyModifiers.HasCommand() && !IsTypingInText() && !IsModalOpen():
                 if (e.KeyModifiers.HasFlag(KeyModifiers.Shift))
                     vm.HeaderViewModel.UndoRedoViewModel.RedoCommand.Execute(null);
                 else
@@ -216,14 +216,14 @@ public partial class AppShell : UserControl
                 e.Handled = true;
                 break;
 
-            case Key.Y when e.KeyModifiers.HasCommand() && !IsTypingInText():
+            case Key.Y when e.KeyModifiers.HasCommand() && !IsTypingInText() && !IsModalOpen():
                 vm.HeaderViewModel.UndoRedoViewModel.RedoCommand.Execute(null);
                 e.Handled = true;
                 break;
 
             // Whatever the open page's "new" button does. Taken from the table itself rather
             // than a per-page mapping, so a page that gains an add button gains the shortcut.
-            case Key.N when e.KeyModifiers.HasCommand() && !IsTypingInText():
+            case Key.N when e.KeyModifiers.HasCommand() && !IsTypingInText() && !IsModalOpen():
                 if (CurrentTable()?.AddCommand is { } add && add.CanExecute(null))
                 {
                     add.Execute(null);
@@ -239,4 +239,13 @@ public partial class AppShell : UserControl
 
     private bool IsTypingInText() =>
         TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is TextBox;
+
+    /// <summary>
+    /// A modal owns the keyboard while it is up. Without this the shell's shortcuts reach the page
+    /// behind it: undo would take back a saved action while the user edits something else, and new
+    /// would open a second modal underneath the one they are looking at. Focus is not enough to
+    /// tell, because the document editors put it in a web view rather than a text box.
+    /// </summary>
+    private bool IsModalOpen() =>
+        this.GetVisualDescendants().OfType<Controls.ModalOverlay>().Any(m => m.IsOpen);
 }
