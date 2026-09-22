@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using ArgoBooks.Controls;
 using ArgoBooks.Controls.ColumnWidths;
 using ArgoBooks.Helpers;
 using ArgoBooks.Core.Models.Tracking;
@@ -118,6 +119,9 @@ public partial class ReturnsPageViewModel : SortablePageViewModelBase
 
     public ReturnsPageViewModel()
     {
+        SortColumn = "Date";
+        SortDirection = SortDirection.Descending;
+
         LoadReturns();
 
         EnableDeferredUndoRefresh(p => p == PageNames.Returns, LoadReturns);
@@ -240,9 +244,21 @@ public partial class ReturnsPageViewModel : SortablePageViewModelBase
             filtered = filtered.Where(r => r.ReturnDate <= filterDateTo.Value.DateTime);
         }
 
-        // Sort by date descending (newest first), materialize here for display + pagination
-        var displayItems = filtered.OrderByDescending(r => r.ReturnDate)
-            .Select(CreateDisplayItem).ToList();
+        var displayItems = filtered.Select(CreateDisplayItem).ToList();
+
+        displayItems = displayItems.ApplySort(
+            SortColumn,
+            SortDirection,
+            new Dictionary<string, Func<ReturnDisplayItem, object?>>
+            {
+                ["Id"] = r => r.Id,
+                ["Product"] = r => r.ProductNames,
+                ["SupplierCustomer"] = r => r.SupplierOrCustomerName,
+                ["Date"] = r => r.ReturnDate,
+                ["Reason"] = r => r.Reason,
+                ["Refund"] = r => r.RefundAmount
+            },
+            r => r.ReturnDate);
 
         var pagedReturns = Paginate(displayItems, "return");
 

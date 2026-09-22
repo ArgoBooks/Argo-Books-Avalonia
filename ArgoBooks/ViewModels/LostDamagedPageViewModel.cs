@@ -5,6 +5,7 @@ using ArgoBooks.Helpers;
 using ArgoBooks.Core.Models.Tracking;
 using ArgoBooks.Core.Services;
 using ArgoBooks.Services;
+using ArgoBooks.Controls;
 using ArgoBooks.Utilities;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -110,6 +111,9 @@ public partial class LostDamagedPageViewModel : SortablePageViewModelBase
 
     public LostDamagedPageViewModel()
     {
+        SortColumn = "Date";
+        SortDirection = SortDirection.Descending;
+
         LoadItems();
 
         EnableDeferredUndoRefresh(p => p == PageNames.LostDamaged, LoadItems);
@@ -236,10 +240,20 @@ public partial class LostDamagedPageViewModel : SortablePageViewModelBase
             filtered = filtered.Where(item => item.DateDiscovered <= filterDateTo.Value.DateTime);
         }
 
-        // Sort by date descending (newest first)
-        filtered = filtered.OrderByDescending(item => item.DateDiscovered);
-
         var displayItems = filtered.Select(CreateDisplayItem).ToList();
+
+        displayItems = displayItems.ApplySort(
+            SortColumn,
+            SortDirection,
+            new Dictionary<string, Func<LostDamagedDisplayItem, object?>>
+            {
+                ["Id"] = i => i.Id,
+                ["Product"] = i => i.ProductName,
+                ["Date"] = i => i.DateDiscovered,
+                ["Reason"] = i => i.Reason,
+                ["Loss"] = i => i.ValueLost
+            },
+            i => i.DateDiscovered);
 
         var pagedItems = Paginate(displayItems, "item");
 

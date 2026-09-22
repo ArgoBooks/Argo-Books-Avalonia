@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using ArgoBooks.Controls.ColumnWidths;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Portal;
@@ -7,6 +7,7 @@ using ArgoBooks.Core.Services;
 using ArgoBooks.Helpers;
 using ArgoBooks.Services;
 using ArgoBooks.Localization;
+using ArgoBooks.Controls;
 using ArgoBooks.Utilities;
 using ArgoBooks.Views;
 using Avalonia;
@@ -292,6 +293,10 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
     {
         // Default to match ArgoTable's PageSizeOptions
         PageSize = 25;
+
+        SortColumn = "Date";
+        SortDirection = SortDirection.Descending;
+
         LoadReceipts();
         CheckScannerConfiguration();
 
@@ -484,8 +489,20 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
             filtered = filtered.Where(r => r.Date <= filterDateTo.Value.DateTime);
         }
 
-        // Sort by date descending (newest first), materialize for .Count and pagination
-        var sortedFiltered = filtered.OrderByDescending(r => r.Date).ToList();
+        // Sorted on the receipt itself, not the row: rows are built after paging so the page
+        // only pays for the images it shows.
+        var sortedFiltered = filtered.ToList().ApplySort(
+            SortColumn,
+            SortDirection,
+            new Dictionary<string, Func<Receipt, object?>>
+            {
+                ["Id"] = r => r.Id,
+                ["Type"] = r => r.TransactionType,
+                ["Supplier"] = r => r.Supplier,
+                ["Date"] = r => r.Date,
+                ["Amount"] = r => r.Amount
+            },
+            r => r.Date);
 
         // Paginate BEFORE creating display items, only process the visible page
         var pagedReceipts = Paginate(sortedFiltered, "receipt");
