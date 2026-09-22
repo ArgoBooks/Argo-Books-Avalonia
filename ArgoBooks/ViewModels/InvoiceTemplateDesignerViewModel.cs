@@ -396,6 +396,11 @@ public partial class InvoiceTemplateDesignerViewModel : ViewModelBase
         if (template != null)
         {
             var deletedTemplate = template;
+
+            // Otherwise the documents sent with this template fall back to the default one and
+            // render with its logo, which is the redraw RetireLogo exists to prevent.
+            LogoHistory.RetireLogo(companyData!, template, null);
+
             companyData!.InvoiceTemplates.Remove(template);
             App.CompanyManager?.MarkAsChanged();
 
