@@ -3381,6 +3381,8 @@ public partial class App : Application
         if (BankStatementImportModalViewModel == null) return;
         if (Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop) return;
 
+        _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportOpened, "bank");
+
         var file = await desktop.MainWindow!.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
             Title = "Import Bank Statement".Translate(),
@@ -3390,7 +3392,11 @@ public partial class App : Application
                 new FilePickerFileType("Bank statements") { Patterns = ["*.csv", "*.xlsx", "*.xls", "*.pdf"] }
             ]
         });
-        if (file.Count == 0) return;
+        if (file.Count == 0)
+        {
+            _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportAbandoned, "bank:file-picker");
+            return;
+        }
 
         await BankStatementImportModalViewModel.OpenAsync(file[0].Path.LocalPath);
     }
@@ -3408,6 +3414,8 @@ public partial class App : Application
             return;
         }
 
+        _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportOpened, "bank-matching");
+
         var file = await desktop.MainWindow!.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
             Title = "Import Bank Statement".Translate(),
@@ -3417,7 +3425,11 @@ public partial class App : Application
                 new FilePickerFileType("Bank statements") { Patterns = ["*.csv", "*.xlsx", "*.xls", "*.pdf"] }
             ]
         });
-        if (file.Count == 0) return;
+        if (file.Count == 0)
+        {
+            _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportAbandoned, "bank-matching:file-picker");
+            return;
+        }
 
         var filePath = file[0].Path.LocalPath;
         var ext = Path.GetExtension(filePath).ToLowerInvariant();
@@ -3457,6 +3469,7 @@ public partial class App : Application
 
             if (lines.Count == 0)
             {
+                _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, $"bank-matching:no-rows:{ext.TrimStart('.')}");
                 await ShowInfoMessageBoxAsync("Info".Translate(),
                     "No transactions were found. Make sure the file has Date, Description and Amount (or Debit/Credit) columns.".Translate());
                 return;
@@ -3487,6 +3500,8 @@ public partial class App : Application
             _bankMatchingPageViewModel?.Reload();
             NavigationService?.NavigateTo(PageNames.BankMatching);
 
+            _ = TelemetryManager?.TrackFeatureAsync(FeatureName.DataImported, $"bank-matching:{lines.Count}");
+
             await ShowInfoMessageBoxAsync(
                 "Bank Matching".Translate(),
                 "Imported {0} transactions from {1}.".TranslateFormat(lines.Count, Path.GetFileName(filePath)));
@@ -3494,10 +3509,12 @@ public partial class App : Application
         catch (OperationCanceledException)
         {
             _mainWindowViewModel?.HideLoading();
+            _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportAbandoned, "bank-matching:cancelled");
         }
         catch (Exception ex)
         {
             _mainWindowViewModel?.HideLoading();
+            _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, "bank-matching:exception");
             ErrorLogger?.LogError(ex, ErrorCategory.Import, "Bank statement import failed");
             await ShowErrorMessageBoxAsync("Import Failed".Translate(), "Failed to import bank statement:\n\n{0}".TranslateFormat(ex.Message));
         }
