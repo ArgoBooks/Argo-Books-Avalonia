@@ -720,4 +720,19 @@ public partial class ArgoTable : UserControl, INotifyPropertyChanged
         }
         TableGridSizeChanged?.Invoke(this, e);
     }
+
+    /// <summary>
+    /// Puts the caret in the search box with whatever is there selected, so the shortcut both
+    /// starts a search and replaces the last one.
+    /// </summary>
+    public void FocusSearch()
+    {
+        if (!ShowSearch) return;
+
+        var box = this.FindControl<TextBox>("SearchInput");
+        if (box == null) return;
+
+        box.Focus();
+        box.SelectAll();
+    }
 }
