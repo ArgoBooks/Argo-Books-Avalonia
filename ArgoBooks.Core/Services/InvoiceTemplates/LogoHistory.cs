@@ -50,6 +50,22 @@ public static class LogoHistory
 
         foreach (var invoice in invoices) invoice.LogoId = kept.Id;
         foreach (var quote in quotes) quote.LogoId = kept.Id;
+
+        Prune(companyData);
+    }
+
+    /// <summary>
+    /// Drops kept logos no document points at any more, so deleting old invoices reclaims the
+    /// space. Runs when a logo is retired, which is the only moment the list grows.
+    /// </summary>
+    private static void Prune(CompanyData companyData)
+    {
+        var inUse = companyData.Invoices.Select(i => i.LogoId)
+            .Concat(companyData.Quotes.Select(q => q.LogoId))
+            .Where(id => !string.IsNullOrEmpty(id))
+            .ToHashSet(StringComparer.Ordinal);
+
+        companyData.Settings.RetiredLogos.RemoveAll(l => !inUse.Contains(l.Id));
     }
 
     /// <summary>
