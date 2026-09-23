@@ -223,12 +223,6 @@ public partial class Invoice : ObservableObject
     public string? AccountantId { get; set; }
 
     /// <summary>
-    /// Payment reminder settings.
-    /// </summary>
-    [JsonPropertyName("reminderSettings")]
-    public ReminderSettings ReminderSettings { get; set; } = new();
-
-    /// <summary>
     /// Invoice history (actions taken).
     /// </summary>
     [JsonPropertyName("history")]

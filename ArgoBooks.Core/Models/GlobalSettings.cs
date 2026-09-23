@@ -26,13 +26,11 @@ public class GlobalSettings
 
 public class WelcomeSettings
 {
-    public bool ShowWelcomeForm { get; set; } = true;
     public bool EulaAccepted { get; set; } = false;
 }
 
 public class UpdateSettings
 {
-    public DateTime? LastUpdateCheck { get; set; }
     public bool AutoOpenRecentAfterUpdate { get; set; } = true;
 
     /// <summary>
