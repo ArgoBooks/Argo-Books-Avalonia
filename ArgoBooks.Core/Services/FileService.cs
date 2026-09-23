@@ -495,6 +495,11 @@ public class FileService(
         var employeesTask         = ReadJsonAsync<List<Models.Payroll.Employee>>(tempDirectory, "employees.json", cancellationToken);
         var payRunsTask           = ReadJsonAsync<List<Models.Payroll.PayRun>>(tempDirectory, "payRuns.json", cancellationToken);
 
+        // Mobile sync. Absent from every file written before they were persisted, which
+        // ReadJsonAsync handles by returning null.
+        var pairedDevicesTask     = ReadJsonAsync<List<Models.Tracking.PairedDevice>>(tempDirectory, "pairedDevices.json", cancellationToken);
+        var ingestedScanUidsTask  = ReadJsonAsync<List<string>>(tempDirectory, "ingestedScanUids.json", cancellationToken);
+
         // Validate version BEFORE awaiting the rest. If the file was saved by a newer app
         // version, the other data files may contain enum values or fields this build can't
         // deserialize, and we'd surface that as an opaque JSON exception. Awaiting just the
@@ -509,7 +514,8 @@ public class FileService(
             rentalInventoryTask, rentalsTask, returnsTask, lostDamagedTask, receiptsTask,
             invoiceTemplatesTask, eventLogTask, pendingConversionsTask,
             forecastRecordsTask, bankImportSessionsTask,
-            employeesTask, payRunsTask
+            employeesTask, payRunsTask,
+            pairedDevicesTask, ingestedScanUidsTask
         ];
 
         var settings = await settingsTask;
@@ -559,7 +565,9 @@ public class FileService(
             ForecastRecords = forecastRecordsTask.Result ?? [],
             BankImportSessions = bankImportSessionsTask.Result ?? [],
             Employees = employeesTask.Result ?? [],
-            PayRuns = payRunsTask.Result ?? []
+            PayRuns = payRunsTask.Result ?? [],
+            PairedDevices = pairedDevicesTask.Result ?? [],
+            IngestedScanUids = ingestedScanUidsTask.Result ?? []
         };
     }
 
@@ -627,6 +635,12 @@ public class FileService(
         // reached the .argo file, so every employee and pay run was lost on close.
         await WriteJsonAsync(companyDirectory, "employees.json", data.Employees, cancellationToken);
         await WriteJsonAsync(companyDirectory, "payRuns.json", data.PayRuns, cancellationToken);
+
+        // Mobile sync. Both were read and written all session and reached no file, so a paired
+        // phone vanished on close and the ingested-capture list could not de-dupe across a
+        // restart, which is the whole reason it is stored rather than held in memory.
+        await WriteJsonAsync(companyDirectory, "pairedDevices.json", data.PairedDevices, cancellationToken);
+        await WriteJsonAsync(companyDirectory, "ingestedScanUids.json", data.IngestedScanUids, cancellationToken);
 
         // Deliberately does NOT call data.MarkAsSaved() here: this only stages JSON into the temp
         // directory, and the data isn't durable until the caller commits the .argo file via
