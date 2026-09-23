@@ -127,9 +127,8 @@ public partial class SetupChecklistViewModel : ViewModelBase
             Icon = Icons.Expenses,
             NavigationTarget = "Expenses"
         });
-        // Importing is the last step because it is the one that makes the app worth keeping:
-        // a company file holding the user's real history. The step it replaced only asked
-        // them to open the Analytics page, which at this point is an empty chart.
+        // The step that leaves a company file holding the user's real records, which is what
+        // makes the app worth opening again.
         Items.Add(new ChecklistItemViewModel
         {
             Id = TutorialService.ChecklistItems.ImportData,
@@ -242,7 +241,7 @@ public partial class SetupChecklistViewModel : ViewModelBase
         else if (item.Id == TutorialService.ChecklistItems.RecordExpense)
             App.ExpenseModalsViewModel?.OpenAddModal();
         else if (item.Id == TutorialService.ChecklistItems.ImportData)
-            App.ImportModalViewModel?.OpenCommand.Execute(null);
+            App.ImportModalViewModel?.OpenForCurrentCompany();
     }
 
     [RelayCommand]

@@ -35,6 +35,7 @@
                     <StackPanel Margin="24,20" Spacing="12">
                         <!-- Backup File -->
                         <Button Classes="import-option"
+                                IsVisible="{Binding ShowBackupOption}"
                                 Command="{Binding SelectFormatCommand}"
                                 CommandParameter="Backup">
                             <Grid ColumnDefinitions="Auto,*,Auto">

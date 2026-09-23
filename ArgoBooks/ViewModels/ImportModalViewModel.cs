@@ -16,6 +16,13 @@ public partial class ImportModalViewModel : ViewModelBase
     private string? _selectedFormat;
 
     /// <summary>
+    /// Whether to offer "Backup File". Restoring a backup opens a different company, so anywhere
+    /// the point is to bring records into the company already open should leave it out.
+    /// </summary>
+    [ObservableProperty]
+    private bool _showBackupOption = true;
+
+    /// <summary>
     /// Default constructor.
     /// </summary>
     public ImportModalViewModel()
@@ -31,7 +38,17 @@ public partial class ImportModalViewModel : ViewModelBase
         _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ImportOpened);
 
         SelectedFormat = null;
+        ShowBackupOption = true;
         IsOpen = true;
+    }
+
+    /// <summary>
+    /// Opens with only the formats that add records to the open company.
+    /// </summary>
+    public void OpenForCurrentCompany()
+    {
+        Open();
+        ShowBackupOption = false;
     }
 
     /// <summary>
