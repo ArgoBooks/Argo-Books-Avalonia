@@ -2057,6 +2057,10 @@ public partial class App : Application
         {
             try
             {
+                // The installer restarts the app, so this is flushed with the rest of the
+                // shutdown rather than uploaded from the version being replaced.
+                _ = TelemetryManager?.TrackFeatureAsync(FeatureName.UpdateApplied, AppInfo.VersionNumber);
+
                 if (CompanyManager?.IsCompanyOpen == true)
                 {
                     // Use synchronous wait since we must complete before the process exits
@@ -2084,6 +2088,7 @@ public partial class App : Application
             var update = await UpdateService.CheckForUpdateAsync();
             if (update != null)
             {
+                _ = TelemetryManager?.TrackFeatureAsync(FeatureName.UpdateOffered, update.Version);
                 _appShellViewModel.CheckForUpdateModalViewModel.NotifyUpdateAvailable(update);
                 _appShellViewModel.ShowUpdateBanner($"V.{update.Version}");
             }

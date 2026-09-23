@@ -210,6 +210,8 @@ public partial class App
                             var txnExpenses = generatedTxns.Count(t => t is Core.Models.Transactions.Expense);
                             var txnRevenues = generatedTxns.Count - txnExpenses;
                             RecurringTransactionService.RaiseGenerated(txnExpenses, txnRevenues);
+                            _ = TelemetryManager?.TrackFeatureAsync(
+                                FeatureName.RecurringTransactionsGenerated, $"{generatedTxns.Count}");
                             AddNotification(
                                 "Recurring transactions",
                                 generatedTxns.Count == 1
@@ -1098,6 +1100,7 @@ public partial class App
                 SyncBiometricEnrolment(args.NewPassword, keepEnrolment: false);
                 ConfigureAutoLock();
 
+                _ = TelemetryManager?.TrackFeatureAsync(FeatureName.CompanyPasswordSet, "set");
                 _appShellViewModel.AddNotification("Success".Translate(), "Password has been set.".Translate(), NotificationType.Success);
             }
             catch (Exception ex)
@@ -1128,6 +1131,7 @@ public partial class App
                 SyncBiometricEnrolment(args.NewPassword, keepEnrolment: true);
 
                 settings.OnPasswordChanged();
+                _ = TelemetryManager?.TrackFeatureAsync(FeatureName.CompanyPasswordSet, "changed");
                 _appShellViewModel.AddNotification("Success".Translate(), "Password has been changed.".Translate(), NotificationType.Success);
             }
             catch (Exception ex)
@@ -1159,6 +1163,7 @@ public partial class App
                 ConfigureAutoLock();
 
                 settings.OnPasswordRemoved();
+                _ = TelemetryManager?.TrackFeatureAsync(FeatureName.CompanyPasswordSet, "removed");
                 _appShellViewModel.AddNotification("Success".Translate(), "Password has been removed.".Translate(), NotificationType.Success);
             }
             catch (Exception ex)

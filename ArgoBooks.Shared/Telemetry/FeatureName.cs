@@ -18,6 +18,7 @@ public enum FeatureName
 
     // Transactions
     InvoiceCreated,
+    InvoiceSent,
     QuoteCreated,
     QuoteSent,
     QuoteConverted,
@@ -98,5 +99,21 @@ public enum FeatureName
     DashboardReset,
 
     // Year-end books sent to an accountant
-    AccountantPackSent
+    AccountantPackSent,
+
+    // The version is in the context on both, so uptake divides offered into applied.
+    UpdateOffered,
+    UpdateApplied,
+
+    // A schedule the user set up, and the transactions it produced on a later open.
+    RecurringScheduleCreated,
+    RecurringTransactionsGenerated,
+
+    // The provider is in the context.
+    PaymentProviderConnected,
+
+    PhonePaired,
+
+    // set, changed or removed, in the context.
+    CompanyPasswordSet
 }

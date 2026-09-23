@@ -4,6 +4,7 @@ using ArgoBooks.Core.Models.Transactions;
 using ArgoBooks.Core.Services;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
+using ArgoBooks.Shared.Telemetry;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -329,6 +330,8 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
 
             IsOpen = false;
             App.CompanyManager?.MarkAsChanged();
+            _ = App.TelemetryManager?.TrackFeatureAsync(
+                FeatureName.RecurringScheduleCreated, $"{_side}:{(Frequency)FrequencyIndex}");
             Saved?.Invoke();
             return;
         }

@@ -2119,6 +2119,7 @@ public partial class InvoiceModalsViewModel : ViewModelBase
 
         _unansweredSend = null;
         invoice.Status = InvoiceStatus.Sent;
+        _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.InvoiceSent);
         invoice.History.Add(new InvoiceHistoryEntry
         {
             Action = "Sent",

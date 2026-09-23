@@ -1569,6 +1569,7 @@ public partial class SettingsModalViewModel : ViewModelBase
                             // Notify invoice views and other subscribers that provider state changed
                             PaymentProviderService.NotifyProvidersChanged();
                         });
+                        _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.PaymentProviderConnected, provider);
                         return;
                     }
                 }
@@ -2853,6 +2854,7 @@ public partial class SettingsModalViewModel : ViewModelBase
                     IsPhoneJustPaired = true;
                     await RefreshDevicesAsync();
                 });
+                _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.PhonePaired);
 
                 // Push the first snapshot immediately. The phone polls /snapshot and shows
                 // "Waiting for your desktop to sync" until one exists, and the only other uploader
