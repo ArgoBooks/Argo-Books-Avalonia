@@ -147,6 +147,17 @@
                                      IconData="{x:Static icons:Icons.Info}"
                                      BannerBackground="{DynamicResource InfoBrush}" />
 
+                <controls:InfoBanner ShowBanner="{Binding ShowUpdateEmailBanner}"
+                                     IsVisible="{Binding ShowUpdateEmailBanner}"
+                                     BannerMargin="0"
+                                     Margin="0,-16,0,0"
+                                     Message="{loc:Loc 'Want an email when something new ships? Optional, and no account needed.'}"
+                                     ActionText="{loc:Loc 'Sign up'}"
+                                     ActionCommand="{Binding OpenUpdateEmailSettingsCommand}"
+                                     DismissCommand="{Binding DismissUpdateEmailBannerCommand}"
+                                     IconData="{x:Static icons:Icons.Send}"
+                                     BannerBackground="{DynamicResource InfoBrush}" />
+
                 <!-- Edit Mode Toolbar -->
                 <Border Classes="card"
                         Padding="12,8"

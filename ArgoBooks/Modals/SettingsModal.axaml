@@ -126,6 +126,42 @@
                                     </StackPanel>
                                 </StackPanel>
 
+                                <!-- Update emails. The app needs no account, so this is the only
+                                     place someone can choose to be reachable. Nothing depends on it. -->
+                                <StackPanel Spacing="8">
+                                    <Border Classes="settings-row">
+                                        <StackPanel Spacing="12">
+                                            <StackPanel Spacing="2">
+                                                <TextBlock Text="{loc:Loc 'Product updates'}"
+                                                           FontSize="14"
+                                                           FontWeight="Medium"
+                                                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                                                <TextBlock Text="{loc:Loc 'An occasional email when something new ships. We send a link to confirm first, and you can unsubscribe from any message.'}"
+                                                           FontSize="12"
+                                                           TextWrapping="Wrap"
+                                                           Foreground="{DynamicResource TextTertiaryBrush}" />
+                                            </StackPanel>
+                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8"
+                                                  IsVisible="{Binding !UpdateEmailSubmitted}">
+                                                <TextBox Grid.Column="0"
+                                                         Classes="form-input"
+                                                         Text="{Binding UpdateEmailAddress, Mode=TwoWay}"
+                                                         Watermark="you@business.com" />
+                                                <Button Grid.Column="1"
+                                                        Classes="secondary-button"
+                                                        Content="{loc:Loc 'Sign up'}"
+                                                        Command="{Binding SubscribeToUpdatesCommand}"
+                                                        IsEnabled="{Binding !IsSubscribingToUpdates}" />
+                                            </Grid>
+                                            <TextBlock Text="{Binding UpdateEmailMessage}"
+                                                       FontSize="12"
+                                                       TextWrapping="Wrap"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                                       IsVisible="{Binding UpdateEmailMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+
                                 <!-- Privacy Section. No group heading: it holds a single setting,
                                      and a heading over one row reads as a section that lost its rest. -->
                                 <StackPanel Spacing="8">

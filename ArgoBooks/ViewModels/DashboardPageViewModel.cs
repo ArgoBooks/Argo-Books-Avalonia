@@ -370,6 +370,9 @@ public partial class DashboardPageViewModel : ChartContextMenuViewModelBase, ICl
         ShowSourceSurveyBanner =
             (tutorial.HasSkippedTutorial || tutorial.IsSetupChecklistDismissed) &&
             tutorial.ShouldShowSourceSurvey();
+
+        // Never both at once, and the survey wins, so this has to follow it.
+        RefreshUpdateEmailBanner();
     }
 
     private void OnSourceSurveyVisibilityChanged(object? sender, bool shown)
@@ -394,6 +397,54 @@ public partial class DashboardPageViewModel : ChartContextMenuViewModelBase, ICl
     {
         TutorialService.Instance.MarkSourceSurveyDismissed();
         ShowSourceSurveyBanner = false;
+    }
+
+    #endregion
+
+    #region Update Email Banner
+
+    [ObservableProperty]
+    private bool _showUpdateEmailBanner;
+
+    /// <summary>
+    /// Offers update emails once the person has actually used the app, and never alongside the
+    /// source survey, which is the one question worth more than this. Held back until there is
+    /// some data because asking on an empty dashboard is asking a stranger.
+    /// </summary>
+    public void RefreshUpdateEmailBanner()
+    {
+        var settings = App.SettingsService?.GlobalSettings?.UpdateEmail;
+        if (settings == null || settings.Dismissed || settings.Submitted || ShowSourceSurveyBanner)
+        {
+            ShowUpdateEmailBanner = false;
+            return;
+        }
+
+        var data = _companyManager?.CompanyData;
+        var hasUsedTheApp = data != null &&
+            (data.Expenses.Count > 0 || data.Revenues.Count > 0 || data.Invoices.Count > 0);
+
+        ShowUpdateEmailBanner = hasUsedTheApp && _companyManager?.IsSampleCompany != true;
+    }
+
+    [RelayCommand]
+    private void OpenUpdateEmailSettings()
+    {
+        // The field lives in Settings rather than in the banner, so there is one place to type
+        // it and one place to find it again after a dismiss.
+        App.SettingsModalViewModel?.OpenWithTab(SettingsTab.General);
+    }
+
+    [RelayCommand]
+    private void DismissUpdateEmailBanner()
+    {
+        var service = App.SettingsService;
+        if (service != null)
+        {
+            service.GlobalSettings.UpdateEmail.Dismissed = true;
+            _ = service.SaveGlobalSettingsAsync();
+        }
+        ShowUpdateEmailBanner = false;
     }
 
     #endregion

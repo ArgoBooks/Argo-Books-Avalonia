@@ -183,6 +183,58 @@ public partial class SettingsModalViewModel : ViewModelBase
 
     #endregion
 
+    #region Update Emails
+
+    [ObservableProperty]
+    private string _updateEmailAddress = string.Empty;
+
+    [ObservableProperty]
+    private string _updateEmailMessage = string.Empty;
+
+    [ObservableProperty]
+    private bool _isSubscribingToUpdates;
+
+    /// <summary>
+    /// Hides the field once a confirmation has been requested. Whether they clicked the link is
+    /// the server's business, so the app does not claim they are subscribed, only that it asked.
+    /// </summary>
+    [ObservableProperty]
+    private bool _updateEmailSubmitted;
+
+    [RelayCommand]
+    private async Task SubscribeToUpdatesAsync()
+    {
+        if (IsSubscribingToUpdates) return;
+
+        IsSubscribingToUpdates = true;
+        UpdateEmailMessage = string.Empty;
+        try
+        {
+            using var service = new UpdateEmailService(App.ErrorLogger);
+            var result = await service.SubscribeAsync(UpdateEmailAddress);
+            UpdateEmailMessage = result.Message;
+
+            if (result.Success)
+            {
+                UpdateEmailSubmitted = true;
+                UpdateEmailAddress = string.Empty;
+
+                var settings = App.SettingsService;
+                if (settings != null)
+                {
+                    settings.GlobalSettings.UpdateEmail.Submitted = true;
+                    await settings.SaveGlobalSettingsAsync();
+                }
+            }
+        }
+        finally
+        {
+            IsSubscribingToUpdates = false;
+        }
+    }
+
+    #endregion
+
     #region Feature Settings
 
     [ObservableProperty]
@@ -3159,6 +3211,12 @@ public partial class SettingsModalViewModel : ViewModelBase
         _originalShowInventorySection = ShowInventorySection;
         _originalShowRentalsSection = ShowRentalsSection;
         _originalShowPayrollSection = ShowPayrollSection;
+
+        // Not part of the save/cancel cycle: signing up happens against the server the moment
+        // the button is pressed, so there is nothing here to revert.
+        UpdateEmailSubmitted = App.SettingsService?.GlobalSettings.UpdateEmail.Submitted == true;
+        UpdateEmailMessage = string.Empty;
+
         SelectedTabIndex = tabIndex;
         IsOpen = true;
     }
