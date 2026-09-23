@@ -51,6 +51,19 @@ public class SessionEvent : TelemetryEvent
     /// </para>
     /// </summary>
     public bool? Clean { get; set; }
+
+    /// <summary>
+    /// Highest managed heap size seen during the session, in MB, sampled once a minute. Null on
+    /// SessionStart, on ends reconstructed after a force-quit, and on builds predating the field.
+    /// </summary>
+    public int? PeakManagedMemoryMb { get; set; }
+
+    /// <summary>
+    /// Highest process working set seen during the session, in MB, sampled alongside
+    /// <see cref="PeakManagedMemoryMb"/>. Counts what the managed figure cannot: decoded
+    /// bitmaps, Skia surfaces and the web view's own processes. Null in the same cases.
+    /// </summary>
+    public int? PeakWorkingSetMb { get; set; }
 }
 
 /// <summary>

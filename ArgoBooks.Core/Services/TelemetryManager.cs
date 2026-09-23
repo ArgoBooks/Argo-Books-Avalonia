@@ -147,6 +147,8 @@ public class TelemetryManager : ITelemetryManager
     private Timer? _heartbeatTimer;
     private int _heartbeatTicks;
     private int _uploadInFlight;
+    private long _peakManagedBytes;
+    private long _peakWorkingSetBytes;
 
     // Company profiles already recorded this session, so reopening or re-saving a company
     // does not record it again. Session-scoped on purpose: a profile per launch is a
@@ -278,6 +280,9 @@ public class TelemetryManager : ITelemetryManager
             sessionEvent.ActiveSeconds = activeSeconds;
             sessionEvent.LastPage = lastPage;
             sessionEvent.Clean = true;
+            SampleMemory();
+            sessionEvent.PeakManagedMemoryMb = ToMegabytes(Interlocked.Read(ref _peakManagedBytes));
+            sessionEvent.PeakWorkingSetMb = ToMegabytes(Interlocked.Read(ref _peakWorkingSetBytes));
             await _storageService.RecordEventAsync(sessionEvent, cancellationToken);
 
             // Only now is the session provably accounted for. Dropping the sentinel any
@@ -341,6 +346,35 @@ public class TelemetryManager : ITelemetryManager
     }
 
     /// <summary>
+    /// Records the session's high-water memory marks. PeakWorkingSet64 is Windows-only, so the
+    /// peak is accumulated from samples rather than read from the OS.
+    /// </summary>
+    private void SampleMemory()
+    {
+        try
+        {
+            Raise(ref _peakManagedBytes, GC.GetTotalMemory(forceFullCollection: false));
+            Raise(ref _peakWorkingSetBytes, Environment.WorkingSet);
+        }
+        catch
+        {
+            // Diagnostics only. A platform that refuses either reading reports nothing.
+        }
+
+        static void Raise(ref long peak, long sample)
+        {
+            long seen;
+            while (sample > (seen = Interlocked.Read(ref peak))
+                   && Interlocked.CompareExchange(ref peak, sample, seen) != seen)
+            {
+            }
+        }
+    }
+
+    private static int? ToMegabytes(long bytes) =>
+        bytes > 0 ? (int)(bytes / (1024 * 1024)) : null;
+
+    /// <summary>
     /// Stamps the sentinel every tick, and every <see cref="HeartbeatsPerUpload"/> ticks
     /// also flushes pending events. The flush is what makes a session that never closes
     /// cleanly still worth something: without it, a user who force-quits and never reopens
@@ -351,6 +385,7 @@ public class TelemetryManager : ITelemetryManager
         try
         {
             _sentinel?.Heartbeat(DateTime.UtcNow);
+            SampleMemory();
 
             if (Interlocked.Increment(ref _heartbeatTicks) % HeartbeatsPerUpload != 0)
             {
