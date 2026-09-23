@@ -91,7 +91,8 @@ public class CurrencyInfo
         ["HKD"] = new("HKD", "HK$", "Hong Kong Dollar"),
         ["HUF"] = new("HUF", "Ft", "Hungarian Forint", 0),
         ["IDR"] = new("IDR", "Rp", "Indonesian Rupiah"),
-        ["ILS"] = new("ILS", "₪", "Israeli Shekel"),
+        // "ILS" rather than ₪: same as THB, no glyph for it in the Mac PDF font.
+        ["ILS"] = new("ILS", "ILS", "Israeli Shekel"),
         ["INR"] = new("INR", "₹", "Indian Rupee"),
         ["ISK"] = new("ISK", "kr", "Icelandic Króna", 0),
         ["JPY"] = new("JPY", "¥", "Japanese Yen", 0),
@@ -112,7 +113,8 @@ public class CurrencyInfo
         ["QAR"] = new("QAR", "QAR", "Qatari Riyal"),
         ["RON"] = new("RON", "lei", "Romanian Leu"),
         ["RSD"] = new("RSD", "дин", "Serbian Dinar"),
-        ["RUB"] = new("RUB", "₽", "Russian Ruble"),
+        // "руб" rather than ₽: same as BGN and RSD, Cyrillic the Mac PDF font does ship.
+        ["RUB"] = new("RUB", "руб", "Russian Ruble"),
         ["SAR"] = new("SAR", "SAR", "Saudi Riyal"),
         ["SEK"] = new("SEK", "kr", "Swedish Krona"),
         ["SGD"] = new("SGD", "S$", "Singapore Dollar"),
