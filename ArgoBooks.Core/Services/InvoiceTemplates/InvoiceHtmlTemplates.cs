@@ -593,7 +593,7 @@ public static class InvoiceHtmlTemplates
                                             {{/ShowProcessingFee}}
                                             {{#ShowTotal}}
                                             <tr style="background-color: {{PrimaryColor}};">
-                                                <td style="padding: 12px 15px; font-size: 14px; font-weight: bold; color: #ffffff;">AMOUNT TO PAY</td>
+                                                <td style="padding: 12px 15px; font-size: 14px; font-weight: bold; color: #ffffff;">TOTAL</td>
                                                 <td style="padding: 12px 15px; font-size: 16px; font-weight: bold; color: #ffffff; text-align: right;"><span data-out="total">{{Total}}</span></td>
                                             </tr>
                                             {{/ShowTotal}}
