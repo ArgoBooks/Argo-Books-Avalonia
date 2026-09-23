@@ -100,10 +100,6 @@ public class CreateCompanyViewModelTests
 
     #region Data Lists Tests
 
-    // Business type left the wizard: it is the legal structure, which nothing in the app
-    // branches on. It is still offered in Edit Company, where EditCompanyModalViewModelTests
-    // covers the list.
-
     [Fact]
     public void Industries_ListIsNotEmpty()
     {

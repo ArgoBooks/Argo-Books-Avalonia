@@ -214,10 +214,8 @@ public partial class InvoiceModalsViewModel : ViewModelBase
     public string CompanyName => App.CompanyManager?.CompanyData?.Settings.Company.Name ?? string.Empty;
 
     /// <summary>
-    /// The create-company wizard no longer asks for the address, phone and email, because they
-    /// mean nothing until there is a document to put them on. This is that moment: the invoice
-    /// header beside it is visibly blank without them. Goes away on its own once any one of them
-    /// is filled, so it never becomes a nag.
+    /// Where the address, phone and email are asked for: the invoice header beside this prompt
+    /// is visibly blank without them. Clears once any one is filled, so it cannot become a nag.
     /// </summary>
     public bool ShowCompanyDetailsPrompt
     {

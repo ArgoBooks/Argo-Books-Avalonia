@@ -1,16 +1,12 @@
 namespace ArgoBooks.Core.Models;
 
 /// <summary>
-/// Which optional sidebar sections a company starts with, based on the industry it was created
-/// under. Only a starting point: once a toggle is set in Settings, <see cref="FeatureSettings"/>
-/// holds that answer and this is not consulted again.
+/// Which optional sidebar sections a company starts with. Only a starting point: a toggle set in
+/// Settings wins, see <see cref="FeatureVisibility"/>.
 ///
-/// Deliberately generous. A section that is missing reads as a feature the app does not have,
-/// while a spare one is only clutter, so anything arguable stays on.
-///
-/// Note this reads Industry, not BusinessType. BusinessType is the legal structure (Sole
-/// Proprietorship, Corporation, and so on), which says nothing about whether a business holds
-/// stock or rents things out.
+/// Deliberately generous, because a missing section reads as a feature the app does not have
+/// while a spare one is only clutter. Keyed on Industry rather than BusinessType, which is the
+/// legal structure and says nothing about whether a business holds stock or rents things out.
 /// </summary>
 public static class IndustryFeatureDefaults
 {

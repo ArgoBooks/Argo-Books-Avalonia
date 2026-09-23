@@ -29,10 +29,7 @@ public class TutorialService
         public const string ExploreDashboard = "explore_dashboard";
         public const string ImportData = "import_data";
 
-        /// <summary>
-        /// Former third step, replaced by <see cref="ImportData"/>. Kept only so
-        /// <see cref="MigrateLegacyChecklist"/> can recognise an already-finished list.
-        /// </summary>
+        /// <summary>Read by <see cref="MigrateLegacyChecklist"/> only.</summary>
         public const string VisitAnalytics = "visit_analytics";
     }
 
@@ -341,9 +338,6 @@ public class TutorialService
 
         if (AreAllChecklistItemsCompleted())
         {
-            // No step gates the others any more, so "finished" is the only honest place to
-            // report this. It previously fired on the last step of a chain, which ran ahead
-            // of the checklist actually being done.
             _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.OnboardingCompleted);
             AllChecklistItemsCompleted?.Invoke(this, EventArgs.Empty);
         }
