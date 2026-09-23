@@ -38,9 +38,9 @@ public class SidebarViewModelTests
     }
 
     [Fact]
-    public void Constructor_DefaultState_CompanyInitialIsA()
+    public void Constructor_DefaultState_CompanyInitialIsAppInitials()
     {
-        Assert.Equal("A", _viewModel.CompanyInitial);
+        Assert.Equal("AB", _viewModel.CompanyInitial);
     }
 
     [Fact]
@@ -138,11 +138,11 @@ public class SidebarViewModelTests
     }
 
     [Fact]
-    public void SetCompanyInfo_WithName_SetsCompanyInitialToFirstChar()
+    public void SetCompanyInfo_WithName_SetsCompanyInitialToFirstAndLastWord()
     {
         _viewModel.SetCompanyInfo("Test Company");
 
-        Assert.Equal("T", _viewModel.CompanyInitial);
+        Assert.Equal("TC", _viewModel.CompanyInitial);
     }
 
     [Fact]
@@ -175,7 +175,7 @@ public class SidebarViewModelTests
     {
         _viewModel.SetCompanyInfo("lowercase company");
 
-        Assert.Equal("L", _viewModel.CompanyInitial);
+        Assert.Equal("LC", _viewModel.CompanyInitial);
     }
 
     #endregion
@@ -183,19 +183,19 @@ public class SidebarViewModelTests
     #region CompanyName Change Tests
 
     [Fact]
-    public void CompanyName_WhenSetToEmpty_CompanyInitialDefaultsToA()
+    public void CompanyName_WhenSetToEmpty_CompanyInitialIsPlaceholder()
     {
         _viewModel.CompanyName = "";
 
-        Assert.Equal("A", _viewModel.CompanyInitial);
+        Assert.Equal("?", _viewModel.CompanyInitial);
     }
 
     [Fact]
-    public void CompanyName_WhenSetToNull_CompanyInitialDefaultsToA()
+    public void CompanyName_WhenSetToNull_CompanyInitialIsPlaceholder()
     {
         _viewModel.CompanyName = null;
 
-        Assert.Equal("A", _viewModel.CompanyInitial);
+        Assert.Equal("?", _viewModel.CompanyInitial);
     }
 
     [Fact]
@@ -203,7 +203,7 @@ public class SidebarViewModelTests
     {
         _viewModel.CompanyName = "Bravo Corp";
 
-        Assert.Equal("B", _viewModel.CompanyInitial);
+        Assert.Equal("BC", _viewModel.CompanyInitial);
     }
 
     #endregion
