@@ -68,7 +68,7 @@
                             <Binding Path="!IsSending" />
                         </MultiBinding>
                     </Border.IsVisible>
-                    <Grid RowDefinitions="Auto,*">
+                    <Grid RowDefinitions="Auto,Auto,*">
 
                         <!-- Header -->
                         <Border Grid.Row="0" Padding="20,14"
@@ -83,8 +83,19 @@
                             </Grid>
                         </Border>
 
+                        <controls:InfoBanner Grid.Row="1"
+                                             ShowBanner="{Binding ShowCompanyDetailsPrompt}"
+                                             IsVisible="{Binding ShowCompanyDetailsPrompt}"
+                                             BannerMargin="0"
+                                             Margin="20,12,20,0"
+                                             Message="{loc:Loc 'Your address, phone and email are blank on this invoice.'}"
+                                             ActionText="{loc:Loc 'Add them'}"
+                                             ActionCommand="{Binding EditCompanyDetailsCommand}"
+                                             IconData="{x:Static icons:Icons.Info}"
+                                             BannerBackground="{DynamicResource InfoBrush}" />
+
                         <!-- Body -->
-                        <Grid Grid.Row="1">
+                        <Grid Grid.Row="2">
 
                             <!-- EDITOR: paper + sidebar (create / continue) -->
                             <Grid ColumnDefinitions="*,320">

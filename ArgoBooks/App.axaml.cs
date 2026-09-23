@@ -2641,7 +2641,7 @@ public partial class App : Application
     /// <summary>
     /// Opens the edit company modal with the current company information.
     /// </summary>
-    private static void OpenEditCompanyModal()
+    public static void OpenEditCompanyModal(string? contextMessage = null)
     {
         if (CompanyManager?.IsCompanyOpen != true || _appShellViewModel == null) return;
 
@@ -2659,7 +2659,8 @@ public partial class App : Application
             settings?.Company.Address,
             settings?.Company.ProvinceState,
             settings?.Company.Email,
-            CompanyManager.CompanyData!.Settings.Localization.Currency);
+            CompanyManager.CompanyData!.Settings.Localization.Currency,
+            contextMessage);
     }
 
     /// <summary>

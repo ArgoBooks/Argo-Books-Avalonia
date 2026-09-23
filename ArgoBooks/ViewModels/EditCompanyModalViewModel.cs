@@ -111,6 +111,13 @@ public partial class EditCompanyModalViewModel : ViewModelBase
     /// </summary>
     public static string[] Industries { get; } = Core.Models.IndustryNames.All;
 
+    /// <summary>
+    /// Why the modal was opened, when something other than the menu opened it. Null for a plain
+    /// edit, so the banner only appears where there is a reason to explain.
+    /// </summary>
+    [ObservableProperty]
+    private string? _contextMessage;
+
     // Store original values for detecting changes
     private string _originalCompanyName = "";
     private string? _originalBusinessType;
@@ -175,8 +182,10 @@ public partial class EditCompanyModalViewModel : ViewModelBase
         string? address = null,
         string? provinceState = null,
         string? email = null,
-        string? currencyCode = null)
+        string? currencyCode = null,
+        string? contextMessage = null)
     {
+        ContextMessage = contextMessage;
         _originalCompanyName = companyName;
         _originalBusinessType = businessType;
         _originalIndustry = industry;

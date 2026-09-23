@@ -213,6 +213,40 @@ public partial class InvoiceModalsViewModel : ViewModelBase
     /// <summary>Company name shown on the editor paper header.</summary>
     public string CompanyName => App.CompanyManager?.CompanyData?.Settings.Company.Name ?? string.Empty;
 
+    /// <summary>
+    /// The create-company wizard no longer asks for the address, phone and email, because they
+    /// mean nothing until there is a document to put them on. This is that moment: the invoice
+    /// header beside it is visibly blank without them. Goes away on its own once any one of them
+    /// is filled, so it never becomes a nag.
+    /// </summary>
+    public bool ShowCompanyDetailsPrompt
+    {
+        get
+        {
+            var company = App.CompanyManager?.CompanyData?.Settings.Company;
+            if (company == null || App.CompanyManager?.IsSampleCompany == true) return false;
+
+            return string.IsNullOrWhiteSpace(company.Address)
+                   && string.IsNullOrWhiteSpace(company.City)
+                   && string.IsNullOrWhiteSpace(company.Phone)
+                   && string.IsNullOrWhiteSpace(company.Email);
+        }
+    }
+
+    [RelayCommand]
+    private void EditCompanyDetails()
+    {
+        App.OpenEditCompanyModal(
+            "These appear in the header of every invoice you send. Fill in what you want shown."
+                .Translate());
+    }
+
+    /// <summary>
+    /// Re-reads the company details behind the prompt. Called after the company is edited, so the
+    /// banner clears while the invoice modal is still open rather than on its next open.
+    /// </summary>
+    public void RefreshCompanyDetailsPrompt() => OnPropertyChanged(nameof(ShowCompanyDetailsPrompt));
+
     /// <summary>Invoice number for the paper: the existing one when continuing a draft, else the next.</summary>
     public string InvoiceNumberDisplay
     {
@@ -1094,6 +1128,7 @@ public partial class InvoiceModalsViewModel : ViewModelBase
         ModalTitle = "Create Invoice";
         SaveButtonText = "Preview";
         OnPropertyChanged(nameof(CompanyName));
+        OnPropertyChanged(nameof(ShowCompanyDetailsPrompt));
         OnPropertyChanged(nameof(InvoiceNumberDisplay));
         OnPropertyChanged(nameof(ProductsJson));
         OnPropertyChanged(nameof(CustomersJson));

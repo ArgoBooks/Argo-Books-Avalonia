@@ -100,19 +100,9 @@ public class CreateCompanyViewModelTests
 
     #region Data Lists Tests
 
-    [Fact]
-    public void BusinessTypes_ListIsNotEmpty()
-    {
-        Assert.NotEmpty(_viewModel.BusinessTypes);
-    }
-
-    [Fact]
-    public void BusinessTypes_ContainsExpectedTypes()
-    {
-        Assert.Contains("Sole Proprietorship", _viewModel.BusinessTypes);
-        Assert.Contains("Corporation", _viewModel.BusinessTypes);
-        Assert.Contains("LLC", _viewModel.BusinessTypes);
-    }
+    // Business type left the wizard: it is the legal structure, which nothing in the app
+    // branches on. It is still offered in Edit Company, where EditCompanyModalViewModelTests
+    // covers the list.
 
     [Fact]
     public void Industries_ListIsNotEmpty()

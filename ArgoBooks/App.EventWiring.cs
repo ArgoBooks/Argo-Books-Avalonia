@@ -577,14 +577,8 @@ public partial class App
             var companyInfo = new CompanyInfo
             {
                 Name = args.CompanyName,
-                BusinessType = args.BusinessType,
                 Industry = args.Industry,
-                Phone = args.PhoneNumber,
-                Email = args.Email,
-                Country = args.Country,
-                City = args.City,
-                ProvinceState = args.ProvinceState,
-                Address = args.Address
+                Country = args.Country
             };
 
             // Keep the loading overlay up across the close-then-open transition inside
@@ -919,6 +913,7 @@ public partial class App
                     // The industry may have just changed, and anyone who has not set the
                     // toggles themselves should follow the new industry's starting point.
                     _appShellViewModel.ApplyFeatureVisibility(settings);
+                    _appShellViewModel.InvoiceModalsViewModel.RefreshCompanyDetailsPrompt();
                     _appShellViewModel.CompanySwitcherPanelViewModel.SetCurrentCompany(
                         args.CompanyName,
                         CompanyManager.PendingRenamePath ?? CompanyManager.CurrentFilePath,

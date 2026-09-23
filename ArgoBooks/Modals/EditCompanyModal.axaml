@@ -33,6 +33,18 @@
                               VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Spacing="16" Margin="24,16">
+                        <!-- Set when the modal is opened from somewhere that needs these details,
+                             so the person knows why they were sent here. -->
+                        <Border Background="{DynamicResource InfoLightBrush}"
+                                CornerRadius="8"
+                                Padding="12,10"
+                                IsVisible="{Binding ContextMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                            <TextBlock Text="{Binding ContextMessage}"
+                                       FontSize="13"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource InfoTextBrush}" />
+                        </Border>
+
                         <!-- Company Name and Default Currency (side by side) -->
                         <Grid ColumnDefinitions="*,16,*">
                             <StackPanel Grid.Column="0" Spacing="6">
