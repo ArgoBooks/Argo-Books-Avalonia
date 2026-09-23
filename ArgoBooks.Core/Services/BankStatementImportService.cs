@@ -7,6 +7,17 @@ using ClosedXML.Excel;
 namespace ArgoBooks.Core.Services;
 
 /// <summary>
+/// The file could not be opened at all, which is a different answer to the caller than a file that
+/// opened fine and held no transactions. Told "no transactions found", a user retries the same
+/// unopenable file instead of re-saving it.
+/// </summary>
+public class UnreadableStatementFileException(string fileName, Exception innerException)
+    : Exception($"Could not read {fileName}.", innerException)
+{
+    public string FileName { get; } = fileName;
+}
+
+/// <summary>
 /// Parses a bank statement spreadsheet/CSV into a list of <see cref="BankStatementLine"/>.
 /// Local header heuristics handle the common case; when they cannot find the essential columns,
 /// the caller falls back to the AI-mapped overloads (which apply the smart importer's column
@@ -95,7 +106,7 @@ public class BankStatementImportService(IErrorLogger? errorLogger = null)
         catch (Exception ex)
         {
             errorLogger?.LogError(ex, ErrorCategory.Import, $"Failed to parse bank statement: {Path.GetFileName(filePath)}");
-            return [];
+            throw new UnreadableStatementFileException(Path.GetFileName(filePath), ex);
         }
     }
 
@@ -134,7 +145,7 @@ public class BankStatementImportService(IErrorLogger? errorLogger = null)
         catch (Exception ex)
         {
             errorLogger?.LogError(ex, ErrorCategory.Import, $"Failed to parse bank statement CSV: {Path.GetFileName(filePath)}");
-            return [];
+            throw new UnreadableStatementFileException(Path.GetFileName(filePath), ex);
         }
     }
 

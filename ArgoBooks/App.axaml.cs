@@ -3538,6 +3538,12 @@ public partial class App : Application
             _mainWindowViewModel?.HideLoading();
             _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportAbandoned, "bank-matching:cancelled");
         }
+        catch (UnreadableStatementFileException)
+        {
+            _mainWindowViewModel?.HideLoading();
+            _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, $"bank-matching:unreadable:{ext.TrimStart('.')}");
+            await ShowInfoMessageBoxAsync("Import Bank Statement".Translate(), ImportRescueMessages.UnreadableFile);
+        }
         catch (Exception ex)
         {
             _mainWindowViewModel?.HideLoading();

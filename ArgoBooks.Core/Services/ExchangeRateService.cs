@@ -110,7 +110,7 @@ public class ExchangeRateService
         }
 
         // Fetch from API if allowed
-        if (fetchIfMissing)
+        if (fetchIfMissing && !IsUnpricedFutureDate(date))
         {
             var rates = await FetchRatesForDateAsync(date, cancellationToken: cancellationToken);
             if (rates != null)
@@ -128,6 +128,13 @@ public class ExchangeRateService
 
         return -1m; // Rate unavailable
     }
+
+    /// <summary>
+    /// True for a date no rate can exist for yet, which the provider rejects and the caller then asks
+    /// for again on its next pass. Local rather than UTC today: a row dated today east of UTC is
+    /// "tomorrow" in UTC for part of the day, and that one does have a rate, the latest one.
+    /// </summary>
+    private static bool IsUnpricedFutureDate(DateTime date) => date.Date > DateTime.Today;
 
     /// <summary>
     /// Gets the exchange rate synchronously, using only cached values.
@@ -264,7 +271,7 @@ public class ExchangeRateService
     /// <param name="progress">Optional progress callback.</param>
     public async Task PreloadRatesAsync(IEnumerable<DateTime> dates, IProgress<int>? progress = null, CancellationToken cancellationToken = default)
     {
-        var uniqueDates = dates.Select(d => d.Date).Distinct().ToList();
+        var uniqueDates = dates.Select(d => d.Date).Where(d => !IsUnpricedFutureDate(d)).Distinct().ToList();
         var total = uniqueDates.Count;
         if (total == 0) return;
 
@@ -517,6 +524,11 @@ public class ExchangeRateService
                     // lockout. Surface it so the whole preload backs off.
                     if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
                         throw new RateLimitedException();
+                    // A 4xx is the server rejecting the request itself, so sending it again gets the
+                    // same answer at three times the cost. 408 is a timeout wearing a 4xx code.
+                    if ((int)response.StatusCode is >= 400 and < 500
+                        && response.StatusCode != System.Net.HttpStatusCode.RequestTimeout)
+                        return null;
                     continue; // retry other transient errors
                 }
 

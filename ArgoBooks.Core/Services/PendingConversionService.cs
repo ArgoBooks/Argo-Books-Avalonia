@@ -271,7 +271,7 @@ public class PendingConversionService
         // cache. Each entry otherwise costs its own web request on a cache miss, which is one
         // per dated row: a few hundred for a company with a year of history.
         var datesToPrice = toProcess
-            .Where(e => e.TransactionDate.Date <= DateTime.UtcNow.Date.AddDays(1)
+            .Where(e => e.TransactionDate.Date <= DateTime.Today
                         && !string.Equals(e.OriginalCurrency, "USD", StringComparison.OrdinalIgnoreCase)
                         && !IsBackingOff(RateKey(e)))
             .Select(e => e.TransactionDate.Date)
@@ -304,9 +304,10 @@ public class PendingConversionService
 
         foreach (var entry in toProcess)
         {
-            // No rate exists yet for a date that has not happened. A day of slack keeps a row
-            // dated today in a timezone ahead of UTC from being skipped.
-            if (entry.TransactionDate.Date > DateTime.UtcNow.Date.AddDays(1))
+            // No rate exists yet for a date that has not happened, so a row dated ahead stays queued
+            // until its own date arrives rather than asking every pass for something that cannot
+            // come back. Compared against the local date, which is what the row was entered in.
+            if (entry.TransactionDate.Date > DateTime.Today)
                 continue;
 
             var rateKey = RateKey(entry);

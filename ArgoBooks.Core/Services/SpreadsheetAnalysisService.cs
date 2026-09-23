@@ -1411,7 +1411,7 @@ Choose EXTRACT only when you are confident real per-row records are present. Whe
             return new ImportRescueResult
             {
                 Outcome = ImportRescueOutcome.Rejected,
-                ReasonCode = ImportRescueRejectionReason.EmptyOrUnreadable
+                ReasonCode = ImportRescueRejectionReason.FileCouldNotBeOpened
             };
         }
 

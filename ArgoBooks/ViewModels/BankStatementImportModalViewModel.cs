@@ -121,10 +121,20 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
         else
         {
             var parser = new BankStatementImportService(App.ErrorLogger);
-            if (ext == ".csv")
-                lines = await parser.ParseCsvAsync(filePath);
-            else
-                lines = await parser.ParseExcelAsync(filePath);
+            try
+            {
+                lines = ext == ".csv"
+                    ? await parser.ParseCsvAsync(filePath)
+                    : await parser.ParseExcelAsync(filePath);
+            }
+            catch (UnreadableStatementFileException)
+            {
+                _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, $"bank:unreadable:{ext.TrimStart('.')}");
+                await App.ShowInfoMessageBoxAsync(
+                    "Import Bank Statement".Translate(),
+                    ImportRescueMessages.UnreadableFile);
+                return;
+            }
 
             // Don't fail silently when the file isn't a recognizable bank statement (e.g. the user
             // picked the wrong spreadsheet): tell them what's expected instead of doing nothing.
