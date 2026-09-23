@@ -376,8 +376,12 @@ public class FileService(
         if (filePath == null || !File.Exists(filePath))
             return default;
 
-        var json = await File.ReadAllTextAsync(filePath, cancellationToken);
-        return JsonSerializer.Deserialize<T>(json, JsonOptions);
+        // Streamed, because receipts.json holds every receipt's bytes as base64 and the
+        // intermediate string is twice that again in UTF-16.
+        await using var stream = new FileStream(
+            filePath, FileMode.Open, FileAccess.Read, FileShare.Read,
+            bufferSize: 64 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
+        return await JsonSerializer.DeserializeAsync<T>(stream, JsonOptions, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -388,8 +392,13 @@ public class FileService(
         CancellationToken cancellationToken = default)
     {
         var filePath = Path.Combine(tempDirectory, fileName);
-        var json = JsonSerializer.Serialize(data, JsonOptions);
-        await File.WriteAllTextAsync(filePath, json, cancellationToken);
+
+        // Streamed like ReadJsonAsync. Failing part-way now truncates the file, which is safe:
+        // callers write into a staging directory only archived once every write succeeds.
+        await using var stream = new FileStream(
+            filePath, FileMode.Create, FileAccess.Write, FileShare.None,
+            bufferSize: 64 * 1024, FileOptions.Asynchronous);
+        await JsonSerializer.SerializeAsync(stream, data, JsonOptions, cancellationToken);
     }
 
     /// <summary>
