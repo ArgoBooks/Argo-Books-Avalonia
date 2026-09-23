@@ -249,6 +249,12 @@ public partial class App : Application
     public static ImportModalViewModel? ImportModalViewModel => _appShellViewModel?.ImportModalViewModel;
 
     /// <summary>
+    /// Re-applies the optional sidebar sections after the feature toggles or the industry change.
+    /// </summary>
+    public static void ApplyFeatureVisibility(CompanySettings? settings) =>
+        _appShellViewModel?.ApplyFeatureVisibility(settings);
+
+    /// <summary>
     /// Gets the purchase orders modals view model for shared access.
     /// </summary>
     public static PurchaseOrdersModalsViewModel? PurchaseOrdersModalsViewModel => _appShellViewModel?.PurchaseOrdersModalsViewModel;
@@ -2680,6 +2686,7 @@ public partial class App : Application
         _mainWindowViewModel?.OpenCompany(companyName);
         var logo = LoadBitmapFromPath(CompanyManager?.CurrentCompanyLogoPath);
         _appShellViewModel.SetCompanyInfo(companyName, logo);
+        _appShellViewModel.ApplyFeatureVisibility(CompanyManager?.CompanyData?.Settings);
         _appShellViewModel.CompanySwitcherPanelViewModel.SetCurrentCompany(
             companyName,
             CompanyManager?.CurrentFilePath,

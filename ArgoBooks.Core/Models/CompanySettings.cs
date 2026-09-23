@@ -74,6 +74,8 @@ public class CompanySettings
 
     [JsonPropertyName("company")]
     public CompanyInfo Company { get; set; } = new();
+    [JsonPropertyName("features")]
+    public FeatureSettings Features { get; set; } = new();
     [JsonPropertyName("localization")]
     public LocalizationSettings Localization { get; set; } = new();
     [JsonPropertyName("notifications")]
@@ -102,6 +104,21 @@ public class CompanySettings
     /// <summary>Logos replaced since documents went out under them. See <see cref="RetiredLogo"/>.</summary>
     [JsonPropertyName("retiredLogos")]
     public List<RetiredLogo> RetiredLogos { get; set; } = [];
+}
+
+/// <summary>
+/// Which optional sidebar sections this company shows. Null means the user has not chosen, which
+/// is what lets <see cref="IndustryFeatureDefaults"/> supply a starting point without ever
+/// overriding a deliberate choice made later in Settings.
+/// </summary>
+public class FeatureSettings
+{
+    [JsonPropertyName("showInventory")]
+    public bool? ShowInventory { get; set; }
+    [JsonPropertyName("showRentals")]
+    public bool? ShowRentals { get; set; }
+    [JsonPropertyName("showPayroll")]
+    public bool? ShowPayroll { get; set; }
 }
 
 public class CompanyInfo

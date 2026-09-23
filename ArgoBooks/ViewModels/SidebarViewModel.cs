@@ -66,6 +66,13 @@ public partial class SidebarViewModel : ViewModelBase
     [ObservableProperty]
     private bool _showPayroll = true;
 
+    /// <summary>
+    /// Returns and Lost / Damaged. Follows the two sections that give them something to track
+    /// rather than carrying a toggle of its own.
+    /// </summary>
+    [ObservableProperty]
+    private bool _showTracking = true;
+
     [ObservableProperty]
     private bool _hasPremium; // Premium plan
 
@@ -312,6 +319,7 @@ public partial class SidebarViewModel : ViewModelBase
         ShowInventory = showInventory;
         ShowRentals = showRentals;
         ShowPayroll = showPayroll;
+        ShowTracking = showInventory || showRentals;
     }
 
     /// <summary>

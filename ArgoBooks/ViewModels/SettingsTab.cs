@@ -13,6 +13,7 @@ namespace ArgoBooks.ViewModels;
 internal enum SettingsTab
 {
     General = 0,
+    Features,
     Notifications,
     Appearance,
     Security,

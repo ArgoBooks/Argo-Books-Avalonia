@@ -80,6 +80,7 @@ public partial class App
 
             // Load and apply language setting from company settings
             var companySettings = CompanyManager.CompanyData?.Settings;
+            _appShellViewModel.ApplyFeatureVisibility(companySettings);
             if (companySettings != null)
             {
                 // Hooked here rather than at the create-company screen so it also covers
@@ -915,6 +916,9 @@ public partial class App
                     _mainWindowViewModel?.OpenCompany(args.CompanyName);
                     var logo = LoadBitmapFromPath(CompanyManager.CurrentCompanyLogoPath);
                     _appShellViewModel.SetCompanyInfo(args.CompanyName, logo);
+                    // The industry may have just changed, and anyone who has not set the
+                    // toggles themselves should follow the new industry's starting point.
+                    _appShellViewModel.ApplyFeatureVisibility(settings);
                     _appShellViewModel.CompanySwitcherPanelViewModel.SetCurrentCompany(
                         args.CompanyName,
                         CompanyManager.PendingRenamePath ?? CompanyManager.CurrentFilePath,

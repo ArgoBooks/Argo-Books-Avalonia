@@ -186,7 +186,8 @@
                                          SectionKey="Tracking"
                                          IsCollapsed="{Binding IsCollapsed}"
                                          IsCollapsible="True"
-                                         Items="{Binding TrackingItems}" />
+                                         Items="{Binding TrackingItems}"
+                                         IsVisible="{Binding ShowTracking}" />
             </StackPanel>
         </ScrollViewer>
     </DockPanel>

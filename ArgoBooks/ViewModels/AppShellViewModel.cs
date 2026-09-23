@@ -1,5 +1,6 @@
 using System.Reflection;
 using ArgoBooks.Core.Enums;
+using ArgoBooks.Core.Models;
 using ArgoBooks.Core.Services;
 using ArgoBooks.Localization;
 using ArgoBooks.ViewModels.Dashboard;
@@ -1028,6 +1029,22 @@ public partial class AppShellViewModel : ViewModelBase
     public void SetCompanyInfo(string? companyName, Bitmap? logo = null, string? userRole = null)
     {
         SidebarViewModel.SetCompanyInfo(companyName, logo, userRole);
+    }
+
+    /// <summary>
+    /// Shows or hides the optional sidebar sections for the open company: the user's own choice
+    /// where they have made one, otherwise the industry's starting point.
+    /// </summary>
+    public void ApplyFeatureVisibility(CompanySettings? settings)
+    {
+        var visible = FeatureVisibility.Resolve(settings, App.CompanyManager?.CompanyData);
+
+        // Expenses and Revenue are the app, not an optional section, so they have no toggle.
+        SidebarViewModel.UpdateFeatureVisibility(
+            showTransactions: true,
+            showInventory: visible.Inventory,
+            showRentals: visible.Rentals,
+            showPayroll: visible.Payroll);
     }
 
     /// <summary>
