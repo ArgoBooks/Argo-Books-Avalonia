@@ -232,6 +232,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
 
         App.CompanyManager?.MarkAsChanged();
         _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.DataImported, $"bank:{toImport.Count}");
+        TutorialService.Instance.CompleteChecklistItem(TutorialService.ChecklistItems.ImportData);
         IsOpen = false;
     }
 

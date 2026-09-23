@@ -27,6 +27,12 @@ public class TutorialService
         public const string RecordExpense = "record_expense";
         public const string RecordRevenue = "record_revenue";
         public const string ExploreDashboard = "explore_dashboard";
+        public const string ImportData = "import_data";
+
+        /// <summary>
+        /// Former third step, replaced by <see cref="ImportData"/>. Kept only so
+        /// <see cref="MigrateLegacyChecklist"/> can recognise an already-finished list.
+        /// </summary>
         public const string VisitAnalytics = "visit_analytics";
     }
 
@@ -293,12 +299,12 @@ public class TutorialService
     }
 
     /// <summary>
-    /// Marks a checklist item as completed. Out-of-order calls are silently ignored.
+    /// Marks a checklist item as completed.
     /// <para>
-    /// The gated chain is RecordExpense -> VisitAnalytics.
-    /// ScanReceipt is shown first but sits outside that chain: it has no prerequisites and
-    /// is not a prerequisite for anything, so it can be completed at any point, including
-    /// last. Items that aren't on the setup checklist are never gated.
+    /// No step is a prerequisite for another. The checklist is shown in order, but each step
+    /// can be earned on its own: someone who came for invoicing must be able to work the
+    /// manual path without scanning, and someone migrating off a spreadsheet often imports
+    /// before anything else.
     /// </para>
     /// </summary>
     public void CompleteChecklistItem(string itemId)
@@ -311,10 +317,6 @@ public class TutorialService
         if (settings.Tutorial.HasSkippedTutorial || IsSampleCompanyOpen)
             return;
 
-        // Check if previous items in sequence are completed
-        if (!CanCompleteChecklistItem(itemId, settings.Tutorial.CompletedChecklistItems))
-            return;
-
         settings.Tutorial.CompletedChecklistItems.Add(itemId);
         SaveSettings();
         ChecklistItemCompleted?.Invoke(this, itemId);
@@ -324,60 +326,29 @@ public class TutorialService
         // end. The Contains guard above means each step reports at most once.
         _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ChecklistStepCompleted, itemId);
 
-        // Anonymous onboarding telemetry: VisitAnalytics closes the gated chain, and the
-        // Contains guard above means it is added once, so this fires at most once.
-        //
-        // This is NOT the same as the checklist being finished.
-        // AreAllChecklistItemsCompleted() also requires ScanReceipt, which is deliberately
-        // not a prerequisite for VisitAnalytics, so someone who never scans fires this
-        // while the checklist is still on screen. Read the metric as "worked through the
-        // manual chain", not "finished setup": it runs ahead of the latter.
-        if (itemId == ChecklistItems.VisitAnalytics)
-        {
-            _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.OnboardingCompleted);
-        }
-
         // Only while the checklist is on screen: the guidance points the user back to its next step,
         // and closing the checklist is how someone says they are done being guided.
         if (ShouldShowTutorialOnCurrentCompany() && !IsSetupChecklistDismissed)
         {
             // Show completion guidance for main tutorial tasks
             if (itemId == ChecklistItems.ScanReceipt ||
-                itemId == ChecklistItems.RecordExpense)
+                itemId == ChecklistItems.RecordExpense ||
+                itemId == ChecklistItems.ImportData)
             {
                 ShowGuidance(CompletionGuidanceType.Standard);
-            }
-            else if (itemId == ChecklistItems.VisitAnalytics)
-            {
-                ShowGuidance(CompletionGuidanceType.Analytics);
             }
         }
 
         if (AreAllChecklistItemsCompleted())
         {
+            // No step gates the others any more, so "finished" is the only honest place to
+            // report this. It previously fired on the last step of a chain, which ran ahead
+            // of the checklist actually being done.
+            _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.OnboardingCompleted);
             AllChecklistItemsCompleted?.Invoke(this, EventArgs.Empty);
         }
 
         TutorialStateChanged?.Invoke(this, EventArgs.Empty);
-    }
-
-    /// <summary>
-    /// Checks if a checklist item can be completed based on the required order.
-    /// </summary>
-    private static bool CanCompleteChecklistItem(string itemId, List<string> completedItems)
-    {
-        // Define the required order: each item requires all previous items to be completed
-        return itemId switch
-        {
-            // Scanning a receipt is the first step and the fastest path to a visible
-            // result. It has no prerequisites, and it is deliberately NOT a
-            // prerequisite for anything else: someone who came for invoicing must
-            // still be able to work the manual path without scanning anything.
-            ChecklistItems.ScanReceipt => true,
-            ChecklistItems.RecordExpense => true,
-            ChecklistItems.VisitAnalytics => completedItems.Contains(ChecklistItems.RecordExpense),
-            _ => true // Other items (not in main checklist) can be completed anytime
-        };
     }
 
     public IReadOnlyList<string> GetCompletedChecklistItems()
@@ -393,8 +364,35 @@ public class TutorialService
         var completed = Settings.CompletedChecklistItems;
         return completed.Contains(ChecklistItems.ScanReceipt) &&
                completed.Contains(ChecklistItems.RecordExpense) &&
-               completed.Contains(ChecklistItems.VisitAnalytics);
+               completed.Contains(ChecklistItems.ImportData);
     }
+
+    /// <summary>
+    /// Credits the import step to anyone who had already finished the old three-step list,
+    /// so replacing its third step does not reopen onboarding for them.
+    /// </summary>
+    public void MigrateLegacyChecklist()
+    {
+        if (_legacyChecklistMigrated) return;
+        _legacyChecklistMigrated = true;
+
+        var settings = _globalSettingsService?.GetSettings();
+        var completed = settings?.Tutorial?.CompletedChecklistItems;
+        if (completed == null) return;
+
+        if (!completed.Contains(ChecklistItems.VisitAnalytics) ||
+            completed.Contains(ChecklistItems.ImportData))
+            return;
+
+        if (!completed.Contains(ChecklistItems.ScanReceipt) ||
+            !completed.Contains(ChecklistItems.RecordExpense))
+            return;
+
+        completed.Add(ChecklistItems.ImportData);
+        SaveSettings();
+    }
+
+    private bool _legacyChecklistMigrated;
 
     /// <summary>
     /// Gets the total count of checklist items.

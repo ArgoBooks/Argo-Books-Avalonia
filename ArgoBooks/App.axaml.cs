@@ -244,6 +244,11 @@ public partial class App : Application
     public static BankStatementImportModalViewModel? BankStatementImportModalViewModel => _appShellViewModel?.BankStatementImportModalViewModel;
 
     /// <summary>
+    /// Gets the import format picker view model for shared access.
+    /// </summary>
+    public static ImportModalViewModel? ImportModalViewModel => _appShellViewModel?.ImportModalViewModel;
+
+    /// <summary>
     /// Gets the purchase orders modals view model for shared access.
     /// </summary>
     public static PurchaseOrdersModalsViewModel? PurchaseOrdersModalsViewModel => _appShellViewModel?.PurchaseOrdersModalsViewModel;
@@ -3258,7 +3263,10 @@ public partial class App : Application
 
             // Only a run that brought something in uses up an import.
             if (totalProcessed > 0 || totalBankRouted > 0)
+            {
                 await usageService.IncrementUsageAsync();
+                TutorialService.Instance.CompleteChecklistItem(TutorialService.ChecklistItems.ImportData);
+            }
 
             // Show import result dialog
             var resultDialog = _appShellViewModel.ImportResultDialogViewModel;
@@ -3506,6 +3514,7 @@ public partial class App : Application
             NavigationService?.NavigateTo(PageNames.BankMatching);
 
             _ = TelemetryManager?.TrackFeatureAsync(FeatureName.DataImported, $"bank-matching:{lines.Count}");
+            TutorialService.Instance.CompleteChecklistItem(TutorialService.ChecklistItems.ImportData);
 
             await ShowInfoMessageBoxAsync(
                 "Bank Matching".Translate(),

@@ -1807,23 +1807,34 @@ public partial class App
     }
 
     /// <summary>
-    /// When the user finishes the setup checklist, opens the "Where did you hear about
-    /// Argo Books?" survey. Deferred until any in-flight completion guidance card, which
-    /// the last completed step raises in the same call-stack, has been dismissed.
+    /// Set when the "Where did you hear about Argo Books?" survey is waiting on a completion
+    /// guidance card, which the step that triggered it raises in the same call-stack, to be
+    /// dismissed before the survey opens on top of it.
     /// </summary>
     private static bool _surveyPendingAfterGuidance;
 
     private static void WireSourceSurveyEvents()
     {
-        TutorialService.Instance.AllChecklistItemsCompleted += (_, _) =>
+        // Asked once the second step lands rather than on a finished checklist. The third
+        // step is now a real import, which not everyone will complete, and this survey is
+        // one of the few ways an unattributed install ever reports where it came from.
+        // Both triggers go through ShouldShowSourceSurvey(), which returns false once an
+        // answer is stored, so keeping the completion one as a fallback cannot double-ask.
+        TutorialService.Instance.ChecklistItemCompleted += (_, itemId) =>
+        {
+            if (itemId == TutorialService.ChecklistItems.RecordExpense)
+                ShowSourceSurveyWhenGuidanceClears();
+        };
+
+        TutorialService.Instance.AllChecklistItemsCompleted += (_, _) => ShowSourceSurveyWhenGuidanceClears();
+
+        void ShowSourceSurveyWhenGuidanceClears()
         {
             if (!TutorialService.Instance.ShouldShowSourceSurvey())
                 return;
 
-            // Whichever step finished the checklist raised its own guidance card in this
-            // same call-stack. Which card that is varies: ScanReceipt is not a prerequisite
-            // for VisitAnalytics, so either one can be the step that completes the list.
-            // Wait for it to be dismissed rather than stacking the survey on top of it.
+            // The step that triggered this raised its own guidance card in the same
+            // call-stack. Wait for it to be dismissed rather than stacking the survey on top.
             if (TutorialService.Instance.ShowCompletionGuidance)
             {
                 _surveyPendingAfterGuidance = true;
@@ -1832,7 +1843,7 @@ public partial class App
             {
                 TutorialService.Instance.RequestShowSourceSurvey();
             }
-        };
+        }
 
         TutorialService.Instance.CompletionGuidanceChanged += (_, show) =>
         {

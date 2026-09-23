@@ -57,6 +57,50 @@ public class TutorialServiceTests
         Assert.False(_service.IsChecklistItemCompleted("unknown_item"));
     }
 
+    [Fact]
+    public void MigrateLegacyChecklist_FinishedOldList_CreditsImportStep()
+    {
+        CompleteItems(
+            TutorialService.ChecklistItems.ScanReceipt,
+            TutorialService.ChecklistItems.RecordExpense,
+            TutorialService.ChecklistItems.VisitAnalytics);
+
+        _service.MigrateLegacyChecklist();
+
+        Assert.True(_service.IsChecklistItemCompleted(TutorialService.ChecklistItems.ImportData));
+        Assert.True(_service.AreAllChecklistItemsCompleted());
+    }
+
+    [Fact]
+    public void MigrateLegacyChecklist_PartialOldList_DoesNotCreditImportStep()
+    {
+        CompleteItems(
+            TutorialService.ChecklistItems.RecordExpense,
+            TutorialService.ChecklistItems.VisitAnalytics);
+
+        _service.MigrateLegacyChecklist();
+
+        Assert.False(_service.IsChecklistItemCompleted(TutorialService.ChecklistItems.ImportData));
+    }
+
+    [Fact]
+    public void MigrateLegacyChecklist_NoLegacyItem_CreditsNothing()
+    {
+        CompleteItems(
+            TutorialService.ChecklistItems.ScanReceipt,
+            TutorialService.ChecklistItems.RecordExpense);
+
+        _service.MigrateLegacyChecklist();
+
+        Assert.False(_service.IsChecklistItemCompleted(TutorialService.ChecklistItems.ImportData));
+    }
+
+    private void CompleteItems(params string[] itemIds)
+    {
+        foreach (var id in itemIds)
+            _service.CompleteChecklistItem(id);
+    }
+
     #endregion
 
     #region Page Visit Tests

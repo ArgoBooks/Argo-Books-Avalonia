@@ -127,13 +127,16 @@ public partial class SetupChecklistViewModel : ViewModelBase
             Icon = Icons.Expenses,
             NavigationTarget = "Expenses"
         });
+        // Importing is the last step because it is the one that makes the app worth keeping:
+        // a company file holding the user's real history. The step it replaced only asked
+        // them to open the Analytics page, which at this point is an empty chart.
         Items.Add(new ChecklistItemViewModel
         {
-            Id = TutorialService.ChecklistItems.VisitAnalytics,
-            Title = "Visit the Analytics page",
-            Description = "See your business insights",
-            Icon = Icons.Analytics,
-            NavigationTarget = "Analytics"
+            Id = TutorialService.ChecklistItems.ImportData,
+            Title = "Import your data",
+            Description = "Bring in a spreadsheet or bank statement",
+            Icon = Icons.ImportData,
+            NavigationTarget = ""
         });
 
         TotalCount = Items.Count;
@@ -145,6 +148,7 @@ public partial class SetupChecklistViewModel : ViewModelBase
     /// </summary>
     public void Refresh()
     {
+        TutorialService.Instance.MigrateLegacyChecklist();
         RefreshCompletionState();
 
         var tutorialService = TutorialService.Instance;
@@ -222,10 +226,12 @@ public partial class SetupChecklistViewModel : ViewModelBase
     [RelayCommand]
     private void NavigateToItem(ChecklistItemViewModel? item)
     {
-        if (item == null || string.IsNullOrEmpty(item.NavigationTarget))
+        if (item == null)
             return;
 
-        NavigationRequested?.Invoke(this, item.NavigationTarget);
+        // The import step opens a modal over whatever page is showing, so it has no target.
+        if (!string.IsNullOrEmpty(item.NavigationTarget))
+            NavigationRequested?.Invoke(this, item.NavigationTarget);
 
         // The scan step opens its own workflow rather than just landing the user on a page.
         // Seeing a scan happen is the whole point of the step, and a brand-new user has no
@@ -235,6 +241,8 @@ public partial class SetupChecklistViewModel : ViewModelBase
             _ = App.ReceiptsModalsViewModel?.OpenScanModalWithSampleAsync();
         else if (item.Id == TutorialService.ChecklistItems.RecordExpense)
             App.ExpenseModalsViewModel?.OpenAddModal();
+        else if (item.Id == TutorialService.ChecklistItems.ImportData)
+            App.ImportModalViewModel?.OpenCommand.Execute(null);
     }
 
     [RelayCommand]
