@@ -430,9 +430,19 @@ public partial class DashboardPageViewModel : ChartContextMenuViewModelBase, ICl
     [RelayCommand]
     private void OpenUpdateEmailSettings()
     {
-        // The field lives in Settings rather than in the banner, so there is one place to type
-        // it and one place to find it again after a dismiss.
-        App.SettingsModalViewModel?.OpenWithTab(SettingsTab.General);
+        var modal = App.UpdateEmailModalViewModel;
+        if (modal == null) return;
+
+        modal.Subscribed -= OnUpdateEmailSubscribed;
+        modal.Subscribed += OnUpdateEmailSubscribed;
+        modal.Open();
+    }
+
+    private void OnUpdateEmailSubscribed(object? sender, EventArgs e)
+    {
+        ShowUpdateEmailBanner = false;
+        if (sender is UpdateEmailModalViewModel modal)
+            modal.Subscribed -= OnUpdateEmailSubscribed;
     }
 
     [RelayCommand]

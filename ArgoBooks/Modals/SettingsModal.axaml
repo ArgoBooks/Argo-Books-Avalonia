@@ -141,23 +141,16 @@
                                                            TextWrapping="Wrap"
                                                            Foreground="{DynamicResource TextTertiaryBrush}" />
                                             </StackPanel>
-                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8"
-                                                  IsVisible="{Binding !UpdateEmailSubmitted}">
-                                                <TextBox Grid.Column="0"
-                                                         Classes="form-input"
-                                                         Text="{Binding UpdateEmailAddress, Mode=TwoWay}"
-                                                         Watermark="you@business.com" />
-                                                <Button Grid.Column="1"
-                                                        Classes="secondary-button"
-                                                        Content="{loc:Loc 'Sign up'}"
-                                                        Command="{Binding SubscribeToUpdatesCommand}"
-                                                        IsEnabled="{Binding !IsSubscribingToUpdates}" />
-                                            </Grid>
-                                            <TextBlock Text="{Binding UpdateEmailMessage}"
+                                            <Button Classes="secondary-button"
+                                                    HorizontalAlignment="Left"
+                                                    Content="{loc:Loc 'Sign up'}"
+                                                    Command="{Binding OpenUpdateEmailModalCommand}"
+                                                    IsVisible="{Binding !UpdateEmailSubmitted}" />
+                                            <TextBlock Text="{loc:Loc 'You have asked for these. Check your inbox for the link to confirm.'}"
                                                        FontSize="12"
                                                        TextWrapping="Wrap"
                                                        Foreground="{DynamicResource TextSecondaryBrush}"
-                                                       IsVisible="{Binding UpdateEmailMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                                       IsVisible="{Binding UpdateEmailSubmitted}" />
                                         </StackPanel>
                                     </Border>
                                 </StackPanel>

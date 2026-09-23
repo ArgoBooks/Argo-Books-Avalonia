@@ -105,6 +105,8 @@ public partial class AppShellViewModel : ViewModelBase
 
     public ImportModalViewModel ImportModalViewModel { get; }
 
+    public UpdateEmailModalViewModel UpdateEmailModalViewModel { get; }
+
     public ImportValidationDialogViewModel ImportValidationDialogViewModel { get; }
 
     public ImportResultDialogViewModel ImportResultDialogViewModel { get; }
@@ -678,6 +680,7 @@ public partial class AppShellViewModel : ViewModelBase
         PastPredictionsModalViewModel = new PastPredictionsModalViewModel();
 
         ImportModalViewModel = new ImportModalViewModel();
+        UpdateEmailModalViewModel = new UpdateEmailModalViewModel();
 
         ImportValidationDialogViewModel = new ImportValidationDialogViewModel();
         ImportResultDialogViewModel = new ImportResultDialogViewModel();

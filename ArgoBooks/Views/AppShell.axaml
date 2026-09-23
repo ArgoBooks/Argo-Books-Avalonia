@@ -241,6 +241,8 @@
         <!-- Import Modal -->
         <modals:ImportModal DataContext="{Binding ImportModalViewModel}" />
 
+        <modals:UpdateEmailModal DataContext="{Binding UpdateEmailModalViewModel}" />
+
         <!-- Import Validation Dialog -->
         <modals:ImportValidationDialog DataContext="{Binding ImportValidationDialogViewModel}" />
 

@@ -249,6 +249,11 @@ public partial class App : Application
     public static ImportModalViewModel? ImportModalViewModel => _appShellViewModel?.ImportModalViewModel;
 
     /// <summary>
+    /// Gets the product-update sign-up modal for shared access.
+    /// </summary>
+    public static UpdateEmailModalViewModel? UpdateEmailModalViewModel => _appShellViewModel?.UpdateEmailModalViewModel;
+
+    /// <summary>
     /// Re-applies the optional sidebar sections after the feature toggles or the industry change.
     /// </summary>
     public static void ApplyFeatureVisibility(CompanySettings? settings) =>
