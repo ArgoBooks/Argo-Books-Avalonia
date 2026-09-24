@@ -50,13 +50,15 @@ public partial class InvoiceHtmlRenderer
     /// <param name="companyData">Company data for company info and customer lookup.</param>
     /// <param name="currencySymbol">Currency symbol to use (defaults to $).</param>
     /// <param name="editable">True when rendering for the in-app editor, which keeps the tax, shipping and discount rows and the on-paper input fields.</param>
+    /// <param name="labels">The wording to print around the figures. Defaults to the invoice wording.</param>
     /// <returns>The rendered HTML string.</returns>
     public string RenderInvoice(
         Invoice invoice,
         InvoiceTemplate template,
         CompanyData companyData,
         string currencySymbol = "$",
-        bool editable = false)
+        bool editable = false,
+        DocumentLabels? labels = null)
     {
         var customer = companyData.GetCustomer(invoice.CustomerId);
         var companySettings = companyData.Settings;
@@ -64,12 +66,25 @@ public partial class InvoiceHtmlRenderer
         var html = InvoiceHtmlTemplates.GetTemplate(template.BaseTemplate);
 
         // Build the data context for template rendering
-        var context = BuildContext(invoice, template, customer, companySettings, currencySymbol, lockAspectRatio: true, companyData.Payments, editable);
+        var context = BuildContext(invoice, template, customer, companySettings, currencySymbol, lockAspectRatio: true, companyData.Payments, editable, labels);
 
         html = ProcessTemplate(html, context);
 
         return html;
     }
+
+    /// <summary>
+    /// Renders a quote to HTML with the same templates an invoice uses, so the customer sees the
+    /// layout the business already chose. The quote is mapped onto a throwaway invoice because the
+    /// templates take one; nothing about it is stored.
+    /// </summary>
+    public string RenderQuote(
+        Quote quote,
+        InvoiceTemplate template,
+        CompanyData companyData,
+        string currencySymbol = "$") =>
+        RenderInvoice(quote.ToRenderableInvoice(), template, companyData, currencySymbol,
+            editable: false, DocumentLabels.ForQuote(template.HeaderText));
 
     /// <summary>
     /// Renders a preview invoice (for template designer) with sample data.
@@ -141,15 +156,17 @@ public partial class InvoiceHtmlRenderer
         Invoice invoice,
         InvoiceTemplate template,
         CompanyData companyData,
-        string currencySymbol = "$")
+        string currencySymbol = "$",
+        DocumentLabels? labels = null)
     {
+        labels ??= DocumentLabels.Invoice;
         var customer = companyData.GetCustomer(invoice.CustomerId);
         var companySettings = companyData.Settings;
         var decimals = DecimalsFor(invoice);
         var sb = new StringBuilder();
 
         // Header
-        sb.AppendLine($"{template.HeaderText}");
+        sb.AppendLine($"{labels.HeaderText ?? template.HeaderText}");
         sb.AppendLine(new string('=', 50));
         sb.AppendLine();
 
@@ -162,9 +179,9 @@ public partial class InvoiceHtmlRenderer
         sb.AppendLine();
 
         // Invoice details
-        sb.AppendLine($"Invoice #: {invoice.InvoiceNumber}");
+        sb.AppendLine($"{labels.NumberLabel}: {invoice.InvoiceNumber}");
         sb.AppendLine($"Date: {InvoiceDate(invoice.IssueDate)}");
-        sb.AppendLine($"Due Date: {InvoiceDate(invoice.DueDate)}");
+        sb.AppendLine($"{labels.DueDateLabel}: {InvoiceDate(invoice.DueDate)}");
         sb.AppendLine();
 
         // Bill to
@@ -229,7 +246,7 @@ public partial class InvoiceHtmlRenderer
             sb.AppendLine();
         }
 
-        if (template.ShowPaymentInstructions && !string.IsNullOrWhiteSpace(template.PaymentInstructions))
+        if (!labels.HidePaymentDetails && template.ShowPaymentInstructions && !string.IsNullOrWhiteSpace(template.PaymentInstructions))
         {
             sb.AppendLine("PAYMENT INSTRUCTIONS:");
             sb.AppendLine(template.PaymentInstructions);
@@ -251,8 +268,12 @@ public partial class InvoiceHtmlRenderer
         string currencySymbol,
         bool lockAspectRatio,
         IEnumerable<Payment>? payments,
-        bool editable = false)
+        bool editable = false,
+        DocumentLabels? labels = null)
     {
+        labels ??= DocumentLabels.Invoice;
+        // The logo the document went out with, which is not always the one on the template today.
+        var logo = LogoHistory.LogoFor(invoice.LogoId, companySettings, template);
         var isOverdue = invoice.DueDate.Date < DateTime.UtcNow.Date &&
                         invoice.Balance > 0;
         var decimals = DecimalsFor(invoice);
@@ -293,10 +314,19 @@ public partial class InvoiceHtmlRenderer
         var displayProcessingFee = actualProcessingFee + estimatedProcessingFee;
         // In the editor, keep the fee row present whenever the fee applies so the
         // live recompute can fill it in as the user types (even from a $0 start).
-        var showProcessingFeeRow = displayProcessingFee > 0 || (editable && feesActive);
+        var showProcessingFeeRow = (displayProcessingFee > 0 || (editable && feesActive))
+                                   && !labels.HidePaymentDetails;
 
         var context = new Dictionary<string, object?>
         {
+            // Document wording. Invoice by default, so the templates read as they always did.
+            ["DocumentName"] = labels.DocumentName,
+            ["NumberLabel"] = labels.NumberLabel,
+            ["ReceiptNumberLabel"] = labels.ReceiptNumberLabel,
+            ["DueDateLabel"] = labels.DueDateLabel,
+            ["DueLabelShort"] = labels.DueLabelShort,
+            ["DueLabelShortUpper"] = labels.DueLabelShortUpper,
+
             // Template styling
             ["FontFamily"] = template.FontFamily,
             ["PrimaryColor"] = template.PrimaryColor,
@@ -307,12 +337,12 @@ public partial class InvoiceHtmlRenderer
             ["BackgroundColor"] = template.BackgroundColor,
 
             // Template settings
-            ["HeaderText"] = template.HeaderText,
+            ["HeaderText"] = labels.HeaderText ?? template.HeaderText,
             ["FooterText"] = template.FooterText,
             ["PaymentInstructions"] = template.PaymentInstructions,
             // Per-invoice overrides win over the template setting when present (invoice.X ?? template.X).
             // "Show company address" hides the whole company location line (address + city/state/country).
-            ["ShowLogo"] = template.ShowLogo && !string.IsNullOrEmpty(template.LogoBase64),
+            ["ShowLogo"] = !string.IsNullOrEmpty(logo),
             ["ShowCompanyAddress"] = invoice.ShowCompanyAddress ?? template.ShowCompanyAddress,
             ["ShowCompanyPhone"] = invoice.ShowCompanyPhone ?? template.ShowCompanyPhone,
             ["ShowCompanyCity"] = invoice.ShowCompanyAddress ?? template.ShowCompanyCity,
@@ -320,13 +350,11 @@ public partial class InvoiceHtmlRenderer
             ["ShowCompanyCountry"] = invoice.ShowCompanyAddress ?? template.ShowCompanyCountry,
             ["ShowTaxBreakdown"] = template.ShowTaxBreakdown && invoice.TaxAmount > 0,
             ["ShowItemDescriptions"] = template.ShowItemDescriptions,
-            ["ShowPaymentInstructions"] = template.ShowPaymentInstructions && !string.IsNullOrWhiteSpace(template.PaymentInstructions),
+            ["ShowPaymentInstructions"] = !labels.HidePaymentDetails && template.ShowPaymentInstructions && !string.IsNullOrWhiteSpace(template.PaymentInstructions),
             ["ShowDueDateProminent"] = invoice.ShowDueDateProminent ?? template.ShowDueDateProminent,
 
             // Logo
-            ["LogoSrc"] = template.ShowLogo && !string.IsNullOrEmpty(template.LogoBase64)
-                ? $"data:image/png;base64,{template.LogoBase64}"
-                : "",
+            ["LogoSrc"] = !string.IsNullOrEmpty(logo) ? $"data:image/png;base64,{logo}" : "",
             ["LogoWidth"] = template.LogoWidth.ToString(),
             ["LockAspectRatio"] = lockAspectRatio,
 
@@ -399,9 +427,11 @@ public partial class InvoiceHtmlRenderer
             ["ProcessingFeeAmount"] = showProcessingFeeRow
                 ? $"{currencySymbol}{Money(displayProcessingFee, decimals)}"
                 : "",
-            // The only headline figure on the invoice, so it always renders, including
-            // the 0.00 on a settled invoice.
-            ["ShowAmountToPay"] = true,
+            // One headline figure at the foot of the document, never both. An invoice asks
+            // for money, so it shows what is left to pay; a quote asks for none, so it shows
+            // what the work comes to.
+            ["ShowAmountToPay"] = !labels.HidePaymentDetails,
+            ["ShowTotal"] = labels.HidePaymentDetails,
             ["AmountToPay"] = $"{currencySymbol}{Money(NonNegative(invoice.Balance) + estimatedProcessingFee, decimals)}{CurrencyCodeSuffix(invoice)}",
 
             // The footer is where the customer message lives: the invoice's Notes, falling back to the

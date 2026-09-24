@@ -895,8 +895,6 @@ public partial class CustomerModalsViewModel : ViewModelBase
 
     #region Filter Modal
 
-    public bool HasFilterModalChanges => Filters.HasChanges;
-
     [RelayCommand]
     public void OpenFilterModal()
     {
@@ -1107,11 +1105,6 @@ public partial class CustomerModalsViewModel : ViewModelBase
             HistoryFilterAmountMin = v.AmountMin;
             HistoryFilterAmountMax = v.AmountMax;
         });
-
-    /// <summary>
-    /// Returns true if any history filter has been changed since the history filter modal opened.
-    /// </summary>
-    public bool HasHistoryFilterChanges => HistoryFilters.HasChanges;
 
     [RelayCommand]
     public void OpenHistoryFilterModal()

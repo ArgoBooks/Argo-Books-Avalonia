@@ -49,8 +49,8 @@
                                          AcceptsReturn="True" TextWrapping="Wrap" MinHeight="80" MaxHeight="120" MaxLength="500" />
                             </StackPanel>
 
-                            <Grid ColumnDefinitions="*,16,*">
-                                <StackPanel Grid.Column="0" Spacing="6">
+                            <UniformGrid Rows="1" ColumnSpacing="16">
+                                <StackPanel Spacing="6" IsVisible="{Binding !IsForInventory}">
                                     <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}">
                                         <Run Text="{loc:Loc 'Item Type'}" /><Run Text=" *" Foreground="{DynamicResource ErrorBrush}" />
                                     </TextBlock>
@@ -62,7 +62,7 @@
                                         </ComboBox.ItemTemplate>
                                     </ComboBox>
                                 </StackPanel>
-                                <StackPanel Grid.Column="2" Spacing="6">
+                                <StackPanel Spacing="6">
                                     <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}">
                                         <Run Text="{loc:Loc Category}" /><Run Text=" *" Foreground="{DynamicResource ErrorBrush}" />
                                     </TextBlock>
@@ -73,11 +73,11 @@
                                     <TextBlock TextWrapping="Wrap" Text="{Binding ModalCategoryError}" FontSize="12" Foreground="{DynamicResource ErrorBrush}"
                                                IsVisible="{Binding ModalCategoryError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                 </StackPanel>
-                            </Grid>
+                            </UniformGrid>
 
                             <!-- Supplier and Price Row -->
-                            <Grid ColumnDefinitions="*,16,*">
-                                <StackPanel Grid.Column="0" Spacing="6" IsVisible="{Binding IsExpensesTab}">
+                            <UniformGrid Rows="1" ColumnSpacing="16">
+                                <StackPanel Spacing="6" IsVisible="{Binding IsExpensesTab}">
                                     <TextBlock Text="{loc:Loc Supplier}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
                                     <controls:SearchableDropdown ItemsSource="{Binding AvailableSuppliers}"
                                                                 SelectedItem="{Binding ModalSupplier}"
@@ -92,19 +92,19 @@
                                                                 EmptyCreateLinkText="{loc:Loc 'Create'}"
                                                                 EmptyCreateCommand="{Binding OpenSuppliersWithAddModalCommand}" />
                                 </StackPanel>
-                                <StackPanel Grid.Column="0" Spacing="6" IsVisible="{Binding !IsExpensesTab}">
+                                <StackPanel Spacing="6" IsVisible="{Binding !IsExpensesTab}">
                                     <TextBlock Text="{loc:Loc 'Default Unit Price'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
                                     <TextBox Text="{Binding ModalUnitPrice, Mode=TwoWay}" Classes="form-input" PlaceholderText="0.00" MaxLength="13" />
                                 </StackPanel>
-                                <StackPanel Grid.Column="2" Spacing="6" IsVisible="{Binding IsExpensesTab}">
+                                <StackPanel Spacing="6" IsVisible="{Binding IsExpensesTab}">
                                     <TextBlock Text="{loc:Loc 'Default Cost Price'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
                                     <TextBox Text="{Binding ModalCostPrice, Mode=TwoWay}" Classes="form-input" PlaceholderText="0.00" MaxLength="13" />
                                 </StackPanel>
-                            </Grid>
+                            </UniformGrid>
 
                             <CheckBox IsChecked="{Binding ModalTrackInventory, Mode=TwoWay}"
                                      Content="{loc:Loc 'Track Inventory'}"
-                                     IsVisible="{Binding IsProductSelected}"
+                                     IsVisible="{Binding ShowTrackInventoryOption}"
                                      FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" />
 
                             <StackPanel Spacing="6" IsVisible="{Binding ModalTrackInventory}">

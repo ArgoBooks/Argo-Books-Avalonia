@@ -213,6 +213,38 @@ public partial class InvoiceModalsViewModel : ViewModelBase
     /// <summary>Company name shown on the editor paper header.</summary>
     public string CompanyName => App.CompanyManager?.CompanyData?.Settings.Company.Name ?? string.Empty;
 
+    /// <summary>
+    /// Where the address, phone and email are asked for: the invoice header beside this prompt
+    /// is visibly blank without them. Clears once any one is filled, so it cannot become a nag.
+    /// </summary>
+    public bool ShowCompanyDetailsPrompt
+    {
+        get
+        {
+            var company = App.CompanyManager?.CompanyData?.Settings.Company;
+            if (company == null || App.CompanyManager?.IsSampleCompany == true) return false;
+
+            return string.IsNullOrWhiteSpace(company.Address)
+                   && string.IsNullOrWhiteSpace(company.City)
+                   && string.IsNullOrWhiteSpace(company.Phone)
+                   && string.IsNullOrWhiteSpace(company.Email);
+        }
+    }
+
+    [RelayCommand]
+    private void EditCompanyDetails()
+    {
+        App.OpenEditCompanyModal(
+            "These appear in the header of every invoice you send. Fill in what you want shown."
+                .Translate());
+    }
+
+    /// <summary>
+    /// Re-reads the company details behind the prompt. Called after the company is edited, so the
+    /// banner clears while the invoice modal is still open rather than on its next open.
+    /// </summary>
+    public void RefreshCompanyDetailsPrompt() => OnPropertyChanged(nameof(ShowCompanyDetailsPrompt));
+
     /// <summary>Invoice number for the paper: the existing one when continuing a draft, else the next.</summary>
     public string InvoiceNumberDisplay
     {
@@ -239,7 +271,12 @@ public partial class InvoiceModalsViewModel : ViewModelBase
         switch (field)
         {
             case "notes":
-                ModalNotes = value;
+                // The paper falls back to the template's footer when the document has no notes of
+                // its own, so a commit handing that same text back is the fallback, not typing.
+                // Taking it would make an untouched document look edited and stop it following
+                // the template.
+                if (value != (SelectedTemplate?.FooterText ?? string.Empty))
+                    ModalNotes = value;
                 break;
             case "description":
                 if (index is int di && di >= 0 && di < LineItems.Count)
@@ -417,8 +454,13 @@ public partial class InvoiceModalsViewModel : ViewModelBase
         var remove = _paperLogo.Length == 0;
         // TemplateOptions holds the company's actual templates, so mutating them here updates the
         // persisted objects directly.
+        var companyData = App.CompanyManager?.CompanyData;
         foreach (var template in TemplateOptions)
         {
+            // Anything already sent under the outgoing logo keeps it.
+            if (companyData != null)
+                LogoHistory.RetireLogo(companyData, template, remove ? null : _paperLogo);
+
             if (remove)
             {
                 template.LogoBase64 = null;
@@ -688,7 +730,7 @@ public partial class InvoiceModalsViewModel : ViewModelBase
 
     // Amount edits come from typing directly on the paper; only recompute totals here. A full
     // paper re-render would recreate the field mid-keystroke and drop the caret, so the paper is
-    // reconciled on blur (RegeneratePaperFromPaper) or when previewing/saving instead.
+    // rebuilt when previewing or saving instead, by which point the caret has moved on.
     partial void OnTaxRateChanged(decimal value) => UpdateTotals();
     partial void OnCustomFeeAmountChanged(decimal value) => UpdateTotals();
     partial void OnDiscountAmountChanged(decimal value) => UpdateTotals();
@@ -955,8 +997,6 @@ public partial class InvoiceModalsViewModel : ViewModelBase
             FilterDueDateTo = v.DueDateTo;
         });
 
-    public bool HasFilterModalChanges => Filters.HasChanges;
-
     #endregion
 
     #region History Modal
@@ -1086,6 +1126,7 @@ public partial class InvoiceModalsViewModel : ViewModelBase
         ModalTitle = "Create Invoice";
         SaveButtonText = "Preview";
         OnPropertyChanged(nameof(CompanyName));
+        OnPropertyChanged(nameof(ShowCompanyDetailsPrompt));
         OnPropertyChanged(nameof(InvoiceNumberDisplay));
         OnPropertyChanged(nameof(ProductsJson));
         OnPropertyChanged(nameof(CustomersJson));
@@ -1823,7 +1864,7 @@ public partial class InvoiceModalsViewModel : ViewModelBase
                         return;
                     }
 
-                    var limit = usage.MonthlyLimit > 0 ? usage.MonthlyLimit : InvoicesPageViewModel.DefaultFreeInvoiceLimit;
+                    var limit = usage.MonthlyLimit > 0 ? usage.MonthlyLimit : FreePlanLimits.InvoiceMonthly;
                     await UpgradePromptHelper.ShowInvoiceLimitPromptAsync(limit);
                     return;
                 }
@@ -2111,6 +2152,7 @@ public partial class InvoiceModalsViewModel : ViewModelBase
 
         _unansweredSend = null;
         invoice.Status = InvoiceStatus.Sent;
+        _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.InvoiceSent);
         invoice.History.Add(new InvoiceHistoryEntry
         {
             Action = "Sent",
@@ -2441,14 +2483,11 @@ public partial class InvoiceModalsViewModel : ViewModelBase
     [RelayCommand]
     private async Task SaveAsDraft()
     {
-        // Validation - less strict for drafts
-        if (SelectedCustomer == null || string.IsNullOrEmpty(SelectedCustomer.Id))
-        {
-            HasCustomerError = true;
-            ValidationMessage = "Please select a customer.".Translate();
-            HasValidationMessage = true;
-            return;
-        }
+        // A draft goes to nobody, so nothing is required to save one. The customer and the
+        // rest are checked on the send instead.
+        HasCustomerError = false;
+        ValidationMessage = string.Empty;
+        HasValidationMessage = false;
 
         var companyData = App.CompanyManager?.CompanyData;
         if (companyData == null) return;
@@ -2480,7 +2519,7 @@ public partial class InvoiceModalsViewModel : ViewModelBase
         if (existingDraft != null)
         {
             invoice = existingDraft;
-            invoice.CustomerId = SelectedCustomer!.Id!;
+            invoice.CustomerId = SelectedCustomer?.Id ?? string.Empty;
             invoice.IssueDate = ModalIssueDate?.DateTime ?? DateTime.Now;
             invoice.DueDate = ModalDueDate?.DateTime ?? DateTime.Now.AddMonths(1);
             invoice.TaxRate = TaxRate;
@@ -2502,7 +2541,7 @@ public partial class InvoiceModalsViewModel : ViewModelBase
             {
                 Id = idGenerator.NextInvoiceId(),
                 InvoiceNumber = idGenerator.NextInvoiceNumber(),
-                CustomerId = SelectedCustomer!.Id!,
+                CustomerId = SelectedCustomer?.Id ?? string.Empty,
                 IssueDate = ModalIssueDate?.DateTime ?? DateTime.Now,
                 DueDate = ModalDueDate?.DateTime ?? DateTime.Now.AddMonths(1),
                 TaxRate = TaxRate,

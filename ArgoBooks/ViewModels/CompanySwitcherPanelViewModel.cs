@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using ArgoBooks.Localization;
 using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -19,7 +20,7 @@ public partial class CompanySwitcherPanelViewModel : ViewModelBase
     private string _currentCompanyName = "Argo Books";
 
     [ObservableProperty]
-    private string _currentCompanyInitial = "A";
+    private string _currentCompanyInitial = "AB";
 
     [ObservableProperty]
     private Bitmap? _currentCompanyLogo;
@@ -28,7 +29,11 @@ public partial class CompanySwitcherPanelViewModel : ViewModelBase
     private bool _hasCurrentCompanyLogo;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CurrentCompanyPathDisplay))]
     private string? _currentCompanyPath;
+
+    /// <summary>The open company's file, shortened to the folder and file name.</summary>
+    public string CurrentCompanyPathDisplay => CompanyItem.ShortenPath(CurrentCompanyPath);
 
     #endregion
 
@@ -58,19 +63,19 @@ public partial class CompanySwitcherPanelViewModel : ViewModelBase
         RecentCompanies.Add(new CompanyItem
         {
             Name = "My Company Inc.",
-            Initial = "M",
+            Initial = "MC",
             FilePath = "/path/to/my-company.argo"
         });
         RecentCompanies.Add(new CompanyItem
         {
             Name = "Side Business LLC",
-            Initial = "S",
+            Initial = "SB",
             FilePath = "/path/to/side-business.argo"
         });
         RecentCompanies.Add(new CompanyItem
         {
             Name = "Consulting Services",
-            Initial = "C",
+            Initial = "CO",
             FilePath = "/path/to/consulting.argo"
         });
     }
@@ -116,16 +121,6 @@ public partial class CompanySwitcherPanelViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Creates a new company.
-    /// </summary>
-    [RelayCommand]
-    private void CreateNewCompany()
-    {
-        Close();
-        CreateNewCompanyRequested?.Invoke(this, EventArgs.Empty);
-    }
-
-    /// <summary>
     /// Opens an existing company file.
     /// </summary>
     [RelayCommand]
@@ -150,7 +145,6 @@ public partial class CompanySwitcherPanelViewModel : ViewModelBase
     #region Events
 
     public event EventHandler<CompanyItem>? SwitchCompanyRequested;
-    public event EventHandler? CreateNewCompanyRequested;
     public event EventHandler? OpenCompanyRequested;
     public event EventHandler? EditCompanyRequested;
 
@@ -162,7 +156,7 @@ public partial class CompanySwitcherPanelViewModel : ViewModelBase
     public void SetCurrentCompany(string name, string? path = null, Bitmap? logo = null)
     {
         CurrentCompanyName = name;
-        CurrentCompanyInitial = string.IsNullOrEmpty(name) ? "A" : name[0].ToString().ToUpper();
+        CurrentCompanyInitial = Helpers.InitialsHelper.From(name);
         CurrentCompanyPath = path;
         CurrentCompanyLogo = logo;
         HasCurrentCompanyLogo = logo != null;
@@ -184,7 +178,7 @@ public partial class CompanySwitcherPanelViewModel : ViewModelBase
         RecentCompanies.Insert(0, new CompanyItem
         {
             Name = name,
-            Initial = string.IsNullOrEmpty(name) ? "?" : name[0].ToString().ToUpper(),
+            Initial = Helpers.InitialsHelper.From(name),
             FilePath = filePath,
             Logo = logo
         });
@@ -238,4 +232,34 @@ public class CompanyItem
     public Bitmap? Logo { get; set; }
     public bool HasLogo => Logo != null;
     public DateTime LastOpened { get; set; } = DateTime.Now;
+
+    /// <summary>When it was last opened, in words, so a row says why it is in the list.</summary>
+    public string LastOpenedDisplay
+    {
+        get
+        {
+            var days = (int)(DateTime.Now.Date - LastOpened.Date).TotalDays;
+
+            return days switch
+            {
+                <= 0 => "Opened today".Translate(),
+                1 => "Opened yesterday".Translate(),
+                < 7 => "Opened {0} days ago".TranslateFormat(days),
+                < 14 => "Opened last week".Translate(),
+                < 60 => "Opened {0} weeks ago".TranslateFormat(days / 7),
+                _ => "Opened {0}".TranslateFormat(LastOpened.ToString("d MMM yyyy"))
+            };
+        }
+    }
+
+    /// <summary>A path short enough for a panel: the folder it sits in, then the file.</summary>
+    public static string ShortenPath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return string.Empty;
+
+        var file = System.IO.Path.GetFileName(path);
+        var folder = System.IO.Path.GetFileName(System.IO.Path.GetDirectoryName(path) ?? string.Empty);
+
+        return string.IsNullOrEmpty(folder) ? file : folder + System.IO.Path.DirectorySeparatorChar + file;
+    }
 }

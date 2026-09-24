@@ -235,6 +235,336 @@ public class PaymentPortalService : IDisposable
 
     #endregion
 
+    #region Quotes
+
+    /// <summary>
+    /// The quote's figures as the portal shows them to the customer. Negative figures from an
+    /// older save or an imported sheet are floored, the same way the printed quote floors them.
+    /// </summary>
+    public static PortalQuotePublishRequest BuildQuotePublishRequest(
+        Quote quote,
+        CompanyData companyData,
+        Models.Entities.Customer? customer,
+        bool sendEmail,
+        string? message,
+        string status = "sent",
+        bool revision = false) => new()
+    {
+        QuoteId = quote.Id,
+        QuoteNumber = quote.QuoteNumber,
+        CustomerName = customer?.Name ?? string.Empty,
+        CustomerEmail = customer?.Email,
+        CompanyName = companyData.Settings.Company.Name,
+        IssueDate = quote.IssueDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+        ValidUntil = quote.ValidUntil.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+        Subtotal = Math.Max(0m, quote.Subtotal),
+        TaxAmount = Math.Max(0m, quote.TaxAmount),
+        TotalAmount = Math.Max(0m, quote.Total),
+        Currency = string.IsNullOrEmpty(quote.OriginalCurrency) ? "USD" : quote.OriginalCurrency,
+        Notes = quote.Notes,
+        Status = status,
+        Revision = revision,
+        SendEmail = sendEmail,
+        Message = Truncate(message, 500),
+        ReplyTo = companyData.Settings.Company.Email,
+        LineItems = quote.LineItems.Select(li => new PortalLineItem
+        {
+            Description = li.Description,
+            Quantity = li.Quantity,
+            UnitPrice = li.UnitPrice,
+            // Less the line's own discount, the same figure the quote prints, or the portal's
+            // line amounts wouldn't add up to the subtotal sent alongside them.
+            Amount = li.Subtotal
+        }).ToList()
+    };
+
+    private static string? Truncate(string? value, int max) =>
+        string.IsNullOrEmpty(value) || value.Length <= max ? value : value[..max];
+
+    /// <summary>
+    /// Publishes a quote to the portal so the customer can view, accept or decline it online, and
+    /// optionally has the server email them. Pass status "cancelled" to stop an existing link
+    /// accepting answers.
+    /// </summary>
+    /// <remarks>
+    /// A plain "sent" publish never disturbs an answer the customer already gave: the server keeps
+    /// it, emails nobody and returns it in the response, which the caller applies. Only
+    /// <paramref name="revision"/> reopens an answered quote, and only the user may ask for that.
+    /// </remarks>
+    /// <exception cref="ServerRateLimitedException">The server refused the send as too frequent.</exception>
+    public async Task<PortalQuotePublishResponse> PublishQuoteAsync(
+        Quote quote,
+        CompanyData companyData,
+        InvoiceTemplate? template = null,
+        string currencySymbol = "$",
+        bool sendEmail = true,
+        string? message = null,
+        string status = "sent",
+        bool revision = false,
+        CancellationToken cancellationToken = default)
+    {
+        if (!PortalSettings.IsConfigured)
+        {
+            return new PortalQuotePublishResponse
+            {
+                Success = false,
+                Message = "Payment portal is not configured. Please register your company first.",
+                ErrorCode = "NOT_CONFIGURED"
+            };
+        }
+
+        var customer = companyData.GetCustomer(quote.CustomerId);
+        if (customer == null)
+        {
+            return new PortalQuotePublishResponse
+            {
+                Success = false,
+                Message = "Customer not found for this quote.",
+                ErrorCode = "CUSTOMER_NOT_FOUND"
+            };
+        }
+
+        try
+        {
+            var publishRequest = BuildQuotePublishRequest(quote, companyData, customer, sendEmail, message, status, revision);
+
+            // Render with the user's own template so the portal page and the email look like the
+            // invoices this customer already receives.
+            if (template != null)
+            {
+                var renderer = new InvoiceHtmlRenderer();
+                publishRequest.CustomQuoteHtml = renderer.RenderQuote(quote, template, companyData, currencySymbol);
+            }
+
+            var json = JsonSerializer.Serialize(publishRequest, SerializeOptions);
+
+            using var request = CreateRequest(HttpMethod.Post, "/quotes", includeLicense: true);
+            request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+
+            using var response = await _httpClient.SendAsync(request, cancellationToken);
+            var content = await response.Content.ReadAsStringAsync(cancellationToken);
+
+            if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+                throw ServerRateLimitedException.FromBody(content);
+
+            if (response.IsSuccessStatusCode)
+            {
+                return DeserializeResponse<PortalQuotePublishResponse>(content) ?? new PortalQuotePublishResponse
+                {
+                    Success = true,
+                    Message = "Quote published to portal."
+                };
+            }
+
+            var errorResponse = DeserializeResponse<PortalQuotePublishResponse>(content) ?? new PortalQuotePublishResponse
+            {
+                Success = false,
+                Message = $"Portal returned status {(int)response.StatusCode}",
+                ErrorCode = ((int)response.StatusCode).ToString()
+            };
+            // A rejection comes before anything is saved; a server fault can come after the save and email.
+            errorResponse.MayHavePublished = (int)response.StatusCode >= 500;
+            return errorResponse;
+        }
+        catch (ServerRateLimitedException)
+        {
+            throw;
+        }
+        catch (TaskCanceledException)
+        {
+            return new PortalQuotePublishResponse { Success = false, Message = "Request timed out.", ErrorCode = "TIMEOUT", MayHavePublished = true };
+        }
+        catch (HttpRequestException ex)
+        {
+            return new PortalQuotePublishResponse
+            {
+                Success = false,
+                Message = await ConnectivityMessage.ResolveAsync(),
+                ErrorCode = "NETWORK_ERROR",
+                // Only failing to connect at all means the portal never received the quote.
+                MayHavePublished = ex.HttpRequestError is not (HttpRequestError.NameResolutionError
+                    or HttpRequestError.ConnectionError or HttpRequestError.SecureConnectionError)
+            };
+        }
+        catch (Exception)
+        {
+            return new PortalQuotePublishResponse { Success = false, Message = "An unexpected error occurred. Please try again.", ErrorCode = "UNKNOWN_ERROR", MayHavePublished = true };
+        }
+    }
+
+    /// <summary>
+    /// Fetches the customer answers (accept / decline) this device hasn't confirmed yet.
+    /// </summary>
+    public async Task<PortalQuoteSyncResponse> SyncQuoteResponsesAsync(CancellationToken cancellationToken = default)
+    {
+        if (!PortalSettings.IsConfigured)
+        {
+            return new PortalQuoteSyncResponse
+            {
+                Success = false,
+                Message = "Payment portal is not configured. Please register your company first.",
+                ErrorCode = "NOT_CONFIGURED"
+            };
+        }
+
+        try
+        {
+            using var request = CreateRequest(HttpMethod.Get, "/quotes/sync", includeLicense: true);
+            using var response = await _httpClient.SendAsync(request, cancellationToken);
+            var content = await response.Content.ReadAsStringAsync(cancellationToken);
+
+            if (response.IsSuccessStatusCode)
+            {
+                return DeserializeResponse<PortalQuoteSyncResponse>(content) ?? new PortalQuoteSyncResponse
+                {
+                    Success = true,
+                    Quotes = []
+                };
+            }
+
+            return new PortalQuoteSyncResponse
+            {
+                Success = false,
+                Message = $"Sync failed with status {(int)response.StatusCode}",
+                ErrorCode = ((int)response.StatusCode).ToString()
+            };
+        }
+        catch (TaskCanceledException)
+        {
+            return new PortalQuoteSyncResponse { Success = false, Message = "Sync timed out.", ErrorCode = "TIMEOUT" };
+        }
+        catch (HttpRequestException)
+        {
+            return new PortalQuoteSyncResponse { Success = false, Message = await ConnectivityMessage.ResolveAsync(), ErrorCode = "NETWORK_ERROR" };
+        }
+        catch (Exception)
+        {
+            // A pull that fails is only a pull that has to happen again, and the same answers are
+            // still waiting on the server. Never let it take down the caller's sync pass.
+            return new PortalQuoteSyncResponse { Success = false, Message = "An unexpected error occurred. Please try again.", ErrorCode = "UNKNOWN_ERROR" };
+        }
+    }
+
+    /// <summary>
+    /// Confirms that quote answers have reached Argo Books so the server stops returning them.
+    /// </summary>
+    public async Task<bool> ConfirmQuoteSyncAsync(
+        List<string> quoteIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (!PortalSettings.IsConfigured || quoteIds.Count == 0)
+            return false;
+
+        try
+        {
+            var confirmRequest = new PortalQuoteSyncConfirmRequest { QuoteIds = quoteIds };
+            var json = JsonSerializer.Serialize(confirmRequest, SerializeOptions);
+
+            using var request = CreateRequest(HttpMethod.Post, "/quotes/sync/confirm", includeLicense: true);
+            request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+
+            using var response = await _httpClient.SendAsync(request, cancellationToken);
+            return response.IsSuccessStatusCode;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Applies customer answers to the local quotes.
+    /// </summary>
+    /// <returns>
+    /// The ids split by what confirming them would cost, and how many quotes actually changed.
+    /// <para>
+    /// <c>SettledIds</c> have no local quote at all: deleted here, or answered on another machine.
+    /// Nothing can be lost by confirming them, and leaving them unconfirmed brings the same answer
+    /// back on every sync forever.
+    /// </para>
+    /// <para>
+    /// <c>LocalIds</c> name a quote in this company, whether or not this pass changed it. An
+    /// unchanged one may only look unchanged because an earlier pass already applied it in memory
+    /// and could not save. Confirming makes the server drop the answer for good, so the caller
+    /// must not confirm these until the company file has been written.
+    /// </para>
+    /// <para>
+    /// <c>Changed</c> counts the quotes this pass actually updated, so a repeat pass over answers
+    /// that could not be confirmed yet does not announce them again.
+    /// </para>
+    /// </returns>
+    public static (List<string> SettledIds, List<string> LocalIds, int Changed) ApplyQuoteResponses(
+        IEnumerable<PortalQuoteResponseRecord> records,
+        CompanyData companyData)
+    {
+        var settledIds = new List<string>();
+        var localIds = new List<string>();
+        var changed = 0;
+
+        foreach (var record in records)
+        {
+            if (string.IsNullOrWhiteSpace(record.QuoteId)) continue;
+
+            var quote = companyData.Quotes.FirstOrDefault(q => q.Id == record.QuoteId);
+            if (quote == null)
+            {
+                settledIds.Add(record.QuoteId);
+                continue;
+            }
+
+            localIds.Add(record.QuoteId);
+            if (ApplyQuoteAnswer(quote, record.Status, record.RespondedAt, record.ResponseNote))
+                changed++;
+        }
+
+        return (settledIds, localIds, changed);
+    }
+
+    /// <summary>
+    /// The customer's answer, or null when the portal reported anything else (a plain "sent", a
+    /// cancellation, a status this version does not know).
+    /// </summary>
+    public static QuoteStatus? ParseQuoteAnswer(string? status) => status?.Trim().ToLowerInvariant() switch
+    {
+        "accepted" => QuoteStatus.Accepted,
+        "declined" => QuoteStatus.Declined,
+        _ => null
+    };
+
+    /// <summary>
+    /// Writes a customer's accept / decline onto a quote. Shared by the background sync and the
+    /// publish response, so an answer looks the same however it reached the app.
+    /// </summary>
+    /// <returns>True when the quote changed.</returns>
+    public static bool ApplyQuoteAnswer(Quote quote, string? status, DateTime? respondedAt, string? responseNote)
+    {
+        // A converted quote is already a draft invoice in the books. A late answer must not walk
+        // it back to a status that offers "convert" again.
+        if (quote.Status == QuoteStatus.Converted) return false;
+
+        var parsed = ParseQuoteAnswer(status);
+        if (parsed == null) return false;
+
+        var answeredAt = respondedAt ?? DateTime.UtcNow;
+        if (quote.Status == parsed && quote.RespondedAt == answeredAt) return false;
+
+        quote.Status = parsed.Value;
+        quote.RespondedAt = answeredAt;
+        quote.ResponseNote = responseNote;
+        quote.UpdatedAt = DateTime.UtcNow;
+        quote.History.Add(new Models.Common.InvoiceHistoryEntry
+        {
+            Action = parsed == QuoteStatus.Accepted ? "Accepted" : "Declined",
+            Details = string.IsNullOrWhiteSpace(responseNote)
+                ? "Customer responded through the portal"
+                : $"Customer responded through the portal: {responseNote}",
+            Timestamp = answeredAt
+        });
+        return true;
+    }
+
+    #endregion
+
     #region Sync Payments
 
     /// <summary>
@@ -1149,7 +1479,7 @@ public class PaymentPortalService : IDisposable
 
     #region Helpers
 
-    private static HttpRequestMessage CreateRequest(HttpMethod method, string path)
+    private static HttpRequestMessage CreateRequest(HttpMethod method, string path, bool includeLicense = false)
     {
         var url = PortalSettings.ApiBaseUrl.TrimEnd('/') + path;
         var request = new HttpRequestMessage(method, url);
@@ -1157,6 +1487,16 @@ public class PaymentPortalService : IDisposable
         var apiKey = PortalSettings.ApiKey;
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
         request.Headers.Add("X-Api-Key", apiKey);
+
+        // The quote endpoints read X-License-Key before the Bearer token and apply the Premium
+        // send ceiling when it is there. Nothing else from the license helper goes on the wire:
+        // the Bearer token must stay the portal key or the request stops being a portal request.
+        if (includeLicense)
+        {
+            var licenseKey = LicenseAuthHelper.GetLicenseKey();
+            if (!string.IsNullOrEmpty(licenseKey))
+                request.Headers.Add("X-License-Key", licenseKey);
+        }
 
         return request;
     }

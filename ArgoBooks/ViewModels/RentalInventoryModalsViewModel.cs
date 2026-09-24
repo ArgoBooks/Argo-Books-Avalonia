@@ -147,8 +147,6 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
             FilterDailyRateMax = v.DailyRateMax;
         });
 
-    public bool HasFilterModalChanges => Filters.HasChanges;
-
     #endregion
 
     #region Rent Out Modal Fields

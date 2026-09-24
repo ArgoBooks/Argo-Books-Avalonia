@@ -310,9 +310,9 @@ public class SampleCompanyServiceTests
     #region Sample payroll
 
     /// <summary>
-    /// A reference date the shipped rate editions cover for all six runs, which reach back
-    /// seventy days from it. Payroll is skipped outright when nothing covers a pay date, which is
-    /// correct behaviour and would quietly make every assertion below vacuous.
+    /// A reference date the shipped rate editions cover for every run the generator builds, which
+    /// reach back a fortnight from it. Payroll is skipped outright when nothing covers a pay date,
+    /// which is correct behaviour and would quietly make every assertion below vacuous.
     ///
     /// Fixed rather than relative to today, so these test the generator and not the calendar, and
     /// far enough back that the time-shift has something to move: it does nothing when the data
@@ -320,6 +320,12 @@ public class SampleCompanyServiceTests
     /// </summary>
     private static readonly DateTime Covered = new(2026, 6, 15);
 
+    /// <summary>
+    /// The state the generator actually runs against: the three employees the workbook's
+    /// Employees sheet carries, with what that sheet holds and nothing else. One salaried, two
+    /// hourly, all biweekly, no province, no SIN and no address, which is what the generator has
+    /// to fill in.
+    /// </summary>
     private static CompanyData WithSamplePayroll()
     {
         var data = new CompanyData();
@@ -328,24 +334,51 @@ public class SampleCompanyServiceTests
         // reads them, so a bare CompanyData would fail on the company rather than the payroll.
         data.Settings.Company.Name = "TechFlow Solutions";
         data.Settings.Localization.Currency = "CAD";
+        data.Employees.AddRange(ImportedEmployees());
 
         SampleCompanyService.AddSamplePayroll(data, Covered);
         return data;
     }
 
+    private static Employee[] ImportedEmployees() =>
+    [
+        new() { Id = "EMP-001", Name = "Marcus Johnson", PayType = PayType.Salary, PayRate = 30000m, PayFrequency = PayFrequency.Biweekly },
+        new() { Id = "EMP-002", Name = "Michelle Sanders", PayType = PayType.Hourly, PayRate = 24m, PayFrequency = PayFrequency.Biweekly },
+        new() { Id = "EMP-003", Name = "Ryan Cooper", PayType = PayType.Hourly, PayRate = 22m, PayFrequency = PayFrequency.Biweekly },
+    ];
+
     [Fact]
-    public void SamplePayroll_AddsEmployeesAndApprovedRuns()
+    public void SamplePayroll_AddsApprovedRunsAndInventsNobody()
     {
         CompanyData data = WithSamplePayroll();
 
-        Assert.Equal(3, data.Employees.Count);
+        // Exactly the imported three: the generator tops them up, it does not add its own.
+        Assert.Equal(
+            ImportedEmployees().Select(e => e.Name),
+            data.Employees.Select(e => e.Name));
         Assert.NotEmpty(data.PayRuns);
         Assert.All(data.PayRuns, r => Assert.Equal(PayRunStatus.Approved, r.Status));
     }
 
     /// <summary>
-    /// The real sample company arrives with employees already imported from the workbook's
-    /// Employees sheet, carrying a name and a salary but nothing payroll needs.
+    /// Nobody to pay means nothing to add. Running anyway would leave pay runs with no lines on
+    /// them, which reads as a broken payroll rather than an empty one.
+    /// </summary>
+    [Fact]
+    public void SamplePayroll_DoesNothingWithoutEmployees()
+    {
+        var data = new CompanyData();
+        data.Settings.Company.Name = "TechFlow Solutions";
+
+        SampleCompanyService.AddSamplePayroll(data, Covered);
+
+        Assert.Empty(data.PayRuns);
+        Assert.Empty(data.Employees);
+        Assert.True(string.IsNullOrEmpty(data.Settings.Company.PayrollAccountNumber));
+    }
+
+    /// <summary>
+    /// What the sheet supplies survives, and only what payroll needs is filled in on top.
     /// </summary>
     [Fact]
     public void SamplePayroll_CompletesEmployeesThatCameFromTheSpreadsheet()
@@ -399,15 +432,19 @@ public class SampleCompanyServiceTests
 
     /// <summary>An hourly employee earns nothing until hours are put on the run.</summary>
     [Fact]
-    public void SamplePayroll_PaysTheHourlyEmployee()
+    public void SamplePayroll_PaysTheHourlyEmployees()
     {
         CompanyData data = WithSamplePayroll();
 
-        Employee hourly = data.Employees.Single(e => e.PayType == PayType.Hourly);
+        Employee[] hourly = [.. data.Employees.Where(e => e.PayType == PayType.Hourly)];
+        Assert.NotEmpty(hourly);
 
-        Assert.All(
-            data.PayRuns.SelectMany(r => r.Lines).Where(l => l.EmployeeId == hourly.Id),
-            line => Assert.Equal(40m * hourly.PayRate, line.BasePay));
+        foreach (Employee employee in hourly)
+        {
+            Assert.All(
+                data.PayRuns.SelectMany(r => r.Lines).Where(l => l.EmployeeId == employee.Id),
+                line => Assert.Equal(40m * employee.PayRate, line.BasePay));
+        }
     }
 
     /// <summary>
@@ -479,12 +516,10 @@ public class SampleCompanyServiceTests
     }
 
     /// <summary>
-    /// The guard is on pay runs, not employees.
-    ///
-    /// It used to be on employees, which is what made the sample ship with none: the workbook's
-    /// Employees sheet meant there were always some, so payroll was never added. Existing
-    /// employees are now deliberately topped up rather than treated as a reason to stop, so what
-    /// has to hold instead is that a company which already has payroll is left completely alone.
+    /// The guard is on pay runs, not employees: the workbook always supplies employees, so they
+    /// say nothing about whether payroll has been set up, and they are topped up rather than
+    /// treated as a reason to stop. What has to hold instead is that a company which already has
+    /// payroll is left completely alone.
     /// </summary>
     [Fact]
     public void SamplePayroll_DoesNothingWhenPayrollAlreadyExists()

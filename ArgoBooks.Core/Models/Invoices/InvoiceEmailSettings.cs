@@ -43,13 +43,6 @@ public class InvoiceEmailSettings
     /// </summary>
     [JsonPropertyName("subjectTemplate")]
     public string SubjectTemplate { get; set; } = "Invoice {InvoiceNumber} from {CompanyName}";
-
-    /// <summary>
-    /// Whether to include a PDF attachment of the invoice.
-    /// </summary>
-    [JsonPropertyName("includePdfAttachment")]
-    public bool IncludePdfAttachment { get; set; } = true;
-
 }
 
 /// <summary>

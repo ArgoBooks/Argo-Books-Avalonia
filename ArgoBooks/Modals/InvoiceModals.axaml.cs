@@ -188,7 +188,7 @@ public partial class InvoiceModals : UserControl
 
             using var scaled = bitmap.CreateScaledBitmap(target, BitmapInterpolationMode.HighQuality);
             using var output = new MemoryStream();
-            scaled.Save(output);
+            scaled.Save(output, PngBitmapEncoderOptions.Default);
             return Convert.ToBase64String(output.ToArray());
         }
         catch

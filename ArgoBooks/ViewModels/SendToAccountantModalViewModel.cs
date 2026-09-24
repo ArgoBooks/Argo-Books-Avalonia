@@ -161,7 +161,19 @@ public partial class SendToAccountantModalViewModel : ViewModelBase
     private void UpdateSize()
     {
         var data = App.CompanyManager?.CompanyData;
-        if (!IncludeReceipts || data == null || Range() is not { } range)
+        if (data == null || Range() is not { } range)
+        {
+            SizeText = string.Empty;
+            return;
+        }
+
+        if (!AccountantPack.HasDataInRange(data, range.Start, range.End))
+        {
+            SizeText = "Nothing was recorded in this period.".Translate();
+            return;
+        }
+
+        if (!IncludeReceipts)
         {
             SizeText = string.Empty;
             return;
@@ -182,7 +194,8 @@ public partial class SendToAccountantModalViewModel : ViewModelBase
 
         var bytes = receipts.Sum(r => AccountantPack.DecodedSize(r.Receipt.FileData!));
         SizeText = bytes > AccountantPack.MaxEmailBytes
-            ? "{0} receipts, {1}. Too large to email, but the zip includes them.".TranslateFormat(receipts.Count, FormatSize(bytes))
+            ? "{0} receipts, {1}. That is over the {2} an email can carry, so they go in the zip only.".TranslateFormat(
+                receipts.Count, FormatSize(bytes), FormatSize(AccountantPack.MaxEmailBytes))
             : "{0} receipts, {1}.".TranslateFormat(receipts.Count, FormatSize(bytes));
     }
 
@@ -205,6 +218,13 @@ public partial class SendToAccountantModalViewModel : ViewModelBase
         if (!IncludeReports && !IncludeTransactions && !IncludeReceipts)
         {
             ErrorMessage = "Choose at least one thing to include.".Translate();
+            return false;
+        }
+
+        if (App.CompanyManager?.CompanyData is { } data && !AccountantPack.HasDataInRange(data, chosen.Start, chosen.End))
+        {
+            ErrorMessage = "Nothing was recorded in {0}, so there is nothing to send. Choose another period."
+                .TranslateFormat(AccountantPack.PeriodLabel(chosen.Start, chosen.End));
             return false;
         }
 
@@ -296,7 +316,8 @@ public partial class SendToAccountantModalViewModel : ViewModelBase
 
                 if (total > AccountantPack.MaxEmailBytes)
                 {
-                    ErrorMessage = "This pack is too large to email. Save it as a zip and share it another way.".Translate();
+                    ErrorMessage = "The reports and spreadsheet come to {0}, over the {1} an email can carry. Use Save as Zip instead and share it another way."
+                        .TranslateFormat(FormatSize(total), FormatSize(AccountantPack.MaxEmailBytes));
                     return;
                 }
 
@@ -334,7 +355,8 @@ public partial class SendToAccountantModalViewModel : ViewModelBase
 
                 RememberAccountant();
                 StatusMessage = receiptsOmitted
-                    ? "Sent to {0}. The receipts were too large to email, so save the pack as a zip to share them.".TranslateFormat(email)
+                    ? "Sent to {0}, without the receipts: they are over the {1} an email can carry. Use Save as Zip to share those."
+                        .TranslateFormat(email, FormatSize(AccountantPack.MaxEmailBytes))
                     : "Sent to {0}.".TranslateFormat(email);
                 _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.AccountantPackSent, "email");
             }

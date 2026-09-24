@@ -8,6 +8,7 @@ using ArgoBooks.Core.Models.Telemetry;
 using ArgoBooks.Core.Services;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
+using ArgoBooks.Shared.Telemetry;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -111,20 +112,35 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
             lines = await ImportPdfStatementAsync(filePath);
             // The PDF path shows its own messaging (usage limit, cancel, extraction failure),
             // so just bail quietly when it returns nothing.
-            if (lines.Count == 0) return;
+            if (lines.Count == 0)
+            {
+                _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, "bank:no-rows:pdf");
+                return;
+            }
         }
         else
         {
             var parser = new BankStatementImportService(App.ErrorLogger);
-            if (ext == ".csv")
-                lines = await parser.ParseCsvAsync(filePath);
-            else
-                lines = await parser.ParseExcelAsync(filePath);
+            try
+            {
+                lines = ext == ".csv"
+                    ? await parser.ParseCsvAsync(filePath)
+                    : await parser.ParseExcelAsync(filePath);
+            }
+            catch (UnreadableStatementFileException)
+            {
+                _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, $"bank:unreadable:{ext.TrimStart('.')}");
+                await App.ShowInfoMessageBoxAsync(
+                    "Import Bank Statement".Translate(),
+                    ImportRescueMessages.UnreadableFile);
+                return;
+            }
 
             // Don't fail silently when the file isn't a recognizable bank statement (e.g. the user
             // picked the wrong spreadsheet): tell them what's expected instead of doing nothing.
             if (lines.Count == 0)
             {
+                _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, $"bank:no-rows:{ext.TrimStart('.')}");
                 await App.ShowInfoMessageBoxAsync(
                     "Import Bank Statement".Translate(),
                     "No transactions were found in this file. Make sure it's a bank statement with Date, Description and Amount (or Debit/Credit) columns.".Translate());
@@ -145,6 +161,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
         IsOpen = true;
 
         PopulateRows(lines);
+        _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ImportPreviewShown, $"bank:{lines.Count}");
         await CategorizeWithAiAsync();
 
         IsLoading = false;
@@ -224,6 +241,8 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
             () => RedoImport(data, creation, ruleCaptures, postCounters)));
 
         App.CompanyManager?.MarkAsChanged();
+        _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.DataImported, $"bank:{toImport.Count}");
+        TutorialService.Instance.CompleteChecklistItem(TutorialService.ChecklistItems.ImportData);
         IsOpen = false;
     }
 
@@ -236,6 +255,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
         // Rows.Count alone silently closed the modal mid-PDF-extraction with no prompt.
         if ((Rows.Count > 0 || IsLoading) && !await ConfirmDiscardNewAsync())
             return;
+        _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ImportAbandoned, $"bank:preview:{Rows.Count}");
         IsOpen = false;
     }
 
@@ -881,7 +901,21 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
             OperationKind.BankPdfExtract, pct => CategorizeProgress = pct * 0.6, uploadBytes: bytes.Length))
         {
             ticker.Start();
-            extracted = await App.PdfStatementExtractor.ExtractAsync(bytes, Path.GetFileName(filePath));
+            try
+            {
+                extracted = await App.PdfStatementExtractor.ExtractAsync(bytes, Path.GetFileName(filePath));
+            }
+            catch (ServerRateLimitedException ex)
+            {
+                // Nothing was read, so nothing is charged; the file itself may be fine.
+                if (IsOpen)
+                {
+                    IsOpen = false;
+                    IsLoading = false;
+                    await App.ShowInfoMessageBoxAsync("Import Bank Statement".Translate(), ex.Message);
+                }
+                return [];
+            }
             ticker.Complete();
         }
         _categorizeProgressFloor = 60;

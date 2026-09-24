@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using ArgoBooks.Core.Platform;
+using ArgoBooks.Core.Services;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -82,8 +83,8 @@ public partial class SetupChecklistViewModel : ViewModelBase
     public string FreeTierSummary =>
         "You can use Argo Books for free: all core features, plus {0} invoices and {1} AI receipt scans every month."
             .TranslateFormat(
-                UpgradeModalViewModel.FreeInvoiceMonthlyLimit,
-                UpgradeModalViewModel.FreeReceiptScanMonthlyLimit);
+                FreePlanLimits.InvoiceMonthly,
+                FreePlanLimits.ReceiptScanMonthly);
 
     public SetupChecklistViewModel()
     {
@@ -93,7 +94,7 @@ public partial class SetupChecklistViewModel : ViewModelBase
 
         // The card may already be on screen with the fallback limits when the plans fetch
         // lands, so re-read them when the server answers.
-        UpgradeModalViewModel.FreeLimitsChanged += (_, _) => OnPropertyChanged(nameof(FreeTierSummary));
+        FreePlanLimits.Changed += (_, _) => OnPropertyChanged(nameof(FreeTierSummary));
 
         App.PlanStatusChanged += OnPlanStatusChanged;
     }
@@ -126,13 +127,15 @@ public partial class SetupChecklistViewModel : ViewModelBase
             Icon = Icons.Expenses,
             NavigationTarget = "Expenses"
         });
+        // The step that leaves a company file holding the user's real records, which is what
+        // makes the app worth opening again.
         Items.Add(new ChecklistItemViewModel
         {
-            Id = TutorialService.ChecklistItems.VisitAnalytics,
-            Title = "Visit the Analytics page",
-            Description = "See your business insights",
-            Icon = Icons.Analytics,
-            NavigationTarget = "Analytics"
+            Id = TutorialService.ChecklistItems.ImportData,
+            Title = "Import your data",
+            Description = "Bring in a spreadsheet or bank statement",
+            Icon = Icons.ImportData,
+            NavigationTarget = ""
         });
 
         TotalCount = Items.Count;
@@ -144,6 +147,7 @@ public partial class SetupChecklistViewModel : ViewModelBase
     /// </summary>
     public void Refresh()
     {
+        TutorialService.Instance.MigrateLegacyChecklist();
         RefreshCompletionState();
 
         var tutorialService = TutorialService.Instance;
@@ -221,10 +225,12 @@ public partial class SetupChecklistViewModel : ViewModelBase
     [RelayCommand]
     private void NavigateToItem(ChecklistItemViewModel? item)
     {
-        if (item == null || string.IsNullOrEmpty(item.NavigationTarget))
+        if (item == null)
             return;
 
-        NavigationRequested?.Invoke(this, item.NavigationTarget);
+        // The import step opens a modal over whatever page is showing, so it has no target.
+        if (!string.IsNullOrEmpty(item.NavigationTarget))
+            NavigationRequested?.Invoke(this, item.NavigationTarget);
 
         // The scan step opens its own workflow rather than just landing the user on a page.
         // Seeing a scan happen is the whole point of the step, and a brand-new user has no
@@ -234,6 +240,8 @@ public partial class SetupChecklistViewModel : ViewModelBase
             _ = App.ReceiptsModalsViewModel?.OpenScanModalWithSampleAsync();
         else if (item.Id == TutorialService.ChecklistItems.RecordExpense)
             App.ExpenseModalsViewModel?.OpenAddModal();
+        else if (item.Id == TutorialService.ChecklistItems.ImportData)
+            App.ImportModalViewModel?.OpenForCurrentCompany();
     }
 
     [RelayCommand]

@@ -522,7 +522,7 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
                 if (newProduct != null)
                     SelectedProduct = newProduct;
             });
-        productModals.OpenAddModal();
+        productModals.OpenAddInventoryProductModal();
     }
 
     private void ReloadAvailableProducts()
@@ -777,8 +777,6 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
             FilterLocation = v.Location;
             FilterStatus = v.Status;
         });
-
-    public bool HasFilterModalChanges => Filters.HasChanges;
 
     /// <summary>
     /// Opens the filter modal seeded with the page's current filters.

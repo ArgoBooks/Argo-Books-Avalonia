@@ -42,8 +42,15 @@ public class PdfStatementExtractor(LicenseService? licenseService, IErrorLogger?
             using var response = await Http.SendAsync(request, cancellationToken);
             var body = await response.Content.ReadAsStringAsync(cancellationToken);
             wallClock.Stop();
+            if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+                throw ServerRateLimitedException.FromBody(body);
             RecordTiming(body, wallClock.Elapsed.TotalMilliseconds, pdfData.Length);
             return ParseRows(body);
+        }
+        catch (ServerRateLimitedException)
+        {
+            // Not a failure to read the file: the caller tells the user to wait instead.
+            throw;
         }
         catch (Exception ex)
         {

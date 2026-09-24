@@ -180,12 +180,21 @@ public static class PurchaseOrderPdfRenderer
                     }
                 });
 
-                page.Footer().AlignCenter().Text(t =>
+                page.Footer().AlignCenter().Column(footer =>
                 {
-                    t.Span("Page ").FontSize(9).FontColor(Colors.Grey.Darken1);
-                    t.CurrentPageNumber().FontSize(9).FontColor(Colors.Grey.Darken1);
-                    t.Span(" of ").FontSize(9).FontColor(Colors.Grey.Darken1);
-                    t.TotalPages().FontSize(9).FontColor(Colors.Grey.Darken1);
+                    footer.Item().Text(t =>
+                    {
+                        t.Span("Page ").FontSize(9).FontColor(Colors.Grey.Darken1);
+                        t.CurrentPageNumber().FontSize(9).FontColor(Colors.Grey.Darken1);
+                        t.Span(" of ").FontSize(9).FontColor(Colors.Grey.Darken1);
+                        t.TotalPages().FontSize(9).FontColor(Colors.Grey.Darken1);
+                    });
+
+                    // The supplier reading this keeps books of their own.
+                    footer.Item().PaddingTop(2).Text(t =>
+                        t.Hyperlink("Prepared in Argo Books", "https://argorobots.com/downloads/?source=loop-po-pdf")
+                            .FontSize(8)
+                            .FontColor(Colors.Grey.Medium));
                 });
             });
         }).GeneratePdf(ms);

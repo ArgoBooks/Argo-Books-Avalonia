@@ -74,8 +74,6 @@ public partial class LostDamagedModalsViewModel : ViewModelBase
             FilterReason = v.Reason;
         });
 
-    public bool HasFilterModalChanges => Filters.HasChanges;
-
     #endregion
 
     #region Filter Modal Commands

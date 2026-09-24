@@ -77,41 +77,47 @@
                 <!-- Table Header Content - Using ArgoTableHeader for reduced boilerplate -->
                 <table:ArgoTable.HeaderContent>
                     <StackPanel Orientation="Horizontal">
-                        <table:ArgoTableHeader Header="{loc:Loc 'ID'}" ColumnName="Id"
+                        <table:ArgoTableHeader Header="{loc:Loc 'ID'}" ColumnName="Id" SortProperty="Id"
                                                    ColumnWidth="{Binding ColumnWidths.IdColumnWidth}"
                                                    IsColumnVisible="{Binding ShowIdColumn}"
-                                                   IsSortable="False"
+                                                   SortColumn="{Binding SortColumn}" SortDirection="{Binding SortDirection}"
+                                                   SortCommand="{Binding SortByCommand}"
                                                    ColumnWidths="{Binding ColumnWidths}" />
 
-                        <table:ArgoTableHeader Header="{loc:Loc 'Product'}" ColumnName="Product"
+                        <table:ArgoTableHeader Header="{loc:Loc 'Product'}" ColumnName="Product" SortProperty="Product"
                                                    ColumnWidth="{Binding ColumnWidths.ProductColumnWidth}"
                                                    IsColumnVisible="{Binding ShowProductColumn}"
-                                                   IsSortable="False"
+                                                   SortColumn="{Binding SortColumn}" SortDirection="{Binding SortDirection}"
+                                                   SortCommand="{Binding SortByCommand}"
                                                    ColumnWidths="{Binding ColumnWidths}" />
 
                         <table:ArgoTableHeader Header="{Binding IsExpenseTabActive, Converter={x:Static local:BoolConverters.ToSupplierOrCustomerHeader}}"
-                                                   ColumnName="SupplierCustomer"
+                                                   ColumnName="SupplierCustomer" SortProperty="SupplierCustomer"
                                                    ColumnWidth="{Binding ColumnWidths.SupplierCustomerColumnWidth}"
                                                    IsColumnVisible="{Binding ShowSupplierCustomerColumn}"
-                                                   IsSortable="False"
+                                                   SortColumn="{Binding SortColumn}" SortDirection="{Binding SortDirection}"
+                                                   SortCommand="{Binding SortByCommand}"
                                                    ColumnWidths="{Binding ColumnWidths}" />
 
-                        <table:ArgoTableHeader Header="{loc:Loc 'Date'}" ColumnName="Date"
+                        <table:ArgoTableHeader Header="{loc:Loc 'Date'}" ColumnName="Date" SortProperty="Date"
                                                    ColumnWidth="{Binding ColumnWidths.DateColumnWidth}"
                                                    IsColumnVisible="{Binding ShowDateColumn}"
-                                                   IsSortable="False"
+                                                   SortColumn="{Binding SortColumn}" SortDirection="{Binding SortDirection}"
+                                                   SortCommand="{Binding SortByCommand}"
                                                    ColumnWidths="{Binding ColumnWidths}" />
 
-                        <table:ArgoTableHeader Header="{loc:Loc 'Reason'}" ColumnName="Reason"
+                        <table:ArgoTableHeader Header="{loc:Loc 'Reason'}" ColumnName="Reason" SortProperty="Reason"
                                                    ColumnWidth="{Binding ColumnWidths.ReasonColumnWidth}"
                                                    IsColumnVisible="{Binding ShowReasonColumn}"
-                                                   IsSortable="False"
+                                                   SortColumn="{Binding SortColumn}" SortDirection="{Binding SortDirection}"
+                                                   SortCommand="{Binding SortByCommand}"
                                                    ColumnWidths="{Binding ColumnWidths}" />
 
-                        <table:ArgoTableHeader Header="{loc:Loc 'Refund'}" ColumnName="Refund"
+                        <table:ArgoTableHeader Header="{loc:Loc 'Refund'}" ColumnName="Refund" SortProperty="Refund"
                                                    ColumnWidth="{Binding ColumnWidths.RefundColumnWidth}"
                                                    IsColumnVisible="{Binding ShowRefundColumn}"
-                                                   IsSortable="False"
+                                                   SortColumn="{Binding SortColumn}" SortDirection="{Binding SortDirection}"
+                                                   SortCommand="{Binding SortByCommand}"
                                                    ColumnWidths="{Binding ColumnWidths}" />
 
                         <table:ArgoTableHeader Header="{loc:Loc 'Actions'}" ColumnName="Actions"

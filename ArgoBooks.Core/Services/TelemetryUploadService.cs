@@ -21,6 +21,10 @@ public class TelemetryUploadService : ITelemetryUploadService
     private readonly JsonSerializerOptions _jsonOptions;
     private readonly string _appVersion;
 
+    // Two uploads at once would both read the same pending events before either marked them
+    // sent, and the server would receive the batch twice.
+    private readonly SemaphoreSlim _uploadGate = new(1, 1);
+
     /// <summary>
     /// Initializes a new instance of the TelemetryUploadService.
     /// </summary>
@@ -45,6 +49,27 @@ public class TelemetryUploadService : ITelemetryUploadService
 
     /// <inheritdoc />
     public async Task<TelemetryUploadResult> UploadPendingDataAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            await _uploadGate.WaitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            return new TelemetryUploadResult { Success = false, ErrorMessage = "Upload cancelled" };
+        }
+
+        try
+        {
+            return await UploadPendingCoreAsync(cancellationToken);
+        }
+        finally
+        {
+            _uploadGate.Release();
+        }
+    }
+
+    private async Task<TelemetryUploadResult> UploadPendingCoreAsync(CancellationToken cancellationToken)
     {
         var result = new TelemetryUploadResult();
 

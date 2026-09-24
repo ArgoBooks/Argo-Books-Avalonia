@@ -521,8 +521,6 @@ public partial class StockAdjustmentsModalsViewModel : ViewModelBase
             FilterType = v.Type;
         });
 
-    public bool HasFilterModalChanges => Filters.HasChanges;
-
     /// <summary>
     /// Opens the filter modal seeded with the page's current filters.
     /// </summary>

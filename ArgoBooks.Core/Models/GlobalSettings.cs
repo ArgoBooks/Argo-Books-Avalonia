@@ -16,6 +16,7 @@ public class GlobalSettings
     public WindowStateSettings? WindowState { get; set; }
     public ReportExportSettings ReportExport { get; set; } = new();
     public TutorialSettings Tutorial { get; set; } = new();
+    public UpdateEmailSettings UpdateEmail { get; set; } = new();
 
     /// <summary>
     /// Set once the per-user file type registrations written by 2.0.13 and earlier have been
@@ -26,14 +27,19 @@ public class GlobalSettings
 
 public class WelcomeSettings
 {
-    public bool ShowWelcomeForm { get; set; } = true;
     public bool EulaAccepted { get; set; } = false;
 }
 
 public class UpdateSettings
 {
-    public DateTime? LastUpdateCheck { get; set; }
     public bool AutoOpenRecentAfterUpdate { get; set; } = true;
+
+    /// <summary>
+    /// A company file that could not open because it was saved by a newer version, when the
+    /// user chose to update from that prompt. Opened in place of the most recent company after
+    /// the restart.
+    /// </summary>
+    public string? FileToOpenAfterUpdate { get; set; }
 }
 
 public class UiSettings
@@ -175,6 +181,20 @@ public class LicenseSettings
     /// Last license validation date.
     /// </summary>
     public DateTime? LastValidationDate { get; set; }
+}
+
+/// <summary>
+/// Whether the optional "email me about updates" offer has been answered. The address itself is
+/// deliberately not kept here: it lives only on the list the person can unsubscribe from, so
+/// nothing in the company file or the settings ties a machine to an identity.
+/// </summary>
+public class UpdateEmailSettings
+{
+    /// <summary>Set when the offer was declined, so the dashboard stops asking.</summary>
+    public bool Dismissed { get; set; }
+
+    /// <summary>Set once a confirmation email has been requested, for the same reason.</summary>
+    public bool Submitted { get; set; }
 }
 
 public class ReportExportSettings

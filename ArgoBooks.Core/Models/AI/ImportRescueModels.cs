@@ -33,7 +33,12 @@ public enum ImportRescueRejectionReason
     EmptyOrUnreadable,
 
     /// <summary>More rows than the rescue will attempt (see RescueMaxTotalRows); the user should split the file.</summary>
-    TooLarge
+    TooLarge,
+
+    /// <summary>
+    /// The file would not open at all, so nothing was ever judged. Set by the reader, never by the AI.
+    /// </summary>
+    FileCouldNotBeOpened
 }
 
 /// <summary>Outcome of the whole-file rescue pass.</summary>

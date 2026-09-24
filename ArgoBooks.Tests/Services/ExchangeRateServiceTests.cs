@@ -99,7 +99,56 @@ public class ExchangeRateServiceTests
 
     #endregion
 
+    #region Wasted request tests
+
+    [Fact]
+    public async Task GetExchangeRateAsync_FutureDate_SendsNoRequest()
+    {
+        var handler = new CountingHttpHandler(HttpStatusCode.BadRequest);
+        var service = new ExchangeRateService(new MockPlatformService(), new HttpClient(handler));
+
+        var rate = await service.GetExchangeRateAsync("USD", "EUR", DateTime.Today.AddDays(1));
+
+        Assert.Equal(-1m, rate);
+        Assert.Equal(0, handler.Requests);
+    }
+
+    [Fact]
+    public async Task GetExchangeRateAsync_ClientError_IsNotRetried()
+    {
+        var handler = new CountingHttpHandler(HttpStatusCode.BadRequest);
+        var service = new ExchangeRateService(new MockPlatformService(), new HttpClient(handler));
+
+        await service.GetExchangeRateAsync("USD", "EUR", DateTime.Today.AddDays(-30));
+
+        Assert.Equal(1, handler.Requests);
+    }
+
+    [Fact]
+    public async Task GetExchangeRateAsync_ServerError_IsRetried()
+    {
+        var handler = new CountingHttpHandler(HttpStatusCode.InternalServerError);
+        var service = new ExchangeRateService(new MockPlatformService(), new HttpClient(handler));
+
+        await service.GetExchangeRateAsync("USD", "EUR", DateTime.Today.AddDays(-30));
+
+        Assert.Equal(3, handler.Requests);
+    }
+
+    #endregion
+
     #region Mock Classes
+
+    private class CountingHttpHandler(HttpStatusCode status) : HttpMessageHandler
+    {
+        public int Requests { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Requests++;
+            return Task.FromResult(new HttpResponseMessage(status));
+        }
+    }
 
     private class FailingHttpHandler : HttpMessageHandler
     {

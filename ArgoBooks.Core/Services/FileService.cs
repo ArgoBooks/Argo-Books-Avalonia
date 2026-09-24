@@ -65,6 +65,7 @@ public class FileService(
             await WriteJsonAsync(companyDir, "revenues.json", companyData.Revenues, cancellationToken);
             await WriteJsonAsync(companyDir, "expenses.json", companyData.Expenses, cancellationToken);
             await WriteJsonAsync(companyDir, "invoices.json", companyData.Invoices, cancellationToken);
+            await WriteJsonAsync(companyDir, "quotes.json", companyData.Quotes, cancellationToken);
             await WriteJsonAsync(companyDir, "payments.json", companyData.Payments, cancellationToken);
             await WriteJsonAsync(companyDir, "recurringInvoices.json", companyData.RecurringInvoices, cancellationToken);
             await WriteJsonAsync(companyDir, "recurringTransactions.json", companyData.RecurringTransactions, cancellationToken);
@@ -375,8 +376,12 @@ public class FileService(
         if (filePath == null || !File.Exists(filePath))
             return default;
 
-        var json = await File.ReadAllTextAsync(filePath, cancellationToken);
-        return JsonSerializer.Deserialize<T>(json, JsonOptions);
+        // Streamed, because receipts.json holds every receipt's bytes as base64 and the
+        // intermediate string is twice that again in UTF-16.
+        await using var stream = new FileStream(
+            filePath, FileMode.Open, FileAccess.Read, FileShare.Read,
+            bufferSize: 64 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
+        return await JsonSerializer.DeserializeAsync<T>(stream, JsonOptions, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -387,8 +392,13 @@ public class FileService(
         CancellationToken cancellationToken = default)
     {
         var filePath = Path.Combine(tempDirectory, fileName);
-        var json = JsonSerializer.Serialize(data, JsonOptions);
-        await File.WriteAllTextAsync(filePath, json, cancellationToken);
+
+        // Streamed like ReadJsonAsync. Failing part-way now truncates the file, which is safe:
+        // callers write into a staging directory only archived once every write succeeds.
+        await using var stream = new FileStream(
+            filePath, FileMode.Create, FileAccess.Write, FileShare.None,
+            bufferSize: 64 * 1024, FileOptions.Asynchronous);
+        await JsonSerializer.SerializeAsync(stream, data, JsonOptions, cancellationToken);
     }
 
     /// <summary>
@@ -454,6 +464,9 @@ public class FileService(
         var revenuesTask          = ReadJsonAsync<List<Models.Transactions.Revenue>>(tempDirectory, "revenues.json", cancellationToken);
         var expensesTask          = ReadJsonAsync<List<Models.Transactions.Expense>>(tempDirectory, "expenses.json", cancellationToken);
         var invoicesTask          = ReadJsonAsync<List<Models.Transactions.Invoice>>(tempDirectory, "invoices.json", cancellationToken);
+        // Absent from every file written before quotes shipped, which ReadJsonAsync handles by
+        // returning null, so those open with no quotes rather than failing.
+        var quotesTask            = ReadJsonAsync<List<Models.Transactions.Quote>>(tempDirectory, "quotes.json", cancellationToken);
         var paymentsTask          = ReadJsonAsync<List<Models.Transactions.Payment>>(tempDirectory, "payments.json", cancellationToken);
         var recurringInvoicesTask = ReadJsonAsync<List<Models.Transactions.RecurringInvoice>>(tempDirectory, "recurringInvoices.json", cancellationToken);
         var recurringTransactionsTask = ReadJsonAsync<List<Models.Transactions.RecurringTransaction>>(tempDirectory, "recurringTransactions.json", cancellationToken);
@@ -482,6 +495,11 @@ public class FileService(
         var employeesTask         = ReadJsonAsync<List<Models.Payroll.Employee>>(tempDirectory, "employees.json", cancellationToken);
         var payRunsTask           = ReadJsonAsync<List<Models.Payroll.PayRun>>(tempDirectory, "payRuns.json", cancellationToken);
 
+        // Mobile sync. Absent from every file written before they were persisted, which
+        // ReadJsonAsync handles by returning null.
+        var pairedDevicesTask     = ReadJsonAsync<List<Models.Tracking.PairedDevice>>(tempDirectory, "pairedDevices.json", cancellationToken);
+        var ingestedScanUidsTask  = ReadJsonAsync<List<string>>(tempDirectory, "ingestedScanUids.json", cancellationToken);
+
         // Validate version BEFORE awaiting the rest. If the file was saved by a newer app
         // version, the other data files may contain enum values or fields this build can't
         // deserialize, and we'd surface that as an opaque JSON exception. Awaiting just the
@@ -490,13 +508,14 @@ public class FileService(
         [
             idCountersTask, customersTask, productsTask, suppliersTask,
             categoriesTask, accountantsTask, locationsTask,
-            revenuesTask, expensesTask, invoicesTask, paymentsTask, recurringInvoicesTask,
+            revenuesTask, expensesTask, invoicesTask, quotesTask, paymentsTask, recurringInvoicesTask,
             recurringTransactionsTask,
             inventoryTask, stockAdjustmentsTask, stockTransfersTask, purchaseOrdersTask,
             rentalInventoryTask, rentalsTask, returnsTask, lostDamagedTask, receiptsTask,
             invoiceTemplatesTask, eventLogTask, pendingConversionsTask,
             forecastRecordsTask, bankImportSessionsTask,
-            employeesTask, payRunsTask
+            employeesTask, payRunsTask,
+            pairedDevicesTask, ingestedScanUidsTask
         ];
 
         var settings = await settingsTask;
@@ -527,6 +546,7 @@ public class FileService(
             Revenues = revenuesTask.Result ?? [],
             Expenses = expensesTask.Result ?? [],
             Invoices = invoicesTask.Result ?? [],
+            Quotes = quotesTask.Result ?? [],
             Payments = paymentsTask.Result ?? [],
             RecurringInvoices = recurringInvoicesTask.Result ?? [],
             RecurringTransactions = recurringTransactionsTask.Result ?? [],
@@ -545,7 +565,9 @@ public class FileService(
             ForecastRecords = forecastRecordsTask.Result ?? [],
             BankImportSessions = bankImportSessionsTask.Result ?? [],
             Employees = employeesTask.Result ?? [],
-            PayRuns = payRunsTask.Result ?? []
+            PayRuns = payRunsTask.Result ?? [],
+            PairedDevices = pairedDevicesTask.Result ?? [],
+            IngestedScanUids = ingestedScanUidsTask.Result ?? []
         };
     }
 
@@ -589,6 +611,7 @@ public class FileService(
         await WriteJsonAsync(companyDirectory, "revenues.json", data.Revenues, cancellationToken);
         await WriteJsonAsync(companyDirectory, "expenses.json", data.Expenses, cancellationToken);
         await WriteJsonAsync(companyDirectory, "invoices.json", data.Invoices, cancellationToken);
+        await WriteJsonAsync(companyDirectory, "quotes.json", data.Quotes, cancellationToken);
         await WriteJsonAsync(companyDirectory, "payments.json", data.Payments, cancellationToken);
         await WriteJsonAsync(companyDirectory, "recurringInvoices.json", data.RecurringInvoices, cancellationToken);
         await WriteJsonAsync(companyDirectory, "recurringTransactions.json", data.RecurringTransactions, cancellationToken);
@@ -612,6 +635,12 @@ public class FileService(
         // reached the .argo file, so every employee and pay run was lost on close.
         await WriteJsonAsync(companyDirectory, "employees.json", data.Employees, cancellationToken);
         await WriteJsonAsync(companyDirectory, "payRuns.json", data.PayRuns, cancellationToken);
+
+        // Mobile sync. Both were read and written all session and reached no file, so a paired
+        // phone vanished on close and the ingested-capture list could not de-dupe across a
+        // restart, which is the whole reason it is stored rather than held in memory.
+        await WriteJsonAsync(companyDirectory, "pairedDevices.json", data.PairedDevices, cancellationToken);
+        await WriteJsonAsync(companyDirectory, "ingestedScanUids.json", data.IngestedScanUids, cancellationToken);
 
         // Deliberately does NOT call data.MarkAsSaved() here: this only stages JSON into the temp
         // directory, and the data isn't durable until the caller commits the .argo file via

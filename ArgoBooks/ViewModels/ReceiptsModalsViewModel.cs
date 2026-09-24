@@ -142,8 +142,6 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             FilterFileType = v.FileType;
         });
 
-    public bool HasFilterModalChanges => Filters.HasChanges;
-
     #endregion
 
     #region Filter Modal Commands

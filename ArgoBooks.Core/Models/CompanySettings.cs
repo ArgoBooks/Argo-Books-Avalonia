@@ -74,6 +74,8 @@ public class CompanySettings
 
     [JsonPropertyName("company")]
     public CompanyInfo Company { get; set; } = new();
+    [JsonPropertyName("features")]
+    public FeatureSettings Features { get; set; } = new();
     [JsonPropertyName("localization")]
     public LocalizationSettings Localization { get; set; } = new();
     [JsonPropertyName("notifications")]
@@ -98,6 +100,25 @@ public class CompanySettings
     /// </summary>
     [JsonPropertyName("bankCategoryRules")]
     public List<BankMatching.BankCategoryRule> BankCategoryRules { get; set; } = [];
+
+    /// <summary>Logos replaced since documents went out under them. See <see cref="RetiredLogo"/>.</summary>
+    [JsonPropertyName("retiredLogos")]
+    public List<RetiredLogo> RetiredLogos { get; set; } = [];
+}
+
+/// <summary>
+/// Which optional sidebar sections this company shows. Null means the user has not chosen, which
+/// is what lets <see cref="IndustryFeatureDefaults"/> supply a starting point without ever
+/// overriding a deliberate choice made later in Settings.
+/// </summary>
+public class FeatureSettings
+{
+    [JsonPropertyName("showInventory")]
+    public bool? ShowInventory { get; set; }
+    [JsonPropertyName("showRentals")]
+    public bool? ShowRentals { get; set; }
+    [JsonPropertyName("showPayroll")]
+    public bool? ShowPayroll { get; set; }
 }
 
 public class CompanyInfo
@@ -234,4 +255,17 @@ public class SecuritySettings
     public int AutoLockMinutes { get; set; } = 5;
     [JsonPropertyName("biometricEnabled")]
     public bool BiometricEnabled { get; set; } = false;
+}
+
+/// <summary>
+/// A logo that has been replaced, kept because documents sent under it still draw with it.
+/// Stored once and pointed at by id, not copied onto every document.
+/// </summary>
+public class RetiredLogo
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    [JsonPropertyName("base64")]
+    public string Base64 { get; set; } = string.Empty;
 }

@@ -1,4 +1,3 @@
-using ArgoBooks.Controls;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Telemetry;
 using ArgoBooks.Localization;
@@ -39,21 +38,12 @@ public partial class CreateCompanyViewModel : ViewModelBase
     [ObservableProperty]
     private string? _companyName;
 
-    [ObservableProperty]
-    private string? _businessType;
-
+    /// <summary>
+    /// Asked here, rather than left to Settings, because it decides which sidebar sections the
+    /// company opens with. See <see cref="Core.Models.IndustryFeatureDefaults"/>.
+    /// </summary>
     [ObservableProperty]
     private string? _industry;
-
-    public string[] BusinessTypes { get; } =
-    [
-        "Sole Proprietorship",
-        "Partnership",
-        "Corporation",
-        "LLC",
-        "Non-Profit",
-        "Other"
-    ];
 
     public string[] Industries { get; } = Core.Models.IndustryNames.All;
 
@@ -70,33 +60,16 @@ public partial class CreateCompanyViewModel : ViewModelBase
     /// </summary>
     public IReadOnlyList<string> PriorityCurrencies => Data.Currencies.Priority;
 
-    #endregion
-
-    #region Step 1: Contact Information
-
-    [ObservableProperty]
-    private string _phoneNumber = "";
-
-    [ObservableProperty]
-    private string? _phoneNumberError;
-
-    [ObservableProperty]
-    private CountryDialCode? _selectedPhoneCountry;
-
+    /// <summary>
+    /// Kept in the wizard because it is load-bearing well beyond the invoice header: tax labels,
+    /// the accounting reports and the spreadsheet importer's parsing conventions all read it.
+    /// Asking for it later would mean producing wrong output until someone thought to set it.
+    ///
+    /// The rest of the address, along with phone and email, is asked at the first invoice, which
+    /// is the point where it means something to the person filling it in.
+    /// </summary>
     [ObservableProperty]
     private string? _country;
-
-    [ObservableProperty]
-    private string? _city;
-
-    [ObservableProperty]
-    private string? _provinceState;
-
-    [ObservableProperty]
-    private string? _address;
-
-    [ObservableProperty]
-    private string _email = "";
 
     #endregion
 
@@ -194,16 +167,9 @@ public partial class CreateCompanyViewModel : ViewModelBase
 
     public bool HasChanges =>
         !string.IsNullOrEmpty(CompanyName) ||
-        !string.IsNullOrEmpty(BusinessType) ||
         !string.IsNullOrEmpty(Industry) ||
         SelectedCurrency != "CAD - Canadian Dollar ($)" ||
-        !string.IsNullOrEmpty(PhoneNumber) ||
-        SelectedPhoneCountry != null ||
         !string.IsNullOrEmpty(Country) ||
-        !string.IsNullOrEmpty(City) ||
-        !string.IsNullOrEmpty(ProvinceState) ||
-        !string.IsNullOrEmpty(Address) ||
-        !string.IsNullOrEmpty(Email) ||
         EnablePassword ||
         !string.IsNullOrEmpty(Password) ||
         !string.IsNullOrEmpty(ConfirmPassword) ||
@@ -338,39 +304,11 @@ public partial class CreateCompanyViewModel : ViewModelBase
     {
         if (!CanCreate) return;
 
-        PhoneNumberError = null;
-
-        // Validate phone number completeness
-        if (!string.IsNullOrWhiteSpace(PhoneNumber) && SelectedPhoneCountry != null)
-        {
-            var digits = new string(PhoneNumber.Where(char.IsDigit).ToArray());
-            var expectedDigits = SelectedPhoneCountry.PhoneFormat.Count(c => c == 'X');
-            if (digits.Length > 0 && digits.Length < expectedDigits)
-            {
-                PhoneNumberError = "Please enter a complete phone number.".Translate();
-                return;
-            }
-        }
-
-        // Build the full phone number with country code
-        string? fullPhone = null;
-        if (!string.IsNullOrWhiteSpace(PhoneNumber))
-        {
-            var dialCode = SelectedPhoneCountry?.DialCode ?? "";
-            fullPhone = string.IsNullOrEmpty(dialCode) ? PhoneNumber : $"{dialCode} {PhoneNumber}";
-        }
-
         var args = new CompanyCreatedEventArgs
         {
             CompanyName = CompanyName!,
-            BusinessType = BusinessType,
             Industry = Industry,
-            Address = Address,
-            City = City,
-            ProvinceState = ProvinceState,
             Country = Country,
-            PhoneNumber = fullPhone,
-            Email = string.IsNullOrWhiteSpace(Email) ? null : Email.Trim(),
             DefaultCurrency = CurrencyService.ParseCurrencyCode(SelectedCurrency),
             Password = EnablePassword ? Password : null,
             LogoPath = LogoPath
@@ -403,17 +341,9 @@ public partial class CreateCompanyViewModel : ViewModelBase
     {
         CurrentStep = 1;
         CompanyName = null;
-        BusinessType = null;
         Industry = null;
         SelectedCurrency = "CAD - Canadian Dollar ($)";
-        PhoneNumber = "";
-        PhoneNumberError = null;
-        SelectedPhoneCountry = null;
         Country = null;
-        City = null;
-        ProvinceState = null;
-        Address = null;
-        Email = "";
         EnablePassword = false;
         Password = null;
         ConfirmPassword = null;
@@ -515,14 +445,8 @@ public partial class CreateCompanyViewModel : ViewModelBase
 public class CompanyCreatedEventArgs : EventArgs
 {
     public required string CompanyName { get; init; }
-    public string? BusinessType { get; init; }
     public string? Industry { get; init; }
-    public string? PhoneNumber { get; init; }
     public string? Country { get; init; }
-    public string? City { get; init; }
-    public string? ProvinceState { get; init; }
-    public string? Address { get; init; }
-    public string? Email { get; init; }
     public string? DefaultCurrency { get; init; }
     public string? Password { get; init; }
     public string? LogoPath { get; init; }

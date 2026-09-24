@@ -62,6 +62,16 @@ public class AccountantPackTests
         Assert.Equal(Convert.FromBase64String(base64).Length, AccountantPack.DecodedSize(base64));
     }
 
+    // A year with nothing in it would otherwise be sent as a set of blank statements.
+    [Fact]
+    public void HasDataInRange_IsFalseForAPeriodWithNothingInIt()
+    {
+        var data = Company();
+
+        Assert.True(AccountantPack.HasDataInRange(data, new DateTime(2025, 1, 1), new DateTime(2025, 12, 31)));
+        Assert.False(AccountantPack.HasDataInRange(data, new DateTime(2024, 1, 1), new DateTime(2024, 12, 31)));
+    }
+
     [Fact]
     public void PeriodLabel_NamesACalendarYearByItsYear()
     {

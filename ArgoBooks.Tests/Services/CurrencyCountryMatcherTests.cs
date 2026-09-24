@@ -18,6 +18,9 @@ public class CurrencyCountryMatcherTests
     [InlineData("Germany", "EUR")]
     [InlineData("Japan", "JPY")]
     [InlineData("Australia", "AUD")]
+    [InlineData("India", "INR")]
+    [InlineData("Mexico", "MXN")]
+    [InlineData("Sri Lanka", "LKR")]
     public void GetExpectedCurrency_KnownCountry_ReturnsSupportedCurrency(string country, string expected)
     {
         Assert.Equal(expected, CurrencyCountryMatcher.GetExpectedCurrency(country));
@@ -32,8 +35,8 @@ public class CurrencyCountryMatcherTests
     }
 
     [Theory]
-    [InlineData("India")]   // INR not supported
-    [InlineData("Mexico")]  // MXN not supported
+    [InlineData("Kuwait")]  // KWD not supported: 3 decimal places
+    [InlineData("Oman")]    // OMR not supported: 3 decimal places
     public void GetExpectedCurrency_UnsupportedCurrencyCountry_ReturnsNull(string country)
     {
         Assert.Null(CurrencyCountryMatcher.GetExpectedCurrency(country));
@@ -91,11 +94,21 @@ public class CurrencyCountryMatcherTests
     [Fact]
     public void IsMismatch_UnsupportedCurrencyCountry_ReturnsFalse()
     {
-        // India's currency (INR) isn't selectable, so we never warn even with USD.
-        var result = CurrencyCountryMatcher.IsMismatch("India", "USD", out var expected);
+        // Kuwait's currency (KWD) isn't selectable, so we never warn even with USD.
+        var result = CurrencyCountryMatcher.IsMismatch("Kuwait", "USD", out var expected);
 
         Assert.False(result);
         Assert.Null(expected);
+    }
+
+    [Fact]
+    public void IsMismatch_NewlySupportedCountryWithUsd_ReturnsTrue()
+    {
+        // Sri Lanka's rupee is selectable, so picking USD there is worth a warning.
+        var result = CurrencyCountryMatcher.IsMismatch("Sri Lanka", "USD", out var expected);
+
+        Assert.True(result);
+        Assert.Equal("LKR", expected);
     }
 
     [Fact]

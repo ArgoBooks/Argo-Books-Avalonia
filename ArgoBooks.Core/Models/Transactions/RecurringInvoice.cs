@@ -62,12 +62,6 @@ public class RecurringInvoice
     public string PaymentTerms { get; set; } = "Net 30";
 
     /// <summary>
-    /// Whether to automatically send the invoice.
-    /// </summary>
-    [JsonPropertyName("autoSend")]
-    public bool AutoSend { get; set; }
-
-    /// <summary>
     /// Status of the recurring invoice.
     /// </summary>
     [JsonPropertyName("status")]

@@ -131,8 +131,6 @@ public partial class BankMatchingModalsViewModel : ViewModelBase
             FilterStatus = v.Status;
         });
 
-    public bool HasFilterModalChanges => Filters.HasChanges;
-
     private static DateTimeOffset? ToOffset(DateTime? date) => date.HasValue ? new DateTimeOffset(date.Value) : null;
 
     /// <summary>Opens the filter modal seeded with the current filter values.</summary>
@@ -208,8 +206,6 @@ public partial class BankMatchingModalsViewModel : ViewModelBase
             MissingFilterEndDate = v.EndDate;
             MissingFilterType = v.Type;
         });
-
-    public bool HasMissingFilterModalChanges => MissingFilters.HasChanges;
 
     public void OpenMissingFilterModal(DateTime? startDate, DateTime? endDate, string type)
     {

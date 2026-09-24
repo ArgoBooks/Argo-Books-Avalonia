@@ -241,6 +241,8 @@
         <!-- Import Modal -->
         <modals:ImportModal DataContext="{Binding ImportModalViewModel}" />
 
+        <modals:UpdateEmailModal DataContext="{Binding UpdateEmailModalViewModel}" />
+
         <!-- Import Validation Dialog -->
         <modals:ImportValidationDialog DataContext="{Binding ImportValidationDialogViewModel}" />
 
@@ -281,6 +283,7 @@
 
         <!-- Mid-level modals (may open entity creation modals on top) -->
         <modals:InvoiceModals DataContext="{Binding InvoiceModalsViewModel}" />
+        <modals:QuotesModals DataContext="{Binding QuotesModalsViewModel}" />
         <modals:RefundModals DataContext="{Binding RefundModalsViewModel}" />
         <modals:InvoiceTemplateDesignerModal DataContext="{Binding InvoiceTemplateDesignerViewModel}" />
         <modals:TransactionModals DataContext="{Binding ExpenseModalsViewModel}" />

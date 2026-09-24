@@ -191,16 +191,35 @@
                         BorderThickness="1"
                         Margin="0,0,24,0">
                     <Grid RowDefinitions="Auto,*">
-                            <!-- Tab Navigation -->
+                            <!-- Tab Navigation. Send to Accountant sits with it rather than at the
+                                 foot of the template list, where it was only reachable by scrolling
+                                 past every template on one of the two tabs. -->
                             <Border Grid.Row="0"
                                     BorderBrush="{DynamicResource BorderBrush}"
                                     BorderThickness="0,0,0,1">
-                                <TabControl SelectedIndex="{Binding Step1TabIndex}"
-                                            Margin="0"
-                                            Classes="page-tabs">
-                                    <TabItem Header="{loc:Loc 'Templates'}" />
-                                    <TabItem Header="{loc:Loc 'Custom'}" />
-                                </TabControl>
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TabControl Grid.Column="0"
+                                                SelectedIndex="{Binding Step1TabIndex}"
+                                                Margin="0"
+                                                Classes="page-tabs">
+                                        <TabItem Header="{loc:Loc 'Templates'}" />
+                                        <TabItem Header="{loc:Loc 'Custom'}" />
+                                    </TabControl>
+
+                                    <Button Grid.Column="1"
+                                            Classes="secondary-button"
+                                            VerticalAlignment="Center"
+                                            Margin="12,0,16,0"
+                                            Padding="12,6"
+                                            MinHeight="0"
+                                            Command="{Binding OpenSendToAccountantCommand}"
+                                            ToolTip.Tip="{loc:Loc 'Send your statements, transactions and receipts to your accountant'}">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <PathIcon Data="{x:Static local:Icons.Send}" Width="14" Height="14" />
+                                            <TextBlock Text="{loc:Loc 'Send to Accountant'}" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
+                                </Grid>
                             </Border>
 
                             <!-- Tab Content (Scrollable) -->
@@ -368,15 +387,6 @@
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
-
-                                    <Button Classes="secondary-button" HorizontalAlignment="Center" Margin="0,4,0,0"
-                                            Command="{Binding OpenSendToAccountantCommand}"
-                                            ToolTip.Tip="{loc:Loc 'Send your statements, transactions and receipts to your accountant'}">
-                                        <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <PathIcon Data="{x:Static local:Icons.Send}" Width="14" Height="14" />
-                                            <TextBlock Text="{loc:Loc 'Send to Accountant'}" VerticalAlignment="Center" />
-                                        </StackPanel>
-                                    </Button>
 
                                     <!-- Custom Templates Section -->
                                     <StackPanel Spacing="12" IsVisible="{Binding CustomTemplateNames.Count}">

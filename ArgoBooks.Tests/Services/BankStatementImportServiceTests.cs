@@ -47,6 +47,21 @@ public class BankStatementImportServiceTests
     }
 
     [Fact]
+    public async Task ParseExcelAsync_FileThatWillNotOpen_ThrowsInsteadOfLookingEmpty()
+    {
+        // An empty list here reads to the caller as "opened fine, no transactions in it", which is
+        // what sent a user back to the same unopenable file eight times.
+        var path = Path.GetTempFileName() + ".xlsx";
+        await File.WriteAllTextAsync(path, "this is not a workbook");
+        try
+        {
+            await Assert.ThrowsAsync<UnreadableStatementFileException>(
+                () => new BankStatementImportService().ParseExcelAsync(path));
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
     public async Task ParseExcelAsync_StatementWithPreambleRows_FindsHeaderAndImportsLines()
     {
         // Many banks export Excel statements with a couple of metadata rows before the column

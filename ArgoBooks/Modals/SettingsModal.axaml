@@ -44,7 +44,9 @@
                     <!-- General Tab -->
                     <TabItem Header="{loc:Loc General}">
                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" AllowAutoHide="False" Margin="24,20,16,20" Padding="0,0,8,0">
-                            <StackPanel Spacing="20">
+                            <!-- 16, like every other tab. At 20 this one overflowed by a hair and
+                                 put a scrollbar on a page that has nothing to scroll to. -->
+                            <StackPanel Spacing="16">
                                 <!-- Language -->
                                 <StackPanel Spacing="6">
                                     <TextBlock Text="{loc:Loc Language}"
@@ -124,9 +126,38 @@
                                     </StackPanel>
                                 </StackPanel>
 
+                                <!-- Update emails. The app needs no account, so this is the only
+                                     place someone can choose to be reachable. Nothing depends on it. -->
+                                <StackPanel Spacing="8">
+                                    <Border Classes="settings-row">
+                                        <StackPanel Spacing="12">
+                                            <StackPanel Spacing="2">
+                                                <TextBlock Text="{loc:Loc 'Product updates'}"
+                                                           FontSize="14"
+                                                           FontWeight="Medium"
+                                                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                                                <TextBlock Text="{loc:Loc 'An occasional email when something new ships. We send a link to confirm first, and you can unsubscribe from any message.'}"
+                                                           FontSize="12"
+                                                           TextWrapping="Wrap"
+                                                           Foreground="{DynamicResource TextTertiaryBrush}" />
+                                            </StackPanel>
+                                            <Button Classes="secondary-button"
+                                                    HorizontalAlignment="Left"
+                                                    Content="{loc:Loc 'Sign up'}"
+                                                    Command="{Binding OpenUpdateEmailModalCommand}"
+                                                    IsVisible="{Binding !UpdateEmailSubmitted}" />
+                                            <TextBlock Text="{loc:Loc 'You have asked for these. Check your inbox for the link to confirm.'}"
+                                                       FontSize="12"
+                                                       TextWrapping="Wrap"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                                       IsVisible="{Binding UpdateEmailSubmitted}" />
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+
                                 <!-- Privacy Section. No group heading: it holds a single setting,
                                      and a heading over one row reads as a section that lost its rest. -->
-                                <StackPanel Spacing="8" Margin="0,8,0,0">
+                                <StackPanel Spacing="8">
                                     <Border Classes="settings-row last">
                                         <StackPanel Spacing="12">
                                             <StackPanel Spacing="2">
@@ -159,6 +190,93 @@
                                         </StackPanel>
                                     </Border>
                                 </StackPanel>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <!-- Features Tab -->
+                    <TabItem Header="{loc:Loc Features}">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" AllowAutoHide="False" Margin="24,20,16,20" Padding="0,0,8,0">
+                            <StackPanel Spacing="0">
+                                <controls:SampleCompanyNotice Margin="0,0,0,12"
+                                                              IsVisible="{Binding IsSampleCompany}" />
+                                <TextBlock Text="{loc:Loc 'Choose which sections appear in the sidebar. Turning one off only hides it, nothing is deleted.'}"
+                                           FontSize="13"
+                                           TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextTertiaryBrush}"
+                                           Margin="0,0,0,16" />
+
+                                <Border Classes="settings-group">
+                                  <StackPanel>
+
+                                    <!-- Inventory -->
+                                    <Border Classes="settings-row"
+                                            IsEnabled="{Binding !IsSampleCompany}">
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16" MinHeight="40">
+                                            <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                                <TextBlock Text="{loc:Loc Inventory}"
+                                                           FontSize="14"
+                                                           FontWeight="Medium"
+                                                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                                                <TextBlock Text="{loc:Loc 'Stock levels, adjustments, locations and purchase orders'}"
+                                                           FontSize="12"
+                                                           TextWrapping="Wrap"
+                                                           Foreground="{DynamicResource TextTertiaryBrush}" />
+                                            </StackPanel>
+                                            <ToggleSwitch Grid.Column="1"
+                                                          IsChecked="{Binding ShowInventorySection}"
+                                                          VerticalAlignment="Center" />
+                                        </Grid>
+                                    </Border>
+
+                                    <!-- Rentals -->
+                                    <Border Classes="settings-row"
+                                            IsEnabled="{Binding !IsSampleCompany}">
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16" MinHeight="40">
+                                            <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                                <TextBlock Text="{loc:Loc Rentals}"
+                                                           FontSize="14"
+                                                           FontWeight="Medium"
+                                                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                                                <TextBlock Text="{loc:Loc 'Rental inventory and rental records'}"
+                                                           FontSize="12"
+                                                           TextWrapping="Wrap"
+                                                           Foreground="{DynamicResource TextTertiaryBrush}" />
+                                            </StackPanel>
+                                            <ToggleSwitch Grid.Column="1"
+                                                          IsChecked="{Binding ShowRentalsSection}"
+                                                          VerticalAlignment="Center" />
+                                        </Grid>
+                                    </Border>
+
+                                    <!-- Payroll -->
+                                    <Border Classes="settings-row"
+                                            IsEnabled="{Binding !IsSampleCompany}">
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16" MinHeight="40">
+                                            <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                                <TextBlock Text="{loc:Loc Payroll}"
+                                                           FontSize="14"
+                                                           FontWeight="Medium"
+                                                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                                                <TextBlock Text="{loc:Loc 'Employees and pay runs'}"
+                                                           FontSize="12"
+                                                           TextWrapping="Wrap"
+                                                           Foreground="{DynamicResource TextTertiaryBrush}" />
+                                            </StackPanel>
+                                            <ToggleSwitch Grid.Column="1"
+                                                          IsChecked="{Binding ShowPayrollSection}"
+                                                          VerticalAlignment="Center" />
+                                        </Grid>
+                                    </Border>
+
+                                  </StackPanel>
+                                </Border>
+
+                                <TextBlock Text="{loc:Loc 'Returns and Lost / Damaged follow Inventory and Rentals, and are hidden when both are off.'}"
+                                           FontSize="12"
+                                           TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextTertiaryBrush}"
+                                           Margin="0,12,0,0" />
                             </StackPanel>
                         </ScrollViewer>
                     </TabItem>
@@ -596,7 +714,10 @@
                                                 Content="{loc:Loc 'Add Password'}"
                                                 Command="{Binding OpenAddPasswordCommand}"
                                                 IsEnabled="{Binding !IsSampleCompany}"
-                                                VerticalAlignment="Center" />
+                                                VerticalAlignment="Center"
+                                                MinWidth="140"
+                                                Padding="12,6"
+                                                MinHeight="0" />
                                     </Grid>
                                 </Border>
 
@@ -663,7 +784,9 @@
                                                 Command="{Binding UpgradeNowCommand}"
                                                 IsVisible="{Binding !HasPremium}"
                                                 VerticalAlignment="Center"
-                                                Padding="12,6" />
+                                                MinWidth="140"
+                                                Padding="12,6"
+                                                MinHeight="0" />
                                     </Grid>
                                 </Border>
 
@@ -1194,11 +1317,11 @@
                     </TabItem>
 
                     <!-- Mobile App Tab -->
-                    <!-- This is tab index 6 (0-based, count TabItems above: General, Notifications,
-                         Appearance, Security, Payment Portal, Bank import rules, Mobile app).
+                    <!-- This is tab index 7 (0-based, count TabItems above: General, Features,
+                         Notifications, Appearance, Security, Payment Portal, Bank import rules).
                          Integrations is kept last. Must match SettingsModalViewModel.MobileAppTabIndex,
                          which gates the pairing poll loop's visibility check - if this tab is ever
-                         reordered, update that constant too. -->
+                         reordered, update SettingsTab too. -->
                     <TabItem Header="{loc:Loc 'Mobile app'}"
                              IsVisible="{Binding IsMobileAppTabVisible}">
                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" AllowAutoHide="False" Margin="24,20,16,20" Padding="0,0,8,0">

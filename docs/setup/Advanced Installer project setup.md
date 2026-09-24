@@ -252,7 +252,37 @@ If the user renames the installer before running it (for whatever reason), the c
 - Uninstall: **unchecked**
 - Maintenance: **unchecked**
 
-## Step 9: Build settings
+## Step 9: Custom Action `OpenUrl`
+
+Opens the uninstall survey at [argorobots.com/uninstall/](https://argorobots.com/uninstall/) in the person's browser when they remove Argo Books. The page asks one question about why they left. Nothing is sent from the machine: the browser opens, and answering is their choice.
+
+Windows only, because Windows is the only platform with an uninstaller.
+
+1. Go to **Custom Behavior → Custom Actions**, search for `url` and add **Open URL**.
+2. **URL**:
+   ```
+   https://argorobots.com/uninstall/?v=[ProductVersion]&p=windows
+   ```
+   `[ProductVersion]` expands at runtime, so the link always names the build being removed and never needs editing per release.
+3. **Execution Time**: `Immediately`. The action has to run as the logged-in user to reach their browser.
+4. **Execution Options**: **uncheck both**.
+   - `Wait for custom action to finish before proceeding`: with this on, the uninstall waits for the process it spawned to exit. If their browser was not already running, that process *is* the browser, so the uninstall hangs until they close it.
+   - `Fail installation if custom action returns an error`: a survey must never be able to block someone removing the software.
+5. **Execution Stage Condition**:
+   - Install: **unchecked**
+   - Uninstall: **checked**
+   - Maintenance: **unchecked**
+   - Condition: `UPGRADINGPRODUCTCODE = ""`
+
+The condition matters: an update uninstalls the old build and runs its custom actions, so without it every update opens "Argo Books has been removed" in the browser of someone who just updated.
+
+### Two Advanced Installer bugs to expect (23.7)
+
+**The URL field does not show what you paste.** Paste the URL and the box still looks empty. It took the value. Save the project and check the `OpenUrl` row in the `.aip` to confirm.
+
+**Both text fields append a newline when you press Enter.** In the Edit Condition dialog this produces `Invalid operator at position N`, where N is always two past the end of what you can see, because a carriage return and line feed are sitting after it. Type the condition and click **Validate** with the mouse. Never press Enter.
+
+## Step 10: Build settings
 
 In the left sidebar under **Package Definition**:
 
@@ -264,7 +294,7 @@ In the left sidebar under **Package Definition**:
 | Package type | Single EXE setup (resources inside) |
 | EXE icon | `..\..\ArgoBooks\Assets\argo-logo.ico` |
 
-## Step 10: Digital Signature
+## Step 11: Digital Signature
 
 In **Digital Signature**:
 
@@ -278,7 +308,7 @@ In **Digital Signature**:
 
 This signs against the Azure-hosted Microsoft Trusted Signing certificate so SmartScreen reputation accrues against the publisher identity over time.
 
-## Step 11: Verify a build
+## Step 12: Verify a build
 
 1. Save the project and click **Build**.
 2. Output lands at `Argo-Books-Avalonia/packaging/windows/Setup Files/Argo Books Installer V.{version}.exe`. That folder is gitignored.
@@ -308,5 +338,6 @@ Reinstall, then inspect `%LOCALAPPDATA%\ArgoBooks\install_token_debug.txt`. Most
 
 ## Notes
 
+- The uninstall survey's page, table and admin tab live in the website repo: `uninstall/index.php`, `uninstall_feedback` and the Uninstalls tab on `admin/app-stats/`.
 - For details on the desktop-app side of the token flow (`FirstRunReporter`, marker file, retry logic), see `ArgoBooks.Core/Services/FirstRunReporter.cs` in the Avalonia repo.
 - For the server side of how `_xxxxxxxx` tokens are generated, see `referral_install_token()` in [`track_referral_event.php`](../../track_referral_event.php). It is the single shared recipe: [`get_avalonia_installer.php`](../../get_avalonia_installer.php) embeds the token in the served filename and `api/track-app-event.php` verifies it on first run.

@@ -1,4 +1,5 @@
 using System.Net;
+using ArgoBooks.Core.Services;
 using System.Text;
 using System.Text.Json;
 
@@ -62,6 +63,13 @@ public class MobileSyncClient
     {
         var (statusCode, text) = await SendRawAsync(path, body, deviceToken, ct);
 
+        // The body is still in hand here, and it holds the server's wording for how long to wait.
+        // FromBody reads it without throwing on a non-JSON error page.
+        if (statusCode == HttpStatusCode.TooManyRequests)
+        {
+            throw ServerRateLimitedException.FromBody(text);
+        }
+
         if (statusCode < HttpStatusCode.OK || statusCode >= HttpStatusCode.MultipleChoices)
         {
             return (statusCode, default);
@@ -93,6 +101,11 @@ public class MobileSyncClient
         if (deviceToken != null && (statusCode == HttpStatusCode.Unauthorized || statusCode == HttpStatusCode.Forbidden))
         {
             throw new SyncUnauthorizedException($"Request to {path} was rejected with status code {(int)statusCode} (device revoked).");
+        }
+
+        if (statusCode == HttpStatusCode.TooManyRequests)
+        {
+            throw ServerRateLimitedException.FromBody(text);
         }
 
         if (statusCode < HttpStatusCode.OK || statusCode >= HttpStatusCode.MultipleChoices)
@@ -159,7 +172,8 @@ public class MobileSyncClient
     /// <summary>
     /// Claims a short pairing code (typed in on the phone) to get a device token and company info.
     /// This call is unauthenticated (no device token yet). Returns null on a non-success status
-    /// (e.g. 400 for an invalid/expired code, 429 for rate limiting).
+    /// (e.g. 400 for an invalid/expired code), and throws <see cref="ServerRateLimitedException"/>
+    /// on a 429, which is not a verdict on the code.
     /// </summary>
     public async Task<ClaimResult?> ClaimPairingAsync(string code, string phonePublicKeyBase64, string deviceLabel, CancellationToken ct)
     {

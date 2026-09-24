@@ -162,6 +162,13 @@ public partial class MainWindowViewModel : ViewModelBase
     private PasswordPromptModalViewModel? _passwordPromptModalViewModel;
 
     /// <summary>
+    /// Gets or sets the CheckForUpdateModalViewModel, shared with the app shell so the update
+    /// modal can also show over the welcome screen.
+    /// </summary>
+    [ObservableProperty]
+    private CheckForUpdateModalViewModel? _checkForUpdateModalViewModel;
+
+    /// <summary>
     /// Gets or sets the ConfirmationDialogViewModel for showing confirmation dialogs.
     /// </summary>
     [ObservableProperty]

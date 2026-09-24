@@ -61,6 +61,24 @@ public class IdGenerator(CompanyData companyData)
     }
 
     /// <summary>
+    /// Generates a new quote ID (QUO-2024-00001).
+    /// </summary>
+    public string NextQuoteId()
+    {
+        companyData.IdCounters.Quote++;
+        return $"QUO-{DateTime.UtcNow.Year}-{companyData.IdCounters.Quote:D5}";
+    }
+
+    /// <summary>
+    /// Generates a new quote number for display (#QUO-2024-00001).
+    /// Must be called after NextQuoteId() which increments the counter.
+    /// </summary>
+    public string NextQuoteNumber()
+    {
+        return $"#QUO-{DateTime.UtcNow.Year}-{companyData.IdCounters.Quote:D5}";
+    }
+
+    /// <summary>
     /// Generates a new recurring-invoice schedule ID (REC-INV-00001).
     /// </summary>
     public string NextRecurringInvoiceId()

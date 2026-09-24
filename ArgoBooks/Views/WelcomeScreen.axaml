@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:ArgoBooks.Controls"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:ArgoBooks.ViewModels"
@@ -181,22 +182,14 @@
                                             CommandParameter="{Binding}">
                                         <Grid ColumnDefinitions="Auto,*,Auto,Auto">
                                             <!-- Icon / Logo -->
-                                            <Border Grid.Column="0"
-                                                    Width="44" Height="44"
-                                                    CornerRadius="8"
-                                                    ClipToBounds="True"
-                                                    Background="{DynamicResource SurfaceAltBrush}"
-                                                    Margin="0,0,16,0">
-                                                <Panel>
-                                                    <Image Source="{Binding Logo}"
-                                                           Stretch="Uniform"
-                                                           IsVisible="{Binding HasLogo}" />
-                                                    <PathIcon Data="{x:Static local:Icons.Departments}"
-                                                              Width="22" Height="22"
-                                                              Foreground="{DynamicResource TextSecondaryBrush}"
-                                                              IsVisible="{Binding !HasLogo}" />
-                                                </Panel>
-                                            </Border>
+                                            <controls:CompanyAvatar
+                                                                    Grid.Column="0"
+                                                                    Margin="0,0,16,0"
+                                                                    Width="44" Height="44"
+                                                                    CornerRadius="8"
+                                                                    FontSize="18"
+                                                                    Logo="{Binding Logo}"
+                                                                    Initial="{Binding Initial}" />
 
                                             <!-- Company Info -->
                                             <StackPanel Grid.Column="1"

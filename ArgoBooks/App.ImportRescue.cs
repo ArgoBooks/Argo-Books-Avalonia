@@ -135,7 +135,10 @@ public partial class App
 
         // Only a run that brought something in uses up an import.
         if (totalProcessed > 0 || totalBankRouted > 0)
+        {
             await usageService.IncrementUsageAsync();
+            TutorialService.Instance.CompleteChecklistItem(TutorialService.ChecklistItems.ImportData);
+        }
 
         var resultDialog = _appShellViewModel?.ImportResultDialogViewModel;
         if (resultDialog != null)

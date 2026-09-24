@@ -196,6 +196,11 @@ public partial class App : Application
     public static InvoiceModalsViewModel? InvoiceModalsViewModel => _appShellViewModel?.InvoiceModalsViewModel;
 
     /// <summary>
+    /// Gets the quotes modals view model for shared access.
+    /// </summary>
+    public static QuotesModalsViewModel? QuotesModalsViewModel => _appShellViewModel?.QuotesModalsViewModel;
+
+    /// <summary>
     /// Gets the invoice template designer view model for shared access.
     /// </summary>
     public static InvoiceTemplateDesignerViewModel? InvoiceTemplateDesignerViewModel => _appShellViewModel?.InvoiceTemplateDesignerViewModel;
@@ -237,6 +242,22 @@ public partial class App : Application
     /// Gets the bank statement import modal view model for shared access.
     /// </summary>
     public static BankStatementImportModalViewModel? BankStatementImportModalViewModel => _appShellViewModel?.BankStatementImportModalViewModel;
+
+    /// <summary>
+    /// Gets the import format picker view model for shared access.
+    /// </summary>
+    public static ImportModalViewModel? ImportModalViewModel => _appShellViewModel?.ImportModalViewModel;
+
+    /// <summary>
+    /// Gets the product-update sign-up modal for shared access.
+    /// </summary>
+    public static UpdateEmailModalViewModel? UpdateEmailModalViewModel => _appShellViewModel?.UpdateEmailModalViewModel;
+
+    /// <summary>
+    /// Re-applies the optional sidebar sections after the feature toggles or the industry change.
+    /// </summary>
+    public static void ApplyFeatureVisibility(CompanySettings? settings) =>
+        _appShellViewModel?.ApplyFeatureVisibility(settings);
 
     /// <summary>
     /// Gets the purchase orders modals view model for shared access.
@@ -325,7 +346,7 @@ public partial class App : Application
     /// <summary>
     /// Shows a modal error message box.
     /// </summary>
-    private static async Task ShowErrorMessageBoxAsync(string title, string message)
+    internal static async Task ShowErrorMessageBoxAsync(string title, string message)
     {
         if (Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
             && desktop.MainWindow is MainWindow mainWindow
@@ -380,6 +401,23 @@ public partial class App : Application
         {
             await messageBoxService.ShowInfoAsync(title, message);
         }
+    }
+
+    /// <summary>
+    /// Asks the user to confirm, returning false when the dialog cannot be shown so a caller
+    /// never takes an irreversible action unasked.
+    /// </summary>
+    internal static async Task<bool> ConfirmMessageBoxAsync(
+        string title, string message, string confirmText, string cancelText)
+    {
+        if (Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
+            && desktop.MainWindow is MainWindow mainWindow
+            && mainWindow.MessageBoxService is { } messageBoxService)
+        {
+            return await messageBoxService.ConfirmAsync(title, message, confirmText, cancelText);
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -576,6 +614,103 @@ public partial class App : Application
         finally
         {
             Interlocked.Exchange(ref _isAutoSyncing, 0);
+        }
+
+        // After the payments, on the same trigger and the same connection: an accepted quote is
+        // as time-sensitive as a paid invoice, and nothing else pulls it. Outside the guard above
+        // so a payment sync that bailed early still lets the quote answers through.
+        await AutoSyncPortalQuoteResponsesAsync();
+    }
+
+    /// <summary>
+    /// Pulls the accept / decline answers customers left on the portal and applies them to the
+    /// local quotes.
+    /// </summary>
+    private static int _isSyncingQuotes;
+
+    private static async Task AutoSyncPortalQuoteResponsesAsync()
+    {
+        // Its own guard: this runs outside the payment sync's, and two passes over the same
+        // answers would apply them twice and notify twice.
+        if (Interlocked.CompareExchange(ref _isSyncingQuotes, 1, 0) != 0)
+            return;
+
+        try
+        {
+            var portalService = PaymentPortalService;
+            var companyData = CompanyManager?.CompanyData;
+            if (portalService == null || companyData == null || !PortalSettings.IsConfigured)
+                return;
+
+            // The replies describe the company whose key asked. Opening another swaps both the key
+            // and CompanyData, and nothing from these replies may then land in it.
+            bool CompanyChanged() => !ReferenceEquals(CompanyManager?.CompanyData, companyData);
+
+            var response = await portalService.SyncQuoteResponsesAsync();
+            if (!response.Success || response.Quotes.Count == 0 || CompanyChanged())
+                return;
+
+            var (settledIds, localIds, applied) = PaymentPortalService.ApplyQuoteResponses(response.Quotes, companyData);
+
+            // No local quote to lose, so confirming costs nothing, and leaving them unconfirmed
+            // brings a quote deleted here back on every sync for ever.
+            if (settledIds.Count > 0)
+            {
+                await portalService.ConfirmQuoteSyncAsync(settledIds);
+                if (CompanyChanged()) return;
+            }
+
+            if (localIds.Count == 0) return;
+
+            // Same rule as the payment sync: only auto-persist when the user has no edits of their
+            // own in flight, so a background sync can't commit their half-finished work.
+            var persisted = false;
+            if (!CompanyManager!.HasUnsavedChanges)
+            {
+                try
+                {
+                    await CompanyManager.SavePaymentSyncAsync(companyData);
+                    persisted = true;
+                }
+                catch (Exception ex)
+                {
+                    ErrorLogger?.LogWarning($"Failed to persist synced quote responses: {ex.Message}", "PortalSync");
+                }
+
+                if (CompanyChanged()) return;
+            }
+
+            // Only once the answer is in the file. Confirming an answer that is still only in
+            // memory would lose it outright if the app closed without saving: the server drops it
+            // on confirm and never offers it again. Unconfirmed, it simply arrives again next pass.
+            if (persisted)
+            {
+                await portalService.ConfirmQuoteSyncAsync(localIds);
+                if (CompanyChanged()) return;
+            }
+
+            // Only what this pass changed. A repeat pass over answers that could not be confirmed
+            // yet has already been announced.
+            if (applied == 0) return;
+
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                _quotesPageViewModel?.RefreshQuotesCommand.Execute(null);
+
+                var message = applied == 1
+                    ? "{0} quote was answered by a customer.".TranslateFormat(applied)
+                    : "{0} quotes were answered by customers.".TranslateFormat(applied);
+
+                AddNotification("Quote response".Translate(), message, NotificationType.Info);
+            });
+        }
+        catch
+        {
+            // Auto-sync failures are non-critical; silently ignore
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _isSyncingQuotes, 0);
         }
     }
 
@@ -1031,6 +1166,11 @@ public partial class App : Application
     /// </summary>
     public static Controls.ColumnWidths.PurchaseOrdersTableColumnWidths PurchaseOrdersColumnWidths { get; } = new();
 
+    /// <summary>
+    /// Gets the shared column widths for the Quotes table.
+    /// </summary>
+    public static Controls.ColumnWidths.QuotesTableColumnWidths QuotesColumnWidths { get; } = new();
+
     #endregion
 
     // View models stored for event wiring
@@ -1056,6 +1196,7 @@ public partial class App : Application
     // before the shell is built, which is what _macActivationFile holds it for.
     private static string? _macActivationFile;
     private static bool _startupCompanyHandled;
+    private static string? _fileToOpenAfterUpdate;
 
     // Cached page ViewModels to improve performance and prevent memory leaks from event subscriptions
     private static DashboardPageViewModel? _dashboardPageViewModel;
@@ -1065,6 +1206,7 @@ public partial class App : Application
     private static RevenuePageViewModel? _revenuePageViewModel;
     private static ExpensesPageViewModel? _expensesPageViewModel;
     private static InvoicesPageViewModel? _invoicesPageViewModel;
+    private static QuotesPageViewModel? _quotesPageViewModel;
     private static BankMatchingPageViewModel? _bankMatchingPageViewModel;
     private static ProductsPageViewModel? _productsPageViewModel;
     private static StockLevelsPageViewModel? _stockLevelsPageViewModel;
@@ -1096,7 +1238,7 @@ public partial class App : Application
         foreach (var vm in new object?[]
         {
             _dashboardPageViewModel, _analyticsPageViewModel, _insightsPageViewModel, _reportsPageViewModel,
-            _revenuePageViewModel, _expensesPageViewModel, _invoicesPageViewModel,
+            _revenuePageViewModel, _expensesPageViewModel, _invoicesPageViewModel, _quotesPageViewModel,
             _bankMatchingPageViewModel, _productsPageViewModel, _stockLevelsPageViewModel, _locationsPageViewModel,
             _stockAdjustmentsPageViewModel, _purchaseOrdersPageViewModel, _categoriesPageViewModel,
             _customersPageViewModel, _suppliersPageViewModel, _rentalInventoryPageViewModel,
@@ -1112,6 +1254,7 @@ public partial class App : Application
         _revenuePageViewModel = null;
         _expensesPageViewModel = null;
         _invoicesPageViewModel = null;
+        _quotesPageViewModel = null;
         _bankMatchingPageViewModel = null;
         _productsPageViewModel = null;
         _stockLevelsPageViewModel = null;
@@ -1546,6 +1689,7 @@ public partial class App : Application
 
             // Share PasswordPromptModalViewModel with MainWindow for password dialog overlay
             _mainWindowViewModel.PasswordPromptModalViewModel = _appShellViewModel.PasswordPromptModalViewModel;
+            _mainWindowViewModel.CheckForUpdateModalViewModel = _appShellViewModel.CheckForUpdateModalViewModel;
 
             // Share ConfirmationDialogViewModel with MainWindow for confirmation dialogs
             _mainWindowViewModel.ConfirmationDialogViewModel = ConfirmationDialog;
@@ -1929,6 +2073,10 @@ public partial class App : Application
         {
             try
             {
+                // The installer restarts the app, so this is flushed with the rest of the
+                // shutdown rather than uploaded from the version being replaced.
+                _ = TelemetryManager?.TrackFeatureAsync(FeatureName.UpdateApplied, AppInfo.VersionNumber);
+
                 if (CompanyManager?.IsCompanyOpen == true)
                 {
                     // Use synchronous wait since we must complete before the process exits
@@ -1940,6 +2088,7 @@ public partial class App : Application
                 {
                     // Flag that we're updating so we can auto-reopen the company after restart
                     SettingsService.GlobalSettings.Updates.AutoOpenRecentAfterUpdate = true;
+                    SettingsService.GlobalSettings.Updates.FileToOpenAfterUpdate = _fileToOpenAfterUpdate;
                     Task.Run(async () => await SettingsService.SaveGlobalSettingsAsync())
                         .GetAwaiter().GetResult();
                 }
@@ -1955,6 +2104,7 @@ public partial class App : Application
             var update = await UpdateService.CheckForUpdateAsync();
             if (update != null)
             {
+                _ = TelemetryManager?.TrackFeatureAsync(FeatureName.UpdateOffered, update.Version);
                 _appShellViewModel.CheckForUpdateModalViewModel.NotifyUpdateAvailable(update);
                 _appShellViewModel.ShowUpdateBanner($"V.{update.Version}");
             }
@@ -2101,13 +2251,16 @@ public partial class App : Application
         _startupCompanyHandled = true;
 
         var reopenAfterUpdate = false;
+        string? fileFromUpdatePrompt = null;
         if (SettingsService != null)
         {
             var updateSettings = SettingsService.GlobalSettings.Updates;
             reopenAfterUpdate = updateSettings.AutoOpenRecentAfterUpdate;
-            if (reopenAfterUpdate)
+            fileFromUpdatePrompt = updateSettings.FileToOpenAfterUpdate;
+            if (reopenAfterUpdate || fileFromUpdatePrompt != null)
             {
                 updateSettings.AutoOpenRecentAfterUpdate = false;
+                updateSettings.FileToOpenAfterUpdate = null;
                 await SettingsService.SaveGlobalSettingsAsync();
             }
         }
@@ -2116,7 +2269,11 @@ public partial class App : Application
         {
             if (requestedFile == null && reopenAfterUpdate)
             {
-                requestedFile = SettingsService?.GetValidRecentCompanies().FirstOrDefault(File.Exists);
+                // The file that needed the update comes first: it is the one the user was
+                // trying to open, and a failed open never added it to the recent list.
+                requestedFile = fileFromUpdatePrompt is { } pending && File.Exists(pending)
+                    ? pending
+                    : SettingsService?.GetValidRecentCompanies().FirstOrDefault(File.Exists);
             }
 
             if (requestedFile == null)
@@ -2489,7 +2646,7 @@ public partial class App : Application
     /// <summary>
     /// Opens the edit company modal with the current company information.
     /// </summary>
-    private static void OpenEditCompanyModal()
+    public static void OpenEditCompanyModal(string? contextMessage = null)
     {
         if (CompanyManager?.IsCompanyOpen != true || _appShellViewModel == null) return;
 
@@ -2507,7 +2664,8 @@ public partial class App : Application
             settings?.Company.Address,
             settings?.Company.ProvinceState,
             settings?.Company.Email,
-            CompanyManager.CompanyData!.Settings.Localization.Currency);
+            CompanyManager.CompanyData!.Settings.Localization.Currency,
+            contextMessage);
     }
 
     /// <summary>
@@ -2534,6 +2692,7 @@ public partial class App : Application
         _mainWindowViewModel?.OpenCompany(companyName);
         var logo = LoadBitmapFromPath(CompanyManager?.CurrentCompanyLogoPath);
         _appShellViewModel.SetCompanyInfo(companyName, logo);
+        _appShellViewModel.ApplyFeatureVisibility(CompanyManager?.CompanyData?.Settings);
         _appShellViewModel.CompanySwitcherPanelViewModel.SetCurrentCompany(
             companyName,
             CompanyManager?.CurrentFilePath,
@@ -3117,7 +3276,10 @@ public partial class App : Application
 
             // Only a run that brought something in uses up an import.
             if (totalProcessed > 0 || totalBankRouted > 0)
+            {
                 await usageService.IncrementUsageAsync();
+                TutorialService.Instance.CompleteChecklistItem(TutorialService.ChecklistItems.ImportData);
+            }
 
             // Show import result dialog
             var resultDialog = _appShellViewModel.ImportResultDialogViewModel;
@@ -3245,6 +3407,8 @@ public partial class App : Application
         if (BankStatementImportModalViewModel == null) return;
         if (Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop) return;
 
+        _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportOpened, "bank");
+
         var file = await desktop.MainWindow!.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
             Title = "Import Bank Statement".Translate(),
@@ -3254,7 +3418,11 @@ public partial class App : Application
                 new FilePickerFileType("Bank statements") { Patterns = ["*.csv", "*.xlsx", "*.xls", "*.pdf"] }
             ]
         });
-        if (file.Count == 0) return;
+        if (file.Count == 0)
+        {
+            _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportAbandoned, "bank:file-picker");
+            return;
+        }
 
         await BankStatementImportModalViewModel.OpenAsync(file[0].Path.LocalPath);
     }
@@ -3272,6 +3440,8 @@ public partial class App : Application
             return;
         }
 
+        _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportOpened, "bank-matching");
+
         var file = await desktop.MainWindow!.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
             Title = "Import Bank Statement".Translate(),
@@ -3281,7 +3451,11 @@ public partial class App : Application
                 new FilePickerFileType("Bank statements") { Patterns = ["*.csv", "*.xlsx", "*.xls", "*.pdf"] }
             ]
         });
-        if (file.Count == 0) return;
+        if (file.Count == 0)
+        {
+            _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportAbandoned, "bank-matching:file-picker");
+            return;
+        }
 
         var filePath = file[0].Path.LocalPath;
         var ext = Path.GetExtension(filePath).ToLowerInvariant();
@@ -3321,6 +3495,7 @@ public partial class App : Application
 
             if (lines.Count == 0)
             {
+                _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, $"bank-matching:no-rows:{ext.TrimStart('.')}");
                 await ShowInfoMessageBoxAsync("Info".Translate(),
                     "No transactions were found. Make sure the file has Date, Description and Amount (or Debit/Credit) columns.".Translate());
                 return;
@@ -3351,6 +3526,9 @@ public partial class App : Application
             _bankMatchingPageViewModel?.Reload();
             NavigationService?.NavigateTo(PageNames.BankMatching);
 
+            _ = TelemetryManager?.TrackFeatureAsync(FeatureName.DataImported, $"bank-matching:{lines.Count}");
+            TutorialService.Instance.CompleteChecklistItem(TutorialService.ChecklistItems.ImportData);
+
             await ShowInfoMessageBoxAsync(
                 "Bank Matching".Translate(),
                 "Imported {0} transactions from {1}.".TranslateFormat(lines.Count, Path.GetFileName(filePath)));
@@ -3358,10 +3536,18 @@ public partial class App : Application
         catch (OperationCanceledException)
         {
             _mainWindowViewModel?.HideLoading();
+            _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportAbandoned, "bank-matching:cancelled");
+        }
+        catch (UnreadableStatementFileException)
+        {
+            _mainWindowViewModel?.HideLoading();
+            _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, $"bank-matching:unreadable:{ext.TrimStart('.')}");
+            await ShowInfoMessageBoxAsync("Import Bank Statement".Translate(), ImportRescueMessages.UnreadableFile);
         }
         catch (Exception ex)
         {
             _mainWindowViewModel?.HideLoading();
+            _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, "bank-matching:exception");
             ErrorLogger?.LogError(ex, ErrorCategory.Import, "Bank statement import failed");
             await ShowErrorMessageBoxAsync("Import Failed".Translate(), "Failed to import bank statement:\n\n{0}".TranslateFormat(ex.Message));
         }
@@ -3445,7 +3631,18 @@ public partial class App : Application
         try
         {
             var bytes = await SharedFileReader.ReadAllBytesAsync(filePath);
-            var extracted = await PdfStatementExtractor.ExtractAsync(bytes, Path.GetFileName(filePath));
+            List<Core.Models.BankMatching.BankStatementLine> extracted;
+            try
+            {
+                extracted = await PdfStatementExtractor.ExtractAsync(bytes, Path.GetFileName(filePath));
+            }
+            catch (ServerRateLimitedException ex)
+            {
+                // Nothing was read, so nothing is charged; the file itself may be fine.
+                HideBusyOverlay();
+                await ShowInfoMessageBoxAsync("Import Bank Statement".Translate(), ex.Message);
+                return [];
+            }
             HideBusyOverlay();
             if (extracted.Count == 0)
             {
@@ -3480,6 +3677,7 @@ public partial class App : Application
             data.Revenues,
             data.Expenses,
             data.Invoices,
+            data.Quotes,
             data.Payments,
             data.RecurringInvoices,
             data.RecurringTransactions,
@@ -3552,6 +3750,7 @@ public partial class App : Application
                 data.IdCounters.Revenue = restoredCounters.Revenue;
                 data.IdCounters.Expense = restoredCounters.Expense;
                 data.IdCounters.Invoice = restoredCounters.Invoice;
+                data.IdCounters.Quote = restoredCounters.Quote;
                 data.IdCounters.Payment = restoredCounters.Payment;
                 data.IdCounters.RecurringInvoice = restoredCounters.RecurringInvoice;
                 data.IdCounters.InventoryItem = restoredCounters.InventoryItem;
@@ -3579,6 +3778,7 @@ public partial class App : Application
         RestoreList(data.Revenues, "Revenues");
         RestoreList(data.Expenses, "Expenses");
         RestoreList(data.Invoices, "Invoices");
+        RestoreList(data.Quotes, "Quotes");
         RestoreList(data.Payments, "Payments");
         RestoreList(data.RecurringInvoices, "RecurringInvoices");
         RestoreList(data.RecurringTransactions, "RecurringTransactions");
@@ -3676,6 +3876,7 @@ public partial class App : Application
         // were on whichever page was already open.
         _dashboardPageViewModel?.RefreshSampleCompanyState();
         _invoicesPageViewModel?.RefreshSampleCompanyState();
+        _quotesPageViewModel?.RefreshSampleCompanyState();
     }
 
     internal static async Task RequestCreateNewCompanyAsync()
@@ -3835,14 +4036,21 @@ public partial class App : Application
             // newer build) that already shows the user the "Update Argo Books" dialog below.
             if (ConfirmationDialog != null)
             {
-                await ConfirmationDialog.ShowAsync(new ConfirmationDialogOptions
+                var result = await ConfirmationDialog.ShowAsync(new ConfirmationDialogOptions
                 {
                     Title = "Update Argo Books".Translate(),
                     Message = "This company file was created by Argo Books {0}. You are running Argo Books {1}. Please update to Argo Books {0} or later to open it.".TranslateFormat(ex.FileVersion, ex.AppVersion),
-                    PrimaryButtonText = "OK".Translate(),
+                    PrimaryButtonText = "Update Now".Translate(),
                     SecondaryButtonText = null,
-                    CancelButtonText = null
+                    CancelButtonText = "Not Now".Translate()
                 });
+
+                if (result == ConfirmationResult.Primary && _appShellViewModel != null)
+                {
+                    // Reopened by TryOpenStartupCompanyAsync once the updated app restarts.
+                    _fileToOpenAfterUpdate = filePath;
+                    _appShellViewModel.CheckForUpdateModalViewModel.OpenAndUpdateCommand.Execute(null);
+                }
             }
         }
         catch (CompanyAlreadyOpenException)
@@ -4467,6 +4675,23 @@ public partial class App : Application
                 _expensesPageViewModel.ApplyHighlight();
             }
             return new ExpensesPage { DataContext = _expensesPageViewModel };
+        });
+        navigationService.RegisterPage("Quotes", param =>
+        {
+            _quotesPageViewModel ??= new QuotesPageViewModel();
+            _quotesPageViewModel.HighlightTransactionId = null;
+            // The VM is cached across navigations, so re-read CompanyData on every arrival.
+            _quotesPageViewModel.RefreshQuotesCommand.Execute(null);
+            if (param is TransactionNavigationParameter navParam)
+            {
+                _quotesPageViewModel.HighlightTransactionId = navParam.TransactionId;
+                _quotesPageViewModel.ApplyHighlight();
+            }
+
+            // The answers a customer gave while the app was elsewhere are what makes this page
+            // worth opening, so pull them on arrival rather than waiting out the timer.
+            _ = AutoSyncPortalPaymentsAsync();
+            return new QuotesPage { DataContext = _quotesPageViewModel };
         });
         navigationService.RegisterPage("Invoices", param =>
         {

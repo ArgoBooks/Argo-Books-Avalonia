@@ -4,6 +4,7 @@ using System.Text.Json;
 using ArgoBooks.Core;
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
+using ArgoBooks.Core.Models;
 using ArgoBooks.Core.Models.BankMatching;
 using ArgoBooks.Core.Models.Entities;
 using ArgoBooks.Core.Models.Integrations;
@@ -44,6 +45,9 @@ public partial class SettingsModalViewModel : ViewModelBase
     private bool _originalRentalOverdue = true;
     private bool _originalUnsavedChangesReminder = true;
     private int _originalUnsavedChangesReminderMinutes = 5;
+    private bool _originalShowInventorySection = true;
+    private bool _originalShowRentalsSection = true;
+    private bool _originalShowPayrollSection = true;
 
     // Flag to prevent firing LanguageChanged when loading from settings
     private bool _isLoadingLanguage;
@@ -176,6 +180,48 @@ public partial class SettingsModalViewModel : ViewModelBase
     /// Priority timezone options shown at the top of the dropdown.
     /// </summary>
     public IReadOnlyList<TimeZoneItem> PriorityTimeZones => TimeZones.Priority;
+
+    #endregion
+
+    #region Update Emails
+
+    /// <summary>
+    /// Whether a confirmation has been asked for. Whether they clicked the link is the server's
+    /// business, so the app never claims they are subscribed, only that it asked.
+    /// </summary>
+    [ObservableProperty]
+    private bool _updateEmailSubmitted;
+
+    [RelayCommand]
+    private void OpenUpdateEmailModal()
+    {
+        var modal = App.UpdateEmailModalViewModel;
+        if (modal == null) return;
+
+        modal.Subscribed -= OnUpdateEmailSubscribed;
+        modal.Subscribed += OnUpdateEmailSubscribed;
+        modal.Open();
+    }
+
+    private void OnUpdateEmailSubscribed(object? sender, EventArgs e)
+    {
+        UpdateEmailSubmitted = true;
+        if (sender is UpdateEmailModalViewModel modal)
+            modal.Subscribed -= OnUpdateEmailSubscribed;
+    }
+
+    #endregion
+
+    #region Feature Settings
+
+    [ObservableProperty]
+    private bool _showInventorySection = true;
+
+    [ObservableProperty]
+    private bool _showRentalsSection = true;
+
+    [ObservableProperty]
+    private bool _showPayrollSection = true;
 
     #endregion
 
@@ -1569,6 +1615,7 @@ public partial class SettingsModalViewModel : ViewModelBase
                             // Notify invoice views and other subscribers that provider state changed
                             PaymentProviderService.NotifyProvidersChanged();
                         });
+                        _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.PaymentProviderConnected, provider);
                         return;
                     }
                 }
@@ -2853,6 +2900,7 @@ public partial class SettingsModalViewModel : ViewModelBase
                     IsPhoneJustPaired = true;
                     await RefreshDevicesAsync();
                 });
+                _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.PhonePaired);
 
                 // Push the first snapshot immediately. The phone polls /snapshot and shows
                 // "Waiting for your desktop to sync" until one exists, and the only other uploader
@@ -2984,6 +3032,9 @@ public partial class SettingsModalViewModel : ViewModelBase
         UnsavedChangesReminderMinutes != _originalUnsavedChangesReminderMinutes ||
         PortalSendPaymentReminders != _originalPortalSendPaymentReminders ||
         PortalEmailOwnerOnPayment != _originalPortalEmailOwnerOnPayment ||
+        ShowInventorySection != _originalShowInventorySection ||
+        ShowRentalsSection != _originalShowRentalsSection ||
+        ShowPayrollSection != _originalShowPayrollSection ||
         ComputeBankRulesSignature() != _originalBankRulesSignature;
 
     // Baselines for the two server-side email preferences. They live among the
@@ -3080,6 +3131,13 @@ public partial class SettingsModalViewModel : ViewModelBase
             RentalOverdue = settings.Notifications.RentalOverdueAlert;
             UnsavedChangesReminder = settings.Notifications.UnsavedChangesReminder;
             UnsavedChangesReminderMinutes = settings.Notifications.UnsavedChangesReminderMinutes;
+
+            // Same resolution the sidebar uses, so an untouched toggle shows what is actually
+            // on screen rather than defaulting to on and contradicting it.
+            var visible = FeatureVisibility.Resolve(settings, App.CompanyManager?.CompanyData);
+            ShowInventorySection = visible.Inventory;
+            ShowRentalsSection = visible.Rentals;
+            ShowPayrollSection = visible.Payroll;
         }
         else
         {
@@ -3127,6 +3185,14 @@ public partial class SettingsModalViewModel : ViewModelBase
         _originalUnsavedChangesReminderMinutes = UnsavedChangesReminderMinutes;
         _originalPortalSendPaymentReminders = PortalSendPaymentReminders;
         _originalPortalEmailOwnerOnPayment = PortalEmailOwnerOnPayment;
+        _originalShowInventorySection = ShowInventorySection;
+        _originalShowRentalsSection = ShowRentalsSection;
+        _originalShowPayrollSection = ShowPayrollSection;
+
+        // Not part of the save/cancel cycle: signing up hits the server when the modal's button
+        // is pressed, so there is nothing here to revert.
+        UpdateEmailSubmitted = App.SettingsService?.GlobalSettings.UpdateEmail.Submitted == true;
+
         SelectedTabIndex = tabIndex;
         IsOpen = true;
     }
@@ -3215,6 +3281,9 @@ public partial class SettingsModalViewModel : ViewModelBase
         RentalOverdue = _originalRentalOverdue;
         UnsavedChangesReminder = _originalUnsavedChangesReminder;
         UnsavedChangesReminderMinutes = _originalUnsavedChangesReminderMinutes;
+        ShowInventorySection = _originalShowInventorySection;
+        ShowRentalsSection = _originalShowRentalsSection;
+        ShowPayrollSection = _originalShowPayrollSection;
     }
 
     /// <summary>
@@ -3304,6 +3373,9 @@ public partial class SettingsModalViewModel : ViewModelBase
         _originalUnsavedChangesReminderMinutes = UnsavedChangesReminderMinutes;
         _originalPortalSendPaymentReminders = PortalSendPaymentReminders;
         _originalPortalEmailOwnerOnPayment = PortalEmailOwnerOnPayment;
+        _originalShowInventorySection = ShowInventorySection;
+        _originalShowRentalsSection = ShowRentalsSection;
+        _originalShowPayrollSection = ShowPayrollSection;
 
         // The server owns these two, so Save is what actually applies them.
         // Fire-and-forget: the reconcile on next open corrects a dropped push,
@@ -3324,6 +3396,13 @@ public partial class SettingsModalViewModel : ViewModelBase
             settings.Notifications.RentalOverdueAlert = RentalOverdue;
             settings.Notifications.UnsavedChangesReminder = UnsavedChangesReminder;
             settings.Notifications.UnsavedChangesReminderMinutes = UnsavedChangesReminderMinutes;
+
+            // Written whether or not they differ from the industry's starting point. Saving the
+            // answer is what makes it the user's, so a later industry change leaves it alone.
+            settings.Features.ShowInventory = ShowInventorySection;
+            settings.Features.ShowRentals = ShowRentalsSection;
+            settings.Features.ShowPayroll = ShowPayrollSection;
+            App.ApplyFeatureVisibility(settings);
 
             // Save payment portal settings
             SavePortalSettings();
@@ -3392,7 +3471,7 @@ public partial class SettingsModalViewModel : ViewModelBase
                 var success = await LanguageService.Instance.SetLanguageAsync(SelectedLanguage);
                 if (success)
                 {
-                    _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.LanguageChanged);
+                    _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.LanguageChanged, SelectedLanguage);
                     // Notify that language was saved successfully
                     LanguageSettingsChanged?.Invoke(this, new LanguageSettingsChangedEventArgs(SelectedLanguage, true));
                 }

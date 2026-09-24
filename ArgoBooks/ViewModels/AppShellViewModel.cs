@@ -1,5 +1,6 @@
 using System.Reflection;
 using ArgoBooks.Core.Enums;
+using ArgoBooks.Core.Models;
 using ArgoBooks.Core.Services;
 using ArgoBooks.Localization;
 using ArgoBooks.ViewModels.Dashboard;
@@ -27,6 +28,7 @@ public partial class AppShellViewModel : ViewModelBase
     private RentalRecordsModalsViewModel? _rentalRecordsModalsViewModel;
     private PaymentModalsViewModel? _paymentModalsViewModel;
     private InvoiceModalsViewModel? _invoiceModalsViewModel;
+    private QuotesModalsViewModel? _quotesModalsViewModel;
     private RefundModalsViewModel? _refundModalsViewModel;
     private InvoiceTemplateDesignerViewModel? _invoiceTemplateDesignerViewModel;
     private ExpenseModalsViewModel? _expenseModalsViewModel;
@@ -102,6 +104,8 @@ public partial class AppShellViewModel : ViewModelBase
     public PastPredictionsModalViewModel PastPredictionsModalViewModel { get; }
 
     public ImportModalViewModel ImportModalViewModel { get; }
+
+    public UpdateEmailModalViewModel UpdateEmailModalViewModel { get; }
 
     public ImportValidationDialogViewModel ImportValidationDialogViewModel { get; }
 
@@ -298,6 +302,21 @@ public partial class AppShellViewModel : ViewModelBase
                 OnPropertyChanged();
             }
             return _invoiceModalsViewModel;
+        }
+    }
+
+    public QuotesModalsViewModel QuotesModalsViewModel
+    {
+        get
+        {
+            if (_quotesModalsViewModel == null)
+            {
+                _quotesModalsViewModel = new QuotesModalsViewModel();
+                _quotesModalsViewModel.QuoteSaved += RaiseUnsavedChanges;
+                _quotesModalsViewModel.QuoteDeleted += RaiseUnsavedChanges;
+                OnPropertyChanged();
+            }
+            return _quotesModalsViewModel;
         }
     }
 
@@ -661,6 +680,7 @@ public partial class AppShellViewModel : ViewModelBase
         PastPredictionsModalViewModel = new PastPredictionsModalViewModel();
 
         ImportModalViewModel = new ImportModalViewModel();
+        UpdateEmailModalViewModel = new UpdateEmailModalViewModel();
 
         ImportValidationDialogViewModel = new ImportValidationDialogViewModel();
         ImportResultDialogViewModel = new ImportResultDialogViewModel();
@@ -739,10 +759,6 @@ public partial class AppShellViewModel : ViewModelBase
         // Wire up sidebar navigation to close all panels
         SidebarViewModel.NavigationRequested += (_, _) => CloseAllPanels();
 
-        // Wire up company switcher's create new company to open the wizard (prompts to save first
-        // if the current company has unsaved changes).
-        CompanySwitcherPanelViewModel.CreateNewCompanyRequested += (_, _) => _ = App.RequestCreateNewCompanyAsync();
-
         // Wire up help panel's check for updates to open the check for update modal
         HelpPanelViewModel.CheckForUpdatesRequested += (_, _) => CheckForUpdateModalViewModel.OpenCommand.Execute(null);
 
@@ -812,6 +828,9 @@ public partial class AppShellViewModel : ViewModelBase
                             break;
                         case NavigationTarget.Invoices:
                             InvoiceModalsViewModel.OpenCreateModal();
+                            break;
+                        case NavigationTarget.Quotes:
+                            QuotesModalsViewModel.OpenEditor();
                             break;
                         case NavigationTarget.Expenses:
                             ExpenseModalsViewModel.OpenAddModalCommand.Execute(null);
@@ -1013,6 +1032,22 @@ public partial class AppShellViewModel : ViewModelBase
     public void SetCompanyInfo(string? companyName, Bitmap? logo = null, string? userRole = null)
     {
         SidebarViewModel.SetCompanyInfo(companyName, logo, userRole);
+    }
+
+    /// <summary>
+    /// Shows or hides the optional sidebar sections for the open company: the user's own choice
+    /// where they have made one, otherwise the industry's starting point.
+    /// </summary>
+    public void ApplyFeatureVisibility(CompanySettings? settings)
+    {
+        var visible = FeatureVisibility.Resolve(settings, App.CompanyManager?.CompanyData);
+
+        // Expenses and Revenue are the app, not an optional section, so they have no toggle.
+        SidebarViewModel.UpdateFeatureVisibility(
+            showTransactions: true,
+            showInventory: visible.Inventory,
+            showRentals: visible.Rentals,
+            showPayroll: visible.Payroll);
     }
 
     /// <summary>

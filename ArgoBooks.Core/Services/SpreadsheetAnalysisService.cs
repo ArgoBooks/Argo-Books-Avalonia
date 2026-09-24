@@ -321,16 +321,6 @@ public class SpreadsheetAnalysisService(
     #region Tier 2 Processing
 
     /// <summary>
-    /// Processes a chunk of rows through the LLM to normalize them into entity JSON.
-    /// </summary>
-    public async Task<LlmProcessedData?> ProcessChunkAsync(
-        List<string> headers,
-        List<List<string>> rows,
-        SpreadsheetSheetType entityType,
-        CancellationToken cancellationToken = default)
-        => (await TryProcessChunkAsync(headers, rows, entityType, cancellationToken)).Result;
-
-    /// <summary>
     /// Runs <see cref="TryProcessChunkAsync"/>, retrying with a growing pause when no reply came
     /// back at all (the server's rate limit, a timeout, a dropped connection).
     /// </summary>
@@ -346,6 +336,8 @@ public class SpreadsheetAnalysisService(
 
             // An unreadable reply isn't retried: the same rows at temperature 0 would most likely
             // come back the same, and every answered call counts against the server's rate limit.
+            // A rate limit counts as answered for the same reason: retrying it only spends more of
+            // the budget that just ran out.
             if (result != null || answered || attempt >= MaxChunkAttempts)
                 return result;
 
@@ -373,9 +365,12 @@ public class SpreadsheetAnalysisService(
         string? response;
         try
         {
-            response = await geminiService.SendChatAsync(
+            var reply = await geminiService.SendChatWithStatusAsync(
                 systemPrompt, userPrompt, maxTokens: 16000, temperature: 0.0, cancellationToken,
                 operation: OperationKind.SpreadsheetProcess, sizeFeature: rows.Count);
+            if (reply.RateLimited)
+                return (null, true);
+            response = reply.Content;
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -1416,7 +1411,7 @@ Choose EXTRACT only when you are confident real per-row records are present. Whe
             return new ImportRescueResult
             {
                 Outcome = ImportRescueOutcome.Rejected,
-                ReasonCode = ImportRescueRejectionReason.EmptyOrUnreadable
+                ReasonCode = ImportRescueRejectionReason.FileCouldNotBeOpened
             };
         }
 

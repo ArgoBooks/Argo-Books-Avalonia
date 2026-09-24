@@ -1,8 +1,10 @@
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models;
+using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Models.Payroll;
 using ArgoBooks.Core.Models.Rentals;
+using ArgoBooks.Core.Models.Transactions;
 
 namespace ArgoBooks.Core.Services;
 
@@ -133,6 +135,10 @@ public class SampleCompanyService
             // After the rentals, and off the same reference date, so the pay dates land inside
             // the window the rest of the sample already occupies.
             AddSamplePayroll(context.CompanyData, maxDate);
+
+            // One quote per state, so the Quotes page shows what the feature does instead of an
+            // empty table to someone who opened the sample to look around.
+            AddSampleQuotes(context.CompanyData, maxDate);
 
             // Save company data to temp directory
             await _fileService.SaveCompanyDataAsync(companyDir, context.CompanyData, cancellationToken);
@@ -347,6 +353,107 @@ public class SampleCompanyService
     /// <summary>
     /// Adds additional active rental records to the sample company for richer demo data.
     /// </summary>
+    /// <summary>
+    /// Adds one quote in each state a quote can be in: waiting on the customer, accepted,
+    /// declined, already turned into an invoice, and one still being written.
+    /// </summary>
+    private static void AddSampleQuotes(CompanyData data, DateTime referenceDate)
+    {
+        var customers = data.Customers;
+        var products = data.Products;
+        if (customers.Count == 0 || products.Count == 0) return;
+
+        var counter = 0;
+        var year = referenceDate.Year;
+
+        Quote Build(int customerIndex, int[] productIndexes, decimal[] quantities, DateTime issued, int validForDays)
+        {
+            var quote = new Quote
+            {
+                Id = $"QUO-{year}-{++counter:D5}",
+                QuoteNumber = $"#QUO-{year}-{counter:D5}",
+                CustomerId = customers[customerIndex % customers.Count].Id,
+                IssueDate = issued,
+                ValidUntil = issued.AddDays(validForDays),
+                TaxRate = 8m,
+                OriginalCurrency = "USD",
+                Status = QuoteStatus.Draft,
+                CreatedAt = issued,
+                UpdatedAt = issued,
+                LineItems = [.. productIndexes.Select((pi, n) =>
+                {
+                    var product = products[pi % products.Count];
+                    return new LineItem
+                    {
+                        ProductId = product.Id,
+                        Description = string.IsNullOrWhiteSpace(product.Description) ? product.Name : product.Description,
+                        Quantity = quantities[n],
+                        UnitPrice = product.UnitPrice
+                    };
+                })]
+            };
+
+            quote.Subtotal = InvoiceMath.Subtotal(quote.LineItems);
+            var taxableBase = InvoiceMath.TaxableBase(quote.Subtotal, discount: 0m, customFee: 0m, shipping: 0m);
+            quote.TaxAmount = InvoiceMath.Tax(taxableBase, quote.TaxRate, quote.TaxIsFixed);
+            quote.Total = InvoiceMath.Total(taxableBase, quote.TaxAmount, securityDeposit: 0m);
+            quote.History.Add(new InvoiceHistoryEntry { Action = "Created", Timestamp = issued });
+            return quote;
+        }
+
+        // Still being written, so it has no send date and nothing the customer could answer.
+        var draft = Build(3, [2], [1m], referenceDate.AddDays(-1), 30);
+
+        // Out with the customer, answer still to come. Valid for long enough to still be open and
+        // short enough to land in the "expiring soon" count, so that card is not always zero.
+        var waiting = Build(0, [0, 1], [2m, 1m], referenceDate.AddDays(-4), 8);
+        waiting.Status = QuoteStatus.Sent;
+        waiting.SentAt = waiting.IssueDate;
+        waiting.History.Add(new InvoiceHistoryEntry { Action = "Sent", Timestamp = waiting.IssueDate });
+
+        var accepted = Build(1, [1, 3], [1m, 3m], referenceDate.AddDays(-12), 30);
+        accepted.Status = QuoteStatus.Accepted;
+        accepted.SentAt = accepted.IssueDate;
+        accepted.RespondedAt = accepted.IssueDate.AddDays(3);
+        accepted.ResponseNote = "Looks good, please go ahead.";
+        accepted.History.Add(new InvoiceHistoryEntry { Action = "Sent", Timestamp = accepted.IssueDate });
+        accepted.History.Add(new InvoiceHistoryEntry { Action = "Accepted", Timestamp = accepted.RespondedAt.Value });
+
+        var declined = Build(2, [0], [5m], referenceDate.AddDays(-20), 21);
+        declined.Status = QuoteStatus.Declined;
+        declined.SentAt = declined.IssueDate;
+        declined.RespondedAt = declined.IssueDate.AddDays(2);
+        declined.ResponseNote = "Going with another supplier this time.";
+        declined.History.Add(new InvoiceHistoryEntry { Action = "Sent", Timestamp = declined.IssueDate });
+        declined.History.Add(new InvoiceHistoryEntry { Action = "Declined", Timestamp = declined.RespondedAt.Value });
+
+        var quotes = new List<Quote> { draft, waiting, accepted, declined };
+
+        // Only when there is an invoice to point at: a converted quote whose invoice is missing
+        // reads as one that can be converted again.
+        var invoice = data.Invoices.FirstOrDefault();
+        if (invoice != null)
+        {
+            var converted = Build(0, [1], [2m], referenceDate.AddDays(-35), 30);
+            converted.Status = QuoteStatus.Converted;
+            converted.SentAt = converted.IssueDate;
+            converted.RespondedAt = converted.IssueDate.AddDays(4);
+            converted.ConvertedInvoiceId = invoice.Id;
+            converted.History.Add(new InvoiceHistoryEntry { Action = "Sent", Timestamp = converted.IssueDate });
+            converted.History.Add(new InvoiceHistoryEntry { Action = "Accepted", Timestamp = converted.RespondedAt.Value });
+            converted.History.Add(new InvoiceHistoryEntry
+            {
+                Action = "Converted",
+                Details = $"Converted to invoice {invoice.Id}",
+                Timestamp = converted.RespondedAt.Value.AddDays(1)
+            });
+            quotes.Add(converted);
+        }
+
+        data.Quotes.AddRange(quotes);
+        data.IdCounters.Quote = counter;
+    }
+
     private static void AddSampleActiveRentals(CompanyData data, DateTime referenceDate)
     {
         var items = data.RentalInventory;
@@ -488,9 +595,9 @@ public class SampleCompanyService
     /// <summary>
     /// Gives the sample company a payroll history.
     ///
-    /// Employees usually come from the workbook's own Employees sheet, which carries names,
-    /// salaries and hire dates but nothing payroll-specific, so those are topped up here. Only
-    /// when the sheet produced none does this invent its own three.
+    /// Employees come from the workbook's own Employees sheet, which carries names, salaries and
+    /// hire dates but nothing payroll-specific, so those are topped up here. Nobody is invented:
+    /// staff written here would sit alongside the imported ones as a second set that no user sees.
     ///
     /// The runs are built through <see cref="PayrollService"/> rather than written out by hand,
     /// so every figure is real CRA arithmetic: the year-to-date totals accumulate, the CPP and EI
@@ -504,10 +611,16 @@ public class SampleCompanyService
     /// </summary>
     internal static void AddSamplePayroll(CompanyData data, DateTime referenceDate)
     {
-        // Keyed on pay runs, not employees. The sample workbook has an Employees sheet, so this
-        // used to see eight imported employees, decide payroll was already set up, and add
-        // nothing at all.
+        // Keyed on pay runs, not employees: the workbook's Employees sheet means there are always
+        // employees, so they say nothing about whether payroll has been set up.
         if (data.PayRuns.Count > 0)
+        {
+            return;
+        }
+
+        // The workbook's Employees sheet is what puts people here. Without them there is nobody to
+        // pay, and running anyway would add pay runs with no lines on them.
+        if (data.Employees.Count == 0)
         {
             return;
         }
@@ -522,29 +635,7 @@ public class SampleCompanyService
         company.PayrollContactEmail = "payroll@samplecompany.com";
         company.RemitterType = RemitterType.Regular;
 
-        DateTime hired = referenceDate.AddYears(-2);
-
-        if (data.Employees.Count == 0)
-        {
-            data.Employees.AddRange(
-            [
-                SampleEmployee("EMP-001", "Sarah Chen", "111111118", "ON", hired,
-                    "118 Bay Street", "Toronto", "M5J2N8",
-                    PayType.Salary, 30000m),
-
-                SampleEmployee("EMP-002", "Marcus Bell", "222222226", "ON", hired.AddMonths(7),
-                    "47 King Street East", "Hamilton", "L8N1A9",
-                    PayType.Hourly, 24.00m),
-
-                SampleEmployee("EMP-003", "Priya Raman", "333333334", "BC", hired.AddMonths(14),
-                    "900 Granville Street", "Vancouver", "V6Z1K3",
-                    PayType.Salary, 32000m),
-            ]);
-        }
-        else
-        {
-            CompletePayrollDetails(data.Employees, hired);
-        }
+        CompletePayrollDetails(data.Employees, referenceDate.AddYears(-2));
 
         var payroll = new PayrollService();
 
@@ -644,37 +735,6 @@ public class SampleCompanyService
         }
     }
 
-    private static Employee SampleEmployee(
-        string id, string name, string sin, string province, DateTime start,
-        string street, string city, string postalCode,
-        PayType payType, decimal payRate) => new()
-        {
-            Id = id,
-            Name = name,
-            Sin = sin,
-            Province = province,
-            PayType = payType,
-            PayRate = payRate,
-            PayFrequency = PayFrequency.Biweekly,
-
-            // Only meaningful for the salaried two, and only for the record of employment, which
-            // wants insurable hours a salaried run never records.
-            StandardHoursPerWeek = payType == PayType.Salary ? 37.5m : null,
-
-            StartDate = start,
-            DentalBenefit = DentalBenefitCode.PayeeOnly,
-            Address = new Models.Common.Address
-            {
-                Street = street,
-                City = city,
-                State = province,
-                ZipCode = postalCode,
-                Country = "Canada",
-            },
-            CreatedAt = start,
-            UpdatedAt = start,
-        };
-
     /// <summary>
     /// Time-shifts all dates in the sample data so that the most recent transaction
     /// appears as if it happened recently (within the last few days).
@@ -761,6 +821,16 @@ public class SampleCompanyService
         {
             payment.Date = Shift(payment.Date);
             payment.CreatedAt = Shift(payment.CreatedAt);
+        }
+
+        foreach (var quote in data.Quotes)
+        {
+            quote.IssueDate = Shift(quote.IssueDate);
+            quote.ValidUntil = Shift(quote.ValidUntil);
+            quote.SentAt = ShiftNullable(quote.SentAt);
+            quote.RespondedAt = ShiftNullable(quote.RespondedAt);
+            quote.CreatedAt = Shift(quote.CreatedAt);
+            quote.UpdatedAt = Shift(quote.UpdatedAt);
         }
 
         foreach (var rental in data.Rentals)

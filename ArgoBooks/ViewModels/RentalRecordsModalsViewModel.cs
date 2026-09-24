@@ -1256,8 +1256,6 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
             FilterDueDateTo = v.DueDateTo;
         });
 
-    public bool HasFilterModalChanges => Filters.HasChanges;
-
     [RelayCommand]
     public void OpenFilterModal()
     {

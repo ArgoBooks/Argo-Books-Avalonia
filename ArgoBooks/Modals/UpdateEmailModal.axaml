@@ -1,0 +1,68 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:ArgoBooks.ViewModels"
+             xmlns:controls="using:ArgoBooks.Controls"
+             xmlns:loc="using:ArgoBooks.Localization"
+             mc:Ignorable="d" d:DesignWidth="460" d:DesignHeight="320"
+             x:Class="ArgoBooks.Modals.UpdateEmailModal"
+             x:DataType="vm:UpdateEmailModalViewModel">
+
+    <Design.DataContext>
+        <vm:UpdateEmailModalViewModel />
+    </Design.DataContext>
+
+    <controls:ModalOverlay IsOpen="{Binding IsOpen}">
+        <controls:ModalOverlay.ModalContent>
+            <Border Classes="modal-card" Width="460">
+                <Grid RowDefinitions="Auto,*,Auto">
+
+                    <controls:ModalHeader Grid.Row="0"
+                                          Title="{loc:Loc 'Product updates'}"
+                                          Subtitle="{loc:Loc 'An occasional email when something new ships.'}"
+                                          CloseCommand="{Binding CloseCommand}" />
+
+                    <StackPanel Grid.Row="1" Margin="24,20" Spacing="12">
+
+                        <StackPanel Spacing="8" IsVisible="{Binding !IsDone}">
+                            <TextBlock Text="{loc:Loc 'No account is created, and nothing in Argo Books changes. We send a link to confirm first, and every message has an unsubscribe link.'}"
+                                       FontSize="13"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextSecondaryBrush}" />
+                            <TextBox Classes="form-input"
+                                     Text="{Binding Email, Mode=TwoWay}"
+                                     PlaceholderText="you@business.com" />
+                        </StackPanel>
+
+                        <TextBlock Text="{Binding Message}"
+                                   FontSize="13"
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   IsVisible="{Binding Message, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                    </StackPanel>
+
+                    <Border Grid.Row="2" Padding="24,16"
+                            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                            <Button Classes="secondary-button"
+                                    Content="{loc:Loc 'Not now'}"
+                                    Command="{Binding CloseCommand}"
+                                    IsVisible="{Binding !IsDone}" />
+                            <Button Classes="primary-button"
+                                    Content="{loc:Loc 'Sign up'}"
+                                    Command="{Binding SubscribeCommand}"
+                                    IsEnabled="{Binding !IsSending}"
+                                    IsVisible="{Binding !IsDone}" />
+                            <Button Classes="primary-button"
+                                    Content="{loc:Loc 'Done'}"
+                                    Command="{Binding CloseCommand}"
+                                    IsVisible="{Binding IsDone}" />
+                        </StackPanel>
+                    </Border>
+
+                </Grid>
+            </Border>
+        </controls:ModalOverlay.ModalContent>
+    </controls:ModalOverlay>
+</UserControl>

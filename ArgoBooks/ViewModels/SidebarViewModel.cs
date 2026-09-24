@@ -39,7 +39,7 @@ public partial class SidebarViewModel : ViewModelBase
     private string? _companyName = "Argo Books";
 
     [ObservableProperty]
-    private string _companyInitial = "A";
+    private string _companyInitial = "AB";
 
     [ObservableProperty]
     private Bitmap? _companyLogo;
@@ -65,6 +65,13 @@ public partial class SidebarViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool _showPayroll = true;
+
+    /// <summary>
+    /// Returns and Lost / Damaged. Follows the two sections that give them something to track
+    /// rather than carrying a toggle of its own.
+    /// </summary>
+    [ObservableProperty]
+    private bool _showTracking = true;
 
     [ObservableProperty]
     private bool _hasPremium; // Premium plan
@@ -151,6 +158,7 @@ public partial class SidebarViewModel : ViewModelBase
 
         // Revenue Section
         RevenueItems.Add(CreateItem("Revenue", "Revenue", Icons.Revenue));
+        RevenueItems.Add(CreateItem("Quotes", "Quotes", Icons.Quotes));
         _invoicesItem = CreateItem("Invoices", "Invoices", Icons.Invoices);
         _invoicesItem.IsVisible = true; // Available on free tier (with send limits)
         RevenueItems.Add(_invoicesItem);
@@ -224,7 +232,7 @@ public partial class SidebarViewModel : ViewModelBase
     /// </summary>
     partial void OnCompanyNameChanged(string? value)
     {
-        CompanyInitial = string.IsNullOrEmpty(value) ? "A" : value[0].ToString().ToUpper();
+        CompanyInitial = Helpers.InitialsHelper.From(value);
     }
 
     /// <summary>
@@ -311,6 +319,7 @@ public partial class SidebarViewModel : ViewModelBase
         ShowInventory = showInventory;
         ShowRentals = showRentals;
         ShowPayroll = showPayroll;
+        ShowTracking = showInventory || showRentals;
     }
 
     /// <summary>

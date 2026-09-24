@@ -80,6 +80,7 @@ public partial class App
 
             // Load and apply language setting from company settings
             var companySettings = CompanyManager.CompanyData?.Settings;
+            _appShellViewModel.ApplyFeatureVisibility(companySettings);
             if (companySettings != null)
             {
                 // Hooked here rather than at the create-company screen so it also covers
@@ -210,6 +211,8 @@ public partial class App
                             var txnExpenses = generatedTxns.Count(t => t is Core.Models.Transactions.Expense);
                             var txnRevenues = generatedTxns.Count - txnExpenses;
                             RecurringTransactionService.RaiseGenerated(txnExpenses, txnRevenues);
+                            _ = TelemetryManager?.TrackFeatureAsync(
+                                FeatureName.RecurringTransactionsGenerated, $"{generatedTxns.Count}");
                             AddNotification(
                                 "Recurring transactions",
                                 generatedTxns.Count == 1
@@ -574,14 +577,8 @@ public partial class App
             var companyInfo = new CompanyInfo
             {
                 Name = args.CompanyName,
-                BusinessType = args.BusinessType,
                 Industry = args.Industry,
-                Phone = args.PhoneNumber,
-                Email = args.Email,
-                Country = args.Country,
-                City = args.City,
-                ProvinceState = args.ProvinceState,
-                Address = args.Address
+                Country = args.Country
             };
 
             // Keep the loading overlay up across the close-then-open transition inside
@@ -913,6 +910,10 @@ public partial class App
                     _mainWindowViewModel?.OpenCompany(args.CompanyName);
                     var logo = LoadBitmapFromPath(CompanyManager.CurrentCompanyLogoPath);
                     _appShellViewModel.SetCompanyInfo(args.CompanyName, logo);
+                    // The industry may have just changed, and anyone who has not set the
+                    // toggles themselves should follow the new industry's starting point.
+                    _appShellViewModel.ApplyFeatureVisibility(settings);
+                    _appShellViewModel.InvoiceModalsViewModel.RefreshCompanyDetailsPrompt();
                     _appShellViewModel.CompanySwitcherPanelViewModel.SetCurrentCompany(
                         args.CompanyName,
                         CompanyManager.PendingRenamePath ?? CompanyManager.CurrentFilePath,
@@ -1098,6 +1099,7 @@ public partial class App
                 SyncBiometricEnrolment(args.NewPassword, keepEnrolment: false);
                 ConfigureAutoLock();
 
+                _ = TelemetryManager?.TrackFeatureAsync(FeatureName.CompanyPasswordSet, "set");
                 _appShellViewModel.AddNotification("Success".Translate(), "Password has been set.".Translate(), NotificationType.Success);
             }
             catch (Exception ex)
@@ -1128,6 +1130,7 @@ public partial class App
                 SyncBiometricEnrolment(args.NewPassword, keepEnrolment: true);
 
                 settings.OnPasswordChanged();
+                _ = TelemetryManager?.TrackFeatureAsync(FeatureName.CompanyPasswordSet, "changed");
                 _appShellViewModel.AddNotification("Success".Translate(), "Password has been changed.".Translate(), NotificationType.Success);
             }
             catch (Exception ex)
@@ -1159,6 +1162,7 @@ public partial class App
                 ConfigureAutoLock();
 
                 settings.OnPasswordRemoved();
+                _ = TelemetryManager?.TrackFeatureAsync(FeatureName.CompanyPasswordSet, "removed");
                 _appShellViewModel.AddNotification("Success".Translate(), "Password has been removed.".Translate(), NotificationType.Success);
             }
             catch (Exception ex)
@@ -1802,23 +1806,34 @@ public partial class App
     }
 
     /// <summary>
-    /// When the user finishes the setup checklist, opens the "Where did you hear about
-    /// Argo Books?" survey. Deferred until any in-flight completion guidance card, which
-    /// the last completed step raises in the same call-stack, has been dismissed.
+    /// Set when the "Where did you hear about Argo Books?" survey is waiting on a completion
+    /// guidance card, which the step that triggered it raises in the same call-stack, to be
+    /// dismissed before the survey opens on top of it.
     /// </summary>
     private static bool _surveyPendingAfterGuidance;
 
     private static void WireSourceSurveyEvents()
     {
-        TutorialService.Instance.AllChecklistItemsCompleted += (_, _) =>
+        // Asked once the second step lands rather than on a finished checklist. The third
+        // step is now a real import, which not everyone will complete, and this survey is
+        // one of the few ways an unattributed install ever reports where it came from.
+        // Both triggers go through ShouldShowSourceSurvey(), which returns false once an
+        // answer is stored, so keeping the completion one as a fallback cannot double-ask.
+        TutorialService.Instance.ChecklistItemCompleted += (_, itemId) =>
+        {
+            if (itemId == TutorialService.ChecklistItems.RecordExpense)
+                ShowSourceSurveyWhenGuidanceClears();
+        };
+
+        TutorialService.Instance.AllChecklistItemsCompleted += (_, _) => ShowSourceSurveyWhenGuidanceClears();
+
+        void ShowSourceSurveyWhenGuidanceClears()
         {
             if (!TutorialService.Instance.ShouldShowSourceSurvey())
                 return;
 
-            // Whichever step finished the checklist raised its own guidance card in this
-            // same call-stack. Which card that is varies: ScanReceipt is not a prerequisite
-            // for VisitAnalytics, so either one can be the step that completes the list.
-            // Wait for it to be dismissed rather than stacking the survey on top of it.
+            // The step that triggered this raised its own guidance card in the same
+            // call-stack. Wait for it to be dismissed rather than stacking the survey on top.
             if (TutorialService.Instance.ShowCompletionGuidance)
             {
                 _surveyPendingAfterGuidance = true;
@@ -1827,7 +1842,7 @@ public partial class App
             {
                 TutorialService.Instance.RequestShowSourceSurvey();
             }
-        };
+        }
 
         TutorialService.Instance.CompletionGuidanceChanged += (_, show) =>
         {

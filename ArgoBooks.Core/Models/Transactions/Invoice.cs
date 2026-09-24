@@ -144,6 +144,11 @@ public partial class Invoice : ObservableObject
     [JsonPropertyName("showDueDateProminent")]
     public bool? ShowDueDateProminent { get; set; }
 
+    /// <summary>The logo this went out with, set when the company logo is replaced after it was
+    /// sent. Null means it follows whatever the template carries.</summary>
+    [JsonPropertyName("logoId")]
+    public string? LogoId { get; set; }
+
     /// <summary>
     /// Total amount due.
     /// </summary>
@@ -216,12 +221,6 @@ public partial class Invoice : ObservableObject
     /// </summary>
     [JsonPropertyName("accountantId")]
     public string? AccountantId { get; set; }
-
-    /// <summary>
-    /// Payment reminder settings.
-    /// </summary>
-    [JsonPropertyName("reminderSettings")]
-    public ReminderSettings ReminderSettings { get; set; } = new();
 
     /// <summary>
     /// Invoice history (actions taken).

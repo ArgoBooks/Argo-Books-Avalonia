@@ -190,15 +190,24 @@ window.__totalsConfig = __TOTALS_CONFIG__;
         window.__argoPost(JSON.stringify(obj));
     }
 
-    // Restrict a numeric field to digits and a single decimal point, blocking the keystroke or paste
-    // outright so junk never lands in a price box in the first place.
-    function attachNumericFilter(el) {
+    // A tax, shipping, discount or fee box holds a rate or an amount, never a long number, and the
+    // box is 160px wide: past this the text only scrolls out of sight behind its own border.
+    var TOTALS_MAX_CHARS = 10;
+
+    // Restrict a numeric field to digits and a single decimal point, and optionally to a length,
+    // blocking the keystroke or paste outright so junk never lands in a price box in the first place.
+    function attachNumericFilter(el, maxLen) {
         el.addEventListener('beforeinput', function(e) {
             if (!e.inputType || e.inputType.indexOf('insert') !== 0) return; // deletions/formatting: allow
             var text = e.data;
             if (text == null && e.dataTransfer) text = e.dataTransfer.getData('text'); // paste/drop
             if (text == null || text === '') return; // composition/unknown insert: leave to the backstop
             if (/[^0-9.]/.test(text)) { e.preventDefault(); return; } // anything but a digit or a point
+            if (maxLen) {
+                // What a selection would replace does not count against the limit.
+                var selLen = ((window.getSelection && window.getSelection().toString()) || '').length;
+                if ((el.textContent || '').length - selLen + text.length > maxLen) { e.preventDefault(); return; }
+            }
             if (text.indexOf('.') !== -1) {
                 // Allow a point only if the field would still have at most one (accounting for a replaced selection).
                 var selText = (window.getSelection && window.getSelection().toString()) || '';
@@ -423,7 +432,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
         // Vertically center via line-height (matches the 30px box) rather than display:flex - an empty
         // contenteditable flex box renders the caret at the top instead of centered.
         val.style.cssText = 'line-height:30px;text-align:right;padding:0 6px;min-width:44px;flex:1 1 auto;outline:none;white-space:nowrap;overflow:hidden';
-        attachNumericFilter(val);
+        attachNumericFilter(val, TOTALS_MAX_CHARS);
         box.appendChild(val);
 
         if (isPercent) {
@@ -534,6 +543,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
             setOut('taxRateLabel', taxMode === 'fixed' ? '' : ' (' + String(parseFloat(tax.toFixed(2))) + '%)');
             setOut('subtotal', money(subtotal));
             setOut('processingFee', money(procFee));
+            setOut('total', due(total));
             setOut('amountToPay', due(balance + procFee));
         };
 

@@ -189,24 +189,25 @@ The app verifies an Ed25519 signature on every update it downloads, and refuses 
 
 ### Each release
 
-1. After producing the **final** `.exe`, `.AppImage` and both `.zip` files, generate a signature for each file:
+1. Put the **final** `.exe`, `.AppImage` and both `.zip` files together in one folder, then run the signing script:
 
    ```powershell
-   netsparkle-generate-appcast --generate-signature "C:\path\to\Argo Books Installer V.2.0.8.exe"
-   netsparkle-generate-appcast --generate-signature "C:\path\to\ArgoBooks-2.0.8-linux-x64.AppImage"
-   netsparkle-generate-appcast --generate-signature "C:\path\to\ArgoBooks-2.0.8-osx-arm64.zip"
-   netsparkle-generate-appcast --generate-signature "C:\path\to\ArgoBooks-2.0.8-osx-x64.zip"
+   powershell -File "C:\Users\evand\Desktop\Argo-Books-Avalonia\packaging\sign-release.ps1" "C:\Users\evand\Desktop\Argo Books versions\2.0.16" "C:\laragon\www\argo-books-website\avalonia-update.xml"
    ```
 
-   Each command prints a base64 signature string.
+   The first path is the folder holding the four files, the second is the website repo's `avalonia-update.xml`. Both are arguments, so the folder can live anywhere. Setting an `ARGO_APPCAST` environment variable to the appcast's full path lets you leave the second argument off.
 
-   For the macOS zips these must be the stapled archives that `build-app.sh` produced last. Re-zipping a bundle afterwards changes its bytes and invalidates the signature.
+   The script signs each file, writes each signature onto the enclosure for that platform, replaces the version throughout the file, fills in the real file sizes and sets the publication date. It reads the version from the filenames, so there is nothing to type twice. It does not commit, push or upload.
 
-2. In the website repo, update `avalonia-update.xml`
-   - On each `<enclosure>`, update `sparkle:edSignature`. The signature is the long base64 string printed in step 1. The `.exe`'s signature goes on the `sparkle:os="windows"` enclosure, the `.AppImage`'s on the `sparkle:os="linux"` one, the `osx-arm64.zip`'s on `sparkle:os="macos-arm64"`, and the `osx-x64.zip`'s on `sparkle:os="macos-x64"`. Don't swap the two Mac signatures: each Mac would reject its own download.
-   - All the version numbers in the file. For example, do a replace all for `2.0.11` and update it to `2.0.12`, or whatever the version is.
+   It stops without touching the appcast if a file is missing, if the folder mixes versions because a file is left over from an earlier build, if a platform has no `<item>` in the appcast, or if it is pointed at `avalonia-update-dev.xml`, which is signed with the separate sandbox key. Afterwards it re-reads the file and checks that each enclosure holds the signature generated for it.
 
-3. Regenerate the translations for the new version's strings (see `tools/ArgoBooks.Translations/README.md`):
+   The summary it prints lists each file's size and build time. Read those: the script cannot tell a correct build from a stale one, only that all four claim the same version.
+
+   For the macOS zips the files must be the stapled archives that `build-app.sh` produced last. Re-zipping a bundle afterwards changes its bytes and invalidates the signature.
+
+   Then review the change with `git diff` before moving on.
+
+2. Regenerate the translations for the new version's strings (see `tools/ArgoBooks.Translations/README.md`):
 
    ```powershell
    $env:AZURE_TRANSLATOR_REGION = "canadacentral"
@@ -215,25 +216,25 @@ The app verifies an Ed25519 signature on every update it downloads, and refuses 
    dotnet run -- --translate
    ```
 
-   The JSON files land in `tools/ArgoBooks.Translations/languages/`, ready to upload in step 7.
+   The JSON files land in `tools/ArgoBooks.Translations/languages/`, ready to upload in step 6.
 
-4. In the website repo, add an entry for the new version to the What's New page (`whats-new/index.php`).
+3. In the website repo, add an entry for the new version to the What's New page (`whats-new/index.php`).
 
-5. Before going live, run the freshly built Argo Books on all operating systems and test a couple of major features such as the receipt scanner to ensure things work.
+4. Before going live, run the freshly built Argo Books on all operating systems and test a couple of major features such as the receipt scanner to ensure things work.
 
-6. Commit and push to `main` in Git so the `avalonia-update.xml` and What's New changes deploy.
+5. Commit and push to `main` in Git so the `avalonia-update.xml` and What's New changes deploy.
 
-7. Upload the release files via FileZilla into a new `resources/downloads/<version>/` folder on the server, matching the layout of the previous version:
+6. Upload the release files via FileZilla into a new `resources/downloads/<version>/` folder on the server, matching the layout of the previous version:
 
    - `Argo Books Installer V.<version>.exe`
    - `ArgoBooks-<version>-linux-x64.AppImage`
    - `ArgoBooks-<version>-osx-arm64.zip`
    - `ArgoBooks-<version>-osx-x64.zip`
-   - a `languages/` subfolder holding the JSON files from step 3
+   - a `languages/` subfolder holding the JSON files from step 2
 
    The filenames matter: `get_avalonia_installer.php` builds the download links from those exact patterns, and the app fetches translations from `/resources/downloads/{version}/languages/{iso}.json` (`LanguageService.DownloadUrlTemplate`).
 
-8. Check the website repo's **Verify release signatures** workflow on GitHub. The push in step 6 starts it, and it keeps rechecking for 45 minutes while the upload finishes. It downloads each file in `avalonia-update.xml` and fails if a file is missing or its signature doesn't match, which is what would make the app refuse the update.
+7. Check the website repo's **Verify release signatures** workflow on GitHub. The push in step 5 starts it, and it keeps rechecking for 45 minutes while the upload finishes. It downloads each file in `avalonia-update.xml` and fails if a file is missing or its signature doesn't match, which is what would make the app refuse the update.
 
 The release is now live. The website download buttons serve the new version, and existing installs will show the "A new version is available" banner the next time they check for updates. Test the auto-update by opening the previous version of the app and letting it update, then confirm that the old version was uninstalled and the new one is installed. Once that works, the release is done.
 
@@ -253,10 +254,12 @@ Run it again whenever a region is added to or removed from `Regions.cs`. Where a
 
 ## Notes
 
-The signature covers the file's exact bytes. If an installer file is rebuilt for any reason, re-sign it and update `avalonia-update.xml`.
+The signature covers the file's exact bytes. If an installer file is rebuilt for any reason, put it back in the release folder and run `sign-release.ps1` again. Rerunning is safe: the version replace becomes a no-op and every signature and file size is rewritten from the files that are there now.
 
-If you want to double-check an installer file before publishing, run `--verify` with that same file's signature string (the text printed by step 1):
+To check one file by hand, run `--verify` with the signature string from its enclosure in `avalonia-update.xml`:
 
 ```powershell
 netsparkle-generate-appcast --verify "C:\path\to\ArgoBooks-2.0.8-linux-x64.AppImage" --signature "t4lRf5lP...8O9zCQ=="
 ```
+
+Note it prints `Signature valid` or `Signature invalid` and exits 0 either way, so read the text rather than the exit code.

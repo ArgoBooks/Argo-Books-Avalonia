@@ -177,23 +177,17 @@
                                 </StackPanel>
                             </Grid>
 
-                            <!-- Two column layout for other fields -->
-                            <Grid ColumnDefinitions="*,16,*" RowDefinitions="Auto,16,Auto,16,Auto,16,Auto">
-                                <!-- Business Type -->
-                                <StackPanel Grid.Row="0" Grid.Column="0" Spacing="6">
-                                    <TextBlock Text="{loc:Loc 'Business Type'}"
-                                               FontSize="13"
-                                               FontWeight="Medium"
-                                               Foreground="{DynamicResource TextSecondaryBrush}" />
-                                    <ComboBox ItemsSource="{Binding BusinessTypes}"
-                                              SelectedItem="{Binding BusinessType}"
-                                              Classes="form-combobox"
-                                              PlaceholderText="{loc:Loc 'Select business type'}"
-                                              HorizontalAlignment="Stretch" />
+                            <!-- Country and Industry (side by side) -->
+                            <Grid ColumnDefinitions="*,16,*">
+                                <StackPanel Grid.Column="0" Spacing="6">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" Text="{loc:Loc Country}" />
+                                        <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource ErrorBrush}" Text=" *" />
+                                    </StackPanel>
+                                    <controls:CountryInput SelectedCountryName="{Binding Country, Mode=TwoWay}" />
                                 </StackPanel>
 
-                                <!-- Industry -->
-                                <StackPanel Grid.Row="0" Grid.Column="2" Spacing="6">
+                                <StackPanel Grid.Column="2" Spacing="6">
                                     <TextBlock Text="{loc:Loc Industry}"
                                                FontSize="13"
                                                FontWeight="Medium"
@@ -204,74 +198,12 @@
                                               PlaceholderText="{loc:Loc 'Select industry'}"
                                               HorizontalAlignment="Stretch" />
                                 </StackPanel>
-
-                                <!-- Phone Number -->
-                                <StackPanel Grid.Row="2" Grid.Column="0" Spacing="6">
-                                    <TextBlock Text="{loc:Loc 'Phone Number'}"
-                                               FontSize="13"
-                                               FontWeight="Medium"
-                                               Foreground="{DynamicResource TextSecondaryBrush}" />
-                                    <controls:PhoneInput SelectedCountry="{Binding SelectedPhoneCountry, Mode=TwoWay}"
-                                                         PhoneNumber="{Binding PhoneNumber, Mode=TwoWay}" />
-                                    <TextBlock TextWrapping="Wrap" Text="{Binding PhoneNumberError}" FontSize="12" Foreground="{DynamicResource ErrorBrush}"
-                                               IsVisible="{Binding PhoneNumberError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                                </StackPanel>
-
-                                <!-- Email -->
-                                <StackPanel Grid.Row="2" Grid.Column="2" Spacing="6">
-                                    <TextBlock Text="{loc:Loc Email}"
-                                               FontSize="13"
-                                               FontWeight="Medium"
-                                               Foreground="{DynamicResource TextSecondaryBrush}" />
-                                    <TextBox Classes="form-input"
-                                             Text="{Binding Email, Mode=TwoWay}"
-                                             PlaceholderText="{loc:Loc 'Enter email address'}"
-                                             MaxLength="200" />
-                                </StackPanel>
-
-                                <!-- Country -->
-                                <StackPanel Grid.Row="4" Grid.Column="0" Spacing="6">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" Text="{loc:Loc Country}" />
-                                        <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource ErrorBrush}" Text=" *" />
-                                    </StackPanel>
-                                    <controls:CountryInput SelectedCountryName="{Binding Country, Mode=TwoWay}" />
-                                </StackPanel>
-
-                                <!-- Province / State -->
-                                <StackPanel Grid.Row="4" Grid.Column="2" Spacing="6">
-                                    <TextBlock Text="{Binding Country, Converter={x:Static controls:RegionInput.LabelConverter}}"
-                                               FontSize="13"
-                                               FontWeight="Medium"
-                                               Foreground="{DynamicResource TextSecondaryBrush}" />
-                                    <controls:RegionInput Country="{Binding Country}" Value="{Binding ProvinceState, Mode=TwoWay}" />
-                                </StackPanel>
-
-                                <!-- City -->
-                                <StackPanel Grid.Row="6" Grid.Column="0" Spacing="6">
-                                    <TextBlock Text="{loc:Loc City}"
-                                               FontSize="13"
-                                               FontWeight="Medium"
-                                               Foreground="{DynamicResource TextSecondaryBrush}" />
-                                    <TextBox Classes="form-input"
-                                             Text="{Binding City, Mode=TwoWay}"
-                                             PlaceholderText="{loc:Loc 'Enter city'}"
-                                             MaxLength="100" />
-                                </StackPanel>
-
-                                <!-- Address -->
-                                <StackPanel Grid.Row="6" Grid.Column="2" Spacing="6">
-                                    <TextBlock Text="{loc:Loc Address}"
-                                               FontSize="13"
-                                               FontWeight="Medium"
-                                               Foreground="{DynamicResource TextSecondaryBrush}" />
-                                    <TextBox Classes="form-input"
-                                             Text="{Binding Address, Mode=TwoWay}"
-                                             PlaceholderText="{loc:Loc 'Enter address'}"
-                                             MaxLength="200" />
-                                </StackPanel>
-
                             </Grid>
+
+                            <TextBlock Text="{loc:Loc 'Your address, phone and email are asked when you send your first invoice, and can be set any time under Edit Company.'}"
+                                       FontSize="12"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextTertiaryBrush}" />
                         </StackPanel>
 
                         <!-- Step 2: Security & Logo -->

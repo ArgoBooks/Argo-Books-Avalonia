@@ -1,4 +1,4 @@
-namespace ArgoBooks.Core.Models.Common;
+﻿namespace ArgoBooks.Core.Models.Common;
 
 /// <summary>
 /// Represents information about a currency including its code, symbol, and display name.
@@ -66,35 +66,66 @@ public class CurrencyInfo
     /// </summary>
     public static readonly IReadOnlyDictionary<string, CurrencyInfo> All = new Dictionary<string, CurrencyInfo>(StringComparer.OrdinalIgnoreCase)
     {
+        ["AED"] = new("AED", "AED", "UAE Dirham"),
         ["ALL"] = new("ALL", "L", "Albanian Lek"),
+        ["ARS"] = new("ARS", "AR$", "Argentine Peso"),
         ["AUD"] = new("AUD", "$", "Australian Dollar"),
         ["BAM"] = new("BAM", "KM", "Bosnia-Herzegovina Mark"),
+        // "Tk" rather than ৳: macOS Helvetica, which the PDFs render with there, ships no
+        // Bengali glyph, so the symbol prints as an empty box. See CurrencyListTests.
+        ["BDT"] = new("BDT", "Tk", "Bangladeshi Taka"),
         ["BGN"] = new("BGN", "лв", "Bulgarian Lev"),
         ["BRL"] = new("BRL", "R$", "Brazilian Real"),
         ["BYN"] = new("BYN", "Br", "Belarusian Ruble"),
         ["CAD"] = new("CAD", "$", "Canadian Dollar"),
         ["CHF"] = new("CHF", "CHF", "Swiss Franc"),
+        ["CLP"] = new("CLP", "CL$", "Chilean Peso", 0),
         ["CNY"] = new("CNY", "¥", "Chinese Yuan"),
+        ["COP"] = new("COP", "CO$", "Colombian Peso"),
         ["CZK"] = new("CZK", "Kč", "Czech Koruna"),
         ["DKK"] = new("DKK", "kr", "Danish Krone"),
+        ["EGP"] = new("EGP", "E£", "Egyptian Pound"),
         ["EUR"] = new("EUR", "€", "Euro"),
         ["GBP"] = new("GBP", "£", "British Pound"),
+        ["GHS"] = new("GHS", "₵", "Ghanaian Cedi"),
+        ["HKD"] = new("HKD", "HK$", "Hong Kong Dollar"),
         ["HUF"] = new("HUF", "Ft", "Hungarian Forint", 0),
+        ["IDR"] = new("IDR", "Rp", "Indonesian Rupiah"),
+        // "ILS" rather than ₪: same as THB, no glyph for it in the Mac PDF font.
+        ["ILS"] = new("ILS", "ILS", "Israeli Shekel"),
         ["INR"] = new("INR", "₹", "Indian Rupee"),
         ["ISK"] = new("ISK", "kr", "Icelandic Króna", 0),
         ["JPY"] = new("JPY", "¥", "Japanese Yen", 0),
+        ["KES"] = new("KES", "KSh", "Kenyan Shilling"),
         ["KRW"] = new("KRW", "₩", "South Korean Won", 0),
+        ["LKR"] = new("LKR", "Rs", "Sri Lankan Rupee"),
+        ["MAD"] = new("MAD", "MAD", "Moroccan Dirham"),
         ["MKD"] = new("MKD", "ден", "Macedonian Denar"),
+        ["MXN"] = new("MXN", "MX$", "Mexican Peso"),
+        ["MYR"] = new("MYR", "RM", "Malaysian Ringgit"),
+        ["NGN"] = new("NGN", "₦", "Nigerian Naira"),
         ["NOK"] = new("NOK", "kr", "Norwegian Krone"),
-        ["PLN"] = new("PLN", "zł", "Polish Zloty"),
+        ["NZD"] = new("NZD", "NZ$", "New Zealand Dollar"),
+        ["PEN"] = new("PEN", "S/", "Peruvian Sol"),
+        ["PHP"] = new("PHP", "₱", "Philippine Peso"),
+        ["PKR"] = new("PKR", "₨", "Pakistani Rupee"),
+        ["PLN"] = new("PLN", "zł", "Polish Złoty"),
+        ["QAR"] = new("QAR", "QAR", "Qatari Riyal"),
         ["RON"] = new("RON", "lei", "Romanian Leu"),
         ["RSD"] = new("RSD", "дин", "Serbian Dinar"),
-        ["RUB"] = new("RUB", "₽", "Russian Ruble"),
+        // "руб" rather than ₽: same as BGN and RSD, Cyrillic the Mac PDF font does ship.
+        ["RUB"] = new("RUB", "руб", "Russian Ruble"),
+        ["SAR"] = new("SAR", "SAR", "Saudi Riyal"),
         ["SEK"] = new("SEK", "kr", "Swedish Krona"),
+        ["SGD"] = new("SGD", "S$", "Singapore Dollar"),
+        // "THB" rather than ฿: same as BDT, no Thai glyph in the Mac PDF font.
+        ["THB"] = new("THB", "THB", "Thai Baht"),
         ["TRY"] = new("TRY", "₺", "Turkish Lira"),
         ["TWD"] = new("TWD", "NT$", "Taiwan Dollar"),
         ["UAH"] = new("UAH", "₴", "Ukrainian Hryvnia"),
-        ["USD"] = new("USD", "$", "US Dollar")
+        ["USD"] = new("USD", "$", "US Dollar"),
+        ["VND"] = new("VND", "₫", "Vietnamese Dong", 0),
+        ["ZAR"] = new("ZAR", "R", "South African Rand")
     };
 
     /// <summary>
