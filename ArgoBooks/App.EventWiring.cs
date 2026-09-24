@@ -570,7 +570,9 @@ public partial class App
         createCompany.CompanyCreated += async (_, args) =>
         {
             var file = await ShowSaveFileDialogAsync(desktop, args.CompanyName);
+            // A cancel here leaves the wizard open with everything still typed into it.
             if (file == null) return;
+            createCompany.CompleteCreation();
 
             var filePath = file.Path.LocalPath;
 
@@ -616,6 +618,8 @@ public partial class App
                     await CompanyManager.SaveCompanyAsync();
 
                     await LoadRecentCompaniesAsync();
+                    // Here, not on the wizard's button: a cancelled save dialog creates nothing.
+                    _ = TelemetryManager?.TrackFeatureAsync(FeatureName.CompanyCreated);
                     return;
                 }
                 catch (Exception ex) when (FileAccessHelper.IsLikelySecurityBlock(ex))

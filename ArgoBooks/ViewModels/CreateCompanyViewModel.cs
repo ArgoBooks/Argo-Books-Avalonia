@@ -315,7 +315,14 @@ public partial class CreateCompanyViewModel : ViewModelBase
         };
 
         CompanyCreated?.Invoke(this, args);
-        _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.CompanyCreated);
+    }
+
+    /// <summary>
+    /// Closes and clears the wizard once a file has been chosen. Called by the handler rather than
+    /// by <see cref="CreateCompany"/>, whose save dialog can still be cancelled.
+    /// </summary>
+    public void CompleteCreation()
+    {
         IsOpen = false;
         Reset();
     }
