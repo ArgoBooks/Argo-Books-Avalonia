@@ -500,6 +500,7 @@ public class CompanyManager : IDisposable
         string companyName,
         string? password = null,
         CompanyInfo? companyInfo = null,
+        string? defaultCurrency = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(filePath);
@@ -542,6 +543,10 @@ public class CompanyManager : IDisposable
 
             if (string.IsNullOrEmpty(CompanyData.Settings.Company.Name))
                 CompanyData.Settings.Company.Name = companyName;
+
+            // Before CompanyOpened is raised below, so its subscribers see the chosen currency.
+            if (!string.IsNullOrEmpty(defaultCurrency))
+                CompanyData.Settings.Localization.Currency = defaultCurrency;
 
             // Save all data to temp directory first (before creating receipts subdirectory,
             // otherwise GetCompanyDirectory will incorrectly find receipts/ as the company dir)

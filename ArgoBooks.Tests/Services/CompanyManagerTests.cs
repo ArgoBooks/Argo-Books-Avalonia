@@ -208,6 +208,26 @@ public class CompanyManagerTests : IDisposable
     }
 
     [Fact]
+    public async Task CreateCompanyAsync_ChosenCurrency_IsSetBeforeCompanyOpenedFires()
+    {
+        var filePath = Path.Combine(Path.GetTempPath(), $"argo-cm-{Guid.NewGuid():N}.argo");
+        string? currencyAtOpen = null;
+        _manager.CompanyOpened += (_, _) => currencyAtOpen = _manager.CompanyData?.Settings.Localization.Currency;
+        try
+        {
+            await _manager.CreateCompanyAsync(filePath, "Acme", defaultCurrency: "EUR");
+
+            Assert.Equal("EUR", currencyAtOpen);
+            Assert.Equal("EUR", _manager.CompanyData!.Settings.Localization.Currency);
+        }
+        finally
+        {
+            await _manager.CloseCompanyAsync();
+            if (File.Exists(filePath)) File.Delete(filePath);
+        }
+    }
+
+    [Fact]
     public async Task Save_ImmediatelyAfterOpen_DoesNotDropDeferredReceipts()
     {
         // The critical data-safety case: a save that runs before receipts finish loading

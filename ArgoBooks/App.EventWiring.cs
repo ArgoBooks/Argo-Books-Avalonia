@@ -597,13 +597,8 @@ public partial class App
                         filePath,
                         args.CompanyName,
                         args.Password,
-                        companyInfo);
-
-                    // Apply default currency if specified
-                    if (!string.IsNullOrEmpty(args.DefaultCurrency))
-                    {
-                        CompanyManager.CompanyData!.Settings.Localization.Currency = args.DefaultCurrency;
-                    }
+                        companyInfo,
+                        args.DefaultCurrency);
 
                     // Apply logo if one was selected
                     if (!string.IsNullOrEmpty(args.LogoPath))
