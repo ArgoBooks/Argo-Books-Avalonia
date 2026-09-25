@@ -46,9 +46,11 @@ public class InsightsService(
     /// </summary>
     private void ResolveDisplayCode(CompanyData companyData) =>
         // The same dates reports check, and that opening a company and changing its currency preload.
+        // Insights converts nothing dated after today, and a future date never has a rate, so one
+        // future-dated invoice or purchase order would otherwise switch the whole run to USD.
         _displayCode = DisplayCurrency.Resolve(
             companyData.Settings.Localization.Currency,
-            DisplayCurrency.ReportDates(companyData, null));
+            DisplayCurrency.ReportDates(companyData, null).Where(d => d.Date <= DateTime.Today));
 
     private decimal ToDisplay(decimal amountUSD, DateTime date) => DisplayCurrency.FromUSD(amountUSD, _displayCode, date);
 

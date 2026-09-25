@@ -238,6 +238,30 @@ public class InsightsServiceTests
     }
 
     [Fact]
+    public async Task DisplayCurrency_FutureDatedInvoice_DoesNotSwitchTheRunToUsd()
+    {
+        // A future date never has a rate, and Insights converts nothing dated after today.
+        var service = await SeededServiceAsync(Date1, DateTime.Today);
+        var prior = SetInstance(service);
+        try
+        {
+            var data = new CompanyData();
+            data.Settings.Localization.Currency = "EUR";
+            data.Revenues.Add(UsdRevenue("R1", Date1, 100m));
+            data.Invoices.Add(new Invoice { Id = "INV-1", IssueDate = DateTime.Today.AddDays(7) });
+
+            var insights = new InsightsService();
+            ResolveDisplayCode(insights, data);
+
+            Assert.Equal(90m, ToDisplay(insights, 100m, Date1));
+        }
+        finally
+        {
+            SetInstance(prior);
+        }
+    }
+
+    [Fact]
     public async Task DisplayCurrency_MissingRate_FallsBackToUsd()
     {
         // Same EUR company, but one transaction date (Date2) has no cached exact-date rate (only Date1

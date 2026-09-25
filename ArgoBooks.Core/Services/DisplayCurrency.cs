@@ -64,8 +64,8 @@ public static class DisplayCurrency
     }
 
     /// <summary>
-    /// Every date a report converts at: its revenue, expenses, payments, purchase orders and invoices,
-    /// plus the end date that point-in-time figures such as inventory are valued at.
+    /// Every date a report converts at: its revenue, expenses, payments, purchase orders, invoices,
+    /// returns and losses, plus the end date that point-in-time figures such as inventory are valued at.
     /// </summary>
     public static IEnumerable<DateTime> ReportDates(CompanyData data, DateTime? endDate)
     {
@@ -74,6 +74,8 @@ public static class DisplayCurrency
         foreach (var p in data.Payments) yield return p.Date;
         foreach (var po in data.PurchaseOrders) yield return po.OrderDate;
         foreach (var i in data.Invoices) yield return i.IssueDate;
+        foreach (var r in data.Returns) yield return r.ReturnDate;
+        foreach (var l in data.LostDamaged) yield return l.DateDiscovered;
         yield return endDate ?? DateTime.Today;
     }
 }
