@@ -876,8 +876,14 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
         var notes = string.IsNullOrWhiteSpace(ReturnNotes) ? rental.Notes
             : string.IsNullOrWhiteSpace(rental.Notes) ? ReturnNotes.Trim()
             : $"{rental.Notes}\n\nReturn notes: {ReturnNotes.Trim()}";
+        // A rental already paid stays paid, and keeps the revenue it was paid into. The tick
+        // adds a payment the return is collecting now; it does not restate what came before,
+        // and writing it straight over the flag left a paid rental reading unpaid with its
+        // revenue row orphaned.
+        var paidBefore = rental.Paid;
         var after = new ReturnFields(RentalStatus.Returned, ReturnDate?.DateTime, ReturnTotalCost + extraCharges, refund,
-            ReturnMarkAsPaid, extraCharges, extraCharges > 0 ? ReturnExtraChargesNote.Trim() : string.Empty, notes, null);
+            paidBefore || ReturnMarkAsPaid, extraCharges,
+            extraCharges > 0 ? ReturnExtraChargesNote.Trim() : string.Empty, notes, rental.RevenueId);
         ApplyReturn(rental, after);
 
         var revenueDate = rental.ReturnDate ?? DateTime.Now;
@@ -886,7 +892,8 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
         if (keptDeposit != null)
             AddRentalRevenue(companyData, keptDeposit);
 
-        var paidRevenue = rental.Paid && !rental.HasInvoices
+        // Only when the return is what collected the money. One already paid has its revenue.
+        var paidRevenue = !paidBefore && rental.Paid && !rental.HasInvoices
             ? RentalBookings.PaidRevenue(companyData, rental, revenueDate, CurrencyService.CurrentCurrencyCode)
             : null;
         if (paidRevenue != null)

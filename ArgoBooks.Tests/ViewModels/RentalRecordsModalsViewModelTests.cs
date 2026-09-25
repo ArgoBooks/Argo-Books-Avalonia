@@ -9,9 +9,8 @@ using Xunit;
 namespace ArgoBooks.Tests.ViewModels;
 
 /// <summary>
-/// Drives the real RentalRecordsModalsViewModel return/undo/redo flow. Guards the fix where the redo
-/// lambda re-read the live return-modal fields (which reset when the modal reopens) instead of the
-/// values the user actually confirmed, so redo could flip "paid" back off and change the total.
+/// Drives the real RentalRecordsModalsViewModel return flow: what the return charges, what it
+/// records as revenue, and what it must leave alone.
 /// </summary>
 public class RentalRecordsModalsViewModelTests : ModalViewModelTestBase
 {
@@ -85,6 +84,25 @@ public class RentalRecordsModalsViewModelTests : ModalViewModelTestBase
         vm.OpenReturnModal(Row());
         vm.ReturnDepositRefund = refund;
         vm.ConfirmReturn();
+    }
+
+    /// <summary>
+    /// Returning a rental that was already paid must not unpay it. The return modal opens with
+    /// its Mark as Paid tick clear, and that was written straight over the rental's own flag.
+    /// </summary>
+    [Fact]
+    public void ReturnRental_AlreadyPaid_StaysPaid()
+    {
+        var record = SeedActiveRental();
+        record.Paid = true;
+        record.RevenueId = "REV-1";
+        Company.Revenues.Add(new Revenue { Id = "REV-1", ReferenceNumber = "RNT-1", Total = 50m });
+
+        Return(new RentalRecordsModalsViewModel(), refund: "20");
+
+        Assert.True(record.Paid);
+        Assert.Equal("REV-1", record.RevenueId);
+        Assert.Equal("REV-1", Assert.Single(Company.Revenues).Id);
     }
 
     // A deposit the business keeps is earned, so it becomes revenue on the day the rental comes back.
