@@ -265,6 +265,14 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
     [ObservableProperty]
     private bool _returnMarkAsPaid;
 
+    /// <summary>
+    /// Hides the Mark as Paid tick for a rental that has been invoiced. The invoice is what
+    /// collects for it, so ConfirmReturn records no revenue for one, and ticking the box
+    /// would only claim the rental was paid while the invoice still stands unpaid.
+    /// </summary>
+    [ObservableProperty]
+    private bool _returnIsInvoiced;
+
     private RentalRecord? _returningRecord;
 
     public string ReturnRateFormatted => _returnLineCount > 1
@@ -806,6 +814,7 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
         ReturnExtraCharges = string.Empty;
         ReturnExtraChargesNote = string.Empty;
         ReturnMarkAsPaid = false;
+        ReturnIsInvoiced = rentalRecord.HasInvoices;
         ReturnNotes = string.Empty;
 
         ReturnTotalCost = RentalBookings.RentalCost(rentalRecord.EffectiveLineItems(), rentalRecord.StartDate,
