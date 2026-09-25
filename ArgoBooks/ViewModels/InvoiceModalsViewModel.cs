@@ -2713,13 +2713,8 @@ public partial class InvoiceModalsViewModel : ViewModelBase
         var totalQuantity = invoice.LineItems.Sum(li => li.Quantity);
         if (totalQuantity == 0) totalQuantity = 1;
 
-        // Calculate the effective fee and discount as flat amounts
-        var feeAmount = invoice.CustomFeeIsPercent
-            ? invoice.Subtotal * (invoice.CustomFeeAmount / 100m)
-            : invoice.CustomFeeAmount;
-        var discountAmount = invoice.DiscountIsPercent
-            ? invoice.Subtotal * (invoice.DiscountAmount / 100m)
-            : invoice.DiscountAmount;
+        var feeAmount = InvoiceMath.CustomFee(invoice.Subtotal, invoice.CustomFeeAmount, invoice.CustomFeeIsPercent);
+        var discountAmount = InvoiceMath.Discount(invoice.Subtotal, invoice.DiscountAmount, invoice.DiscountIsPercent);
 
         // The deposit is held for the customer, not earned, so it stays out of the revenue
         // (docs/Calculations.md §4). A deposit kept when the rental comes back is added then.

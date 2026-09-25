@@ -349,11 +349,13 @@ public partial class RefundModalViewModel : ObservableObject
         if (_invoice.CustomFeeAmount > 0)
         {
             var label = string.IsNullOrEmpty(_invoice.CustomFeeLabel) ? "Custom fee" : _invoice.CustomFeeLabel;
+            if (_invoice.CustomFeeIsPercent)
+                label = $"{label} ({_invoice.CustomFeeAmount}%)";
             var row = new RefundableLineRow
             {
                 Label = label,
                 Detail = "",
-                Amount = _invoice.CustomFeeAmount,
+                Amount = InvoiceMath.CustomFee(_invoice.Subtotal, _invoice.CustomFeeAmount, _invoice.CustomFeeIsPercent),
                 IsSelected = true,
                 Kind = "fee",
             };
@@ -379,13 +381,10 @@ public partial class RefundModalViewModel : ObservableObject
         // reflects what the customer actually paid (gross minus discount).
         // Without this, refunding all line items + tax + fee inflates the
         // total by the discount amount and trips the "exceeds refundable"
-        // guard. Mirrors InvoiceHtmlRenderer.CalculateDiscount for the
-        // percent-vs-fixed resolution.
+        // guard.
         if (_invoice.DiscountAmount > 0)
         {
-            var discountValue = _invoice.DiscountIsPercent
-                ? _invoice.Subtotal * (_invoice.DiscountAmount / 100m)
-                : _invoice.DiscountAmount;
+            var discountValue = InvoiceMath.Discount(_invoice.Subtotal, _invoice.DiscountAmount, _invoice.DiscountIsPercent);
             var label = _invoice.DiscountIsPercent
                 ? $"Discount ({_invoice.DiscountAmount}%)"
                 : "Discount";
