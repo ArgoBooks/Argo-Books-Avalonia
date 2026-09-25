@@ -4894,6 +4894,11 @@ public partial class App : Application
         navigationService.RegisterPage("RentalRecords", param =>
         {
             _rentalRecordsPageViewModel ??= new RentalRecordsPageViewModel();
+
+            // An invoice paid elsewhere raises no rental-side event, so the Paid column
+            // would otherwise keep the answer it had when the page was built.
+            _rentalRecordsPageViewModel.RefreshRecordsCommand.Execute(null);
+
             _rentalRecordsPageViewModel.HighlightTransactionId = null;
             if (param is TransactionNavigationParameter navParam)
             {
