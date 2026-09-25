@@ -121,9 +121,10 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
         else
         {
             var parser = new BankStatementImportService(App.ErrorLogger);
+            var isCsv = ext == ".csv";
             try
             {
-                lines = ext == ".csv"
+                lines = isCsv
                     ? await parser.ParseCsvAsync(filePath)
                     : await parser.ParseExcelAsync(filePath);
             }
@@ -134,6 +135,17 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
                     "Import Bank Statement".Translate(),
                     ImportRescueMessages.UnreadableFile);
                 return;
+            }
+
+            // Local header detection only knows English column names, so a statement in any other
+            // language reaches here with nothing wrong with it. Same backup the Bank Matching page
+            // import uses: null means the user is out of bank imports and has been told so.
+            if (lines.Count == 0)
+            {
+                var aiLines = await App.TryAiParseBankStatementAsync(filePath, isCsv, parser);
+                App.MainWindowViewModel?.HideLoading();
+                if (aiLines == null) return;
+                lines = aiLines;
             }
 
             // Don't fail silently when the file isn't a recognizable bank statement (e.g. the user

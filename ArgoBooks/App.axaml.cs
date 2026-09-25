@@ -3562,7 +3562,7 @@ public partial class App : Application
     /// null when the user is out of bank imports (the limit prompt has been shown), or an empty list
     /// if AI isn't available or finds nothing.
     /// </summary>
-    private static async Task<List<Core.Models.BankMatching.BankStatementLine>?> TryAiParseBankStatementAsync(
+    internal static async Task<List<Core.Models.BankMatching.BankStatementLine>?> TryAiParseBankStatementAsync(
         string filePath, bool isCsv, BankStatementImportService parser)
     {
         var gemini = new GeminiService(ErrorLogger, TelemetryManager);
