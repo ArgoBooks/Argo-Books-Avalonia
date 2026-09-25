@@ -259,17 +259,25 @@ public static class CurrencyService
     /// when any of them is still waiting for its exact-date rate. Pass the aggregate as a function of the
     /// converter, e.g. <c>convert =&gt; ProfitCalculator.CalculateNetProfitDisplay(data, start, end, convert)</c>.
     /// </summary>
-    public static string FormatTotalOrPending(Func<Func<decimal, DateTime, decimal>, decimal> total)
+    public static string FormatTotalOrPending(Func<Func<decimal, DateTime, decimal>, decimal> total) =>
+        TryComputeDisplay(total, out var amount) ? Format(amount) : PendingMarker;
+
+    /// <summary>
+    /// Runs <paramref name="compute"/> with a converter that converts each amount at its own date, and
+    /// returns false when any of them is still waiting for its exact-date rate, so the caller shows
+    /// <see cref="PendingMarker"/> instead of a figure with USD mixed in.
+    /// </summary>
+    public static bool TryComputeDisplay<T>(Func<Func<decimal, DateTime, decimal>, T> compute, out T result)
     {
         var complete = true;
-        var amount = total((amountUSD, date) =>
+        result = compute((amountUSD, date) =>
         {
             if (TryDisplayFromUSD(amountUSD, date, out var converted))
                 return converted;
             complete = false;
             return amountUSD;
         });
-        return complete ? Format(amount) : PendingMarker;
+        return complete;
     }
 
     /// <summary>

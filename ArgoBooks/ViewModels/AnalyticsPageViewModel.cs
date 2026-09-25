@@ -143,18 +143,21 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         // Convert each sale at its OWN date during aggregation (Calculations.md §3a Phase 2), so
         // the per-product and total figures aren't re-priced at a single date. The resulting
         // amounts are already in the display currency.
-        var rows = ProductSalesService.GetProductSales(data, StartDate, EndDate, cashBasis: true, CurrencyService.GetDisplayAmount)
-            .Select(d => new ProductSalesRow(d))
-            .OrderByDescending(r => r.RevenueUSD)
-            .ToList();
+        var complete = CurrencyService.TryComputeDisplay(
+            convert => ProductSalesService.GetProductSales(data, StartDate, EndDate, cashBasis: true, convert)
+                .Select(d => new ProductSalesRow(d))
+                .OrderByDescending(r => r.RevenueUSD)
+                .ToList(),
+            out var rows);
 
         var totalRevenue = rows.Sum(r => r.RevenueUSD);
         var totalUnits = rows.Sum(r => r.UnitsSold);
         var avgPrice = totalUnits > 0 ? totalRevenue / totalUnits : 0;
 
-        TotalProductRevenue = CurrencyService.Format(totalRevenue);
+        // Pending while any sale is still waiting for its rate, rather than a total with USD mixed in.
+        TotalProductRevenue = complete ? CurrencyService.Format(totalRevenue) : CurrencyService.PendingMarker;
         TotalProductUnits = totalUnits.ToString("0.##");
-        AvgProductSalePrice = CurrencyService.Format(avgPrice);
+        AvgProductSalePrice = complete ? CurrencyService.Format(avgPrice) : CurrencyService.PendingMarker;
         ProductsSoldCount = rows.Count.ToString();
 
         Products.ReplaceAll(rows);
@@ -2678,39 +2681,49 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
 
         var since = DateTime.Today.AddDays(-90);
 
-        // RefundAnalyticsService converts each refund at its OWN date (Calculations.md §3a)
-        // when passed CurrencyService.GetDisplayAmount, returning display-currency amounts
-        // that we format directly with CurrencyService.Format (no second conversion).
-        var toDisplay = (Func<decimal, DateTime, decimal>)CurrencyService.GetDisplayAmount;
-        var total = RefundAnalyticsService.TotalRefundedDisplay(company, since, toDisplay);
+        // RefundAnalyticsService converts each refund at its OWN date (Calculations.md Rule 3a) with
+        // the converter it is given. A figure whose refunds aren't all priced shows Pending rather
+        // than a number with USD mixed in.
+        string Money(bool complete, decimal amount) => complete ? CurrencyService.Format(amount) : CurrencyService.PendingMarker;
+
+        var totalComplete = CurrencyService.TryComputeDisplay(
+            convert => RefundAnalyticsService.TotalRefundedDisplay(company, since, convert), out var total);
         var rateDecimal = RefundAnalyticsService.RefundRate(company, since);
         var avgLatency = RefundAnalyticsService.AverageRefundLatencyDays(company, since);
 
-        RefundsTotal = CurrencyService.Format(total);
+        RefundsTotal = Money(totalComplete, total);
         RefundsRate = (rateDecimal * 100).ToString("F1") + "%";
         RefundsAvgLatency = avgLatency > 0 ? $"{avgLatency:F1} days" : "—";
         HasAnyRefunds = total > 0;
 
+        var customersComplete = CurrencyService.TryComputeDisplay(
+            convert => RefundAnalyticsService.TopRefundedCustomers(company, since, 10, convert).ToList(), out var customers);
         RefundsTopCustomers.Clear();
-        foreach (var c in RefundAnalyticsService.TopRefundedCustomers(company, since, 10, toDisplay))
-            RefundsTopCustomers.Add(new RefundsRow(c.CustomerName, CurrencyService.Format(c.AmountUSD), $"{c.Count} refund{(c.Count == 1 ? "" : "s")}"));
+        foreach (var c in customers)
+            RefundsTopCustomers.Add(new RefundsRow(c.CustomerName, Money(customersComplete, c.AmountUSD), $"{c.Count} refund{(c.Count == 1 ? "" : "s")}"));
 
+        var productsComplete = CurrencyService.TryComputeDisplay(
+            convert => RefundAnalyticsService.TopRefundedProducts(company, since, 10, convert).ToList(), out var products);
         RefundsTopProducts.Clear();
-        foreach (var p in RefundAnalyticsService.TopRefundedProducts(company, since, 10, toDisplay))
-            RefundsTopProducts.Add(new RefundsRow(p.ProductLabel, CurrencyService.Format(p.AmountUSD), null));
+        foreach (var p in products)
+            RefundsTopProducts.Add(new RefundsRow(p.ProductLabel, Money(productsComplete, p.AmountUSD), null));
 
+        var reasonsComplete = CurrencyService.TryComputeDisplay(
+            convert => RefundAnalyticsService.TopReasons(company, since, 5, convert).ToList(), out var reasons);
         RefundsTopReasons.Clear();
-        foreach (var r in RefundAnalyticsService.TopReasons(company, since, 5, toDisplay))
-            RefundsTopReasons.Add(new RefundsRow(r.Reason, CurrencyService.Format(r.TotalAmountUSD), $"{r.Count}"));
+        foreach (var r in reasons)
+            RefundsTopReasons.Add(new RefundsRow(r.Reason, Money(reasonsComplete, r.TotalAmountUSD), $"{r.Count}"));
 
+        var channelsComplete = CurrencyService.TryComputeDisplay(
+            convert => RefundAnalyticsService.ChannelBreakdown(company, since, convert).OrderByDescending(kv => kv.Value).ToList(),
+            out var channels);
         RefundsChannelBreakdown.Clear();
-        foreach (var (channel, amount) in RefundAnalyticsService.ChannelBreakdown(company, since, toDisplay)
-                     .OrderByDescending(kv => kv.Value))
-            RefundsChannelBreakdown.Add(new RefundsRow(channel, CurrencyService.Format(amount), null));
+        foreach (var (channel, amount) in channels)
+            RefundsChannelBreakdown.Add(new RefundsRow(channel, Money(channelsComplete, amount), null));
 
-        // Each refund is converted at its OWN date before monthly bucketing (Calculations.md §3a).
+        // A chart can't show Pending, so the monthly chart keeps the USD fallback (Calculations.md Rule 3a).
         RefundsMonthlyTotals.Clear();
-        foreach (var m in RefundAnalyticsService.MonthlyTotals(company, 12, toDisplay))
+        foreach (var m in RefundAnalyticsService.MonthlyTotals(company, 12, CurrencyService.GetDisplayAmount))
             RefundsMonthlyTotals.Add(new RefundsMonthBucket(m.Month.ToString("MMM yyyy"), m.AmountUSD));
     }
 
