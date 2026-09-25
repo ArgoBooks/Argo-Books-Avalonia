@@ -178,17 +178,39 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
     }
 
     /// <summary>
-    /// Gets the USD conversion ratio for a transaction's original currency amounts.
-    /// Returns the multiplier to convert original currency values to USD equivalents.
+    /// Adds a transaction's tax, by rate, to <paramref name="byRate"/> for the Tax Summary. The amount
+    /// is the transaction's own recorded tax (<c>EffectiveTaxAmountUSD</c>), the figure the Balance
+    /// Sheet and the tax charts use, split across its line items' rates by each line's share of the
+    /// line tax. A transaction whose lines carry no rate goes under its own rate.
     /// </summary>
-    private static decimal GetUSDRatio(Transaction txn)
+    private void AddTaxByRate(Dictionary<decimal, decimal> byRate, Transaction txn)
     {
-        if (txn.IsPendingConversion) return 0;
-        if (string.Equals(txn.OriginalCurrency, "USD", StringComparison.OrdinalIgnoreCase))
-            return 1m; // Already in USD (including legacy data)
-        if (txn.Total != 0)
-            return txn.TotalUSD / txn.Total;
-        return 0m; // Zero-amount non-USD transaction
+        var taxDisplay = ToDisplay(txn.EffectiveTaxAmountUSD, txn.Date);
+        if (taxDisplay == 0)
+            return;
+
+        // LineItem.TaxRate is a fraction (0.08); Transaction.TaxRate is a percentage (8).
+        var taxedLines = txn.LineItems.Where(li => li.TaxRate > 0 && li.TaxAmount != 0).ToList();
+        var lineTax = taxedLines.Sum(li => li.TaxAmount);
+        if (lineTax == 0)
+        {
+            var rate = Math.Round(txn.TaxRate / 100m, 4);
+            byRate[rate] = byRate.GetValueOrDefault(rate) + taxDisplay;
+            return;
+        }
+
+        var allocated = 0m;
+        for (var i = 0; i < taxedLines.Count; i++)
+        {
+            var li = taxedLines[i];
+            // The last line takes the rounding remainder, so the rates add up to the recorded tax.
+            var share = i == taxedLines.Count - 1
+                ? taxDisplay - allocated
+                : Math.Round(taxDisplay * li.TaxAmount / lineTax, 2);
+            allocated += share;
+            var rate = Math.Round(li.TaxRate, 2);
+            byRate[rate] = byRate.GetValueOrDefault(rate) + share;
+        }
     }
 
     /// <summary>
@@ -1425,71 +1447,18 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             .Where(r => IsInDateRange(r.Date))
             .ToList();
 
-        // Round tax rates to 2 decimal places to consolidate near-identical rates
         var taxCollectedByRate = new Dictionary<decimal, decimal>();
         foreach (var rev in filteredRevenues)
-        {
-            var usdRatio = GetUSDRatio(rev);
-            var anyLineItemTax = false;
-            foreach (var li in rev.LineItems)
-            {
-                if (li.TaxRate > 0)
-                {
-                    anyLineItemTax = true;
-                    var rate = Math.Round(li.TaxRate, 2);
-                    taxCollectedByRate.TryAdd(rate, 0);
-                    taxCollectedByRate[rate] +=
-                        ToDisplay(Math.Round(li.TaxAmount * usdRatio, 2), rev.Date);
-                }
-            }
-
-            // Fall back to the transaction-level tax when no line item carried a rate. Manually-entered
-            // transactions always have a line item (with TaxRate 0) but record their tax at the
-            // transaction level, so without this their collected tax would be omitted entirely.
-            if (!anyLineItemTax && rev.TaxRate > 0)
-            {
-                // Transaction.TaxRate is stored as a percentage (e.g., 8 for 8%); convert to decimal
-                // form (0.08) to match LineItem.TaxRate for consistent grouping.
-                var rate = Math.Round(rev.TaxRate / 100m, 4);
-                taxCollectedByRate.TryAdd(rate, 0);
-                taxCollectedByRate[rate] += ToDisplay(rev.EffectiveTaxAmountUSD, rev.Date);
-            }
-        }
+            AddTaxByRate(taxCollectedByRate, rev);
 
         // Tax paid on expenses, grouped by tax rate
-        // All amounts converted to USD for consistent cross-currency aggregation
         var filteredExpenses = companyData.Expenses
             .Where(e => IsInDateRange(e.Date))
             .ToList();
 
         var taxPaidByRate = new Dictionary<decimal, decimal>();
         foreach (var exp in filteredExpenses)
-        {
-            var usdRatio = GetUSDRatio(exp);
-            var anyLineItemTax = false;
-            foreach (var li in exp.LineItems)
-            {
-                if (li.TaxRate > 0)
-                {
-                    anyLineItemTax = true;
-                    var rate = Math.Round(li.TaxRate, 2);
-                    taxPaidByRate.TryAdd(rate, 0);
-                    taxPaidByRate[rate] +=
-                        ToDisplay(Math.Round(li.TaxAmount * usdRatio, 2), exp.Date);
-                }
-            }
-
-            // Fall back to the transaction-level tax when no line item carried a rate (see the
-            // matching revenue loop above for why manually-entered transactions need this).
-            if (!anyLineItemTax && exp.TaxRate > 0)
-            {
-                // Transaction.TaxRate is stored as a percentage (e.g., 8 for 8%); convert to decimal
-                // form (0.08) to match LineItem.TaxRate for consistent grouping.
-                var rate = Math.Round(exp.TaxRate / 100m, 4);
-                taxPaidByRate.TryAdd(rate, 0);
-                taxPaidByRate[rate] += ToDisplay(exp.EffectiveTaxAmountUSD, exp.Date);
-            }
-        }
+            AddTaxByRate(taxPaidByRate, exp);
 
         // Tax handed back on refunds in range is no longer owed (docs/Calculations.md §8).
         var taxRefunded = companyData.Payments
