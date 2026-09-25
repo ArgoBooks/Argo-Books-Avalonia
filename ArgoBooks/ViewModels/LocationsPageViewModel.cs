@@ -280,7 +280,6 @@ public partial class LocationsPageViewModel : SortablePageViewModelBase
         // Apply type filter (using metadata or naming convention)
         if (FilterType != "All")
         {
-            // For now, filter by name pattern until we add a Type field to Location
             filtered = filtered.Where(l => GetLocationType(l) == FilterType).ToList();
         }
 
@@ -318,7 +317,7 @@ public partial class LocationsPageViewModel : SortablePageViewModelBase
                 Capacity = location.Capacity,
                 CurrentUtilization = location.CurrentUtilization,
                 UtilizationPercentage = location.UtilizationPercentage,
-                IsActive = true, // All locations are active for now
+                IsActive = true,
                 CreatedAt = location.CreatedAt
             };
         }).ToList();

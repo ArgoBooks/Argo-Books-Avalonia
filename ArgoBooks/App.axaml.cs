@@ -4586,10 +4586,6 @@ public partial class App : Application
     /// </summary>
     private static void RegisterPages(NavigationService navigationService)
     {
-        // Register placeholder pages - these will be replaced with actual views as they're implemented
-        // The page factory receives optional parameters and returns a view or viewmodel
-
-        // Welcome Screen (shown when no company is open)
         _welcomeScreenViewModel = new WelcomeScreenViewModel();
         navigationService.RegisterPage("Welcome", _ => new WelcomeScreen { DataContext = _welcomeScreenViewModel });
 
@@ -4599,7 +4595,6 @@ public partial class App : Application
             if (_dashboardPageViewModel == null)
             {
                 _dashboardPageViewModel = new DashboardPageViewModel();
-                // Wire up Google Sheets export notifications (only once)
                 _dashboardPageViewModel.GoogleSheetsExportStatusChanged += async (_, args) =>
                 {
                     if (args.IsExporting)
@@ -4657,7 +4652,6 @@ public partial class App : Application
         {
             _revenuePageViewModel ??= new RevenuePageViewModel();
             _revenuePageViewModel.HasPremium = _appShellViewModel?.SidebarViewModel.HasPremium ?? false;
-            // Clear any previous highlight first
             _revenuePageViewModel.HighlightTransactionId = null;
             if (param is TransactionNavigationParameter navParam)
             {
@@ -4670,7 +4664,6 @@ public partial class App : Application
         {
             _expensesPageViewModel ??= new ExpensesPageViewModel();
             _expensesPageViewModel.HasPremium = _appShellViewModel?.SidebarViewModel.HasPremium ?? false;
-            // Clear any previous highlight first
             _expensesPageViewModel.HighlightTransactionId = null;
             if (param is TransactionNavigationParameter navParam)
             {
@@ -4683,7 +4676,7 @@ public partial class App : Application
         {
             _quotesPageViewModel ??= new QuotesPageViewModel();
             _quotesPageViewModel.HighlightTransactionId = null;
-            // The VM is cached across navigations, so re-read CompanyData on every arrival.
+            // Cached across navigations, so re-read CompanyData on arrival.
             _quotesPageViewModel.RefreshQuotesCommand.Execute(null);
             if (param is TransactionNavigationParameter navParam)
             {
@@ -4691,8 +4684,7 @@ public partial class App : Application
                 _quotesPageViewModel.ApplyHighlight();
             }
 
-            // The answers a customer gave while the app was elsewhere are what makes this page
-            // worth opening, so pull them on arrival rather than waiting out the timer.
+            // Pull the answers customers gave while the app was elsewhere.
             _ = AutoSyncPortalPaymentsAsync();
             return new QuotesPage { DataContext = _quotesPageViewModel };
         });
@@ -4718,22 +4710,11 @@ public partial class App : Application
                 _invoicesPageViewModel.SelectedTabIndex = index;
             }
 
-            // The ViewModel is cached across navigations, so without this the page
-            // shows whatever it held when it was first built. Refresh reads the
-            // current CompanyData, and the portal sync pulls in online payments
-            // that landed since, which is what flips an invoice to Paid. The sync
-            // refreshes these ViewModels again when it completes, so an invoice
-            // paid on the portal shows up on arriving here rather than only after
-            // visiting Payments or waiting out the 5-minute timer.
-            //
-            // It also refreshes the statistics tiles, the recurring badge and the sent count,
-            // which is why it runs on every arrival rather than being skipped when a row is
-            // being highlighted.
+            // Cached across navigations, so re-read CompanyData on arrival.
             _invoicesPageViewModel.RefreshInvoicesCommand.Execute(null);
 
-            // After the refresh, never before. ApplyHighlight re-filters and then clears the id,
-            // so a refresh afterwards rebuilds the list with nothing highlighted and the row the
-            // user searched for comes back looking like every other one.
+            // After the refresh: ApplyHighlight clears the id as it re-filters, so refreshing
+            // afterwards would drop the highlight.
             if (param is TransactionNavigationParameter navParam)
             {
                 _invoicesPageViewModel.HighlightTransactionId = navParam.TransactionId;
@@ -4758,7 +4739,6 @@ public partial class App : Application
             }
             else if (param is Dictionary<string, object?> dict)
             {
-                // Check if we should select a specific tab (0 = Expenses, 1 = Revenue)
                 if (dict.TryGetValue("selectedTabIndex", out var tabIndex) && tabIndex is int index)
                 {
                     _productsPageViewModel.SelectedTabIndex = index;
@@ -4780,7 +4760,6 @@ public partial class App : Application
         navigationService.RegisterPage("Locations", param =>
         {
             _locationsPageViewModel ??= new LocationsPageViewModel();
-            // Check if we should open the add modal
             if (param is Dictionary<string, object?> dict && dict.TryGetValue("openAddModal", out var openAdd) && openAdd is true)
             {
                 LocationsModalsViewModel?.OpenAddModal();
@@ -4813,7 +4792,6 @@ public partial class App : Application
             _categoriesPageViewModel ??= new CategoriesPageViewModel();
             if (param is Dictionary<string, object?> dict)
             {
-                // Check if we should select a specific tab (0 = Expenses, 1 = Revenue)
                 if (dict.TryGetValue("selectedTabIndex", out var tabIndex) && tabIndex is int index)
                 {
                     _categoriesPageViewModel.SelectedTabIndex = index;
@@ -4822,9 +4800,8 @@ public partial class App : Application
             return new CategoriesPage { DataContext = _categoriesPageViewModel };
         });
 
-        // The sidebar lists each side of the categories and products pages separately.
-        // Both sides are still one page and one view model, entered on the matching tab,
-        // so these registrations only preset the tab. The pages have no tab bar.
+        // The sidebar lists each side separately, but both are one page and one view model,
+        // so these registrations only preset the tab.
         navigationService.RegisterPage("ExpenseCategories", _ => CategoriesPageForTab(0));
         navigationService.RegisterPage("RevenueCategories", _ => CategoriesPageForTab(1));
         navigationService.RegisterPage("ExpenseProducts", _ => ProductsPageForTab(0));
@@ -4914,7 +4891,6 @@ public partial class App : Application
         navigationService.RegisterPage("Receipts", param =>
         {
             _receiptsPageViewModel ??= new ReceiptsPageViewModel();
-            // Update plan status each time (may have changed)
             _receiptsPageViewModel.HasPremium = _appShellViewModel?.SidebarViewModel.HasPremium ?? false;
             _ = AutoMobileSyncAsync();
             return new ReceiptsPage { DataContext = _receiptsPageViewModel };

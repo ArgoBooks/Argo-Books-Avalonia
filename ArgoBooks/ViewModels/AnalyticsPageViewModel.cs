@@ -2429,8 +2429,6 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         NewCustomersChangeValue = hasPrevNewCustomers ? newCustomersChange : null;
         NewCustomersChangeText = hasPrevNewCustomers ? $"{(newCustomersChange >= 0 ? "+" : "")}{newCustomersChange:F1}%" : null;
 
-        // Retention rate and avg customer value are complex calculations
-        // For now, calculate avg customer value based on revenue per customer
         var sales = data.Revenues
             .Where(s => s.Date >= StartDate && s.Date <= EndDate)
             .Where(RevenueAggregator.IsCollected)

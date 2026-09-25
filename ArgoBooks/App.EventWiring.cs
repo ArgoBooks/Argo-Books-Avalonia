@@ -1274,7 +1274,6 @@ public partial class App
                     if (args.Enabled && CompanyManager.IsEncrypted)
                     {
                         // Store the current password for biometric unlock
-                        // Note: We need to get the password from CompanyManager
                         var password = CompanyManager.GetCurrentPassword();
                         if (!string.IsNullOrEmpty(password))
                         {
