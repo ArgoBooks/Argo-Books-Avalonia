@@ -246,6 +246,9 @@ public partial class App
                         await PendingConversionService.ProcessPendingConversionsAsync(CompanyManager.CompanyData);
                     }
 
+                    if (CompanyManager.CompanyData != null)
+                        await CurrencyService.WarmCompanyRatesAsync(CompanyManager.CompanyData);
+
                     // Start periodic timer to process pending conversions when connectivity returns
                     StartPendingConversionTimer();
 

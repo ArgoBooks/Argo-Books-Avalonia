@@ -2595,6 +2595,9 @@ public partial class App : Application
                     // Set date range to show full year of sample data
                     ChartSettingsService.Instance.SelectedDateRange = "Last 365 Days";
 
+                    // The time shift moved every date, so their rates may not be cached yet.
+                    await CurrencyService.WarmCompanyRatesAsync(CompanyManager.CompanyData);
+
                     await CaptureSampleInsightsAsync();
                 }
 

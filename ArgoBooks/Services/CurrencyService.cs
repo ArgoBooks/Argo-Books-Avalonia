@@ -1,3 +1,4 @@
+using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Services;
 
@@ -295,6 +296,25 @@ public static class CurrencyService
 
         var rate = await svc.GetExchangeRateAsync("USD", code, today, fetchIfMissing: true, cancellationToken: cancellationToken);
         return rate > 0;
+    }
+
+    /// <summary>
+    /// Fetches the rates the company's transaction dates are missing, then refreshes every money
+    /// display. The rate cache is per machine, so a company opened on another computer, or the sample
+    /// company after its dates move, can start without them and show Pending.
+    /// </summary>
+    public static async Task WarmCompanyRatesAsync(CompanyData data)
+    {
+        var code = CurrentCurrencyCode;
+        if (string.Equals(code, "USD", StringComparison.OrdinalIgnoreCase) || ExchangeRateService.Instance is not { } rates)
+            return;
+
+        var dates = DisplayCurrency.ReportDates(data, null).ToList();
+        if (dates.All(d => d.Date > DateTime.Today || rates.GetExchangeRate("USD", code, d) > 0))
+            return;
+
+        await new RateReadinessService(rates, new ConnectivityService(), App.ErrorLogger).EnsureRatesAsync(dates);
+        NotifyCurrencyChanged();
     }
 
     /// <summary>
