@@ -371,9 +371,19 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
     public string ViewDepositStatusFormatted =>
         ViewSecurityDeposit <= 0 ? "-"
         : ViewStatus != nameof(RentalStatus.Returned) || ViewDepositRefundedAmount is not { } refunded ? "Held".Translate()
+        : ViewDepositRefundPending ? "Refund pending".Translate()
         : refunded >= ViewSecurityDeposit ? "Refunded".Translate()
         : refunded > 0 ? "Refunded {0}, kept {1}".TranslateFormat(CurrencyService.Format(refunded), CurrencyService.Format(ViewSecurityDeposit - refunded))
         : "Not Refunded".Translate();
+
+    /// <summary>
+    /// A deposit recorded as returned whose card refund has not reached the payments ledger.
+    /// The return writes the amount the user chose to give back, which for an online payment
+    /// is a decision rather than a movement: the refund still has to clear, and it can be
+    /// cancelled or refused by the provider.
+    /// </summary>
+    [ObservableProperty]
+    private bool _viewDepositRefundPending;
 
     [ObservableProperty]
     private string _viewExtraChargesText = string.Empty;
@@ -999,11 +1009,45 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
             return;
 
         var held = SecurityDeposits.StillHeld(invoice, companyData.Payments, companyData.Revenues);
+        if (held <= 0)
+            return;
+
         var paidOnline = companyData.Payments.Any(p => p.InvoiceId == invoice.Id && !p.IsRefund
             && p.Source == PaymentSource.Online && !string.IsNullOrEmpty(p.ProviderPaymentId));
-        if (held > 0 && paidOnline)
+        if (paidOnline)
+        {
             _ = refunds.OpenForInvoiceAsync(companyData, invoice, depositOnly: Math.Min(refund, held),
                 reason: $"Security deposit, rental {rental.Id}");
+            return;
+        }
+
+        // There is no card payment to refund against, so the money goes back however it came
+        // in. Said out loud because the rental already records the deposit as returned, and
+        // nothing else would mention that the returning is still the user's to do.
+        _ = App.ShowWarningMessageBoxAsync(
+            "Return the deposit yourself".Translate(),
+            "This invoice was not paid online, so Argo Books cannot send {0} back. Return it the same way you took it."
+                .TranslateFormat(CurrencyService.Format(Math.Min(refund, held))));
+    }
+
+    /// <summary>
+    /// True when the rental says a deposit went back but the card refund has not: the invoice
+    /// was paid online and the ledger still shows the money held.
+    /// </summary>
+    private static bool DepositRefundPending(CompanyData? companyData, RentalRecord rental)
+    {
+        if (companyData == null || rental.DepositRefunded is not { } refunded || refunded <= 0)
+            return false;
+
+        var invoice = DepositInvoice(rental, companyData);
+        if (invoice == null)
+            return false;
+
+        var paidOnline = companyData.Payments.Any(p => p.InvoiceId == invoice.Id && !p.IsRefund
+            && p.Source == PaymentSource.Online && !string.IsNullOrEmpty(p.ProviderPaymentId));
+
+        return paidOnline
+            && SecurityDeposits.StillHeld(invoice, companyData.Payments, companyData.Revenues) > 0;
     }
 
     private static void AddRentalRevenue(CompanyData companyData, Revenue revenue)
@@ -1195,6 +1239,7 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
         ViewStatus = rentalRecord.Status.ToString();
         ViewTotalCost = rentalRecord.TotalCost ?? 0;
         ViewDepositRefundedAmount = rentalRecord.DepositRefunded;
+        ViewDepositRefundPending = DepositRefundPending(companyData, rentalRecord);
         ViewNotes = rentalRecord.Notes;
         ViewDaysOverdue = rentalRecord.EffectiveDaysOverdue;
 
