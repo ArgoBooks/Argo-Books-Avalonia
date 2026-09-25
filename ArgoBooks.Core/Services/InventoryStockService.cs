@@ -102,6 +102,13 @@ public static class InventoryStockService
             moved.Count > 0 &&
             !oldLines.Any(l => l.IsStockPurchase || l.CostOfGoodsUSD != null);
 
+        // An edited sale keeps the unit cost it was saved at, so a later purchase that changed the
+        // stock's cost doesn't rewrite its past profit. Only a product the edit adds takes today's cost.
+        var savedUnitCost = oldLines
+                .Where(l => !isPurchase && l.CostOfGoodsUSD != null && l.ProductId != null && l.Quantity - l.OpeningUnitsUsed > 0)
+                .GroupBy(l => (l.ProductId, l.LocationId))
+                .ToDictionary(g => g.Key, g => g.Sum(l => l.CostOfGoodsUSD!.Value) / g.Sum(l => l.Quantity - l.OpeningUnitsUsed));
+
         foreach (var line in newLines)
         {
             line.CostOfGoodsUSD = null;
@@ -141,7 +148,8 @@ public static class InventoryStockService
                 var openingUsed = line.Quantity > 0 ? Math.Min(Math.Max(item.OpeningUnits, 0), line.Quantity) : 0;
                 item.OpeningUnits -= openingUsed;
                 line.OpeningUnitsUsed = openingUsed;
-                line.CostOfGoodsUSD = (line.Quantity - openingUsed) * item.UnitCost;
+                var unitCost = savedUnitCost.TryGetValue((product.Id, item.LocationId), out var saved) ? saved : item.UnitCost;
+                line.CostOfGoodsUSD = (line.Quantity - openingUsed) * unitCost;
                 item.InStock -= line.Quantity;
             }
         }

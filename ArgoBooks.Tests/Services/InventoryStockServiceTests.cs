@@ -149,6 +149,22 @@ public class InventoryStockServiceTests
         Assert.Equal(2m, edited[0].CostOfGoodsUSD);
     }
 
+    // A later purchase at a new price must not re-price a sale that is only being edited.
+    [Fact]
+    public void Edit_KeepsTheSalesUnitCost_WhenTheStockCostChangedSince()
+    {
+        var data = Company(Shop);
+        var item = Stock(data, inStock: 10, unitCost: 2m);
+        var sale = Sale(Line("PRD-1", 4, 10m));
+        InventoryStockService.Apply(data, sale.LineItems, sale, isPurchase: false);
+        item.UnitCost = 5m;
+
+        var edited = new List<LineItem> { Line("PRD-1", 5, 10m) };
+        InventoryStockService.ApplyEdit(data, sale.LineItems, edited, sale, isPurchase: false, "Revenue edited");
+
+        Assert.Equal(10m, edited[0].CostOfGoodsUSD);
+    }
+
     [Fact]
     public void Delete_GivesBackStockAndTheOpeningUnitsItUsed()
     {
