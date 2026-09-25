@@ -369,6 +369,8 @@ public partial class RentalRecordsPageViewModel : SortablePageViewModelBase
             var accountant = !string.IsNullOrEmpty(record.AccountantId)
                 ? companyData?.Accountants.FirstOrDefault(a => a.Id == record.AccountantId)
                 : null;
+            var settledByInvoice = companyData != null
+                && RentalBookings.SettledByInvoice(companyData, record);
 
             return new RentalRecordDisplayItem
             {
@@ -391,7 +393,8 @@ public partial class RentalRecordsPageViewModel : SortablePageViewModelBase
                 DaysOverdue = record.EffectiveDaysOverdue,
                 IsActive = RentalBookings.HoldsStock(record),
                 IsReserved = record.Status == RentalStatus.Reserved,
-                Paid = record.Paid,
+                Paid = record.Paid || settledByInvoice,
+                SettledByInvoice = settledByInvoice,
                 HasInvoices = record.HasInvoices,
                 InvoiceId = record.InvoiceIds.FirstOrDefault() ?? string.Empty,
                 IsHighlighted = record.Id == HighlightTransactionId
@@ -585,6 +588,9 @@ public partial class RentalRecordDisplayItem : ObservableObject
     [ObservableProperty]
     private bool _isHighlighted;
 
+    /// <summary>Paid because every invoice raised for it is paid, rather than by hand.</summary>
+    public bool SettledByInvoice { get; init; }
+
     public bool HasInvoiceId => !string.IsNullOrEmpty(InvoiceId);
 
     public string StartDateFormatted => StartDate.ToString("MMM d, yyyy");
@@ -596,7 +602,9 @@ public partial class RentalRecordDisplayItem : ObservableObject
     public bool CanGenerateInvoice => !Paid && !HasInvoices && Status != nameof(RentalStatus.Cancelled);
     public bool CanMarkAsPaid => !Paid && !IsActive && !IsReserved && Status != nameof(RentalStatus.Cancelled);
     public bool CanEdit => IsActive || IsReserved;
-    public bool CanMarkAsUnpaid => Paid;
+    // Marking it unpaid by hand would do nothing when an invoice is what paid it: the
+    // rental's own flag is already false. Unpay the invoice instead.
+    public bool CanMarkAsUnpaid => Paid && !SettledByInvoice;
 }
 
 /// <summary>

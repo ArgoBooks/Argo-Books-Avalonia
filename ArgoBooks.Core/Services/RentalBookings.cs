@@ -15,6 +15,22 @@ public static class RentalBookings
     public static bool HoldsStock(RentalRecord rental) =>
         rental.Status is RentalStatus.Active or RentalStatus.Overdue;
 
+    /// <summary>
+    /// Whether the money for a rental has arrived through an invoice rather than through
+    /// <see cref="RentalRecord.Paid"/>. An invoiced rental records no revenue of its own, so
+    /// paying its invoice is what settles it, and nothing was writing that back to the flag.
+    /// Every linked invoice has to be paid: two invoices with one outstanding is not settled.
+    /// </summary>
+    public static bool SettledByInvoice(CompanyData data, RentalRecord rental)
+    {
+        var linked = rental.InvoiceIds
+            .Select(id => data.Invoices.FirstOrDefault(i => i.Id == id))
+            .Where(i => i != null)
+            .ToList();
+
+        return linked.Count > 0 && linked.All(i => i!.Status == InvoiceStatus.Paid);
+    }
+
     /// <summary>Whole days between two dates, and at least one: out Monday and back Wednesday is two.</summary>
     public static int ChargeableDays(DateTime start, DateTime end) => Math.Max(1, (end.Date - start.Date).Days);
 
