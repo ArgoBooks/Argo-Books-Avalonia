@@ -264,7 +264,7 @@ public partial class DashboardPageViewModel : ChartContextMenuViewModelBase, ICl
     /// Gets the welcome subtitle text, which changes based on whether this is a sample company.
     /// </summary>
     public string WelcomeSubtitle => _companyManager?.IsSampleCompany == true
-        ? "You're exploring TechFlow Solutions - a sample company. Feel free to experiment!".Translate()
+        ? "You're exploring a sample company. Feel free to experiment!".Translate()
         : "Welcome back! Here is an overview of your business.".Translate();
 
     /// <summary>

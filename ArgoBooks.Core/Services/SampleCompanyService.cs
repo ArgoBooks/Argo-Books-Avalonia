@@ -17,7 +17,7 @@ public class SampleCompanyService
     private readonly FileService _fileService;
     private readonly SpreadsheetImportService _importService;
 
-    private const string SampleCompanyName = "TechFlow Solutions";
+    private const string SampleCompanyName = "Sample Company";
 
     /// <summary>
     /// How many biweekly pay runs the sample company gets.
@@ -223,7 +223,7 @@ public class SampleCompanyService
         return Path.Combine(
             Path.GetTempPath(),
             "ArgoBooks",
-            "SampleCompany.argo");
+            $"{SampleCompanyName}.argo");
     }
 
     /// <summary>
