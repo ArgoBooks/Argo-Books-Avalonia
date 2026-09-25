@@ -170,8 +170,13 @@ public partial class UnifiedChartWidgetViewModel : WidgetViewModelBase
         }
         else if (ChartDataType.IsMultiSeries())
         {
-            var result = service.GetChartData(ChartDataType);
-            LoadMultiSeriesChart(result);
+            // The tax charts bucket by month, so their rows convert at their own dates in the data
+            // service; converting a month's point at the 1st would use the wrong rate.
+            var convertedPerRow = ChartDataType is ChartDataType.TaxCollectedVsPaid or ChartDataType.ExpenseVsRevenueTax;
+            var result = convertedPerRow
+                ? service.GetChartData(ChartDataType, CurrencyService.GetDisplayAmount)
+                : service.GetChartData(ChartDataType);
+            LoadMultiSeriesChart(result, convertedPerRow);
         }
         else
         {
@@ -270,7 +275,7 @@ public partial class UnifiedChartWidgetViewModel : WidgetViewModelBase
         });
     }
 
-    private void LoadMultiSeriesChart(object result)
+    private void LoadMultiSeriesChart(object result, bool alreadyConverted)
     {
         if (result is not List<ChartSeriesData> seriesData || seriesData.Count == 0)
         {
@@ -286,7 +291,7 @@ public partial class UnifiedChartWidgetViewModel : WidgetViewModelBase
         // Convert each DAILY point to display currency at its OWN date BEFORE pivoting onto the
         // aligned date axis (Calculations.md §3a Phase 2). The pivoted values are then already
         // display currency, so CreateDateTimeSeries must not convert again. Counts stay as they are.
-        if (!ChartDataType.IsCount())
+        if (!ChartDataType.IsCount() && !alreadyConverted)
         {
             foreach (var sd in seriesData)
                 foreach (var p in sd.DataPoints)

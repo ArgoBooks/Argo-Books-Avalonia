@@ -1558,17 +1558,19 @@ public class ChartLoaderService
             .Select(p => p.Date!.Value)
             .ToArray();
 
+        // Convert once so the chart and its export show the same display-currency values.
+        var revenueValues = ConvertUSDValuesToDisplay(revenueSeriesData.DataPoints.Select(p => p.Value).ToArray(), dates);
+
         if (dates.Length > 0)
         {
             // Revenue series (green)
-            var revenueValues = revenueSeriesData.DataPoints.Select(p => p.Value).ToArray();
-            series.Add(CreateDateTimeSeries(dates, revenueValues, "Revenue", ChartColors.Revenue));
+            series.Add(CreateDateTimeSeries(dates, revenueValues, "Revenue", ChartColors.Revenue, convertFromUSD: false));
 
             // Expense series (red)
             if (expenseSeriesData?.DataPoints != null)
             {
-                var expenseValues = expenseSeriesData.DataPoints.Select(p => p.Value).ToArray();
-                series.Add(CreateDateTimeSeries(dates, expenseValues, "Expenses", ChartColors.Expense));
+                var expenseValues = ConvertUSDValuesToDisplay(expenseSeriesData.DataPoints.Select(p => p.Value).ToArray(), dates);
+                series.Add(CreateDateTimeSeries(dates, expenseValues, "Expenses", ChartColors.Expense, convertFromUSD: false));
             }
         }
 
@@ -1579,7 +1581,7 @@ public class ChartLoaderService
             ChartTitle = ChartDataType.AverageTransactionValue.GetDisplayName().Translate(),
             ChartType = ChartType.Comparison,
             Labels = labels,
-            Values = revenueSeriesData.DataPoints.Select(p => p.Value).ToArray(),
+            Values = revenueValues,
             SeriesName = "Revenue"
         };
 
@@ -1675,11 +1677,11 @@ public class ChartLoaderService
 
         var labels = filteredData.Select(p => p.Label).ToArray();
         dates = filteredData.Where(p => p.Date.HasValue).Select(p => p.Date!.Value).ToArray();
-        var avgShipping = filteredData.Select(p => p.Value).ToArray();
+        var avgShipping = ConvertUSDValuesToDisplay(filteredData.Select(p => p.Value).ToArray(), dates);
 
         if (dates.Length > 0)
         {
-            series.Add(CreateDateTimeSeries(dates, avgShipping, "Avg Shipping", ChartColors.Expense));
+            series.Add(CreateDateTimeSeries(dates, avgShipping, "Avg Shipping", ChartColors.Expense, convertFromUSD: false));
         }
 
         // Store export data
@@ -2469,7 +2471,8 @@ public class ChartLoaderService
         var filters = CreateFilters(startDate, endDate);
         var dataService = new ReportChartDataService(companyData, filters);
 
-        var seriesData = dataService.GetTaxCollectedVsPaid();
+        // Monthly buckets, so each row converts at its own date inside the data service.
+        var seriesData = dataService.GetTaxCollectedVsPaid(CurrencyService.GetDisplayAmount);
 
         if (seriesData.Count == 0)
         {
@@ -2507,10 +2510,10 @@ public class ChartLoaderService
 
         if (dates.Length > 0)
         {
-            series.Add(CreateDateTimeSeries(dates, collectedValues, "Tax Collected", ChartColors.Revenue));
+            series.Add(CreateDateTimeSeries(dates, collectedValues, "Tax Collected", ChartColors.Revenue, convertFromUSD: false));
             if (paidValues.Length > 0)
             {
-                series.Add(CreateDateTimeSeries(dates, paidValues, "Tax Paid", ChartColors.Expense));
+                series.Add(CreateDateTimeSeries(dates, paidValues, "Tax Paid", ChartColors.Expense, convertFromUSD: false));
             }
         }
 
@@ -2548,10 +2551,10 @@ public class ChartLoaderService
 
         var labels = dataPoints.Select(p => p.Label).ToArray();
         dates = dataPoints.Where(p => p.Date.HasValue).Select(p => p.Date!.Value).ToArray();
-        var values = dataPoints.Select(p => p.Value).ToArray();
+        var values = ConvertUSDValuesToDisplay(dataPoints.Select(p => p.Value).ToArray(), dates);
 
         foreach (var s in CreateSignedValueDateTimeSeries(dates, values, "Net Tax Liability",
-                     ChartDataType.TaxLiabilityTrend, "(Refund)"))
+                     ChartDataType.TaxLiabilityTrend, "(Refund)", convertFromUSD: false))
         {
             series.Add(s);
         }
@@ -2721,7 +2724,8 @@ public class ChartLoaderService
         var filters = CreateFilters(startDate, endDate);
         var dataService = new ReportChartDataService(companyData, filters);
 
-        var seriesData = dataService.GetExpenseVsRevenueTax();
+        // Monthly buckets, so each row converts at its own date inside the data service.
+        var seriesData = dataService.GetExpenseVsRevenueTax(CurrencyService.GetDisplayAmount);
 
         if (seriesData.Count == 0)
         {
@@ -2759,10 +2763,10 @@ public class ChartLoaderService
 
         if (dates.Length > 0)
         {
-            series.Add(CreateDateTimeSeries(dates, revenueValues, "Revenue Tax", ChartColors.Revenue));
+            series.Add(CreateDateTimeSeries(dates, revenueValues, "Revenue Tax", ChartColors.Revenue, convertFromUSD: false));
             if (expenseValues.Length > 0)
             {
-                series.Add(CreateDateTimeSeries(dates, expenseValues, "Expense Tax", ChartColors.Expense));
+                series.Add(CreateDateTimeSeries(dates, expenseValues, "Expense Tax", ChartColors.Expense, convertFromUSD: false));
             }
         }
 
