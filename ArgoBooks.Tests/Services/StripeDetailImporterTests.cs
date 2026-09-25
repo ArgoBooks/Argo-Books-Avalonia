@@ -21,7 +21,9 @@ public class StripeDetailImporterTests
         Assert.Equal(50.00m, rev.Total);            // gross
         Assert.Equal(4.00m, rev.TaxAmount);         // tax
         Assert.Equal(5.00m, rev.Discount);          // discount
-        Assert.Equal(46.00m, rev.Subtotal);         // gross - tax
+        Assert.Equal(51.00m, rev.Subtotal);         // before the discount: gross - tax + discount
+        Assert.Equal(51.00m, rev.LineItems[0].Subtotal); // the discount isn't taken off the line too
+        Assert.Equal(8.70m, Math.Round(rev.TaxRate, 2)); // a percentage: 4 / (51 - 5)
         Assert.Equal("ch_1", rev.ReferenceNumber);  // charge id for refund linkage
         Assert.NotEmpty(rev.CustomerId!);
         Assert.Single(rev.LineItems);

@@ -200,7 +200,8 @@ public class ArgoApiImporter
             Quantity = 1,
             UnitPrice = subtotal,
             Amount = subtotal,
-            TaxRate = subtotal > 0 ? tax / subtotal : 0m,
+            // Transaction.TaxRate is a percentage (8 for 8%).
+            TaxRate = subtotal > 0 ? tax / subtotal * 100m : 0m,
             TaxAmount = tax,
             Total = total,
             // The API id, so a repeat push of the same object is recognisable in
@@ -208,7 +209,7 @@ public class ArgoApiImporter
             ReferenceNumber = string.IsNullOrWhiteSpace(api.Reference) ? api.Id : api.Reference!,
             Notes = BuildNotes(api.Notes, api.Id),
             OriginalCurrency = currency,
-            LineItems = BuildLineItems(data, api.LineItems, currency, api.Description, subtotal, tax)
+            LineItems = BuildLineItems(data, api.LineItems, currency, api.Description, subtotal, tax, subtotal)
         };
         IntegrationRates.ApplyUsdAmounts(expense, currency, data);
 
@@ -224,7 +225,10 @@ public class ArgoApiImporter
         var tax = ArgoMoney.ToDecimal(api.TaxAmount, currency);
         var discount = ArgoMoney.ToDecimal(api.DiscountAmount, currency);
         var fee = ArgoMoney.ToDecimal(api.FeeAmount, currency);
-        var subtotal = total - tax;
+        // Amount is what was charged after the discount. Subtotal is before it, as on every
+        // transaction (Total = Subtotal − Discount + Tax).
+        var subtotal = total - tax + discount;
+        var taxableBase = subtotal - discount;
         var date = ParseDate(api.OccurredOn);
 
         var revenue = new Revenue
@@ -237,7 +241,7 @@ public class ArgoApiImporter
             UnitPrice = subtotal,
             Amount = subtotal,
             Subtotal = subtotal,
-            TaxRate = subtotal > 0 ? tax / subtotal : 0m,
+            TaxRate = taxableBase > 0 ? tax / taxableBase * 100m : 0m,
             TaxAmount = tax,
             Discount = discount,
             Total = total,
@@ -245,7 +249,7 @@ public class ArgoApiImporter
             Notes = BuildNotes(api.Notes, api.Id),
             OriginalCurrency = currency,
             PaymentStatus = RevenuePaymentStatus.Paid,
-            LineItems = BuildLineItems(data, api.LineItems, currency, api.Description, subtotal, tax)
+            LineItems = BuildLineItems(data, api.LineItems, currency, api.Description, subtotal, tax, taxableBase)
         };
         IntegrationRates.ApplyUsdAmounts(revenue, currency, data);
 
@@ -347,7 +351,7 @@ public class ArgoApiImporter
     /// </summary>
     private List<LineItem> BuildLineItems(
         CompanyData data, List<ArgoLineItem>? items, string currency, string fallbackDescription,
-        decimal subtotal, decimal tax)
+        decimal subtotal, decimal tax, decimal taxableBase)
     {
         if (items == null || items.Count == 0)
         {
@@ -358,7 +362,7 @@ public class ArgoApiImporter
                     Description = fallbackDescription,
                     Quantity = 1,
                     UnitPrice = subtotal,
-                    TaxRate = subtotal > 0 ? tax / subtotal : 0m
+                    TaxRate = taxableBase > 0 ? tax / taxableBase : 0m
                 }
             ];
         }

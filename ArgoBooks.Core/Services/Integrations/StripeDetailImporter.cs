@@ -33,8 +33,12 @@ public class StripeDetailImporter
             var gross = ArgoMoney.ToDecimal(ch.GrossCents, currency);
             var tax = ArgoMoney.ToDecimal(ch.TaxCents, currency);
             var discount = ArgoMoney.ToDecimal(ch.DiscountCents, currency);
-            var subtotal = gross - tax;
-            var taxRate = subtotal > 0 ? tax / subtotal : 0m;
+            // Gross is what was charged after the discount. Subtotal is before it, as on every
+            // transaction (Total = Subtotal − Discount + Tax), and the discount stays at the
+            // transaction level so it isn't taken off the line a second time.
+            var subtotal = gross - tax + discount;
+            var taxableBase = subtotal - discount;
+            var taxRate = taxableBase > 0 ? tax / taxableBase : 0m;
             var date = DateTimeOffset.FromUnixTimeSeconds(ch.CreatedUnix).LocalDateTime;
 
             var rev = new Revenue
@@ -47,7 +51,8 @@ public class StripeDetailImporter
                 UnitPrice = subtotal,
                 Amount = subtotal,
                 Subtotal = subtotal,
-                TaxRate = taxRate,
+                // Transaction.TaxRate is a percentage; LineItem.TaxRate below is a fraction.
+                TaxRate = taxRate * 100m,
                 TaxAmount = tax,
                 Discount = discount,
                 Total = gross,
@@ -63,8 +68,7 @@ public class StripeDetailImporter
                         Description = ch.ProductName,
                         Quantity = 1,
                         UnitPrice = subtotal,
-                        TaxRate = taxRate,
-                        Discount = discount
+                        TaxRate = taxRate
                     }
                 ]
             };
