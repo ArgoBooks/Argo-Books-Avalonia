@@ -226,6 +226,9 @@ public partial class HeaderViewModel : ViewModelBase
     /// </summary>
     private void StartUnsavedChangesReminderTimer()
     {
+        if (App.CompanyManager?.IsSampleCompany == true)
+            return;
+
         var settings = App.CompanyManager?.CompanyData?.Settings.Notifications;
         if (settings == null || !settings.UnsavedChangesReminder)
             return;
@@ -241,7 +244,8 @@ public partial class HeaderViewModel : ViewModelBase
         {
             // Only show if still has unsaved changes and setting is still enabled
             var currentSettings = App.CompanyManager?.CompanyData?.Settings.Notifications;
-            if (HasUnsavedChanges && currentSettings?.UnsavedChangesReminder == true)
+            if (HasUnsavedChanges && currentSettings?.UnsavedChangesReminder == true &&
+                App.CompanyManager?.IsSampleCompany != true)
             {
                 ShowUnsavedChangesReminder = true;
             }
