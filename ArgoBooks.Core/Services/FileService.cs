@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using ArgoBooks.Core.Data;
+using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models;
 using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Security;
@@ -29,7 +30,14 @@ public class FileService(
     {
         WriteIndented = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        Converters = { new JsonStringEnumConverter() }
+        // A converter listed here outranks the [JsonConverter] attribute on the enum, so the lenient
+        // ones must come before the general enum converter or they never run.
+        Converters =
+        {
+            new RevenuePaymentStatusJsonConverter(),
+            new PaymentSourceJsonConverter(),
+            new JsonStringEnumConverter()
+        }
     };
 
     /// <inheritdoc />
