@@ -339,13 +339,17 @@ public ExpensesPageViewModel()
             FilterDateFrom = modals.FilterDateFrom;
             FilterDateTo = modals.FilterDateTo;
             FilterReceiptStatus = modals.FilterReceiptStatus;
+            ActiveFilterCount = modals.ActiveFilterCount;
         }
         CurrentPage = 1;
         FilterExpenses();
     }
 
+    protected override void ClearTableFilters() => App.ExpenseModalsViewModel?.ClearFiltersCommand.Execute(null);
+
     private void OnFiltersCleared(object? sender, EventArgs e)
     {
+        ActiveFilterCount = 0;
         FilterStatus = "All";
         FilterSupplierId = null;
         FilterCategoryId = null;

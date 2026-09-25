@@ -233,6 +233,8 @@
                                 SearchQuery="{Binding SearchQuery, Mode=TwoWay}"
                                 SearchPlaceholder="{loc:Loc 'Search invoices...'}"
                                 FilterCommand="{Binding OpenFilterModalCommand}"
+                                FilterCount="{Binding ActiveFilterCount}"
+                                ClearFiltersCommand="{Binding ClearTableFiltersCommand}"
                                 AddCommand="{Binding OpenCreateModalCommand}"
                                 AddButtonText="{loc:Loc 'Create Invoice'}"
                                 AddButtonTooltip="{loc:Loc 'Create Invoice'}"

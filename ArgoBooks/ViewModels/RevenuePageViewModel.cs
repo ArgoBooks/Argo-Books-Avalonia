@@ -359,13 +359,17 @@ public RevenuePageViewModel()
             FilterAmountMax = modals.FilterAmountMax;
             FilterDateFrom = modals.FilterDateFrom;
             FilterDateTo = modals.FilterDateTo;
+            ActiveFilterCount = modals.ActiveFilterCount;
         }
         CurrentPage = 1;
         FilterRevenue();
     }
 
+    protected override void ClearTableFilters() => App.RevenueModalsViewModel?.ClearFiltersCommand.Execute(null);
+
     private void OnFiltersCleared(object? sender, EventArgs e)
     {
+        ActiveFilterCount = 0;
         FilterStatus = "All";
         FilterCustomerId = null;
         FilterCategoryId = null;

@@ -157,12 +157,16 @@ public partial class QuotesPageViewModel : SortablePageViewModelBase
 
     private void OnFiltersApplied(object? sender, EventArgs e)
     {
+        ActiveFilterCount = App.QuotesModalsViewModel?.ActiveFilterCount ?? 0;
         CurrentPage = 1;
         FilterQuotes();
     }
 
+    protected override void ClearTableFilters() => App.QuotesModalsViewModel?.ClearFiltersCommand.Execute(null);
+
     private void OnFiltersCleared(object? sender, EventArgs e)
     {
+        ActiveFilterCount = 0;
         SearchQuery = null;
         CurrentPage = 1;
         FilterQuotes();

@@ -170,16 +170,20 @@ public partial class SuppliersPageViewModel : SortablePageViewModelBase
         {
             FilterCountry = App.SupplierModalsViewModel.FilterCountry == "All" ? null : App.SupplierModalsViewModel.FilterCountry;
             FilterStatus = App.SupplierModalsViewModel.FilterStatus;
+            ActiveFilterCount = App.SupplierModalsViewModel.ActiveFilterCount;
         }
         CurrentPage = 1;
         FilterSuppliers();
     }
+
+    protected override void ClearTableFilters() => App.SupplierModalsViewModel?.ClearFiltersCommand.Execute(null);
 
     /// <summary>
     /// Handles filters cleared event from shared modal.
     /// </summary>
     private void OnFiltersCleared(object? sender, EventArgs e)
     {
+        ActiveFilterCount = 0;
         FilterCountry = null;
         FilterStatus = "All";
         SearchQuery = null;

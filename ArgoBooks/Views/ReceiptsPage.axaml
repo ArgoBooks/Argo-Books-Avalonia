@@ -108,6 +108,8 @@
                                 SearchQuery="{Binding SearchQuery, Mode=TwoWay}"
                                 SearchPlaceholder="{loc:Loc 'Search receipts...'}"
                                 FilterCommand="{Binding OpenFilterModalCommand}"
+                                FilterCount="{Binding ActiveFilterCount}"
+                                ClearFiltersCommand="{Binding ClearTableFiltersCommand}"
                                 AddCommand="{Binding AiScanReceiptCommand}"
                                 AddButtonText="{loc:Loc 'Scan Receipt'}"
                                 AddButtonTooltip="{loc:Loc 'Scan Receipt'}"

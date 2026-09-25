@@ -47,6 +47,8 @@
                                 SearchPlaceholder="{loc:Loc 'Search products...'}"
                                 ShowAddButton="False"
                                 FilterCommand="{Binding OpenFilterModalCommand}"
+                                FilterCount="{Binding ActiveFilterCount}"
+                                ClearFiltersCommand="{Binding ClearTableFiltersCommand}"
                                 ColumnWidthsManager="{Binding ColumnWidths}"
                                 CurrentPage="{Binding CurrentPage, Mode=TwoWay}"
                                 TotalPages="{Binding TotalPages}"

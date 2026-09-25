@@ -199,16 +199,20 @@ public partial class CustomersPageViewModel : SortablePageViewModelBase
             FilterOutstandingMax = modals.FilterOutstandingMax;
             FilterLastRentalFrom = modals.FilterLastRentalFrom;
             FilterLastRentalTo = modals.FilterLastRentalTo;
+            ActiveFilterCount = modals.ActiveFilterCount;
         }
         CurrentPage = 1;
         FilterCustomers();
     }
+
+    protected override void ClearTableFilters() => App.CustomerModalsViewModel?.ClearFiltersCommand.Execute(null);
 
     /// <summary>
     /// Handles filters cleared event from modals.
     /// </summary>
     internal void OnFiltersCleared(object? sender, EventArgs e)
     {
+        ActiveFilterCount = 0;
         FilterPaymentStatus = "All";
         FilterCustomerStatus = "All";
         FilterCountry = "All";

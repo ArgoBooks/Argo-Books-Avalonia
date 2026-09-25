@@ -46,6 +46,8 @@
                                 SearchQuery="{Binding SearchQuery, Mode=TwoWay}"
                                 SearchPlaceholder="{loc:Loc 'Search locations...'}"
                                 FilterCommand="{Binding OpenFilterModalCommand}"
+                                FilterCount="{Binding ActiveFilterCount}"
+                                ClearFiltersCommand="{Binding ClearTableFiltersCommand}"
                                 AddCommand="{Binding OpenAddModalCommand}"
                                 AddButtonText="{loc:Loc 'Add Location'}"
                                 AddButtonTooltip="{loc:Loc 'Add Location'}"

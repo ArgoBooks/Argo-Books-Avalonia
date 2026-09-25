@@ -65,6 +65,8 @@
                                     SearchQuery="{Binding SearchQuery, Mode=TwoWay}"
                                     SearchPlaceholder="{loc:Loc 'Search inventory...'}"
                                     FilterCommand="{Binding OpenFilterModalCommand}"
+                                    FilterCount="{Binding ActiveFilterCount}"
+                                    ClearFiltersCommand="{Binding ClearTableFiltersCommand}"
                                     AddCommand="{Binding OpenAddItemModalCommand}"
                                     AddButtonText="{loc:Loc 'Add Item'}"
                                     AddButtonTooltip="{loc:Loc 'Add Item'}"

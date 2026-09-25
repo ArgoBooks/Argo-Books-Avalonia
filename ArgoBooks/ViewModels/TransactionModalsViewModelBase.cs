@@ -740,11 +740,15 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
             CloseFilterModal();
     }
 
+    /// <summary>How many filters are applied, for the page's Filter button.</summary>
+    public int ActiveFilterCount { get; private set; }
+
     [RelayCommand]
     protected void ApplyFilters()
     {
         FilterCounterpartyId = FilterSelectedCounterparty?.Id;
         FilterCategoryId = FilterSelectedCategory?.Id;
+        ActiveFilterCount = Filters.ActiveCount;
         FiltersApplied?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
     }
@@ -755,6 +759,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         Filters.Reset();
         FilterCounterpartyId = null;
         FilterCategoryId = null;
+        ActiveFilterCount = 0;
         FiltersCleared?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
     }

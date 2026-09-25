@@ -1494,10 +1494,14 @@ public partial class InvoiceModalsViewModel : ViewModelBase
             CloseFilterModal();
     }
 
+    /// <summary>How many filters are applied, for the page's Filter button.</summary>
+    public int ActiveFilterCount { get; private set; }
+
     [RelayCommand]
     private void ApplyFilters()
     {
         FilterCustomerId = FilterSelectedCustomer?.Id;
+        ActiveFilterCount = Filters.ActiveCount;
         FiltersApplied?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
     }
@@ -1507,6 +1511,7 @@ public partial class InvoiceModalsViewModel : ViewModelBase
     {
         Filters.Reset();
         FilterCustomerId = null;
+        ActiveFilterCount = 0;
         FiltersCleared?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
     }

@@ -848,9 +848,13 @@ public partial class SupplierModalsViewModel : ViewModelBase
             CloseFilterModal();
     }
 
+    /// <summary>How many filters are applied, for the page's Filter button.</summary>
+    public int ActiveFilterCount { get; private set; }
+
     [RelayCommand]
     public void ApplyFilters()
     {
+        ActiveFilterCount = Filters.ActiveCount;
         FiltersApplied?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
     }
@@ -859,6 +863,7 @@ public partial class SupplierModalsViewModel : ViewModelBase
     public void ClearFilters()
     {
         Filters.Reset();
+        ActiveFilterCount = 0;
         FiltersCleared?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
     }

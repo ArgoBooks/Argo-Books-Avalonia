@@ -47,6 +47,8 @@
                                 SearchQuery="{Binding SearchQuery, Mode=TwoWay}"
                                 SearchPlaceholder="{loc:Loc 'Search rental items...'}"
                                 FilterCommand="{Binding OpenFilterModalCommand}"
+                                FilterCount="{Binding ActiveFilterCount}"
+                                ClearFiltersCommand="{Binding ClearTableFiltersCommand}"
                                 AddCommand="{Binding OpenAddModalCommand}"
                                 AddButtonText="{loc:Loc 'Add Item'}"
                                 AddButtonTooltip="{loc:Loc 'Add Item'}"

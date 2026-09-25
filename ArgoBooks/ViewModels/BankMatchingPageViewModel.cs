@@ -160,6 +160,9 @@ public partial class BankMatchingPageViewModel : SortablePageViewModelBase
     private string _missingFilterType = "All";
 
     [ObservableProperty]
+    private int _missingFilterCount;
+
+    [ObservableProperty]
     private string _missingSortColumn = "Date";
 
     [ObservableProperty]
@@ -489,12 +492,16 @@ public partial class BankMatchingPageViewModel : SortablePageViewModelBase
         FilterStartDate = e.StartDate?.DateTime;
         FilterEndDate = e.EndDate?.DateTime;
         FilterStatus = e.Status;
+        ActiveFilterCount = App.BankMatchingModalsViewModel?.ActiveFilterCount ?? 0;
         CurrentPage = 1;
         ApplyFiltersAndPaginate();
     }
 
+    protected override void ClearTableFilters() => App.BankMatchingModalsViewModel?.ClearFiltersCommand.Execute(null);
+
     private void OnFiltersCleared(object? sender, EventArgs e)
     {
+        ActiveFilterCount = 0;
         FilterStartDate = null;
         FilterEndDate = null;
         FilterStatus = "All";
@@ -511,12 +518,17 @@ public partial class BankMatchingPageViewModel : SortablePageViewModelBase
         MissingFilterStartDate = e.StartDate?.DateTime;
         MissingFilterEndDate = e.EndDate?.DateTime;
         MissingFilterType = e.Type;
+        MissingFilterCount = App.BankMatchingModalsViewModel?.MissingActiveFilterCount ?? 0;
         MissingCurrentPage = 1;
         RefreshMissing();
     }
 
+    [RelayCommand]
+    private void ClearMissingTableFilters() => App.BankMatchingModalsViewModel?.ClearMissingFiltersCommand.Execute(null);
+
     private void OnMissingFiltersCleared(object? sender, EventArgs e)
     {
+        MissingFilterCount = 0;
         MissingFilterStartDate = null;
         MissingFilterEndDate = null;
         MissingFilterType = "All";

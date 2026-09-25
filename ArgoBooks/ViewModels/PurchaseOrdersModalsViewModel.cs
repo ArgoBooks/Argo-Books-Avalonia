@@ -1549,12 +1549,16 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
             CloseFilterModal();
     }
 
+    /// <summary>How many filters are applied, for the page's Filter button.</summary>
+    public int ActiveFilterCount { get; private set; }
+
     /// <summary>
     /// Applies the current filters.
     /// </summary>
     [RelayCommand]
     private void ApplyFilters()
     {
+        ActiveFilterCount = Filters.ActiveCount;
         FiltersApplied?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
     }
@@ -1566,6 +1570,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
     private void ClearFilters()
     {
         Filters.Reset();
+        ActiveFilterCount = 0;
         FiltersCleared?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
     }

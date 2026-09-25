@@ -112,14 +112,18 @@ public partial class EmployeesPageViewModel : SortablePageViewModelBase
             FilterProvince = modals.FilterProvince;
             FilterPayType = modals.FilterPayType;
             FilterFrequency = modals.FilterFrequency;
+            ActiveFilterCount = modals.ActiveFilterCount;
         }
 
         CurrentPage = 1;
         Filter();
     }
 
+    protected override void ClearTableFilters() => App.PayrollModalsViewModel?.ClearFiltersCommand.Execute(null);
+
     private void OnFiltersCleared(object? sender, EventArgs e)
     {
+        ActiveFilterCount = 0;
         FilterStatus = "All";
         FilterProvince = "All";
         FilterPayType = "All";
@@ -247,17 +251,6 @@ public partial class EmployeesPageViewModel : SortablePageViewModelBase
             App.CompanyManager?.MarkAsChanged();
             Load();
         }
-    }
-
-    [RelayCommand]
-    private void ClearFilters()
-    {
-        SearchQuery = string.Empty;
-        FilterStatus = "All";
-        FilterProvince = "All";
-        FilterPayType = "All";
-        FilterFrequency = "All";
-        Filter();
     }
 
     #endregion

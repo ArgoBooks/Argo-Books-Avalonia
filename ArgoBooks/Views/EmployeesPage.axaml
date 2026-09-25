@@ -42,6 +42,8 @@
                              SearchQuery="{Binding SearchQuery, Mode=TwoWay}"
                              SearchPlaceholder="{loc:Loc 'Search employees...'}"
                              FilterCommand="{Binding OpenFilterModalCommand}"
+                             FilterCount="{Binding ActiveFilterCount}"
+                             ClearFiltersCommand="{Binding ClearTableFiltersCommand}"
                              AddCommand="{Binding AddEmployeeCommand}"
                              AddButtonText="{loc:Loc 'Add employee'}"
                              AddButtonTooltip="{loc:Loc 'Add employee'}"

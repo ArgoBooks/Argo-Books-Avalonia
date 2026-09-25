@@ -187,15 +187,19 @@ public partial class PurchaseOrdersPageViewModel : SortablePageViewModelBase
     /// </summary>
     private void OnFiltersApplied(object? sender, EventArgs e)
     {
+        ActiveFilterCount = App.PurchaseOrdersModalsViewModel?.ActiveFilterCount ?? 0;
         CurrentPage = 1;
         FilterOrders();
     }
+
+    protected override void ClearTableFilters() => App.PurchaseOrdersModalsViewModel?.ClearFiltersCommand.Execute(null);
 
     /// <summary>
     /// Handles filters cleared event from modals.
     /// </summary>
     private void OnFiltersCleared(object? sender, EventArgs e)
     {
+        ActiveFilterCount = 0;
         SearchQuery = null;
         CurrentPage = 1;
         FilterOrders();

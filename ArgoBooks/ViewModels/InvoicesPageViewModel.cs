@@ -569,13 +569,17 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
             FilterIssueDateTo = modals.FilterIssueDateTo;
             FilterDueDateFrom = modals.FilterDueDateFrom;
             FilterDueDateTo = modals.FilterDueDateTo;
+            ActiveFilterCount = modals.ActiveFilterCount;
         }
         CurrentPage = 1;
         FilterInvoices();
     }
 
+    protected override void ClearTableFilters() => App.InvoiceModalsViewModel?.ClearFiltersCommand.Execute(null);
+
     private void OnFiltersCleared(object? sender, EventArgs e)
     {
+        ActiveFilterCount = 0;
         FilterStatus = "All";
         FilterCustomerId = null;
         FilterAmountMin = null;

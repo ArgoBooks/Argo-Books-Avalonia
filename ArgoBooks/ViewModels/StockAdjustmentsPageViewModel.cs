@@ -247,12 +247,16 @@ public partial class StockAdjustmentsPageViewModel : SortablePageViewModelBase
         EndDate = e.EndDate?.DateTime;
         FilterProduct = e.Product;
         FilterType = e.Type;
+        ActiveFilterCount = (sender as StockAdjustmentsModalsViewModel)?.ActiveFilterCount ?? 0;
         CurrentPage = 1;
         FilterAdjustments();
     }
 
+    protected override void ClearTableFilters() => App.StockAdjustmentsModalsViewModel?.ClearFiltersCommand.Execute(null);
+
     internal void OnFiltersCleared(object? sender, EventArgs e)
     {
+        ActiveFilterCount = 0;
         StartDate = null;
         EndDate = null;
         FilterProduct = "All";

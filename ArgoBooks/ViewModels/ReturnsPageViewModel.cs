@@ -159,12 +159,16 @@ public partial class ReturnsPageViewModel : SortablePageViewModelBase
 
     private void OnFiltersApplied(object? sender, EventArgs e)
     {
+        ActiveFilterCount = App.ReturnsModalsViewModel?.ActiveFilterCount ?? 0;
         CurrentPage = 1;
         FilterReturns();
     }
 
+    protected override void ClearTableFilters() => App.ReturnsModalsViewModel?.ClearFiltersCommand.Execute(null);
+
     private void OnFiltersCleared(object? sender, EventArgs e)
     {
+        ActiveFilterCount = 0;
         SearchQuery = null;
         CurrentPage = 1;
         FilterReturns();

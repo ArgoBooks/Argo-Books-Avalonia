@@ -13,6 +13,37 @@
              x:DataType="table:ArgoTable"
              x:Name="Root">
 
+    <UserControl.Styles>
+        <!-- Filter button while filters are applied: tinted and outlined in the primary colour -->
+        <Style Selector="Button.secondary-button.filtered">
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <Style Selector="Button.secondary-button.filtered /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource PrimaryIconBgBrush}" />
+        </Style>
+        <Style Selector="Button.secondary-button.filtered:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource PrimaryIconBgBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource PrimaryHoverBrush}" />
+        </Style>
+        <Style Selector="Border.filter-count">
+            <Setter Property="Background" Value="{DynamicResource PrimaryBrush}" />
+            <Setter Property="CornerRadius" Value="9" />
+            <Setter Property="MinWidth" Value="18" />
+            <Setter Property="Height" Value="18" />
+            <Setter Property="Padding" Value="5,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Border.filter-count TextBlock">
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+    </UserControl.Styles>
+
     <Border Background="{DynamicResource SurfaceBrush}"
             CornerRadius="12"
             BorderBrush="{DynamicResource BorderBrush}"
@@ -82,10 +113,11 @@
                             </Grid>
                         </Border>
 
-                        <!-- Filter Button -->
+                        <!-- Filter Button: highlighted, with the number of filters, while any are applied -->
                         <Button Classes="secondary-button"
                                 Classes.compact="{Binding #Root.IsCompactMode}"
                                 Classes.medium="{Binding #Root.IsMediumMode}"
+                                Classes.filtered="{Binding #Root.FilterCount, Converter={x:Static local:IntConverters.IsPositive}}"
                                 IsVisible="{Binding #Root.ShowFilterButton}"
                                 Command="{Binding #Root.FilterCommand}"
                                 ToolTip.Tip="{loc:Loc 'Filter'}">
@@ -93,7 +125,29 @@
                                 <PathIcon Data="{x:Static icons:Icons.Filter}"
                                           Width="16" Height="16" />
                                 <TextBlock Text="{loc:Loc Filter}" IsVisible="{Binding #Root.ShowButtonText}" />
+                                <Border Classes="filter-count"
+                                        IsVisible="{Binding #Root.FilterCount, Converter={x:Static local:IntConverters.IsPositive}}">
+                                    <TextBlock Text="{Binding #Root.FilterCount}" />
+                                </Border>
                             </StackPanel>
+                        </Button>
+
+                        <!-- Clear the applied filters without opening the modal -->
+                        <Button Classes="icon-button"
+                                Width="28" Height="28"
+                                VerticalAlignment="Center"
+                                Command="{Binding #Root.ClearFiltersCommand}"
+                                ToolTip.Tip="{loc:Loc 'Clear filters'}">
+                            <Button.IsVisible>
+                                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                    <Binding Path="#Root.ShowFilterButton" />
+                                    <Binding Path="#Root.FilterCount" Converter="{x:Static local:IntConverters.IsPositive}" />
+                                    <Binding Path="#Root.ClearFiltersCommand" Converter="{x:Static ObjectConverters.IsNotNull}" />
+                                </MultiBinding>
+                            </Button.IsVisible>
+                            <PathIcon Data="{x:Static icons:Icons.Close}"
+                                      Width="12" Height="12"
+                                      Foreground="{DynamicResource TextTertiaryBrush}" />
                         </Button>
 
                         <!-- Extra Buttons Content (slot for additional buttons) -->
@@ -167,18 +221,43 @@
                                               Width="28" Height="28"
                                               Foreground="{DynamicResource TextTertiaryBrush}" />
                                 </Border>
+                                <!-- With filters applied the rows may exist but be hidden, so say so -->
+                                <StackPanel Spacing="16"
+                                            IsVisible="{Binding #Root.FilterCount, Converter={x:Static local:IntConverters.IsPositive}}">
+                                    <TextBlock Text="{loc:Loc 'No results match your filters'}"
+                                               FontSize="16"
+                                               FontWeight="Medium"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               HorizontalAlignment="Center" />
+                                    <TextBlock Text="{loc:Loc 'Clear the filters to see everything.'}"
+                                               FontSize="14"
+                                               Foreground="{DynamicResource TextTertiaryBrush}"
+                                               HorizontalAlignment="Center"
+                                               TextAlignment="Center"
+                                               TextWrapping="Wrap"
+                                               MaxWidth="300" />
+                                    <Button Classes="secondary-button"
+                                            HorizontalAlignment="Center"
+                                            Margin="0,8,0,0"
+                                            Command="{Binding #Root.ClearFiltersCommand}"
+                                            IsVisible="{Binding #Root.ClearFiltersCommand, Converter={x:Static ObjectConverters.IsNotNull}}">
+                                        <TextBlock Text="{loc:Loc 'Clear filters'}" />
+                                    </Button>
+                                </StackPanel>
                                 <TextBlock Text="{Binding #Root.EmptyTitle}"
                                            FontSize="16"
                                            FontWeight="Medium"
                                            Foreground="{DynamicResource TextSecondaryBrush}"
-                                           HorizontalAlignment="Center" />
+                                           HorizontalAlignment="Center"
+                                           IsVisible="{Binding #Root.FilterCount, Converter={x:Static local:IntConverters.IsZero}}" />
                                 <TextBlock Text="{Binding #Root.EmptyMessage}"
                                            FontSize="14"
                                            Foreground="{DynamicResource TextTertiaryBrush}"
                                            HorizontalAlignment="Center"
                                            TextAlignment="Center"
                                            TextWrapping="Wrap"
-                                           MaxWidth="300" />
+                                           MaxWidth="300"
+                                           IsVisible="{Binding #Root.FilterCount, Converter={x:Static local:IntConverters.IsZero}}" />
                                 <Button Classes="primary-button"
                                         HorizontalAlignment="Center"
                                         Margin="0,8,0,0"
@@ -188,6 +267,7 @@
                                         <MultiBinding Converter="{x:Static BoolConverters.And}">
                                             <Binding Path="#Root.ShowAddButton" />
                                             <Binding Path="#Root.ShowEmptyAddButton" />
+                                            <Binding Path="#Root.FilterCount" Converter="{x:Static local:IntConverters.IsZero}" />
                                         </MultiBinding>
                                     </Button.IsVisible>
                                     <StackPanel Orientation="Horizontal" Spacing="8">

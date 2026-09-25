@@ -329,12 +329,16 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
 
     private void OnFiltersApplied(object? sender, EventArgs e)
     {
+        ActiveFilterCount = App.ReceiptsModalsViewModel?.ActiveFilterCount ?? 0;
         CurrentPage = 1;
         FilterReceipts();
     }
 
+    protected override void ClearTableFilters() => App.ReceiptsModalsViewModel?.ClearFiltersCommand.Execute(null);
+
     private void OnFiltersCleared(object? sender, EventArgs e)
     {
+        ActiveFilterCount = 0;
         SearchQuery = null;
         CurrentPage = 1;
         FilterReceipts();

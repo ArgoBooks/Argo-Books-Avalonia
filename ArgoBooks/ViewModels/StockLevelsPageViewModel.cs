@@ -248,12 +248,16 @@ public partial class StockLevelsPageViewModel : SortablePageViewModelBase
         FilterCategory = e.Category;
         FilterLocation = e.Location;
         FilterStatus = e.Status;
+        ActiveFilterCount = (sender as StockLevelsModalsViewModel)?.ActiveFilterCount ?? 0;
         CurrentPage = 1;
         FilterItems();
     }
 
+    protected override void ClearTableFilters() => App.StockLevelsModalsViewModel?.ClearFiltersCommand.Execute(null);
+
     private void OnFiltersCleared(object? sender, EventArgs e)
     {
+        ActiveFilterCount = 0;
         FilterCategory = "All";
         FilterLocation = "All";
         FilterStatus = "All";

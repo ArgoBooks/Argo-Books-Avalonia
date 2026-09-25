@@ -244,13 +244,17 @@ public partial class RentalRecordsPageViewModel : SortablePageViewModelBase
             FilterStartDateTo = modals.FilterStartDateTo?.DateTime;
             FilterDueDateFrom = modals.FilterDueDateFrom?.DateTime;
             FilterDueDateTo = modals.FilterDueDateTo?.DateTime;
+            ActiveFilterCount = modals.ActiveFilterCount;
         }
         CurrentPage = 1;
         FilterRecords();
     }
 
+    protected override void ClearTableFilters() => App.RentalRecordsModalsViewModel?.ClearFiltersCommand.Execute(null);
+
     private void OnFiltersCleared(object? sender, EventArgs e)
     {
+        ActiveFilterCount = 0;
         FilterStatus = "All";
         FilterCustomerId = null;
         FilterItemId = null;

@@ -169,12 +169,16 @@ public partial class LocationsPageViewModel : SortablePageViewModelBase
     {
         FilterType = e.Type;
         FilterStatus = e.Status;
+        ActiveFilterCount = App.LocationsModalsViewModel?.ActiveFilterCount ?? 0;
         CurrentPage = 1;
         FilterLocations();
     }
 
+    protected override void ClearTableFilters() => App.LocationsModalsViewModel?.ClearFiltersCommand.Execute(null);
+
     private void OnFiltersCleared(object? sender, EventArgs e)
     {
+        ActiveFilterCount = 0;
         FilterType = "All";
         FilterStatus = "All";
         CurrentPage = 1;

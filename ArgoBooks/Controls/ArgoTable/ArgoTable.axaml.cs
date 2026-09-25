@@ -99,6 +99,12 @@ public partial class ArgoTable : UserControl, INotifyPropertyChanged
     public static readonly StyledProperty<ICommand?> FilterCommandProperty =
         AvaloniaProperty.Register<ArgoTable, ICommand?>(nameof(FilterCommand));
 
+    public static readonly StyledProperty<int> FilterCountProperty =
+        AvaloniaProperty.Register<ArgoTable, int>(nameof(FilterCount));
+
+    public static readonly StyledProperty<ICommand?> ClearFiltersCommandProperty =
+        AvaloniaProperty.Register<ArgoTable, ICommand?>(nameof(ClearFiltersCommand));
+
     // Extra Buttons Content (slot for additional buttons between Filter and Add)
     public static readonly StyledProperty<object?> ExtraButtonsContentProperty =
         AvaloniaProperty.Register<ArgoTable, object?>(nameof(ExtraButtonsContent));
@@ -316,6 +322,23 @@ public partial class ArgoTable : UserControl, INotifyPropertyChanged
     {
         get => GetValue(FilterCommandProperty);
         set => SetValue(FilterCommandProperty, value);
+    }
+
+    /// <summary>
+    /// How many filters are applied. Above 0 the Filter button is highlighted with the count, a clear
+    /// button appears beside it, and an empty table says the filters are hiding the rows, so nobody
+    /// mistakes a filtered list for missing data.
+    /// </summary>
+    public int FilterCount
+    {
+        get => GetValue(FilterCountProperty);
+        set => SetValue(FilterCountProperty, value);
+    }
+
+    public ICommand? ClearFiltersCommand
+    {
+        get => GetValue(ClearFiltersCommandProperty);
+        set => SetValue(ClearFiltersCommandProperty, value);
     }
 
     /// <summary>

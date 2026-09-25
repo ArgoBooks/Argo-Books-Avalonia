@@ -512,12 +512,16 @@ public partial class LocationsModalsViewModel : ViewModelBase
             CloseFilterModal();
     }
 
+    /// <summary>How many filters are applied, for the page's Filter button.</summary>
+    public int ActiveFilterCount { get; private set; }
+
     /// <summary>
     /// Applies the current filters and closes the modal.
     /// </summary>
     [RelayCommand]
     private void ApplyFilters()
     {
+        ActiveFilterCount = Filters.ActiveCount;
         FiltersApplied?.Invoke(this, new LocationsFilterAppliedEventArgs(FilterType, FilterStatus));
         CloseFilterModal();
     }
@@ -529,6 +533,7 @@ public partial class LocationsModalsViewModel : ViewModelBase
     private void ClearFilters()
     {
         Filters.Reset();
+        ActiveFilterCount = 0;
         FiltersCleared?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
     }

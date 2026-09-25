@@ -144,12 +144,16 @@ public partial class LostDamagedPageViewModel : SortablePageViewModelBase
 
     private void OnFiltersApplied(object? sender, EventArgs e)
     {
+        ActiveFilterCount = App.LostDamagedModalsViewModel?.ActiveFilterCount ?? 0;
         CurrentPage = 1;
         FilterItems();
     }
 
+    protected override void ClearTableFilters() => App.LostDamagedModalsViewModel?.ClearFiltersCommand.Execute(null);
+
     private void OnFiltersCleared(object? sender, EventArgs e)
     {
+        ActiveFilterCount = 0;
         SearchQuery = null;
         CurrentPage = 1;
         FilterItems();
