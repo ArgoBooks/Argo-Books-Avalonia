@@ -30,7 +30,7 @@ public static class RefundAggregator
 
     /// <summary>
     /// Display-currency variant of <see cref="GetRefundedInDateRangeUSD"/>: converts each refund at
-    /// its OWN date via <paramref name="toDisplay"/> before summing (docs/Calculations.md §3a Phase 2).
+    /// its OWN date via <paramref name="toDisplay"/> before summing (docs/Calculations.md Rule 3a).
     /// Pass <c>CurrencyService.GetDisplayAmount</c>. Equals the USD sum for a USD display currency.
     /// </summary>
     public static decimal GetRefundedInDateRangeDisplay(
@@ -110,7 +110,7 @@ public static class RefundAggregator
     /// <summary>
     /// Display-currency variant of <see cref="GetRefundedPreTaxInDateRangeUSD"/>: converts each
     /// refund's pre-tax USD portion at its OWN date via <paramref name="toDisplay"/> before summing
-    /// (docs/Calculations.md §3a Phase 2). Equals the USD sum for a USD display currency.
+    /// (docs/Calculations.md Rule 3a). Equals the USD sum for a USD display currency.
     /// </summary>
     public static decimal GetRefundedPreTaxInDateRangeDisplay(
         IEnumerable<Payment> allPayments,

@@ -3,7 +3,7 @@ using ArgoBooks.Core.Data;
 namespace ArgoBooks.Core.Services;
 
 /// <summary>
-/// The one currency a report or an Insights run shows its amounts in (docs/Calculations.md §3a): the
+/// The one currency a report or an Insights run shows its amounts in (docs/Calculations.md Rule 3a): the
 /// company currency when an exact-date rate exists for every date the run converts at, otherwise USD
 /// for the whole run, so a document never mixes currencies or shows a wrong-date figure.
 /// </summary>

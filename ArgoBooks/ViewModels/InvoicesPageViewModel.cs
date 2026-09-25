@@ -662,7 +662,7 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
         var startOfMonth = new DateTime(now.Year, now.Month, 1);
 
         // Total outstanding (unpaid invoices) - calculate in USD, convert for display. Drafts are excluded:
-        // a never-sent draft isn't money a customer owes. Convert each at its OWN issue date (Calculations.md §3a).
+        // a never-sent draft isn't money a customer owes. Convert each at its OWN issue date (Calculations.md Rule 3a).
         TotalOutstanding = CurrencyService.FormatSumDisplayFromUSD(
             _allInvoices.Where(i => i.Status != InvoiceStatus.Paid && i.Status != InvoiceStatus.Cancelled
                 && i.Status != InvoiceStatus.Draft),
@@ -1345,7 +1345,7 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
         var startOfMonth = new DateTime(now.Year, now.Month, 1);
         var payments = App.CompanyManager?.CompanyData?.Payments ?? [];
 
-        // Convert each payment at its OWN date before summing (Calculations.md §3a Phase 2).
+        // Convert each payment at its OWN date before summing (Calculations.md Rule 3a).
         OnlineReceivedThisMonth = CurrencyService.FormatSumDisplayFromUSD(
             payments.Where(p => p.Date >= startOfMonth && p.Source == PaymentSource.Online && p.Amount > 0),
             p => p.Amount, p => p.OriginalCurrency, p => p.AmountUSD, p => p.Date);

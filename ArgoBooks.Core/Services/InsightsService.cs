@@ -55,8 +55,8 @@ public class InsightsService(
     private decimal ToDisplay(decimal amountUSD, DateTime date) => DisplayCurrency.FromUSD(amountUSD, _displayCode, date);
 
     /// <summary>
-    /// Sums per-item USD amounts after converting EACH at that item's OWN date, per the Phase 2
-    /// aggregate rule in docs/Calculations.md §3a (never convert a pre-summed total at one date).
+    /// Sums per-item USD amounts after converting EACH at that item's OWN date, per the totals
+    /// rule in docs/Calculations.md Rule 3a (never convert a pre-summed total at one date).
     /// Identical to summing the USD amounts directly for a USD run.
     /// </summary>
     private decimal SumDisplay<T>(IEnumerable<T> items, Func<T, decimal> amountUSD, Func<T, DateTime> date)

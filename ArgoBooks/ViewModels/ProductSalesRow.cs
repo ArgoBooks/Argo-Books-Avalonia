@@ -13,7 +13,7 @@ public class ProductSalesRow
 {
     // The ProductSalesData here already holds display-currency amounts: GetProductSales was called
     // with a per-date converter so each sale was converted at its OWN date before aggregation
-    // (Calculations.md §3a Phase 2). So format directly, with no further currency conversion.
+    // (Calculations.md Rule 3a). So format directly, with no further currency conversion.
     public ProductSalesRow(ProductSalesData data)
     {
         ProductId = data.ProductId;

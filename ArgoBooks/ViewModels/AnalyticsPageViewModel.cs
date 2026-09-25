@@ -140,7 +140,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
     /// </summary>
     private void LoadProductSales(CompanyData data)
     {
-        // Convert each sale at its OWN date during aggregation (Calculations.md §3a Phase 2), so
+        // Convert each sale at its OWN date during aggregation (Calculations.md Rule 3a), so
         // the per-product and total figures aren't re-priced at a single date. The resulting
         // amounts are already in the display currency.
         var complete = CurrencyService.TryComputeDisplay(
@@ -1907,7 +1907,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         HasProfitTrendsData = series.Count > 0;
 
         // totalProfit is already in the display currency, converted per-day at each day's OWN date
-        // (Calculations.md §3a Phase 2), so the title matches the bars and needs no today's-rate step.
+        // (Calculations.md Rule 3a), so the title matches the bars and needs no today's-rate step.
         _profitOverTimeTitleText = $"Total profits: {CurrencyService.Format(totalProfit)}";
         OnPropertyChanged(nameof(ProfitOverTimeTitle));
     }
@@ -2267,7 +2267,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         var profitChange = prevNetProfit != 0 ? ((netProfitUSD - prevNetProfit) / Math.Abs(prevNetProfit)) * 100 : 0;
         var marginChange = margin - prevMargin;
 
-        // Update properties (convert each transaction at its OWN date per Calculations.md §3a).
+        // Update properties (convert each transaction at its OWN date per Calculations.md Rule 3a).
         // The same figures as the dashboard cards, showing Pending while a rate is missing.
         TotalPurchases = CurrencyService.FormatSumDisplayFromUSD(
             data.Expenses.Where(e => e.Date >= StartDate && e.Date <= EndDate),
@@ -2340,7 +2340,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         var allTransactionValues = sales.Select(s => s.EffectiveTotalUSD).Concat(purchases.Select(p => p.EffectiveTotalUSD)).ToList();
         var avgTransactionValue = allTransactionValues.Count > 0 ? allTransactionValues.Average() : 0;
 
-        // Average display value: convert each transaction at its OWN date (Calculations.md §3a),
+        // Average display value: convert each transaction at its OWN date (Calculations.md Rule 3a),
         // sum, then divide by the same count used above.
         var salesComplete = CurrencyService.TrySumDisplayFromUSD(sales, s => s.Total, s => s.OriginalCurrency, s => s.TotalUSD, s => s.Date, out var salesSumDisplay);
         var purchasesComplete = CurrencyService.TrySumDisplayFromUSD(purchases, p => p.Total, p => p.OriginalCurrency, p => p.TotalUSD, p => p.Date, out var purchasesSumDisplay);
@@ -2436,7 +2436,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
             .Where(RevenueAggregator.IsCollected)
             .ToList();
         var customerIds = sales.Select(s => s.CustomerId).Distinct().ToList();
-        // Convert each sale at its OWN date (Calculations.md §3a), then divide by the
+        // Convert each sale at its OWN date (Calculations.md Rule 3a), then divide by the
         // same distinct-customer count.
         var custSalesComplete = CurrencyService.TrySumDisplayFromUSD(sales, s => s.Total, s => s.OriginalCurrency, s => s.TotalUSD, s => s.Date, out var salesValueDisplay);
         var avgValueDisplay = customerIds.Count > 0 ? salesValueDisplay / customerIds.Count : 0;
@@ -2606,7 +2606,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         var liabilityChange = prevNetLiability != 0 ? ((netLiability - prevNetLiability) / Math.Abs(prevNetLiability)) * 100 : 0;
         var rateChange = effectiveRate - prevEffectiveRate;
 
-        // Convert each transaction's tax at its OWN date (Calculations.md §3a). The per-row
+        // Convert each transaction's tax at its OWN date (Calculations.md Rule 3a). The per-row
         // USD selector mirrors taxCollectedUSD/taxPaidUSD above so USD display is identity.
         var grossCollectedComplete = CurrencyService.TrySumDisplayFromUSD(
             revenues, r => r.TaxAmount, r => r.OriginalCurrency, r => r.EffectiveTaxAmountUSD, r => r.Date, out var grossTaxCollectedDisplay);

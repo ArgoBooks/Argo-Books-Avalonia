@@ -70,7 +70,7 @@ public partial class TopCustomersWidgetViewModel : WidgetViewModelBase
     {
         // Refund totals per customer, so the leaderboard reflects what the customer actually
         // retained (gross − refunds). Each refund is converted to display currency at its OWN
-        // date before summing (Calculations.md §3a Phase 2), so a non-USD display total isn't
+        // date before summing (Calculations.md Rule 3a), so a non-USD display total isn't
         // re-priced at today's rate.
         var refundsByCustomer = data.Payments
             .Where(p => p.IsRefund && !string.IsNullOrEmpty(p.CustomerId))

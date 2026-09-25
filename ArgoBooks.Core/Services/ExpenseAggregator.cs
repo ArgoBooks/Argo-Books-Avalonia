@@ -28,7 +28,7 @@ public static class ExpenseAggregator
     /// <summary>
     /// Display-currency variant of <see cref="SumExpensesUSD"/>: converts each expense to the
     /// display currency at its OWN date via <paramref name="toDisplay"/> before summing, per the
-    /// Phase 2 aggregate rule (docs/Calculations.md §3a). Pass <c>CurrencyService.GetDisplayAmount</c>.
+    /// totals rule (docs/Calculations.md Rule 3a). Pass <c>CurrencyService.GetDisplayAmount</c>.
     /// For a USD display currency this equals <see cref="SumExpensesUSD"/>.
     /// </summary>
     public static decimal SumExpensesDisplay(

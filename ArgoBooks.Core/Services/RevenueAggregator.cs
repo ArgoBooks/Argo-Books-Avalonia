@@ -59,7 +59,7 @@ public static class RevenueAggregator
 
     /// <summary>
     /// Display-currency variant of <see cref="SumCollectedRevenueUSD"/>: converts each row at its
-    /// OWN date via <paramref name="toDisplay"/> before summing (docs/Calculations.md §3a Phase 2).
+    /// OWN date via <paramref name="toDisplay"/> before summing (docs/Calculations.md Rule 3a).
     /// Pass <c>CurrencyService.GetDisplayAmount</c>. Equals the USD sum for a USD display currency.
     /// </summary>
     public static decimal SumCollectedRevenueDisplay(

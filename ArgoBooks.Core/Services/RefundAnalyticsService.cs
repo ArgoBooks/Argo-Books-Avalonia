@@ -11,7 +11,7 @@ namespace ArgoBooks.Core.Services;
 /// Sums are USD-normalized (Payment.EffectiveAmountUSD) by default so multi-currency
 /// portals roll up consistently. Money methods accept an optional
 /// <c>Func&lt;decimal,DateTime,decimal&gt; toDisplay</c>; when supplied, each refund is
-/// converted to the display currency at its OWN date (Calculations.md §3a) and callers
+/// converted to the display currency at its OWN date (Calculations.md Rule 3a) and callers
 /// format the result directly with <c>CurrencyService.Format</c> (no second conversion).
 /// When omitted the result stays in USD. See docs/Calculations.md §3.
 /// </summary>
@@ -31,7 +31,7 @@ public static class RefundAnalyticsService
 
     /// <summary>
     /// Total refunded over a window, converted to display currency per
-    /// Calculations.md §3a: each refund is converted at its OWN date before summing.
+    /// Calculations.md Rule 3a: each refund is converted at its OWN date before summing.
     /// </summary>
     public static decimal TotalRefundedDisplay(CompanyData company, DateTime since, Func<decimal, DateTime, decimal> toDisplay)
         => company.Payments
@@ -51,7 +51,7 @@ public static class RefundAnalyticsService
     /// <summary>
     /// Monthly buckets of refund totals for the last <paramref name="months"/> months. With a
     /// <paramref name="toDisplay"/> converter, each refund is converted to the display currency at
-    /// its OWN date before bucketing (Calculations.md §3a Phase 2); null keeps USD (tests/callers).
+    /// its OWN date before bucketing (Calculations.md Rule 3a); null keeps USD (tests/callers).
     /// </summary>
     public static IReadOnlyList<MonthlyRefundTotal> MonthlyTotals(
         CompanyData company, int months, Func<decimal, DateTime, decimal>? toDisplay = null)
@@ -76,7 +76,7 @@ public static class RefundAnalyticsService
     /// <summary>
     /// Top customers by absolute refund total since <paramref name="since"/>. Amounts are
     /// USD by default; pass <paramref name="toDisplay"/> to convert each refund at its OWN
-    /// date (Calculations.md §3a) and return display-currency totals.
+    /// date (Calculations.md Rule 3a) and return display-currency totals.
     /// </summary>
     public static IReadOnlyList<CustomerRefundTotal> TopRefundedCustomers(
         CompanyData company, DateTime since, int top, Func<decimal, DateTime, decimal>? toDisplay = null)
@@ -105,7 +105,7 @@ public static class RefundAnalyticsService
     /// <summary>
     /// Top product/line items by refund total, derived from refunded invoices' line items.
     /// Amounts are USD by default; pass <paramref name="toDisplay"/> to convert each refund
-    /// at its OWN date (Calculations.md §3a) and return display-currency totals.
+    /// at its OWN date (Calculations.md Rule 3a) and return display-currency totals.
     /// </summary>
     public static IReadOnlyList<ProductRefundTotal> TopRefundedProducts(
         CompanyData company, DateTime since, int top, Func<decimal, DateTime, decimal>? toDisplay = null)
@@ -148,7 +148,7 @@ public static class RefundAnalyticsService
     /// <summary>
     /// Top reasons by occurrence count (filtered to non-empty reasons since the window).
     /// Totals are USD by default; pass <paramref name="toDisplay"/> to convert each refund
-    /// at its OWN date (Calculations.md §3a) and return display-currency totals.
+    /// at its OWN date (Calculations.md Rule 3a) and return display-currency totals.
     /// </summary>
     public static IReadOnlyList<RefundReasonCount> TopReasons(
         CompanyData company, DateTime since, int top, Func<decimal, DateTime, decimal>? toDisplay = null)
@@ -166,7 +166,7 @@ public static class RefundAnalyticsService
     /// <summary>
     /// Channel breakdown by total refunded amount. Amounts are USD by default; pass
     /// <paramref name="toDisplay"/> to convert each refund at its OWN date
-    /// (Calculations.md §3a) and return display-currency totals.
+    /// (Calculations.md Rule 3a) and return display-currency totals.
     /// </summary>
     public static IReadOnlyDictionary<string, decimal> ChannelBreakdown(
         CompanyData company, DateTime since, Func<decimal, DateTime, decimal>? toDisplay = null)

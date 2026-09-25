@@ -406,7 +406,7 @@ public RevenuePageViewModel()
         // Total monthly revenue, net of refunds (cash-basis: refund counts on
         // the day it was issued). Mirrors the dashboard's stat-card semantics
         // exactly so the two never drift: paid-only, capped at end of month.
-        // Convert each row/refund at its OWN date before summing (Calculations.md §3a Phase 2).
+        // Convert each row/refund at its OWN date before summing (Calculations.md Rule 3a).
         var grossComplete = CurrencyService.TrySumDisplayFromUSD(
             RevenueAggregator.OnlyCollected(
                 _allRevenue.Where(s => s.Date >= startOfMonth && s.Date <= endOfMonth)),

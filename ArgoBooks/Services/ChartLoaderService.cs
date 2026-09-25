@@ -36,7 +36,7 @@ public class ChartLoaderService
 
     /// <summary>
     /// Convert an array of USD amounts to the user's display currency, converting each
-    /// USD bucket value at its OWN date (docs/Calculations.md §3a Phase 2) instead of today's rate,
+    /// USD bucket value at its OWN date (docs/Calculations.md Rule 3a) instead of today's rate,
     /// so a non-USD chart isn't re-priced. <paramref name="dates"/> must align 1:1 with
     /// <paramref name="usdValues"/>. For a USD display currency this is a no-op.
     ///
@@ -58,7 +58,7 @@ public class ChartLoaderService
 
     /// <summary>
     /// Convert each daily point to the display currency at its OWN date so re-bucketing sums
-    /// per-day-correct values (Calculations.md §3a Phase 2). Identity for a USD display currency.
+    /// per-day-correct values (Calculations.md Rule 3a). Identity for a USD display currency.
     /// </summary>
     private static List<ChartDataPoint> ConvertDailyPointsToDisplay(List<ChartDataPoint> dailyPoints)
     {
@@ -341,7 +341,7 @@ public class ChartLoaderService
         bool convertFromUSD = true)
     {
         // Values are USD-aggregated currency unless the caller already converted them. When
-        // converting here, do it per bucket at its OWN date (docs/Calculations.md §3a Phase 2),
+        // converting here, do it per bucket at its OWN date (docs/Calculations.md Rule 3a),
         // not today's rate. Callers whose values already come from per-day-converted, re-bucketed
         // data pass convertFromUSD:false so we don't double-convert.
         if (convertFromUSD)
@@ -552,7 +552,7 @@ public class ChartLoaderService
     private List<ChartDataPoint> StoreDailyAndBucket(ChartDataType chartType, List<ChartDataPoint> dailyPoints)
     {
         // Convert each daily point to display currency at its OWN date BEFORE bucketing, so the
-        // bucket sum is a sum of per-day-correct display values (Calculations.md §3a Phase 2).
+        // bucket sum is a sum of per-day-correct display values (Calculations.md Rule 3a).
         // The stored daily cache and returned bucketed points are therefore already display-currency.
         dailyPoints = ConvertDailyPointsToDisplay(dailyPoints);
 
@@ -577,7 +577,7 @@ public class ChartLoaderService
         ChartDataType chartType, List<ChartSeriesData> dailySeries)
     {
         // Convert each series' daily points to display currency at each point's OWN date BEFORE
-        // bucketing, so bucket sums are per-day-correct (Calculations.md §3a Phase 2). The stored
+        // bucketing, so bucket sums are per-day-correct (Calculations.md Rule 3a). The stored
         // daily cache and returned bucketed series are therefore already display-currency.
         foreach (var s in dailySeries)
             s.DataPoints = ConvertDailyPointsToDisplay(s.DataPoints);
@@ -1130,7 +1130,7 @@ public class ChartLoaderService
         var values = dataPoints.Select(p => p.Value).ToArray();
 
         // Values already come from StoreDailyAndBucket (per-day-converted then re-bucketed),
-        // so they are already display-currency. Don't convert again (Calculations.md §3a Phase 2).
+        // so they are already display-currency. Don't convert again (Calculations.md Rule 3a).
         series.Add(CreateDateTimeSeries(dates, values, "Expenses", ChartColors.Expense, convertFromUSD: false));
 
         StoreExportData(ChartDataType.TotalExpenses, new ChartExportData
@@ -1181,7 +1181,7 @@ public class ChartLoaderService
         var values = dataPoints.Select(p => p.Value).ToArray();
 
         // Values already come from StoreDailyAndBucket (per-day-converted then re-bucketed),
-        // so they are already display-currency. Don't convert again (Calculations.md §3a Phase 2).
+        // so they are already display-currency. Don't convert again (Calculations.md Rule 3a).
         series.Add(CreateDateTimeSeries(dates, values, "Revenue", ChartColors.Revenue, convertFromUSD: false));
 
         StoreExportData(ChartDataType.TotalRevenue, new ChartExportData
@@ -1229,7 +1229,7 @@ public class ChartLoaderService
         }
 
         // Total profit for the chart title, in the DISPLAY currency. Convert each day at its OWN
-        // date (Calculations.md §3a Phase 2) so the title matches the per-bucket bars and isn't
+        // date (Calculations.md Rule 3a) so the title matches the per-bucket bars and isn't
         // re-priced at today's rate. Computed from daily data before bucketing for exact dates.
         totalProfit = dailyPoints.Sum(p =>
             CurrencyService.GetDisplayAmount((decimal)p.Value, p.Date ?? DateTime.Now));
@@ -1240,7 +1240,7 @@ public class ChartLoaderService
         var values = dataPoints.Select(p => p.Value).ToArray();
 
         // Values already come from StoreDailyAndBucket (per-day-converted then re-bucketed),
-        // so they are already display-currency. Don't convert again (Calculations.md §3a Phase 2).
+        // so they are already display-currency. Don't convert again (Calculations.md Rule 3a).
         foreach (var s in CreateSignedValueDateTimeSeries(dates, values, "Profit",
                      ChartDataType.TotalProfits, "(Loss)", convertFromUSD: false))
         {
@@ -1384,7 +1384,7 @@ public class ChartLoaderService
         if (dates.Length > 0)
         {
             // Values already come from StoreDailySeriesAndBucket (per-day-converted then re-bucketed),
-            // so they are already display-currency. Don't convert again (Calculations.md §3a Phase 2).
+            // so they are already display-currency. Don't convert again (Calculations.md Rule 3a).
             series.Add(CreateDateTimeSeries(dates, expenseValues, "Expenses", ChartColors.Expense, convertFromUSD: false));
             series.Add(CreateDateTimeSeries(dates, revenueValues, "Revenue", ChartColors.Revenue, convertFromUSD: false));
         }
@@ -1415,8 +1415,8 @@ public class ChartLoaderService
         var filters = CreateFilters(startDate, endDate);
         var dataService = new ReportChartDataService(companyData, filters);
 
-        // Convert each transaction at its OWN date during aggregation (docs/Calculations.md §3a
-        // Phase 2), so a category total spanning many dates isn't re-priced at one rate. Values
+        // Convert each transaction at its OWN date during aggregation (docs/Calculations.md Rule 3a)
+        // so a category total spanning many dates isn't re-priced at one rate. Values
         // are already in display currency, so the pie helper must not convert again.
         var dataPoints = dataService.GetRevenueDistribution(CurrencyService.GetDisplayAmount).ToList();
 
@@ -1450,7 +1450,7 @@ public class ChartLoaderService
         var filters = CreateFilters(startDate, endDate);
         var dataService = new ReportChartDataService(companyData, filters);
 
-        // Per-transaction conversion at each row's OWN date (docs/Calculations.md §3a Phase 2);
+        // Per-transaction conversion at each row's OWN date (docs/Calculations.md Rule 3a);
         // values come back in display currency, so the pie helper must not convert again.
         var dataPoints = dataService.GetExpenseDistribution(CurrencyService.GetDisplayAmount).ToList();
 
@@ -1708,7 +1708,7 @@ public class ChartLoaderService
         var filters = CreateFilters(startDate, endDate);
         var dataService = new ReportChartDataService(companyData, filters);
 
-        // Per-transaction conversion at each row's OWN date (docs/Calculations.md §3a Phase 2);
+        // Per-transaction conversion at each row's OWN date (docs/Calculations.md Rule 3a);
         // values come back in display currency, so the pie helper must not convert again.
         var dataPoints = dataService.GetExpensesByCountryOfDestination(CurrencyService.GetDisplayAmount).ToList();
 
@@ -1742,7 +1742,7 @@ public class ChartLoaderService
         var dataService = new ReportChartDataService(companyData, filters);
 
         // Use sales with customer country lookup - destination is where products are shipped to (customer location)
-        // Per-transaction conversion at each row's OWN date (docs/Calculations.md §3a Phase 2);
+        // Per-transaction conversion at each row's OWN date (docs/Calculations.md Rule 3a);
         // values come back in display currency, so the pie helper must not convert again.
         var dataPoints = dataService.GetRevenueByCustomerCountry(CurrencyService.GetDisplayAmount).ToList();
 
@@ -1775,7 +1775,7 @@ public class ChartLoaderService
         var filters = CreateFilters(startDate, endDate);
         var dataService = new ReportChartDataService(companyData, filters);
 
-        // Per-transaction conversion at each row's OWN date (docs/Calculations.md §3a Phase 2);
+        // Per-transaction conversion at each row's OWN date (docs/Calculations.md Rule 3a);
         // values come back in display currency, so the pie helper must not convert again.
         var dataPoints = dataService.GetExpensesBySupplierCompany(CurrencyService.GetDisplayAmount).ToList();
 
@@ -1839,7 +1839,7 @@ public class ChartLoaderService
         var filters = CreateFilters(startDate, endDate);
         var dataService = new ReportChartDataService(companyData, filters);
 
-        // Per-transaction conversion at each row's OWN date (docs/Calculations.md §3a Phase 2);
+        // Per-transaction conversion at each row's OWN date (docs/Calculations.md Rule 3a);
         // values come back in display currency, so the pie helper must not convert again.
         var dataPoints = dataService.GetRevenueByCompanyOfDestination(CurrencyService.GetDisplayAmount).ToList();
 
@@ -2613,7 +2613,7 @@ public class ChartLoaderService
         var filters = CreateFilters(startDate, endDate);
         var dataService = new ReportChartDataService(companyData, filters);
 
-        // Per-transaction conversion at each row's OWN date (docs/Calculations.md §3a Phase 2);
+        // Per-transaction conversion at each row's OWN date (docs/Calculations.md Rule 3a);
         // values come back in display currency, so the pie helper must not convert again.
         var dataPoints = dataService.GetTaxByCategory(CurrencyService.GetDisplayAmount).ToList();
 
@@ -2720,7 +2720,7 @@ public class ChartLoaderService
         var filters = CreateFilters(startDate, endDate);
         var dataService = new ReportChartDataService(companyData, filters);
 
-        // Per-transaction conversion at each row's OWN date (docs/Calculations.md §3a Phase 2);
+        // Per-transaction conversion at each row's OWN date (docs/Calculations.md Rule 3a);
         // values come back in display currency, so the pie helper must not convert again.
         var dataPoints = dataService.GetTaxByProduct(CurrencyService.GetDisplayAmount).ToList();
 

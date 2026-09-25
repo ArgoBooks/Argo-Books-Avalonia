@@ -12,7 +12,7 @@ using Xunit;
 namespace ArgoBooks.Tests.Services;
 
 /// <summary>
-/// docs/Calculations.md §3a Phase 2: the accounting report converts every figure at the
+/// docs/Calculations.md Rule 3a: the accounting report converts every figure at the
 /// transaction's OWN date, with a REPORT-WIDE consistency fallback to USD when any needed
 /// exact-date rate is missing (so a printed document is never a mix of currencies).
 ///
@@ -100,7 +100,7 @@ public class AccountingReportCurrencyTests
             Assert.Equal("Amounts in CAD", report.Subtitle);
 
             // Per-date total = 140 + 260 = 400 CAD. Converting BOTH at the end date (Date2's 1.30)
-            // would give 100*1.30 + 200*1.30 = 390 CAD, so this asserts the §3a per-date behavior.
+            // would give 100*1.30 + 200*1.30 = 390 CAD, so this asserts the Rule 3a per-date behavior.
             var totalRow = report.Rows.Find(r => r.Label == "Total Revenue");
             Assert.NotNull(totalRow);
             Assert.Equal(400m, ParseAmount(totalRow.Values[0]));

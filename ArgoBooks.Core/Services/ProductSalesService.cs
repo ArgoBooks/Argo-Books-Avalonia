@@ -41,7 +41,7 @@ public static class ProductSalesService
                     : 0;
 
                 // When a display converter is supplied, convert each allocated amount at the
-                // transaction's OWN date before accumulating (Calculations.md §3a Phase 2), so the
+                // transaction's OWN date before accumulating (Calculations.md Rule 3a), so the
                 // per-product totals aren't re-priced at one date. Default (null) keeps USD for the
                 // formal report path (a documented exception) and unit tests.
                 var revenue = toDisplay != null ? toDisplay(revenueUSD, s.Date) : revenueUSD;
