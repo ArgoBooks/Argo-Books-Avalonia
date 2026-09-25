@@ -876,7 +876,6 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
         var notes = string.IsNullOrWhiteSpace(ReturnNotes) ? rental.Notes
             : string.IsNullOrWhiteSpace(rental.Notes) ? ReturnNotes.Trim()
             : $"{rental.Notes}\n\nReturn notes: {ReturnNotes.Trim()}";
-        var before = ReturnFieldsOf(rental);
         var after = new ReturnFields(RentalStatus.Returned, ReturnDate?.DateTime, ReturnTotalCost + extraCharges, refund,
             ReturnMarkAsPaid, extraCharges, extraCharges > 0 ? ReturnExtraChargesNote.Trim() : string.Empty, notes, null);
         ApplyReturn(rental, after);
@@ -893,37 +892,11 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
         if (paidRevenue != null)
         {
             AddRentalRevenue(companyData, paidRevenue);
-            after = after with { RevenueId = paidRevenue.Id };
             rental.RevenueId = paidRevenue.Id;
         }
 
-        var adjustments = MoveStock(companyData, Units(rental.EffectiveLineItems(), 1), "Rental return", rental.Id);
+        MoveStock(companyData, Units(rental.EffectiveLineItems(), 1), "Rental return", rental.Id);
         companyData.MarkAsModified();
-
-        App.UndoRedoManager.RecordAction(new DelegateAction(
-            $"Return rental '{rental.Id}'",
-            () =>
-            {
-                ApplyReturn(rental, before);
-                if (keptDeposit != null)
-                    RemoveRentalRevenue(companyData, keptDeposit);
-                if (paidRevenue != null)
-                    RemoveRentalRevenue(companyData, paidRevenue);
-                ReplayStock(companyData, adjustments, undo: true);
-                companyData.MarkAsModified();
-                RecordReturned?.Invoke(this, EventArgs.Empty);
-            },
-            () =>
-            {
-                ApplyReturn(rental, after);
-                if (keptDeposit != null)
-                    AddRentalRevenue(companyData, keptDeposit);
-                if (paidRevenue != null)
-                    AddRentalRevenue(companyData, paidRevenue);
-                ReplayStock(companyData, adjustments, undo: false);
-                companyData.MarkAsModified();
-                RecordReturned?.Invoke(this, EventArgs.Empty);
-            }));
 
         RecordReturned?.Invoke(this, EventArgs.Empty);
         CloseReturnModal();
@@ -933,9 +906,6 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
     private sealed record ReturnFields(
         RentalStatus Status, DateTime? ReturnDate, decimal? TotalCost, decimal? DepositRefunded, bool Paid,
         decimal ExtraCharges, string ExtraChargesNote, string Notes, string? RevenueId);
-
-    private static ReturnFields ReturnFieldsOf(RentalRecord r) => new(
-        r.Status, r.ReturnDate, r.TotalCost, r.DepositRefunded, r.Paid, r.ExtraCharges, r.ExtraChargesNote, r.Notes, r.RevenueId);
 
     private static void ApplyReturn(RentalRecord r, ReturnFields f)
     {
