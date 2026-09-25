@@ -1,5 +1,7 @@
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Models.Common;
+using ArgoBooks.Core.Models.Inventory;
+using ArgoBooks.Core.Models.Transactions;
 using ArgoBooks.Core.Services;
 
 namespace ArgoBooks.Services;
@@ -210,10 +212,13 @@ public static class CurrencyService
         var target = CurrentCurrencyCode;
         foreach (var item in items)
         {
-            // Already in the display currency: use the original amount as-is, no conversion needed.
+            // Already in the display currency: use the original amount as-is, no conversion needed. A
+            // row still waiting for its USD value counts 0 until it converts, as it does in every USD
+            // total (Calculations.md §3), so a card agrees with its % change and with Net Profit.
             if (string.Equals(target, originalCurrency(item), StringComparison.OrdinalIgnoreCase))
             {
-                total += originalAmount(item);
+                if (!IsPendingConversion(item))
+                    total += originalAmount(item);
                 continue;
             }
             var usd = amountUSD(item);
@@ -227,6 +232,15 @@ public static class CurrencyService
         }
         return complete;
     }
+
+    private static bool IsPendingConversion(object? item) => item switch
+    {
+        Transaction t => t.IsPendingConversion,
+        Invoice i => i.IsPendingConversion,
+        Payment p => p.IsPendingConversion,
+        PurchaseOrder o => o.IsPendingConversion,
+        _ => false
+    };
 
     /// <summary>
     /// Sums per-item amounts in the display currency, or returns <see cref="PendingMarker"/> when any
