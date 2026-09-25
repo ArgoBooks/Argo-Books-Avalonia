@@ -1808,8 +1808,7 @@ public class ChartLoaderService
         var dataService = new ReportChartDataService(companyData, filters);
 
         // Values come back in display currency, so the pie helper must not convert again.
-        var dataPoints = dataService.GetTopCustomersByRevenue(CurrencyService.GetDisplayAmount)
-            .Where(p => p.Value > 0).ToList();
+        var dataPoints = dataService.GetTopCustomersByRevenue(CurrencyService.GetDisplayAmount).ToList();
 
         if (dataPoints.Count == 0)
             return ([], []);

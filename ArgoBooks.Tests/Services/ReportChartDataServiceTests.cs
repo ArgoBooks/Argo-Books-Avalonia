@@ -177,6 +177,19 @@ public class ReportChartDataServiceTests
         Assert.Equal(70d, result.Single().Value);
     }
 
+    // Refunds larger than the range's sales would make a negative slice, which the report pie draws
+    // as its absolute value.
+    [Fact]
+    public void GetTopCustomersByRevenue_LeavesOutCustomersRefundedMoreThanTheyBought()
+    {
+        var data = new CompanyData();
+        data.Customers.Add(new Core.Models.Entities.Customer { Id = "C1", Name = "Ann" });
+        data.Revenues.Add(new Revenue { Id = "R1", CustomerId = "C1", Date = new DateTime(2024, 4, 1), OriginalCurrency = "USD", Total = 50m });
+        data.Payments.Add(new Payment { Id = "P1", CustomerId = "C1", IsRefund = true, Amount = -600m, OriginalCurrency = "USD", Date = new DateTime(2024, 4, 5) });
+
+        Assert.Empty(new ReportChartDataService(data, CreateDefaultFilters()).GetTopCustomersByRevenue());
+    }
+
     [Fact]
     public void GetCustomerGrowth_NullCompanyData_ReturnsEmptyList()
     {

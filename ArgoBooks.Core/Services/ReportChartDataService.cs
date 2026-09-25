@@ -933,6 +933,8 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
                                      - refundedByCustomer.GetValueOrDefault(g.Key!, 0m))
                 };
             })
+            // A customer refunded more than they bought in the range isn't a top customer.
+            .Where(p => p.Value > 0)
             .OrderByDescending(p => p.Value)
             .Take(10)
             .ToList();
