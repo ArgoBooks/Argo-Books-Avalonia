@@ -161,6 +161,22 @@ public class ReportChartDataServiceTests
         Assert.Empty(result);
     }
 
+    // A customer's refunds in range come off their revenue, as on the Revenue card and the
+    // dashboard's Top Customers widget.
+    [Fact]
+    public void GetTopCustomersByRevenue_SubtractsRefundsInRange()
+    {
+        var data = new CompanyData();
+        data.Customers.Add(new Core.Models.Entities.Customer { Id = "C1", Name = "Ann" });
+        data.Revenues.Add(new Revenue { Id = "R1", CustomerId = "C1", Date = new DateTime(2024, 3, 1), OriginalCurrency = "USD", Total = 100m });
+        data.Payments.Add(new Payment { Id = "P1", CustomerId = "C1", IsRefund = true, Amount = -30m, OriginalCurrency = "USD", Date = new DateTime(2024, 3, 5) });
+        data.Payments.Add(new Payment { Id = "P2", CustomerId = "C1", IsRefund = true, Amount = -50m, OriginalCurrency = "USD", Date = new DateTime(2025, 3, 5) });
+
+        var result = new ReportChartDataService(data, CreateDefaultFilters()).GetTopCustomersByRevenue();
+
+        Assert.Equal(70d, result.Single().Value);
+    }
+
     [Fact]
     public void GetCustomerGrowth_NullCompanyData_ReturnsEmptyList()
     {

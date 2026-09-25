@@ -872,7 +872,7 @@
                                 Margin="0,0,12,0">
                             <Panel>
                                 <!-- Pie Chart with custom legend -->
-                                <Grid RowDefinitions="Auto,*" IsVisible="{Binding HasCompaniesOfOriginData}">
+                                <Grid RowDefinitions="Auto,*" IsVisible="{Binding HasTopCustomersData}">
                                     <TextBlock Grid.Row="0"
                                                Text="{loc:Loc 'Top Customers by Revenue'}"
                                                HorizontalAlignment="Center"
@@ -885,12 +885,12 @@
                                                       Tag="{x:Static enums:ChartDataType.TopCustomersByRevenue}"
                                                       PointerPressed="OnChartPointerPressed"
                                                     PointerReleased="OnChartPointerReleased"
-                                                      Series="{Binding CompaniesOfOriginSeries}"
+                                                      Series="{Binding TopCustomersSeries}"
                                                       LegendPosition="Hidden" />
                                         <controls:PieChartLegend Grid.Column="1"
                                                                  PointerPressed="OnChartPointerPressed"
                                                     PointerReleased="OnChartPointerReleased"
-                                                                 Items="{Binding CompaniesOfOriginLegend}"
+                                                                 Items="{Binding TopCustomersLegend}"
                                                                  MaxHeightOverride="240"
                                                                  Width="200"
                                                                  Margin="8,0,0,0"
@@ -899,7 +899,7 @@
                                 </Grid>
                                 <!-- No data placeholder -->
                                 <controls:ChartEmptyState
-                                    IsVisible="{Binding !HasCompaniesOfOriginData}"
+                                    IsVisible="{Binding !HasTopCustomersData}"
                                     DefaultMessage="{loc:Loc 'No customer data available'}"
                                     ShowDateRangeMessage="{Binding ShowRevenueDateRangeMessage}" />
                             </Panel>

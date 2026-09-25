@@ -848,6 +848,15 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
     private bool _hasCompaniesOfOriginData;
 
     [ObservableProperty]
+    private ObservableCollection<ISeries> _topCustomersSeries = [];
+
+    [ObservableProperty]
+    private ObservableCollection<PieLegendItem> _topCustomersLegend = [];
+
+    [ObservableProperty]
+    private bool _hasTopCustomersData;
+
+    [ObservableProperty]
     private ObservableCollection<ISeries> _countriesOfDestinationSeries = [];
 
     [ObservableProperty]
@@ -1827,6 +1836,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
             LoadAccountantsTransactionsChart(data);
 
             // Customer pie charts
+            LoadTopCustomersChart(data);
             LoadCustomerPaymentStatusChart(data);
             LoadActiveInactiveCustomersChart(data);
 
@@ -1923,6 +1933,14 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         CompaniesOfOriginSeries = series;
         CompaniesOfOriginLegend = legend;
         HasCompaniesOfOriginData = series.Count > 0;
+    }
+
+    private void LoadTopCustomersChart(CompanyData data)
+    {
+        var (series, legend) = ChartLoaderService.LoadTopCustomersChart(data, StartDate, EndDate);
+        TopCustomersSeries = series;
+        TopCustomersLegend = legend;
+        HasTopCustomersData = series.Count > 0;
     }
 
     private void LoadCountriesOfDestinationChart(CompanyData data)

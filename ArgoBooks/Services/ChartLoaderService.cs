@@ -1797,6 +1797,38 @@ public class ChartLoaderService
     }
 
     /// <summary>
+    /// Loads top customers by revenue (less their refunds) as a pie chart.
+    /// </summary>
+    public (ObservableCollection<ISeries> Series, ObservableCollection<PieLegendItem> Legend) LoadTopCustomersChart(
+        CompanyData? companyData,
+        DateTime? startDate = null,
+        DateTime? endDate = null)
+    {
+        var filters = CreateFilters(startDate, endDate);
+        var dataService = new ReportChartDataService(companyData, filters);
+
+        // Values come back in display currency, so the pie helper must not convert again.
+        var dataPoints = dataService.GetTopCustomersByRevenue(CurrencyService.GetDisplayAmount)
+            .Where(p => p.Value > 0).ToList();
+
+        if (dataPoints.Count == 0)
+            return ([], []);
+
+        var (series, legend) = CreatePieSeriesWithLegend(dataPoints);
+
+        _chartExportDataByType[ChartDataType.TopCustomersByRevenue] = new ChartExportData
+        {
+            ChartTitle = ChartDataType.TopCustomersByRevenue.GetDisplayName().Translate(),
+            ChartType = ChartType.Distribution,
+            Labels = dataPoints.Select(p => p.Label).ToArray(),
+            Values = dataPoints.Select(p => p.Value).ToArray(),
+            SeriesName = "Revenue"
+        };
+
+        return (series, legend);
+    }
+
+    /// <summary>
     /// Loads companies of destination (customer companies from sales) as a pie chart.
     /// Uses ReportChartDataService for data fetching.
     /// </summary>

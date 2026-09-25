@@ -912,6 +912,12 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
         // other monetary distributions; falls back to raw USD when no converter is supplied.
         decimal Display(decimal amountUSD, DateTime date) => toDisplay != null ? toDisplay(amountUSD, date) : amountUSD;
 
+        // Refunds in range come off each customer's revenue in full, as on the Revenue card (§8).
+        var refundedByCustomer = companyData.Payments
+            .Where(p => p.IsRefund && p.Date >= startDate && p.Date <= endDate && !string.IsNullOrEmpty(p.CustomerId))
+            .GroupBy(p => p.CustomerId)
+            .ToDictionary(g => g.Key, g => g.Sum(p => Display(Math.Abs(p.EffectiveAmountUSD) * p.RevenueShare, p.Date)));
+
         return companyData.Revenues
             .Where(s => s.Date >= startDate && s.Date <= endDate && !string.IsNullOrEmpty(s.CustomerId))
             .Where(RevenueAggregator.IsCollected)
@@ -923,7 +929,8 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
                 return new ChartDataPoint
                 {
                     Label = customerName,
-                    Value = (double)g.Sum(s => Display(s.EffectiveTotalUSD, s.Date))
+                    Value = (double)(g.Sum(s => Display(s.EffectiveTotalUSD, s.Date))
+                                     - refundedByCustomer.GetValueOrDefault(g.Key!, 0m))
                 };
             })
             .OrderByDescending(p => p.Value)
