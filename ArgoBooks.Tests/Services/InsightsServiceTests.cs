@@ -212,8 +212,9 @@ public class InsightsServiceTests
     {
         // A EUR company with the exact-date USD->EUR rate cached for every conversion date resolves to
         // EUR: amounts convert at each transaction's own date (100 USD * 0.90 = 90 EUR on Date1) and
-        // format with the euro symbol, not a hardcoded "$".
-        var service = await SeededServiceAsync(Date1);
+        // format with the euro symbol, not a hardcoded "$". Today is one of the dates reports check,
+        // and opening a company always fetches it.
+        var service = await SeededServiceAsync(Date1, DateTime.Today);
         var prior = SetInstance(service);
         try
         {

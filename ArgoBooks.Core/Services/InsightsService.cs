@@ -45,11 +45,10 @@ public class InsightsService(
     /// for the whole run, so a sentence never mixes currencies or shows a partial value.
     /// </summary>
     private void ResolveDisplayCode(CompanyData companyData) =>
-        // Revenue and expense dates only: the set changing the company currency preloads, so a switch that
-        // succeeded resolves to that currency.
+        // The same dates reports check, and that opening a company and changing its currency preload.
         _displayCode = DisplayCurrency.Resolve(
             companyData.Settings.Localization.Currency,
-            companyData.Revenues.Select(r => r.Date).Concat(companyData.Expenses.Select(e => e.Date)));
+            DisplayCurrency.ReportDates(companyData, null));
 
     private decimal ToDisplay(decimal amountUSD, DateTime date) => DisplayCurrency.FromUSD(amountUSD, _displayCode, date);
 
@@ -1119,10 +1118,8 @@ public class InsightsService(
         var totalOverdue = overdueInvoices.Sum(i => i.EffectiveBalanceUSD);
         var oldestDaysOverdue = (int)(DateTime.Today - overdueInvoices.First().DueDate).TotalDays;
 
-        // Outstanding balance is an "as of now" figure, so convert the total at today's rate (warmed
-        // before generation). Invoice issue dates aren't in the preloaded rate set, so converting
-        // per-issue-date could silently fall back to USD; today's rate is reliably cached.
-        var totalOverdueDisplay = ToDisplay(totalOverdue, DateTime.Today);
+        // Each balance at its invoice's issue date, as the Overdue Invoices card converts it.
+        var totalOverdueDisplay = SumDisplay(overdueInvoices, i => i.EffectiveBalanceUSD, i => i.IssueDate);
 
         return new InsightItem
         {
