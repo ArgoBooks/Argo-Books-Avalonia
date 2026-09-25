@@ -43,6 +43,27 @@ public static class DisplayCurrency
     }
 
     /// <summary>
+    /// An amount recorded in <paramref name="currency"/> rather than USD (a return's refund amount, a
+    /// loss's value) in <paramref name="displayCurrency"/> at the exact <paramref name="date"/>, through
+    /// the USD base. An amount already in the display currency is used as-is. Null when the
+    /// exact-date rate is unavailable.
+    /// </summary>
+    public static decimal? FromNative(decimal amount, string currency, string displayCurrency, DateTime date)
+    {
+        if (string.Equals(currency, displayCurrency, StringComparison.OrdinalIgnoreCase))
+            return amount;
+
+        var svc = ExchangeRateService.Instance;
+        if (svc == null)
+            return amount;
+
+        return svc.TryConvertToUsdBase(amount, currency, date, out var usd)
+               && svc.TryConvertFromUSD(usd, displayCurrency, date, out var converted)
+            ? converted
+            : null;
+    }
+
+    /// <summary>
     /// Every date a report converts at: its revenue, expenses, payments, purchase orders and invoices,
     /// plus the end date that point-in-time figures such as inventory are valued at.
     /// </summary>

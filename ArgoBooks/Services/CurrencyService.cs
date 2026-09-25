@@ -162,21 +162,8 @@ public static class CurrencyService
     /// the USD base. An amount already in the display currency is used as-is and never waits on a
     /// rate. Null when the exact-date rate is unavailable, which callers treat as pending.
     /// </summary>
-    public static decimal? GetDisplayAmountFromNative(decimal amount, string currency, DateTime date)
-    {
-        var target = CurrentCurrencyCode;
-        if (string.Equals(currency, target, StringComparison.OrdinalIgnoreCase))
-            return amount;
-
-        var svc = ExchangeRateService.Instance;
-        if (svc == null)
-            return amount;
-
-        return svc.TryConvertToUsdBase(amount, currency, date, out var usd)
-               && svc.TryConvertFromUSD(usd, target, date, out var converted)
-            ? converted
-            : null;
-    }
+    public static decimal? GetDisplayAmountFromNative(decimal amount, string currency, DateTime date) =>
+        DisplayCurrency.FromNative(amount, currency, CurrentCurrencyCode, date);
 
     /// <summary>
     /// Formats a legacy decimal value (assumes USD) in the current display currency, at the exact

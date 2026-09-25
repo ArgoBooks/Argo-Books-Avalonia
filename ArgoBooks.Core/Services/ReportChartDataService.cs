@@ -1140,9 +1140,11 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
     }
 
     /// <summary>
-    /// Gets return financial impact (refund amounts).
+    /// Gets return financial impact (refund amounts) by month. With <paramref name="toDisplay"/>, each
+    /// amount is converted from its sale's currency at the return's date before summing, as in
+    /// <see cref="GetReturnFinancialImpactDaily"/>.
     /// </summary>
-    public List<ChartDataPoint> GetReturnFinancialImpact()
+    public List<ChartDataPoint> GetReturnFinancialImpact(Func<decimal, string, DateTime, decimal?>? toDisplay = null)
     {
         if (companyData?.Returns == null || !filters.IncludeReturns)
             return [];
@@ -1156,7 +1158,9 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
             .Select(g => new ChartDataPoint
             {
                 Label = g.Key.ToString("MMM yyyy"),
-                Value = (double)g.Sum(r => r.RefundAmount),
+                Value = (double)g.Sum(r => toDisplay == null
+                    ? r.RefundAmount
+                    : toDisplay(r.RefundAmount, ReturnLossAmounts.CurrencyOf(companyData, r), r.ReturnDate) ?? 0m),
                 Date = g.Key
             })
             .ToList();
@@ -1333,7 +1337,11 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
             .ToList();
     }
 
-    public List<ChartDataPoint> GetLossFinancialImpact()
+    /// <summary>
+    /// Gets loss financial impact by month. With <paramref name="toDisplay"/>, each value is converted
+    /// from its sale's or purchase's currency at the loss's date before summing.
+    /// </summary>
+    public List<ChartDataPoint> GetLossFinancialImpact(Func<decimal, string, DateTime, decimal?>? toDisplay = null)
     {
         if (companyData?.LostDamaged == null || !filters.IncludeLosses)
             return [];
@@ -1347,7 +1355,9 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
             .Select(g => new ChartDataPoint
             {
                 Label = g.Key.ToString("MMM yyyy"),
-                Value = (double)g.Sum(l => l.ValueLost),
+                Value = (double)g.Sum(l => toDisplay == null
+                    ? l.ValueLost
+                    : toDisplay(l.ValueLost, ReturnLossAmounts.CurrencyOf(companyData, l), l.DateDiscovered) ?? 0m),
                 Date = g.Key
             })
             .ToList();

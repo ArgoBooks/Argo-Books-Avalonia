@@ -327,6 +327,34 @@ public class ReportChartDataServiceTests
         Assert.Equal(10d, service.GetTaxByProduct().Sum(p => p.Value));
     }
 
+    // Return and loss amounts are in their sale's or purchase's currency, so the monthly totals convert
+    // each record from that currency before summing rather than treating the sum as USD.
+    [Fact]
+    public void ReturnAndLossImpact_ConvertEachRecordFromItsOwnCurrency()
+    {
+        var data = new CompanyData();
+        data.Revenues.Add(new Revenue { Id = "R-EUR", Date = new DateTime(2024, 5, 1), OriginalCurrency = "EUR", Total = 100m });
+        data.Returns.Add(new Core.Models.Tracking.Return { Id = "RET-1", OriginalTransactionId = "R-EUR", ReturnDate = new DateTime(2024, 5, 3), RefundAmount = 40m });
+        data.Returns.Add(new Core.Models.Tracking.Return { Id = "RET-2", OriginalTransactionId = "R-EUR", ReturnDate = new DateTime(2024, 5, 9), RefundAmount = 10m });
+        data.LostDamaged.Add(new Core.Models.Tracking.LostDamaged { Id = "LOST-1", DateDiscovered = new DateTime(2024, 5, 4), ValueLost = 30m });
+        var filters = new ReportFilters
+        {
+            StartDate = new DateTime(2024, 1, 1), EndDate = new DateTime(2024, 12, 31),
+            IncludeReturns = true, IncludeLosses = true
+        };
+        var service = new ReportChartDataService(data, filters);
+        var seen = new List<string>();
+        decimal? Convert(decimal amount, string currency, DateTime date)
+        {
+            seen.Add(currency);
+            return currency == "EUR" ? amount * 2m : amount;
+        }
+
+        Assert.Equal(100d, service.GetReturnFinancialImpact(Convert).Sum(p => p.Value));
+        Assert.Equal(30d, service.GetLossFinancialImpact(Convert).Sum(p => p.Value));
+        Assert.Equal(["EUR", "EUR"], seen.Take(2));
+    }
+
     // The returns and losses comparisons count only what falls inside the range, and a month whose
     // only entries are outside it gets no bar.
     [Fact]

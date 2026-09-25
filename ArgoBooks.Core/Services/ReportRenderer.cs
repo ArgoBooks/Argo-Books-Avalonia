@@ -1192,6 +1192,15 @@ public class ReportRenderer : IDisposable
                 chartType, (usd, date) => (decimal)ConvertFromUSD((double)usd, date)) as List<ChartDataPoint>;
         }
 
+        // Return and loss amounts are in their sale's or purchase's currency, not USD, so each one
+        // converts from that currency at its own date (Calculations.md §10).
+        decimal? FromNative(decimal amount, string currency, DateTime date) =>
+            DisplayCurrency.FromNative(amount, currency, _currencyCode, date);
+        if (chartType == ChartDataType.ReturnFinancialImpact)
+            return _chartDataService.GetReturnFinancialImpact(FromNative);
+        if (chartType == ChartDataType.LossFinancialImpact)
+            return _chartDataService.GetLossFinancialImpact(FromNative);
+
         var data = _chartDataService.GetChartData(chartType);
 
         if (data is List<ChartDataPoint> dataPoints)
