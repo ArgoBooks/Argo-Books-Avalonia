@@ -146,7 +146,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
         SaveButtonText = "Save Changes";
 
         SelectedCustomer = CustomerOptions.FirstOrDefault(c => c.Id == revenue.CustomerId);
-        ModalPaid = revenue.PaymentStatus == RevenuePaymentStatus.Paid;
+        ModalPaid = RevenueAggregator.IsCollected(revenue);
         PopulateFormFromTransaction(revenue);
 
         IsAddEditModalOpen = true;
@@ -584,7 +584,10 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
         revenue.Fee = ModalFee;
         revenue.Total = Total;
         revenue.PaymentMethod = Enum.TryParse<PaymentMethod>(SelectedPaymentMethod.Replace(" ", ""), out var pm) ? pm : PaymentMethod.Cash;
-        revenue.PaymentStatus = ModalPaid ? RevenuePaymentStatus.Paid : RevenuePaymentStatus.Unpaid;
+        // Only a change to the Paid box changes the status, so an edit keeps Complete, Partial,
+        // Pending or Overdue as they were.
+        if (ModalPaid != RevenueAggregator.IsCollected(revenue))
+            revenue.PaymentStatus = ModalPaid ? RevenuePaymentStatus.Paid : RevenuePaymentStatus.Unpaid;
         revenue.Notes = ModalNotes;
         revenue.UpdatedAt = DateTime.UtcNow;
         // USD conversion fields
