@@ -1205,6 +1205,8 @@ public partial class InvoiceModalsViewModel : ViewModelBase
         SecurityDeposit = rental.SecurityDeposit;
 
         UpdateTotals();
+        // Setting the customer drew the paper while it still held the blank placeholder line.
+        RegeneratePaper();
     }
 
     private void AddRentalLine(ProductOption? product, string description, decimal quantity, decimal unitPrice, string rentalId)
@@ -1266,6 +1268,8 @@ public partial class InvoiceModalsViewModel : ViewModelBase
         TaxRate = revenue.TaxRate;
 
         UpdateTotals();
+        // Setting the customer drew the paper while it still held the blank placeholder line.
+        RegeneratePaper();
     }
 
     /// <summary>
