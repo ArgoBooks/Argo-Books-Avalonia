@@ -3147,6 +3147,14 @@ public class SpreadsheetImportService
         if (s.Contains("partial"))
             return RevenuePaymentStatus.Partial;
 
+        // Negated forms contain the Paid words below ("unpaid" contains "paid")
+        if (s.Contains("unpaid") || s.Contains("not paid") ||
+            s.Contains("unsettled") || s.Contains("not settled") ||
+            s.Contains("uncollected") || s.Contains("not collected") ||
+            s.Contains("not received") || s.Contains("uncleared") || s.Contains("not cleared") ||
+            s.Contains("incomplete") || s.Contains("not complete"))
+            return RevenuePaymentStatus.Unpaid;
+
         // Paid and common synonyms/typos
         if (s.Contains("paid") || s.Contains("piad") ||
             s.Contains("complet") || s.Contains("settle") ||
