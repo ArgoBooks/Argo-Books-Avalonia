@@ -295,6 +295,38 @@ public class ReportChartDataServiceTests
         Assert.Equal(5d, SumOf(service.GetExpenseVsRevenueTax(), "Revenue Tax"));
     }
 
+    // Tax on a sale not yet paid isn't collected (Rule 2), and a refund hands its tax back on the
+    // refund's own date, as the Tax Summary report counts it.
+    [Fact]
+    public void TaxCharts_CountPaidSalesOnly_AndTakeRefundTaxOff()
+    {
+        var data = new CompanyData();
+        data.Invoices.Add(new Invoice { Id = "INV-1", Total = 110m, TaxAmount = 10m });
+        data.Revenues.Add(new Revenue
+        {
+            Id = "R1", Date = new DateTime(2024, 3, 5), OriginalCurrency = "USD", InvoiceId = "INV-1",
+            Subtotal = 100m, TaxAmount = 10m, TaxAmountUSD = 10m, Total = 110m, TotalUSD = 110m
+        });
+        data.Revenues.Add(new Revenue
+        {
+            Id = "R2", Date = new DateTime(2024, 3, 6), OriginalCurrency = "USD",
+            PaymentStatus = Core.Enums.RevenuePaymentStatus.Unpaid,
+            Subtotal = 200m, TaxAmount = 20m, TaxAmountUSD = 20m, Total = 220m, TotalUSD = 220m
+        });
+        data.Payments.Add(new Payment
+        {
+            Id = "PAY-R", InvoiceId = "INV-1", IsRefund = true, Amount = -55m, AmountUSD = -55m,
+            OriginalCurrency = "USD", Date = new DateTime(2024, 4, 2)
+        });
+        var service = new ReportChartDataService(data, CreateDefaultFilters());
+
+        // $10 collected in March; the half refund in April hands $5 of it back.
+        Assert.Equal(5d, SumOf(service.GetTaxCollectedVsPaid(), "Tax Collected"));
+        Assert.Equal(5d, SumOf(service.GetExpenseVsRevenueTax(), "Revenue Tax"));
+        Assert.Equal(5d, service.GetTaxLiabilityOverTime().Sum(p => p.Value));
+        Assert.Equal(10d, service.GetTaxByProduct().Sum(p => p.Value));
+    }
+
     // The returns and losses comparisons count only what falls inside the range, and a month whose
     // only entries are outside it gets no bar.
     [Fact]

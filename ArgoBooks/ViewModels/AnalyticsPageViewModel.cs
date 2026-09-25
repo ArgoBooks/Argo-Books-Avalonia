@@ -5,6 +5,7 @@ using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Reports;
 using ArgoBooks.Core.Models.Telemetry;
+using ArgoBooks.Core.Models.Transactions;
 using ArgoBooks.Core.Services;
 using ArgoBooks.Helpers;
 using ArgoBooks.Localization;
@@ -2538,35 +2539,43 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
 
     private void LoadTaxesStatistics(CompanyData data)
     {
-        // Calculate tax collected from revenues and tax paid on expenses
-        var revenues = data.Revenues.Where(r => r.Date >= StartDate && r.Date <= EndDate).ToList();
+        // Paid sales only (Rule 2), and the tax a refund handed back comes off tax collected on the
+        // refund's date, as in the Tax Summary report (docs/Calculations.md §8).
+        var invoicesById = ProfitCalculator.BuildInvoiceLookup(data.Invoices);
+        decimal RefundTaxUSD(Payment p) => RefundAggregator.TaxPortionUSD(p, invoicesById);
+
+        var revenues = data.Revenues.Where(r => r.Date >= StartDate && r.Date <= EndDate).Where(RevenueAggregator.IsCollected).ToList();
         var expenses = data.Expenses.Where(e => e.Date >= StartDate && e.Date <= EndDate).ToList();
+        var refunds = data.Payments.Where(p => p.IsRefund && p.Date >= StartDate && p.Date <= EndDate).ToList();
 
         // EffectiveTaxAmountUSD, not a hand-rolled "USD if we have it, native otherwise".
         // docs/Calculations.md §3 forbids summing native fields into a USD total. The Effective
         // property derives the missing figure
         // from the row's own Total/TotalUSD ratio and yields 0 when there is nothing to derive
         // it from, so a rate that never arrived reads as nothing rather than as dollars.
-        var taxCollectedUSD = revenues.Sum(r => r.EffectiveTaxAmountUSD);
+        var grossTaxCollectedUSD = revenues.Sum(r => r.EffectiveTaxAmountUSD);
+        var taxCollectedUSD = grossTaxCollectedUSD - refunds.Sum(RefundTaxUSD);
         var taxPaidUSD = expenses.Sum(e => e.EffectiveTaxAmountUSD);
         var netLiability = taxCollectedUSD - taxPaidUSD;
 
         // Calculate effective tax rate (weighted average across all transactions)
         var totalPreTax = revenues.Sum(r => r.EffectiveSubtotalUSD) + expenses.Sum(e => e.EffectiveSubtotalUSD);
-        var totalTax = taxCollectedUSD + taxPaidUSD;
+        var totalTax = grossTaxCollectedUSD + taxPaidUSD;
         var effectiveRate = totalPreTax > 0 ? (totalTax / totalPreTax) * 100 : 0;
 
         // Calculate previous period for comparison
         var (prevStartDate, prevEndDate) = ComparisonRange();
 
-        var prevRevenues = data.Revenues.Where(r => r.Date >= prevStartDate && r.Date <= prevEndDate).ToList();
+        var prevRevenues = data.Revenues.Where(r => r.Date >= prevStartDate && r.Date <= prevEndDate).Where(RevenueAggregator.IsCollected).ToList();
         var prevExpenses = data.Expenses.Where(e => e.Date >= prevStartDate && e.Date <= prevEndDate).ToList();
+        var prevRefunds = data.Payments.Where(p => p.IsRefund && p.Date >= prevStartDate && p.Date <= prevEndDate);
 
-        var prevTaxCollected = prevRevenues.Sum(r => r.EffectiveTaxAmountUSD);
+        var prevGrossTaxCollected = prevRevenues.Sum(r => r.EffectiveTaxAmountUSD);
+        var prevTaxCollected = prevGrossTaxCollected - prevRefunds.Sum(RefundTaxUSD);
         var prevTaxPaid = prevExpenses.Sum(e => e.EffectiveTaxAmountUSD);
         var prevNetLiability = prevTaxCollected - prevTaxPaid;
         var prevTotalPreTax = prevRevenues.Sum(r => r.EffectiveSubtotalUSD) + prevExpenses.Sum(e => e.EffectiveSubtotalUSD);
-        var prevTotalTax = prevTaxCollected + prevTaxPaid;
+        var prevTotalTax = prevGrossTaxCollected + prevTaxPaid;
         var prevEffectiveRate = prevTotalPreTax > 0 ? (prevTotalTax / prevTotalPreTax) * 100 : 0;
 
         var hasPrevPeriodData = prevTaxCollected > 0 || prevTaxPaid > 0;
@@ -2578,8 +2587,13 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
 
         // Convert each transaction's tax at its OWN date (Calculations.md §3a). The per-row
         // USD selector mirrors taxCollectedUSD/taxPaidUSD above so USD display is identity.
-        var collectedComplete = CurrencyService.TrySumDisplayFromUSD(
-            revenues, r => r.TaxAmount, r => r.OriginalCurrency, r => r.EffectiveTaxAmountUSD, r => r.Date, out var taxCollectedDisplay);
+        var grossCollectedComplete = CurrencyService.TrySumDisplayFromUSD(
+            revenues, r => r.TaxAmount, r => r.OriginalCurrency, r => r.EffectiveTaxAmountUSD, r => r.Date, out var grossTaxCollectedDisplay);
+        // Refund tax is only known in USD, so it always converts from USD at the refund's date.
+        var refundedComplete = CurrencyService.TrySumDisplayFromUSD(
+            refunds, RefundTaxUSD, _ => "USD", RefundTaxUSD, p => p.Date, out var taxRefundedDisplay);
+        var collectedComplete = grossCollectedComplete && refundedComplete;
+        var taxCollectedDisplay = grossTaxCollectedDisplay - taxRefundedDisplay;
         var paidComplete = CurrencyService.TrySumDisplayFromUSD(
             expenses, e => e.TaxAmount, e => e.OriginalCurrency, e => e.EffectiveTaxAmountUSD, e => e.Date, out var taxPaidDisplay);
         var netLiabilityDisplay = taxCollectedDisplay - taxPaidDisplay;

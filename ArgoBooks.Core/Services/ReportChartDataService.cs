@@ -2,6 +2,7 @@ using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Charts;
 using ArgoBooks.Core.Models.Reports;
+using ArgoBooks.Core.Models.Transactions;
 
 namespace ArgoBooks.Core.Services;
 
@@ -1480,6 +1481,29 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
 
     #region Tax Charts
 
+    // Tax figures follow Rule 2 (paid sales only) and, like the Tax Summary report, take the tax a
+    // refund handed back off on the refund's own date (docs/Calculations.md §8).
+    private Dictionary<string, Invoice>? _invoicesById;
+
+    private IEnumerable<Revenue> CollectedRevenues => companyData!.Revenues.Where(RevenueAggregator.IsCollected);
+
+    private IEnumerable<Payment> Refunds => companyData!.Payments.Where(p => p.IsRefund);
+
+    private decimal RefundTaxUSD(Payment refund) =>
+        RefundAggregator.TaxPortionUSD(refund, _invoicesById ??= ProfitCalculator.BuildInvoiceLookup(companyData!.Invoices));
+
+    private decimal NetTaxCollected(DateTime start, DateTime end, Func<decimal, DateTime, decimal>? toDisplay)
+    {
+        decimal Display(decimal usd, DateTime date) => toDisplay != null ? toDisplay(usd, date) : usd;
+        return CollectedRevenues.Where(r => r.Date >= start && r.Date <= end).Sum(r => Display(r.EffectiveTaxAmountUSD, r.Date))
+               - Refunds.Where(p => p.Date >= start && p.Date <= end).Sum(p => Display(RefundTaxUSD(p), p.Date));
+    }
+
+    private bool HasTaxData(DateTime start, DateTime end) =>
+        CollectedRevenues.Any(r => r.Date >= start && r.Date <= end && (r.TaxAmountUSD > 0 || r.TaxAmount > 0)) ||
+        companyData!.Expenses.Any(e => e.Date >= start && e.Date <= end && (e.TaxAmountUSD > 0 || e.TaxAmount > 0)) ||
+        Refunds.Any(p => p.Date >= start && p.Date <= end && RefundTaxUSD(p) != 0);
+
     /// <summary>
     /// Gets tax collected (from revenues) and tax paid (from expenses) over time.
     /// Returns two series: "Tax Collected" and "Tax Paid".
@@ -1497,8 +1521,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
         var monthsWithData = allMonths.Where(month =>
         {
             var (clampedStart, clampedEnd) = MonthWindow(month, startDate, endDate);
-            return companyData.Revenues.Any(r => r.Date >= clampedStart && r.Date <= clampedEnd && (r.TaxAmountUSD > 0 || r.TaxAmount > 0)) ||
-                   companyData.Expenses.Any(e => e.Date >= clampedStart && e.Date <= clampedEnd && (e.TaxAmountUSD > 0 || e.TaxAmount > 0));
+            return HasTaxData(clampedStart, clampedEnd);
         }).ToList();
 
         if (monthsWithData.Count == 0)
@@ -1511,9 +1534,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
             return new ChartDataPoint
             {
                 Label = month.ToString("MMM yyyy"),
-                Value = (double)companyData.Revenues
-                    .Where(r => r.Date >= clampedStart && r.Date <= clampedEnd)
-                    .Sum(r => toDisplay != null ? toDisplay(r.EffectiveTaxAmountUSD, r.Date) : r.EffectiveTaxAmountUSD),
+                Value = (double)NetTaxCollected(clampedStart, clampedEnd, toDisplay),
                 Date = month
             };
         }).ToList();
@@ -1550,23 +1571,24 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
         var (startDate, endDate) = GetDateRange();
 
         // Get all dates with any tax data
-        var revenueDates = companyData.Revenues
+        var revenueDates = CollectedRevenues
             .Where(r => r.Date >= startDate && r.Date <= endDate && (r.TaxAmountUSD > 0 || r.TaxAmount > 0))
             .Select(r => r.Date.Date);
         var expenseDates = companyData.Expenses
             .Where(e => e.Date >= startDate && e.Date <= endDate && (e.TaxAmountUSD > 0 || e.TaxAmount > 0))
             .Select(e => e.Date.Date);
+        var refundDates = Refunds
+            .Where(p => p.Date >= startDate && p.Date <= endDate && RefundTaxUSD(p) != 0)
+            .Select(p => p.Date.Date);
 
-        var allDates = revenueDates.Concat(expenseDates).Distinct().OrderBy(d => d).ToList();
+        var allDates = revenueDates.Concat(expenseDates).Concat(refundDates).Distinct().OrderBy(d => d).ToList();
 
         if (allDates.Count == 0)
             return [];
 
         return allDates.Select(date =>
         {
-            var collected = companyData.Revenues
-                .Where(r => r.Date.Date == date)
-                .Sum(r => r.EffectiveTaxAmountUSD);
+            var collected = NetTaxCollected(date, date.AddDays(1).AddTicks(-1), null);
             var paid = companyData.Expenses
                 .Where(e => e.Date.Date == date)
                 .Sum(e => e.EffectiveTaxAmountUSD);
@@ -1592,7 +1614,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
 
         var allTransactions = new List<(decimal TaxUSD, string? CategoryId, DateTime Date)>();
 
-        allTransactions.AddRange(companyData.Revenues
+        allTransactions.AddRange(CollectedRevenues
             .Where(r => r.Date >= startDate && r.Date <= endDate && (r.TaxAmountUSD > 0 || r.TaxAmount > 0))
             .Select(r =>
             {
@@ -1703,7 +1725,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
 
         var allTransactions = new List<(decimal TaxUSD, string? ProductId, DateTime Date)>();
 
-        allTransactions.AddRange(companyData.Revenues
+        allTransactions.AddRange(CollectedRevenues
             .Where(r => r.Date >= startDate && r.Date <= endDate && (r.TaxAmountUSD > 0 || r.TaxAmount > 0))
             .Select(r => (r.EffectiveTaxAmountUSD, r.LineItems.FirstOrDefault()?.ProductId, r.Date)));
 
@@ -1749,8 +1771,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
         var monthsWithData = allMonths.Where(month =>
         {
             var (clampedStart, clampedEnd) = MonthWindow(month, startDate, endDate);
-            return companyData.Revenues.Any(r => r.Date >= clampedStart && r.Date <= clampedEnd && (r.TaxAmountUSD > 0 || r.TaxAmount > 0)) ||
-                   companyData.Expenses.Any(e => e.Date >= clampedStart && e.Date <= clampedEnd && (e.TaxAmountUSD > 0 || e.TaxAmount > 0));
+            return HasTaxData(clampedStart, clampedEnd);
         }).ToList();
 
         if (monthsWithData.Count == 0)
@@ -1763,9 +1784,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
             return new ChartDataPoint
             {
                 Label = month.ToString("MMM yyyy"),
-                Value = (double)companyData.Revenues
-                    .Where(r => r.Date >= clampedStart && r.Date <= clampedEnd)
-                    .Sum(r => toDisplay != null ? toDisplay(r.EffectiveTaxAmountUSD, r.Date) : r.EffectiveTaxAmountUSD),
+                Value = (double)NetTaxCollected(clampedStart, clampedEnd, toDisplay),
                 Date = month
             };
         }).ToList();

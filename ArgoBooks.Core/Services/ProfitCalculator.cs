@@ -91,7 +91,7 @@ public static class ProfitCalculator
                 - costOfGoodsByDay.GetValueOrDefault(day, 0m));
     }
 
-    internal static Dictionary<string, Invoice> BuildInvoiceLookup(IEnumerable<Invoice> invoices)
+    public static Dictionary<string, Invoice> BuildInvoiceLookup(IEnumerable<Invoice> invoices)
     {
         var dict = new Dictionary<string, Invoice>();
         foreach (var inv in invoices)
