@@ -1093,7 +1093,7 @@ public class InsightsService(
     private InsightItem? AnalyzeOverdueInvoices(CompanyData companyData)
     {
         var overdueInvoices = companyData.Invoices
-            .Where(i => i.IsOverdue && i.Balance > 0)
+            .Where(i => i.IsOverdue)
             .OrderByDescending(i => (DateTime.Today - i.DueDate).TotalDays)
             .ToList();
 

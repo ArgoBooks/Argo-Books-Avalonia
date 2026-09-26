@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using ArgoBooks.Core.Models.Tracking;
 using ArgoBooks.Core.Services;
+using ArgoBooks.Core.Utilities;
 
 namespace ArgoBooks.Services;
 
@@ -55,7 +56,7 @@ public static class ReceiptPageRenderer
             return cached.Key;
 
         var hash = Convert.ToHexString(SHA256.HashData(MemoryMarshal.AsBytes(data.AsSpan())))[..12];
-        var key = $"{SafeName(receipt.Id)}-{hash}";
+        var key = $"{SafeFileName.Create(receipt.Id, "receipt")}-{hash}";
         CacheKeys.AddOrUpdate(receipt, new CachedKey(data, key));
         return key;
     }
@@ -65,10 +66,7 @@ public static class ReceiptPageRenderer
     /// since names repeat and the content behind a name can change.
     /// </summary>
     public static string ContentKey(string name, byte[] bytes)
-        => $"{SafeName(Path.GetFileNameWithoutExtension(name))}-{Convert.ToHexString(SHA256.HashData(bytes))[..12]}";
-
-    private static string SafeName(string name)
-        => new(name.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '-' : c).ToArray());
+        => $"{SafeFileName.Create(Path.GetFileNameWithoutExtension(name), "receipt")}-{Convert.ToHexString(SHA256.HashData(bytes))[..12]}";
 
     private static string KeyedPagePath(string key, int zeroBasedIndex)
         => Path.Combine(TempDir, $"{key}_p{zeroBasedIndex + 1}.jpg");

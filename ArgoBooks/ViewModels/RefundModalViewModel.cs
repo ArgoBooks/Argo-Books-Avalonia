@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using ArgoBooks.Core.Enums;
+using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Models.Transactions;
 using ArgoBooks.Core.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -130,7 +131,12 @@ public partial class RefundModalViewModel : ObservableObject
 
     /// <summary>Computed sum of selected line items, in original currency.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RefundTotalDisplay))]
     private decimal _refundTotal;
+
+    public string RefundTotalDisplay => Money(RefundTotal);
+
+    private string Money(decimal amount) => CurrencyInfo.FormatAmount(amount, Currency);
 
     /// <summary>Sum of selected payments' refundable amounts. The refund total cannot exceed this.</summary>
     [ObservableProperty]
@@ -320,8 +326,9 @@ public partial class RefundModalViewModel : ObservableObject
             {
                 var row = new RefundableLineRow
                 {
+                    Currency = Currency,
                     Label = string.IsNullOrEmpty(li.Description) ? "(unnamed item)" : li.Description,
-                    Detail = li.Quantity > 1 ? $"{li.Quantity} × {li.UnitPrice:C}" : "",
+                    Detail = li.Quantity > 1 ? $"{li.Quantity} × {Money(li.UnitPrice)}" : "",
                     Amount = li.Amount,
                     IsSelected = true,
                     Kind = "lineItem",
@@ -336,6 +343,7 @@ public partial class RefundModalViewModel : ObservableObject
         {
             var row = new RefundableLineRow
             {
+                Currency = Currency,
                 Label = "Tax",
                 Detail = "",
                 Amount = _invoice.TaxAmount,
@@ -353,6 +361,7 @@ public partial class RefundModalViewModel : ObservableObject
                 label = $"{label} ({_invoice.CustomFeeAmount}%)";
             var row = new RefundableLineRow
             {
+                Currency = Currency,
                 Label = label,
                 Detail = "",
                 Amount = InvoiceMath.CustomFee(_invoice.Subtotal, _invoice.CustomFeeAmount, _invoice.CustomFeeIsPercent),
@@ -367,6 +376,7 @@ public partial class RefundModalViewModel : ObservableObject
         {
             var row = new RefundableLineRow
             {
+                Currency = Currency,
                 Label = "Security deposit",
                 Detail = "",
                 Amount = _invoice.SecurityDeposit,
@@ -390,6 +400,7 @@ public partial class RefundModalViewModel : ObservableObject
                 : "Discount";
             var row = new RefundableLineRow
             {
+                Currency = Currency,
                 Label = label,
                 Detail = "",
                 Amount = -discountValue,
@@ -439,6 +450,7 @@ public partial class RefundModalViewModel : ObservableObject
             {
                 var feeRow = new RefundableLineRow
                 {
+                    Currency = Currency,
                     Label = "Payment processing fee",
                     Detail = "",
                     Amount = targetFee,
@@ -481,7 +493,7 @@ public partial class RefundModalViewModel : ObservableObject
         }
         else if (RefundTotal > SelectedPaymentsRefundable)
         {
-            LineItemsValidationMessage = $"Refund total ({RefundTotal:C}) exceeds the selected payment's refundable amount ({SelectedPaymentsRefundable:C}).";
+            LineItemsValidationMessage = $"Refund total ({Money(RefundTotal)}) exceeds the selected payment's refundable amount ({Money(SelectedPaymentsRefundable)}).";
         }
         else
         {
@@ -838,8 +850,8 @@ public partial class RefundablePaymentRow : ObservableObject
     private bool _isSelected;
 
     public string DisplayLabel =>
-        $"{Provider} · {Date:MMM d, yyyy} · {Refundable:C} refundable" +
-        (AlreadyRefunded > 0 ? $" (of {OriginalAmount:C})" : "");
+        $"{Provider} · {Date:MMM d, yyyy} · {CurrencyInfo.FormatAmount(Refundable, Currency)} refundable" +
+        (AlreadyRefunded > 0 ? $" (of {CurrencyInfo.FormatAmount(OriginalAmount, Currency)})" : "");
 }
 
 public partial class RefundableLineRow : ObservableObject
@@ -847,6 +859,8 @@ public partial class RefundableLineRow : ObservableObject
     public string Label { get; set; } = string.Empty;
     public string Detail { get; set; } = string.Empty;
     public decimal Amount { get; set; }
+    public string Currency { get; set; } = "USD";
+    public string AmountDisplay => CurrencyInfo.FormatAmount(Amount, Currency);
     public string Kind { get; set; } = "lineItem"; // lineItem | tax | fee | deposit | discount | processingFee
 
     [ObservableProperty]
@@ -860,6 +874,7 @@ public class RefundHistoryRow
     public string? Reason { get; set; }
     public string Currency { get; set; } = "USD";
 
+    public string AmountDisplay => CurrencyInfo.FormatAmount(Amount, Currency);
     public string DateDisplay => Date.ToString("MMM d, yyyy");
     public string ReasonDisplay => string.IsNullOrWhiteSpace(Reason) ? "No reason given" : Reason!;
 }

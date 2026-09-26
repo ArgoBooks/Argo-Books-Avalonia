@@ -1,3 +1,5 @@
+using ArgoBooks.Core.Utilities;
+
 namespace ArgoBooks.Utilities;
 
 /// <summary>
@@ -16,7 +18,7 @@ public static class ExportFolderHelper
     /// The directory to write to, creating a subfolder when more than one file is coming.
     /// </summary>
     /// <param name="chosen">The folder the user picked.</param>
-    /// <param name="folderName">Subfolder name, sanitised here so callers need not.</param>
+    /// <param name="folderName">Subfolder name, made safe here so callers need not.</param>
     /// <param name="fileCount">How many files the export will produce.</param>
     public static string Resolve(string chosen, string folderName, int fileCount)
     {
@@ -27,23 +29,8 @@ public static class ExportFolderHelper
 
         // Re-exporting the same run lands in the same folder and overwrites, which is what
         // someone correcting a mistake expects. Matches the receipts bulk export.
-        string path = Path.Combine(chosen, Sanitize(folderName));
+        string path = Path.Combine(chosen, SafeFileName.Create(folderName, "export", replaceSpaces: true));
         Directory.CreateDirectory(path);
         return path;
-    }
-
-    /// <summary>
-    /// A name that is safe on disk. Spaces become dashes as well as the invalid characters,
-    /// because these end up in file names that get emailed around.
-    /// </summary>
-    public static string Sanitize(string? name)
-    {
-        char[] invalid = Path.GetInvalidFileNameChars();
-        string result = new((name ?? string.Empty)
-            .Select(c => invalid.Contains(c) || c == ' ' ? '-' : c)
-            .ToArray());
-
-        result = result.Trim('-');
-        return result.Length == 0 ? "export" : result;
     }
 }

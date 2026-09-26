@@ -1,7 +1,6 @@
 using System.Collections.ObjectModel;
 using ArgoBooks.Core.Services;
 using Avalonia.Media;
-using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -55,9 +54,6 @@ public partial class HeaderViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool _showSettings = true;
-
-    [ObservableProperty]
-    private bool _showUserMenu = true;
 
     #endregion
 
@@ -144,34 +140,6 @@ public partial class HeaderViewModel : ViewModelBase
 
     private CancellationTokenSource? _toastCancellationTokenSource;
     private CancellationTokenSource? _savedFeedbackCts;
-
-    #endregion
-
-    #region User
-
-    [ObservableProperty]
-    private string? _userDisplayName;
-
-    [ObservableProperty]
-    private string? _userInitials;
-
-    [ObservableProperty]
-    private int _userId;
-
-    [ObservableProperty]
-    private string? _userEmail;
-
-    [ObservableProperty]
-    private string? _userRole;
-
-    [ObservableProperty]
-    private bool _showUserInitials;
-
-    [ObservableProperty]
-    private bool _hasUserAvatar;
-
-    [ObservableProperty]
-    private Bitmap? _userAvatarSource;
 
     #endregion
 
@@ -315,11 +283,6 @@ public partial class HeaderViewModel : ViewModelBase
         PageTitle = "Dashboard";
         HasUnreadNotifications = true;
         UnreadNotificationCount = 3;
-        UserId = 1;
-        UserDisplayName = "John Doe";
-        UserEmail = "john@example.com";
-        UserInitials = "JD";
-        UserRole = "Administrator";
     }
 
     /// <summary>

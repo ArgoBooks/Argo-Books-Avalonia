@@ -48,6 +48,12 @@ public class InvoiceStatusDisplayTests
     }
 
     [Fact]
+    public void DraftPastDue_ShowsDraft()
+    {
+        Assert.Equal("Draft", Display(Invoice(InvoiceStatus.Draft, 0m, 0m, dueInDays: -10)));
+    }
+
+    [Fact]
     public void PartlyPaidThenPartlyRefundedAndPastDue_ShowsOverdue()
     {
         Assert.Equal("Overdue", Display(Invoice(InvoiceStatus.PartiallyRefunded, 50m, 10m, dueInDays: -10)));

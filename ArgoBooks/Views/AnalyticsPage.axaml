@@ -1974,7 +1974,7 @@
                                     <DataTemplate x:DataType="vm:RefundsMonthBucket">
                                         <Grid ColumnDefinitions="100,*,Auto" Margin="0,3">
                                             <TextBlock Grid.Column="0" Text="{Binding MonthLabel}" />
-                                            <TextBlock Grid.Column="2" Text="{Binding Amount, StringFormat={}{0:C}}" FontWeight="Medium" />
+                                            <TextBlock Grid.Column="2" Text="{Binding Amount}" FontWeight="Medium" />
                                         </Grid>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>

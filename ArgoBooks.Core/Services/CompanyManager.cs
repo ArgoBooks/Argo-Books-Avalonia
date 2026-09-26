@@ -7,6 +7,7 @@ using ArgoBooks.Core.Models.Entities;
 using ArgoBooks.Core.Models.Telemetry;
 using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Models.Transactions;
+using ArgoBooks.Core.Utilities;
 
 namespace ArgoBooks.Core.Services;
 
@@ -206,7 +207,7 @@ public class CompanyManager : IDisposable
     {
         var avatarsDir = Path.Combine(_currentTempDirectory!, subdirectory);
         Directory.CreateDirectory(avatarsDir);
-        var safeId = SanitizeForFileName(entityId);
+        var safeId = AvatarFileStem(entityId);
         var fileName = $"{safeId}.png";
         var destPath = Path.Combine(avatarsDir, fileName);
         var relativePath = Path.Combine(subdirectory, fileName).Replace('\\', '/');
@@ -337,7 +338,7 @@ public class CompanyManager : IDisposable
         {
             var oldPath = ResolveAvatarPathSafely(entity.AvatarFileName);
             var ext = Path.GetExtension(entity.AvatarFileName);
-            var safeNewId = SanitizeForFileName(newId);
+            var safeNewId = AvatarFileStem(newId);
             var newRelative = Path.Combine(subdirectory, safeNewId + ext).Replace('\\', '/');
             var newPath = Path.Combine(_currentTempDirectory, newRelative);
 
@@ -1338,33 +1339,14 @@ public class CompanyManager : IDisposable
     public Task RemoveSupplierAvatarAsync(Supplier supplier)
         => RemoveEntityAvatarAsync(supplier);
 
-    // Path.GetInvalidFileNameChars lists only this platform's, and a file made on a Mac is
-    // often copied to a PC, so Windows' list is always added.
-    private static readonly char[] UnsafeFileNameChars =
-        [.. Path.GetInvalidFileNameChars(), '<', '>', ':', '"', '/', '\\', '|', '?', '*'];
-
     /// <summary>
     /// The file name, without ".argo", for a company called <paramref name="companyName"/>.
     /// Characters no file name can hold, such as "/", become "-". The company keeps the name as
     /// typed; only its file is named this.
     /// </summary>
-    public static string ToCompanyFileName(string companyName)
-    {
-        var fileName = new string(companyName
-            .Select(c => char.IsControl(c) || UnsafeFileNameChars.Contains(c) ? '-' : c)
-            .ToArray());
-        return string.IsNullOrWhiteSpace(fileName) ? "Company" : fileName;
-    }
+    public static string ToCompanyFileName(string companyName) => SafeFileName.Create(companyName, "Company");
 
-    private static string SanitizeForFileName(string raw)
-    {
-        if (string.IsNullOrWhiteSpace(raw))
-            return Guid.NewGuid().ToString("N");
-
-        var invalid = Path.GetInvalidFileNameChars();
-        var cleaned = new string(raw.Where(c => !invalid.Contains(c) && c != '.').ToArray()).Trim();
-        return string.IsNullOrEmpty(cleaned) ? Guid.NewGuid().ToString("N") : cleaned;
-    }
+    private static string AvatarFileStem(string entityId) => SafeFileName.Create(entityId, Guid.NewGuid().ToString("N"));
 
     /// <summary>
     /// Renames a customer's Id, cascading to every reference inside the open company

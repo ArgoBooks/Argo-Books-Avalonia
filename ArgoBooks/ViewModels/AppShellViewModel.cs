@@ -931,7 +931,7 @@ public partial class AppShellViewModel : ViewModelBase
     /// <returns>True if changes should be discarded, false to cancel.</returns>
     private async Task<bool> ConfirmDiscardReportChangesAsync()
     {
-        var result = await UnsavedChangesDialogViewModel.ShowSimpleAsync(
+        var result = await UnsavedChangesDialogViewModel.ShowAsync(
             "Unsaved Report Changes".Translate(),
             "You have unsaved changes in the layout designer. Would you like to save them?".Translate());
 
@@ -964,7 +964,7 @@ public partial class AppShellViewModel : ViewModelBase
         if (fromPage == "Dashboard" && CurrentPage is Control { DataContext: DashboardPageViewModel dashVm }
             && dashVm.LayoutViewModel.IsEditMode)
         {
-            var result = await UnsavedChangesDialogViewModel.ShowSimpleAsync(
+            var result = await UnsavedChangesDialogViewModel.ShowAsync(
                 "Unsaved Dashboard Changes".Translate(),
                 "You have unsaved changes to the dashboard layout. Would you like to save them before leaving?".Translate());
 
@@ -995,7 +995,7 @@ public partial class AppShellViewModel : ViewModelBase
             return true; // No changes, allow navigation
         }
 
-        var result2 = await UnsavedChangesDialogViewModel.ShowSimpleAsync(
+        var result2 = await UnsavedChangesDialogViewModel.ShowAsync(
             "Unsaved Report Changes".Translate(),
             "You have unsaved changes in the report designer. Would you like to save them?".Translate());
 
@@ -1079,7 +1079,7 @@ public partial class AppShellViewModel : ViewModelBase
             return true;
         }
 
-        var result = await UnsavedChangesDialogViewModel.ShowSimpleAsync(
+        var result = await UnsavedChangesDialogViewModel.ShowAsync(
             "Unsaved Report Changes".Translate(),
             "You have unsaved changes in the report designer. Would you like to save them?".Translate());
 

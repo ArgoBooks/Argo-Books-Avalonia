@@ -286,6 +286,11 @@
     <Style Selector="Button.text-button:pointerover">
         <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
     </Style>
+    <!-- Larger text button, for the tutorial and tour overlays' Skip buttons. -->
+    <Style Selector="Button.text-button.lg">
+        <Setter Property="Padding" Value="12,8" />
+        <Setter Property="FontSize" Value="14" />
+    </Style>
 
     <!-- Ghost Button (no border, subtle) -->
     <Style Selector="Button.ghost">

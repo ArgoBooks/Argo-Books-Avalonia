@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using ArgoBooks.Core.Models.BankMatching;
+using ArgoBooks.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -73,7 +74,7 @@ public partial class BankMatchingModalsViewModel : ViewModelBase
             var q = ManualSearchQuery.Trim();
             query = query.Where(c =>
                 c.RecordDescription.Contains(q, StringComparison.OrdinalIgnoreCase) ||
-                c.RecordAmount.ToString("C2").Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                CurrencyService.Format(c.RecordAmount).Contains(q, StringComparison.OrdinalIgnoreCase) ||
                 c.RecordType.ToString().Contains(q, StringComparison.OrdinalIgnoreCase));
         }
         foreach (var c in query)

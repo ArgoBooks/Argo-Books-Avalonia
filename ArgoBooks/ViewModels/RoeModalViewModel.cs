@@ -5,7 +5,9 @@ using ArgoBooks.Core.Models.Payroll;
 using ArgoBooks.Core.Services;
 using ArgoBooks.Utilities;
 using ArgoBooks.Core.Services.Payroll;
+using ArgoBooks.Core.Utilities;
 using ArgoBooks.Localization;
+using ArgoBooks.Services;
 using ArgoBooks.Shared.Telemetry;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -175,7 +177,7 @@ public partial class RoeModalViewModel : ViewModelBase
         HoursUnavailableReason = sheet.HoursUnavailableReason ?? string.Empty;
 
         InsurableHours = sheet.TotalInsurableHours?.ToString("0.##", CultureInfo.CurrentCulture) ?? string.Empty;
-        InsurableEarnings = sheet.TotalInsurableEarnings.ToString("C", CultureInfo.CurrentCulture);
+        InsurableEarnings = CurrencyService.Format(sheet.TotalInsurableEarnings);
         PeriodSummary = "{0} pay period(s), most recent first".TranslateFormat(sheet.Periods.Count);
 
         // Seeded from the payroll contact already held for the T4, so it is confirmed rather
@@ -194,7 +196,7 @@ public partial class RoeModalViewModel : ViewModelBase
         VacationPayOnLeaving = string.Empty;
         VacationPayHint = sheet.VacationPay > 0
             ? "The final pay run included {0} of vacation pay. Enter it here only if it was paid because they left, not vacation pay added to every cheque."
-                .TranslateFormat(sheet.VacationPay.ToString("C", CultureInfo.CurrentCulture))
+                .TranslateFormat(CurrencyService.Format(sheet.VacationPay))
             : string.Empty;
         Comments = string.Empty;
         StatusMessage = string.Empty;
@@ -298,7 +300,7 @@ public partial class RoeModalViewModel : ViewModelBase
             App.ReceiptViewerModal?.ShowDocument(
                 "Record of Employment: {0}".TranslateFormat(_sheet.EmployeeName),
                 bytes,
-                $"ROE-worksheet-{ExportFolderHelper.Sanitize(_sheet.EmployeeName)}.pdf");
+                $"ROE-worksheet-{SafeFileName.Create(_sheet.EmployeeName, "export", replaceSpaces: true)}.pdf");
 
             _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.RoeWorksheetGenerated);
         }
@@ -345,7 +347,7 @@ public partial class RoeModalViewModel : ViewModelBase
 
         try
         {
-            string name = ExportFolderHelper.Sanitize(_sheet.EmployeeName);
+            string name = SafeFileName.Create(_sheet.EmployeeName, "export", replaceSpaces: true);
 
             IStorageFile? file = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
             {

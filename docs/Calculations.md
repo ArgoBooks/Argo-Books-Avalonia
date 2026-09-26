@@ -142,7 +142,7 @@ A refund never changes the payment it gives money back on. The original payment 
 | `Viewed` | The customer opened it. | Only by a spreadsheet import. |
 | `Partial` | The customer paid some and still owes the rest. | `0 < AmountPaid < Total`. |
 | `Paid` | Paid in full (`AmountPaid >= Total`). | When a payment covers the balance. |
-| `Overdue` | Past its due date and still owed: not Paid, Refunded, Cancelled or paid in full. | Worked out when shown (`Invoice.IsOverdue`); the app never saves it. |
+| `Overdue` | Past its due date and still owed (`Balance > 0`), and not a Draft, Paid, Refunded or Cancelled invoice. | Worked out when shown (`Invoice.IsOverdue`). The app never saves it, but a spreadsheet import can, and an invoice saved as Overdue counts as overdue whatever its due date while something is still owed. |
 | `Cancelled` | The invoice was voided. | Only by a spreadsheet import. |
 | `PartiallyRefunded` | Paid, then refunded less than `Total`, or refunded in full and then paid again. | The refund status rule below. |
 | `Refunded` | Paid, then refunded in full with no later payment. | The refund status rule below. |
@@ -152,6 +152,8 @@ A refund never changes the payment it gives money back on. The original payment 
 **Refund status rule** (`InvoiceTotalsService.RefundedStatus`). If less than `Total` has been refunded, the status is PartiallyRefunded. If at least `Total` has been refunded, it is Refunded, unless the customer then paid again so that net paid (`AmountPaid − AmountRefunded`) is still at least `Total`, in which case it is PartiallyRefunded. A processing fee the customer paid isn't refunded, so a $100 invoice paid with a $3 fee and refunded $100 is Refunded.
 
 Screens and report tables show `InvoiceTotalsService.DisplayStatus`: Overdue if the invoice is overdue; otherwise, if it has refunds, the refund status rule worked out fresh; otherwise the saved status. Never show the saved `Status` on its own.
+
+Every overdue count and total (the Invoices page card and Overdue filter, the dashboard's Overdue Invoices card, customer payment standings, the overdue notification and the Insights card) uses `Invoice.IsOverdue` and nothing else. A draft is never overdue, because it was never sent and nobody owes it yet.
 
 ---
 
@@ -249,6 +251,10 @@ Neither record stores a USD amount or its own currency. The amount is in the cur
 ### Bank matching
 
 Bank Matching (`BankMatchingService`) only marks revenue, expenses, invoices and payments as matched (`BankMatched`); it never changes an amount. It compares each row's amount in its own currency (`Total`, or a payment's `Amount`) with the bank line, not a USD amount.
+
+### Mobile app
+
+The phone shows a snapshot the desktop builds (`SnapshotBuilder`), covering all time. Money In is worked out the same way as the dashboard's Total Revenue card: collected revenue less refunds (Rule 2, §8). Money Out is every expense, and Profit is Money In minus Money Out. Like a report, the snapshot picks one currency for everything (`DisplayCurrency.Resolve`, Rule 3a) and converts each row at its own date. It sends the numbers together with that currency, and the phone writes them out with the currency's symbol.
 
 ---
 

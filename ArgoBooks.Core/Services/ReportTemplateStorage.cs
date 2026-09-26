@@ -1,6 +1,7 @@
 using ArgoBooks.Core.Models.Reports;
 using ArgoBooks.Core.Models.Telemetry;
 using ArgoBooks.Core.Platform;
+using ArgoBooks.Core.Utilities;
 
 namespace ArgoBooks.Core.Services;
 
@@ -14,6 +15,8 @@ public class ReportTemplateStorage
         WriteIndented = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
+
+    private const string TemplateExtension = ".argotemplate";
 
     private readonly IErrorLogger? _errorLogger;
 
@@ -55,8 +58,7 @@ public class ReportTemplateStorage
         {
             EnsureDirectoryExists();
 
-            var sanitizedName = SanitizeFileName(templateName);
-            var filePath = Path.Combine(TemplatesDirectory, $"{sanitizedName}.argotemplate");
+            var filePath = TemplatePath(templateName);
 
             var templateData = new SavedTemplate
             {
@@ -85,8 +87,7 @@ public class ReportTemplateStorage
     {
         try
         {
-            var sanitizedName = SanitizeFileName(templateName);
-            var filePath = Path.Combine(TemplatesDirectory, $"{sanitizedName}.argotemplate");
+            var filePath = TemplatePath(templateName);
 
             if (!File.Exists(filePath))
                 return null;
@@ -114,7 +115,7 @@ public class ReportTemplateStorage
         {
             EnsureDirectoryExists();
 
-            var files = Directory.GetFiles(TemplatesDirectory, "*.argotemplate");
+            var files = Directory.GetFiles(TemplatesDirectory, $"*{TemplateExtension}");
             foreach (var file in files)
             {
                 try
@@ -147,8 +148,7 @@ public class ReportTemplateStorage
     {
         try
         {
-            var sanitizedName = SanitizeFileName(templateName);
-            var filePath = Path.Combine(TemplatesDirectory, $"{sanitizedName}.argotemplate");
+            var filePath = TemplatePath(templateName);
 
             if (File.Exists(filePath))
             {
@@ -171,11 +171,8 @@ public class ReportTemplateStorage
     {
         try
         {
-            var oldSanitized = SanitizeFileName(oldName);
-            var newSanitized = SanitizeFileName(newName);
-
-            var oldPath = Path.Combine(TemplatesDirectory, $"{oldSanitized}.argotemplate");
-            var newPath = Path.Combine(TemplatesDirectory, $"{newSanitized}.argotemplate");
+            var oldPath = TemplatePath(oldName);
+            var newPath = TemplatePath(newName);
 
             if (!File.Exists(oldPath) || File.Exists(newPath))
                 return false;
@@ -222,9 +219,7 @@ public class ReportTemplateStorage
     /// </summary>
     public bool TemplateExists(string templateName)
     {
-        var sanitizedName = SanitizeFileName(templateName);
-        var filePath = Path.Combine(TemplatesDirectory, $"{sanitizedName}.argotemplate");
-        return File.Exists(filePath);
+        return File.Exists(TemplatePath(templateName));
     }
 
     /// <summary>
@@ -261,13 +256,34 @@ public class ReportTemplateStorage
     }
 
     /// <summary>
-    /// Sanitizes a filename by removing invalid characters.
+    /// The file for the template called <paramref name="templateName"/>: the saved one whose stored
+    /// name matches, else where a new one goes. Looking up by stored name keeps templates saved
+    /// under an older file-naming rule reachable.
     /// </summary>
-    private static string SanitizeFileName(string name)
+    private string TemplatePath(string templateName) =>
+        FindTemplateFile(templateName)
+        ?? Path.Combine(TemplatesDirectory, $"{SafeFileName.Create(templateName, "Template")}{TemplateExtension}");
+
+    private string? FindTemplateFile(string templateName)
     {
-        var invalid = Path.GetInvalidFileNameChars();
-        var sanitized = new string(name.Where(c => !invalid.Contains(c)).ToArray());
-        return sanitized.Trim();
+        if (!Directory.Exists(TemplatesDirectory))
+            return null;
+
+        foreach (var file in Directory.GetFiles(TemplatesDirectory, $"*{TemplateExtension}"))
+        {
+            try
+            {
+                var templateData = JsonSerializer.Deserialize<SavedTemplate>(File.ReadAllText(file), JsonOptions);
+                if (templateData?.Name == templateName)
+                    return file;
+            }
+            catch (Exception ex)
+            {
+                _errorLogger?.LogWarning($"Failed to read template file {Path.GetFileName(file)}: {ex.Message}", "ReportTemplateStorage");
+            }
+        }
+
+        return null;
     }
 }
 

@@ -241,15 +241,15 @@ public partial class Invoice : ObservableObject
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     /// <summary>
-    /// Whether the invoice is past due with something still owed. One paid in full and then
-    /// refunded, wholly or in part, owes nothing.
+    /// Whether the invoice is past due with something still owed (docs/Calculations.md §6). A draft
+    /// was never sent, so nothing is owed on it yet; one paid in full and then refunded owes nothing.
+    /// A stored Overdue status only comes from a spreadsheet import or an old file, and counts too.
     /// </summary>
     [JsonIgnore]
-    public bool IsOverdue => Status != InvoiceStatus.Paid &&
-                             Status != InvoiceStatus.Cancelled &&
-                             Status != InvoiceStatus.Refunded &&
-                             !(AmountPaid > 0 && Balance <= 0) &&
-                             DateTime.Today > DueDate.Date;
+    public bool IsOverdue => Status is not (InvoiceStatus.Draft or InvoiceStatus.Paid
+                                 or InvoiceStatus.Cancelled or InvoiceStatus.Refunded) &&
+                             Balance > 0 &&
+                             (Status == InvoiceStatus.Overdue || DateTime.Today > DueDate.Date);
 
     #region Currency Support
 

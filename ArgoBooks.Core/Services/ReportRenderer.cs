@@ -90,20 +90,10 @@ public class ReportRenderer : IDisposable
     /// value), formatted in the display currency at its own date, or pending when that date's rate is
     /// unavailable. See docs/Calculations.md §10, Returns and Losses.
     /// </summary>
-    private string FormatRecordedAmount(decimal amount, string currency, DateTime date)
-    {
-        if (string.Equals(currency, _currencyCode, StringComparison.OrdinalIgnoreCase))
-            return FormatCurrency(amount);
-
-        var rates = ExchangeRateService.Instance;
-        if (rates == null)
-            return FormatCurrency(amount);
-
-        return rates.TryConvertToUsdBase(amount, currency, date, out var usd)
-               && rates.TryConvertFromUSD(usd, _currencyCode, date, out var converted)
+    private string FormatRecordedAmount(decimal amount, string currency, DateTime date) =>
+        DisplayCurrency.FromNative(amount, currency, _currencyCode, date) is { } converted
             ? FormatCurrency(converted)
             : PendingText;
-    }
 
     public ReportRenderer(ReportConfiguration config, CompanyData? companyData, float renderScale = 1f, ITranslationProvider? translationProvider = null, IErrorLogger? errorLogger = null)
     {

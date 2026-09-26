@@ -3,6 +3,7 @@ using System.Text;
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Models.Payroll;
 using ArgoBooks.Core.Services.Payroll;
+using ArgoBooks.Core.Utilities;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
 using ArgoBooks.Shared.Telemetry;
@@ -518,7 +519,7 @@ public partial class YearEndModalViewModel : ViewModelBase
                 string who = HasSeveralSlips(t4, slip)
                     ? $"{slip.GivenName} {slip.Surname} {slip.ProvinceOfEmployment}"
                     : $"{slip.GivenName} {slip.Surname}";
-                string name = $"T4-{t4.TaxYear}-{ExportFolderHelper.Sanitize(who)}.pdf";
+                string name = $"T4-{t4.TaxYear}-{SafeFileName.Create(who, "export", replaceSpaces: true)}.pdf";
                 await File.WriteAllBytesAsync(Path.Combine(directory, name), bytes);
             }
 
@@ -578,7 +579,7 @@ public partial class YearEndModalViewModel : ViewModelBase
             foreach (Rl1Slip slip in rl1.Slips)
             {
                 byte[] bytes = await Task.Run(() => Rl1PdfRenderer.RenderSlip(rl1, slip));
-                string name = $"RL1-{rl1.TaxYear}-{ExportFolderHelper.Sanitize($"{slip.GivenName} {slip.Surname}")}.pdf";
+                string name = $"RL1-{rl1.TaxYear}-{SafeFileName.Create($"{slip.GivenName} {slip.Surname}", "export", replaceSpaces: true)}.pdf";
                 await File.WriteAllBytesAsync(Path.Combine(directory, name), bytes);
             }
 

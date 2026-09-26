@@ -1042,7 +1042,7 @@ public class PaymentPortalService : IDisposable
                 if (result != null && !string.IsNullOrEmpty(result.ApiKey))
                 {
                     // Activate the key in-memory for immediate use (persisted to .argo by caller)
-                    DotEnv.SetInMemory(PortalSettings.ApiKeyEnvVar, result.ApiKey);
+                    PortalSettings.SetActiveApiKey(result.ApiKey);
                     return result;
                 }
 

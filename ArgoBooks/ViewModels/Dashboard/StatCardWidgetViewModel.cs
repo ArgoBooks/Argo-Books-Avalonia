@@ -306,10 +306,7 @@ public partial class StatCardWidgetViewModel : WidgetViewModelBase
 
     private void LoadOverdueInvoices(CompanyData data)
     {
-        // Overdue is worked out from the due date, and nothing stores the Overdue status.
-        var overdue = data.Invoices
-            .Where(i => (i.IsOverdue || i.Status == InvoiceStatus.Overdue) && i.Status != InvoiceStatus.Draft && i.Balance > 0)
-            .ToList();
+        var overdue = data.Invoices.Where(i => i.IsOverdue).ToList();
         // Convert each invoice balance at its OWN issue date before summing (Calculations.md Rule 3a).
         Value = CurrencyService.FormatSumDisplayFromUSD(
             overdue, i => i.Balance, i => i.OriginalCurrency, i => i.BalanceUSD, i => i.IssueDate);

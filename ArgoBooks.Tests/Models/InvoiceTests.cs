@@ -12,7 +12,6 @@ public class InvoiceTests
     #region IsOverdue Tests
 
     [Theory]
-    [InlineData(InvoiceStatus.Draft)]
     [InlineData(InvoiceStatus.Pending)]
     [InlineData(InvoiceStatus.Sent)]
     [InlineData(InvoiceStatus.Viewed)]
@@ -23,24 +22,63 @@ public class InvoiceTests
         var invoice = new Invoice
         {
             Status = status,
+            Total = 100m,
+            Balance = 100m,
             DueDate = DateTime.Today.AddDays(-10)
         };
 
         Assert.True(invoice.IsOverdue);
     }
 
+    /// <summary>
+    /// A draft was never sent, so however late its due date nobody owes it yet.
+    /// </summary>
     [Theory]
+    [InlineData(InvoiceStatus.Draft)]
     [InlineData(InvoiceStatus.Paid)]
     [InlineData(InvoiceStatus.Cancelled)]
-    public void IsOverdue_ClosedStatuses_WhenPastDue_ReturnsFalse(InvoiceStatus status)
+    public void IsOverdue_DraftOrClosedStatuses_WhenPastDue_ReturnsFalse(InvoiceStatus status)
     {
         var invoice = new Invoice
         {
             Status = status,
+            Total = 100m,
+            Balance = 100m,
             DueDate = DateTime.Today.AddDays(-10)
         };
 
         Assert.False(invoice.IsOverdue);
+    }
+
+    [Fact]
+    public void IsOverdue_NothingOwed_WhenPastDue_ReturnsFalse()
+    {
+        var invoice = new Invoice
+        {
+            Status = InvoiceStatus.Sent,
+            Total = 0m,
+            Balance = 0m,
+            DueDate = DateTime.Today.AddDays(-10)
+        };
+
+        Assert.False(invoice.IsOverdue);
+    }
+
+    /// <summary>
+    /// A spreadsheet import can save the Overdue status; it counts while something is owed.
+    /// </summary>
+    [Fact]
+    public void IsOverdue_StoredOverdueStatus_BeforeDueDate_ReturnsTrue()
+    {
+        var invoice = new Invoice
+        {
+            Status = InvoiceStatus.Overdue,
+            Total = 100m,
+            Balance = 100m,
+            DueDate = DateTime.Today.AddDays(10)
+        };
+
+        Assert.True(invoice.IsOverdue);
     }
 
     /// <summary>
@@ -86,6 +124,7 @@ public class InvoiceTests
         var invoice = new Invoice
         {
             Status = InvoiceStatus.Pending,
+            Balance = 100m,
             DueDate = DateTime.Today
         };
 
@@ -98,6 +137,7 @@ public class InvoiceTests
         var invoice = new Invoice
         {
             Status = InvoiceStatus.Pending,
+            Balance = 100m,
             DueDate = DateTime.Today.AddDays(30)
         };
 

@@ -313,7 +313,7 @@ public partial class MainWindow : Window
 
                 if (DataContext is MainWindowViewModel { UnsavedChangesDialogViewModel: not null } viewModel)
                 {
-                    var result = await viewModel.UnsavedChangesDialogViewModel.ShowSimpleAsync(
+                    var result = await viewModel.UnsavedChangesDialogViewModel.ShowAsync(
                         "Unsaved Changes".Translate(),
                         "You have unsaved changes. Would you like to save them before closing?".Translate());
 

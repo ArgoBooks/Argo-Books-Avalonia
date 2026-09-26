@@ -104,7 +104,7 @@ public partial class BankMatchingPageViewModel : SortablePageViewModelBase
 
     /// <summary>Total absolute difference between matched bank lines and the records they match.</summary>
     [ObservableProperty]
-    private string _matchedDifferenceDisplay = 0m.ToString("C2");
+    private string _matchedDifferenceDisplay = CurrencyService.Format(0m);
 
     [ObservableProperty]
     private int _unmatchedLineCount;
@@ -315,7 +315,7 @@ public partial class BankMatchingPageViewModel : SortablePageViewModelBase
             var q = MissingSearchQuery.Trim();
             query = query.Where(r =>
                 r.Description.Contains(q, StringComparison.OrdinalIgnoreCase) ||
-                r.Amount.ToString("C2").Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                CurrencyService.Format(r.Amount).Contains(q, StringComparison.OrdinalIgnoreCase) ||
                 r.Type.ToString().Contains(q, StringComparison.OrdinalIgnoreCase));
         }
 
@@ -434,7 +434,7 @@ public partial class BankMatchingPageViewModel : SortablePageViewModelBase
     private void ResetCounts()
     {
         MatchedCount = UnmatchedLineCount = UnmatchedBookCount = 0;
-        MatchedDifferenceDisplay = 0m.ToString("C2");
+        MatchedDifferenceDisplay = CurrencyService.Format(0m);
         PaginationText = PaginationTextHelper.FormatPaginationText(0, 1, PageSize, 1, "line");
     }
 
@@ -452,7 +452,7 @@ public partial class BankMatchingPageViewModel : SortablePageViewModelBase
             if (recordAmount.HasValue)
                 difference += Math.Abs(row.Line.Amount - recordAmount.Value);
         }
-        MatchedDifferenceDisplay = difference.ToString("C2");
+        MatchedDifferenceDisplay = CurrencyService.Format(difference);
     }
 
     /// <summary>Returns the matched record's amount aligned to bank sign convention, or null.</summary>
@@ -885,7 +885,7 @@ public partial class BankLineRow : ObservableObject
 
     public string DateDisplay => Line.Date == DateTime.MinValue ? "-" : Line.Date.ToString("MMM dd, yyyy");
     public string Description => string.IsNullOrWhiteSpace(Line.Description) ? "-" : Line.Description;
-    public string AmountDisplay => Line.Amount.ToString("C2");
+    public string AmountDisplay => CurrencyService.Format(Line.Amount);
     public string AmountColor => Line.Amount < 0 ? AppColors.ExpenseRed : AppColors.Success;
 
     public string StatusDisplay => Line.MatchStatus switch

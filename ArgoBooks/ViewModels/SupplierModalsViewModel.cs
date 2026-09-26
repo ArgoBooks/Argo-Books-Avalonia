@@ -5,6 +5,7 @@ using ArgoBooks.Core.Models;
 using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Models.Entities;
 using ArgoBooks.Core.Services;
+using ArgoBooks.Core.Validation;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
 using Avalonia.Media.Imaging;
@@ -986,7 +987,7 @@ public partial class SupplierModalsViewModel : ViewModelBase
             }
         }
 
-        if (!string.IsNullOrWhiteSpace(ModalEmail) && !ModalEmail.Contains('@'))
+        if (!string.IsNullOrWhiteSpace(ModalEmail) && !DataValidator.IsValidEmail(ModalEmail))
         {
             ModalEmailError = "Please enter a valid email address.".Translate();
             isValid = false;

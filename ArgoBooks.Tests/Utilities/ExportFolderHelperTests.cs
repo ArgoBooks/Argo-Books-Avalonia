@@ -59,33 +59,4 @@ public class ExportFolderHelperTests : IDisposable
         Assert.Equal(first, second);
         Assert.Single(Directory.GetDirectories(_root));
     }
-
-    [Theory]
-    [InlineData("T4 2026", "T4-2026")]
-    [InlineData("RL-1 2026", "RL-1-2026")]
-    [InlineData("Pay stubs 2026-07-03", "Pay-stubs-2026-07-03")]
-    public void SpacesBecomeDashes_SoTheNameSurvivesBeingEmailed(string given, string expected) =>
-        Assert.Equal(expected, ExportFolderHelper.Sanitize(given));
-
-    [Fact]
-    public void CharactersTheFilesystemRefuses_AreReplaced()
-    {
-        string safe = ExportFolderHelper.Sanitize("Dana / Smith: \"the third\"");
-
-        Assert.DoesNotContain(safe, s => Path.GetInvalidFileNameChars().Contains(s));
-        Assert.DoesNotContain(' ', safe);
-    }
-
-    [Theory]
-    [InlineData("")]
-    [InlineData("   ")]
-    [InlineData("///")]
-    public void ANameThatSanitisesToNothing_FallsBackRatherThanProducingAnEmptyPath(string given)
-    {
-        // An empty segment would silently write into the parent folder instead.
-        Assert.Equal("export", ExportFolderHelper.Sanitize(given));
-    }
-
-    [Fact]
-    public void ANullName_DoesNotThrow() => Assert.Equal("export", ExportFolderHelper.Sanitize(null!));
 }

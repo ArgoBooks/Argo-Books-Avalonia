@@ -6,6 +6,7 @@
              xmlns:controls="using:ArgoBooks.Controls"
              xmlns:table="using:ArgoBooks.Controls.ArgoTable"
              xmlns:loc="using:ArgoBooks.Localization"
+             xmlns:converters="using:ArgoBooks.Converters"
              xmlns:bm="using:ArgoBooks.Core.Models.BankMatching"
              xmlns:icons="using:ArgoBooks"
              mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="800"
@@ -319,7 +320,7 @@
                                                     </StackPanel>
                                                 </table:ArgoTableCell.CellContent>
                                             </table:ArgoTableCell>
-                                            <table:ArgoTableCell Text="{Binding Amount, StringFormat=C2}" ShowSeparator="False"
+                                            <table:ArgoTableCell Text="{Binding Amount, Converter={x:Static converters:Converters.Money}}" ShowSeparator="False"
                                                                  ColumnWidth="{Binding $parent[ItemsControl].((vm:BankMatchingPageViewModel)DataContext).MissingColumns.AmountColumnWidth}" />
                                         </StackPanel>
                                     </Border>

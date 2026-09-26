@@ -3081,9 +3081,10 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         if (diff > 0.02m)
         {
             HasTotalMismatchWarning = true;
+            string Money(decimal amount) => CurrencyInfo.FormatAmount(amount, ScanCurrencyCode);
             TotalMismatchWarningMessage = string.Format(
-                "Line items ({0:C}) + tax ({1:C}) + shipping ({2:C}) - discount ({3:C}) = {4:C}, but total is {5:C}. Some items may be incorrect.".Translate(),
-                lineItemSum, tax, shipping, discount, expectedTotal, total);
+                "Line items ({0}) + tax ({1}) + shipping ({2}) - discount ({3}) = {4}, but total is {5}. Some items may be incorrect.".Translate(),
+                Money(lineItemSum), Money(tax), Money(shipping), Money(discount), Money(expectedTotal), Money(total));
         }
     }
 

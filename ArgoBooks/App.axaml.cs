@@ -594,10 +594,11 @@ public partial class App : Application
                     // nothing the user just received to be notified about.
                     if (newPayments.Count > 0 && companyData.Settings.PaymentPortal.NotifyOnPayment)
                     {
-                        var total = newPayments.Sum(p => p.Amount);
+                        var total = CurrencyService.FormatSumDisplayFromUSD(
+                            newPayments, p => p.Amount, p => p.OriginalCurrency, p => p.EffectiveAmountUSD, p => p.Date);
                         var message = newPayments.Count == 1
-                            ? "{0} online payment received ({1:C})".TranslateFormat(newPayments.Count, total)
-                            : "{0} online payments received ({1:C})".TranslateFormat(newPayments.Count, total);
+                            ? "{0} online payment received ({1})".TranslateFormat(newPayments.Count, total)
+                            : "{0} online payments received ({1})".TranslateFormat(newPayments.Count, total);
 
                         AddNotification(
                             "Payment Received".Translate(),
@@ -944,10 +945,7 @@ public partial class App : Application
         // Check for overdue invoices
         if (settings.InvoiceOverdueAlert)
         {
-            // A never-sent draft isn't owed, as on the Invoices page and dashboard.
-            var overdueInvoices = companyData.Invoices
-                .Where(invoice => invoice.IsOverdue && invoice.Status != InvoiceStatus.Draft)
-                .ToList();
+            var overdueInvoices = companyData.Invoices.Where(invoice => invoice.IsOverdue).ToList();
 
             if (overdueInvoices.Count > 0)
             {
@@ -1335,11 +1333,6 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// Gets the change tracking service for aggregating changes from all sources.
-    /// </summary>
-    public static ChangeTrackingService? ChangeTrackingService { get; private set; }
-
-    /// <summary>
     /// Gets the pending conversion service for processing offline transactions.
     /// </summary>
     public static PendingConversionService? PendingConversionService { get; private set; }
@@ -1495,12 +1488,11 @@ public partial class App : Application
             ConfirmationDialog = new ConfirmationDialogViewModel();
             UnsavedChangesDialog = new UnsavedChangesDialogViewModel();
             ReceiptViewerModal = new ReceiptViewerModalViewModel();
-            ChangeTrackingService = new ChangeTrackingService();
             PendingConversionService = new PendingConversionService(errorLogger)
             {
                 CurrentCompany = () => (CompanyManager?.CompanyData, CompanyManager?.CurrentFilePath)
             };
-            PdfStatementExtractor = new PdfStatementExtractor(LicenseService, ErrorLogger);
+            PdfStatementExtractor = new PdfStatementExtractor(ErrorLogger);
             _idleDetectionService = new IdleDetectionService();
 
             // Create app shell with navigation service and optional update service
@@ -4560,19 +4552,11 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// Shows the unsaved changes dialog with a list of all changes.
+    /// Asks whether to save unsaved changes.
     /// </summary>
     /// <returns>The user's choice.</returns>
-    private static async Task<UnsavedChangesResult> ShowUnsavedChangesDialogAsync()
-    {
-        if (UnsavedChangesDialog == null)
-            return UnsavedChangesResult.Cancel;
-
-        // Get changes from the change tracking service if available
-        var categories = ChangeTrackingService?.GetAllChangeCategories();
-
-        return await UnsavedChangesDialog.ShowAsync(categories);
-    }
+    private static Task<UnsavedChangesResult> ShowUnsavedChangesDialogAsync() =>
+        UnsavedChangesDialog?.ShowAsync() ?? Task.FromResult(UnsavedChangesResult.Cancel);
 
     /// <summary>
     /// Registers all available pages with the navigation service.

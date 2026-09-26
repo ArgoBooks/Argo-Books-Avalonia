@@ -12,6 +12,7 @@ using CommunityToolkit.Mvvm.Input;
 
 using ArgoBooks.Core.Models.Telemetry;
 using ArgoBooks.Core.Services;
+using ArgoBooks.Core.Validation;
 using ArgoBooks.Shared.Telemetry;
 
 namespace ArgoBooks.ViewModels;
@@ -1194,13 +1195,10 @@ public partial class CustomerModalsViewModel : ViewModelBase
             isValid = false;
         }
 
-        if (!string.IsNullOrWhiteSpace(ModalEmail))
+        if (!string.IsNullOrWhiteSpace(ModalEmail) && !DataValidator.IsValidEmail(ModalEmail))
         {
-            if (!ModalEmail.Contains('@') || !ModalEmail.Contains('.'))
-            {
-                ModalEmailError = "Please enter a valid email address.".Translate();
-                isValid = false;
-            }
+            ModalEmailError = "Please enter a valid email address.".Translate();
+            isValid = false;
         }
 
         // Duplicate detection

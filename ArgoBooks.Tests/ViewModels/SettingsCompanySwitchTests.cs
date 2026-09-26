@@ -16,7 +16,7 @@ namespace ArgoBooks.Tests.ViewModels;
 [Collection("ModalViewModels")]
 public class SettingsCompanySwitchTests : IDisposable
 {
-    private readonly string _priorPortalKey = DotEnv.Get(PortalSettings.ApiKeyEnvVar);
+    private readonly string _priorPortalKey = PortalSettings.ApiKey;
 
     // Holds the portal's reply until the test has switched companies.
     private sealed class GatedHandler(string body) : HttpMessageHandler
@@ -112,7 +112,7 @@ public class SettingsCompanySwitchTests : IDisposable
         if (string.IsNullOrEmpty(_priorPortalKey))
             PortalSettings.DeactivateApiKey();
         else
-            DotEnv.SetInMemory(PortalSettings.ApiKeyEnvVar, _priorPortalKey);
+            PortalSettings.SetActiveApiKey(_priorPortalKey);
         GC.SuppressFinalize(this);
     }
 }

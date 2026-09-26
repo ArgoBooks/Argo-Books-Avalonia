@@ -2672,10 +2672,11 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         foreach (var (channel, amount) in channels)
             RefundsChannelBreakdown.Add(new RefundsRow(channel, Money(channelsComplete, amount), null));
 
-        // A chart can't show Pending, so the monthly chart keeps the USD fallback (Calculations.md Rule 3a).
+        var monthsComplete = CurrencyService.TryComputeDisplay(
+            convert => RefundAnalyticsService.MonthlyTotals(company, 12, convert), out var months);
         RefundsMonthlyTotals.Clear();
-        foreach (var m in RefundAnalyticsService.MonthlyTotals(company, 12, CurrencyService.GetDisplayAmount))
-            RefundsMonthlyTotals.Add(new RefundsMonthBucket(m.Month.ToString("MMM yyyy"), m.AmountUSD));
+        foreach (var m in months)
+            RefundsMonthlyTotals.Add(new RefundsMonthBucket(m.Month.ToString("MMM yyyy"), Money(monthsComplete, m.AmountUSD)));
     }
 
     #endregion
@@ -2684,5 +2685,5 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
 /// <summary>Generic display row for the Refunds tab tables.</summary>
 public record RefundsRow(string Label, string Amount, string? Detail);
 
-/// <summary>Monthly bucket for the Refunds-over-time chart.</summary>
-public record RefundsMonthBucket(string MonthLabel, decimal Amount);
+/// <summary>One month's refunds in the Refunds tab's monthly list.</summary>
+public record RefundsMonthBucket(string MonthLabel, string Amount);

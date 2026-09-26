@@ -5,6 +5,7 @@ using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Payroll;
 using ArgoBooks.Core.Services;
 using ArgoBooks.Core.Services.Payroll;
+using ArgoBooks.Core.Utilities;
 using ArgoBooks.Helpers;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
@@ -237,7 +238,7 @@ public partial class PayRunsPageViewModel : SortablePageViewModelBase
             var documents = run.Lines.Select(line => new ViewerDocument
             {
                 Name = line.EmployeeName,
-                FileName = $"{run.PayDate:yyyy-MM-dd}-{ExportFolderHelper.Sanitize(line.EmployeeName)}.pdf",
+                FileName = $"{run.PayDate:yyyy-MM-dd}-{SafeFileName.Create(line.EmployeeName, "export", replaceSpaces: true)}.pdf",
 
                 // Year to date up to but not including this run, so the stub's own figures are
                 // what gets added to it rather than counted twice. Same rule as the download.
@@ -312,7 +313,7 @@ public partial class PayRunsPageViewModel : SortablePageViewModelBase
                 PayrollYearToDate ytd = _payroll.YearToDateFor(data, line.EmployeeId, run);
 
                 byte[] bytes = await Task.Run(() => PayStubPdfRenderer.Render(run, line, ytd, data, symbol));
-                string name = $"{run.PayDate:yyyy-MM-dd}-{ExportFolderHelper.Sanitize(line.EmployeeName)}.pdf";
+                string name = $"{run.PayDate:yyyy-MM-dd}-{SafeFileName.Create(line.EmployeeName, "export", replaceSpaces: true)}.pdf";
 
                 await File.WriteAllBytesAsync(Path.Combine(directory, name), bytes);
             }

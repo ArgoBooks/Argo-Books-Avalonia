@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
 using ArgoBooks.Controls;
+using ArgoBooks.Core.Utilities;
 using ArgoBooks.Core.Models.Telemetry;
 using ArgoBooks.Localization;
 using ArgoBooks.ViewModels;
@@ -181,25 +182,10 @@ public static class ChartImageExportService
     }
 
     /// <summary>
-    /// Creates a file-safe name from a chart title.
+    /// The suggested file name, without extension, for a chart exported today.
     /// </summary>
-    /// <summary>
-    /// Characters no common desktop platform accepts in a file name: the Windows reserved set,
-    /// which is a superset of what macOS and Linux reject, plus the control characters.
-    /// </summary>
-    private static readonly char[] InvalidFileNameChars =
-        [.. "<>:\"/\\|?*", .. Enumerable.Range(0, 32).Select(c => (char)c)];
-
-    public static string CreateSafeFileName(string chartName)
-    {
-        // A fixed set, not Path.GetInvalidFileNameChars(): that returns only '/' and NUL on
-        // macOS and Linux, so a chart called "Q1: Revenue" exported there kept its colon and
-        // produced a file Windows cannot open. Exports get shared between machines, so the
-        // name has to be legal everywhere rather than merely legal where it was written.
-        var safeName = string.Join("_", chartName.Split(InvalidFileNameChars));
-        safeName = safeName.Replace(" ", "_");
-        return $"{safeName}_{DateTime.Now:yyyy-MM-dd}";
-    }
+    public static string CreateSafeFileName(string? chartName) =>
+        $"{SafeFileName.Create(chartName, "Chart", replaceSpaces: true)}-{DateTime.Now:yyyy-MM-dd}";
 
     /// <summary>
     /// Gets valid dimensions for chart export, using defaults if bounds are invalid.

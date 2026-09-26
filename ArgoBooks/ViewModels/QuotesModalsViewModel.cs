@@ -9,6 +9,7 @@ using ArgoBooks.Core.Models.Telemetry;
 using ArgoBooks.Core.Models.Transactions;
 using ArgoBooks.Core.Services;
 using ArgoBooks.Core.Services.InvoiceTemplates;
+using ArgoBooks.Core.Validation;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
 using ArgoBooks.Shared.Telemetry;
@@ -1321,7 +1322,7 @@ public partial class QuotesModalsViewModel : ViewModelBase
         if (companyData == null) return;
 
         var recipient = SendRecipientEmail?.Trim() ?? string.Empty;
-        if (string.IsNullOrEmpty(recipient) || !recipient.Contains('@'))
+        if (!DataValidator.IsValidEmail(recipient))
         {
             SendError = "Please enter a valid recipient email address.".Translate();
             return;

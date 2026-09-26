@@ -915,7 +915,7 @@ public partial class ChartExpandOverlay : UserControl
         e.Handled = true;
 
         var clickedControl = (Control?)chart ?? (Control?)pieChart ?? geoMap;
-        var title = GetClickedChartTitle(clickedControl);
+        var title = PageChartInteractions.GetChartTitle(clickedControl) ?? "Chart";
 
         // Set clicked chart on the source page for export operations
         SetPageClickedChart(clickedControl, title);
@@ -948,50 +948,6 @@ public partial class ChartExpandOverlay : UserControl
             dashPage.SetClickedChart(chart, name);
         else if (_pageContentControl?.Content is AnalyticsPage analyticsPage)
             analyticsPage.SetClickedChart(chart, name);
-    }
-
-    /// <summary>
-    /// Gets the chart title from a specific clicked chart control.
-    /// Mirrors the page-level GetChartTitle approach so that the chart title
-    /// matches what ChartLoaderService expects for exports.
-    /// </summary>
-    private static string GetClickedChartTitle(Control? control)
-    {
-        if (control is CartesianChart cc &&
-            cc.Title is LabelVisual cartLabel &&
-            !string.IsNullOrWhiteSpace(cartLabel.Text))
-        {
-            return cartLabel.Text;
-        }
-
-        if (control is PieChart pieChart &&
-            pieChart.Title is LabelVisual pieLabel &&
-            !string.IsNullOrWhiteSpace(pieLabel.Text))
-        {
-            return pieLabel.Text;
-        }
-
-        // For PieChart/GeoMap without a Title property, navigate parent Grids to
-        // find the TextBlock title: Grid(Row) > Grid(Column) > PieChart/GeoMap
-        if (control is PieChart or PieChartLegend or GeoMap)
-        {
-            var columnGrid = control.Parent as Grid;
-            var rowGrid = columnGrid?.Parent as Grid;
-            if (rowGrid != null)
-            {
-                foreach (var child in rowGrid.Children)
-                {
-                    if (child is TextBlock textBlock &&
-                        Grid.GetRow(textBlock) == 0 &&
-                        !string.IsNullOrWhiteSpace(textBlock.Text))
-                    {
-                        return textBlock.Text;
-                    }
-                }
-            }
-        }
-
-        return "Chart";
     }
 
     #endregion

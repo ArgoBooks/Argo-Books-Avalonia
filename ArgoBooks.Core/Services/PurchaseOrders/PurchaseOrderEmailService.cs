@@ -1,6 +1,7 @@
 using System.Text;
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Models.Inventory;
+using ArgoBooks.Core.Utilities;
 
 namespace ArgoBooks.Core.Services.PurchaseOrders;
 
@@ -72,7 +73,7 @@ public class PurchaseOrderEmailService : IDisposable
             Text = body,
             PurchaseOrderId = order.Id,
             PdfAttachment = Convert.ToBase64String(pdfBytes),
-            PdfFilename = $"{SanitizePoFilename(order.PoNumber)}.pdf"
+            PdfFilename = $"{SafeFileName.Create(order.PoNumber, "PurchaseOrder", replaceSpaces: true)}.pdf"
         };
 
         try
@@ -198,17 +199,6 @@ public class PurchaseOrderEmailService : IDisposable
             .Replace("{OrderDate}", order.OrderDate.ToString("yyyy-MM-dd"))
             .Replace("{ExpectedDeliveryDate}", order.ExpectedDeliveryDate.ToString("yyyy-MM-dd"))
             .Replace("{Total}", $"{currencySymbol}{order.Total:N2}");
-    }
-
-    private static string SanitizePoFilename(string poNumber)
-    {
-        if (string.IsNullOrWhiteSpace(poNumber)) return "PurchaseOrder";
-        var invalid = Path.GetInvalidFileNameChars();
-        var sb = new StringBuilder(poNumber.Length);
-        foreach (var ch in poNumber)
-            sb.Append(invalid.Contains(ch) || ch == ' ' ? '-' : ch);
-        var result = sb.ToString().Trim('-');
-        return string.IsNullOrEmpty(result) ? "PurchaseOrder" : result;
     }
 
     public void Dispose()

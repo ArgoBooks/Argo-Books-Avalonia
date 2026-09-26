@@ -5,6 +5,8 @@ using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Entities;
 using ArgoBooks.Core.Models.Inventory;
 using ArgoBooks.Core.Services.PurchaseOrders;
+using ArgoBooks.Core.Utilities;
+using ArgoBooks.Core.Validation;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
 using Avalonia;
@@ -1188,7 +1190,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
         SendBccEmail = settings.BccEmail;
         SendSubject = PurchaseOrderEmailService.FillTemplate(settings.SubjectTemplate, order, companyData, symbol);
         SendBody = PurchaseOrderEmailService.FillTemplate(settings.BodyTemplate, order, companyData, symbol);
-        SendPdfFilename = $"{SanitizePoFilename(order.PoNumber)}.pdf";
+        SendPdfFilename = $"{SafeFileName.Create(order.PoNumber, "PurchaseOrder", replaceSpaces: true)}.pdf";
 
         SendPdfPreview?.Dispose();
         SendPdfPreview = null;
@@ -1289,7 +1291,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
         if (companyData == null) return;
 
         var recipient = SendRecipientEmail?.Trim() ?? string.Empty;
-        if (string.IsNullOrEmpty(recipient) || !recipient.Contains('@'))
+        if (!DataValidator.IsValidEmail(recipient))
         {
             SendError = "Please enter a valid recipient email address.".Translate();
             return;
@@ -1466,15 +1468,6 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
         {
             App.ErrorLogger?.LogError(ex, ErrorCategory.Validation, "PurchaseOrder.GenerateSendPreview");
         }
-    }
-
-    private static string SanitizePoFilename(string poNumber)
-    {
-        if (string.IsNullOrWhiteSpace(poNumber)) return "PurchaseOrder";
-        var invalid = Path.GetInvalidFileNameChars();
-        var chars = poNumber.Select(c => invalid.Contains(c) || c == ' ' ? '-' : c).ToArray();
-        var result = new string(chars).Trim('-');
-        return string.IsNullOrEmpty(result) ? "PurchaseOrder" : result;
     }
 
     #endregion

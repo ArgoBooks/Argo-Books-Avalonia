@@ -279,7 +279,7 @@ public partial class EmployeesPageViewModel : SortablePageViewModelBase
             .Where(e => e.PayType == PayType.Salary)
             .Sum(e => e.PayRate);
 
-        AnnualPayroll = $"${annual:N0}";
+        AnnualPayroll = CurrencyService.Format(annual);
     }
 
     private void Filter()

@@ -7,7 +7,7 @@ namespace ArgoBooks.Tests.Services;
 /// <summary>
 /// Tests for the PaymentPortalService class.
 /// </summary>
-[Collection("DotEnv")]
+[Collection("PortalApiKey")]
 public class PaymentPortalServiceTests
 {
     #region CheckStatusAsync Tests
@@ -17,8 +17,8 @@ public class PaymentPortalServiceTests
     {
         // Remove the portal API key from both the in-memory cache and
         // environment so the service takes the "not configured" path.
-        var priorKey = DotEnv.Get(PortalSettings.ApiKeyEnvVar);
-        DotEnv.Unset(PortalSettings.ApiKeyEnvVar);
+        var priorKey = PortalSettings.ApiKey;
+        PortalSettings.DeactivateApiKey();
 
         try
         {
@@ -32,7 +32,7 @@ public class PaymentPortalServiceTests
         finally
         {
             if (!string.IsNullOrEmpty(priorKey))
-                DotEnv.SetInMemory(PortalSettings.ApiKeyEnvVar, priorKey);
+                PortalSettings.SetActiveApiKey(priorKey);
         }
     }
 

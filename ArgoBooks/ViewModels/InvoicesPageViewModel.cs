@@ -676,9 +676,8 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
             _allInvoices.Where(i => i.Status == InvoiceStatus.Paid && i.UpdatedAt >= startOfMonth),
             i => i.Total, i => i.OriginalCurrency, i => i.TotalUSD, i => i.IssueDate);
 
-        // Overdue amount - drafts excluded (a never-sent draft past its due date isn't overdue money owed).
         OverdueAmount = CurrencyService.FormatSumDisplayFromUSD(
-            _allInvoices.Where(i => (i.IsOverdue || i.Status == InvoiceStatus.Overdue) && i.Status != InvoiceStatus.Draft),
+            _allInvoices.Where(i => i.IsOverdue),
             i => i.Balance, i => i.OriginalCurrency, i => i.BalanceUSD, i => i.IssueDate);
 
         // Due this week - drafts excluded (not yet billed).
@@ -731,8 +730,9 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
         {
             if (Enum.TryParse<InvoiceStatus>(FilterStatus, out var status))
             {
-                filtered = filtered.Where(i => i.Status == status ||
-                    (FilterStatus == "Overdue" && i.IsOverdue));
+                filtered = status == InvoiceStatus.Overdue
+                    ? filtered.Where(i => i.IsOverdue)
+                    : filtered.Where(i => i.Status == status);
             }
         }
 
@@ -860,37 +860,12 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
         Invoices.ReplaceAll(pagedInvoices);
     }
 
-    private static string GetStatusDisplay(Invoice invoice)
-    {
-        if (invoice.IsOverdue && invoice.Status != InvoiceStatus.Paid && invoice.Status != InvoiceStatus.Cancelled)
-            return "Overdue";
-
-        // Self-heal: even if invoice.Status is stale (PartiallyRefunded
-        // persisted from before the comparison-against-Total fix), derive
-        // the correct refund status fresh at display time, by the rule the
-        // sync recompute uses.
-        if (invoice.AmountRefunded > 0 && invoice.Total > 0)
+    private static string GetStatusDisplay(Invoice invoice) =>
+        InvoiceTotalsService.DisplayStatus(invoice) switch
         {
-            return InvoiceTotalsService.RefundedStatus(invoice) == InvoiceStatus.Refunded
-                ? "Refunded"
-                : "Partially Refunded";
-        }
-
-        return invoice.Status switch
-        {
-            InvoiceStatus.Draft => "Draft",
-            InvoiceStatus.Pending => "Pending",
-            InvoiceStatus.Sent => "Sent",
-            InvoiceStatus.Viewed => "Viewed",
-            InvoiceStatus.Partial => "Partial",
-            InvoiceStatus.Paid => "Paid",
-            InvoiceStatus.Overdue => "Overdue",
-            InvoiceStatus.Cancelled => "Cancelled",
             InvoiceStatus.PartiallyRefunded => "Partially Refunded",
-            InvoiceStatus.Refunded => "Refunded",
-            _ => "Unknown"
+            var status => status.ToString()
         };
-    }
 
     /// <summary>
     /// True when the row's Refund icon button should be visible.

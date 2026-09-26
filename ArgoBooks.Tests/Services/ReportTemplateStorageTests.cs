@@ -109,6 +109,24 @@ public class ReportTemplateStorageTests : IDisposable
         Assert.Equal("Test Report", loaded.Title);
     }
 
+    /// <summary>
+    /// Earlier versions dropped characters like "/" from the file name instead of replacing them.
+    /// A template saved that way is still found by its name.
+    /// </summary>
+    [Fact]
+    public async Task LoadTemplateAsync_SavedUnderAnOlderFileName_IsFoundByItsName()
+    {
+        await _storage.SaveTemplateAsync(new ReportConfiguration { Title = "Old" }, "Q1/Q2 Sales");
+        var saved = Directory.GetFiles(_testDir, "*.argotemplate").Single();
+        File.Move(saved, Path.Combine(_testDir, "Q1Q2 Sales.argotemplate"));
+
+        var loaded = await _storage.LoadTemplateAsync("Q1/Q2 Sales");
+
+        Assert.Equal("Old", loaded?.Title);
+        Assert.True(_storage.DeleteTemplate("Q1/Q2 Sales"));
+        Assert.Empty(Directory.GetFiles(_testDir, "*.argotemplate"));
+    }
+
     [Fact]
     public async Task LoadTemplateAsync_NonExistent_ReturnsNull()
     {

@@ -4,6 +4,7 @@ using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Portal;
 using ArgoBooks.Core.Models.Tracking;
 using ArgoBooks.Core.Services;
+using ArgoBooks.Core.Utilities;
 using ArgoBooks.Helpers;
 using ArgoBooks.Services;
 using ArgoBooks.Localization;
@@ -753,8 +754,7 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
 
             // Create subfolder with company name and date
             var companyName = App.CompanyManager?.CurrentCompanyName ?? "Receipts";
-            var safeName = string.Join("_", companyName.Split(Path.GetInvalidFileNameChars()));
-            var exportFolderName = $"{safeName}_{DateTime.Now:yyyy-MM-dd}";
+            var exportFolderName = $"{SafeFileName.Create(companyName, "Receipts")}_{DateTime.Now:yyyy-MM-dd}";
             var exportFolder = Path.Combine(baseFolder, exportFolderName);
 
             Directory.CreateDirectory(exportFolder);
