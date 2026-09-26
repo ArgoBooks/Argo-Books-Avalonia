@@ -135,37 +135,42 @@ public class ExchangeRateCache
     /// <summary>
     /// Loads the cache from disk.
     /// </summary>
-    public async Task LoadAsync()
+    public Task LoadAsync()
     {
         if (!_platformService.SupportsFileSystem)
-            return;
+            return Task.CompletedTask;
 
-        var cachePath = GetCachePath();
-        if (!File.Exists(cachePath))
-            return;
-
-        try
+        // The file gains every date's rates as they are fetched, so parsing it is real work. It
+        // runs on the thread pool rather than on the caller's thread, which at launch is the UI's.
+        return Task.Run(async () =>
         {
-            var json = await File.ReadAllTextAsync(cachePath);
-            var data = JsonSerializer.Deserialize<Dictionary<string, decimal>>(json);
+            var cachePath = GetCachePath();
+            if (!File.Exists(cachePath))
+                return;
 
-            if (data != null)
+            try
             {
-                lock (_lock)
+                var json = await File.ReadAllTextAsync(cachePath);
+                var data = JsonSerializer.Deserialize<Dictionary<string, decimal>>(json);
+
+                if (data != null)
                 {
-                    foreach (var kvp in data)
+                    lock (_lock)
                     {
-                        _memoryCache[kvp.Key] = kvp.Value;
+                        foreach (var kvp in data)
+                        {
+                            _memoryCache[kvp.Key] = kvp.Value;
+                        }
+                        _isDirty = false;
                     }
-                    _isDirty = false;
                 }
             }
-        }
-        catch (Exception ex)
-        {
-            // Cache file corrupted or unreadable - start fresh
-            _errorLogger?.LogWarning($"Failed to load exchange rate cache: {ex.Message}", "ExchangeRateCache");
-        }
+            catch (Exception ex)
+            {
+                // Cache file corrupted or unreadable - start fresh
+                _errorLogger?.LogWarning($"Failed to load exchange rate cache: {ex.Message}", "ExchangeRateCache");
+            }
+        });
     }
 
     /// <summary>
