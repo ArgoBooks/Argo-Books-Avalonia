@@ -1067,11 +1067,10 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
         if (!confirmed) return;
 
         var deleted = schedule;
-        var index = companyData.RecurringInvoices.IndexOf(schedule);
 
         void ApplyDelete()
         {
-            companyData.RecurringInvoices.Remove(deleted);
+            companyData.RecurringInvoices.RemoveRecord(deleted);
             foreach (var d in orphanedDrafts) d.RecurringInvoiceId = string.Empty;
             companyData.MarkAsModified();
             LoadInvoices();
@@ -1079,13 +1078,7 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
         }
         void UndoDelete()
         {
-            if (!companyData.RecurringInvoices.Contains(deleted))
-            {
-                if (index >= 0 && index <= companyData.RecurringInvoices.Count)
-                    companyData.RecurringInvoices.Insert(index, deleted);
-                else
-                    companyData.RecurringInvoices.Add(deleted);
-            }
+            companyData.RecurringInvoices.RestoreRecord(deleted);
             foreach (var d in orphanedDrafts) d.RecurringInvoiceId = deleted.Id;
             companyData.MarkAsModified();
             LoadInvoices();

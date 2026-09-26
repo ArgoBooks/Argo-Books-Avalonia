@@ -437,7 +437,7 @@ public partial class CategoryModalsViewModel : ViewModelBase
                     foreach (var child in children)
                     {
                         if (deleteSubcategories)
-                            companyData.Categories.Remove(child);
+                            companyData.Categories.RemoveRecord(child);
                         else
                             child.ParentId = null;
                     }
@@ -447,7 +447,7 @@ public partial class CategoryModalsViewModel : ViewModelBase
                     foreach (var child in children)
                     {
                         if (deleteSubcategories)
-                            companyData.Categories.Add(child);
+                            companyData.Categories.RestoreRecord(child);
                         else
                             child.ParentId = category.Id;
                     }

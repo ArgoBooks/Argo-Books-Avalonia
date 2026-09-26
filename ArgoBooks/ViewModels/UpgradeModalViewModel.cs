@@ -608,18 +608,9 @@ public partial class UpgradeModalViewModel : ViewModelBase
                     catch (Exception ex)
                     {
                         App.ErrorLogger?.LogError(ex, ErrorCategory.License, "Failed to save license after verification");
-                        var dialog = App.ConfirmationDialog;
-                        if (dialog != null)
-                        {
-                            await dialog.ShowAsync(new ConfirmationDialogOptions
-                            {
-                                Title = "Warning".Translate(),
-                                Message = "Your license was activated but could not be saved locally. You may need to re-enter your license key next time.".Translate(),
-                                PrimaryButtonText = "OK".Translate(),
-                                SecondaryButtonText = null,
-                                CancelButtonText = null
-                            });
-                        }
+                        await App.ShowWarningDialogAsync(
+                            "Warning".Translate(),
+                            "Your license was activated but could not be saved locally. You may need to re-enter your license key next time.".Translate());
                     }
                 }
 

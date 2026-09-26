@@ -194,7 +194,7 @@ public partial class RecurringSchedulesViewModel : ViewModelBase, ICleanupViewMo
 
         if (result != ConfirmationResult.Primary) return;
 
-        data.RecurringTransactions.Remove(schedule);
+        data.RecurringTransactions.RemoveRecord(schedule);
 
         App.UndoRedoManager.RecordAction(new DelegateAction(
             $"Delete schedule {schedule.Id}",

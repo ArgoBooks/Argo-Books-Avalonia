@@ -1310,18 +1310,9 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
         }
         else
         {
-            var dialog = App.ConfirmationDialog;
-            if (dialog != null)
-            {
-                await dialog.ShowAsync(new ConfirmationDialogOptions
-                {
-                    Title = "Save Failed".Translate(),
-                    Message = "Failed to save the template. Please check that you have write permissions to the templates folder.".Translate(),
-                    PrimaryButtonText = "OK".Translate(),
-                    SecondaryButtonText = null,
-                    CancelButtonText = null
-                });
-            }
+            await App.ShowErrorDialogAsync(
+                "Save Failed".Translate(),
+                "Failed to save the template. Please check that you have write permissions to the templates folder.".Translate());
         }
         return success;
     }
@@ -2458,18 +2449,9 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
                     if (config == null)
                     {
                         // Show error message if template couldn't be loaded
-                        var dialog = App.ConfirmationDialog;
-                        if (dialog != null)
-                        {
-                            await dialog.ShowAsync(new ConfirmationDialogOptions
-                            {
-                                Title = "Load Failed".Translate(),
-                                Message = "Failed to load the template '{0}'. The file may be corrupted or missing.".TranslateFormat(templateName),
-                                PrimaryButtonText = "OK".Translate(),
-                                SecondaryButtonText = null,
-                                CancelButtonText = null
-                            });
-                        }
+                        await App.ShowErrorDialogAsync(
+                            "Load Failed".Translate(),
+                            "Failed to load the template '{0}'. The file may be corrupted or missing.".TranslateFormat(templateName));
                     }
                     Configuration = config ?? new ReportConfiguration();
                     UndoRedoManager.SuppressRecording = true;

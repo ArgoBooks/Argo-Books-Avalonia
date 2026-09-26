@@ -1,11 +1,12 @@
 using ArgoBooks.Core.Enums;
+using ArgoBooks.Core.Models.Common;
 
 namespace ArgoBooks.Core.Models.Transactions;
 
 /// <summary>
 /// Represents a recurring invoice schedule.
 /// </summary>
-public class RecurringInvoice
+public class RecurringInvoice : IRecord
 {
     /// <summary>
     /// Unique identifier (e.g., REC-INV-001).

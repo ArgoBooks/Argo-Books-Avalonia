@@ -340,17 +340,8 @@ public static class ChartImageExportService
     /// </summary>
     private static async Task ShowSaveErrorDialog(string errorMessage)
     {
-        var dialog = App.ConfirmationDialog;
-        if (dialog != null)
-        {
-            await dialog.ShowAsync(new ConfirmationDialogOptions
-            {
-                Title = "Save Failed".Translate(),
-                Message = "Failed to save the chart image: {0}".TranslateFormat(errorMessage),
-                PrimaryButtonText = "OK".Translate(),
-                SecondaryButtonText = null,
-                CancelButtonText = null
-            });
-        }
+        await App.ShowErrorDialogAsync(
+            "Save Failed".Translate(),
+            "Failed to save the chart image: {0}".TranslateFormat(errorMessage));
     }
 }

@@ -551,8 +551,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
         {
             if (cap.Prior == null)
             {
-                if (!data.BankCategoryRules.Contains(cap.Rule))
-                    data.BankCategoryRules.RestoreRecord(cap.Rule);
+                data.BankCategoryRules.RestoreRecord(cap.Rule);
             }
             else
             {

@@ -1,4 +1,5 @@
 using ArgoBooks.Core.Enums;
+using ArgoBooks.Core.Models.Common;
 
 namespace ArgoBooks.Core.Models.BankMatching;
 
@@ -6,7 +7,7 @@ namespace ArgoBooks.Core.Models.BankMatching;
 /// A single line imported from a bank statement. These are reference data used to
 /// verify the books; they are never committed as expense/revenue transactions.
 /// </summary>
-public class BankStatementLine
+public class BankStatementLine : IRecord
 {
     /// <summary>Unique identifier for this line within its import session.</summary>
     [JsonPropertyName("id")]

@@ -1698,13 +1698,9 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
 
         if (!File.Exists(filePath))
         {
-            await (App.ConfirmationDialog?.ShowAsync(new ConfirmationDialogOptions
-            {
-                Title = "Error".Translate(),
-                Message = "File not found.".Translate(),
-                PrimaryButtonText = "OK".Translate(),
-                CancelButtonText = null
-            }) ?? Task.CompletedTask);
+            await App.ShowErrorDialogAsync(
+                "Error".Translate(),
+                "File not found.".Translate());
             return;
         }
 
@@ -2446,13 +2442,9 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         var companyData = App.CompanyManager?.CompanyData;
         if (companyData == null)
         {
-            await (App.ConfirmationDialog?.ShowAsync(new ConfirmationDialogOptions
-            {
-                Title = "Error".Translate(),
-                Message = "No company is open.".Translate(),
-                PrimaryButtonText = "OK".Translate(),
-                CancelButtonText = null
-            }) ?? Task.CompletedTask);
+            await App.ShowErrorDialogAsync(
+                "Error".Translate(),
+                "No company is open.".Translate());
             return;
         }
 

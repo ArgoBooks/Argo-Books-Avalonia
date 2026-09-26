@@ -118,6 +118,16 @@ public class IdGenerator(CompanyData companyData)
         return (FormatInvoiceId(n), FormatInvoiceNumber(n));
     }
 
+    /// <summary>
+    /// Gives back the number of an invoice that was never issued, when it is the last one
+    /// <see cref="NextInvoiceId"/> handed out, so the next invoice takes it instead of leaving a gap.
+    /// </summary>
+    public void ReleaseInvoiceNumber(string invoiceId)
+    {
+        if (Counters.Invoice > 0 && FormatInvoiceId(Counters.Invoice) == invoiceId)
+            Counters.Invoice--;
+    }
+
     /// <summary>Generates a new quote ID (QUO-2024-00001) whose display number is not already a quote's number.</summary>
     public string NextQuoteId() =>
         Next(() => checked(++Counters.Quote), FormatQuoteId, null, QuoteIdsAndNumbers(), FormatQuoteNumber);

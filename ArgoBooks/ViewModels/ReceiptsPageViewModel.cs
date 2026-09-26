@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using ArgoBooks.Controls.ColumnWidths;
+using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Portal;
 using ArgoBooks.Core.Models.Tracking;
@@ -838,13 +839,9 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
         }
         catch (Exception ex)
         {
-            await (App.ConfirmationDialog?.ShowAsync(new ConfirmationDialogOptions
-            {
-                Title = "Error",
-                Message = $"Failed to save receipt: {ex.Message}",
-                PrimaryButtonText = "OK",
-                CancelButtonText = null
-            }) ?? Task.CompletedTask);
+            await App.ShowErrorDialogAsync(
+                "Error",
+                $"Failed to save receipt: {ex.Message}");
         }
     }
 
@@ -966,7 +963,7 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
             {
                 foreach (var receipt in receiptsToDelete)
                 {
-                    companyData.Receipts.Remove(receipt);
+                    companyData.Receipts.RemoveRecord(receipt);
                     if (!string.IsNullOrEmpty(receipt.TransactionId))
                         SetTransactionReceiptId(companyData, receipt.TransactionType, receipt.TransactionId, null);
                 }
@@ -976,7 +973,7 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
             {
                 foreach (var receipt in receiptsToDelete)
                 {
-                    companyData.Receipts.Add(receipt);
+                    companyData.Receipts.RestoreRecord(receipt);
                     if (!string.IsNullOrEmpty(receipt.TransactionId))
                         SetTransactionReceiptId(companyData, receipt.TransactionType, receipt.TransactionId, receipt.Id);
                 }

@@ -159,9 +159,6 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
         {
             if (item == null) return;
 
-            var dialog = App.ConfirmationDialog;
-            if (dialog == null) return;
-
             // Block deletion if revenue is linked to a portal-published invoice
             var companyData = App.CompanyManager?.CompanyData;
             if (!string.IsNullOrEmpty(item.InvoiceId))
@@ -169,14 +166,9 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
                 var linkedInvoice = companyData?.Invoices.FirstOrDefault(i => i.Id == item.InvoiceId);
                 if (linkedInvoice?.History.Any(h => h.Action == "Published to Portal") == true)
                 {
-                    await dialog.ShowAsync(new ConfirmationDialogOptions
-                    {
-                        Title = "Cannot Delete Revenue".Translate(),
-                        Message = "This revenue is linked to an invoice that has been published to the payment portal and cannot be deleted.".Translate(),
-                        PrimaryButtonText = "OK".Translate(),
-                        CancelButtonText = null,
-                        IsPrimaryDestructive = false
-                    });
+                    await App.ShowWarningDialogAsync(
+                        "Cannot Delete Revenue".Translate(),
+                        "This revenue is linked to an invoice that has been published to the payment portal and cannot be deleted.".Translate());
                     return;
                 }
             }
@@ -185,14 +177,9 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
             var rental = companyData?.Rentals.FirstOrDefault(r => r.RevenueId == item.Id);
             if (rental != null)
             {
-                await dialog.ShowAsync(new ConfirmationDialogOptions
-                {
-                    Title = "Cannot Delete Revenue".Translate(),
-                    Message = "This revenue was recorded when rental {0} was marked paid. To remove it, mark the rental unpaid on the Rental Records page.".TranslateFormat(rental.Id),
-                    PrimaryButtonText = "OK".Translate(),
-                    CancelButtonText = null,
-                    IsPrimaryDestructive = false
-                });
+                await App.ShowWarningDialogAsync(
+                    "Cannot Delete Revenue".Translate(),
+                    "This revenue was recorded when rental {0} was marked paid. To remove it, mark the rental unpaid on the Rental Records page.".TranslateFormat(rental.Id));
                 return;
             }
 
@@ -330,7 +317,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
                 var record = companyData.LostDamaged.FirstOrDefault(ld => ld.InventoryItemId == revenue.Id);
                 if (record != null)
                 {
-                    companyData.LostDamaged.Remove(record);
+                    companyData.LostDamaged.RemoveRecord(record);
                     App.UndoRedoManager.RecordAction(new DelegateAction(
                         $"Undo lost/damaged status for revenue '{revenue.Id}'",
                         () =>
@@ -353,7 +340,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
                 var record = companyData.Returns.FirstOrDefault(r => r.OriginalTransactionId == revenue.Id);
                 if (record != null)
                 {
-                    companyData.Returns.Remove(record);
+                    companyData.Returns.RemoveRecord(record);
                     App.UndoRedoManager.RecordAction(new DelegateAction(
                         $"Undo returned status for revenue '{revenue.Id}'",
                         () =>
@@ -577,7 +564,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
             newReceipt = CreateReceipt(companyData, revenue.Id, "Revenue", SelectedCustomer?.Name ?? "");
             if (newReceipt != null)
             {
-                if (currentReceipt != null && companyData.Receipts.Remove(currentReceipt))
+                if (currentReceipt != null && companyData.Receipts.RemoveRecord(currentReceipt))
                     replacedReceipt = currentReceipt;
                 revenue.ReceiptId = newReceipt.Id;
                 companyData.Receipts.Add(newReceipt);

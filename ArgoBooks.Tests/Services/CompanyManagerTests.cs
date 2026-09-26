@@ -511,6 +511,47 @@ public class CompanyManagerTests : IDisposable
         }
     }
 
+    /// <summary>
+    /// A rename's undo renames the customer it held and moves every reference by id. Undoing an import
+    /// in between restores the company from a snapshot, and when that swapped the customer for a copy,
+    /// the undo renamed the copy and pointed every reference at an id no customer had.
+    /// </summary>
+    [Fact]
+    public async Task UndoingARename_AfterUndoingAnImport_RenamesTheCustomerInTheBooks()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"argo-cm-{Guid.NewGuid():N}.argo");
+        try
+        {
+            await _manager.CreateCompanyAsync(path, "Acme");
+            var data = _manager.CompanyData!;
+            var customer = new Customer { Id = "CUS-001", Name = "Acme Corp" };
+            data.Customers.Add(customer);
+            data.Invoices.Add(new Invoice { Id = "INV-1", CustomerId = "CUS-001" });
+
+            _manager.ChangeCustomerId(customer, "CUS-100");
+
+            var beforeImport = App.CreateCompanyDataSnapshot(data);
+            // A re-import of an exported sheet updates the customer it already has.
+            data.Customers.AddOrUpdate(customer, new Customer { Id = "CUS-100", Name = "Acme Corporation" });
+            data.Revenues.Add(new Revenue { Id = "REV-1", CustomerId = "CUS-100" });
+            App.RestoreCompanyDataFromSnapshot(data, beforeImport);
+
+            _manager.ChangeCustomerId(customer, "CUS-001");
+
+            Assert.Same(customer, Assert.Single(data.Customers));
+            Assert.Equal("CUS-001", customer.Id);
+            Assert.Equal("Acme Corp", customer.Name);
+            Assert.Equal("CUS-001", Assert.Single(data.Invoices).CustomerId);
+            Assert.Same(customer, data.GetCustomer("CUS-001"));
+            Assert.Empty(data.Revenues);
+        }
+        finally
+        {
+            await _manager.CloseCompanyAsync();
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
     [Fact]
     public async Task ChangeSupplierId_CascadesToRecurringTransactionTemplate()
     {

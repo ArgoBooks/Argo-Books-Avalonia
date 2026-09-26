@@ -206,17 +206,9 @@ public sealed class PageChartInteractions
             catch (Exception ex)
             {
                 App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.Export, "Failed to export chart to Excel");
-                if (App.ConfirmationDialog is { } dialog)
-                {
-                    await dialog.ShowAsync(new ConfirmationDialogOptions
-                    {
-                        Title = "Export Failed".Translate(),
-                        Message = "Failed to export the chart to Excel: {0}".TranslateFormat(ex.Message),
-                        PrimaryButtonText = "OK".Translate(),
-                        SecondaryButtonText = null,
-                        CancelButtonText = null
-                    });
-                }
+                await App.ShowErrorDialogAsync(
+                    "Export Failed".Translate(),
+                    "Failed to export the chart to Excel: {0}".TranslateFormat(ex.Message));
             }
         }
         catch (Exception ex)

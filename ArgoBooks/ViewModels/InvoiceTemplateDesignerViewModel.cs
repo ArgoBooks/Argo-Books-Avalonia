@@ -401,7 +401,7 @@ public partial class InvoiceTemplateDesignerViewModel : ViewModelBase
             // render with its logo, which is the redraw RetireLogo exists to prevent.
             LogoHistory.RetireLogo(companyData!, template, null);
 
-            companyData!.InvoiceTemplates.Remove(template);
+            companyData!.InvoiceTemplates.RemoveRecord(template);
             App.CompanyManager?.MarkAsChanged();
 
             App.UndoRedoManager.RecordAction(new DelegateAction(

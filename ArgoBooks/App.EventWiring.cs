@@ -1185,17 +1185,9 @@ public partial class App
                     // Get detailed reason why biometric login is not available
                     var details = await platformService.GetBiometricAvailabilityDetailsAsync();
 
-                    var dialog = ConfirmationDialog;
-                    if (dialog != null)
-                    {
-                        await dialog.ShowAsync(new ConfirmationDialogOptions
-                        {
-                            Title = "Biometric Login Not Available".Translate(),
-                            Message = "Biometric login cannot be enabled on this device.\n\nReason: {0}".TranslateFormat(details),
-                            PrimaryButtonText = "OK".Translate(),
-                            CancelButtonText = ""
-                        });
-                    }
+                    await ShowWarningDialogAsync(
+                        "Biometric Login Not Available".Translate(),
+                        "Biometric login cannot be enabled on this device.\n\nReason: {0}".TranslateFormat(details));
                     settings.OnBiometricAuthResult(false);
                     return;
                 }
@@ -1206,33 +1198,17 @@ public partial class App
 
                 if (!success)
                 {
-                    var dialog = ConfirmationDialog;
-                    if (dialog != null)
-                    {
-                        await dialog.ShowAsync(new ConfirmationDialogOptions
-                        {
-                            Title = "Biometric Login".Translate(),
-                            Message = "Authentication was cancelled or failed. Biometric login has not been enabled.".Translate(),
-                            PrimaryButtonText = "OK".Translate(),
-                            CancelButtonText = ""
-                        });
-                    }
+                    await ShowWarningDialogAsync(
+                        "Biometric Login".Translate(),
+                        "Authentication was cancelled or failed. Biometric login has not been enabled.".Translate());
                 }
             }
             catch (Exception ex)
             {
                 ErrorLogger?.LogError(ex, ErrorCategory.Authentication, "Biometric authentication failed");
-                var dialog = ConfirmationDialog;
-                if (dialog != null)
-                {
-                    await dialog.ShowAsync(new ConfirmationDialogOptions
-                    {
-                        Title = "Biometric Login Error".Translate(),
-                        Message = "Failed to authenticate:\n\n{0}".TranslateFormat(ex.Message),
-                        PrimaryButtonText = "OK".Translate(),
-                        CancelButtonText = ""
-                    });
-                }
+                await ShowErrorDialogAsync(
+                    "Biometric Login Error".Translate(),
+                    "Failed to authenticate:\n\n{0}".TranslateFormat(ex.Message));
                 settings.OnBiometricAuthResult(false);
             }
         };

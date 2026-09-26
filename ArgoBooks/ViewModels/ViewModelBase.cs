@@ -176,7 +176,7 @@ public abstract partial class ViewModelBase : ObservableObject
         string description,
         Action? notify,
         Action? onRemove = null,
-        Action? onRestore = null) where T : IRecord
+        Action? onRestore = null) where T : class, IRecord
     {
         list.RemoveRecord(item);
         onRemove?.Invoke();

@@ -190,18 +190,9 @@ public partial class PastPredictionsModal : UserControl
             var isAuthenticated = await GoogleCredentialsManager.EnsureAuthenticatedAsync();
             if (!isAuthenticated)
             {
-                var dialog = App.ConfirmationDialog;
-                if (dialog != null)
-                {
-                    await dialog.ShowAsync(new ConfirmationDialogOptions
-                    {
-                        Title = "Export Failed",
-                        Message = "Google Sheets authorization was not completed. Please try again.",
-                        PrimaryButtonText = "OK",
-                        SecondaryButtonText = null,
-                        CancelButtonText = null
-                    });
-                }
+                await App.ShowWarningDialogAsync(
+                    "Export Failed",
+                    "Google Sheets authorization was not completed. Please try again.");
                 return;
             }
 
@@ -246,34 +237,16 @@ public partial class PastPredictionsModal : UserControl
         catch (InvalidOperationException ex)
         {
             // Non-connectivity service error (e.g. the server rejected the request).
-            var dialog = App.ConfirmationDialog;
-            if (dialog != null)
-            {
-                await dialog.ShowAsync(new ConfirmationDialogOptions
-                {
-                    Title = "Export Failed",
-                    Message = ex.Message,
-                    PrimaryButtonText = "OK",
-                    SecondaryButtonText = null,
-                    CancelButtonText = null
-                });
-            }
+            await App.ShowErrorDialogAsync(
+                "Export Failed",
+                ex.Message);
         }
         catch (Exception ex)
         {
             App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.Export, "Failed to export to Google Sheets");
-            var dialog = App.ConfirmationDialog;
-            if (dialog != null)
-            {
-                await dialog.ShowAsync(new ConfirmationDialogOptions
-                {
-                    Title = "Export Failed",
-                    Message = $"Failed to export to Google Sheets: {ex.Message}",
-                    PrimaryButtonText = "OK",
-                    SecondaryButtonText = null,
-                    CancelButtonText = null
-                });
-            }
+            await App.ShowErrorDialogAsync(
+                "Export Failed",
+                $"Failed to export to Google Sheets: {ex.Message}");
         }
     }
 
@@ -328,18 +301,9 @@ public partial class PastPredictionsModal : UserControl
         catch (Exception ex)
         {
             App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.Export, "Failed to export to Excel");
-            var dialog = App.ConfirmationDialog;
-            if (dialog != null)
-            {
-                await dialog.ShowAsync(new ConfirmationDialogOptions
-                {
-                    Title = "Export Failed",
-                    Message = $"Failed to export to Excel: {ex.Message}",
-                    PrimaryButtonText = "OK",
-                    SecondaryButtonText = null,
-                    CancelButtonText = null
-                });
-            }
+            await App.ShowErrorDialogAsync(
+                "Export Failed",
+                $"Failed to export to Excel: {ex.Message}");
         }
     }
 }

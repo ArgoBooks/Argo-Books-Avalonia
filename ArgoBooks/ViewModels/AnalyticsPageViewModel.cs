@@ -1487,18 +1487,9 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
 
                 if (!browserOpened)
                 {
-                    var dialog = App.ConfirmationDialog;
-                    if (dialog != null)
-                    {
-                        await dialog.ShowAsync(new ConfirmationDialogOptions
-                        {
-                            Title = "Browser Error".Translate(),
-                            Message = "The spreadsheet was created but could not open in your browser. You can access it at:\n\n{0}".TranslateFormat(url),
-                            PrimaryButtonText = "OK".Translate(),
-                            SecondaryButtonText = null,
-                            CancelButtonText = null
-                        });
-                    }
+                    await App.ShowWarningDialogAsync(
+                        "Browser Error".Translate(),
+                        "The spreadsheet was created but could not open in your browser. You can access it at:\n\n{0}".TranslateFormat(url));
                 }
             }
             else

@@ -100,7 +100,7 @@ public static class ReceiptTypeConverter
         if (toRevenue)
         {
             var expense = (Expense)existing;
-            data.Expenses.Remove(expense);
+            data.Expenses.RemoveRecord(expense);
 
             var revenue = new Revenue
             {
@@ -115,7 +115,7 @@ public static class ReceiptTypeConverter
         else
         {
             var revenue = (Revenue)existing;
-            data.Revenues.Remove(revenue);
+            data.Revenues.RemoveRecord(revenue);
 
             var expense = new Expense
             {

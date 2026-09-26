@@ -384,27 +384,17 @@ public partial class App : Application
     /// <summary>
     /// Shows the one, consistent connectivity-error dialog (same title, body, and style)
     /// used everywhere an online action fails because the device is offline or the server
-    /// is unreachable. Uses the neutral confirmation dialog (no alarming red error styling)
-    /// since being offline is a normal, recoverable situation.
+    /// is unreachable. A warning rather than an error, since being offline is a normal,
+    /// recoverable situation.
     /// </summary>
-    public static async Task ShowConnectivityErrorAsync(string? message = null)
-    {
-        var dialog = ConfirmationDialog;
-        if (dialog == null) return;
-
-        await dialog.ShowAsync(new ConfirmationDialogOptions
-        {
-            Title = ConnectivityMessage.Title.Translate(),
+    public static Task ShowConnectivityErrorAsync(string? message = null) =>
+        ShowWarningDialogAsync(
+            ConnectivityMessage.Title.Translate(),
             // Localize the known connectivity constants (they're translation keys) instead of showing
             // them verbatim; leave any other caller-supplied message untouched.
-            Message = string.IsNullOrWhiteSpace(message)
+            string.IsNullOrWhiteSpace(message)
                 ? ConnectivityMessage.NoInternet.Translate()
-                : (ConnectivityMessage.IsConnectivityMessage(message) ? message.Translate() : message),
-            PrimaryButtonText = "OK".Translate(),
-            CancelButtonText = null,
-            SecondaryButtonText = null
-        });
-    }
+                : (ConnectivityMessage.IsConnectivityMessage(message) ? message.Translate() : message));
 
     /// <summary>
     /// Shows the global indeterminate loading overlay. Exposed so view models that can't reach the
@@ -1811,9 +1801,11 @@ public partial class App : Application
                 {
                     try
                     {
-                        using var crashHttpClient = new HttpClient();
-                        crashHttpClient.Timeout = TimeSpan.FromSeconds(20);
-                        await CrashReporter.UploadPendingAsync(crashHttpClient, flushVersion);
+                        if (SharedHttpClient is { } crashClient)
+                        {
+                            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+                            await CrashReporter.UploadPendingAsync(crashClient, flushVersion, timeout.Token);
+                        }
                     }
                     catch
                     {
@@ -1842,22 +1834,23 @@ public partial class App : Application
 
             // Report first-run install for referral funnel attribution. Fire-and-forget
             // so app startup isn't blocked on network I/O. The reporter writes a marker
-            // after a successful POST so subsequent launches are no-ops. The HttpClient
-            // is disposed inside the task so it doesn't leak past the one-shot report.
+            // after a successful POST so subsequent launches are no-ops.
             try
             {
                 var appVersion = AppInfo.VersionNumber;
                 var capturedErrorLogger = ErrorLogger;
-                _ = Task.Run(async () =>
+                if (SharedHttpClient is { } firstRunClient)
                 {
-                    using var firstRunHttpClient = new HttpClient();
-                    firstRunHttpClient.Timeout = TimeSpan.FromSeconds(15);
-                    var firstRunReporter = new FirstRunReporter(
-                        firstRunHttpClient,
-                        appVersion,
-                        capturedErrorLogger);
-                    await firstRunReporter.ReportIfFirstRunAsync();
-                });
+                    _ = Task.Run(async () =>
+                    {
+                        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+                        var firstRunReporter = new FirstRunReporter(
+                            firstRunClient,
+                            appVersion,
+                            capturedErrorLogger);
+                        await firstRunReporter.ReportIfFirstRunAsync(timeout.Token);
+                    });
+                }
             }
             catch (Exception ex)
             {
@@ -3271,17 +3264,9 @@ public partial class App : Application
             _mainWindowViewModel?.HideLoading();
             _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, "exception");
             ErrorLogger?.LogError(ex, ErrorCategory.Import, "Failed to perform AI import");
-            var errorDialog = ConfirmationDialog;
-            if (errorDialog != null)
-            {
-                await errorDialog.ShowAsync(new ConfirmationDialogOptions
-                {
-                    Title = "Import Failed".Translate(),
-                    Message = "Failed to import data:\n\n{0}".TranslateFormat(ex.Message),
-                    PrimaryButtonText = "OK".Translate(),
-                    CancelButtonText = ""
-                });
-            }
+            await ShowErrorDialogAsync(
+                "Import Failed".Translate(),
+                "Failed to import data:\n\n{0}".TranslateFormat(ex.Message));
         }
     }
 
@@ -3698,17 +3683,14 @@ public partial class App : Application
         var root = doc.RootElement;
         var queuedBefore = data.PendingConversions.Select(p => p.Key).ToList();
 
-        // Helper to deserialize a list property
-        void RestoreList<T>(List<T> list, string propertyName)
-        {
-            list.Clear();
-            if (root.TryGetProperty(propertyName, out var prop))
-            {
-                var items = System.Text.Json.JsonSerializer.Deserialize<List<T>>(prop.GetRawText(), options);
-                if (items != null)
-                    list.AddRange(items);
-            }
-        }
+        List<T> Read<T>(string propertyName) =>
+            root.TryGetProperty(propertyName, out var prop)
+                ? System.Text.Json.JsonSerializer.Deserialize<List<T>>(prop.GetRawText(), options) ?? []
+                : [];
+
+        // Undo steps hold records and change them later, so each record stays the object it was.
+        void RestoreList<T>(List<T> list, string propertyName) where T : class, Core.Models.Common.IRecord =>
+            list.RestoreInPlace(Read<T>(propertyName));
 
         // Restore IdCounters
         if (root.TryGetProperty("IdCounters", out var counters))
@@ -3768,7 +3750,9 @@ public partial class App : Application
         RestoreList(data.EventLog, "EventLog");
         RestoreList(data.BankImportSessions, "BankImportSessions");
         RestoreList(data.Employees, "Employees");
-        RestoreList(data.PendingConversions, "PendingConversions");
+        data.PendingConversions.Clear();
+        data.PendingConversions.AddRange(Read<Core.Models.Common.PendingConversion>("PendingConversions"));
+        data.InvalidateLookupCaches();
 
         // An undo takes away rows whose conversions were queued, and a redo brings them back pending.
         Core.Services.UsdConversion.Mirror(data, queuedBefore.Concat(data.PendingConversions.Select(p => p.Key)));
@@ -3983,17 +3967,9 @@ public partial class App : Application
             _isOpeningCompany = false;
             _mainWindowViewModel.HideLoading();
             passwordModal.Close();
-            if (ConfirmationDialog != null)
-            {
-                await ConfirmationDialog.ShowAsync(new ConfirmationDialogOptions
-                {
-                    Title = "Company File Not Found".Translate(),
-                    Message = "The company file no longer exists.".Translate(),
-                    PrimaryButtonText = "OK".Translate(),
-                    SecondaryButtonText = null,
-                    CancelButtonText = null
-                });
-            }
+            await ShowWarningDialogAsync(
+                "Company File Not Found".Translate(),
+                "The company file no longer exists.".Translate());
             SettingsService?.RemoveRecentCompany(filePath);
             await LoadRecentCompaniesAsync();
         }
@@ -4047,22 +4023,13 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// Shows the friendly "this company is already open in another window" notice. Uses the neutral
-    /// confirmation dialog (not the red error box) since it's an expected, recoverable situation.
+    /// Shows the friendly "this company is already open in another window" notice, as information
+    /// rather than an error since it's an expected, recoverable situation.
     /// </summary>
-    private static async Task ShowCompanyAlreadyOpenAsync()
-    {
-        if (ConfirmationDialog == null) return;
-
-        await ConfirmationDialog.ShowAsync(new ConfirmationDialogOptions
-        {
-            Title = "Already Open".Translate(),
-            Message = "This company is already open in another window. Close it there first, then try again.".Translate(),
-            PrimaryButtonText = "OK".Translate(),
-            SecondaryButtonText = null,
-            CancelButtonText = null
-        });
-    }
+    private static Task ShowCompanyAlreadyOpenAsync() =>
+        ShowInfoDialogAsync(
+            "Already Open".Translate(),
+            "This company is already open in another window. Close it there first, then try again.".Translate());
 
     /// <summary>
     /// Retries opening a company file with a specific password.
@@ -4541,7 +4508,10 @@ public partial class App : Application
     /// </summary>
     /// <returns>The user's choice.</returns>
     private static Task<UnsavedChangesResult> ShowUnsavedChangesDialogAsync() =>
-        UnsavedChangesDialog?.ShowAsync() ?? Task.FromResult(UnsavedChangesResult.Cancel);
+        UnsavedChangesDialog?.ShowAsync(
+            "Unsaved Changes".Translate(),
+            "You have unsaved changes. Would you like to save them before closing?".Translate())
+        ?? Task.FromResult(UnsavedChangesResult.Cancel);
 
     /// <summary>
     /// Registers all available pages with the navigation service.

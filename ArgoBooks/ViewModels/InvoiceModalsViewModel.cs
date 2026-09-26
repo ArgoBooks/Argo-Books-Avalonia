@@ -1473,7 +1473,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
         Invoice invoice;
         Invoice? existingDraft;
         Action? restoreDraft = null;
-        int? takenInvoiceCounter = null;
+        var tookInvoiceNumber = false;
 
         if (isContinuingDraft)
         {
@@ -1535,7 +1535,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
                 var idGenerator = new IdGenerator(companyData);
                 invoiceId = idGenerator.NextInvoiceId();
                 invoiceNumber = idGenerator.NextInvoiceNumber();
-                takenInvoiceCounter = companyData.IdCounters.Invoice;
+                tookInvoiceNumber = true;
             }
 
             invoice = new Invoice
@@ -1611,8 +1611,8 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
             {
                 if (mayHavePublished)
                     _unansweredSend = (invoice.Id, invoice.InvoiceNumber, invoice.CustomerId);
-                else if (takenInvoiceCounter is { } taken && companyData.IdCounters.Invoice == taken)
-                    companyData.IdCounters.Invoice = taken - 1;
+                else if (tookInvoiceNumber)
+                    new IdGenerator(companyData).ReleaseInvoiceNumber(invoice.Id);
             }
 
             await ShowSendErrorAsync(message);
@@ -1818,8 +1818,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
     [RelayCommand]
     private async Task ShowProcessingFeeInfo()
     {
-        var dialog = App.ConfirmationDialog;
-        if (dialog == null) return;
+        if (App.ConfirmationDialog == null) return;
 
         IsNestedModalOpen = true;
         // The caller flushed the live paper edits into the model first. Rebuild PreviewHtml from it
@@ -1828,16 +1827,11 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
         RegeneratePaper();
         try
         {
-            await dialog.ShowAsync(new ConfirmationDialogOptions
-            {
-                Title = "Processing Fees".Translate(),
-                Message = ("When customers pay online, Stripe and Square deduct a processing fee " +
-                           "from each payment before depositing the rest into your account. Enabling this " +
-                           "adds the fee to the customer's payment so you receive the full invoiced amount.").Translate(),
-                PrimaryButtonText = "Got it".Translate(),
-                SecondaryButtonText = null,
-                CancelButtonText = null
-            });
+            await App.ShowInfoDialogAsync(
+                "Processing Fees".Translate(),
+                ("When customers pay online, Stripe and Square deduct a processing fee " +
+                 "from each payment before depositing the rest into your account. Enabling this " +
+                 "adds the fee to the customer's payment so you receive the full invoiced amount.").Translate());
         }
         finally
         {
@@ -1851,8 +1845,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
     [RelayCommand]
     private async Task ShowRecurringInfo()
     {
-        var dialog = App.ConfirmationDialog;
-        if (dialog == null) return;
+        if (App.ConfirmationDialog == null) return;
 
         IsNestedModalOpen = true;
         // See ShowProcessingFeeInfo: rebuild the paper from the just-flushed model while hidden so
@@ -1860,17 +1853,12 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
         RegeneratePaper();
         try
         {
-            await dialog.ShowAsync(new ConfirmationDialogOptions
-            {
-                Title = "Recurring invoices".Translate(),
-                Message = ("This creates a schedule that makes a fresh copy of this invoice on the frequency " +
-                           "you pick (e.g. monthly), starting on the start date and stopping at the end date " +
-                           "if you set one. Each new copy is added to your invoices as a draft the next time " +
-                           "you open the app, so you can review it and send it. Nothing is sent automatically.").Translate(),
-                PrimaryButtonText = "Got it".Translate(),
-                SecondaryButtonText = null,
-                CancelButtonText = null
-            });
+            await App.ShowInfoDialogAsync(
+                "Recurring invoices".Translate(),
+                ("This creates a schedule that makes a fresh copy of this invoice on the frequency " +
+                 "you pick (e.g. monthly), starting on the start date and stopping at the end date " +
+                 "if you set one. Each new copy is added to your invoices as a draft the next time " +
+                 "you open the app, so you can review it and send it. Nothing is sent automatically.").Translate());
         }
         finally
         {

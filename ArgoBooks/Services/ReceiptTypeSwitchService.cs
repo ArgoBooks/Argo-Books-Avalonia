@@ -28,14 +28,7 @@ public static class ReceiptTypeSwitchService
             var block = ReceiptTypeConverter.GetBlockReason(companyData, receipt);
             if (block != ReceiptSwitchBlock.None)
             {
-                await dialog.ShowAsync(new ConfirmationDialogOptions
-                {
-                    Title = "Cannot Change Type".Translate(),
-                    Message = BlockMessage(block, receipt),
-                    PrimaryButtonText = "OK".Translate(),
-                    SecondaryButtonText = null,
-                    CancelButtonText = null
-                });
+                await App.ShowWarningDialogAsync("Cannot Change Type".Translate(), BlockMessage(block, receipt));
                 return false;
             }
 

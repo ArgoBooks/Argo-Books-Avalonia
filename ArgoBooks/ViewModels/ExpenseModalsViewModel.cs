@@ -285,7 +285,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
                 var record = companyData.LostDamaged.FirstOrDefault(ld => ld.InventoryItemId == purchase.Id);
                 if (record != null)
                 {
-                    companyData.LostDamaged.Remove(record);
+                    companyData.LostDamaged.RemoveRecord(record);
                     App.UndoRedoManager.RecordAction(new DelegateAction(
                         $"Undo lost/damaged status for expense '{purchase.Id}'",
                         () =>
@@ -308,7 +308,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
                 var record = companyData.Returns.FirstOrDefault(r => r.OriginalTransactionId == purchase.Id);
                 if (record != null)
                 {
-                    companyData.Returns.Remove(record);
+                    companyData.Returns.RemoveRecord(record);
                     App.UndoRedoManager.RecordAction(new DelegateAction(
                         $"Undo returned status for expense '{purchase.Id}'",
                         () =>
@@ -525,7 +525,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
             newReceipt = CreateReceipt(companyData, expense.Id, "Expense", SelectedSupplier?.Name ?? "");
             if (newReceipt != null)
             {
-                if (currentReceipt != null && companyData.Receipts.Remove(currentReceipt))
+                if (currentReceipt != null && companyData.Receipts.RemoveRecord(currentReceipt))
                     replacedReceipt = currentReceipt;
                 expense.ReceiptId = newReceipt.Id;
                 companyData.Receipts.Add(newReceipt);

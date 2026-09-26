@@ -1163,9 +1163,15 @@ public partial class SettingsModalViewModel : ViewModelBase
             return;
         }
 
+        if (App.SharedHttpClient is not { } httpClient)
+        {
+            PortalLogoSource = null;
+            HasPortalLogo = false;
+            return;
+        }
+
         try
         {
-            using var httpClient = new HttpClient();
             var imageBytes = await httpClient.GetByteArrayAsync(logoUrl);
             using var stream = new MemoryStream(imageBytes);
             PortalLogoSource = new Avalonia.Media.Imaging.Bitmap(stream);
@@ -3322,22 +3328,13 @@ public partial class SettingsModalViewModel : ViewModelBase
                     // translation files; say so there, since "check your connection" sends a developer
                     // looking in the wrong place. Never shown in a release build, so not translated.
                     var missingOnDev = ApiConfig.IsSandbox && LanguageService.Instance.LastDownloadNotPublished;
-                    var dialog = App.ConfirmationDialog;
-                    if (dialog != null)
-                    {
-                        await dialog.ShowAsync(new ConfirmationDialogOptions
-                        {
-                            Title = missingOnDev
-                                ? "No Translation Files on the Dev Server"
-                                : "Language Download Failed".Translate(),
-                            Message = missingOnDev
-                                ? $"The dev server has no {requestedLanguage} translation file for version {AppInfo.VersionNumber}. Use a production build, or upload the language files to the dev server."
-                                : "Could not download the language file from the server. Please check your internet connection and try again.".Translate(),
-                            PrimaryButtonText = "OK".Translate(),
-                            SecondaryButtonText = null,
-                            CancelButtonText = null
-                        });
-                    }
+                    await App.ShowWarningDialogAsync(
+                        missingOnDev
+                            ? "No Translation Files on the Dev Server"
+                            : "Language Download Failed".Translate(),
+                        missingOnDev
+                            ? $"The dev server has no {requestedLanguage} translation file for version {AppInfo.VersionNumber}. Use a production build, or upload the language files to the dev server."
+                            : "Could not download the language file from the server. Please check your internet connection and try again.".Translate());
 
                     // Everything else is saved; stay open so the language can be retried or changed.
                     // Bank rules are the one baseline Save doesn't refresh, since it normally closes.

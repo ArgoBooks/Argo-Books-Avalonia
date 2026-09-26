@@ -1,4 +1,6 @@
 using ArgoBooks.Core.Data;
+using ArgoBooks.Core.Enums;
+using ArgoBooks.Core.Models.BankMatching;
 using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Models.Payroll;
 using ArgoBooks.Core.Models.Transactions;
@@ -68,5 +70,52 @@ public class ImportUndoSnapshotTests
         creation.Redo(data);
 
         Assert.Equal(expense.Id, Assert.Single(data.Expenses).Id);
+    }
+
+    // An edit's undo writes the old values back onto the record it holds. After an import's undo had
+    // swapped every record for a copy, that write landed on an object no longer in the books.
+    [Fact]
+    public void UndoingAnEdit_AfterUndoingAnImport_ChangesTheRecordInTheBooks()
+    {
+        var data = new CompanyData();
+        var expense = new Expense { Id = "PUR-2026-00001", Total = 10m, OriginalCurrency = "USD" };
+        data.Expenses.Add(expense);
+
+        expense.Total = 25m;
+        var beforeImport = App.CreateCompanyDataSnapshot(data);
+        data.Expenses.Add(new Expense { Id = "PUR-2026-00002", Total = 99m, OriginalCurrency = "USD" });
+        var afterImport = App.CreateCompanyDataSnapshot(data);
+
+        App.RestoreCompanyDataFromSnapshot(data, beforeImport);
+        expense.Total = 10m;
+
+        Assert.Same(expense, Assert.Single(data.Expenses));
+        Assert.Equal(10m, expense.Total);
+
+        expense.Total = 25m;
+        App.RestoreCompanyDataFromSnapshot(data, afterImport);
+
+        Assert.Same(expense, data.Expenses[0]);
+        Assert.Equal(["PUR-2026-00001", "PUR-2026-00002"], data.Expenses.Select(e => e.Id));
+    }
+
+    // Undoing a bank match writes back onto the statement line it held, which sits inside an import
+    // session, so the lines keep their identity through a restore as well.
+    [Fact]
+    public void ARestore_KeepsTheStatementLinesABankMatchUndoHolds()
+    {
+        var data = new CompanyData();
+        var line = new BankStatementLine { Id = "L1", MatchStatus = BankLineMatchStatus.Unmatched };
+        data.BankImportSessions.Add(new BankImportSession { Id = "S1", Lines = [line, new BankStatementLine { Id = "L2" }] });
+        var snapshot = App.CreateCompanyDataSnapshot(data);
+
+        data.BankImportSessions[0].Lines.RemoveAt(1);
+        App.RestoreCompanyDataFromSnapshot(data, snapshot);
+        line.MatchStatus = BankLineMatchStatus.Ignored;
+
+        var lines = Assert.Single(data.BankImportSessions).Lines;
+        Assert.Same(line, lines[0]);
+        Assert.Equal(BankLineMatchStatus.Ignored, lines[0].MatchStatus);
+        Assert.Equal("L2", lines[1].Id);
     }
 }

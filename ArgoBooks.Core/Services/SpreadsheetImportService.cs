@@ -1546,8 +1546,7 @@ public class SpreadsheetImportService
                     customer.Name = NameOrUnknown(customer.Name);
                     var existing = data.Customers.FirstOrDefault(c => c.Id == customer.Id);
                     if (skipExisting && existing != null) return ImportEntityResult.SkippedExisting;
-                    if (existing != null) data.Customers.Remove(existing);
-                    data.Customers.Add(customer);
+                    data.Customers.AddOrUpdate(existing, customer);
                     return existing != null ? ImportEntityResult.Updated : ImportEntityResult.Inserted;
                 }
                 return ImportEntityResult.Failed;
@@ -1557,8 +1556,7 @@ public class SpreadsheetImportService
                 {
                     var existing = data.Suppliers.FirstOrDefault(s => s.Id == supplier.Id);
                     if (skipExisting && existing != null) return ImportEntityResult.SkippedExisting;
-                    if (existing != null) data.Suppliers.Remove(existing);
-                    data.Suppliers.Add(supplier);
+                    data.Suppliers.AddOrUpdate(existing, supplier);
                     return existing != null ? ImportEntityResult.Updated : ImportEntityResult.Inserted;
                 }
                 return ImportEntityResult.Failed;
@@ -1571,8 +1569,7 @@ public class SpreadsheetImportService
 
                     var existing = data.Products.FirstOrDefault(p => p.Id == product.Id);
                     if (skipExisting && existing != null) return ImportEntityResult.SkippedExisting;
-                    if (existing != null) data.Products.Remove(existing);
-                    data.Products.Add(product);
+                    data.Products.AddOrUpdate(existing, product);
                     return existing != null ? ImportEntityResult.Updated : ImportEntityResult.Inserted;
                 }
                 return ImportEntityResult.Failed;
@@ -1610,10 +1607,7 @@ public class SpreadsheetImportService
                     // Resolve customer reference by name, else create a placeholder
                     invoice.CustomerId = EnsureCustomerExists(data, invoice.CustomerId, refContext) ?? invoice.CustomerId;
 
-                    if (existing != null) data.Invoices.Remove(existing);
-                    data.Invoices.Add(invoice);
-
-                    _invoicesAwaitingRevenue.Add(invoice);
+                    _invoicesAwaitingRevenue.Add(data.Invoices.AddOrUpdate(existing, invoice));
 
                     return existing != null ? ImportEntityResult.Updated : ImportEntityResult.Inserted;
                 }
@@ -1673,8 +1667,7 @@ public class SpreadsheetImportService
                         }
                     }
 
-                    if (existing != null) data.Expenses.Remove(existing);
-                    data.Expenses.Add(expense);
+                    data.Expenses.AddOrUpdate(existing, expense);
                     return existing != null ? ImportEntityResult.Updated : ImportEntityResult.Inserted;
                 }
                 return ImportEntityResult.Failed;
@@ -1703,11 +1696,7 @@ public class SpreadsheetImportService
                     // Link product by name and auto-create if missing. Revenue from an invoice takes
                     // the invoice's lines instead, once every sheet is in.
                     var productName = revenue.Description;
-                    if (!string.IsNullOrEmpty(revenue.InvoiceId))
-                    {
-                        _revenuesNamingAnInvoice.Add(revenue);
-                    }
-                    else if (!string.IsNullOrEmpty(productName))
+                    if (string.IsNullOrEmpty(revenue.InvoiceId) && !string.IsNullOrEmpty(productName))
                     {
                         var revCategory = entityJson.TryGetProperty("categoryName", out var rc) ? rc.GetString() : null;
                         var revenueProduct = FindProductByName(data, productName, CategoryType.Revenue)
@@ -1737,8 +1726,9 @@ public class SpreadsheetImportService
                         }
                     }
 
-                    if (existing != null) data.Revenues.Remove(existing);
-                    data.Revenues.Add(revenue);
+                    var liveRevenue = data.Revenues.AddOrUpdate(existing, revenue);
+                    if (!string.IsNullOrEmpty(liveRevenue.InvoiceId))
+                        _revenuesNamingAnInvoice.Add(liveRevenue);
                     return existing != null ? ImportEntityResult.Updated : ImportEntityResult.Inserted;
                 }
                 return ImportEntityResult.Failed;
@@ -1758,8 +1748,7 @@ public class SpreadsheetImportService
                     payment.CustomerId = EnsureCustomerExists(data, payment.CustomerId, refContext) ?? payment.CustomerId;
                     payment.InvoiceId = EnsureInvoiceExists(data, payment.InvoiceId, payment.CustomerId) ?? payment.InvoiceId;
 
-                    if (existing != null) data.Payments.Remove(existing);
-                    data.Payments.Add(payment);
+                    data.Payments.AddOrUpdate(existing, payment);
                     return existing != null ? ImportEntityResult.Updated : ImportEntityResult.Inserted;
                 }
                 return ImportEntityResult.Failed;
@@ -1769,8 +1758,7 @@ public class SpreadsheetImportService
                 {
                     var existing = data.Categories.FirstOrDefault(c => c.Id == category.Id);
                     if (skipExisting && existing != null) return ImportEntityResult.SkippedExisting;
-                    if (existing != null) data.Categories.Remove(existing);
-                    data.Categories.Add(category);
+                    data.Categories.AddOrUpdate(existing, category);
                     return existing != null ? ImportEntityResult.Updated : ImportEntityResult.Inserted;
                 }
                 return ImportEntityResult.Failed;
@@ -1780,8 +1768,7 @@ public class SpreadsheetImportService
                 {
                     var existing = data.Locations.FirstOrDefault(l => l.Id == location.Id);
                     if (skipExisting && existing != null) return ImportEntityResult.SkippedExisting;
-                    if (existing != null) data.Locations.Remove(existing);
-                    data.Locations.Add(location);
+                    data.Locations.AddOrUpdate(existing, location);
                     return existing != null ? ImportEntityResult.Updated : ImportEntityResult.Inserted;
                 }
                 return ImportEntityResult.Failed;
@@ -1804,8 +1791,7 @@ public class SpreadsheetImportService
                 {
                     var existing = data.RentalInventory.FirstOrDefault(r => r.Id == rentalItem.Id);
                     if (skipExisting && existing != null) return ImportEntityResult.SkippedExisting;
-                    if (existing != null) data.RentalInventory.Remove(existing);
-                    data.RentalInventory.Add(rentalItem);
+                    data.RentalInventory.AddOrUpdate(existing, rentalItem);
                     return existing != null ? ImportEntityResult.Updated : ImportEntityResult.Inserted;
                 }
                 return ImportEntityResult.Failed;
@@ -1817,8 +1803,7 @@ public class SpreadsheetImportService
                         rental.CustomerId = EnsureCustomerExists(data, rental.CustomerId, refContext) ?? rental.CustomerId;
                     var existing = data.Rentals.FirstOrDefault(r => r.Id == rental.Id);
                     if (skipExisting && existing != null) return ImportEntityResult.SkippedExisting;
-                    if (existing != null) data.Rentals.Remove(existing);
-                    data.Rentals.Add(rental);
+                    data.Rentals.AddOrUpdate(existing, rental);
                     return existing != null ? ImportEntityResult.Updated : ImportEntityResult.Inserted;
                 }
                 return ImportEntityResult.Failed;
@@ -1832,8 +1817,7 @@ public class SpreadsheetImportService
                         recurring.Status = RecurringInvoiceStatus.Active;
                     var existing = data.RecurringInvoices.FirstOrDefault(r => r.Id == recurring.Id);
                     if (skipExisting && existing != null) return ImportEntityResult.SkippedExisting;
-                    if (existing != null) data.RecurringInvoices.Remove(existing);
-                    data.RecurringInvoices.Add(recurring);
+                    data.RecurringInvoices.AddOrUpdate(existing, recurring);
                     return existing != null ? ImportEntityResult.Updated : ImportEntityResult.Inserted;
                 }
                 return ImportEntityResult.Failed;
@@ -1843,8 +1827,7 @@ public class SpreadsheetImportService
                 {
                     var existing = data.StockAdjustments.FirstOrDefault(s => s.Id == adjustment.Id);
                     if (skipExisting && existing != null) return ImportEntityResult.SkippedExisting;
-                    if (existing != null) data.StockAdjustments.Remove(existing);
-                    data.StockAdjustments.Add(adjustment);
+                    data.StockAdjustments.AddOrUpdate(existing, adjustment);
                     return existing != null ? ImportEntityResult.Updated : ImportEntityResult.Inserted;
                 }
                 return ImportEntityResult.Failed;
@@ -1862,8 +1845,7 @@ public class SpreadsheetImportService
                     if (!string.IsNullOrEmpty(po.SupplierId))
                         po.SupplierId = EnsureSupplierExists(data, po.SupplierId, refContext) ?? po.SupplierId;
 
-                    if (existing != null) data.PurchaseOrders.Remove(existing);
-                    data.PurchaseOrders.Add(po);
+                    data.PurchaseOrders.AddOrUpdate(existing, po);
                     return existing != null ? ImportEntityResult.Updated : ImportEntityResult.Inserted;
                 }
                 return ImportEntityResult.Failed;
@@ -1912,8 +1894,7 @@ public class SpreadsheetImportService
                         returnRecord.SupplierId = EnsureSupplierExists(data, returnRecord.SupplierId, refContext) ?? returnRecord.SupplierId;
                     var existing = data.Returns.FirstOrDefault(r => r.Id == returnRecord.Id);
                     if (skipExisting && existing != null) return ImportEntityResult.SkippedExisting;
-                    if (existing != null) data.Returns.Remove(existing);
-                    data.Returns.Add(returnRecord);
+                    data.Returns.AddOrUpdate(existing, returnRecord);
                     return existing != null ? ImportEntityResult.Updated : ImportEntityResult.Inserted;
                 }
                 return ImportEntityResult.Failed;
@@ -1923,8 +1904,7 @@ public class SpreadsheetImportService
                 {
                     var existing = data.LostDamaged.FirstOrDefault(ld => ld.Id == lostDamaged.Id);
                     if (skipExisting && existing != null) return ImportEntityResult.SkippedExisting;
-                    if (existing != null) data.LostDamaged.Remove(existing);
-                    data.LostDamaged.Add(lostDamaged);
+                    data.LostDamaged.AddOrUpdate(existing, lostDamaged);
                     return existing != null ? ImportEntityResult.Updated : ImportEntityResult.Inserted;
                 }
                 return ImportEntityResult.Failed;
@@ -1937,8 +1917,7 @@ public class SpreadsheetImportService
                     employee.Name = NameOrUnknown(employee.Name);
                     var existingEmployee = data.Employees.FirstOrDefault(e => e.Id == employee.Id);
                     if (skipExisting && existingEmployee != null) return ImportEntityResult.SkippedExisting;
-                    if (existingEmployee != null) data.Employees.Remove(existingEmployee);
-                    data.Employees.Add(employee);
+                    data.Employees.AddOrUpdate(existingEmployee, employee);
                     return existingEmployee != null ? ImportEntityResult.Updated : ImportEntityResult.Inserted;
                 }
                 return ImportEntityResult.Failed;
