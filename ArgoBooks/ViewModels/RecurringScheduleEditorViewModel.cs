@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Transactions;
 using ArgoBooks.Core.Services;
@@ -316,12 +317,12 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
                 {
                     RemoveGenerated(data, generated);
                     created.NextDate = dateBefore;
-                    data.RecurringTransactions.Remove(created);
+                    data.RecurringTransactions.RemoveRecord(created);
                     Saved?.Invoke();
                 },
                 () =>
                 {
-                    data.RecurringTransactions.Add(created);
+                    data.RecurringTransactions.RestoreRecord(created);
                     RestoreGenerated(data, generated);
                     created.NextDate = dateAfter;
                     Saved?.Invoke();
@@ -431,8 +432,8 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
     {
         foreach (var entry in generated)
         {
-            if (entry is Expense expense) data.Expenses.Remove(expense);
-            else if (entry is Revenue revenue) data.Revenues.Remove(revenue);
+            if (entry is Expense expense) data.Expenses.RemoveRecord(expense);
+            else if (entry is Revenue revenue) data.Revenues.RemoveRecord(revenue);
         }
 
         UsdConversion.Restore(data, generated.Select(UsdConversion.KeyOf), []);
@@ -443,8 +444,8 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
     {
         foreach (var entry in generated)
         {
-            if (entry is Expense expense && !data.Expenses.Contains(expense)) data.Expenses.Add(expense);
-            else if (entry is Revenue revenue && !data.Revenues.Contains(revenue)) data.Revenues.Add(revenue);
+            if (entry is Expense expense) data.Expenses.RestoreRecord(expense);
+            else if (entry is Revenue revenue) data.Revenues.RestoreRecord(revenue);
             UsdConversion.Requeue(data, entry);
         }
     }

@@ -47,8 +47,9 @@ public partial class TranslationGenerator
     [GeneratedRegex(@"new\s+QuickActionItem\s*\(\s*""([^""]+)""\s*,\s*""([^""]+)""")]
     private static partial Regex QuickActionItemRegex();
 
-    // Pattern for public const string = "value" (e.g., DatePresetNames)
-    [GeneratedRegex(@"public\s+const\s+string\s+\w+\s*=\s*""([^""]+)""")]
+    // Pattern for public const string = "value" (e.g., DatePresetNames). Only a single literal:
+    // one built by concatenation would be caught only up to its first "+".
+    [GeneratedRegex(@"public\s+const\s+string\s+\w+\s*=\s*""([^""]+)""\s*;")]
     private static partial Regex ConstStringRegex();
 
     // Pattern for static readonly string[] = ["item1", "item2", ...] or new[] { "item1", ... }
@@ -431,8 +432,8 @@ public partial class TranslationGenerator
         if (string.IsNullOrEmpty(text) || text.Length < 2)
             return;
 
-        // Skip technical strings
-        if (text.Contains('/') || text.Contains('\\') || text.Contains('.') ||
+        // Skip technical strings, including id prefixes such as "CAT-EXP-" passed as arguments
+        if (text.Contains('/') || text.Contains('\\') || text.Contains('.') || text.EndsWith('-') ||
             text.StartsWith("http", StringComparison.OrdinalIgnoreCase) ||
             text.StartsWith("{") || text.Contains("{{"))
             return;

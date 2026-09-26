@@ -200,9 +200,43 @@ public class PendingConversionCompanyScopeTests
             var third = service.AddPendingConversionAsync(Entry("A-3", 300m));
             release.Set();
             await Task.WhenAll(first, second, third);
-            await service.FlushAsync();
+            await service.FlushForCloseAsync(TimeSpan.FromSeconds(10));
 
             Assert.Equal(new[] { 100m, 200m, 300m }, (await SavedAsync(appData, path)).Select(e => e.Total).Order());
+        }
+        finally
+        {
+            Directory.Delete(appData, recursive: true);
+        }
+    }
+
+    // Closing waited on the queue file with no limit, so a stalled disk kept the window from ever
+    // closing, and a pass that finished its rate fetch after the wait started a write that raced the
+    // exit. The wait is bounded, and nothing is written for the company after it.
+    [Fact]
+    public async Task FlushForClose_StopsWaitingOnAStalledWrite_AndStartsNoWriteAfterIt()
+    {
+        var appData = Directory.CreateTempSubdirectory("argo-queue-").FullName;
+        try
+        {
+            var (platform, entered, release) = FirstWriteHeld(appData, failOnWrite: 0);
+            var path = Path.Combine(appData, "A.argo");
+            var company = CompanyWithPendingExpense();
+            var service = new PendingConversionService(platform)
+            {
+                CurrentCompany = () => (company, path)
+            };
+
+            var first = Task.Run(() => service.AddPendingConversionAsync(Entry("A-1", 100m)));
+            Assert.True(entered.Wait(TimeSpan.FromSeconds(10)));
+
+            Assert.False(await service.FlushForCloseAsync(TimeSpan.FromMilliseconds(50)));
+            await service.AddPendingConversionAsync(Entry("A-2", 200m));
+            release.Set();
+            await first;
+
+            Assert.Equal(new[] { 100m }, (await SavedAsync(appData, path)).Select(e => e.Total));
+            Assert.Empty(Directory.GetFiles(appData, "*.tmp", SearchOption.AllDirectories));
         }
         finally
         {

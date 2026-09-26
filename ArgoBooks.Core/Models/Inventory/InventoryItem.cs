@@ -1,3 +1,4 @@
+using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Enums;
 
 namespace ArgoBooks.Core.Models.Inventory;
@@ -5,7 +6,7 @@ namespace ArgoBooks.Core.Models.Inventory;
 /// <summary>
 /// Represents stock levels for a product at a location.
 /// </summary>
-public class InventoryItem
+public class InventoryItem : IRecord
 {
     /// <summary>
     /// Unique identifier (e.g., INV-ITM-001).

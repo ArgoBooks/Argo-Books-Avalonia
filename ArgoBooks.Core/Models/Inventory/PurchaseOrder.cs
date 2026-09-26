@@ -1,3 +1,4 @@
+using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Enums;
 
 namespace ArgoBooks.Core.Models.Inventory;
@@ -47,7 +48,7 @@ public class PurchaseOrderLineItem
 /// <summary>
 /// Represents a purchase order to a supplier.
 /// </summary>
-public class PurchaseOrder
+public class PurchaseOrder : IRecord
 {
     /// <summary>
     /// Unique identifier (e.g., PO-001).

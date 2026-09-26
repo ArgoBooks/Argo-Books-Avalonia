@@ -529,15 +529,26 @@ public class PendingConversionService
     }
 
     /// <summary>
-    /// Waits for every queue file write asked for so far, so closing the company or the app
-    /// doesn't cut one short.
+    /// For closing the company or the app: stops writing the open company's queue file, then waits
+    /// up to <paramref name="timeout"/> for the writes already asked for. A write asked for later,
+    /// such as a conversion pass finishing its rate fetch, would race the close; the company file
+    /// keeps its own list either way. Returns false when the wait ran out, as on a stalled disk, so
+    /// the close goes ahead rather than hanging.
     /// </summary>
-    public Task FlushAsync()
+    public async Task<bool> FlushForCloseAsync(TimeSpan timeout)
     {
+        Task writes;
         lock (_lock)
         {
-            return Task.WhenAll(_savesInFlight);
+            _scopeFile.Closed = true;
+            writes = Task.WhenAll(_savesInFlight);
         }
+
+        if (await Task.WhenAny(writes, Task.Delay(timeout)) == writes)
+            return true;
+
+        _errorLogger?.LogWarning("Closed before the pending conversions file finished writing.", "PendingConversionService");
+        return false;
     }
 
     private Task SaveToDiskAsync()
@@ -550,6 +561,8 @@ public class PendingConversionService
         lock (_lock)
         {
             file = _scopeFile;
+            if (file.Closed)
+                return Task.CompletedTask;
             request = ++_saveRequests;
             file.Unsaved = (request, [.. _queue]);
             _savesInFlight.RemoveAll(t => t.IsCompleted);
@@ -565,6 +578,9 @@ public class PendingConversionService
 
     private async Task WriteQueueFileAsync(QueueFile file, long request)
     {
+        // Returns to the caller before any file work, so the write is counted as in flight before
+        // it can block, and a close waiting on it can give up.
+        await Task.Yield();
         await _saveGate.WaitAsync();
         try
         {
@@ -594,7 +610,18 @@ public class PendingConversionService
                     _platformService.EnsureDirectoryExists(directory);
                 }
 
-                await File.WriteAllTextAsync(path, JsonSerializer.Serialize(entries, JsonOptions));
+                // Written aside and moved into place, so a write cut short leaves the last whole file.
+                var tempPath = AtomicFile.TempPathFor(path);
+                try
+                {
+                    await File.WriteAllTextAsync(tempPath, JsonSerializer.Serialize(entries, JsonOptions));
+                    await AtomicFile.ReplaceAsync(tempPath, path);
+                }
+                catch
+                {
+                    AtomicFile.TryDeleteTemp(tempPath);
+                    throw;
+                }
             }
 
             lock (_lock)
@@ -623,6 +650,7 @@ public class PendingConversionService
         public string? Path;
         public (long Request, List<PendingConversion> Entries)? Unsaved;
         public long SavedThrough;
+        public bool Closed;
     }
 
     /// <summary>Adds an entry to the queue and notes when. Call under <see cref="_lock"/>.</summary>

@@ -1605,7 +1605,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
             onRemove: () =>
             {
                 if (receipt != null)
-                    companyData.Receipts.Remove(receipt);
+                    companyData.Receipts.RemoveRecord(receipt);
                 queued = UsdConversion.Snapshot(companyData, [queueKey]);
                 UsdConversion.Set(companyData, queueKey, null);
                 stockChanges = AdjustInventoryForEdit(companyData, transaction, transaction.LineItems, [], isExpense, reason);
@@ -1613,7 +1613,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
             onRestore: () =>
             {
                 if (receipt != null)
-                    companyData.Receipts.Add(receipt);
+                    companyData.Receipts.RestoreRecord(receipt);
                 UsdConversion.Restore(companyData, [queueKey], queued);
                 RevertInventoryAdjustments(companyData, stockChanges);
             });

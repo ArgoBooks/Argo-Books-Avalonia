@@ -82,7 +82,7 @@ public static class IntegrationImportFlow
         }
         catch (Exception ex)
         {
-            return await FailedAsync(title, "Sync failed: {0}", ex);
+            return await FailedAsync(title, "Sync failed: {0}".TranslateFormat(ex.Message), ex);
         }
     }
 
@@ -157,7 +157,7 @@ public static class IntegrationImportFlow
         }
         catch (Exception ex)
         {
-            return await FailedAsync(title, "Import failed: {0}", ex);
+            return await FailedAsync(title, "Import failed: {0}".TranslateFormat(ex.Message), ex);
         }
     }
 
@@ -198,10 +198,10 @@ public static class IntegrationImportFlow
         return new IntegrationImportResult(IntegrationImportOutcome.NothingWaiting);
     }
 
-    private static async Task<IntegrationImportResult> FailedAsync(string title, string format, Exception ex)
+    private static async Task<IntegrationImportResult> FailedAsync(string title, string message, Exception ex)
     {
         App.ErrorLogger?.LogError(ex, ErrorCategory.Api, $"{title} sync failed");
-        await App.ShowWarningDialogAsync(title.Translate(), format.TranslateFormat(ex.Message));
+        await App.ShowWarningDialogAsync(title.Translate(), message);
         return new IntegrationImportResult(IntegrationImportOutcome.Failed, Error: ex.Message);
     }
 

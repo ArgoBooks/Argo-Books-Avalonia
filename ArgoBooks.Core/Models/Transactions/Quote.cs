@@ -13,7 +13,7 @@ namespace ArgoBooks.Core.Models.Transactions;
 /// invoice templates and <see cref="Services.InvoiceMath"/> need, plus its own answer tracking:
 /// no payments, balance, recurring schedule, bank matching or USD conversion.
 /// </remarks>
-public partial class Quote : ObservableObject
+public partial class Quote : ObservableObject, IRecord
 {
     /// <summary>
     /// Unique identifier (e.g., QUO-2026-00001).

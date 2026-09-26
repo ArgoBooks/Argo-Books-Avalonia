@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
+using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Models.Payroll;
 using ArgoBooks.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -432,13 +433,13 @@ public partial class PayrollModalsViewModel : ViewModelBase
             $"Add employee '{employee.Name}'",
             () =>
             {
-                data.Employees.Remove(employee);
+                data.Employees.RemoveRecord(employee);
                 App.CompanyManager?.MarkAsChanged();
                 EmployeeSaved?.Invoke(this, EventArgs.Empty);
             },
             () =>
             {
-                data.Employees.Add(employee);
+                data.Employees.RestoreRecord(employee);
                 App.CompanyManager?.MarkAsChanged();
                 EmployeeSaved?.Invoke(this, EventArgs.Empty);
             }));

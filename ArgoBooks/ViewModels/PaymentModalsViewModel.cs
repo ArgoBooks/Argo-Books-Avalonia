@@ -1,6 +1,7 @@
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
 using System.Collections.ObjectModel;
+using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models;
 using ArgoBooks.Core.Models.Common;
@@ -345,7 +346,7 @@ public partial class PaymentModalsViewModel : ViewModelBase
             $"Record payment '{newPayment.Id}'",
             () =>
             {
-                companyData.Payments.Remove(paymentToUndo);
+                companyData.Payments.RemoveRecord(paymentToUndo);
                 ForgetConversion(companyData, paymentToUndo);
                 RecalcInvoiceTotals(companyData, invoiceIdForRecalc);
                 companyData.MarkAsModified();
@@ -353,7 +354,7 @@ public partial class PaymentModalsViewModel : ViewModelBase
             },
             () =>
             {
-                companyData.Payments.Add(paymentToUndo);
+                companyData.Payments.RestoreRecord(paymentToUndo);
                 QueueConversion(companyData, paymentToUndo);
                 RecalcInvoiceTotals(companyData, invoiceIdForRecalc);
                 companyData.MarkAsModified();
@@ -521,6 +522,8 @@ public partial class PaymentModalsViewModel : ViewModelBase
         var oldOriginalCurrency = paymentToEdit2.OriginalCurrency;
         var oldAmountUSD = paymentToEdit2.AmountUSD;
         var oldIsPending = paymentToEdit2.IsPendingConversion;
+        var queueKey = UsdConversion.KeyOf(paymentToEdit2);
+        var originalQueued = UsdConversion.Snapshot(companyData, [queueKey]);
 
         paymentToEdit2.InvoiceId = newInvoiceId;
         paymentToEdit2.CustomerId = newCustomerId;
@@ -533,6 +536,7 @@ public partial class PaymentModalsViewModel : ViewModelBase
         UsdConversion.Apply(companyData, paymentToEdit2, newRate);
         var newAmountUSD = paymentToEdit2.AmountUSD;
         var newIsPending = paymentToEdit2.IsPendingConversion;
+        var editedQueued = UsdConversion.Snapshot(companyData, [queueKey]);
 
         // Recalc both invoices when the payment moves between them; recalc
         // just the one when only the amount/details changed. See §5.
@@ -555,7 +559,7 @@ public partial class PaymentModalsViewModel : ViewModelBase
                 paymentToEdit2.OriginalCurrency = oldOriginalCurrency;
                 paymentToEdit2.AmountUSD = oldAmountUSD;
                 paymentToEdit2.IsPendingConversion = oldIsPending;
-                QueueConversion(companyData, paymentToEdit2);
+                UsdConversion.Restore(companyData, [queueKey], originalQueued);
                 RecalcInvoiceTotals(companyData, newInvoiceId);
                 if (newInvoiceId != oldInvoiceId)
                     RecalcInvoiceTotals(companyData, oldInvoiceId);
@@ -574,7 +578,7 @@ public partial class PaymentModalsViewModel : ViewModelBase
                 paymentToEdit2.OriginalCurrency = editCurrentCurrency;
                 paymentToEdit2.AmountUSD = newAmountUSD;
                 paymentToEdit2.IsPendingConversion = newIsPending;
-                QueueConversion(companyData, paymentToEdit2);
+                UsdConversion.Restore(companyData, [queueKey], editedQueued);
                 RecalcInvoiceTotals(companyData, oldInvoiceId);
                 if (newInvoiceId != oldInvoiceId)
                     RecalcInvoiceTotals(companyData, newInvoiceId);
@@ -613,16 +617,22 @@ public partial class PaymentModalsViewModel : ViewModelBase
             }
 
             var invoiceIdForRecalc = payment.InvoiceId;
+            var queueKey = UsdConversion.KeyOf(payment);
+            List<PendingConversion> queued = [];
+
+            // The queued conversion leaves with the payment and comes back as it was, keeping the
+            // date whose rate it waits for: a portal payment waits for its invoice's.
             RemoveWithUndo(companyData, companyData.Payments, payment, $"Delete payment '{payment.Id}'",
                 () => PaymentDeleted?.Invoke(this, EventArgs.Empty),
                 onRemove: () =>
                 {
-                    ForgetConversion(companyData, payment);
+                    queued = UsdConversion.Snapshot(companyData, [queueKey]);
+                    UsdConversion.Set(companyData, queueKey, null);
                     RecalcInvoiceTotals(companyData, invoiceIdForRecalc);
                 },
                 onRestore: () =>
                 {
-                    QueueConversion(companyData, payment);
+                    UsdConversion.Restore(companyData, [queueKey], queued);
                     RecalcInvoiceTotals(companyData, invoiceIdForRecalc);
                 });
         }

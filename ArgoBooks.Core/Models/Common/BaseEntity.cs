@@ -3,7 +3,7 @@ namespace ArgoBooks.Core.Models.Common;
 /// <summary>
 /// Base class for entities with common properties.
 /// </summary>
-public abstract class BaseEntity
+public abstract class BaseEntity : IRecord
 {
     /// <summary>
     /// Unique identifier.

@@ -14,7 +14,7 @@ namespace ArgoBooks.Core.Models.Transactions;
 /// PropertyChanged and refresh any bound UI immediately. The remaining
 /// properties are static after creation and remain plain auto-properties.
 /// </remarks>
-public partial class Invoice : ObservableObject
+public partial class Invoice : ObservableObject, IRecord
 {
     /// <summary>
     /// Unique identifier (e.g., INV-2024-00001).

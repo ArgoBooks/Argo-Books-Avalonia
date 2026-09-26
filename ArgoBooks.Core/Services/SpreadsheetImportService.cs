@@ -1599,7 +1599,7 @@ public class SpreadsheetImportService
                     SetImportedBalance(invoice,
                         HasJsonValue(entityJson, "amountPaid") ? invoice.AmountPaid : null,
                         HasJsonValue(entityJson, "balance") ? invoice.Balance : null,
-                        recompute: true, givenStatus);
+                        recompute: true, givenStatus, data.Payments);
                     SetImportedStatus(invoice, givenStatus ?? InvoiceStatus.Draft, amountsSet: true, statusGiven: givenStatus != null);
 
                     // Convert Total/Balance at the exact issue date from the row's own currency, or
@@ -2968,9 +2968,12 @@ public class SpreadsheetImportService
     /// in full before any refund), else the total less what was already paid. Every invoice import
     /// sets it this way before working out the status, so a row with a total and an amount paid but
     /// no balance isn't read as paid in full, and one marked paid with no amounts isn't read as owed.
+    /// An invoice marked paid that has payments recorded against it takes its amounts from them
+    /// instead, so they agree with its payments.
     /// </summary>
     private static void SetImportedBalance(
-        Invoice invoice, decimal? paid, decimal? balance, bool recompute, InvoiceStatus? givenStatus)
+        Invoice invoice, decimal? paid, decimal? balance, bool recompute, InvoiceStatus? givenStatus,
+        IReadOnlyCollection<Payment> payments)
     {
         if (paid.HasValue)
             invoice.Balance = Math.Max(0m, invoice.Total - paid.Value);
@@ -2980,6 +2983,12 @@ public class SpreadsheetImportService
             return;
         else if (givenStatus is InvoiceStatus.Paid or InvoiceStatus.Refunded or InvoiceStatus.PartiallyRefunded)
         {
+            if (payments.Any(p => p.InvoiceId == invoice.Id))
+            {
+                InvoiceTotalsService.RecalculateFromPayments(invoice, payments);
+                return;
+            }
+
             invoice.AmountPaid = invoice.Total;
             invoice.Balance = 0m;
         }
@@ -2992,6 +3001,8 @@ public class SpreadsheetImportService
     private static readonly Dictionary<string, InvoiceStatus> InvoiceStatusAliases = new(StringComparer.OrdinalIgnoreCase)
     {
         ["canceled"] = InvoiceStatus.Cancelled,
+        ["void"] = InvoiceStatus.Cancelled,
+        ["voided"] = InvoiceStatus.Cancelled,
         ["paidinfull"] = InvoiceStatus.Paid,
         ["partiallypaid"] = InvoiceStatus.Partial
     };
@@ -3449,9 +3460,10 @@ Respond with ONLY a JSON array, one entry per product in the same order:
                 invoice.AmountPaid = paid ?? 0m;
             var givenStatus = Set("Status") ? ParseImportedInvoiceStatus(GetString(row, headers, "Status")) : null;
             SetImportedBalance(invoice, paid, SpreadsheetRowReader.GetNullableDecimal(row, headers, "Balance"),
-                recompute: Set("Paid", "Total"), givenStatus);
+                recompute: Set("Paid", "Total"), givenStatus, data.Payments);
+            // A blank or unrecognised status keeps an existing invoice's own; a new one's is left to its amounts.
             if (Set("Status", "Paid", "Balance", "Total"))
-                SetImportedStatus(invoice, Set("Status") ? givenStatus ?? InvoiceStatus.Draft : invoice.Status,
+                SetImportedStatus(invoice, givenStatus ?? existing?.Status ?? InvoiceStatus.Draft,
                     amountsSet: Set("Paid", "Balance", "Total"), statusGiven: givenStatus != null);
 
             // Per-row currency detected from the amount cells, else the record's own when updating,

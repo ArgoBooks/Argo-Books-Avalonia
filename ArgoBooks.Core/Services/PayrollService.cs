@@ -568,9 +568,9 @@ public class PayrollService(PayrollRateService? rateService = null)
     /// </summary>
     public static void RemoveWageExpenses(CompanyData data, IReadOnlyCollection<Expense> expenses)
     {
-        data.Expenses.RemoveAll(e => expenses.Contains(e));
         foreach (Expense expense in expenses)
         {
+            data.Expenses.RemoveRecord(expense);
             UsdConversion.Set(data, UsdConversion.KeyOf(expense), null);
         }
     }
@@ -583,11 +583,7 @@ public class PayrollService(PayrollRateService? rateService = null)
     {
         foreach (Expense expense in expenses)
         {
-            if (!data.Expenses.Contains(expense))
-            {
-                data.Expenses.Add(expense);
-            }
-
+            data.Expenses.RestoreRecord(expense);
             UsdConversion.Requeue(data, expense);
         }
     }

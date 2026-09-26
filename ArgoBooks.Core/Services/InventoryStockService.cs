@@ -275,10 +275,10 @@ public static class InventoryStockService
                 change.CostPriceProduct.CostPrice = change.OldCostPrice;
 
             if (change.Adjustment != null)
-                data.StockAdjustments.Remove(change.Adjustment);
+                data.StockAdjustments.RemoveRecord(change.Adjustment);
 
             if (change.WasCreated)
-                data.Inventory.Remove(item);
+                data.Inventory.RemoveRecord(item);
 
             var entry = change.WasCreated || convertedRate != null ? null : change.OldPendingCost;
             if (!ReferenceEquals(PendingCostEntry(data, item.Id), entry))
@@ -438,13 +438,13 @@ public static class InventoryStockService
             item.LastUpdated = DateTime.UtcNow;
         }
 
-        data.StockAdjustments.Remove(result.OutAdjustment);
-        data.StockAdjustments.Remove(result.InAdjustment);
-        data.StockTransfers.Remove(result.Transfer);
+        data.StockAdjustments.RemoveRecord(result.OutAdjustment);
+        data.StockAdjustments.RemoveRecord(result.InAdjustment);
+        data.StockTransfers.RemoveRecord(result.Transfer);
 
         if (result.DestinationCreated)
         {
-            data.Inventory.Remove(result.Destination);
+            data.Inventory.RemoveRecord(result.Destination);
             UsdConversion.Set(data, UsdConversion.KeyOf(result.Destination), null);
         }
     }

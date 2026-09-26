@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using ArgoBooks.Core.Services;
+using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Entities;
 using ArgoBooks.Core.Models.Inventory;
@@ -702,14 +703,14 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
             $"Add inventory item for '{product.Name}'",
             () =>
             {
-                companyData.Inventory.Remove(newItem);
+                companyData.Inventory.RemoveRecord(newItem);
                 UsdConversion.Set(companyData, UsdConversion.KeyOf(newItem), null);
                 companyData.MarkAsModified();
                 ItemSaved?.Invoke(this, EventArgs.Empty);
             },
             () =>
             {
-                companyData.Inventory.Add(newItem);
+                companyData.Inventory.RestoreRecord(newItem);
                 UsdConversion.Set(companyData, UsdConversion.KeyOf(newItem), newItem.IsPendingConversion ? pendingCost : null);
                 companyData.MarkAsModified();
                 ItemSaved?.Invoke(this, EventArgs.Empty);

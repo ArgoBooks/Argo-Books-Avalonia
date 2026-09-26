@@ -2,6 +2,7 @@ using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Models.Payroll;
 using ArgoBooks.Core.Models.Transactions;
+using ArgoBooks.Core.Services;
 using Xunit;
 
 namespace ArgoBooks.Tests.Services;
@@ -43,5 +44,29 @@ public class ImportUndoSnapshotTests
         Assert.Equal(2, data.Employees.Count);
         Assert.True(Assert.Single(data.Revenues).IsPendingConversion);
         Assert.Equal(revenueId, Assert.Single(data.PendingConversions).TransactionId);
+    }
+
+    // Restoring a snapshot swaps every record for a copy. A bank import's undo, further back on the
+    // stack, removed its rows by reference, so after that it left them in the books, and its redo
+    // added a second row with the same id.
+    [Fact]
+    public void BankImportUndoAndRedo_AfterASnapshotRestore_MatchTheRowsById()
+    {
+        var data = new CompanyData();
+        var expense = new Expense { Id = "PUR-2026-00001", Total = 10m, OriginalCurrency = "USD" };
+        var creation = new BankImportCreation();
+        creation.CreatedTransactions.Add(expense);
+        data.Expenses.Add(expense);
+        App.RestoreCompanyDataFromSnapshot(data, App.CreateCompanyDataSnapshot(data));
+
+        creation.Undo(data);
+
+        Assert.Empty(data.Expenses);
+
+        creation.Redo(data);
+        App.RestoreCompanyDataFromSnapshot(data, App.CreateCompanyDataSnapshot(data));
+        creation.Redo(data);
+
+        Assert.Equal(expense.Id, Assert.Single(data.Expenses).Id);
     }
 }

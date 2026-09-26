@@ -59,6 +59,8 @@ public class SpreadsheetImportInvoiceStatusTests : IDisposable
     [InlineData("Open", 50, InvoiceStatus.Partial)]
     [InlineData("Open", 0, InvoiceStatus.Draft)]
     [InlineData("Canceled", 50, InvoiceStatus.Cancelled)]
+    [InlineData("Void", 50, InvoiceStatus.Cancelled)]
+    [InlineData("Voided", 0, InvoiceStatus.Cancelled)]
     [InlineData("Paid in full", 100, InvoiceStatus.Paid)]
     [InlineData("Partially paid", 50, InvoiceStatus.Partial)]
     [InlineData("partially-refunded", 100, InvoiceStatus.PartiallyRefunded)]
@@ -204,6 +206,52 @@ public class SpreadsheetImportInvoiceStatusTests : IDisposable
         await new SpreadsheetImportService().ImportFromExcelAsync(InvoiceSheet(["ID", "Status"], ["INV-1", "Overdue"]), data);
 
         Assert.Equal(InvoiceStatus.Partial, Assert.Single(data.Invoices).Status);
+    }
+
+    // An update sheet with a Status column read a blank or unrecognised status as Draft, which
+    // turned a sent invoice back into a draft.
+    [Fact]
+    public async Task UpdateSheet_BlankOrUnrecognisedStatus_KeepsTheInvoicesOwn()
+    {
+        var data = new CompanyData();
+        foreach (var id in new[] { "INV-1", "INV-2" })
+        {
+            data.Invoices.Add(new Invoice
+            {
+                Id = id, InvoiceNumber = "#" + id, CustomerId = "CUS-001", IssueDate = new DateTime(2026, 3, 1),
+                DueDate = new DateTime(2099, 3, 31), Total = 100m, TotalUSD = 100m, Balance = 100m, Status = InvoiceStatus.Sent
+            });
+        }
+
+        await new SpreadsheetImportService().ImportFromExcelAsync(
+            InvoiceSheet(["ID", "Status"], ["INV-1", ""], ["INV-2", "Open"]), data);
+
+        Assert.All(data.Invoices, i => Assert.Equal(InvoiceStatus.Sent, i.Status));
+    }
+
+    // Marking an invoice paid with no amounts took it as paid in full even when its recorded
+    // payments came to less, so its totals no longer agreed with its payments.
+    [Fact]
+    public async Task UpdateSheet_MarkedPaidWithNoAmounts_TakesTheAmountsFromItsPayments()
+    {
+        var data = new CompanyData();
+        data.Invoices.Add(new Invoice
+        {
+            Id = "INV-1", InvoiceNumber = "#INV-1", CustomerId = "CUS-001", IssueDate = new DateTime(2026, 3, 1),
+            DueDate = new DateTime(2099, 3, 31), Total = 100m, TotalUSD = 100m, AmountPaid = 40m, Balance = 60m,
+            Status = InvoiceStatus.Partial, OriginalCurrency = "USD"
+        });
+        data.Payments.Add(new Payment
+        {
+            Id = "PAY-1", InvoiceId = "INV-1", Date = new DateTime(2026, 3, 5), Amount = 40m, AmountUSD = 40m,
+            OriginalCurrency = "USD"
+        });
+
+        await new SpreadsheetImportService().ImportFromExcelAsync(
+            InvoiceSheet(["ID", "Total", "Status"], ["INV-1", "100", "Paid"]), data);
+
+        var invoice = Assert.Single(data.Invoices);
+        Assert.Equal((40m, 60m, InvoiceStatus.Partial), (invoice.AmountPaid, invoice.Balance, invoice.Status));
     }
 
     private string InvoiceSheet(params string[][] cells)

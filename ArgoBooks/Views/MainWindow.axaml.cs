@@ -379,7 +379,7 @@ public partial class MainWindow : Window
         }
         if (Core.Services.PendingConversionService.Instance is { } conversions)
         {
-            await conversions.FlushAsync();
+            await conversions.FlushForCloseAsync(TimeSpan.FromSeconds(3));
         }
         _isClosingConfirmed = true;
         Close();

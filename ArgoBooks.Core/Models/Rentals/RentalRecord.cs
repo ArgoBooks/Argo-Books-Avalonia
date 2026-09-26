@@ -1,3 +1,4 @@
+using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Enums;
 
 namespace ArgoBooks.Core.Models.Rentals;
@@ -5,7 +6,7 @@ namespace ArgoBooks.Core.Models.Rentals;
 /// <summary>
 /// Represents a rental record/transaction.
 /// </summary>
-public class RentalRecord
+public class RentalRecord : IRecord
 {
     /// <summary>
     /// Unique identifier (e.g., RNT-001).

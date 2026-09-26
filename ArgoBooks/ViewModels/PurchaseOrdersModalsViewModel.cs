@@ -555,14 +555,14 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
             $"Create order '{poNumber}'",
             () =>
             {
-                companyData.PurchaseOrders.Remove(order);
+                companyData.PurchaseOrders.RemoveRecord(order);
                 Core.Services.UsdConversion.Set(companyData, Core.Services.UsdConversion.KeyOf(order), null);
                 companyData.MarkAsModified();
                 OrderSaved?.Invoke(this, EventArgs.Empty);
             },
             () =>
             {
-                companyData.PurchaseOrders.Add(order);
+                companyData.PurchaseOrders.RestoreRecord(order);
                 Core.Services.UsdConversion.Requeue(companyData, order);
                 companyData.MarkAsModified();
                 OrderSaved?.Invoke(this, EventArgs.Empty);

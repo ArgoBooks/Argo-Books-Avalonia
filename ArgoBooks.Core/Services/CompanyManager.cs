@@ -1280,7 +1280,7 @@ public class CompanyManager : IDisposable
     public async Task CloseCompanyAsync(CancellationToken cancellationToken = default)
     {
         if (PendingConversionService.Instance is { } conversions)
-            await conversions.FlushAsync();
+            await conversions.FlushForCloseAsync(TimeSpan.FromSeconds(3));
 
         ReleaseFileLock();
         _instanceLock.Release();

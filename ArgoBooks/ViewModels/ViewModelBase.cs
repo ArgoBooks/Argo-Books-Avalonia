@@ -1,4 +1,5 @@
 using ArgoBooks.Core.Data;
+using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
@@ -175,9 +176,9 @@ public abstract partial class ViewModelBase : ObservableObject
         string description,
         Action? notify,
         Action? onRemove = null,
-        Action? onRestore = null)
+        Action? onRestore = null) where T : IRecord
     {
-        list.Remove(item);
+        list.RemoveRecord(item);
         onRemove?.Invoke();
         companyData.MarkAsModified();
 
@@ -185,14 +186,14 @@ public abstract partial class ViewModelBase : ObservableObject
             description,
             () =>
             {
-                list.Add(item);
+                list.RestoreRecord(item);
                 onRestore?.Invoke();
                 companyData.MarkAsModified();
                 notify?.Invoke();
             },
             () =>
             {
-                list.Remove(item);
+                list.RemoveRecord(item);
                 onRemove?.Invoke();
                 companyData.MarkAsModified();
                 notify?.Invoke();

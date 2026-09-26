@@ -500,19 +500,19 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
             $"Add revenue {revenueId}",
             () =>
             {
-                companyData.Revenues.Remove(revenue);
+                companyData.Revenues.RemoveRecord(revenue);
                 UsdConversion.Set(companyData, UsdConversion.KeyOf(revenue), null);
                 if (capturedReceipt != null)
-                    companyData.Receipts.Remove(capturedReceipt);
+                    companyData.Receipts.RemoveRecord(capturedReceipt);
                 RevertInventoryAdjustments(companyData, inventoryResults);
                 RaiseTransactionSaved();
             },
             () =>
             {
-                companyData.Revenues.Add(revenue);
+                companyData.Revenues.RestoreRecord(revenue);
                 UsdConversion.Requeue(companyData, revenue);
                 if (capturedReceipt != null)
-                    companyData.Receipts.Add(capturedReceipt);
+                    companyData.Receipts.RestoreRecord(capturedReceipt);
                 inventoryResults = AdjustInventoryForLineItems(companyData, revenue, modelLineItems, isExpense: false);
                 RaiseTransactionSaved();
             });
@@ -597,9 +597,9 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
                 RestoreTransactionState(revenue, original);
                 UsdConversion.Restore(companyData, [queueKey], originalQueued);
                 if (capturedNewReceipt != null)
-                    companyData.Receipts.Remove(capturedNewReceipt);
-                if (replacedReceipt != null && !companyData.Receipts.Contains(replacedReceipt))
-                    companyData.Receipts.Add(replacedReceipt);
+                    companyData.Receipts.RemoveRecord(capturedNewReceipt);
+                if (replacedReceipt != null)
+                    companyData.Receipts.RestoreRecord(replacedReceipt);
                 RevertInventoryAdjustments(companyData, editResults);
                 RaiseTransactionSaved();
             },
@@ -608,9 +608,9 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
                 RestoreTransactionState(revenue, edited);
                 UsdConversion.Restore(companyData, [queueKey], editedQueued);
                 if (replacedReceipt != null)
-                    companyData.Receipts.Remove(replacedReceipt);
-                if (capturedNewReceipt != null && !companyData.Receipts.Contains(capturedNewReceipt))
-                    companyData.Receipts.Add(capturedNewReceipt);
+                    companyData.Receipts.RemoveRecord(replacedReceipt);
+                if (capturedNewReceipt != null)
+                    companyData.Receipts.RestoreRecord(capturedNewReceipt);
                 editResults = AdjustInventoryForEdit(companyData, revenue, original.LineItems, modelLineItems, isExpense: false);
                 RaiseTransactionSaved();
             });

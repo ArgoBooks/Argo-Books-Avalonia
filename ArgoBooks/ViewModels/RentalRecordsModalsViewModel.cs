@@ -1022,13 +1022,13 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
 
     private static void AddRentalRevenue(CompanyData companyData, Revenue revenue)
     {
-        companyData.Revenues.Add(revenue);
+        companyData.Revenues.RestoreRecord(revenue);
         UsdConversion.Requeue(companyData, revenue, RateDate(companyData, revenue));
     }
 
     private static void RemoveRentalRevenue(CompanyData companyData, Revenue revenue)
     {
-        companyData.Revenues.Remove(revenue);
+        companyData.Revenues.RemoveRecord(revenue);
         UsdConversion.Set(companyData, UsdConversion.KeyOf(revenue), null);
     }
 

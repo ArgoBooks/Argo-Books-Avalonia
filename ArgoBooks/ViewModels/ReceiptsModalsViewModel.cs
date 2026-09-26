@@ -1605,18 +1605,18 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             $"Bulk scan {approvedItems.Count} receipts",
             () =>
             {
-                foreach (var e in createdExpenses) companyData.Expenses.Remove(e);
-                foreach (var r in createdRevenues) companyData.Revenues.Remove(r);
-                foreach (var r in createdReceipts) companyData.Receipts.Remove(r);
+                foreach (var e in createdExpenses) companyData.Expenses.RemoveRecord(e);
+                foreach (var r in createdRevenues) companyData.Revenues.RemoveRecord(r);
+                foreach (var r in createdReceipts) companyData.Receipts.RemoveRecord(r);
                 WithdrawPendingConversions(companyData, createdTransactions);
                 createdEntities.Remove(companyData);
             },
             () =>
             {
                 createdEntities.Restore(companyData);
-                foreach (var e in createdExpenses) companyData.Expenses.Add(e);
-                foreach (var r in createdRevenues) companyData.Revenues.Add(r);
-                foreach (var r in createdReceipts) companyData.Receipts.Add(r);
+                foreach (var e in createdExpenses) companyData.Expenses.RestoreRecord(e);
+                foreach (var r in createdRevenues) companyData.Revenues.RestoreRecord(r);
+                foreach (var r in createdReceipts) companyData.Receipts.RestoreRecord(r);
                 RequeuePendingConversions(companyData, createdTransactions);
             });
 
@@ -2292,22 +2292,22 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         {
             var removedAny = false;
             foreach (var product in Products)
-                removedAny |= companyData.Products?.Remove(product) == true;
+                removedAny |= companyData.Products?.RemoveRecord(product) == true;
             if (Category != null)
-                removedAny |= companyData.Categories.Remove(Category);
+                removedAny |= companyData.Categories.RemoveRecord(Category);
             foreach (var supplier in Suppliers)
-                removedAny |= companyData.Suppliers.Remove(supplier);
+                removedAny |= companyData.Suppliers.RemoveRecord(supplier);
             return removedAny;
         }
 
         public void Restore(CompanyData companyData)
         {
             foreach (var supplier in Suppliers)
-                companyData.Suppliers.Add(supplier);
+                companyData.Suppliers.RestoreRecord(supplier);
             if (Category != null)
-                companyData.Categories.Add(Category);
+                companyData.Categories.RestoreRecord(Category);
             foreach (var product in Products)
-                companyData.Products?.Add(product);
+                companyData.Products?.RestoreRecord(product);
         }
     }
 
@@ -2612,16 +2612,16 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             $"AI scan expense {expenseId}",
             () =>
             {
-                companyData.Expenses.Remove(capturedExpense);
-                companyData.Receipts.Remove(capturedReceipt);
+                companyData.Expenses.RemoveRecord(capturedExpense);
+                companyData.Receipts.RemoveRecord(capturedReceipt);
                 WithdrawPendingConversions(companyData, [capturedExpense]);
                 createdEntities.Remove(companyData);
             },
             () =>
             {
                 createdEntities.Restore(companyData);
-                companyData.Expenses.Add(capturedExpense);
-                companyData.Receipts.Add(capturedReceipt);
+                companyData.Expenses.RestoreRecord(capturedExpense);
+                companyData.Receipts.RestoreRecord(capturedReceipt);
                 RequeuePendingConversions(companyData, [capturedExpense]);
             });
 
@@ -2688,16 +2688,16 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             $"AI scan revenue {revenueId}",
             () =>
             {
-                companyData.Revenues.Remove(capturedRevenue);
-                companyData.Receipts.Remove(capturedReceipt);
+                companyData.Revenues.RemoveRecord(capturedRevenue);
+                companyData.Receipts.RemoveRecord(capturedReceipt);
                 WithdrawPendingConversions(companyData, [capturedRevenue]);
                 createdEntities.Remove(companyData);
             },
             () =>
             {
                 createdEntities.Restore(companyData);
-                companyData.Revenues.Add(capturedRevenue);
-                companyData.Receipts.Add(capturedReceipt);
+                companyData.Revenues.RestoreRecord(capturedRevenue);
+                companyData.Receipts.RestoreRecord(capturedReceipt);
                 RequeuePendingConversions(companyData, [capturedRevenue]);
             });
 

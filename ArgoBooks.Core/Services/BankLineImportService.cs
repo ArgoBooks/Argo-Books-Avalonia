@@ -20,16 +20,16 @@ public class BankImportCreation
 
         foreach (var tx in CreatedTransactions)
         {
-            if (tx is Expense e) data.Expenses.Remove(e);
-            else if (tx is Revenue r) data.Revenues.Remove(r);
+            if (tx is Expense e) data.Expenses.RemoveRecord(e);
+            else if (tx is Revenue r) data.Revenues.RemoveRecord(r);
         }
 
         foreach (var entity in CreatedEntities)
         {
-            if (entity is Supplier s) data.Suppliers.Remove(s);
-            else if (entity is Customer c) data.Customers.Remove(c);
-            else if (entity is Product p) data.Products.Remove(p);
-            else if (entity is Category cat) data.Categories.Remove(cat);
+            if (entity is Supplier s) data.Suppliers.RemoveRecord(s);
+            else if (entity is Customer c) data.Customers.RemoveRecord(c);
+            else if (entity is Product p) data.Products.RemoveRecord(p);
+            else if (entity is Category cat) data.Categories.RemoveRecord(cat);
         }
 
         // The rows are gone, so their queued conversions have nothing left to convert, and
@@ -43,16 +43,16 @@ public class BankImportCreation
     {
         foreach (var entity in CreatedEntities)
         {
-            if (entity is Supplier s && !data.Suppliers.Contains(s)) data.Suppliers.Add(s);
-            else if (entity is Customer c && !data.Customers.Contains(c)) data.Customers.Add(c);
-            else if (entity is Product p && !data.Products.Contains(p)) data.Products.Add(p);
-            else if (entity is Category cat && !data.Categories.Contains(cat)) data.Categories.Add(cat);
+            if (entity is Supplier s) data.Suppliers.RestoreRecord(s);
+            else if (entity is Customer c) data.Customers.RestoreRecord(c);
+            else if (entity is Product p) data.Products.RestoreRecord(p);
+            else if (entity is Category cat) data.Categories.RestoreRecord(cat);
         }
 
         foreach (var tx in CreatedTransactions)
         {
-            if (tx is Expense e && !data.Expenses.Contains(e)) data.Expenses.Add(e);
-            else if (tx is Revenue r && !data.Revenues.Contains(r)) data.Revenues.Add(r);
+            if (tx is Expense e) data.Expenses.RestoreRecord(e);
+            else if (tx is Revenue r) data.Revenues.RestoreRecord(r);
         }
 
         // A row converted before the undo already has its USD figure, so only still-pending rows requeue.

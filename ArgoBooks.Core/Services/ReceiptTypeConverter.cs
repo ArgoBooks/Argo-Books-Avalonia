@@ -171,10 +171,10 @@ public static class ReceiptTypeConverter
         Remove(data, result.Created);
 
         foreach (var product in result.CreatedProducts)
-            data.Products.Remove(product);
-        if (result.CreatedCategory != null) data.Categories.Remove(result.CreatedCategory);
-        if (result.CreatedSupplier != null) data.Suppliers.Remove(result.CreatedSupplier);
-        if (result.CreatedCustomer != null) data.Customers.Remove(result.CreatedCustomer);
+            data.Products.RemoveRecord(product);
+        if (result.CreatedCategory != null) data.Categories.RemoveRecord(result.CreatedCategory);
+        if (result.CreatedSupplier != null) data.Suppliers.RemoveRecord(result.CreatedSupplier);
+        if (result.CreatedCustomer != null) data.Customers.RemoveRecord(result.CreatedCustomer);
 
         Add(data, result.Removed);
         result.Removed.ReceiptId = receipt.Id;
@@ -189,14 +189,11 @@ public static class ReceiptTypeConverter
     {
         Remove(data, result.Removed);
 
-        if (result.CreatedCategory != null && !data.Categories.Contains(result.CreatedCategory))
-            data.Categories.Add(result.CreatedCategory);
-        foreach (var product in result.CreatedProducts.Where(p => !data.Products.Contains(p)))
-            data.Products.Add(product);
-        if (result.CreatedSupplier != null && !data.Suppliers.Contains(result.CreatedSupplier))
-            data.Suppliers.Add(result.CreatedSupplier);
-        if (result.CreatedCustomer != null && !data.Customers.Contains(result.CreatedCustomer))
-            data.Customers.Add(result.CreatedCustomer);
+        if (result.CreatedCategory != null) data.Categories.RestoreRecord(result.CreatedCategory);
+        foreach (var product in result.CreatedProducts)
+            data.Products.RestoreRecord(product);
+        if (result.CreatedSupplier != null) data.Suppliers.RestoreRecord(result.CreatedSupplier);
+        if (result.CreatedCustomer != null) data.Customers.RestoreRecord(result.CreatedCustomer);
 
         Add(data, result.Created);
         result.Created.ReceiptId = receipt.Id;
@@ -360,14 +357,14 @@ public static class ReceiptTypeConverter
 
     private static void Add(CompanyData data, Transaction transaction)
     {
-        if (transaction is Expense expense) data.Expenses.Add(expense);
-        else if (transaction is Revenue revenue) data.Revenues.Add(revenue);
+        if (transaction is Expense expense) data.Expenses.RestoreRecord(expense);
+        else if (transaction is Revenue revenue) data.Revenues.RestoreRecord(revenue);
     }
 
     private static void Remove(CompanyData data, Transaction transaction)
     {
-        if (transaction is Expense expense) data.Expenses.Remove(expense);
-        else if (transaction is Revenue revenue) data.Revenues.Remove(revenue);
+        if (transaction is Expense expense) data.Expenses.RemoveRecord(expense);
+        else if (transaction is Revenue revenue) data.Revenues.RemoveRecord(revenue);
     }
 
     private static void CopyShared(Transaction from, Transaction to, List<LineItem> lineItems)

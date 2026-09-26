@@ -49,16 +49,16 @@ public abstract class IntegrationImportCreation
     public void Undo(CompanyData data)
     {
         InventoryStockService.Revert(data, StockChanges);
-        foreach (var r in Revenues) data.Revenues.Remove(r);
-        foreach (var e in Expenses) data.Expenses.Remove(e);
+        foreach (var r in Revenues) data.Revenues.RemoveRecord(r);
+        foreach (var e in Expenses) data.Expenses.RemoveRecord(e);
         foreach (var ent in Entities)
         {
-            if (ent is Customer c) data.Customers.Remove(c);
-            else if (ent is Supplier s) data.Suppliers.Remove(s);
-            else if (ent is Product p) data.Products.Remove(p);
-            else if (ent is Category cat) data.Categories.Remove(cat);
+            if (ent is Customer c) data.Customers.RemoveRecord(c);
+            else if (ent is Supplier s) data.Suppliers.RemoveRecord(s);
+            else if (ent is Product p) data.Products.RemoveRecord(p);
+            else if (ent is Category cat) data.Categories.RemoveRecord(cat);
         }
-        foreach (var ret in Returns) data.Returns.Remove(ret);
+        foreach (var ret in Returns) data.Returns.RemoveRecord(ret);
 
         // The rows are gone, so their queued currency conversions have nothing left
         // to convert. Nothing else prunes those: the reconcile pass only drops an
@@ -77,19 +77,19 @@ public abstract class IntegrationImportCreation
         // the other order would briefly leave dangling ids for anything watching.
         foreach (var ent in Entities)
         {
-            if (ent is Customer c && !data.Customers.Contains(c)) data.Customers.Add(c);
-            else if (ent is Supplier s && !data.Suppliers.Contains(s)) data.Suppliers.Add(s);
-            else if (ent is Product p && !data.Products.Contains(p)) data.Products.Add(p);
-            else if (ent is Category cat && !data.Categories.Contains(cat)) data.Categories.Add(cat);
+            if (ent is Customer c) data.Customers.RestoreRecord(c);
+            else if (ent is Supplier s) data.Suppliers.RestoreRecord(s);
+            else if (ent is Product p) data.Products.RestoreRecord(p);
+            else if (ent is Category cat) data.Categories.RestoreRecord(cat);
         }
-        foreach (var r in Revenues) if (!data.Revenues.Contains(r)) data.Revenues.Add(r);
-        foreach (var e in Expenses) if (!data.Expenses.Contains(e)) data.Expenses.Add(e);
+        foreach (var r in Revenues) data.Revenues.RestoreRecord(r);
+        foreach (var e in Expenses) data.Expenses.RestoreRecord(e);
 
         // A row converted before the undo already has its USD figure, so only still-pending rows requeue.
         foreach (var r in Revenues) UsdConversion.Requeue(data, r);
         foreach (var e in Expenses) UsdConversion.Requeue(data, e);
         ApplyStock(data);
-        foreach (var ret in Returns) if (!data.Returns.Contains(ret)) data.Returns.Add(ret);
+        foreach (var ret in Returns) data.Returns.RestoreRecord(ret);
 
         RedoIntegrationState(data);
 

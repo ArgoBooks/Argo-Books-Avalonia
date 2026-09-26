@@ -303,6 +303,30 @@ public class PayrollServiceTests
         Assert.Equal((wages.Id, "Expense", 1856.41m, PayDate), (entry.TransactionId, entry.TransactionType, entry.Total, entry.TransactionDate));
     }
 
+    // Undoing an import restores the company from a snapshot, which swaps every expense for a copy
+    // while the pay run's undo still holds the originals. Matched by reference, undoing the approval
+    // then left the wages in the books, and redoing it added a second expense with the same id.
+    [Fact]
+    public void UndoAndRedoOfWages_AfterASnapshotRestore_MatchTheWagesById()
+    {
+        CompanyData data = DataWithEmployee();
+        PayRun run = ApprovedRun("PR-0001", PayDate, "EMP-001", 2000m, 110.99m, 32.60m);
+        run.Status = PayRunStatus.Draft;
+        List<Expense> wages = new PayrollService().ApproveAndRecord(data, run);
+        App.RestoreCompanyDataFromSnapshot(data, App.CreateCompanyDataSnapshot(data));
+        Assert.DoesNotContain(wages[0], data.Expenses);
+
+        PayrollService.RemoveWageExpenses(data, wages);
+
+        Assert.Empty(data.Expenses);
+
+        PayrollService.RestoreWageExpenses(data, wages);
+        App.RestoreCompanyDataFromSnapshot(data, App.CreateCompanyDataSnapshot(data));
+        PayrollService.RestoreWageExpenses(data, wages);
+
+        Assert.Equal(wages[0].Id, Assert.Single(data.Expenses).Id);
+    }
+
     [Fact]
     public void Void_DropsTheWagesQueuedConversion()
     {
