@@ -256,16 +256,23 @@ public class SpreadsheetImportService
                 using var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
                 using var workbook = new XLWorkbook(fileStream);
 
+                var sheets = workbook.Worksheets
+                    .Select(ws => ReadSheet(ws, SpreadsheetSheetTypeExtensions.ParseSheetName(ws.Name)))
+                    .OfType<ImportSheet>()
+                    .ToList();
+                ReserveIdNumbers(companyData, sheets);
+
                 // If auto-creating references, do that first
                 if (options.AutoCreateMissingReferences || options.AutoCreateTypes.Count > 0)
                 {
                     CreateMissingReferences(workbook, companyData, options);
                 }
 
-                foreach (var worksheet in workbook.Worksheets)
+                foreach (var sheet in sheets)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    ImportWorksheet(worksheet, companyData, options);
+                    BeginSheet(sheet.Rows);
+                    ImportBySheetType(sheet.Type, companyData, sheet.Headers, sheet.Rows, options);
                 }
 
                 // Update ID counters based on imported data
@@ -314,20 +321,24 @@ public class SpreadsheetImportService
                 using var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
                 using var workbook = new XLWorkbook(fileStream);
 
+                var worksheets = workbook.Worksheets.ToList();
+                var sheets = worksheets.Select(ws => ReadMappedSheet(ws, analysis, result)).ToList();
+                ReserveIdNumbers(companyData, sheets.OfType<ImportSheet>());
+
                 if (options.AutoCreateMissingReferences || options.AutoCreateTypes.Count > 0)
                 {
                     progress?.Report(("Creating missing references...", -1));
                     CreateMissingReferences(workbook, companyData, options);
                 }
 
-                var worksheets = workbook.Worksheets.ToList();
                 var totalSteps = worksheets.Count;
                 for (int i = 0; i < worksheets.Count; i++)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     var pct = (double)i / totalSteps * 100;
                     progress?.Report(($"Importing {worksheets[i].Name} ({i + 1}/{worksheets.Count})...", pct));
-                    ImportWorksheetWithMapping(worksheets[i], companyData, analysis, result, options);
+                    if (sheets[i] is { } sheet)
+                        ImportMappedSheet(sheet, companyData, result, options);
                 }
 
                 FinishImport(companyData);
@@ -403,6 +414,7 @@ public class SpreadsheetImportService
                         options.RowCurrencyBySheet[csvSheetName] = csvCurrency;
                     }
 
+                    ReserveIdNumbers(companyData, [new ImportSheet(csvSheetName, sheetType, headers, rows)]);
                     var sheetResult = ImportBySheetTypeWithCount(sheetType, companyData, headers, rows, csvSheetName, options);
                     result.TotalImported += sheetResult.Inserted;
                     result.TotalUpdated += sheetResult.Updated;
@@ -697,6 +709,10 @@ public class SpreadsheetImportService
             entitiesToImport.Add((chunkEntityType, withId, false));
         }
 
+        UpdateIdCounters(companyData);
+        foreach (var group in entitiesToImport.Where(e => !e.SkipImport).GroupBy(e => e.EntityType))
+            RaiseIdCounter(companyData, group.Key, group.Select(e => ExtractEntityId(e.Entity)));
+
         // Only claim "updated" when existing records are actually overwritten. With
         // SkipExistingRecords on (the default), these rows are skipped instead, and that is
         // already reported via the per-row skipped/unimported path, so the warning would be
@@ -777,41 +793,56 @@ public class SpreadsheetImportService
         return sheetResult;
     }
 
-    private void ImportWorksheetWithMapping(IXLWorksheet worksheet, CompanyData data, SpreadsheetAnalysisResult analysis, SpreadsheetImportResult result, ImportOptions? options = null)
+    /// <summary>A sheet read ahead of the import, so every sheet's ids are known before any row is added.</summary>
+    private sealed record ImportSheet(string Name, SpreadsheetSheetType Type, List<string> Headers, List<List<object?>> Rows);
+
+    private static ImportSheet? ReadSheet(IXLWorksheet worksheet, SpreadsheetSheetType type)
+    {
+        var headers = GetHeaders(worksheet);
+        if (headers.Count == 0) return null;
+
+        var rows = GetDataRows(worksheet, headers.Count);
+        return rows.Count == 0 ? null : new ImportSheet(worksheet.Name, type, headers, rows);
+    }
+
+    /// <summary>
+    /// Reads a Tier 1 sheet with the analysis's column mapping applied, or returns null for a sheet
+    /// the import leaves out (empty, excluded, or handled by Tier 2 via ProcessedEntities).
+    /// </summary>
+    private static ImportSheet? ReadMappedSheet(IXLWorksheet worksheet, SpreadsheetAnalysisResult analysis, SpreadsheetImportResult result)
     {
         var sheetName = worksheet.Name;
         var headers = GetHeaders(worksheet);
         if (headers.Count == 0)
         {
             result.Warnings.Add($"Sheet '{sheetName}': no headers found, skipped.");
-            return;
+            return null;
         }
 
         var rows = GetDataRows(worksheet, headers.Count);
         if (rows.Count == 0)
         {
             result.Warnings.Add($"Sheet '{sheetName}': no data rows found, skipped.");
-            return;
+            return null;
         }
 
         var sheetAnalysis = analysis.Sheets.FirstOrDefault(s => s.SourceSheetName == sheetName);
-        if (sheetAnalysis == null || !sheetAnalysis.IsIncluded) return;
-
-        // Only process Tier 1 sheets here (Tier 2 is handled separately via ProcessedEntities)
-        if (sheetAnalysis.Tier == ProcessingTier.Tier2_LlmProcessing)
-        {
-            return;
-        }
+        if (sheetAnalysis == null || !sheetAnalysis.IsIncluded || sheetAnalysis.Tier == ProcessingTier.Tier2_LlmProcessing)
+            return null;
 
         ApplyColumnMapping(headers, sheetAnalysis);
-        var sheetType = sheetAnalysis.DetectedType;
-        var sheetResult = ImportBySheetTypeWithCount(sheetType, data, headers, rows, sheetName, options);
+        return new ImportSheet(sheetName, sheetAnalysis.DetectedType, headers, rows);
+    }
+
+    private void ImportMappedSheet(ImportSheet sheet, CompanyData data, SpreadsheetImportResult result, ImportOptions? options = null)
+    {
+        var sheetResult = ImportBySheetTypeWithCount(sheet.Type, data, sheet.Headers, sheet.Rows, sheet.Name, options);
         result.TotalImported += sheetResult.Inserted;
         result.TotalUpdated += sheetResult.Updated;
         result.TotalSkipped += sheetResult.Skipped;
         result.SheetResults.Add(sheetResult);
-        if (sheetResult.Inserted == 0 && sheetResult.Updated == 0 && sheetResult.Skipped == 0 && rows.Count > 0)
-            result.Warnings.Add($"Sheet '{sheetName}': detected as '{sheetType}' but 0 records were imported from {rows.Count} rows.");
+        if (sheetResult.Inserted == 0 && sheetResult.Updated == 0 && sheetResult.Skipped == 0 && sheet.Rows.Count > 0)
+            result.Warnings.Add($"Sheet '{sheet.Name}': detected as '{sheet.Type}' but 0 records were imported from {sheet.Rows.Count} rows.");
     }
 
     private void ImportBySheetType(SpreadsheetSheetType sheetType, CompanyData data, List<string> headers, List<List<object?>> rows, ImportOptions? options = null)
@@ -2997,95 +3028,6 @@ public class SpreadsheetImportService
 
     #endregion
 
-    #region Worksheet Import
-
-    private void ImportWorksheet(IXLWorksheet worksheet, CompanyData data, ImportOptions? options = null)
-    {
-        var sheetName = worksheet.Name;
-
-        // Get headers from first row
-        var headers = GetHeaders(worksheet);
-        if (headers.Count == 0) return;
-
-        // Get all data rows (starting from row 2)
-        var rows = GetDataRows(worksheet, headers.Count);
-        if (rows.Count == 0) return;
-        BeginSheet(rows);
-
-        // Import based on sheet type
-        switch (SpreadsheetSheetTypeExtensions.ParseSheetName(sheetName))
-        {
-            case SpreadsheetSheetType.Customers:
-                ImportCustomers(data, headers, rows, options);
-                break;
-            case SpreadsheetSheetType.Invoices:
-                ImportInvoices(data, headers, rows, options);
-                break;
-            case SpreadsheetSheetType.Expenses:
-                ImportPurchases(data, headers, rows, options);
-                break;
-            case SpreadsheetSheetType.Products:
-                ImportProducts(data, headers, rows, options);
-                break;
-            case SpreadsheetSheetType.Inventory:
-                ImportInventory(data, headers, rows, options);
-                break;
-            case SpreadsheetSheetType.Payments:
-                ImportPayments(data, headers, rows, options);
-                break;
-            case SpreadsheetSheetType.Suppliers:
-                ImportSuppliers(data, headers, rows, options);
-                break;
-            case SpreadsheetSheetType.Revenue:
-                ImportSales(data, headers, rows, options);
-                break;
-            case SpreadsheetSheetType.RentalInventory:
-                ImportRentalInventory(data, headers, rows, options);
-                break;
-            case SpreadsheetSheetType.RentalRecords:
-                ImportRentalRecords(data, headers, rows, options);
-                break;
-            case SpreadsheetSheetType.Categories:
-                ImportCategories(data, headers, rows, options);
-                break;
-            case SpreadsheetSheetType.Locations:
-                ImportLocations(data, headers, rows, options);
-                break;
-            case SpreadsheetSheetType.RecurringInvoices:
-                ImportRecurringInvoices(data, headers, rows, options);
-                break;
-            case SpreadsheetSheetType.StockAdjustments:
-                ImportStockAdjustments(data, headers, rows, options);
-                break;
-            case SpreadsheetSheetType.PurchaseOrders:
-                ImportPurchaseOrders(data, headers, rows, options);
-                break;
-            case SpreadsheetSheetType.InvoiceLineItems:
-                ImportInvoiceLineItems(data, headers, rows, options);
-                break;
-            case SpreadsheetSheetType.PurchaseOrderLineItems:
-                ImportPurchaseOrderLineItems(data, headers, rows, options);
-                break;
-            case SpreadsheetSheetType.Employees:
-                ImportEmployees(data, headers, rows, options);
-                break;
-            case SpreadsheetSheetType.PayRuns:
-                // Export only. An approved run's figures are frozen so a stub reprinted next
-                // year still matches the one the employee was handed, and reading them back
-                // from a sheet somebody could have typed in would defeat that. Listed rather
-                // than left to fall through, so the decision is visible here.
-                break;
-            case SpreadsheetSheetType.Returns:
-                ImportReturns(data, headers, rows, options);
-                break;
-            case SpreadsheetSheetType.LostDamaged:
-                ImportLostDamaged(data, headers, rows, options);
-                break;
-        }
-    }
-
-    #endregion
-
     #region Helper Methods
 
     // Row-reading and value-parsing helpers live in SpreadsheetRowReader (extracted so the
@@ -3561,8 +3503,9 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             // Blank on both: mint a unique one so distinct rows aren't collapsed into a single record.
             if (string.IsNullOrWhiteSpace(invoiceId))
             {
-                invoiceId = new IdGenerator(data).NextInvoiceId(takenIds);
-                invoiceNumber = invoiceId;
+                var ids = new IdGenerator(data);
+                invoiceId = ids.NextInvoiceId(takenIds);
+                invoiceNumber = ids.NextInvoiceNumber();
             }
 
             var existing = data.Invoices.FirstOrDefault(i => i.Id == invoiceId);
@@ -4433,7 +4376,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
     /// </summary>
     private Product AutoCreateProduct(CompanyData data, string name, decimal unitPrice, CategoryType type, string? categoryName = null)
     {
-        var newId = new IdGenerator(data).NextPlaceholderProductId(TakenIds(data.Products.Select(p => p.Id), [], []));
+        var newId = new IdGenerator(data).NextPlaceholderProductId();
         var product = new Product
         {
             Id = newId,
@@ -4456,6 +4399,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
     private void ImportRentalInventory(CompanyData data, List<string> headers, List<List<object?>> rows, ImportOptions? options = null)
     {
         var takenIds = TakenIds(data.RentalInventory.Select(r => r.Id), headers, rows, "ID");
+        var takenInventoryIds = TakenIds(data.Inventory.Select(i => i.Id), [], []);
 
         foreach (var row in rows)
         {
@@ -4500,7 +4444,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
                         {
                             var newInv = new InventoryItem
                             {
-                                Id = new IdGenerator(data).NextInventoryItemId(),
+                                Id = new IdGenerator(data).NextInventoryItemId(takenInventoryIds),
                                 ProductId = productId,
                                 InStock = GetDecimal(row, headers, "Total Qty")
                             };
@@ -4850,7 +4794,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
 
     private void ImportPurchaseOrders(CompanyData data, List<string> headers, List<List<object?>> rows, ImportOptions? options = null)
     {
-        var takenIds = TakenIds(data.PurchaseOrders.Select(p => p.Id), headers, rows, "ID");
+        var takenIds = TakenIds(data.PurchaseOrders.SelectMany(p => new[] { p.Id, p.PoNumber }), headers, rows, "ID");
 
         for (int rowIndex = 0; rowIndex < rows.Count; rowIndex++)
         {
@@ -5200,53 +5144,62 @@ Respond with ONLY a JSON array, one entry per product in the same order:
     /// </summary>
     private static void UpdateIdCounters(CompanyData data)
     {
+        foreach (var type in Enum.GetValues<SpreadsheetSheetType>())
+            RaiseIdCounter(data, type, GetExistingEntityIds(data, type));
+
+        RaiseIdCounter(data, SpreadsheetSheetType.Invoices, data.Invoices.Select(i => i.InvoiceNumber));
+        RaiseIdCounter(data, SpreadsheetSheetType.PurchaseOrders, data.PurchaseOrders.Select(p => p.PoNumber));
+
         var c = data.IdCounters;
-        c.Customer = Math.Max(c.Customer, GetMaxIdNumber(data.Customers.Select(x => x.Id), "CUS-"));
-        c.Product = Math.Max(c.Product, GetMaxIdNumber(data.Products.Select(x => x.Id), "PRD-"));
-        c.Supplier = Math.Max(c.Supplier, GetMaxIdNumber(data.Suppliers.Select(x => x.Id), "SUP-"));
-        c.Category = Math.Max(c.Category, GetMaxIdNumber(data.Categories.Select(x => x.Id), "CAT-"));
-        c.Location = Math.Max(c.Location, GetMaxIdNumber(data.Locations.Select(x => x.Id), "LOC-"));
-        c.Revenue = Math.Max(c.Revenue, Math.Max(
-            GetMaxIdNumber(data.Revenues.Select(x => x.Id), "SAL-"),
-            GetMaxIdNumber(data.Revenues.Select(x => x.Id), "REV-")));
-        c.Expense = Math.Max(c.Expense, GetMaxIdNumber(data.Expenses.Select(x => x.Id), "PUR-"));
-        c.Invoice = Math.Max(c.Invoice, GetMaxIdNumber(data.Invoices.Select(x => x.Id), "INV-"));
-        c.Quote = Math.Max(c.Quote, GetMaxIdNumber(data.Quotes.Select(x => x.Id), "QUO-"));
-        c.Payment = Math.Max(c.Payment, GetMaxIdNumber(data.Payments.Select(x => x.Id), "PAY-"));
-        c.RecurringInvoice = Math.Max(c.RecurringInvoice, GetMaxIdNumber(data.RecurringInvoices.Select(x => x.Id), "REC-INV-"));
-        c.InventoryItem = Math.Max(c.InventoryItem, GetMaxIdNumber(data.Inventory.Select(x => x.Id), "INV-ITM-"));
-        c.StockAdjustment = Math.Max(c.StockAdjustment, GetMaxIdNumber(data.StockAdjustments.Select(x => x.Id), "ADJ-"));
-        c.PurchaseOrder = Math.Max(c.PurchaseOrder, GetMaxIdNumber(data.PurchaseOrders.Select(x => x.Id), "PO-"));
-        c.RentalItem = Math.Max(c.RentalItem, GetMaxIdNumber(data.RentalInventory.Select(x => x.Id), "RNT-ITM-"));
-        c.Rental = Math.Max(c.Rental, GetMaxIdNumber(data.Rentals.Select(x => x.Id), "RNT-"));
-        c.Return = Math.Max(c.Return, GetMaxIdNumber(data.Returns.Select(x => x.Id), "RET-"));
-        c.LostDamaged = Math.Max(c.LostDamaged, GetMaxIdNumber(data.LostDamaged.Select(x => x.Id), "LOST-"));
+        c.Quote = Math.Max(c.Quote, IdGenerator.HighestNumber(data.Quotes.SelectMany(q => new[] { q.Id, q.QuoteNumber }), "QUO-"));
     }
 
-    private static int GetMaxIdNumber(IEnumerable<string> ids, string prefix)
+    /// <summary>
+    /// Raises the counter a record type is numbered from past the highest number in
+    /// <paramref name="ids"/>, whatever their width, so a new id never repeats a number already
+    /// used (ADJ-00001 beside ADJ-001).
+    /// </summary>
+    private static void RaiseIdCounter(CompanyData data, SpreadsheetSheetType type, IEnumerable<string?> ids)
     {
-        var max = 0;
-        foreach (var id in ids)
+        var c = data.IdCounters;
+        switch (type)
         {
-            if (string.IsNullOrEmpty(id)) continue;
-
-            // Try to extract number from ID (e.g., "CUS-001" -> 1)
-            var idStr = id;
-            if (idStr.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-            {
-                idStr = idStr[prefix.Length..];
-            }
-
-            // Handle IDs that might have additional prefixes (e.g., "INV-2024-001")
-            var parts = idStr.Split('-');
-            var lastPart = parts[^1];
-
-            if (int.TryParse(lastPart, out var num) && num > max)
-            {
-                max = num;
-            }
+            case SpreadsheetSheetType.Customers: c.Customer = Math.Max(c.Customer, IdGenerator.HighestNumber(ids, "CUS-")); break;
+            case SpreadsheetSheetType.Products: c.Product = Math.Max(c.Product, IdGenerator.HighestNumber(ids, "PRD-")); break;
+            case SpreadsheetSheetType.Suppliers: c.Supplier = Math.Max(c.Supplier, IdGenerator.HighestNumber(ids, "SUP-")); break;
+            case SpreadsheetSheetType.Categories: c.Category = Math.Max(c.Category, IdGenerator.HighestNumber(ids, "CAT-")); break;
+            case SpreadsheetSheetType.Locations: c.Location = Math.Max(c.Location, IdGenerator.HighestNumber(ids, "LOC-")); break;
+            // Older files have SAL- revenue ids; the number is the last part either way.
+            case SpreadsheetSheetType.Revenue: c.Revenue = Math.Max(c.Revenue, IdGenerator.HighestNumber(ids, "REV-")); break;
+            case SpreadsheetSheetType.Expenses: c.Expense = Math.Max(c.Expense, IdGenerator.HighestNumber(ids, "PUR-")); break;
+            case SpreadsheetSheetType.Invoices: c.Invoice = Math.Max(c.Invoice, IdGenerator.HighestNumber(ids, "INV-")); break;
+            case SpreadsheetSheetType.Payments: c.Payment = Math.Max(c.Payment, IdGenerator.HighestNumber(ids, "PAY-")); break;
+            case SpreadsheetSheetType.RecurringInvoices: c.RecurringInvoice = Math.Max(c.RecurringInvoice, IdGenerator.HighestNumber(ids, "REC-INV-")); break;
+            case SpreadsheetSheetType.Inventory: c.InventoryItem = Math.Max(c.InventoryItem, IdGenerator.HighestNumber(ids, "INV-ITM-")); break;
+            case SpreadsheetSheetType.StockAdjustments: c.StockAdjustment = Math.Max(c.StockAdjustment, IdGenerator.HighestNumber(ids, "ADJ-")); break;
+            case SpreadsheetSheetType.PurchaseOrders: c.PurchaseOrder = Math.Max(c.PurchaseOrder, IdGenerator.HighestNumber(ids, "PO-")); break;
+            case SpreadsheetSheetType.RentalInventory: c.RentalItem = Math.Max(c.RentalItem, IdGenerator.HighestNumber(ids, "RNT-ITM-")); break;
+            case SpreadsheetSheetType.RentalRecords: c.Rental = Math.Max(c.Rental, IdGenerator.HighestNumber(ids, "RNT-")); break;
+            case SpreadsheetSheetType.Returns: c.Return = Math.Max(c.Return, IdGenerator.HighestNumber(ids, "RET-")); break;
+            case SpreadsheetSheetType.LostDamaged: c.LostDamaged = Math.Max(c.LostDamaged, IdGenerator.HighestNumber(ids, "LOST-")); break;
         }
-        return max;
+    }
+
+    /// <summary>
+    /// Brings every counter past the highest number the company or any sheet of this import
+    /// already uses, before a single id is minted. Sheets are read one after another, so without
+    /// this a blank row could be numbered into an id a later sheet brings in, or into the same
+    /// number as a sheet's id written in an older width.
+    /// </summary>
+    private static void ReserveIdNumbers(CompanyData data, IEnumerable<ImportSheet> sheets)
+    {
+        UpdateIdCounters(data);
+        foreach (var sheet in sheets)
+        {
+            var idColumns = sheet.Type == SpreadsheetSheetType.Invoices ? new[] { "ID", "Invoice #" } : ["ID"];
+            RaiseIdCounter(data, sheet.Type,
+                sheet.Rows.SelectMany(row => idColumns.Select(column => GetString(row, sheet.Headers, column))));
+        }
     }
 
     #endregion

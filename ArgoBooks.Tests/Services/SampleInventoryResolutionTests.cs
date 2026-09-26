@@ -11,7 +11,7 @@ namespace ArgoBooks.Tests.Services;
 /// </summary>
 public class SampleInventoryResolutionTests
 {
-    private static string SampleXlsxPath()
+    internal static string SampleXlsxPath()
     {
         // Walk up from the test bin dir to the repo root and find the embedded sample workbook.
         var dir = new DirectoryInfo(Directory.GetCurrentDirectory());

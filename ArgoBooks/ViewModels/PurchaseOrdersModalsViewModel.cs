@@ -861,20 +861,18 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
         // Store old values for undo
         var oldLineItemReceived = order.LineItems.Select(li => li.QuantityReceived).ToList();
         var oldStatus = order.Status;
-        var stockChanges = new List<ReceivedStockChange>();
 
         // Apply received quantities
+        var received = new List<(PurchaseOrderLineItem Line, decimal Quantity)>();
         for (var i = 0; i < ReceiveLineItems.Count && i < order.LineItems.Count; i++)
         {
             if (decimal.TryParse(ReceiveLineItems[i].ReceivingQuantity, out var qty) && qty > 0)
             {
                 order.LineItems[i].QuantityReceived += qty;
-
-                var change = ReceiveIntoStock(companyData, order, order.LineItems[i], qty);
-                if (change != null)
-                    stockChanges.Add(change);
+                received.Add((order.LineItems[i], qty));
             }
         }
+        var stockChanges = InventoryStockService.ReceivePurchaseOrder(companyData, order, received);
 
         // Update order status
         if (order.IsFullyReceived)
@@ -901,19 +899,12 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
                 for (var i = 0; i < receivedOrder.LineItems.Count; i++)
                     receivedOrder.LineItems[i].QuantityReceived = oldLineItemReceived[i];
 
-                // Newest first, so an item received on two lines ends at its original stock
-                for (var i = stockChanges.Count - 1; i >= 0; i--)
+                var stockBeforeUndo = stockChanges.Select(c => c.Item.InStock).ToList();
+                InventoryStockService.Revert(companyData, stockChanges);
+                for (var i = 0; i < stockChanges.Count; i++)
                 {
-                    var change = stockChanges[i];
-                    var stockBeforeUndo = change.Item.InStock;
-                    change.Item.InStock = change.OldStock;
-                    change.Item.Status = change.Item.CalculateStatus();
-                    change.Item.LastUpdated = DateTime.UtcNow;
-                    if (change.WasCreated)
-                        companyData.Inventory.Remove(change.Item);
-                    else
-                        App.CheckAndNotifyStockStatus(change.Item, stockBeforeUndo);
-                    companyData.StockAdjustments.Remove(change.Adjustment);
+                    if (!stockChanges[i].WasCreated)
+                        App.CheckAndNotifyStockStatus(stockChanges[i].Item, stockBeforeUndo[i]);
                 }
                 receivedOrder.Status = oldStatus;
                 companyData.MarkAsModified();
@@ -924,15 +915,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
                 for (var i = 0; i < receivedOrder.LineItems.Count; i++)
                     receivedOrder.LineItems[i].QuantityReceived = newLineItemReceived[i];
 
-                foreach (var change in stockChanges)
-                {
-                    if (change.WasCreated)
-                        companyData.Inventory.Add(change.Item);
-                    change.Item.InStock += change.Adjustment.Quantity;
-                    change.Item.Status = change.Item.CalculateStatus();
-                    change.Item.LastUpdated = DateTime.UtcNow;
-                    companyData.StockAdjustments.Add(change.Adjustment);
-                }
+                stockChanges = InventoryStockService.ReceivePurchaseOrder(companyData, receivedOrder, received);
                 receivedOrder.Status = newStatus;
                 companyData.MarkAsModified();
                 OrderSaved?.Invoke(this, EventArgs.Empty);
@@ -940,51 +923,6 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
 
         OrderSaved?.Invoke(this, EventArgs.Empty);
         CloseReceiveModal();
-    }
-
-    private sealed record ReceivedStockChange(InventoryItem Item, decimal OldStock, StockAdjustment Adjustment, bool WasCreated);
-
-    /// <summary>
-    /// Adds received units to stock and records them in the stock ledger, which historical inventory
-    /// valuations roll back from. A tracked product with no inventory row gets one, as an expense does.
-    /// </summary>
-    private static ReceivedStockChange? ReceiveIntoStock(CompanyData companyData, PurchaseOrder order, PurchaseOrderLineItem line, decimal qty)
-    {
-        var inventoryItem = InventoryStockService.FindStockItem(companyData, line.ProductId, null);
-        var wasCreated = false;
-        if (inventoryItem == null)
-        {
-            var product = companyData.Products.FirstOrDefault(p => p.Id == line.ProductId);
-            if (product is not { TrackInventory: true }) return null;
-
-            inventoryItem = InventoryStockService.CreateStockItem(companyData, product, null, order.OrderDate);
-            // The line's cost is in the order's currency; stock costs are kept in USD.
-            if (InventoryStockService.UsdPerNative(order) is { } rate)
-                inventoryItem.UnitCost = line.UnitCost * rate;
-            wasCreated = true;
-        }
-
-        var oldStock = inventoryItem.InStock;
-        inventoryItem.InStock += qty;
-        inventoryItem.Status = inventoryItem.CalculateStatus();
-        inventoryItem.LastUpdated = DateTime.UtcNow;
-
-        var adjustment = new StockAdjustment
-        {
-            Id = new IdGenerator(companyData).NextStockAdjustmentId(),
-            InventoryItemId = inventoryItem.Id,
-            AdjustmentType = AdjustmentType.Add,
-            Quantity = qty,
-            PreviousStock = oldStock,
-            NewStock = inventoryItem.InStock,
-            Reason = "Purchase order received",
-            ReferenceNumber = order.PoNumber,
-            Timestamp = DateTime.UtcNow,
-            IsAutoGenerated = true
-        };
-        companyData.StockAdjustments.Add(adjustment);
-
-        return new ReceivedStockChange(inventoryItem, oldStock, adjustment, wasCreated);
     }
 
     private void LoadReceiveLineItems(string orderId)

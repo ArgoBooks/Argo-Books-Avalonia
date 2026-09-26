@@ -304,6 +304,41 @@ public class IdGeneratorTests
     }
 
     [Fact]
+    public void AnInvoiceNumberAlreadyPrinted_IsSkippedEvenUnderAnotherId()
+    {
+        var companyData = CreateCompanyData();
+        companyData.Invoices.Add(new Invoice { Id = "legacy-a", InvoiceNumber = $"#INV-{Year}-00001" });
+        var generator = new IdGenerator(companyData);
+
+        Assert.Equal(($"INV-{Year}-00002", $"#INV-{Year}-00002"), generator.PeekNextInvoice());
+        Assert.Equal($"INV-{Year}-00002", generator.NextInvoiceId());
+        Assert.Equal($"#INV-{Year}-00002", generator.NextInvoiceNumber());
+    }
+
+    [Fact]
+    public void AQuoteNumberAlreadyPrinted_IsSkippedEvenUnderAnotherId()
+    {
+        var companyData = CreateCompanyData();
+        companyData.Quotes.Add(new Quote { Id = "legacy-q", QuoteNumber = $"#QUO-{Year}-00001" });
+        var generator = new IdGenerator(companyData);
+
+        Assert.Equal($"#QUO-{Year}-00002", generator.PeekNextQuoteNumber());
+        Assert.Equal($"QUO-{Year}-00002", generator.NextQuoteId());
+        Assert.Equal($"#QUO-{Year}-00002", generator.NextQuoteNumber());
+    }
+
+    [Fact]
+    public void APurchaseOrderNumberAlreadyPrinted_IsSkippedEvenUnderAnotherId()
+    {
+        var companyData = CreateCompanyData();
+        companyData.PurchaseOrders.Add(new PurchaseOrder { Id = "legacy-po", PoNumber = $"#PO-{Year}-001" });
+        var generator = new IdGenerator(companyData);
+
+        Assert.Equal("PO-00002", generator.NextPurchaseOrderId());
+        Assert.Equal($"#PO-{Year}-002", generator.NextPurchaseOrderNumber());
+    }
+
+    [Fact]
     public void PeekNextQuoteNumber_SkipsATakenIdWithoutMovingTheCounter()
     {
         var companyData = CreateCompanyData();
@@ -336,11 +371,13 @@ public class IdGeneratorTests
     }
 
     [Fact]
-    public void ATakenSet_IsCheckedAlongsideTheCompanysOwnRecords()
+    public void ATakenSet_IsTheWholeCheck_SoItCarriesTheCompanysIdsToo()
     {
+        // An import seeds the set with the company's ids once, rather than the generator reading
+        // every record again for each id it makes.
         var companyData = CreateCompanyData();
         companyData.Customers.Add(new Customer { Id = "CUS-001" });
-        var taken = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "cus-002" };
+        var taken = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "CUS-001", "cus-002" };
 
         var id = new IdGenerator(companyData).NextCustomerId(taken);
 

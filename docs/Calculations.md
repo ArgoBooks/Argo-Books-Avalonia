@@ -330,7 +330,7 @@ Refunds are recorded against a whole invoice (§8), not against individual lines
 
 Products with **Track Inventory** turned on are treated differently for profit: what their stock cost is subtracted when a sale uses it, not as an expense on the day it was bought. Products that don't track inventory aren't affected.
 
-`InventoryStockService` is the only code that moves stock: for a purchase, a sale, editing or deleting either, a Stripe or Argo Books API import, or a transfer. It is also the only code that sets a sale line's cost of goods sold. `CostOfGoodsAggregator` is the only code that adds those figures up.
+`InventoryStockService` is the only code that moves stock: for a purchase, a sale, editing or deleting either, a Stripe or Argo Books API import, a transfer, or receiving a purchase order. It is also the only code that sets a sale line's cost of goods sold. `CostOfGoodsAggregator` is the only code that adds those figures up.
 
 ### Buying tracked stock
 
