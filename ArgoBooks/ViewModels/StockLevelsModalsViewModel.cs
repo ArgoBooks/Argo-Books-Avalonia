@@ -585,9 +585,13 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
     [RelayCommand]
     private void CloseAddItemModal()
     {
+        _addItemSession++;
         IsAddItemModalOpen = false;
         ClearAddItemFields();
     }
+
+    // Changes whenever the modal closes, so a save still waiting on the rate knows it was abandoned.
+    private int _addItemSession;
 
     /// <summary>
     /// Returns true if any data has been entered in the Add Item modal.
@@ -648,55 +652,66 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
         var companyData = App.CompanyManager?.CompanyData;
         if (companyData == null) return;
 
-        // Check if item already exists for this product/location
-        var existingItem = companyData.Inventory.FirstOrDefault(i =>
-            i.ProductId == SelectedProduct!.Id && i.LocationId == SelectedLocation!.Id);
+        // Read the form before the rate fetch below: closing the modal while it runs clears the fields.
+        var product = SelectedProduct!;
+        var location = SelectedLocation!;
+        var sku = AddItemSku.Trim();
+        decimal.TryParse(AddItemReorderPoint, out var reorderPoint);
+        decimal.TryParse(AddItemOverstockThreshold, out var overstockThreshold);
 
-        if (existingItem != null)
+        bool AlreadyStocked() => companyData.Inventory.Any(i => i.ProductId == product.Id && i.LocationId == location.Id);
+        if (AlreadyStocked())
         {
             AddItemError = "An inventory item already exists for this product and location.".Translate();
             return;
         }
 
-        // The starting unit cost converts the product's cost price to USD at today's rate.
+        // The starting unit cost converts the product's cost price to USD at today's rate. The Add Item
+        // button stays disabled while this command runs, so the item can't be added twice.
+        var session = _addItemSession;
         await CurrencyService.WarmRateForDateAsync(DateTime.Today);
-
-        var newId = new Core.Data.IdGenerator(companyData).NextInventoryItemId();
-
-        // Parse thresholds
-        decimal.TryParse(AddItemReorderPoint, out var reorderPoint);
-        decimal.TryParse(AddItemOverstockThreshold, out var overstockThreshold);
+        if (session != _addItemSession || !IsAddItemModalOpen)
+            return;
+        if (AlreadyStocked())
+        {
+            AddItemError = "An inventory item already exists for this product and location.".Translate();
+            return;
+        }
 
         var newItem = new InventoryItem
         {
-            Id = newId,
-            ProductId = SelectedProduct!.Id,
-            Sku = AddItemSku.Trim(),
-            LocationId = SelectedLocation!.Id,
+            Id = new Core.Data.IdGenerator(companyData).NextInventoryItemId(),
+            ProductId = product.Id,
+            Sku = sku,
+            LocationId = location.Id,
             InStock = quantity,
             Reserved = 0,
             ReorderPoint = reorderPoint,
             OverstockThreshold = overstockThreshold,
-            UnitOfMeasure = SelectedProduct.UnitOfMeasure,
-            UnitCost = InventoryStockService.CostPriceUSD(companyData, SelectedProduct, DateTime.Today),
+            UnitOfMeasure = product.UnitOfMeasure,
             LastUpdated = DateTime.UtcNow
         };
         newItem.Status = newItem.CalculateStatus();
 
         companyData.Inventory.Add(newItem);
+        InventoryStockService.StartAtCostPrice(companyData, newItem, product, DateTime.Today);
+        var pendingCost = companyData.PendingConversions.FirstOrDefault(p =>
+            p.TransactionId == newItem.Id && p.TransactionType == InventoryStockService.PendingCostType);
         companyData.MarkAsModified();
 
         App.UndoRedoManager.RecordAction(new DelegateAction(
-            $"Add inventory item for '{SelectedProduct.Name}'",
+            $"Add inventory item for '{product.Name}'",
             () =>
             {
                 companyData.Inventory.Remove(newItem);
+                InventoryStockService.SetPendingCostEntry(companyData, newItem.Id, null);
                 companyData.MarkAsModified();
                 ItemSaved?.Invoke(this, EventArgs.Empty);
             },
             () =>
             {
                 companyData.Inventory.Add(newItem);
+                InventoryStockService.SetPendingCostEntry(companyData, newItem.Id, newItem.IsPendingConversion ? pendingCost : null);
                 companyData.MarkAsModified();
                 ItemSaved?.Invoke(this, EventArgs.Empty);
             }));

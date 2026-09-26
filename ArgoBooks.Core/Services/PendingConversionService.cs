@@ -381,7 +381,9 @@ public class PendingConversionService
             // Mark company data as changed so the next save includes the updated USD values
             companyData.MarkAsModified();
 
-            PendingConversionsProcessed?.Invoke(this, new PendingConversionsProcessedEventArgs(processed.Count));
+            // A stock cost converts alongside the purchase that set it, so it isn't counted as a transaction of its own.
+            PendingConversionsProcessed?.Invoke(this, new PendingConversionsProcessedEventArgs(
+                processed.Count(e => e.TransactionType != InventoryStockService.PendingCostType)));
         }
     }
 
@@ -398,7 +400,8 @@ public class PendingConversionService
     /// <summary>
     /// Applies the exact-date conversion to the record named by <paramref name="entry"/>, at the
     /// supplied <paramref name="rate"/> (original currency -> USD). Handles Revenue/Expense (every
-    /// money field) and Payment/PurchaseOrder (the single amount). No-ops when the record was deleted
+    /// money field), Payment/PurchaseOrder (the single amount) and a stock record's unit cost
+    /// (<see cref="InventoryStockService.ApplyConvertedCost"/>). No-ops when the record was deleted
     /// since it was enqueued. The USD base is stored full-precision (no 2dp round) and matches the
     /// import-time conversion, so an immediately-converted row and a later-healed row are identical;
     /// display rounds at the boundary. See docs/Calculations.md Rule 3.
@@ -448,6 +451,10 @@ public class PendingConversionService
                 else
                     invoice.BalanceUSD = entry.Balance * rate;
                 return;
+
+            case InventoryStockService.PendingCostType:
+                InventoryStockService.ApplyConvertedCost(companyData, entry, rate);
+                return;
         }
     }
 
@@ -463,6 +470,7 @@ public class PendingConversionService
         "Payment" => companyData.Payments.FirstOrDefault(p => p.Id == entry.TransactionId) is { IsPendingConversion: false },
         "PurchaseOrder" => companyData.PurchaseOrders.FirstOrDefault(p => p.Id == entry.TransactionId) is { IsPendingConversion: false },
         "Invoice" => companyData.Invoices.FirstOrDefault(i => i.Id == entry.TransactionId) is { IsPendingConversion: false },
+        InventoryStockService.PendingCostType => InventoryStockService.IsCostSettled(companyData, entry.TransactionId),
         _ => false
     };
 

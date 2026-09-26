@@ -116,7 +116,7 @@ How an invoice's total is worked out, step by step:
 
 ## 5. Payment totals on an invoice
 
-Each invoice keeps these running totals, worked out from its payments. After changing an invoice's payments, the payment form, portal sync, currency conversion and recurring invoices call `InvoiceTotalsService.Recalculate(invoice, allPayments)`. The spreadsheet importer is different: it takes `AmountPaid`, `Balance` and `Status` straight from the sheet, except that an Overdue status is saved as Sent (§6).
+Each invoice keeps these running totals, worked out from its payments. After changing an invoice's payments, the payment form, portal sync, currency conversion and recurring invoices call `InvoiceTotalsService.Recalculate(invoice, allPayments)`. The spreadsheet importer is different: it takes `AmountPaid` and `Balance` straight from the sheet, and works out the status from them (§6).
 
 | Field | How it's worked out | Notes |
 |---|---|---|
@@ -142,18 +142,22 @@ A refund never changes the payment it gives money back on. The original payment 
 | `Viewed` | The customer opened it. | Only by a spreadsheet import. |
 | `Partial` | The customer paid some and still owes the rest. | `0 < AmountPaid < Total`. |
 | `Paid` | Paid in full (`AmountPaid >= Total`). | When a payment covers the balance. |
-| `Overdue` | Past its due date and still owed (`Balance > 0`), and not a Draft, Paid, Refunded or Cancelled invoice. | Always worked out when shown (`Invoice.IsOverdue`), never saved. A spreadsheet import saves a sheet's Overdue as Sent. An old file can still hold a saved Overdue; it counts for nothing, and the invoice shows as Sent until it really is overdue. |
+| `Overdue` | Past its due date and still owed (`Balance > 0`), and not a Draft, Paid, Refunded or Cancelled invoice. | Always worked out when shown (`Invoice.IsOverdue`), never saved. A spreadsheet import reads a sheet's Overdue as Sent. An old file can still hold a saved Overdue; it counts for nothing, and the invoice shows as Sent until it really is overdue. |
 | `Cancelled` | The invoice was voided. | Only by a spreadsheet import. |
 | `PartiallyRefunded` | Paid, then refunded less than `Total`, or refunded in full and then paid again. | The refund status rule below. |
 | `Refunded` | Paid, then refunded in full with no later payment. | The refund status rule below. |
 
 `InvoiceTotalsService.RecalculateStatus` sets the four payment statuses: Paid, Partial, PartiallyRefunded and Refunded. An invoice keeps any other status until its first payment or refund arrives, and that earlier status is saved in `Invoice.StatusBeforePayment`. If every payment is later removed (deleted, undone, or moved to another invoice), the invoice goes back to that status, so it is owed again and can become overdue. An invoice that got a payment status some other way, such as an import marking it Paid, has no earlier status to go back to and keeps the one it has.
 
+**Imported invoices.** The spreadsheet importer takes the sheet's status, reading Overdue as Sent, and then applies `RecalculateStatus` to the imported amounts, as if the amount paid had arrived as a payment. So an Overdue or Sent invoice with 50 of 100 paid becomes Partial, one paid in full becomes Paid, and an unpaid Draft, Pending, Sent, Viewed or Cancelled invoice keeps its status. A sheet that updates existing invoices with a Status column and no amount columns, such as one marking a batch paid, sets the status as given, except that Overdue is still worked out from the stored amounts. A Refunded or PartiallyRefunded status is kept as the sheet gives it when the import has no refund amount, because refunds can't be worked out from the amount paid.
+
 **Refund status rule** (`InvoiceTotalsService.RefundedStatus`). If less than `Total` has been refunded, the status is PartiallyRefunded. If at least `Total` has been refunded, it is Refunded, unless the customer then paid again so that net paid (`AmountPaid − AmountRefunded`) is still at least `Total`, in which case it is PartiallyRefunded. A processing fee the customer paid isn't refunded, so a $100 invoice paid with a $3 fee and refunded $100 is Refunded.
 
 Screens and report tables show `InvoiceTotalsService.DisplayStatus`: Overdue if the invoice is overdue; otherwise, if it has refunds, the refund status rule worked out fresh; otherwise the saved status, with a saved Overdue shown as Sent. Never show the saved `Status` on its own. The Invoices page's status filter matches this displayed status.
 
 Every overdue count and total (the Invoices page card and Overdue filter, the dashboard's Overdue Invoices card, customer payment standings, the overdue notification and the Insights card) uses `Invoice.IsOverdue` and nothing else. A draft is never overdue, because it was never sent and nobody owes it yet.
+
+The invoice document (the preview, the email and the page on the payment portal, all drawn by `InvoiceHtmlRenderer`) marks the due date as overdue from `Invoice.IsOverdue` too. An invoice being sent is drawn with the Sent status it goes out with, so a draft whose due date has already passed shows as overdue, and the create form's preview does the same. A cancelled, refunded or fully paid invoice never shows as overdue. A quote is drawn as a draft invoice, so it never shows as overdue.
 
 ---
 
@@ -240,6 +244,8 @@ The Insights tab (trends, anomalies, forecasts, recommendations) uses collected 
 
 **Currency.** Insights does its analysis in USD and converts only the amounts it shows. Like a report, each run picks one currency for everything (Rule 3a), except that it ignores dates after today, since it never converts anything at a future date. Amounts in descriptions, averages included, convert each row at its own date, and the overdue total converts each invoice's balance at its issue date. Forecast cards, ranges and Past Predictions convert their stored USD figures to the company's currency at today's rate (`InsightsPageViewModel.FormatForecastAmount`). The sample numbers shown to free users are for illustration only and are never converted.
 
+**Top Performing Product** compares each product's collected revenue with its `CostPrice` converted to USD at each sale's date. A sale still waiting for its rate, or a line whose cost price can't be converted yet, is left out of the comparison rather than counted as having no revenue or no cost.
+
 **Forecast accuracy.** A forecast is saved under the future period it covers. Once that period ends, it is checked against actual results worked out the same way the forecast was (`ForecastAccuracyService.ValidatePastForecasts`, `RunBacktestAsync`).
 
 ### Returns and Losses
@@ -254,7 +260,7 @@ Bank Matching (`BankMatchingService`) only marks revenue, expenses, invoices and
 
 ### Mobile app
 
-The phone shows a snapshot the desktop builds (`SnapshotBuilder`), covering all time. Money In is worked out the same way as the dashboard's Total Revenue card: collected revenue less refunds (Rule 2, §8). Money Out is every expense, and Profit is Money In minus Money Out. Like a report, the snapshot picks one currency for everything (`DisplayCurrency.Resolve`, Rule 3a) and converts each row at its own date. It sends the numbers together with that currency, and the phone writes them out with the currency's symbol.
+The phone shows a snapshot the desktop builds (`SnapshotBuilder`), covering all time. Money In is worked out the same way as the dashboard's Total Revenue card: collected revenue less refunds (Rule 2, §8). Money Out is every expense, and Profit is Money In minus Money Out. Like a report, the snapshot picks one currency for everything (`DisplayCurrency.Resolve`, Rule 3a) and converts each row at its own date. It sends the numbers together with that currency, and the phone writes them out with the currency's symbol. Each invoice row carries the status the desktop shows (`InvoiceTotalsService.DisplayStatus`, §6), as text the phone displays as it is.
 
 ---
 
@@ -342,7 +348,7 @@ stockPurchaseUSD(expense)    = min( Σ over stock lines of li.Subtotal × (expen
 operatingExpenseUSD(expense) = expense.EffectiveTotalUSD − stockPurchaseUSD(expense)
 ```
 
-Tax, shipping and fees on the purchase are still expenses. The stock record's `UnitCost` is set to the line's price per unit before tax, in USD, at the purchase's exchange rate (it is left unchanged while that rate is still missing). If the purchase is in the company's currency, the product's `CostPrice` is set to the line's unit price too.
+Tax, shipping and fees on the purchase are still expenses. The stock record's `UnitCost` is set to the line's price per unit before tax, in USD, at the purchase's exchange rate. While that rate is missing, the cost is pending (see Stock value below). If the purchase is in the company's currency, the product's `CostPrice` is set to the line's unit price too.
 
 ### Selling tracked stock
 
@@ -353,7 +359,9 @@ openingUsed(li)   = min(item.OpeningUnits, li.Quantity)
 li.CostOfGoodsUSD = (li.Quantity − openingUsed(li)) × item.UnitCost
 ```
 
-That cost is saved and not recalculated later. Editing a sale keeps the unit cost its lines were saved with, for each product and location. Only a product or location added by the edit, or one whose earlier lines were all opening stock, uses the current `UnitCost`. A sale still waiting for its exchange rate has no cost, just as it has no revenue yet.
+That cost is saved and not recalculated later. Editing a sale keeps the unit cost its lines were saved with, for each product and location. Only a product or location added by the edit, one whose earlier lines were all opening stock, or one whose earlier lines were still waiting for their cost (below), uses the current `UnitCost`. A sale still waiting for its exchange rate has no cost, just as it has no revenue yet.
+
+**A sale made while its stock's cost is pending.** When the stock record's cost is still waiting for its rate (Stock value, below), the line is marked `LineItem.IsCostOfGoodsPending` and its `CostOfGoodsUSD` is 0 for now, as any amount waiting for its rate counts as 0 (§3). It is not left at 0: when the stock record's cost converts, every line waiting on that record (same product and location) gets `(li.Quantity − li.OpeningUnitsUsed) × the converted unit cost`, and from then on it is fixed like any other. This happens even if a later purchase with a known rate has already given the record a new cost, so the sale keeps the cost the stock had when it sold. A record holds one pending cost at a time: if another purchase waiting for its rate comes first, its cost replaces the earlier one, and the waiting sales take that.
 
 ### Profit
 
@@ -368,14 +376,14 @@ Stock that was already on hand when cost of goods sold was introduced had alread
 A stock record's `UnitCost` is always in USD. A product's `CostPrice` is in the company's currency. They are set as follows:
 
 - A purchase of tracked stock sets `UnitCost` from the purchase line (above).
-- A new stock record starts at the product's `CostPrice` converted to USD at one day's rate (`InventoryStockService.CostPriceUSD`). The day is the date of the sale or purchase that created the record, the order date for a purchase order being received, and today for a record added on the Stock Levels page. When receiving a purchase order creates the record, its cost comes from the order line instead, converted at the order's own rate, unless the order is still waiting for that rate. Receiving into an existing record doesn't change its cost. A transfer gives the new record the cost of the stock it came from.
-- If the rate for that day isn't available, the new record starts at 0 until a purchase sets its cost, just as a purchase waiting for its rate sets no cost. There is no pending state for a unit cost.
-- The spreadsheet Inventory sheet's Unit Cost column is the stored USD value, both on export and on import.
+- A new stock record starts at the product's `CostPrice` converted to USD at one day's rate (`InventoryStockService.StartAtCostPrice`). The day is the date of the sale or purchase that created the record, the order date for a purchase order being received, and today for a record added on the Stock Levels page. When receiving a purchase order creates the record, its cost comes from the order line instead, converted at the order's own rate. Receiving into an existing record doesn't change its cost. A transfer gives the new record the cost of the stock it came from, pending if that cost is pending.
+- **A missing rate leaves the cost pending**, following Rule 3a. The record is marked `InventoryItem.IsPendingConversion`, its `UnitCost` is 0 for now, and the cost in its own currency waits in the conversion queue (`PendingConversionService`, type `InventoryItem`) with the date whose rate it needs. When that rate can be fetched, the queue converts it into `UnitCost` and fills in the sales that were waiting on it (above). A purchase with a known rate that sets the cost first ends the wait for the record, but the queued cost still converts for those sales.
+- The spreadsheet Inventory sheet's Unit Cost column is the stored USD value, both on export and on import. A pending cost is exported as 0, and importing a different Unit Cost replaces it.
 
 Stock value is `InStock × UnitCost`, added up in USD and converted to the display currency once, at the date the stock is valued at:
 
-- **On screens** (the dashboard's Inventory Value card and the Locations page), stock is valued as it stands now, at today's rate (`CurrencyService.FormatStockValue`). It shows Pending while today's rate is missing.
-- **In reports** (the Balance Sheet and the Report Builder's inventory table), at the report's end date, the date `DisplayCurrency.ReportDates` makes sure has a rate.
+- **On screens** (the dashboard's Inventory Value card and the Locations page), stock is valued as it stands now, at today's rate (`CurrencyService.FormatStockValue`). It shows Pending while today's rate is missing, or while a record holding stock has a pending cost.
+- **In reports** (the Balance Sheet and the Report Builder's inventory table), at the report's end date, the date `DisplayCurrency.ReportDates` makes sure has a rate. A record with a pending cost counts at 0 there.
 
 Cost of goods sold uses `UnitCost` directly, since it is already in USD.
 

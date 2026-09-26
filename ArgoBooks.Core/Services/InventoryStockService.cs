@@ -14,6 +14,9 @@ namespace ArgoBooks.Core.Services;
 /// </summary>
 public static class InventoryStockService
 {
+    /// <summary>The conversion queue type for a stock record whose unit cost waits for its rate.</summary>
+    public const string PendingCostType = "InventoryItem";
+
     /// <summary>
     /// The location stock belongs to when the caller names none: the company's first location, or a
     /// real one created for it. Every stock row points at a location that exists on the Locations page.
@@ -54,7 +57,7 @@ public static class InventoryStockService
         {
             if (!byItem.TryGetValue(item, out var builder))
             {
-                builder = new StockChange.Builder(item, product, wasCreated);
+                builder = new StockChange.Builder(data, item, product, wasCreated);
                 byItem[item] = builder;
                 touched.Add(builder);
             }
@@ -91,8 +94,8 @@ public static class InventoryStockService
         }
 
         var usdPerNative = UsdPerNative(transaction);
-        var inCompanyCurrency = string.Equals(
-            OriginalCurrency(transaction), data.Settings.Localization.Currency, StringComparison.OrdinalIgnoreCase);
+        var currency = OriginalCurrency(transaction);
+        var inCompanyCurrency = string.Equals(currency, data.Settings.Localization.Currency, StringComparison.OrdinalIgnoreCase);
 
         // A purchase or sale saved before cost of goods sold began was expensed, or sold at no cost, and
         // its stock is part of the opening units. Editing it moves stock as before and nothing more, or
@@ -103,14 +106,16 @@ public static class InventoryStockService
 
         // An edited sale keeps the unit cost it was saved at, so a later purchase that changed the
         // stock's cost doesn't rewrite its past profit. Only a product the edit adds takes today's cost.
+        // A line whose cost was still pending has no saved cost to keep.
         var savedUnitCost = oldLines
-                .Where(l => !isPurchase && l.CostOfGoodsUSD != null && l.ProductId != null && l.Quantity - l.OpeningUnitsUsed > 0)
+                .Where(l => !isPurchase && l.CostOfGoodsUSD != null && !l.IsCostOfGoodsPending && l.ProductId != null && l.Quantity - l.OpeningUnitsUsed > 0)
                 .GroupBy(l => (l.ProductId, l.LocationId))
                 .ToDictionary(g => g.Key, g => g.Sum(l => l.CostOfGoodsUSD!.Value) / g.Sum(l => l.Quantity - l.OpeningUnitsUsed));
 
         foreach (var line in newLines)
         {
             line.CostOfGoodsUSD = null;
+            line.IsCostOfGoodsPending = false;
             line.OpeningUnitsUsed = 0;
             line.IsStockPurchase = false;
 
@@ -129,8 +134,8 @@ public static class InventoryStockService
                 if (savedBeforeCostOfGoods) continue;
                 line.IsStockPurchase = true;
 
-                if (line.Quantity > 0 && usdPerNative is { } rate)
-                    item.UnitCost = line.Subtotal / line.Quantity * rate;
+                if (line.Quantity > 0)
+                    SetUnitCost(data, item, line.Subtotal / line.Quantity, currency, transaction.Date, usdPerNative);
 
                 if (inCompanyCurrency && costPriceChanged.Add(product))
                 {
@@ -147,8 +152,16 @@ public static class InventoryStockService
                 var openingUsed = line.Quantity > 0 ? Math.Min(Math.Max(item.OpeningUnits, 0), line.Quantity) : 0;
                 item.OpeningUnits -= openingUsed;
                 line.OpeningUnitsUsed = openingUsed;
-                var unitCost = savedUnitCost.TryGetValue((product.Id, item.LocationId), out var saved) ? saved : item.UnitCost;
-                line.CostOfGoodsUSD = (line.Quantity - openingUsed) * unitCost;
+                var costedUnits = line.Quantity - openingUsed;
+                if (savedUnitCost.TryGetValue((product.Id, item.LocationId), out var saved))
+                {
+                    line.CostOfGoodsUSD = costedUnits * saved;
+                }
+                else
+                {
+                    line.IsCostOfGoodsPending = item.IsPendingConversion && costedUnits != 0;
+                    line.CostOfGoodsUSD = costedUnits * item.UnitCost;
+                }
                 item.InStock -= line.Quantity;
             }
         }
@@ -159,7 +172,7 @@ public static class InventoryStockService
     /// <summary>
     /// Adds a purchase order's received units to stock. Each line goes to its product's first stock
     /// record; a tracked product with none gets one at the company's first location, costed from the
-    /// order line at the order's own rate (unless the order is still waiting for that rate).
+    /// order line at the order's own rate, or pending while the order waits for that rate.
     /// Receiving into an existing record leaves its cost as it is.
     /// </summary>
     public static List<StockChange> ReceivePurchaseOrder(
@@ -179,14 +192,13 @@ public static class InventoryStockService
                 if (product is not { TrackInventory: true }) continue;
 
                 item = CreateStockItem(data, product, null, order.OrderDate);
-                if (UsdPerNative(order) is { } rate)
-                    item.UnitCost = line.UnitCost * rate;
-                byItem[item] = new StockChange.Builder(item, product, wasCreated: true);
+                SetUnitCost(data, item, line.UnitCost, OrderCurrency(order), order.OrderDate, UsdPerNative(order));
+                byItem[item] = new StockChange.Builder(data, item, product, wasCreated: true);
                 touched.Add(byItem[item]);
             }
             else if (!byItem.ContainsKey(item))
             {
-                byItem[item] = new StockChange.Builder(item, product, wasCreated: false);
+                byItem[item] = new StockChange.Builder(data, item, product, wasCreated: false);
                 touched.Add(byItem[item]);
             }
 
@@ -249,6 +261,7 @@ public static class InventoryStockService
             item.InStock = change.OldStock;
             item.OpeningUnits = change.OldOpeningUnits;
             item.UnitCost = change.OldUnitCost;
+            item.IsPendingConversion = change.OldCostPending;
             item.Status = item.CalculateStatus();
             item.LastUpdated = DateTime.UtcNow;
 
@@ -260,6 +273,10 @@ public static class InventoryStockService
 
             if (change.WasCreated)
                 data.Inventory.Remove(item);
+
+            var entry = change.WasCreated ? null : change.OldPendingCost;
+            if (!ReferenceEquals(PendingCostEntry(data, item.Id), entry))
+                SetPendingCostEntry(data, item.Id, entry);
         }
     }
 
@@ -305,6 +322,11 @@ public static class InventoryStockService
                 ? CreateStockItem(data, product, destinationLocationId, DateTime.Today)
                 : CreateStockItem(data, source, destinationLocationId);
             destination.UnitCost = source.UnitCost;
+            destination.IsPendingConversion = source.IsPendingConversion;
+            var sourceCost = source.IsPendingConversion ? PendingCostEntry(data, source.Id) : null;
+            SetPendingCostEntry(data, destination.Id, sourceCost == null
+                ? null
+                : PendingCostFor(destination, sourceCost.Total, sourceCost.OriginalCurrency, sourceCost.TransactionDate));
         }
 
         var result = new StockTransferResult
@@ -406,20 +428,22 @@ public static class InventoryStockService
         data.StockTransfers.Remove(result.Transfer);
 
         if (result.DestinationCreated)
+        {
             data.Inventory.Remove(result.Destination);
+            SetPendingCostEntry(data, result.Destination.Id, null);
+        }
     }
 
     /// <summary>
     /// USD per unit of the transaction's own currency, or null while its rate is not known yet, in
-    /// which case a purchase leaves the stock's unit cost as it was.
+    /// which case a purchase leaves the stock's unit cost pending.
     /// </summary>
     public static decimal? UsdPerNative(Transaction transaction) =>
         UsdPerNative(OriginalCurrency(transaction), transaction.Total, transaction.TotalUSD, transaction.IsPendingConversion);
 
     /// <summary><see cref="UsdPerNative(Transaction)"/> for a purchase order, whose line costs are in its own currency.</summary>
     public static decimal? UsdPerNative(PurchaseOrder order) =>
-        UsdPerNative(string.IsNullOrEmpty(order.OriginalCurrency) ? "USD" : order.OriginalCurrency,
-            order.Total, order.TotalUSD, order.IsPendingConversion);
+        UsdPerNative(OrderCurrency(order), order.Total, order.TotalUSD, order.IsPendingConversion);
 
     private static decimal? UsdPerNative(string currency, decimal total, decimal totalUSD, bool isPending)
     {
@@ -432,20 +456,26 @@ public static class InventoryStockService
 
     /// <summary>
     /// The product's cost price, which is in the company's currency, in USD at <paramref name="date"/>'s
-    /// rate: the unit cost a new stock record starts at (docs/Calculations.md §14). 0 while that rate
-    /// isn't available, just as a purchase waiting for its rate sets no cost.
+    /// rate. False while that rate isn't available.
     /// </summary>
-    public static decimal CostPriceUSD(CompanyData data, Product product, DateTime date)
+    public static bool TryCostPriceUSD(CompanyData data, Product product, DateTime date, out decimal usd)
     {
-        var currency = data.Settings.Localization.Currency;
-        if (string.IsNullOrEmpty(currency) || string.Equals(currency, "USD", StringComparison.OrdinalIgnoreCase))
-            return product.CostPrice;
+        if (UnitCostUSD(product.CostPrice, CompanyCurrency(data), date, null) is { } known)
+        {
+            usd = known;
+            return true;
+        }
 
-        return ExchangeRateService.Instance is { } rates
-               && rates.TryConvertToUsdBase(product.CostPrice, currency, date, out var usd)
-            ? usd
-            : 0m;
+        usd = 0;
+        return false;
     }
+
+    /// <summary>
+    /// Starts a new stock record at the product's cost price as of <paramref name="date"/>, or leaves
+    /// its cost pending until that day's rate can be had (docs/Calculations.md §14).
+    /// </summary>
+    public static void StartAtCostPrice(CompanyData data, InventoryItem item, Product product, DateTime date) =>
+        SetUnitCost(data, item, product.CostPrice, CompanyCurrency(data), date, null);
 
     /// <summary>
     /// A new stock record for <paramref name="product"/>, added to the company, starting at the
@@ -457,10 +487,112 @@ public static class InventoryStockService
         item.UnitOfMeasure = product.UnitOfMeasure;
         item.ReorderPoint = product.ReorderPoint;
         item.OverstockThreshold = product.OverstockThreshold;
-        item.UnitCost = CostPriceUSD(data, product, costDate);
+        StartAtCostPrice(data, item, product, costDate);
         item.Status = item.CalculateStatus();
         return item;
     }
+
+    /// <summary>
+    /// Sets a stock record's unit cost from a cost in <paramref name="currency"/>. When the rate isn't
+    /// available yet, the cost waits in the conversion queue and counts as 0 until
+    /// <see cref="ApplyConvertedCost"/> fills it in, the way every other amount waits for its rate.
+    /// </summary>
+    private static void SetUnitCost(
+        CompanyData data, InventoryItem item, decimal nativeUnitCost, string currency, DateTime date, decimal? usdPerNative)
+    {
+        if (UnitCostUSD(nativeUnitCost, currency, date, usdPerNative) is { } usd)
+        {
+            item.UnitCost = usd;
+            item.IsPendingConversion = false;
+            // Kept while sales made during the wait still need the cost the stock had then.
+            if (!PendingCostLines(data, item).Any())
+                SetPendingCostEntry(data, item.Id, null);
+            return;
+        }
+
+        item.UnitCost = 0;
+        item.IsPendingConversion = true;
+        SetPendingCostEntry(data, item.Id, PendingCostFor(item, nativeUnitCost, currency, date));
+    }
+
+    private static decimal? UnitCostUSD(decimal nativeUnitCost, string currency, DateTime date, decimal? usdPerNative)
+    {
+        if (nativeUnitCost == 0 || string.Equals(currency, "USD", StringComparison.OrdinalIgnoreCase))
+            return nativeUnitCost;
+        if (usdPerNative is { } rate)
+            return nativeUnitCost * rate;
+        return ExchangeRateService.Instance is { } rates && rates.TryConvertToUsdBase(nativeUnitCost, currency, date, out var usd)
+            ? usd
+            : null;
+    }
+
+    /// <summary>
+    /// Fills in a stock record's cost once its rate has come in: the record takes it unless a later
+    /// purchase has already set a known cost, and every sale line that took this stock while its cost
+    /// was pending gets its cost of goods sold from it. Called by the conversion queue.
+    /// </summary>
+    public static void ApplyConvertedCost(CompanyData data, PendingConversion entry, decimal rate)
+    {
+        var item = data.Inventory.FirstOrDefault(i => i.Id == entry.TransactionId);
+        if (item == null) return;
+
+        var unitCost = entry.Total * rate;
+        if (item.IsPendingConversion)
+        {
+            item.UnitCost = unitCost;
+            item.IsPendingConversion = false;
+        }
+
+        foreach (var line in PendingCostLines(data, item).ToList())
+        {
+            line.CostOfGoodsUSD = (line.Quantity - line.OpeningUnitsUsed) * unitCost;
+            line.IsCostOfGoodsPending = false;
+        }
+    }
+
+    /// <summary>
+    /// Whether a stock record's queued cost has nothing left waiting on it: the record's cost is known
+    /// and no sale line is waiting for it. False when the record no longer exists.
+    /// </summary>
+    public static bool IsCostSettled(CompanyData data, string itemId) =>
+        data.Inventory.FirstOrDefault(i => i.Id == itemId) is { IsPendingConversion: false } item
+        && !PendingCostLines(data, item).Any();
+
+    private static IEnumerable<LineItem> PendingCostLines(CompanyData data, InventoryItem item) =>
+        data.Revenues
+            .SelectMany(r => r.LineItems)
+            .Where(l => l.IsCostOfGoodsPending && l.ProductId == item.ProductId && l.LocationId == item.LocationId);
+
+    private static PendingConversion PendingCostFor(InventoryItem item, decimal nativeUnitCost, string currency, DateTime date) => new()
+    {
+        TransactionId = item.Id,
+        TransactionType = PendingCostType,
+        OriginalCurrency = currency,
+        TransactionDate = date,
+        Total = nativeUnitCost
+    };
+
+    private static PendingConversion? PendingCostEntry(CompanyData data, string itemId) =>
+        data.PendingConversions.FirstOrDefault(p => p.TransactionId == itemId && p.TransactionType == PendingCostType);
+
+    /// <summary>
+    /// Replaces a stock record's entry in the conversion queue, in the company file and in the
+    /// conversion service's copy, which converts from its own entries.
+    /// </summary>
+    public static void SetPendingCostEntry(CompanyData data, string itemId, PendingConversion? entry)
+    {
+        var removed = data.PendingConversions.RemoveAll(p => p.TransactionId == itemId && p.TransactionType == PendingCostType);
+        if (entry != null)
+            data.PendingConversions.Add(entry);
+        if (removed > 0 || entry != null)
+            _ = PendingConversionService.Instance?.MirrorAsync(data, [itemId]);
+    }
+
+    private static string CompanyCurrency(CompanyData data) =>
+        string.IsNullOrEmpty(data.Settings.Localization.Currency) ? "USD" : data.Settings.Localization.Currency;
+
+    private static string OrderCurrency(PurchaseOrder order) =>
+        string.IsNullOrEmpty(order.OriginalCurrency) ? "USD" : order.OriginalCurrency;
 
     private static string OriginalCurrency(Transaction transaction) =>
         string.IsNullOrEmpty(transaction.OriginalCurrency) ? "USD" : transaction.OriginalCurrency;
@@ -508,17 +640,22 @@ public sealed class StockChange
     public decimal NewStock { get; init; }
     public decimal OldOpeningUnits { get; init; }
     public decimal OldUnitCost { get; init; }
+    public bool OldCostPending { get; init; }
+    public PendingConversion? OldPendingCost { get; init; }
     public Product? CostPriceProduct { get; init; }
     public decimal OldCostPrice { get; init; }
     public StockAdjustment? Adjustment { get; init; }
     public bool WasCreated { get; init; }
 
-    internal sealed class Builder(InventoryItem item, Product? product, bool wasCreated)
+    internal sealed class Builder(CompanyData data, InventoryItem item, Product? product, bool wasCreated)
     {
         public InventoryItem Item { get; } = item;
         public decimal OldStock { get; } = item.InStock;
         private readonly decimal _oldOpeningUnits = item.OpeningUnits;
         private readonly decimal _oldUnitCost = item.UnitCost;
+        private readonly bool _oldCostPending = item.IsPendingConversion;
+        private readonly PendingConversion? _oldPendingCost = data.PendingConversions.FirstOrDefault(p =>
+            p.TransactionId == item.Id && p.TransactionType == InventoryStockService.PendingCostType);
         private Product? _costPriceProduct;
         private decimal _oldCostPrice;
 
@@ -536,6 +673,8 @@ public sealed class StockChange
             NewStock = Item.InStock,
             OldOpeningUnits = _oldOpeningUnits,
             OldUnitCost = _oldUnitCost,
+            OldCostPending = _oldCostPending,
+            OldPendingCost = _oldPendingCost,
             CostPriceProduct = _costPriceProduct,
             OldCostPrice = _oldCostPrice,
             Adjustment = adjustment,

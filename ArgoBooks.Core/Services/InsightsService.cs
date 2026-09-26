@@ -1002,9 +1002,12 @@ public class InsightsService(
         var productSalesData = new Dictionary<string, (decimal Revenue, decimal RevenueDisplay, decimal Cost, decimal Quantity)>();
 
         // Cash-basis: only collected revenue contributes to top-product analysis.
+        // A margin needs both amounts, so a sale still waiting for its revenue's rate, or a line whose
+        // cost price can't be converted yet, is left out rather than counted at no revenue or no cost.
         foreach (var s in companyData.Revenues
                      .Where(s => s.Date >= dateRange.StartDate && s.Date <= dateRange.EndDate)
-                     .Where(RevenueAggregator.IsCollected))
+                     .Where(RevenueAggregator.IsCollected)
+                     .Where(s => !s.IsPendingConversion))
         {
             if (s.LineItems.Count == 0) continue;
             var lineItemsTotal = s.LineItems.Sum(li => li.Subtotal);
@@ -1018,9 +1021,12 @@ public class InsightsService(
                 var revenueUSD = lineItemsTotal != 0
                     ? Math.Round(li.Subtotal / lineItemsTotal * grossUSD, 2)
                     : 0;
-                var revenueDisplay = ToDisplay(revenueUSD, s.Date);
                 var costProduct = companyData.GetProduct(li.ProductId ?? "");
-                var costUSD = costProduct == null ? 0 : li.Quantity * InventoryStockService.CostPriceUSD(companyData, costProduct, s.Date);
+                var unitCostUSD = 0m;
+                if (costProduct != null && !InventoryStockService.TryCostPriceUSD(companyData, costProduct, s.Date, out unitCostUSD))
+                    continue;
+                var costUSD = li.Quantity * unitCostUSD;
+                var revenueDisplay = ToDisplay(revenueUSD, s.Date);
 
                 var pid = li.ProductId ?? "";
                 if (!productSalesData.ContainsKey(pid))

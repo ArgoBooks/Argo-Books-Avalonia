@@ -5,6 +5,7 @@ using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Models.Entities;
+using ArgoBooks.Core.Models.Insights;
 using ArgoBooks.Core.Models.Inventory;
 using ArgoBooks.Core.Models.Reports;
 using ArgoBooks.Core.Models.Transactions;
@@ -26,6 +27,12 @@ public class InventoryCostCurrencyTests
     private static readonly DateTime ReportEnd = new(2024, 12, 31);
     private const decimal UsdToEur = 0.8m;
     private const decimal UsdToCad = 1.25m;
+
+    public InventoryCostCurrencyTests()
+    {
+        // The queues these tests convert with must not become the shared one the stock service mirrors into.
+        _ = PendingConversionService.Instance ?? new PendingConversionService(new MockPlatformService());
+    }
 
     private static CompanyData CadCompany()
     {
@@ -65,14 +72,14 @@ public class InventoryCostCurrencyTests
     }
 
     [Fact]
-    public async Task CostPriceUSD_RateMissing_IsZeroRatherThanTheUnconvertedPrice()
+    public async Task TryCostPriceUSD_RateMissing_IsNotAvailableRatherThanTheUnconvertedPrice()
     {
         var prior = SetInstance(await SeededServiceAsync());
         try
         {
             var data = CadCompany();
 
-            Assert.Equal(0m, InventoryStockService.CostPriceUSD(data, data.Products[0], SaleDate));
+            Assert.False(InventoryStockService.TryCostPriceUSD(data, data.Products[0], SaleDate, out _));
         }
         finally
         {
@@ -81,13 +88,200 @@ public class InventoryCostCurrencyTests
     }
 
     [Fact]
-    public void CostPriceUSD_UsdCompany_IsTheCostPrice()
+    public void TryCostPriceUSD_UsdCompany_IsTheCostPrice()
     {
         var data = new CompanyData();
         data.Settings.Localization.Currency = "USD";
         var product = new Product { Id = "PRD-1", CostPrice = 12.5m };
 
-        Assert.Equal(12.5m, InventoryStockService.CostPriceUSD(data, product, SaleDate));
+        Assert.True(InventoryStockService.TryCostPriceUSD(data, product, SaleDate, out var usd));
+        Assert.Equal(12.5m, usd);
+    }
+
+    // A missing rate used to start the stock at a cost of 0 for good, so every sale of it saved no
+    // cost of goods sold. The cost now waits for its rate like any other amount (§14).
+    [Fact]
+    public async Task RateMissing_StockCostWaits_ThenFillsTheSaleMadeMeanwhile()
+    {
+        var prior = SetInstance(await SeededServiceAsync());
+        try
+        {
+            var data = CadCompany();
+            var sale = Sale(2);
+            data.Revenues.Add(sale);
+
+            InventoryStockService.Apply(data, sale.LineItems, sale, isPurchase: false);
+
+            var item = Assert.Single(data.Inventory);
+            Assert.True(item.IsPendingConversion);
+            Assert.Equal(0m, item.UnitCost);
+            Assert.True(sale.LineItems[0].IsCostOfGoodsPending);
+            Assert.Equal(0m, CostOfGoodsAggregator.CostOfGoodsSoldUSD(sale));
+            var queued = Assert.Single(data.PendingConversions);
+            Assert.Equal((12.5m, "CAD", SaleDate), (queued.Total, queued.OriginalCurrency, queued.TransactionDate));
+
+            await ConvertQueueAsync(data);
+
+            Assert.False(item.IsPendingConversion);
+            Assert.Equal(10m, item.UnitCost);
+            Assert.False(sale.LineItems[0].IsCostOfGoodsPending);
+            Assert.Equal(20m, sale.LineItems[0].CostOfGoodsUSD);
+            Assert.Empty(data.PendingConversions);
+        }
+        finally
+        {
+            SetInstance(prior);
+        }
+    }
+
+    // A sale takes the cost the stock had when it was sold, even after a later purchase with a known
+    // rate has given the stock a new cost.
+    [Fact]
+    public async Task PendingPurchase_SaleMeanwhile_GetsThatPurchasesCost_NotALaterOne()
+    {
+        var prior = SetInstance(await SeededServiceAsync());
+        try
+        {
+            var data = CadCompany();
+            data.Inventory.Add(new InventoryItem { Id = "INV-1", ProductId = "PRD-1", LocationId = "LOC-1", InStock = 5, UnitCost = 4m });
+
+            var eurPurchase = Purchase("PUR-1", "EUR", unitPrice: 10m, pending: true);
+            InventoryStockService.Apply(data, eurPurchase.LineItems, eurPurchase, isPurchase: true);
+            var item = data.Inventory[0];
+            Assert.True(item.IsPendingConversion);
+
+            var sale = Sale(2);
+            data.Revenues.Add(sale);
+            InventoryStockService.Apply(data, sale.LineItems, sale, isPurchase: false);
+            Assert.True(sale.LineItems[0].IsCostOfGoodsPending);
+
+            var usdPurchase = Purchase("PUR-2", "USD", unitPrice: 7m, pending: false);
+            InventoryStockService.Apply(data, usdPurchase.LineItems, usdPurchase, isPurchase: true);
+            Assert.False(item.IsPendingConversion);
+            Assert.Equal(7m, item.UnitCost);
+
+            await ConvertQueueAsync(data);
+
+            // 10 EUR at 1.25 USD per EUR, for two units; the stock keeps the later purchase's cost.
+            Assert.Equal(25m, sale.LineItems[0].CostOfGoodsUSD);
+            Assert.False(sale.LineItems[0].IsCostOfGoodsPending);
+            Assert.Equal(7m, item.UnitCost);
+            Assert.Empty(data.PendingConversions);
+        }
+        finally
+        {
+            SetInstance(prior);
+        }
+    }
+
+    [Fact]
+    public async Task OrderStillWaitingForItsRate_LeavesTheNewRecordsCostPending_InTheOrdersCurrency()
+    {
+        var prior = SetInstance(await SeededServiceAsync());
+        try
+        {
+            var data = new CompanyData();
+            data.Settings.Localization.Currency = "USD";
+            data.Locations.Add(new Location { Id = "LOC-1", Name = "Warehouse" });
+            data.Products.Add(new Product { Id = "PRD-1", Name = "Flour", TrackInventory = true, CostPrice = 5m });
+            var order = new PurchaseOrder
+            {
+                Id = "PO-00001", PoNumber = "#PO-1", OrderDate = SaleDate, OriginalCurrency = "EUR",
+                Total = 20m, IsPendingConversion = true,
+                LineItems = [new PurchaseOrderLineItem { ProductId = "PRD-1", Quantity = 2, UnitCost = 10m }]
+            };
+
+            InventoryStockService.ReceivePurchaseOrder(data, order, [(order.LineItems[0], 2m)]);
+
+            var item = Assert.Single(data.Inventory);
+            Assert.True(item.IsPendingConversion);
+            var queued = Assert.Single(data.PendingConversions);
+            Assert.Equal((10m, "EUR", SaleDate), (queued.Total, queued.OriginalCurrency, queued.TransactionDate));
+
+            await ConvertQueueAsync(data);
+
+            Assert.Equal(12.5m, item.UnitCost);
+        }
+        finally
+        {
+            SetInstance(prior);
+        }
+    }
+
+    [Fact]
+    public async Task UndoingAPendingPurchase_PutsTheKnownCostBack_AndDropsTheQueuedOne()
+    {
+        var prior = SetInstance(await SeededServiceAsync());
+        try
+        {
+            var data = CadCompany();
+            data.Inventory.Add(new InventoryItem { Id = "INV-1", ProductId = "PRD-1", LocationId = "LOC-1", InStock = 5, UnitCost = 4m });
+            var purchase = Purchase("PUR-1", "EUR", unitPrice: 10m, pending: true);
+
+            var changes = InventoryStockService.Apply(data, purchase.LineItems, purchase, isPurchase: true);
+            InventoryStockService.Revert(data, changes);
+
+            var item = data.Inventory[0];
+            Assert.False(item.IsPendingConversion);
+            Assert.Equal(4m, item.UnitCost);
+            Assert.Empty(data.PendingConversions);
+        }
+        finally
+        {
+            SetInstance(prior);
+        }
+    }
+
+    // A margin needs both amounts: a line whose cost price can't be converted yet used to count as
+    // costing nothing, which inflated the product's margin.
+    [Fact]
+    public async Task TopPerformingProduct_LeavesOutSalesWhoseCostCantBeConvertedYet()
+    {
+        var priced = DateTime.Today.AddDays(-10);
+        var unpriced = DateTime.Today.AddDays(-20);
+        var prior = SetInstance(await SeededServiceAsync(priced));
+        try
+        {
+            var data = CadCompany();
+            data.Products[0].CostPrice = 10m;
+            foreach (var (id, date) in new[] { ("REV-1", priced), ("REV-2", unpriced) })
+            {
+                data.Revenues.Add(new Revenue
+                {
+                    Id = id, Date = date, OriginalCurrency = "USD", Total = 100m, TotalUSD = 100m,
+                    PaymentStatus = RevenuePaymentStatus.Paid,
+                    LineItems = [new LineItem { ProductId = "PRD-1", Quantity = 1, UnitPrice = 100m }]
+                });
+            }
+
+            var range = new AnalysisDateRange { StartDate = DateTime.Today.AddMonths(-2), EndDate = DateTime.Today };
+            var top = new InsightsService().GenerateRecommendations(data, range)
+                .Single(r => r.Title == "Top Performing Product");
+
+            // Only the priced sale: $100 revenue against 10 CAD = $8 cost.
+            Assert.Equal(100m, top.MetricValue);
+            Assert.Equal(92m, top.PercentageChange);
+        }
+        finally
+        {
+            SetInstance(prior);
+        }
+    }
+
+    private static Expense Purchase(string id, string currency, decimal unitPrice, bool pending) => new()
+    {
+        Id = id, Date = SaleDate, OriginalCurrency = currency, Total = unitPrice * 4, Amount = unitPrice * 4,
+        TotalUSD = pending ? 0m : unitPrice * 4, IsPendingConversion = pending,
+        LineItems = [new LineItem { ProductId = "PRD-1", LocationId = "LOC-1", Quantity = 4, UnitPrice = unitPrice }]
+    };
+
+    /// <summary>Converts the company's queued amounts the way the app does once the rates can be fetched.</summary>
+    private static async Task ConvertQueueAsync(CompanyData data)
+    {
+        var rates = new ExchangeRateService(new MockPlatformService(), new HttpClient(new FixedRatesHandler()));
+        var queue = new PendingConversionService(new MockPlatformService(), exchangeRateService: rates);
+        await queue.ReconcileWithCompanyDataAsync(data);
+        await queue.ProcessPendingConversionsAsync(data);
     }
 
     [Fact]

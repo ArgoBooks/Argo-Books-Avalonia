@@ -1778,7 +1778,7 @@ public class SpreadsheetImportService
                         invoice.Id = invoice.InvoiceNumber;
                     else if (string.IsNullOrEmpty(invoice.InvoiceNumber))
                         invoice.InvoiceNumber = invoice.Id;
-                    invoice.Status = SavedInvoiceStatus(invoice.Status);
+                    SetImportedStatus(invoice, invoice.Status, amountsSet: true);
                 }
 
                 if (invoice != null && !string.IsNullOrEmpty(invoice.Id))
@@ -3140,11 +3140,23 @@ public class SpreadsheetImportService
         => SpreadsheetRowReader.GetNullableDateTime(row, headers, columnName, DateOrderOf(headers, columnName));
 
     /// <summary>
-    /// Overdue is worked out from the due date and never saved (docs/Calculations.md §6), so a sheet
-    /// saying Overdue is taken to mean sent and not yet paid.
+    /// Gives an imported invoice its status once its amounts are set. Overdue is worked out from the
+    /// due date and never saved (docs/Calculations.md §6), so a sheet saying Overdue is taken to mean
+    /// sent. The amount paid then decides the payment status the way a recorded payment does
+    /// (<see cref="InvoiceTotalsService.RecalculateStatus"/>): an Overdue invoice with half paid is
+    /// Partial. An update that sets only the status, such as marking a batch paid, is taken as given,
+    /// except Overdue, which is never a status of its own. A refund status is kept as the sheet gives
+    /// it, since the sheet carries no refund amounts to work it out from.
     /// </summary>
-    private static InvoiceStatus SavedInvoiceStatus(InvoiceStatus status) =>
-        status == InvoiceStatus.Overdue ? InvoiceStatus.Sent : status;
+    private static void SetImportedStatus(Invoice invoice, InvoiceStatus status, bool amountsSet)
+    {
+        invoice.Status = status == InvoiceStatus.Overdue ? InvoiceStatus.Sent : status;
+        if (!amountsSet && status != InvoiceStatus.Overdue)
+            return;
+        if (invoice.Status is InvoiceStatus.Refunded or InvoiceStatus.PartiallyRefunded && invoice.AmountRefunded == 0)
+            return;
+        InvoiceTotalsService.RecalculateStatus(invoice);
+    }
 
     private static TEnum ParseEnum<TEnum>(string value, TEnum defaultValue) where TEnum : struct, Enum
     {
@@ -3545,8 +3557,10 @@ Respond with ONLY a JSON array, one entry per product in the same order:
                 invoice.Balance = Math.Max(0m, GetDecimal(row, headers, "Balance"));
             else if (Set("Paid", "Total"))
                 invoice.Balance = Math.Max(0m, invoice.Total - invoice.AmountPaid);
-            if (Set("Status"))
-                invoice.Status = SavedInvoiceStatus(ParseEnum(GetString(row, headers, "Status"), InvoiceStatus.Draft));
+            if (Set("Status", "Paid", "Balance", "Total"))
+                SetImportedStatus(invoice, Set("Status")
+                    ? ParseEnum(GetString(row, headers, "Status"), InvoiceStatus.Draft)
+                    : invoice.Status, amountsSet: Set("Paid", "Balance", "Total"));
 
             // Per-row currency detected from the amount cells, else the record's own when updating,
             // else the company currency. Left as it is when nothing it is priced from changed.
@@ -3841,8 +3855,13 @@ Respond with ONLY a JSON array, one entry per product in the same order:
                 item.Reserved = GetDecimal(row, headers, "Reserved");
             if (Set("Reorder Point"))
                 item.ReorderPoint = GetDecimal(row, headers, "Reorder Point");
-            if (Set("Unit Cost"))
-                item.UnitCost = GetDecimal(row, headers, "Unit Cost");
+            // A cost still waiting for its rate is exported as 0, so only a different figure replaces it.
+            var unitCost = GetDecimal(row, headers, "Unit Cost");
+            if (Set("Unit Cost") && (unitCost != item.UnitCost || !item.IsPendingConversion))
+            {
+                item.UnitCost = unitCost;
+                item.IsPendingConversion = false;
+            }
             if (Set("Last Updated"))
             {
                 item.LastUpdated = GetDateTime(row, headers, "Last Updated");

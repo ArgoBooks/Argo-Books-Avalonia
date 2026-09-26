@@ -308,21 +308,6 @@ public class InventoryStockServiceTests
     }
 
     [Fact]
-    public void PendingConversionPurchase_LeavesTheUnitCostAsItWas()
-    {
-        var data = Company(Shop);
-        var item = Stock(data, inStock: 0, unitCost: 2m);
-        var purchase = Purchase(Line("PRD-1", 10, 10m));
-        purchase.OriginalCurrency = "CAD";
-        purchase.IsPendingConversion = true;
-
-        InventoryStockService.Apply(data, purchase.LineItems, purchase, isPurchase: true);
-
-        Assert.Equal(10m, item.InStock);
-        Assert.Equal(2m, item.UnitCost);
-    }
-
-    [Fact]
     public void Transfer_MovesStockAndOpeningUnitsInProportion_AndRevertUndoesIt()
     {
         var data = Company(Shop, Warehouse);

@@ -1,4 +1,5 @@
 using System.Globalization;
+using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Inventory;
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Models.Common;
@@ -60,7 +61,8 @@ public static class SnapshotBuilder
                 .ToList(),
             Invoices = data.Invoices
                 .OrderByDescending(i => i.IssueDate)
-                .Select(i => Money(string.IsNullOrEmpty(i.InvoiceNumber) ? i.Id : i.InvoiceNumber, i.Status.ToString(),
+                .Select(i => Money(string.IsNullOrEmpty(i.InvoiceNumber) ? i.Id : i.InvoiceNumber,
+                    InvoiceTotalsService.DisplayStatus(i).ToDisplayText(),
                     Convert(i.EffectiveTotalUSD, i.IssueDate)))
                 .ToList(),
             Customers = data.Customers

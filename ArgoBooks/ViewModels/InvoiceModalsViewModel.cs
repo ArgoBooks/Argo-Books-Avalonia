@@ -1644,7 +1644,8 @@ public partial class InvoiceModalsViewModel : ViewModelBase
             ShippingAmount = ShippingAmount,
             OriginalCurrency = SelectedCurrencyCode,
             Notes = ModalNotes,
-            Status = InvoiceStatus.Draft,
+            // Shown as the customer will receive it, so a past due date prints as overdue.
+            Status = InvoiceStatus.Sent,
             LineItems = LineItems.Select(li => new LineItem
             {
                 Description = li.Description,
@@ -1861,9 +1862,8 @@ public partial class InvoiceModalsViewModel : ViewModelBase
             invoice.DiscountAmount = DiscountAmount;
             invoice.DiscountIsPercent = DiscountIsPercent;
             invoice.Notes = ModalNotes;
-            // Leave the status as Draft during the send attempt; it's set to Sent only after publish/email
-            // succeeds (below). Flipping it to Pending here left the draft stuck and un-continuable if the
-            // send then failed (ContinueDraftInvoice only accepts Draft).
+            // The status becomes Sent just before the invoice is rendered for sending (below); a failed
+            // send puts the draft back through restoreDraft, so it can still be continued.
             invoice.UpdatedAt = DateTime.UtcNow;
             invoice.LineItems = LineItems.Select(i => new LineItem
             {
@@ -1954,6 +1954,10 @@ public partial class InvoiceModalsViewModel : ViewModelBase
         // from InvoiceTotalsService so the rule "stored totals always match
         // the Payment list" is preserved. See docs/Calculations.md §5.
         InvoiceTotalsService.Recalculate(invoice, companyData.Payments);
+
+        // Rendered and published with the status it goes out with, so a due date already past prints
+        // as overdue (Invoice.IsOverdue) and the portal doesn't receive a draft.
+        invoice.Status = InvoiceStatus.Sent;
 
         // Undoes what this attempt changed and says why it failed. The number goes back only when the
         // portal can't hold it: reusing one it published would put another invoice behind the link

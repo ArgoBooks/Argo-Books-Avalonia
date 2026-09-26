@@ -858,11 +858,7 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
     }
 
     private static string GetStatusDisplay(Invoice invoice) =>
-        InvoiceTotalsService.DisplayStatus(invoice) switch
-        {
-            InvoiceStatus.PartiallyRefunded => "Partially Refunded",
-            var status => status.ToString()
-        };
+        InvoiceTotalsService.DisplayStatus(invoice).ToDisplayText();
 
     /// <summary>
     /// True when the row's Refund icon button should be visible.

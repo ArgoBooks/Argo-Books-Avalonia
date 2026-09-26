@@ -38,6 +38,13 @@ public class LineItem
     public decimal? CostOfGoodsUSD { get; set; }
 
     /// <summary>
+    /// True when this sale line took stock whose cost was still waiting for its exchange rate.
+    /// <see cref="CostOfGoodsUSD"/> is 0 until that cost converts, and is then filled in.
+    /// </summary>
+    [JsonPropertyName("isCostOfGoodsPending")]
+    public bool IsCostOfGoodsPending { get; set; }
+
+    /// <summary>
     /// Opening units this sale line used up, which carry no cost. Given back when the sale
     /// is edited or deleted.
     /// </summary>

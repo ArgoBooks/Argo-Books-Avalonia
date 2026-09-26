@@ -236,7 +236,7 @@ public partial class LocationsPageViewModel : SortablePageViewModelBase
         var inventory = companyData?.Inventory ?? [];
         TotalStockItems = inventory.Sum(i => i.InStock);
 
-        TotalInventoryValue = CurrencyService.FormatStockValue(inventory.Sum(i => i.TotalValue));
+        TotalInventoryValue = CurrencyService.FormatStockValue(inventory);
 
         // Calculate average capacity used
         if (_allLocations.Count > 0)

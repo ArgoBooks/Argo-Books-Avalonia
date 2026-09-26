@@ -68,6 +68,14 @@ public class InventoryItem
     public decimal UnitCost { get; set; }
 
     /// <summary>
+    /// True while <see cref="UnitCost"/> waits for the exchange rate it is converted at. The native
+    /// cost waits in the conversion queue and is converted once that rate can be had
+    /// (docs/Calculations.md §14). Until then the cost counts as 0.
+    /// </summary>
+    [JsonPropertyName("isPendingConversion")]
+    public bool IsPendingConversion { get; set; }
+
+    /// <summary>
     /// Unit of measure (e.g., Each, Box, Case).
     /// </summary>
     [JsonPropertyName("unitOfMeasure")]

@@ -180,10 +180,17 @@ public static class CurrencyService
     }
 
     /// <summary>
-    /// Formats a stock value, which is kept in USD, in the display currency at today's rate, because
-    /// stock on hand is valued as it stands now. See docs/Calculations.md §14.
+    /// Formats the value of <paramref name="items"/>, which is kept in USD, in the display currency at
+    /// today's rate, because stock on hand is valued as it stands now. Pending while a stock record
+    /// holding stock still waits for its cost's rate. See docs/Calculations.md §14.
     /// </summary>
-    public static string FormatStockValue(decimal valueUSD) => FormatFromUSD(valueUSD, DateTime.Today);
+    public static string FormatStockValue(IEnumerable<InventoryItem> items)
+    {
+        var list = items as IReadOnlyCollection<InventoryItem> ?? items.ToList();
+        return list.Any(i => i.IsPendingConversion && i.InStock != 0)
+            ? PendingMarker
+            : FormatFromUSD(list.Sum(i => i.TotalValue), DateTime.Today);
+    }
 
     /// <summary>
     /// Currency-aware per-item sum that reports (via the return value) whether EVERY item could be

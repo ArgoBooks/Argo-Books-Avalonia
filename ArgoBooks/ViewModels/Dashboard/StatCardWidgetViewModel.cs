@@ -272,7 +272,7 @@ public partial class StatCardWidgetViewModel : WidgetViewModelBase
 
     private void LoadInventoryValue(CompanyData data)
     {
-        Value = CurrencyService.FormatStockValue(data.Inventory.Sum(i => i.TotalValue));
+        Value = CurrencyService.FormatStockValue(data.Inventory);
         var lowStock = data.Inventory.Count(i => i.InStock <= i.ReorderPoint && i.InStock > 0);
         SecondaryText = lowStock > 0 ? $"{lowStock} low stock" : $"{data.Inventory.Count} items";
     }

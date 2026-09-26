@@ -60,18 +60,6 @@ public class PurchaseOrderReceivingTests
     }
 
     [Fact]
-    public void AnOrderStillWaitingForItsRate_LeavesTheNewRecordAtTheCostPrice()
-    {
-        var data = Company();
-        var order = EuroOrder(quantity: 2, unitCost: 10m);
-        order.IsPendingConversion = true;
-
-        InventoryStockService.ReceivePurchaseOrder(data, order, [(order.LineItems[0], 2m)]);
-
-        Assert.Equal(5m, Assert.Single(data.Inventory).UnitCost);
-    }
-
-    [Fact]
     public void ReceivingIntoAnExistingRecord_AddsToItAndKeepsItsCost()
     {
         var data = Company();

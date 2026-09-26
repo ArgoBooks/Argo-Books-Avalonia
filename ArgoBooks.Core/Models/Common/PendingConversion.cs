@@ -13,10 +13,11 @@ public class PendingConversion
     public string TransactionId { get; set; } = "";
 
     /// <summary>
-    /// The type of record: "Revenue", "Expense", "Payment", "PurchaseOrder", or "Invoice". For
-    /// Payment and PurchaseOrder only <see cref="Total"/> is used (the single amount to convert);
-    /// for Invoice, <see cref="Total"/> and <see cref="Balance"/> are used; the other amount fields
-    /// stay 0.
+    /// The type of record: "Revenue", "Expense", "Payment", "PurchaseOrder", "Invoice", or
+    /// "InventoryItem". For Payment and PurchaseOrder only <see cref="Total"/> is used (the single
+    /// amount to convert); for InventoryItem, <see cref="Total"/> is the stock record's unit cost in
+    /// <see cref="OriginalCurrency"/>; for Invoice, <see cref="Total"/> and <see cref="Balance"/> are
+    /// used; the other amount fields stay 0.
     /// </summary>
     [JsonPropertyName("transactionType")]
     public string TransactionType { get; set; } = "";

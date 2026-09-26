@@ -1564,28 +1564,25 @@ public partial class App : Application
             // Wire up pending conversion events
             PendingConversionService.PendingConversionsProcessed += (_, args) =>
             {
-                if (args is { ConvertedCount: > 0 })
+                var message = args.ConvertedCount == 1
+                    ? "1 pending transaction has been processed successfully.".Translate()
+                    : string.Format("{0} pending transactions have been processed successfully.".Translate(), args.ConvertedCount);
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                 {
-                    var message = args.ConvertedCount == 1
-                        ? "1 pending transaction has been processed successfully.".Translate()
-                        : string.Format("{0} pending transactions have been processed successfully.".Translate(), args.ConvertedCount);
-                    Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                    // The sample converts its demo rows on every open; announcing that is noise.
+                    if (args.ConvertedCount > 0 && CompanyManager?.IsSampleCompany != true)
                     {
-                        // The sample converts its demo rows on every open; announcing that is noise.
-                        if (CompanyManager?.IsSampleCompany != true)
-                        {
-                            AddNotification(
-                                "Back Online".Translate(),
-                                message,
-                                NotificationType.Success);
-                        }
+                        AddNotification(
+                            "Back Online".Translate(),
+                            message,
+                            NotificationType.Success);
+                    }
 
-                        // Refresh ViewModels so converted transactions show updated status and amounts
-                        _expensesPageViewModel?.RefreshExpensesCommand.Execute(null);
-                        _revenuePageViewModel?.RefreshRevenueCommand.Execute(null);
-                        NavigationService.RefreshCurrentPage();
-                    });
-                }
+                    // Refresh ViewModels so converted transactions show updated status and amounts
+                    _expensesPageViewModel?.RefreshExpensesCommand.Execute(null);
+                    _revenuePageViewModel?.RefreshRevenueCommand.Execute(null);
+                    NavigationService.RefreshCurrentPage();
+                });
             };
 
             // Wire up modal change events (separate from company manager)
