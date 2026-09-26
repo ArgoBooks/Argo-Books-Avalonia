@@ -1965,10 +1965,37 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ReceiptScanned, "sample");
         App.MainWindowViewModel?.NoteSampleReceiptScan();
 
+        // The receipt is canned, so the supplier and category it resolves to are known before the
+        // call is made. Suppressed rather than sent, then matched locally against whatever the
+        // company already has.
+        _suppressAiSuggestions = true;
         PopulateScanResults(BuildSampleScanResult());
+        _suppressAiSuggestions = false;
+        ApplySampleSuggestion();
 
         HasScanResult = true;
         IsScanning = false;
+    }
+
+    /// <summary>
+    /// Stands in for <see cref="GetAiSuggestionsAsync"/> on the sample receipt: matches the sample
+    /// supplier against the company's own list, offering to create it when it isn't there, and
+    /// names the category the sample's line items belong to.
+    /// </summary>
+    private void ApplySampleSuggestion()
+    {
+        var data = BuildSampleReceiptData();
+
+        _aiSuggestion = new SupplierCategorySuggestion
+        {
+            NewCategory = new NewCategorySuggestion
+            {
+                Name = "Office Supplies",
+                Description = "Stationery, printer supplies and other consumables."
+            }
+        };
+
+        TryBasicSupplierMatch(data.SupplierName);
     }
 
     /// <summary>
