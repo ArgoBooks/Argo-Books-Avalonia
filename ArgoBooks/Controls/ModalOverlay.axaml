@@ -8,8 +8,7 @@
         <Panel x:Name="OverlayPanel"
                HorizontalAlignment="Stretch"
                VerticalAlignment="Stretch"
-               Opacity="0"
-               IsHitTestVisible="False">
+               IsVisible="False">
 
             <!-- Semi-transparent backdrop -->
             <Border Background="{DynamicResource OverlayBrush}"

@@ -15,6 +15,7 @@ public partial class ModalOverlay : UserControl
 {
     private Panel? _overlayPanel;
     private ContentPresenter? _modalContentPresenter;
+    private bool _contentPresented;
 
     #region Styled Properties
 
@@ -120,14 +121,25 @@ public partial class ModalOverlay : UserControl
     {
         base.OnAttachedToVisualTree(e);
 
-        if (_modalContentPresenter != null)
-            _modalContentPresenter.Content = ModalContent;
+        if (IsOpen)
+            PresentContent();
 
         if (_overlayPanel != null)
-        {
-            _overlayPanel.Opacity = IsOpen ? 1 : 0;
-            _overlayPanel.IsHitTestVisible = IsOpen;
-        }
+            _overlayPanel.IsVisible = IsOpen;
+    }
+
+    /// <summary>
+    /// Hands the content to the presenter the first time the modal opens, and keeps it there after,
+    /// so reopening is instant and keeps its state. Until then the content is outside the visual
+    /// tree, which spares launch from styling and laying out every modal the app declares.
+    /// </summary>
+    private void PresentContent()
+    {
+        if (_contentPresented || _modalContentPresenter == null)
+            return;
+
+        _contentPresented = true;
+        _modalContentPresenter.Content = ModalContent;
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -138,7 +150,7 @@ public partial class ModalOverlay : UserControl
         {
             OnIsOpenChanged(IsOpen);
         }
-        else if (change.Property == ModalContentProperty && _modalContentPresenter != null)
+        else if (change.Property == ModalContentProperty && _contentPresented && _modalContentPresenter != null)
         {
             _modalContentPresenter.Content = ModalContent;
         }
@@ -163,11 +175,11 @@ public partial class ModalOverlay : UserControl
 
     private void OnIsOpenChanged(bool isOpen)
     {
+        if (isOpen)
+            PresentContent();
+
         if (_overlayPanel != null)
-        {
-            _overlayPanel.Opacity = isOpen ? 1 : 0;
-            _overlayPanel.IsHitTestVisible = isOpen;
-        }
+            _overlayPanel.IsVisible = isOpen;
 
         if (isOpen)
         {
