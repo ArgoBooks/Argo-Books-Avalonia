@@ -26,7 +26,7 @@ public sealed record LineAllocationResult(IReadOnlyList<LineShare> Shares, bool 
 /// <summary>
 /// The one way a transaction's USD amount is split across its line items (docs/Calculations.md §13):
 /// in proportion to each line's own <see cref="LineItem.Subtotal"/>, at full precision, with the last
-/// line taking the remainder so the shares add up to the amount exactly (Rule 3).
+/// line that has a subtotal taking the remainder so the shares add up to the amount exactly (Rule 3).
 /// </summary>
 public static class LineAllocation
 {
@@ -41,13 +41,17 @@ public static class LineAllocation
         if (linesTotal == 0)
             return new LineAllocationResult(lines.Select(li => new LineShare(li, 0m)).ToList(), false, amountUSD);
 
+        // A free line gets exactly 0, so the remainder goes to the last line that has a subtotal.
+        var remainderIndex = lines.Count - 1;
+        while (lines[remainderIndex].Subtotal == 0) remainderIndex--;
+
         var shares = new List<LineShare>(lines.Count);
         var allocated = 0m;
         for (var i = 0; i < lines.Count; i++)
         {
-            var share = i == lines.Count - 1
+            var share = i == remainderIndex
                 ? amountUSD - allocated
-                : lines[i].Subtotal / linesTotal * amountUSD;
+                : i > remainderIndex ? 0m : lines[i].Subtotal / linesTotal * amountUSD;
             allocated += share;
             shares.Add(new LineShare(lines[i], share));
         }

@@ -1080,13 +1080,13 @@ public partial class SettingsModalViewModel : ViewModelBase
             }
             else
             {
-                await ShowErrorDialogAsync("Upload Failed".Translate(),
+                await App.ShowErrorDialogAsync("Upload Failed".Translate(),
                     (result.Message ?? "Failed to upload logo.").Translate());
             }
         }
         catch
         {
-            await ShowErrorDialogAsync("Error".Translate(),
+            await App.ShowErrorDialogAsync("Error".Translate(),
                 "Failed to upload logo. Please check your internet connection.".Translate());
         }
         finally
@@ -1125,7 +1125,7 @@ public partial class SettingsModalViewModel : ViewModelBase
             }
             else
             {
-                await ShowErrorDialogAsync("Couldn't Remove Logo".Translate(),
+                await App.ShowErrorDialogAsync("Couldn't Remove Logo".Translate(),
                     (result.Message ?? "Failed to remove logo.").Translate());
             }
         }
@@ -1136,7 +1136,7 @@ public partial class SettingsModalViewModel : ViewModelBase
         catch
         {
             // A non-network failure shouldn't be reported as a connection problem.
-            await ShowErrorDialogAsync("Couldn't Remove Logo".Translate(), "Failed to remove logo.".Translate());
+            await App.ShowErrorDialogAsync("Couldn't Remove Logo".Translate(), "Failed to remove logo.".Translate());
         }
         finally
         {
@@ -1214,12 +1214,12 @@ public partial class SettingsModalViewModel : ViewModelBase
                 var message = !string.IsNullOrEmpty(response.Message)
                     ? response.Message
                     : $"Could not connect to {provider}. The payment portal server may be unavailable.";
-                await ShowErrorDialogAsync("Connection Failed".Translate(), message.Translate());
+                await App.ShowErrorDialogAsync("Connection Failed".Translate(), message.Translate());
             }
         }
         catch
         {
-            await ShowErrorDialogAsync("Error".Translate(),
+            await App.ShowErrorDialogAsync("Error".Translate(),
                 "Failed to connect payment provider. Please check your internet connection.".Translate());
         }
         finally
@@ -1241,7 +1241,7 @@ public partial class SettingsModalViewModel : ViewModelBase
 
         if (string.IsNullOrEmpty(deviceId))
         {
-            await ShowErrorDialogAsync(
+            await App.ShowErrorDialogAsync(
                 "Registration Failed".Translate(),
                 "Could not identify this device. Please try again.".Translate());
             return false;
@@ -1277,12 +1277,12 @@ public partial class SettingsModalViewModel : ViewModelBase
             }
 
             var message = result.Message ?? "Registration failed. Please check your license key.";
-            await ShowErrorDialogAsync("Registration Failed".Translate(), message.Translate());
+            await App.ShowErrorDialogAsync("Registration Failed".Translate(), message.Translate());
             return false;
         }
         catch
         {
-            await ShowErrorDialogAsync("Error".Translate(),
+            await App.ShowErrorDialogAsync("Error".Translate(),
                 "Failed to register with the payment portal. Please check your internet connection.".Translate());
             return false;
         }
@@ -1359,7 +1359,7 @@ public partial class SettingsModalViewModel : ViewModelBase
             }
             else
             {
-                await ShowErrorDialogAsync("Couldn't Disconnect".Translate(),
+                await App.ShowErrorDialogAsync("Couldn't Disconnect".Translate(),
                     (response.Message ?? "Failed to disconnect provider. Please try again.").Translate());
             }
         }
@@ -1370,24 +1370,10 @@ public partial class SettingsModalViewModel : ViewModelBase
         catch
         {
             // A non-network failure shouldn't be reported as a connection problem.
-            await ShowErrorDialogAsync("Couldn't Disconnect".Translate(), "Failed to disconnect provider. Please try again.".Translate());
+            await App.ShowErrorDialogAsync("Couldn't Disconnect".Translate(), "Failed to disconnect provider. Please try again.".Translate());
         }
     }
 
-    private static async Task ShowErrorDialogAsync(string title, string message)
-    {
-        var dialog = App.ConfirmationDialog;
-        if (dialog != null)
-        {
-            await dialog.ShowAsync(new ConfirmationDialogOptions
-            {
-                Title = title,
-                Message = message,
-                PrimaryButtonText = "OK".Translate(),
-                CancelButtonText = null
-            });
-        }
-    }
 
     private void LoadPortalSettings()
     {
@@ -1785,7 +1771,7 @@ public partial class SettingsModalViewModel : ViewModelBase
             {
                 SetStatus = v => StripeSyncStatus = v,
                 // A message box, not a notification: this modal sits over where notifications appear.
-                Inform = App.ShowInfoMessageBoxAsync,
+                Inform = App.ShowInfoDialogAsync,
                 AfterChange = () => RefreshStripeLastSynced(stripe)
             });
         }
@@ -2090,7 +2076,7 @@ public partial class SettingsModalViewModel : ViewModelBase
 
         if (ArgoApiKeyNameTaken(label))
         {
-            await App.ShowWarningMessageBoxAsync("Argo Books API".Translate(),
+            await App.ShowWarningDialogAsync("Argo Books API".Translate(),
                 "There is already a key called \"{0}\". Give this one a different name.".TranslateFormat(label));
             return;
         }
@@ -2117,7 +2103,7 @@ public partial class SettingsModalViewModel : ViewModelBase
                 ? "Copied to your clipboard. This is the only time it can be shown, so paste it somewhere safe before closing this.".Translate()
                 : "This is the only time it can be shown, so copy it somewhere safe before closing this.".Translate();
 
-            await App.ShowInfoMessageBoxAsync(
+            await App.ShowInfoDialogAsync(
                 "Your new API key".Translate(),
                 secret + Environment.NewLine + Environment.NewLine + advice);
         }
@@ -2215,7 +2201,7 @@ public partial class SettingsModalViewModel : ViewModelBase
 
         if (ArgoApiKeyNameTaken(label, row.Id))
         {
-            await App.ShowWarningMessageBoxAsync("Argo Books API".Translate(),
+            await App.ShowWarningDialogAsync("Argo Books API".Translate(),
                 "There is already a key called \"{0}\". Give this one a different name.".TranslateFormat(label));
             return; // editor stays open, with what they typed still in it
         }
@@ -2282,7 +2268,7 @@ public partial class SettingsModalViewModel : ViewModelBase
             var result = await IntegrationImportFlow.RunArgoApiAsync(data, App.SharedHttpClient, new IntegrationImportFlow.Host
             {
                 SetStatus = v => ArgoApiSyncStatus = v,
-                Inform = App.ShowInfoMessageBoxAsync,
+                Inform = App.ShowInfoDialogAsync,
                 AfterChange = () => RefreshArgoApiLastSynced(api)
             });
             ArgoApiPendingSummary = result.Outcome == IntegrationImportOutcome.Cancelled
@@ -2583,7 +2569,7 @@ public partial class SettingsModalViewModel : ViewModelBase
                 new InvalidOperationException("Mobile sync is not initialized (CompanyManager, CompanyData, or SyncService is null)."),
                 ErrorCategory.Api,
                 "Sync.ConnectPhone.NotReady");
-            await ShowErrorDialogAsync(
+            await App.ShowErrorDialogAsync(
                 "Couldn't Connect a Phone".Translate(),
                 "Mobile sync isn't ready yet. Please reopen the app and try again.".Translate());
             return;
@@ -2625,7 +2611,7 @@ public partial class SettingsModalViewModel : ViewModelBase
                     "Sync.ConnectPhone.NoToken");
                 QrImage = null;
                 ShortCodeDisplay = string.Empty;
-                await ShowErrorDialogAsync(
+                await App.ShowErrorDialogAsync(
                     "Couldn't Connect a Phone".Translate(),
                     "The sync server didn't return a pairing code. Please try again.".Translate());
                 return;
@@ -2669,7 +2655,7 @@ public partial class SettingsModalViewModel : ViewModelBase
             var message = ex is HttpRequestException
                 ? "We couldn't reach the sync server. Check your internet connection and try again.".Translate()
                 : "Something went wrong while connecting a phone. Please try again.".Translate();
-            await ShowErrorDialogAsync("Couldn't Connect a Phone".Translate(), message);
+            await App.ShowErrorDialogAsync("Couldn't Connect a Phone".Translate(), message);
         }
         finally
         {
@@ -3598,7 +3584,7 @@ public partial class SettingsModalViewModel : ViewModelBase
         catch (Exception ex)
         {
             App.ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to open telemetry folder");
-            await ShowErrorDialogAsync("Error".Translate(), "Failed to open folder: {0}".TranslateFormat(ex.Message));
+            await App.ShowErrorDialogAsync("Error".Translate(), "Failed to open folder: {0}".TranslateFormat(ex.Message));
         }
     }
 
@@ -3637,7 +3623,7 @@ public partial class SettingsModalViewModel : ViewModelBase
         catch (Exception ex)
         {
             App.ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to delete telemetry data");
-            await ShowErrorDialogAsync("Error".Translate(), "Failed to delete telemetry data: {0}".TranslateFormat(ex.Message));
+            await App.ShowErrorDialogAsync("Error".Translate(), "Failed to delete telemetry data: {0}".TranslateFormat(ex.Message));
         }
         finally
         {
@@ -3820,7 +3806,7 @@ public partial class SettingsModalViewModel : ViewModelBase
                 return;
             }
 
-            await ShowErrorDialogAsync(
+            await App.ShowErrorDialogAsync(
                 "Owner email already set".Translate(),
                 string.IsNullOrEmpty(existing)
                     ? "An owner email is already on file. Use the Change flow to update it.".Translate()
@@ -3841,7 +3827,7 @@ public partial class SettingsModalViewModel : ViewModelBase
             var detail = result.Message
                 ?? result.ErrorCode
                 ?? $"The server rejected the request (HTTP {result.HttpStatus}).";
-            await ShowErrorDialogAsync("Could not set owner email".Translate(), detail.Translate());
+            await App.ShowErrorDialogAsync("Could not set owner email".Translate(), detail.Translate());
             return;
         }
 
@@ -3963,7 +3949,7 @@ public partial class SettingsModalViewModel : ViewModelBase
         var currentEmail = companyData.Settings.Company.Email ?? string.Empty;
         if (string.IsNullOrWhiteSpace(currentEmail))
         {
-            await ShowErrorDialogAsync("No email on file".Translate(),
+            await App.ShowErrorDialogAsync("No email on file".Translate(),
                 "This company has no owner email yet. Set one in the company details first.".Translate());
             return;
         }

@@ -1,4 +1,3 @@
-using System.ComponentModel;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Reports;
 using ArgoBooks.Localization;
@@ -6,228 +5,9 @@ using ArgoBooks.Localization;
 namespace ArgoBooks.Services;
 
 /// <summary>
-/// Interface for undoable actions in the report layout designer.
-/// </summary>
-public interface IReportUndoableAction
-{
-    string Description { get; }
-    void Undo();
-    void Redo();
-}
-
-/// <summary>
-/// Interface for actions that can be coalesced with subsequent actions of the same kind.
-/// When rapid sequential changes occur (e.g., scrolling a numeric spinner), the undo manager
-/// merges them into a single undo entry instead of creating separate entries.
-/// </summary>
-public interface ICoalescingAction : IReportUndoableAction
-{
-    /// <summary>
-    /// Key identifying actions that can be coalesced together.
-    /// Actions with the same key within the time window will be merged.
-    /// </summary>
-    string CoalescingKey { get; }
-
-    /// <summary>
-    /// Updates this action's "new state" to match the newer action's state.
-    /// The original "old state" is preserved so undo returns to the initial state.
-    /// </summary>
-    void UpdateToNewState(ICoalescingAction newerAction);
-}
-
-/// <summary>
-/// Manages undo/redo operations for the report layout designer.
-/// </summary>
-public class ReportUndoRedoManager(int maxStackSize = 100) : INotifyPropertyChanged, IUndoRedoManager
-{
-    private readonly Stack<IReportUndoableAction> _undoStack = new();
-    private readonly Stack<IReportUndoableAction> _redoStack = new();
-    private bool _isUndoingOrRedoing;
-    private int _savePointDepth ; // Tracks the undo stack depth at save time
-    private DateTime _lastRecordTime;
-    private const int CoalesceThresholdMs = 500;
-
-    /// <summary>
-    /// When true, RecordAction calls are suppressed. Used by the canvas during drag/resize
-    /// to prevent property change notifications from creating duplicate undo entries.
-    /// </summary>
-    public bool SuppressRecording { get; set; }
-
-    /// <summary>
-    /// Fired when a property changes.
-    /// </summary>
-    public event PropertyChangedEventHandler? PropertyChanged;
-
-    /// <summary>
-    /// Fired when the undo/redo state changes.
-    /// </summary>
-    public event EventHandler? StateChanged;
-
-    /// <summary>
-    /// Gets whether undo is available.
-    /// </summary>
-    public bool CanUndo => _undoStack.Count > 0;
-
-    /// <summary>
-    /// Gets whether redo is available.
-    /// </summary>
-    public bool CanRedo => _redoStack.Count > 0;
-
-    /// <summary>
-    /// Gets whether there are unsaved changes (changes since last save point).
-    /// </summary>
-    public bool HasUnsavedChanges => _undoStack.Count != _savePointDepth;
-
-    /// <summary>
-    /// Gets the description of the next undo action.
-    /// </summary>
-    public string? UndoDescription => _undoStack.Count > 0 ? _undoStack.Peek().Description : null;
-
-    /// <summary>
-    /// Gets the description of the next redo action.
-    /// </summary>
-    public string? RedoDescription => _redoStack.Count > 0 ? _redoStack.Peek().Description : null;
-
-    public IEnumerable<string> UndoHistory => _undoStack.Select(a => a.Description);
-
-    public IEnumerable<string> RedoHistory => _redoStack.Select(a => a.Description);
-
-    /// <inheritdoc />
-    IEnumerable<string> IUndoRedoManager.GetUndoHistory() => UndoHistory;
-
-    /// <inheritdoc />
-    IEnumerable<string> IUndoRedoManager.GetRedoHistory() => RedoHistory;
-
-    /// <summary>
-    /// Records an action for undo/redo.
-    /// </summary>
-    public void RecordAction(IReportUndoableAction action)
-    {
-        if (_isUndoingOrRedoing || SuppressRecording)
-            return;
-
-        var now = DateTime.UtcNow;
-
-        // Coalesce with the most recent action if it's the same kind of operation
-        // on the same element within a short time window. This prevents flooding
-        // the undo stack when using spinner controls or rapid arrow key presses.
-        if (action is ICoalescingAction newCoalescing &&
-            _undoStack.Count > 0 &&
-            _undoStack.Peek() is ICoalescingAction topCoalescing &&
-            newCoalescing.CoalescingKey == topCoalescing.CoalescingKey &&
-            (now - _lastRecordTime).TotalMilliseconds < CoalesceThresholdMs)
-        {
-            topCoalescing.UpdateToNewState(newCoalescing);
-            _lastRecordTime = now;
-            _redoStack.Clear();
-            // If coalescing modified the action at the save point, mark as dirty
-            if (_savePointDepth == _undoStack.Count)
-                _savePointDepth = -1;
-            NotifyStateChanged();
-            return;
-        }
-
-        _undoStack.Push(action);
-        _lastRecordTime = now;
-        _redoStack.Clear();
-
-        // Enforce max stack size
-        while (_undoStack.Count > maxStackSize)
-        {
-            var temp = new Stack<IReportUndoableAction>();
-            while (_undoStack.Count > 1)
-            {
-                temp.Push(_undoStack.Pop());
-            }
-            _undoStack.Pop(); // Remove oldest
-            while (temp.Count > 0)
-            {
-                _undoStack.Push(temp.Pop());
-            }
-        }
-
-        NotifyStateChanged();
-    }
-
-    /// <summary>
-    /// Performs undo operation.
-    /// </summary>
-    public void Undo()
-    {
-        if (!CanUndo || _isUndoingOrRedoing)
-            return;
-
-        _isUndoingOrRedoing = true;
-        try
-        {
-            var action = _undoStack.Pop();
-            action.Undo();
-            _redoStack.Push(action);
-            NotifyStateChanged();
-        }
-        finally
-        {
-            _isUndoingOrRedoing = false;
-        }
-    }
-
-    /// <summary>
-    /// Performs redo operation.
-    /// </summary>
-    public void Redo()
-    {
-        if (!CanRedo || _isUndoingOrRedoing)
-            return;
-
-        _isUndoingOrRedoing = true;
-        try
-        {
-            var action = _redoStack.Pop();
-            action.Redo();
-            _undoStack.Push(action);
-            NotifyStateChanged();
-        }
-        finally
-        {
-            _isUndoingOrRedoing = false;
-        }
-    }
-
-    /// <summary>
-    /// Clears all undo/redo history.
-    /// </summary>
-    public void Clear()
-    {
-        _undoStack.Clear();
-        _redoStack.Clear();
-        _savePointDepth = 0;
-        NotifyStateChanged();
-    }
-
-    /// <summary>
-    /// Marks the current state as saved. HasUnsavedChanges will return false until new changes are made.
-    /// </summary>
-    public void MarkSaved()
-    {
-        _savePointDepth = _undoStack.Count;
-        NotifyStateChanged();
-    }
-
-    private void NotifyStateChanged()
-    {
-        StateChanged?.Invoke(this, EventArgs.Empty);
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanUndo)));
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanRedo)));
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasUnsavedChanges)));
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(UndoDescription)));
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(RedoDescription)));
-    }
-}
-
-/// <summary>
 /// Action for adding an element.
 /// </summary>
-public class AddElementAction(ReportConfiguration config, ReportElementBase element) : IReportUndoableAction
+public class AddElementAction(ReportConfiguration config, ReportElementBase element) : IUndoableAction
 {
     public string Description => "Add {0}".TranslateFormat(element.DisplayName);
 
@@ -245,7 +25,7 @@ public class AddElementAction(ReportConfiguration config, ReportElementBase elem
 /// <summary>
 /// Action for removing an element.
 /// </summary>
-public class RemoveElementAction : IReportUndoableAction
+public class RemoveElementAction : IUndoableAction
 {
     private readonly ReportConfiguration _config;
     private readonly ReportElementBase _element;
@@ -277,7 +57,7 @@ public class RemoveElementAction : IReportUndoableAction
 /// <summary>
 /// Action for removing a whole selection of elements as one undo entry.
 /// </summary>
-public class RemoveElementsAction : IReportUndoableAction
+public class RemoveElementsAction : IUndoableAction
 {
     private readonly ReportConfiguration _config;
     private readonly List<(ReportElementBase Element, int ZOrder)> _removed;
@@ -305,7 +85,7 @@ public class RemoveElementsAction : IReportUndoableAction
     public static void RemoveAndRecord(
         ReportConfiguration config,
         IReadOnlyList<ReportElementBase> elements,
-        ReportUndoRedoManager? undoRedoManager)
+        UndoRedoManager? undoRedoManager)
     {
         if (elements.Count == 0) return;
 
@@ -336,7 +116,7 @@ public class RemoveElementsAction : IReportUndoableAction
 /// Action for moving/resizing an element. Supports coalescing so that rapid
 /// sequential changes (e.g., from spinner controls) merge into a single undo entry.
 /// </summary>
-public class MoveResizeElementAction : ICoalescingAction
+public class MoveResizeElementAction : ICoalescingUndoableAction
 {
     private readonly ReportConfiguration _config;
     private readonly string _elementId;
@@ -374,7 +154,7 @@ public class MoveResizeElementAction : ICoalescingAction
         element?.Bounds = _newBounds;
     }
 
-    public void UpdateToNewState(ICoalescingAction newerAction)
+    public void UpdateToNewState(ICoalescingUndoableAction newerAction)
     {
         if (newerAction is MoveResizeElementAction newer)
         {
@@ -392,7 +172,7 @@ public class ColumnResizeAction(
     string elementId,
     List<double> oldRatios,
     List<double> newRatios)
-    : IReportUndoableAction
+    : IUndoableAction
 {
     private readonly List<double> _oldRatios = oldRatios.ToList();
     private readonly List<double> _newRatios = newRatios.ToList();
@@ -420,7 +200,7 @@ public class ZOrderChangeAction(
     Dictionary<string, int> oldZOrders,
     Dictionary<string, int> newZOrders,
     string description)
-    : IReportUndoableAction
+    : IUndoableAction
 {
     private readonly Dictionary<string, int> _oldZOrders = new(oldZOrders);
     private readonly Dictionary<string, int> _newZOrders = new(newZOrders);
@@ -456,7 +236,7 @@ public class ElementPropertyChangeAction(
     string propertyName,
     object? oldValue,
     object? newValue)
-    : ICoalescingAction
+    : ICoalescingUndoableAction
 {
     private object? _newValue = newValue;
 
@@ -464,7 +244,7 @@ public class ElementPropertyChangeAction(
 
     public string CoalescingKey => $"prop-change:{elementId}:{propertyName}";
 
-    public void UpdateToNewState(ICoalescingAction newerAction)
+    public void UpdateToNewState(ICoalescingUndoableAction newerAction)
     {
         if (newerAction is ElementPropertyChangeAction newer)
         {
@@ -547,7 +327,7 @@ public class BatchMoveResizeAction(
     Dictionary<string, (double X, double Y, double Width, double Height, int PageNumber)> oldBounds,
     Dictionary<string, (double X, double Y, double Width, double Height, int PageNumber)> newBounds,
     string description)
-    : IReportUndoableAction
+    : IUndoableAction
 {
     private readonly Dictionary<string, (double X, double Y, double Width, double Height, int PageNumber)> _oldBounds = new(oldBounds);
     private readonly Dictionary<string, (double X, double Y, double Width, double Height, int PageNumber)> _newBounds = new(newBounds);
@@ -578,7 +358,7 @@ public class BatchMoveResizeAction(
 /// <summary>
 /// Action for adding a new page to the report.
 /// </summary>
-public class AddPageAction(ReportConfiguration config) : IReportUndoableAction
+public class AddPageAction(ReportConfiguration config) : IUndoableAction
 {
     private readonly int _newPageNumber = config.PageCount + 1;
 
@@ -604,7 +384,7 @@ public class AddPageAction(ReportConfiguration config) : IReportUndoableAction
 /// <summary>
 /// Action for deleting a page from the report.
 /// </summary>
-public class DeletePageAction : IReportUndoableAction
+public class DeletePageAction : IUndoableAction
 {
     private readonly ReportConfiguration _config;
     private readonly int _deletedPageNumber;
@@ -683,7 +463,7 @@ public record PageSettingsSnapshot(
 /// so that undo/redo restores the complete state. Supports coalescing so rapid
 /// sequential changes (e.g., margin spinners) merge into a single undo entry.
 /// </summary>
-public class PageSettingsChangeAction : ICoalescingAction
+public class PageSettingsChangeAction : ICoalescingUndoableAction
 {
     private readonly ReportConfiguration _config;
     private readonly PageSettingsSnapshot _oldSettings;
@@ -718,7 +498,7 @@ public class PageSettingsChangeAction : ICoalescingAction
         _applyToViewModel(_newSettings);
     }
 
-    public void UpdateToNewState(ICoalescingAction newerAction)
+    public void UpdateToNewState(ICoalescingUndoableAction newerAction)
     {
         if (newerAction is PageSettingsChangeAction newer)
         {

@@ -29,7 +29,7 @@ public class UsageLimitService : IUsageLimitService
     public const string CancelledMessage = "Request was cancelled.";
     public const string UnverifiedLicenseMessage = "Your license key couldn't be verified. If your subscription has ended, restart Argo Books to continue on the free plan.";
     public const string RateLimitedMessage = "Too many requests. Please try again in a few minutes.";
-    private const string RefusedPrefix = "The server refused the monthly limit check.";
+    public const string RefusedMessage = "The server refused the monthly limit check. Please try again, or contact support if this keeps happening.";
 
     private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(5);
 
@@ -119,28 +119,26 @@ public class UsageLimitService : IUsageLimitService
             return result;
         }
 
-        // A 4xx is the server refusing this request (rate limited, bad input, unknown key), not the
-        // usage server being down, so it blocks. Only a 5xx, or an unreadable answer without a 4xx
-        // status, lets it through uncounted.
+        // Only our endpoint saying no blocks: a 4xx whose JSON says why. Anything else (a 5xx, a
+        // body that isn't our JSON such as a hosting-layer error page, or a failure without counts)
+        // is the usage server being unavailable, and the feature's own call decides.
         var code = (int)status;
-        if (code >= 500 || (answer == null && code < 400))
+        if (code is >= 400 and < 500 && answer is { Refuses: true })
         {
-            _errorLogger?.LogError(new Exception(answer?.Error ?? $"HTTP {(int)status}, unreadable answer"), ErrorCategory.Api,
-                $"{_limit.Name} usage check returned a server error, allowing");
-            return AllowedUncounted();
+            _errorLogger?.LogWarning($"{_limit.Name} usage check refused (HTTP {code}): {answer.Error ?? answer.ErrorCode}", category: ErrorCategory.Api);
+            return new UsageCheckResult { ErrorMessage = RefusalMessage(status), IsOffline = true };
         }
 
-        _errorLogger?.LogWarning($"{_limit.Name} usage check refused (HTTP {code}): {answer?.Error}", category: ErrorCategory.Api);
-        return new UsageCheckResult { ErrorMessage = RefusedMessage(status, answer), IsOffline = true };
+        _errorLogger?.LogError(new Exception(answer?.Error ?? $"HTTP {code}, not an answer from the usage endpoint"), ErrorCategory.Api,
+            $"{_limit.Name} usage server unavailable, allowing");
+        return AllowedUncounted();
     }
 
-    private static string RefusedMessage(HttpStatusCode status, UsageAnswer? answer) => status switch
+    private static string RefusalMessage(HttpStatusCode status) => status switch
     {
         HttpStatusCode.Unauthorized => UnverifiedLicenseMessage,
-        HttpStatusCode.TooManyRequests => answer?.Error ?? RateLimitedMessage,
-        _ => answer?.Error is { Length: > 0 } error
-            ? $"{RefusedPrefix} {error}"
-            : $"{RefusedPrefix} (HTTP {(int)status})"
+        HttpStatusCode.TooManyRequests => RateLimitedMessage,
+        _ => RefusedMessage
     };
 
     /// <summary>
@@ -251,8 +249,11 @@ public class UsageLimitService : IUsageLimitService
 
     private sealed record UsageAnswer(
         bool Success, bool Allowed, bool HasAllowed, int Count, int MonthlyLimit, int Remaining,
-        string? Tier, string? ResetsAt, string? Error)
+        string? Tier, string? ResetsAt, string? Error, string? ErrorCode)
     {
+        /// <summary>The body says why it said no, which only our endpoint's own refusals do.</summary>
+        public bool Refuses => Error != null || ErrorCode != null;
+
         public static UsageAnswer? TryParse(string json, UsageLimit limit)
         {
             JsonDocument document;
@@ -277,7 +278,8 @@ public class UsageLimitService : IUsageLimitService
                 Int("remaining"),
                 Text("tier"),
                 Text("resets_at"),
-                Text("error") ?? Text("message"));
+                Text("error") ?? Text("message"),
+                Text("errorCode"));
         }
     }
 }

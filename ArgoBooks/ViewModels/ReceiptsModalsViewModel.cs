@@ -1110,7 +1110,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
                     await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
                     {
                         item.Status = BulkScanStatus.Failed;
-                        item.ErrorMessage = usageCheck.ErrorMessage ?? "Monthly scan limit reached".Translate();
+                        item.ErrorMessage = usageCheck.ErrorMessage?.Translate() ?? "Monthly scan limit reached".Translate();
                         BulkScansCompleted++;
                         BulkScansFailed++;
                     });
@@ -2055,7 +2055,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
                     if (!string.IsNullOrEmpty(usageCheck.ErrorMessage))
                     {
                         HasScanError = true;
-                        ScanErrorMessage = usageCheck.ErrorMessage;
+                        ScanErrorMessage = usageCheck.ErrorMessage.Translate();
                     }
                     else
                     {

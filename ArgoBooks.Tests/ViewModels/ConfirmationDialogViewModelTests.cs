@@ -206,6 +206,29 @@ public class ConfirmationDialogViewModelTests
         Assert.Equal(ConfirmationResult.Cancel, result);
     }
 
+    // Replacing the open dialog would leave its caller waiting forever.
+    [Fact]
+    public async Task ADialogAskedForWhileAnotherIsOpen_WaitsItsTurn()
+    {
+        var first = _viewModel.ShowAsync("First", "Question");
+        var second = _viewModel.ShowNoticeAsync(DialogIcon.Error, "Second", "Something failed");
+
+        Assert.Equal("First", _viewModel.Title);
+        Assert.False(second.IsCompleted);
+
+        _viewModel.PrimaryActionCommand.Execute(null);
+
+        Assert.Equal(ConfirmationResult.Primary, await first);
+        Assert.True(_viewModel.IsOpen);
+        Assert.Equal("Second", _viewModel.Title);
+        Assert.True(_viewModel.IsErrorIcon);
+
+        _viewModel.PrimaryActionCommand.Execute(null);
+
+        Assert.Equal(ConfirmationResult.Primary, await second);
+        Assert.False(_viewModel.IsOpen);
+    }
+
     [Fact]
     public async Task Close_WhenCalled_ReturnsNone()
     {

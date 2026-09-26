@@ -41,6 +41,93 @@ public class UndoRedoManagerTests
         Assert.False(_manager.IsAtSavedState);
     }
 
+    [Fact]
+    public void MarkSaved_ClearsHasUnsavedChanges()
+    {
+        _manager.RecordAction(new MockUndoableAction("Test"));
+        Assert.True(_manager.HasUnsavedChanges);
+
+        _manager.MarkSaved();
+
+        Assert.False(_manager.HasUnsavedChanges);
+    }
+
+    [Fact]
+    public void MarkSaved_NewChangeAfter_SetsUnsaved()
+    {
+        _manager.RecordAction(new MockUndoableAction("First"));
+        _manager.MarkSaved();
+
+        _manager.RecordAction(new MockUndoableAction("Second"));
+
+        Assert.True(_manager.HasUnsavedChanges);
+    }
+
+    [Fact]
+    public void MarkSaved_UndoAfter_SetsUnsaved()
+    {
+        _manager.RecordAction(new MockUndoableAction("Test"));
+        _manager.MarkSaved();
+
+        _manager.Undo();
+
+        Assert.True(_manager.HasUnsavedChanges);
+    }
+
+    [Fact]
+    public void MarkSaved_UndoThenRedo_ClearsUnsaved()
+    {
+        _manager.RecordAction(new MockUndoableAction("Test"));
+        _manager.MarkSaved();
+
+        _manager.Undo();
+        _manager.Redo();
+
+        Assert.False(_manager.HasUnsavedChanges);
+    }
+
+    // The report designer used to track the save by stack depth, and a new action after an undo
+    // is back at the saved depth.
+    [Fact]
+    public void Save_Undo_NewAction_IsUnsaved()
+    {
+        _manager.RecordAction(new MockUndoableAction("First"));
+        _manager.MarkSaved();
+
+        _manager.Undo();
+        _manager.RecordAction(new MockUndoableAction("Different"));
+
+        Assert.True(_manager.HasUnsavedChanges);
+    }
+
+    // Coalescing changes the saved action itself, so the file no longer matches it.
+    [Fact]
+    public void Save_ThenAChangeCoalescedIntoTheSavedAction_IsUnsaved()
+    {
+        var value = 0;
+        _manager.RecordAction(new CoalescingPropertyChangeAction<int>("Color", "color", v => value = v, 0, 1));
+        _manager.MarkSaved();
+
+        _manager.RecordAction(new CoalescingPropertyChangeAction<int>("Color", "color", v => value = v, 1, 2));
+
+        Assert.Equal(1, _manager.UndoCount);
+        Assert.True(_manager.HasUnsavedChanges);
+    }
+
+    [Fact]
+    public void Clear_ResetsHistoryAndUnsavedChanges()
+    {
+        _manager.RecordAction(new MockUndoableAction("First"));
+        _manager.RecordAction(new MockUndoableAction("Second"));
+        _manager.Undo();
+
+        _manager.Clear();
+
+        Assert.False(_manager.CanUndo);
+        Assert.False(_manager.CanRedo);
+        Assert.False(_manager.HasUnsavedChanges);
+    }
+
     #endregion
 
     #region Record Tests
@@ -75,6 +162,27 @@ public class UndoRedoManagerTests
         _manager.RecordAction(new MockUndoableAction("Action 2"));
 
         Assert.False(_manager.CanRedo);
+    }
+
+    [Fact]
+    public void Record_WhenSuppressed_DoesNotRecord()
+    {
+        _manager.SuppressRecording = true;
+
+        _manager.RecordAction(new MockUndoableAction("Test"));
+
+        Assert.False(_manager.CanUndo);
+    }
+
+    [Fact]
+    public void Record_PastTheHistorySize_DropsTheOldest()
+    {
+        var manager = new UndoRedoManager(3);
+
+        foreach (var name in new[] { "First", "Second", "Third", "Fourth" })
+            manager.RecordAction(new MockUndoableAction(name));
+
+        Assert.Equal(["Fourth", "Third", "Second"], manager.GetUndoDescriptions());
     }
 
     #endregion

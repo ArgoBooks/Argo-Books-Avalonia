@@ -1397,21 +1397,13 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
         string? customerEmail = customer?.Email;
         if (string.IsNullOrWhiteSpace(customerEmail))
         {
-            await ShowResendMessageAsync(
-                "No email address",
-                "This invoice's customer has no email address, so there is nowhere to send it.",
-                isError: true);
+            await App.ShowErrorDialogAsync(
+                "No email address".Translate(),
+                "This invoice's customer has no email address, so there is nowhere to send it.".Translate());
             return;
         }
 
-        if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop
-            || desktop.MainWindow is not MainWindow mainWindow
-            || mainWindow.MessageBoxService is not { } mbox)
-        {
-            return;
-        }
-
-        bool confirmed = await mbox.ConfirmAsync(
+        bool confirmed = await App.ConfirmDialogAsync(
             "Resend invoice".Translate(),
             "Send invoice {0} to {1} again?".TranslateFormat(invoice.InvoiceNumber, customerEmail),
             "Send".Translate(),
@@ -1467,7 +1459,7 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
 
         if (!string.IsNullOrEmpty(failure))
         {
-            await ShowResendMessageAsync("Failed to resend invoice", failure, isError: true);
+            await App.ShowErrorDialogAsync("Failed to resend invoice".Translate(), failure.Translate());
             return;
         }
 
@@ -1485,20 +1477,6 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
         App.InvoiceModalsViewModel?.ShowSentSuccess(customer?.Name ?? item.CustomerName, customerEmail);
     }
 
-    private static async Task ShowResendMessageAsync(string title, string message, bool isError)
-    {
-        if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop
-            || desktop.MainWindow is not MainWindow mainWindow
-            || mainWindow.MessageBoxService is not { } mbox)
-        {
-            return;
-        }
-
-        if (isError)
-        {
-            await mbox.ShowErrorAsync(title.Translate(), message.Translate());
-        }
-    }
 
     #endregion
 }

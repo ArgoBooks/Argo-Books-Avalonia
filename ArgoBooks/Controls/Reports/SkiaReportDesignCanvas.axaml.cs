@@ -121,8 +121,8 @@ public partial class SkiaReportDesignCanvas : UserControl
     public static readonly StyledProperty<int> CurrentDesignerPageProperty =
         AvaloniaProperty.Register<SkiaReportDesignCanvas, int>(nameof(CurrentDesignerPage), 1);
 
-    public static readonly StyledProperty<ReportUndoRedoManager?> UndoRedoManagerProperty =
-        AvaloniaProperty.Register<SkiaReportDesignCanvas, ReportUndoRedoManager?>(nameof(UndoRedoManager));
+    public static readonly StyledProperty<UndoRedoManager?> UndoRedoManagerProperty =
+        AvaloniaProperty.Register<SkiaReportDesignCanvas, UndoRedoManager?>(nameof(UndoRedoManager));
 
     #endregion
 
@@ -173,7 +173,7 @@ public partial class SkiaReportDesignCanvas : UserControl
         set => SetValue(CurrentDesignerPageProperty, Math.Max(1, value));
     }
 
-    public ReportUndoRedoManager? UndoRedoManager
+    public UndoRedoManager? UndoRedoManager
     {
         get => GetValue(UndoRedoManagerProperty);
         set => SetValue(UndoRedoManagerProperty, value);

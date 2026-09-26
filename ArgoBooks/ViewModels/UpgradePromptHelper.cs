@@ -49,7 +49,7 @@ public static class UpgradePromptHelper
     public static Task ShowUsageCheckFailedAsync(string? message)
         => string.IsNullOrWhiteSpace(message) || ConnectivityMessage.IsConnectivityMessage(message)
             ? App.ShowConnectivityErrorAsync(message)
-            : App.ShowErrorMessageBoxAsync("Unable to Continue".Translate(), message.Translate());
+            : App.ShowErrorDialogAsync("Unable to Continue".Translate(), message.Translate());
 
     /// <summary>
     /// Shows a compelling upgrade prompt when the AI import limit is reached.

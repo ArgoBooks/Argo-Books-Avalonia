@@ -352,9 +352,10 @@ public partial class TranslationGenerator
             foreach (Match match in constStringMatches)
             {
                 var text = match.Groups[1].Value;
-                // Only add if it looks like display text (not empty, not a path, not a URL, not a color code, not an SVG path, not a code identifier)
+                // Only add if it looks like display text (not empty, not a path, not a URL, not a color code, not an SVG path, not a code identifier).
+                // A dot is allowed in a sentence, so Core's message constants (shown with .Translate()) are collected.
                 if (!string.IsNullOrEmpty(text) && text.Length > 1 &&
-                    !text.Contains('/') && !text.Contains('\\') && !text.Contains('.') &&
+                    !text.Contains('/') && !text.Contains('\\') && (!text.Contains('.') || IsSentence(text)) &&
                     !text.StartsWith("http", StringComparison.OrdinalIgnoreCase) &&
                     !text.StartsWith("{") &&
                     !text.StartsWith('#') &&
@@ -470,6 +471,10 @@ public partial class TranslationGenerator
         }
         return false;
     }
+
+    /// <summary>A sentence of display text: starts with a capital letter and has words.</summary>
+    private static bool IsSentence(string text) =>
+        char.IsUpper(text[0]) && text.Contains(' ') && !IsSvgPathData(text);
 
     /// <summary>
     /// Returns true if the text looks like SVG path data (e.g., "M10 20v-6h4v6...").

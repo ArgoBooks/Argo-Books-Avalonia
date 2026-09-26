@@ -246,7 +246,7 @@ The Insights tab (trends, anomalies, forecasts, recommendations) uses collected 
 
 **Currency.** Insights does its analysis in USD and converts only the amounts it shows. Like a report, each run picks one currency for everything (Rule 3a), except that it ignores dates after today, since it never converts anything at a future date. Amounts in descriptions, averages included, convert each row at its own date, and the overdue total converts each invoice's balance at its issue date. Forecast cards, ranges and Past Predictions convert their stored USD figures to the company's currency at today's rate (`InsightsPageViewModel.FormatForecastAmount`). The sample numbers shown to free users are for illustration only and are never converted.
 
-**Top Performing Product** compares each product's collected revenue with its `CostPrice` converted to USD at each sale's date. A sale still waiting for its rate, or a line whose cost price can't be converted yet, is left out of the comparison rather than counted as having no revenue or no cost.
+**Top Performing Product** compares each product's collected revenue with its `CostPrice` converted to USD at each sale's date. A sale still waiting for its rate, or a line whose cost price can't be converted yet, is left out of the comparison rather than counted as having no revenue or no cost. A product with under a cent of revenue in the period has no meaningful margin and is left out too.
 
 **Forecast accuracy.** A forecast is saved under the future period it covers. Once that period ends, it is checked against actual results worked out the same way the forecast was (`ForecastAccuracyService.ValidatePastForecasts`, `RunBacktestAsync`).
 
@@ -324,13 +324,13 @@ A transaction's USD total isn't stored per line, so each line gets a share of it
 ```
 lineItemsTotal = Σ over LineItem of li.Subtotal          (in the transaction's own currency, before tax)
 revenueUSD(li) = lineItemsTotal != 0
-               ? li.Subtotal / lineItemsTotal × txn.EffectiveTotalUSD     (the last line takes what is left)
+               ? li.Subtotal / lineItemsTotal × txn.EffectiveTotalUSD     (the last line with a subtotal takes what is left)
                : 0
 ```
 
 Lines with no product are grouped under "Unknown". A transaction with no lines at all is left out, and one whose lines add up to 0 (every line discounted to nothing) counts its units but no revenue.
 
-**One way to share out a transaction.** `LineAllocation.Allocate` is the only code that splits a transaction's USD amount across its lines, for every screen that shows money per product or per category: Sales by Product, Insights' Top Performing Product, the revenue and expense by-category charts, and the Income Statement and General Ledger. The shares are kept at full precision (Rule 3) and the last line takes whatever is left, so the lines always add up to the transaction's amount exactly. Only the number shown is rounded. What each screen shares out, and where a transaction goes when its lines can't take it (no lines, or lines that add up to 0), differs by screen:
+**One way to share out a transaction.** `LineAllocation.Allocate` is the only code that splits a transaction's USD amount across its lines, for every screen that shows money per product or per category: Sales by Product, Insights' Top Performing Product, the revenue and expense by-category charts, and the Income Statement and General Ledger. The shares are kept at full precision (Rule 3) and the last line with a subtotal takes whatever is left, so the lines always add up to the transaction's amount exactly and a free line always gets exactly 0. Only the number shown is rounded. What each screen shares out, and where a transaction goes when its lines can't take it (no lines, or lines that add up to 0), differs by screen:
 
 | Screen | Amount shared out | When the lines can't take it |
 |---|---|---|
@@ -388,7 +388,7 @@ Undoing a change puts the stock record's cost back as it was before the change. 
 
 Net profit is the Rule 1 formula. The dashboard counts only paid sales, for both revenue and cost of goods sold (Rule 2). The Income Statement counts every sale in the date range, shows **Cost of Goods Sold** and **Gross Profit** under revenue whenever that cost isn't zero, and leaves tracked stock out of its expense categories. The Expenses card, the Expenses page and cash flow still count every purchase in full, because that money really was spent.
 
-**Profit while a sale waits for its stock's cost.** A sale waiting for its stock's cost counts that cost as 0, so a figure that subtracts cost of goods sold would read high. While any sale it counts is waiting (`CostOfGoodsAggregator.IsCostOfGoodsPending`), such a figure follows the all-or-nothing Pending rule of Rule 3a and shows Pending until the cost converts. That covers the dashboard's Net Profit card, the Analytics Net Profit and Profit Margin cards (`CurrencyService.FormatNetProfitOrPending`), and the report Summary box's net profit. The cards' change against the previous period is left blank while a sale in either period is waiting (`CostOfGoodsAggregator.IsProfitChangePending`), since a period that reads high makes the change wrong either way. On the Income Statement the Cost of Goods Sold, Gross Profit and Net Income lines read Pending, while its revenue and expense lines still show their amounts. Profit Over Time is a chart and can't show Pending, so it plots the cost as 0.
+**Profit while a sale waits for its stock's cost.** A sale waiting for its stock's cost counts that cost as 0, so a figure that subtracts cost of goods sold would read high. While any sale it counts is waiting (`CostOfGoodsAggregator.IsCostOfGoodsPending`), such a figure follows the all-or-nothing Pending rule of Rule 3a and shows Pending until the cost converts. That covers the dashboard's Net Profit card, the Analytics Net Profit and Profit Margin cards (`CurrencyService.FormatNetProfitOrPending`), and the report Summary box's net profit. The cards' change against the previous period is left blank, and the Summary box's net profit growth rate reads Pending, while a sale in either period is waiting (`CostOfGoodsAggregator.IsProfitChangePending`), since a period that reads high makes the change wrong either way. On the Income Statement the Cost of Goods Sold, Gross Profit and Net Income lines read Pending, while its revenue and expense lines still show their amounts. Profit Over Time is a chart and can't show Pending, so it plots the cost as 0.
 
 ### Stock on hand when this began (opening units)
 

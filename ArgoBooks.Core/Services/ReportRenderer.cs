@@ -3357,9 +3357,16 @@ public class ReportRenderer : IDisposable
 
         if (summary.ShowGrowthRate)
         {
-            var growth = CalculateGrowthRate(summary);
-            var sign = growth >= 0 ? "+" : "";
-            lines.Add($"{Tr("Growth Rate")}: {sign}{growth:N1}%");
+            if (IsSummaryGrowthPending(summary))
+            {
+                lines.Add($"{Tr("Growth Rate")}: {PendingText}");
+            }
+            else
+            {
+                var growth = CalculateGrowthRate(summary);
+                var sign = growth >= 0 ? "+" : "";
+                lines.Add($"{Tr("Growth Rate")}: {sign}{growth:N1}%");
+            }
         }
 
         var lineHeight = (float)summary.FontSize * _renderScale * 1.5f;
@@ -4191,6 +4198,17 @@ public class ReportRenderer : IDisposable
         return CostOfGoodsAggregator.IsCostOfGoodsPending(_companyData.Revenues, startDate, endDate, collectedOnly: true);
     }
 
+    /// <summary>The net profit growth rate compares two periods, so either one waiting for a stock cost leaves it pending.</summary>
+    private bool IsSummaryGrowthPending(SummaryReportElement summary)
+    {
+        if (_companyData == null || summary.TransactionType is TransactionType.Revenue or TransactionType.Expenses)
+            return false;
+
+        var (startDate, endDate) = SummaryDateRange();
+        var (previousStart, previousEnd) = SummaryComparisonRange(startDate, endDate);
+        return CostOfGoodsAggregator.IsProfitChangePending(_companyData.Revenues, startDate, endDate, previousStart, previousEnd);
+    }
+
     private int CalculateTransactionCount(SummaryReportElement summary)
     {
         if (_companyData == null) return 0;
@@ -4232,8 +4250,7 @@ public class ReportRenderer : IDisposable
         if (_companyData == null) return 0;
 
         var (startDate, endDate) = SummaryDateRange();
-        var (previousStart, previousEnd) = ComparisonPeriod.For(
-            DateRangePresetExtensions.ParseDateRange(_config.Filters.DatePresetName), startDate, endDate);
+        var (previousStart, previousEnd) = SummaryComparisonRange(startDate, endDate);
 
         // A ratio, so it compares USD totals (Calculations.md §3).
         var current = SummaryAmount(summary.TransactionType, startDate, endDate, (usd, _) => usd);
@@ -4264,6 +4281,9 @@ public class ReportRenderer : IDisposable
 
     private (DateTime Start, DateTime End) SummaryDateRange() =>
         _config.Filters.GetDateRange(_companyData?.GetEarliestDate());
+
+    private (DateTime Start, DateTime End) SummaryComparisonRange(DateTime start, DateTime end) =>
+        ComparisonPeriod.For(DateRangePresetExtensions.ParseDateRange(_config.Filters.DatePresetName), start, end);
 
     /// <summary>
     /// Formats an amount in the report's display currency.

@@ -105,7 +105,7 @@
             <Border Grid.Row="2"
                     Padding="40"
                     IsVisible="{Binding HasNoCustomers}">
-                <TextBlock Text="{loc:Loc 'No customer data yet'}"
+                <TextBlock Text="{loc:Loc 'No data available in the selected date range'}"
                            FontSize="14"
                            Foreground="{DynamicResource TextSecondaryBrush}"
                            HorizontalAlignment="Center"

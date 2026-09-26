@@ -66,7 +66,7 @@ public partial class App
         // Nothing importable: show the vetted message for the resolved reason code (never raw AI text).
         if (rescue.Outcome == ImportRescueOutcome.Rejected)
         {
-            await ShowInfoMessageBoxAsync("Import".Translate(), ImportRescueMessages.ForReason(rescue.ReasonCode));
+            await ShowInfoDialogAsync("Import".Translate(), ImportRescueMessages.ForReason(rescue.ReasonCode));
             return;
         }
 

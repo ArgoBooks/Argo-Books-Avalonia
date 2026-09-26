@@ -9,8 +9,8 @@ namespace ArgoBooks.Tests.Services;
 
 /// <summary>
 /// Receipt scans, AI imports and invoice sends share one usage-limit policy
-/// (docs/LicenseKey.md "Usage limits"): a server that is down (5xx, unreadable, unreachable) lets
-/// it through, while a 4xx refusal blocks. Each case runs for every limit, since the three used to
+/// (docs/LicenseKey.md "Usage limits"): only our endpoint's own JSON refusal blocks, and anything
+/// else (a 5xx, a page that isn't our JSON, no answer at all) lets it through. Each case runs for every limit, since the three used to
 /// behave differently on the same failure.
 /// </summary>
 public class UsageLimitServiceTests
@@ -121,7 +121,7 @@ public class UsageLimitServiceTests
     }
 
     [Theory, MemberData(nameof(Limits))]
-    public async Task RateLimited_Blocks_WithTheServersWaitMessage(string limit)
+    public async Task RateLimited_Blocks_WithTheWaitMessage(string limit)
     {
         var h = new Harness(limit);
         h.Handler.Respond("""{"success":false,"message":"Too many requests. Please try again in 15 minutes.","errorCode":"RATE_LIMITED"}""",
@@ -130,23 +130,11 @@ public class UsageLimitServiceTests
         var result = await h.Service.CheckUsageAsync();
 
         Assert.False(result.Allowed);
-        Assert.Equal("Too many requests. Please try again in 15 minutes.", result.ErrorMessage);
-    }
-
-    [Theory, MemberData(nameof(Limits))]
-    public async Task RateLimited_WithAnUnreadableBody_StillBlocks(string limit)
-    {
-        var h = new Harness(limit);
-        h.Handler.Respond("<html>Too Many Requests</html>", HttpStatusCode.TooManyRequests);
-
-        var result = await h.Service.CheckUsageAsync();
-
-        Assert.False(result.Allowed);
         Assert.Equal(UsageLimitService.RateLimitedMessage, result.ErrorMessage);
     }
 
     [Theory, MemberData(nameof(Limits))]
-    public async Task BadRequest_Blocks_WithTheServersReason(string limit)
+    public async Task BadRequest_Blocks(string limit)
     {
         var h = new Harness(limit);
         h.Handler.Respond("""{"success":false,"message":"Invalid identifier length.","errorCode":"INVALID_INPUT"}""",
@@ -155,7 +143,42 @@ public class UsageLimitServiceTests
         var result = await h.Service.CheckUsageAsync();
 
         Assert.False(result.Allowed);
-        Assert.Contains("Invalid identifier length.", result.ErrorMessage);
+        Assert.Equal(UsageLimitService.RefusedMessage, result.ErrorMessage);
+    }
+
+    // The hosting layer answers these (a firewall 403, a 404 mid-deploy, a 408), not our endpoint.
+    [Theory, MemberData(nameof(Limits))]
+    public async Task AClientErrorThatIsNotOurJson_Allows(string limit)
+    {
+        foreach (var (status, body) in new[]
+                 {
+                     (HttpStatusCode.Forbidden, "<html><body>403 Forbidden</body></html>"),
+                     (HttpStatusCode.NotFound, "<html><body>Not Found</body></html>"),
+                     (HttpStatusCode.RequestTimeout, ""),
+                     (HttpStatusCode.TooManyRequests, "<html>Too Many Requests</html>"),
+                     (HttpStatusCode.NotFound, "{}")
+                 })
+        {
+            var h = new Harness(limit);
+            h.Handler.Respond(body, status);
+
+            var result = await h.Service.CheckUsageAsync();
+
+            Assert.True(result.Allowed, $"HTTP {(int)status}: {body}");
+            Assert.True(result.IsOffline);
+        }
+    }
+
+    [Theory, MemberData(nameof(Limits))]
+    public async Task AFailureWithoutCounts_Allows(string limit)
+    {
+        var h = new Harness(limit);
+        h.Handler.Respond("""{"success":false,"error":"Something went wrong"}""");
+
+        var result = await h.Service.CheckUsageAsync();
+
+        Assert.True(result.Allowed);
+        Assert.True(result.IsOffline);
     }
 
     [Theory, MemberData(nameof(Limits))]

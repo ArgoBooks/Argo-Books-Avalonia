@@ -351,7 +351,7 @@ public partial class SendToAccountantModalViewModel : ViewModelBase
 
                 if (!response.Success)
                 {
-                    ErrorMessage = response.Message;
+                    ErrorMessage = response.Message.Translate();
                     return;
                 }
 

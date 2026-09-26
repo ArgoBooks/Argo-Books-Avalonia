@@ -409,7 +409,7 @@ public partial class CategoryModalsViewModel : ViewModelBase
                 if (deleteSubcategories &&
                     companyData.Products.Any(p => p.CategoryId != null && childIds.Contains(p.CategoryId)))
                 {
-                    await App.ShowWarningMessageBoxAsync(
+                    await App.ShowWarningDialogAsync(
                         "Cannot Delete".Translate(),
                         "A subcategory of this category is used by one or more products, so it cannot be deleted. Choose Move to Top Level instead.".Translate());
                     return;
@@ -417,7 +417,7 @@ public partial class CategoryModalsViewModel : ViewModelBase
 
                 if (deleteSubcategories && companyData.BankCategoryRules.Any(r => childIds.Contains(r.CategoryId)))
                 {
-                    await App.ShowWarningMessageBoxAsync(
+                    await App.ShowWarningDialogAsync(
                         "Cannot Delete".Translate(),
                         "A subcategory of this category is used by one or more bank rules, so it cannot be deleted. Choose Move to Top Level instead.".Translate());
                     return;

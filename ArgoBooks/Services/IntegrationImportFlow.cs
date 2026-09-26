@@ -201,7 +201,7 @@ public static class IntegrationImportFlow
     private static async Task<IntegrationImportResult> FailedAsync(string title, string format, Exception ex)
     {
         App.ErrorLogger?.LogError(ex, ErrorCategory.Api, $"{title} sync failed");
-        await App.ShowWarningMessageBoxAsync(title.Translate(), format.TranslateFormat(ex.Message));
+        await App.ShowWarningDialogAsync(title.Translate(), format.TranslateFormat(ex.Message));
         return new IntegrationImportResult(IntegrationImportOutcome.Failed, Error: ex.Message);
     }
 
@@ -227,7 +227,7 @@ public static class IntegrationImportFlow
             creation.BatchId = null;
             App.CompanyManager?.MarkAsChanged();
 
-            await App.ShowWarningMessageBoxAsync(
+            await App.ShowWarningDialogAsync(
                 "Argo Books API".Translate(),
                 ("The restored items are back in your books, but the server could not be told they were taken. " +
                  "They may still show as waiting on your next sync. Importing them again would create duplicates, " +

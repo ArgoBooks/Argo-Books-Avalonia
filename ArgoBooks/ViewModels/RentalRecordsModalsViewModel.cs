@@ -991,7 +991,7 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
         // There is no card payment to refund against, so the money goes back however it came
         // in. Said out loud because the rental already records the deposit as returned, and
         // nothing else would mention that the returning is still the user's to do.
-        _ = App.ShowWarningMessageBoxAsync(
+        _ = App.ShowWarningDialogAsync(
             "Return the deposit yourself".Translate(),
             "This invoice was not paid online, so Argo Books cannot send {0} back. Return it the same way you took it."
                 .TranslateFormat(CurrencyService.Format(Math.Min(refund, held))));
@@ -1007,7 +1007,7 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
         if (SecurityDeposits.StillHeld(invoice, companyData.Payments, companyData.Revenues) <= 0)
             return;
 
-        _ = App.ShowWarningMessageBoxAsync(
+        _ = App.ShowWarningDialogAsync(
             "The deposit has not gone back".Translate(),
             "Nothing has been refunded to the customer for rental {0}. It stays that way until you issue the refund from the invoice."
                 .TranslateFormat(rental.Id));

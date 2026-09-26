@@ -343,17 +343,42 @@ public partial class App : Application
         NavigationService?.NavigateTo("Invoices", new Dictionary<string, object?> { ["selectedTabIndex"] = 3 });
     }
 
-    /// <summary>
-    /// Shows a modal error message box.
-    /// </summary>
-    internal static async Task ShowErrorMessageBoxAsync(string title, string message)
+    /// <summary>Shows an error notice with an OK button.</summary>
+    internal static Task ShowErrorDialogAsync(string title, string message) =>
+        ShowNoticeAsync(DialogIcon.Error, title, message);
+
+    /// <summary>Shows an information notice with an OK button.</summary>
+    internal static Task ShowInfoDialogAsync(string title, string message) =>
+        ShowNoticeAsync(DialogIcon.Info, title, message);
+
+    /// <summary>Shows a warning notice with an OK button.</summary>
+    public static Task ShowWarningDialogAsync(string title, string message) =>
+        ShowNoticeAsync(DialogIcon.Warning, title, message);
+
+    private static async Task ShowNoticeAsync(DialogIcon icon, string title, string message)
     {
-        if (Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
-            && desktop.MainWindow is MainWindow mainWindow
-            && mainWindow.MessageBoxService is { } messageBoxService)
+        if (ConfirmationDialog is { } dialog)
+            await dialog.ShowNoticeAsync(icon, title, message);
+    }
+
+    /// <summary>
+    /// Asks the user to confirm, returning false when the dialog cannot be shown so a caller
+    /// never takes an irreversible action unasked.
+    /// </summary>
+    internal static async Task<bool> ConfirmDialogAsync(
+        string title, string message, string confirmText, string cancelText)
+    {
+        if (ConfirmationDialog is not { } dialog)
+            return false;
+
+        var result = await dialog.ShowAsync(new ConfirmationDialogOptions
         {
-            await messageBoxService.ShowErrorAsync(title, message);
-        }
+            Title = title,
+            Message = message,
+            PrimaryButtonText = confirmText,
+            CancelButtonText = cancelText
+        });
+        return result == ConfirmationResult.Primary;
     }
 
     /// <summary>
@@ -390,35 +415,6 @@ public partial class App : Application
     /// <summary>Hides the global loading overlay shown by <see cref="ShowBusyOverlay"/>.</summary>
     internal static void HideBusyOverlay() => _mainWindowViewModel?.HideLoading();
 
-    /// <summary>
-    /// Shows a modal info message box.
-    /// </summary>
-    internal static async Task ShowInfoMessageBoxAsync(string title, string message)
-    {
-        if (Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
-            && desktop.MainWindow is MainWindow mainWindow
-            && mainWindow.MessageBoxService is { } messageBoxService)
-        {
-            await messageBoxService.ShowInfoAsync(title, message);
-        }
-    }
-
-    /// <summary>
-    /// Asks the user to confirm, returning false when the dialog cannot be shown so a caller
-    /// never takes an irreversible action unasked.
-    /// </summary>
-    internal static async Task<bool> ConfirmMessageBoxAsync(
-        string title, string message, string confirmText, string cancelText)
-    {
-        if (Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
-            && desktop.MainWindow is MainWindow mainWindow
-            && mainWindow.MessageBoxService is { } messageBoxService)
-        {
-            return await messageBoxService.ConfirmAsync(title, message, confirmText, cancelText);
-        }
-
-        return false;
-    }
 
     /// <summary>
     /// Puts text on the clipboard from the main window's top level.
@@ -447,18 +443,6 @@ public partial class App : Application
         return false;
     }
 
-    /// <summary>
-    /// Shows a modal warning message box.
-    /// </summary>
-    public static async Task ShowWarningMessageBoxAsync(string title, string message)
-    {
-        if (Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
-            && desktop.MainWindow is MainWindow mainWindow
-            && mainWindow.MessageBoxService is { } messageBoxService)
-        {
-            await messageBoxService.ShowWarningAsync(title, message);
-        }
-    }
 
     private static int _isAutoSyncing;
     private static Timer? _portalSyncTimer;
@@ -1665,7 +1649,7 @@ public partial class App : Application
                     {
                         _appShellViewModel.HeaderViewModel.ShowSavingIndicator = false;
                         ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to save company on close");
-                        await ShowErrorMessageBoxAsync("Error".Translate(), GetFriendlySaveErrorMessage(ex));
+                        await ShowErrorDialogAsync("Error".Translate(), GetFriendlySaveErrorMessage(ex));
                     }
                 }
             };
@@ -2011,7 +1995,7 @@ public partial class App : Application
                 case LicenseValidationStatus.InvalidKey:
                     await LicenseService.ClearLicenseAsync();
                     _appShellViewModel.SetPlanStatus(false);
-                    await ShowErrorMessageBoxAsync(
+                    await ShowErrorDialogAsync(
                         "License Issue".Translate(),
                         "Your license key is no longer valid. Please contact support or enter a new key.".Translate());
                     break;
@@ -2019,7 +2003,7 @@ public partial class App : Application
                 case LicenseValidationStatus.ExpiredSubscription:
                     await LicenseService.ClearLicenseAsync();
                     _appShellViewModel.SetPlanStatus(false);
-                    await ShowErrorMessageBoxAsync(
+                    await ShowErrorDialogAsync(
                         "Subscription Expired".Translate(),
                         "Your premium subscription has expired. Please renew your subscription to continue using premium features.".Translate());
                     break;
@@ -2027,7 +2011,7 @@ public partial class App : Application
                 case LicenseValidationStatus.WrongDevice:
                     await LicenseService.ClearLicenseAsync();
                     _appShellViewModel.SetPlanStatus(false);
-                    await ShowErrorMessageBoxAsync(
+                    await ShowErrorDialogAsync(
                         "License Deactivated".Translate(),
                         "Your license key has been activated on a different device. Premium features have been deactivated on this device. You can re-enter your key in the Upgrade menu to reactivate.".Translate());
                     break;
@@ -2432,7 +2416,7 @@ public partial class App : Application
         if (prepared == null)
         {
             ErrorLogger?.LogWarning($"Could not read avatar image: {path}", errorTag);
-            await ShowErrorMessageBoxAsync(
+            await ShowErrorDialogAsync(
                 "Image Not Supported".Translate(),
                 "That image could not be read. Try a PNG or JPEG.".Translate());
             return;
@@ -2518,7 +2502,7 @@ public partial class App : Application
                 if (stream == null)
                 {
                     _mainWindowViewModel.HideLoading();
-                    await ShowErrorMessageBoxAsync("Error".Translate(), "Sample company data not found.".Translate());
+                    await ShowErrorDialogAsync("Error".Translate(), "Sample company data not found.".Translate());
                     return;
                 }
 
@@ -2594,7 +2578,7 @@ public partial class App : Application
             else
             {
                 _mainWindowViewModel.HideLoading();
-                await ShowErrorMessageBoxAsync("Error".Translate(), "Failed to open sample company.".Translate());
+                await ShowErrorDialogAsync("Error".Translate(), "Failed to open sample company.".Translate());
             }
         }
         catch (CompanyAlreadyOpenException)
@@ -2606,7 +2590,7 @@ public partial class App : Application
         {
             _mainWindowViewModel.HideLoading();
             ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to open sample company");
-            await ShowErrorMessageBoxAsync("Error".Translate(), "Failed to open sample company: {0}".TranslateFormat(ex.Message));
+            await ShowErrorDialogAsync("Error".Translate(), "Failed to open sample company: {0}".TranslateFormat(ex.Message));
         }
     }
 
@@ -2732,7 +2716,7 @@ public partial class App : Application
                 _mainWindowViewModel?.HideLoading();
                 _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, "xls-convert");
                 ErrorLogger?.LogError(ex, ErrorCategory.Import, "Failed to convert legacy .xls file for import");
-                await ShowErrorMessageBoxAsync(
+                await ShowErrorDialogAsync(
                     "Import Failed".Translate(),
                     "This .xls file could not be read. Try re-saving it as .xlsx and importing that instead.".Translate());
                 return;
@@ -2774,7 +2758,7 @@ public partial class App : Application
         {
             _mainWindowViewModel?.HideLoading();
             _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, "not-configured");
-            await ShowErrorMessageBoxAsync(
+            await ShowErrorDialogAsync(
                 "AI Not Configured".Translate(),
                 "AI-powered import requires portal access. Please register your company first.".Translate());
             return;
@@ -2868,7 +2852,7 @@ public partial class App : Application
             if (includedSheets.Count == 0)
             {
                 _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportAbandoned, "no-sheets");
-                await ShowInfoMessageBoxAsync("Info".Translate(), "No sheets were selected for import.".Translate());
+                await ShowInfoDialogAsync("Info".Translate(), "No sheets were selected for import.".Translate());
                 return;
             }
 
@@ -3372,7 +3356,7 @@ public partial class App : Application
         {
             _mainWindowViewModel?.HideLoading();
             ErrorLogger?.LogError(ex, ErrorCategory.Import, "Failed to restore from backup");
-            await ShowErrorMessageBoxAsync("Restore Failed".Translate(), "Failed to restore from backup: {0}".TranslateFormat(ex.Message));
+            await ShowErrorDialogAsync("Restore Failed".Translate(), "Failed to restore from backup: {0}".TranslateFormat(ex.Message));
         }
     }
 
@@ -3415,7 +3399,7 @@ public partial class App : Application
         if (Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop) return;
         if (CompanyManager?.CompanyData is not { } companyData)
         {
-            await ShowErrorMessageBoxAsync("Error".Translate(), "No company is currently open.".Translate());
+            await ShowErrorDialogAsync("Error".Translate(), "No company is currently open.".Translate());
             return;
         }
 
@@ -3475,7 +3459,7 @@ public partial class App : Application
             if (lines.Count == 0)
             {
                 _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, $"bank-matching:no-rows:{ext.TrimStart('.')}");
-                await ShowInfoMessageBoxAsync("Info".Translate(),
+                await ShowInfoDialogAsync("Info".Translate(),
                     "No transactions were found. Make sure the file has Date, Description and Amount (or Debit/Credit) columns.".Translate());
                 return;
             }
@@ -3508,7 +3492,7 @@ public partial class App : Application
             _ = TelemetryManager?.TrackFeatureAsync(FeatureName.DataImported, $"bank-matching:{lines.Count}");
             TutorialService.Instance.CompleteChecklistItem(TutorialService.ChecklistItems.ImportData);
 
-            await ShowInfoMessageBoxAsync(
+            await ShowInfoDialogAsync(
                 "Bank Matching".Translate(),
                 "Imported {0} transactions from {1}.".TranslateFormat(lines.Count, Path.GetFileName(filePath)));
         }
@@ -3521,14 +3505,14 @@ public partial class App : Application
         {
             _mainWindowViewModel?.HideLoading();
             _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, $"bank-matching:unreadable:{ext.TrimStart('.')}");
-            await ShowInfoMessageBoxAsync("Import Bank Statement".Translate(), ImportRescueMessages.UnreadableFile);
+            await ShowInfoDialogAsync("Import Bank Statement".Translate(), ImportRescueMessages.UnreadableFile);
         }
         catch (Exception ex)
         {
             _mainWindowViewModel?.HideLoading();
             _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, "bank-matching:exception");
             ErrorLogger?.LogError(ex, ErrorCategory.Import, "Bank statement import failed");
-            await ShowErrorMessageBoxAsync("Import Failed".Translate(), "Failed to import bank statement:\n\n{0}".TranslateFormat(ex.Message));
+            await ShowErrorDialogAsync("Import Failed".Translate(), "Failed to import bank statement:\n\n{0}".TranslateFormat(ex.Message));
         }
     }
 
@@ -3619,9 +3603,8 @@ public partial class App : Application
         catch (ServerRateLimitedException ex)
         {
             // Nothing was read, so nothing is charged; the file itself may be fine.
-            progress.End(false);
-            if (progress.StillWanted())
-                await ShowInfoMessageBoxAsync("Import Bank Statement".Translate(), ex.Message);
+            if (EndRead(progress, false))
+                await ShowInfoDialogAsync("Import Bank Statement".Translate(), ex.Message);
             return [];
         }
         catch
@@ -3630,13 +3613,13 @@ public partial class App : Application
             throw;
         }
 
-        progress.End(extracted.Count > 0);
+        var stillWanted = EndRead(progress, extracted.Count > 0);
         if (extracted.Count == 0)
         {
             // Don't fail silently: the extractor returns nothing both when the PDF has no
             // recognizable transactions and when the server couldn't process it. Nothing is charged.
-            if (progress.StillWanted())
-                await ShowInfoMessageBoxAsync(
+            if (stillWanted)
+                await ShowInfoDialogAsync(
                     "Import Bank Statement".Translate(),
                     "We couldn't read any transactions from that PDF. It may not be a recognizable bank statement, or the server couldn't process it. Try again, or import a CSV or Excel export instead.".Translate());
             return [];
@@ -3646,6 +3629,15 @@ public partial class App : Application
         // read PDFs without ever using up the limit.
         await usage.IncrementUsageAsync();
         return extracted;
+    }
+
+    /// <summary>Ends the read and says whether the screen was still open beforehand.</summary>
+    /// <remarks>Asked before End, because ending a failed read closes the import screen.</remarks>
+    internal static bool EndRead(BankPdfReadProgress progress, bool succeeded)
+    {
+        var stillWanted = progress.StillWanted();
+        progress.End(succeeded);
+        return stillWanted;
     }
 
     /// <summary>
@@ -3901,7 +3893,7 @@ public partial class App : Application
                     // What the security guidance does not cover, such as a drive that has gone.
                     // Staying on the open company keeps the changes; carrying on would discard them.
                     ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Save before leaving the company failed");
-                    await ShowWarningMessageBoxAsync(
+                    await ShowWarningDialogAsync(
                         "Could Not Save".Translate(),
                         "Your changes could not be saved, so the company is still open with them. {0}".TranslateFormat(ex.Message));
                     return false;
@@ -4050,7 +4042,7 @@ public partial class App : Application
             _mainWindowViewModel.HideLoading();
             passwordModal.Close();
             ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to open company file");
-            await ShowErrorMessageBoxAsync("Error".Translate(), "Failed to open file: {0}".TranslateFormat(ex.Message));
+            await ShowErrorDialogAsync("Error".Translate(), "Failed to open file: {0}".TranslateFormat(ex.Message));
         }
     }
 
@@ -4132,7 +4124,7 @@ public partial class App : Application
             _mainWindowViewModel.HideLoading();
             passwordModal.Close();
             ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to open company file with password");
-            await ShowErrorMessageBoxAsync("Error".Translate(), "Failed to open file: {0}".TranslateFormat(ex.Message));
+            await ShowErrorDialogAsync("Error".Translate(), "Failed to open file: {0}".TranslateFormat(ex.Message));
             return false;
         }
     }
@@ -4199,7 +4191,7 @@ public partial class App : Application
             {
                 _suppressSavedFeedback = false;
                 ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to save company as new file");
-                await ShowErrorMessageBoxAsync("Error".Translate(), GetFriendlySaveErrorMessage(ex));
+                await ShowErrorDialogAsync("Error".Translate(), GetFriendlySaveErrorMessage(ex));
                 return false;
             }
         }
@@ -4297,9 +4289,7 @@ public partial class App : Application
     /// </summary>
     private static async Task<SaveBlockedChoice> ShowSaveBlockedDialogAsync(string? targetPath)
     {
-        if (Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
-            && desktop.MainWindow is MainWindow mainWindow
-            && mainWindow.MessageBoxService is { } messageBoxService)
+        if (ConfirmationDialog is { } dialog)
         {
             var folder = string.IsNullOrEmpty(targetPath)
                 ? "the selected folder".Translate()
@@ -4310,20 +4300,20 @@ public partial class App : Application
                            "(for example: Windows Security → Virus & threat protection → Ransomware protection → Allow an app).")
                 .TranslateFormat(folder);
 
-            var result = await messageBoxService.ShowAsync(new MessageBoxOptions
+            var result = await dialog.ShowAsync(new ConfirmationDialogOptions
             {
+                Icon = DialogIcon.Warning,
                 Title = "Couldn't save your company file".Translate(),
                 Message = message,
-                Type = MessageBoxType.Warning,
-                Buttons = MessageBoxButtons.YesNoCancel,
                 PrimaryButtonText = "Retry".Translate(),
-                SecondaryButtonText = "Save to a different folder…".Translate()
+                SecondaryButtonText = "Save to a different folder…".Translate(),
+                CancelButtonText = "Cancel".Translate()
             });
 
             return result switch
             {
-                MessageBoxResult.Yes => SaveBlockedChoice.Retry,
-                MessageBoxResult.No => SaveBlockedChoice.SaveElsewhere,
+                ConfirmationResult.Primary => SaveBlockedChoice.Retry,
+                ConfirmationResult.Secondary => SaveBlockedChoice.SaveElsewhere,
                 _ => SaveBlockedChoice.Cancel
             };
         }
@@ -4585,7 +4575,7 @@ public partial class App : Application
                         if (ConnectivityMessage.IsConnectivityMessage(args.ErrorMessage))
                             await ShowConnectivityErrorAsync(args.ErrorMessage);
                         else
-                            await ShowErrorMessageBoxAsync("Export Failed".Translate(), args.ErrorMessage);
+                            await ShowErrorDialogAsync("Export Failed".Translate(), args.ErrorMessage);
                     }
                     else
                     {

@@ -159,7 +159,7 @@ public abstract partial class ViewModelBase : ObservableObject
         var usages = checks.Where(c => c.Used).Select(c => c.Label).ToList();
         if (usages.Count == 0) return false;
 
-        await App.ShowWarningMessageBoxAsync("Cannot Delete".Translate(), message(string.Join(", ", usages)));
+        await App.ShowWarningDialogAsync("Cannot Delete".Translate(), message(string.Join(", ", usages)));
         return true;
     }
 

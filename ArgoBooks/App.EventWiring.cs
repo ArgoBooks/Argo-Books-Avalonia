@@ -439,7 +439,7 @@ public partial class App
                 var prepared = await Task.Run(() => ImageFileLoader.TryPrepare(picked));
                 if (prepared == null)
                 {
-                    await ShowErrorMessageBoxAsync(
+                    await ShowErrorDialogAsync(
                         "Logo Not Supported".Translate(),
                         "That image could not be read. Try a PNG or JPEG.".Translate());
                     return;
@@ -506,7 +506,7 @@ public partial class App
                 {
                     _appShellViewModel.HeaderViewModel.ShowSavingIndicator = false;
                     ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to save company");
-                    await ShowErrorMessageBoxAsync("Error".Translate(), GetFriendlySaveErrorMessage(ex));
+                    await ShowErrorDialogAsync("Error".Translate(), GetFriendlySaveErrorMessage(ex));
                 }
             }
         };
@@ -626,7 +626,7 @@ public partial class App
                 {
                     _mainWindowViewModel?.HideLoading();
                     ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to create company");
-                    await ShowErrorMessageBoxAsync("Error".Translate(), "Failed to create company: {0}".TranslateFormat(ex.Message));
+                    await ShowErrorDialogAsync("Error".Translate(), "Failed to create company: {0}".TranslateFormat(ex.Message));
                     return;
                 }
             }
@@ -652,7 +652,7 @@ public partial class App
                 var prepared = await Task.Run(() => ImageFileLoader.TryPrepare(path));
                 if (prepared == null)
                 {
-                    await ShowErrorMessageBoxAsync(
+                    await ShowErrorDialogAsync(
                         "Logo Not Supported".Translate(),
                         "That image could not be read. Try a PNG or JPEG.".Translate());
                     return;
@@ -981,7 +981,7 @@ public partial class App
             catch (Exception ex)
             {
                 ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to update company");
-                await ShowErrorMessageBoxAsync("Error".Translate(), "Failed to update company: {0}".TranslateFormat(ex.Message));
+                await ShowErrorDialogAsync("Error".Translate(), "Failed to update company: {0}".TranslateFormat(ex.Message));
             }
         };
 
@@ -1000,7 +1000,7 @@ public partial class App
                 var prepared = await Task.Run(() => ImageFileLoader.TryPrepare(path));
                 if (prepared == null)
                 {
-                    await ShowErrorMessageBoxAsync(
+                    await ShowErrorDialogAsync(
                         "Logo Not Supported".Translate(),
                         "That image could not be read. Try a PNG or JPEG.".Translate());
                     return;
@@ -1088,7 +1088,7 @@ public partial class App
             {
                 settings.HasPassword = false;
                 ErrorLogger?.LogError(ex, ErrorCategory.Authentication, "Failed to set password");
-                await ShowErrorMessageBoxAsync("Error".Translate(), "Failed to set password: {0}".TranslateFormat(ex.Message));
+                await ShowErrorDialogAsync("Error".Translate(), "Failed to set password: {0}".TranslateFormat(ex.Message));
             }
         };
 
@@ -1119,7 +1119,7 @@ public partial class App
             {
                 settings.OnPasswordVerificationFailed();
                 ErrorLogger?.LogError(ex, ErrorCategory.Authentication, "Failed to change password");
-                await ShowErrorMessageBoxAsync("Error".Translate(), "Failed to change password: {0}".TranslateFormat(ex.Message));
+                await ShowErrorDialogAsync("Error".Translate(), "Failed to change password: {0}".TranslateFormat(ex.Message));
             }
         };
 
@@ -1151,7 +1151,7 @@ public partial class App
             {
                 settings.OnPasswordVerificationFailed();
                 ErrorLogger?.LogError(ex, ErrorCategory.Authentication, "Failed to remove password");
-                await ShowErrorMessageBoxAsync("Error".Translate(), "Failed to remove password: {0}".TranslateFormat(ex.Message));
+                await ShowErrorDialogAsync("Error".Translate(), "Failed to remove password: {0}".TranslateFormat(ex.Message));
             }
         };
 
@@ -1404,7 +1404,7 @@ public partial class App
             {
                 if (CompanyManager?.IsCompanyOpen != true)
                 {
-                    await ShowErrorMessageBoxAsync("Error".Translate(), "No company is currently open.".Translate());
+                    await ShowErrorDialogAsync("Error".Translate(), "No company is currently open.".Translate());
                     return;
                 }
 
@@ -1473,7 +1473,7 @@ public partial class App
                     backupStopwatch.Stop();
                     _mainWindowViewModel?.HideLoading();
                     ErrorLogger?.LogError(ex, ErrorCategory.Export, "Failed to export backup");
-                    await ShowErrorMessageBoxAsync("Export Failed".Translate(), "Failed to export backup: {0}".TranslateFormat(ex.Message));
+                    await ShowErrorDialogAsync("Export Failed".Translate(), "Failed to export backup: {0}".TranslateFormat(ex.Message));
                 }
 
                 return;
@@ -1488,7 +1488,7 @@ public partial class App
 
             if (CompanyManager?.CompanyData == null)
             {
-                await ShowErrorMessageBoxAsync("Error".Translate(), "No company is currently open.".Translate());
+                await ShowErrorDialogAsync("Error".Translate(), "No company is currently open.".Translate());
                 return;
             }
 
@@ -1601,7 +1601,7 @@ public partial class App
                 stopwatch.Stop();
                 _mainWindowViewModel?.HideLoading();
                 ErrorLogger?.LogError(ex, ErrorCategory.Export, $"Failed to export {args.Format}");
-                await ShowErrorMessageBoxAsync("Export Failed".Translate(), "Failed to export data: {0}".TranslateFormat(ex.Message));
+                await ShowErrorDialogAsync("Export Failed".Translate(), "Failed to export data: {0}".TranslateFormat(ex.Message));
             }
         };
     }
@@ -1621,7 +1621,7 @@ public partial class App
         {
             if (CompanyManager?.CompanyData == null)
             {
-                await ShowErrorMessageBoxAsync("Error".Translate(), "No company is currently open.".Translate());
+                await ShowErrorDialogAsync("Error".Translate(), "No company is currently open.".Translate());
                 return;
             }
 
@@ -1641,7 +1641,7 @@ public partial class App
             if (format.ToUpperInvariant() != "EXCEL")
             {
                 _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, $"format-unavailable:{format}");
-                await ShowInfoMessageBoxAsync("Info".Translate(), "{0} import will be available in a future update.".TranslateFormat(format));
+                await ShowInfoDialogAsync("Info".Translate(), "{0} import will be available in a future update.".TranslateFormat(format));
                 return;
             }
 

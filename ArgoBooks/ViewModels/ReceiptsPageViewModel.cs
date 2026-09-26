@@ -264,7 +264,7 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
 
         if (validPaths.Count == 0)
         {
-            await App.ShowWarningMessageBoxAsync(
+            await App.ShowWarningDialogAsync(
                 Loc.Tr("Invalid File"),
                 Loc.Tr("Please drop {0} files.", FilePickerTypes.SupportedReceiptFormats));
             return;
@@ -778,27 +778,16 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
             }
             else
             {
-                // Show error message box
-                if (mainWindow.MessageBoxService != null)
-                {
-                    await mainWindow.MessageBoxService.ShowWarningAsync(
-                        "Export Failed",
-                        "No receipts could be exported. Files may be missing.");
-                }
+                await App.ShowWarningDialogAsync(
+                    "Export Failed".Translate(),
+                    "No receipts could be exported. Files may be missing.".Translate());
             }
         }
         catch (Exception ex)
         {
-            var mainWindow = Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
-                ? desktop.MainWindow as MainWindow
-                : null;
-
-            if (mainWindow?.MessageBoxService != null)
-            {
-                await mainWindow.MessageBoxService.ShowErrorAsync(
-                    "Export Error",
-                    $"Failed to export receipts: {ex.Message}");
-            }
+            await App.ShowErrorDialogAsync(
+                "Export Error".Translate(),
+                "Failed to export receipts: {0}".TranslateFormat(ex.Message));
         }
     }
 

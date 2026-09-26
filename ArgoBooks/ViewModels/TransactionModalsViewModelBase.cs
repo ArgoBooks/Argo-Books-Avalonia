@@ -969,7 +969,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
                 {
                     message = "Your transaction has been saved. The converted amount will be updated automatically when the exchange rate becomes available.".Translate();
                 }
-                _ = App.ShowWarningMessageBoxAsync(
+                _ = App.ShowWarningDialogAsync(
                     "Pending Conversion".Translate(),
                     message);
             }

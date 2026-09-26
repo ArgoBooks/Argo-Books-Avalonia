@@ -5,12 +5,22 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace ArgoBooks.ViewModels;
 
+/// <summary>The icon beside a dialog's message, for a notice rather than a question.</summary>
+public enum DialogIcon
+{
+    None,
+    Info,
+    Warning,
+    Error
+}
+
 /// <summary>
 /// Configuration for a confirmation dialog.
 /// </summary>
 public class ConfirmationDialogOptions
 {
     public string Title { get; set; } = "Confirm";
+    public DialogIcon Icon { get; set; }
     public string Message { get; set; } = "";
     public string? PrimaryButtonText { get; set; } = "OK";
     public string? SecondaryButtonText { get; set; }
@@ -20,7 +30,8 @@ public class ConfirmationDialogOptions
 }
 
 /// <summary>
-/// ViewModel for a reusable confirmation dialog.
+/// ViewModel for the app's one modal dialog: questions, and notices (info, warning, error).
+/// A dialog asked for while another is open waits its turn, so neither caller is left waiting forever.
 /// </summary>
 public partial class ConfirmationDialogViewModel : ViewModelBase
 {
@@ -57,7 +68,17 @@ public partial class ConfirmationDialogViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isSecondaryDestructive;
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasIcon), nameof(IsInfoIcon), nameof(IsWarningIcon), nameof(IsErrorIcon))]
+    private DialogIcon _icon;
+
+    public bool HasIcon => Icon != DialogIcon.None;
+    public bool IsInfoIcon => Icon == DialogIcon.Info;
+    public bool IsWarningIcon => Icon == DialogIcon.Warning;
+    public bool IsErrorIcon => Icon == DialogIcon.Error;
+
     private TaskCompletionSource<ConfirmationResult>? _completionSource;
+    private readonly Queue<(ConfirmationDialogOptions Options, TaskCompletionSource<ConfirmationResult> Completion)> _waiting = new();
 
     /// <summary>
     /// Shows the confirmation dialog with the specified options.
@@ -66,7 +87,19 @@ public partial class ConfirmationDialogViewModel : ViewModelBase
     /// <returns>The result indicating which button was clicked.</returns>
     public Task<ConfirmationResult> ShowAsync(ConfirmationDialogOptions options)
     {
+        var completion = new TaskCompletionSource<ConfirmationResult>();
+        if (_completionSource != null)
+            _waiting.Enqueue((options, completion));
+        else
+            Present(options, completion);
+        return completion.Task;
+    }
+
+    private void Present(ConfirmationDialogOptions options, TaskCompletionSource<ConfirmationResult> completion)
+    {
+        _completionSource = completion;
         Title = options.Title;
+        Icon = options.Icon;
         Message = options.Message;
         PrimaryButtonText = options.PrimaryButtonText ?? "OK".Translate();
         SecondaryButtonText = options.SecondaryButtonText ?? "";
@@ -78,10 +111,20 @@ public partial class ConfirmationDialogViewModel : ViewModelBase
         IsSecondaryDestructive = options.IsSecondaryDestructive;
 
         IsOpen = true;
-
-        _completionSource = new TaskCompletionSource<ConfirmationResult>();
-        return _completionSource.Task;
     }
+
+    /// <summary>
+    /// Shows a notice with a single OK button.
+    /// </summary>
+    public Task<ConfirmationResult> ShowNoticeAsync(DialogIcon icon, string title, string message) =>
+        ShowAsync(new ConfirmationDialogOptions
+        {
+            Icon = icon,
+            Title = title,
+            Message = message,
+            PrimaryButtonText = "OK".Translate(),
+            CancelButtonText = null
+        });
 
     /// <summary>
     /// Shows a simple confirmation dialog.
@@ -99,32 +142,28 @@ public partial class ConfirmationDialogViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void PrimaryAction()
-    {
-        IsOpen = false;
-        _completionSource?.TrySetResult(ConfirmationResult.Primary);
-    }
+    private void PrimaryAction() => Finish(ConfirmationResult.Primary);
 
     [RelayCommand]
-    private void SecondaryAction()
-    {
-        IsOpen = false;
-        _completionSource?.TrySetResult(ConfirmationResult.Secondary);
-    }
+    private void SecondaryAction() => Finish(ConfirmationResult.Secondary);
 
     [RelayCommand]
-    private void CancelAction()
-    {
-        IsOpen = false;
-        _completionSource?.TrySetResult(ConfirmationResult.Cancel);
-    }
+    private void CancelAction() => Finish(ConfirmationResult.Cancel);
 
     /// <summary>
     /// Closes the dialog without a result (e.g., when clicking backdrop).
     /// </summary>
-    public void Close()
+    public void Close() => Finish(ConfirmationResult.None);
+
+    private void Finish(ConfirmationResult result)
     {
         IsOpen = false;
-        _completionSource?.TrySetResult(ConfirmationResult.None);
+        var completion = _completionSource;
+        _completionSource = null;
+        completion?.TrySetResult(result);
+
+        // The caller's continuation may already have shown the next dialog.
+        if (_completionSource == null && _waiting.TryDequeue(out var next))
+            Present(next.Options, next.Completion);
     }
 }

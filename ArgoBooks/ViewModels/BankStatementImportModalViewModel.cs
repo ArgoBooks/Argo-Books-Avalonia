@@ -131,7 +131,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
             catch (UnreadableStatementFileException)
             {
                 _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, $"bank:unreadable:{ext.TrimStart('.')}");
-                await App.ShowInfoMessageBoxAsync(
+                await App.ShowInfoDialogAsync(
                     "Import Bank Statement".Translate(),
                     ImportRescueMessages.UnreadableFile);
                 return;
@@ -153,7 +153,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
             if (lines.Count == 0)
             {
                 _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, $"bank:no-rows:{ext.TrimStart('.')}");
-                await App.ShowInfoMessageBoxAsync(
+                await App.ShowInfoDialogAsync(
                     "Import Bank Statement".Translate(),
                     "No transactions were found in this file. Make sure it's a bank statement with Date, Description and Amount (or Debit/Credit) columns.".Translate());
                 return;
@@ -346,7 +346,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
                     SetAiUnavailable(!string.IsNullOrEmpty(check.ErrorMessage)
                         ? ConnectivityMessage.IsConnectivityMessage(check.ErrorMessage)
                             ? "AI categorization is unavailable: couldn't reach the server.".Translate()
-                            : "AI categorization is unavailable: {0}".TranslateFormat(check.ErrorMessage)
+                            : "AI categorization is unavailable: {0}".TranslateFormat(check.ErrorMessage.Translate())
                         : check.MonthlyLimit > 0
                             ? "AI categorization is off: you've used all {0} AI imports this month.".TranslateFormat(check.MonthlyLimit)
                             : "AI categorization needs a registered company.".Translate());

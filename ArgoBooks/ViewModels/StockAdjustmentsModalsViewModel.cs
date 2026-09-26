@@ -421,7 +421,7 @@ public partial class StockAdjustmentsModalsViewModel : ViewModelBase
             var stockAfterDelete = inventoryItem?.InStock - (adjustment.NewStock - adjustment.PreviousStock);
             if (stockAfterDelete < 0)
             {
-                await App.ShowWarningMessageBoxAsync(
+                await App.ShowWarningDialogAsync(
                     "Cannot Delete".Translate(),
                     "This adjustment can't be deleted because it would leave {0} with {1} in stock.".TranslateFormat(item.ProductName, stockAfterDelete));
                 return;

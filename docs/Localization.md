@@ -50,6 +50,8 @@ var name = Loc.CurrentLanguage;     // e.g., "French"
 
 Put changing values in placeholders (`{0}`, `{1}`) and translate the whole sentence. Don't join two translated pieces together, because word order differs between languages.
 
+`ArgoBooks.Core` can't translate, because the language service lives in the app. A message Core hands to a screen is a `public const string`, which the translation tool collects, and the screen translates it with `.Translate()` when it shows it. Text that comes from the server can't be translated and is shown as sent.
+
 ## How a string is looked up
 
 ![Translation Flow](diagrams/localization/translation-flow.svg)

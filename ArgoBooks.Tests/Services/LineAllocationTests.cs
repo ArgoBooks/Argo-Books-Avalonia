@@ -87,6 +87,16 @@ public class LineAllocationTests
     }
 
     [Fact]
+    public void AFreeLastLine_GetsExactlyNothing_AndThePaidLinesTakeTheWholeAmount()
+    {
+        // Three thirds of 10 leave a remainder of 1e-27, which must not land on the free line.
+        var result = LineAllocation.Allocate([Line(1, 1), Line(1, 1), Line(1, 1), Line(1, 0)], 10m);
+
+        Assert.Equal(0m, result.Shares[3].AmountUSD);
+        Assert.Equal(10m, result.Shares.Sum(s => s.AmountUSD));
+    }
+
+    [Fact]
     public void AWaitingSale_SharesZero()
     {
         var sale = Sale(100m, 0m, Line(1, 60), Line(1, 40));

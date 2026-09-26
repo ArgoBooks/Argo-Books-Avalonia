@@ -1028,8 +1028,9 @@ public class InsightsService(
 
         if (!productSales.Any()) return null;
 
+        // Under a cent of revenue, a margin is meaningless and can overflow.
         var topProduct = productSales
-            .Where(p => p.Cost > 0 && p.Revenue > 0)
+            .Where(p => p.Cost > 0 && p.Revenue >= 0.01m)
             .Select(p => new { p.ProductId, p.Revenue, p.RevenueDisplay, Margin = (p.Revenue - p.Cost) / p.Revenue * 100 })
             .OrderByDescending(p => p.Margin)
             .FirstOrDefault();

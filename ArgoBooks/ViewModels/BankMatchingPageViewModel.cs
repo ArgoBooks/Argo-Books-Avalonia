@@ -694,7 +694,7 @@ public partial class BankMatchingPageViewModel : SortablePageViewModelBase
         {
             DropRecordFromCandidates(candidate.RecordType, candidate.RecordId);
             RefreshAfterMatchChange(line);
-            _ = App.ShowInfoMessageBoxAsync(
+            _ = App.ShowInfoDialogAsync(
                 "Bank Matching".Translate(),
                 "That record is already matched to another bank line.".Translate());
             return;

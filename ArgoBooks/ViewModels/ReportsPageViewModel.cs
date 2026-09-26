@@ -803,7 +803,7 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
     [ObservableProperty]
     private bool _showNoChangesMessage;
 
-    public ReportUndoRedoManager UndoRedoManager { get; } = new();
+    public UndoRedoManager UndoRedoManager { get; } = new();
 
     /// <summary>
     /// Gets whether the report has unsaved changes (changes since last save).

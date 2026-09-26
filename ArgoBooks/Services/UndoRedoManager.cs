@@ -95,17 +95,26 @@ public interface ICoalescingUndoableAction : IUndoableAction
 }
 
 /// <summary>
-/// Manages undo and redo operations with history tracking.
+/// Manages undo and redo operations with history tracking. The company has one instance and the
+/// report designer another.
 /// </summary>
 public class UndoRedoManager : ObservableObject, IUndoRedoManager
 {
     private readonly Stack<IUndoableAction> _undoStack = new();
     private readonly Stack<IUndoableAction> _redoStack = new();
     private readonly int _maxHistorySize;
+
+    /// <summary>The newest action when last saved; null for an empty history, <see cref="NoSavedState"/> for none reachable.</summary>
     private IUndoableAction? _savedState;
     private bool _isExecutingUndoRedo;
     private DateTime _lastRecordTime;
     private const int CoalesceThresholdMs = 500;
+
+    /// <summary>
+    /// When true, RecordAction calls are ignored. The report designer sets it during a drag or
+    /// resize, so property change notifications don't record duplicate entries.
+    /// </summary>
+    public bool SuppressRecording { get; set; }
 
     /// <summary>
     /// Event raised when the undo/redo state changes.
@@ -176,6 +185,11 @@ public class UndoRedoManager : ObservableObject, IUndoRedoManager
                                    (_undoStack.Count > 0 && _undoStack.Peek() == _savedState);
 
     /// <summary>
+    /// Gets whether anything has changed since the last save.
+    /// </summary>
+    public bool HasUnsavedChanges => !IsAtSavedState;
+
+    /// <summary>
     /// Gets the undo history as a read-only collection.
     /// </summary>
     public IReadOnlyList<IUndoableAction> UndoHistory => _undoStack.ToList();
@@ -215,7 +229,7 @@ public class UndoRedoManager : ObservableObject, IUndoRedoManager
     /// <param name="action">The action to record.</param>
     public void RecordAction(IUndoableAction action)
     {
-        if (_isExecutingUndoRedo)
+        if (_isExecutingUndoRedo || SuppressRecording)
             return;
 
         var now = DateTime.UtcNow;
@@ -230,6 +244,9 @@ public class UndoRedoManager : ObservableObject, IUndoRedoManager
             (now - _lastRecordTime).TotalMilliseconds < CoalesceThresholdMs)
         {
             topCoalescing.UpdateToNewState(newCoalescing);
+            // The saved action now holds a newer state, so no action is the saved one any more.
+            if (ReferenceEquals(topCoalescing, _savedState))
+                _savedState = NoSavedState.Instance;
             _lastRecordTime = now;
             _redoStack.Clear();
             OnStateChanged();
@@ -352,10 +369,20 @@ public class UndoRedoManager : ObservableObject, IUndoRedoManager
         OnPropertyChanged(nameof(UndoDescription));
         OnPropertyChanged(nameof(RedoDescription));
         OnPropertyChanged(nameof(IsAtSavedState));
+        OnPropertyChanged(nameof(HasUnsavedChanges));
         OnPropertyChanged(nameof(UndoHistory));
         OnPropertyChanged(nameof(RedoHistory));
         StateChanged?.Invoke(this, EventArgs.Empty);
     }
+}
+
+/// <summary>Stands for a saved state that no undo or redo can get back to.</summary>
+internal sealed class NoSavedState : IUndoableAction
+{
+    public static readonly NoSavedState Instance = new();
+    public string Description => string.Empty;
+    public void Undo() { }
+    public void Redo() { }
 }
 
 /// <summary>

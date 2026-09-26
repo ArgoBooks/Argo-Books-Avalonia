@@ -497,7 +497,7 @@ public partial class QuotesPageViewModel : SortablePageViewModelBase
                 : "This replaces the declined answer already on the quote.").Translate();
         }
 
-        return App.ConfirmMessageBoxAsync(
+        return App.ConfirmDialogAsync(
             (accepting ? "Mark as accepted?" : "Mark as declined?").Translate(),
             message,
             (accepting ? "Mark accepted" : "Mark declined").Translate(),
@@ -526,7 +526,7 @@ public partial class QuotesPageViewModel : SortablePageViewModelBase
 
         if (quote.Status == QuoteStatus.Converted && convertedInvoice != null)
         {
-            await App.ShowInfoMessageBoxAsync(
+            await App.ShowInfoDialogAsync(
                 "Already converted".Translate(),
                 "This quote is already invoice {0}.".TranslateFormat(quote.ConvertedInvoiceId ?? string.Empty));
             return;
@@ -539,7 +539,7 @@ public partial class QuotesPageViewModel : SortablePageViewModelBase
             var warning = quote.Status == QuoteStatus.Declined
                 ? "{0} declined this quote."
                 : "This quote expired on {1}.";
-            var confirmed = await App.ConfirmMessageBoxAsync(
+            var confirmed = await App.ConfirmDialogAsync(
                 "Convert to invoice?".Translate(),
                 warning.TranslateFormat(item.CustomerName, quote.ValidUntil.ToString("MMM dd, yyyy"))
                 + "\n\n" + "A draft invoice will still be created, for you to check before sending.".Translate(),

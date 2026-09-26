@@ -44,13 +44,6 @@ public partial class MainWindow : Window
             dragRegion.PointerPressed += OnTitleBarPointerPressed;
         }
 
-        // Hook up modal overlay to services
-        var modalOverlay = this.FindControl<ModalOverlay>("ModalOverlay");
-        if (modalOverlay != null)
-        {
-            MessageBoxService = new MessageBoxService();
-            MessageBoxService.SetOverlay(modalOverlay);
-        }
 
         // Subscribe to window events for state persistence
         Opened += OnWindowOpened;
@@ -95,10 +88,6 @@ public partial class MainWindow : Window
             windowControls.IsVisible = false;
     }
 
-    /// <summary>
-    /// Gets the message box service for this window.
-    /// </summary>
-    public MessageBoxService? MessageBoxService { get; }
 
     private void MinimizeButton_Click(object? sender, RoutedEventArgs e)
     {
@@ -340,7 +329,7 @@ public partial class MainWindow : Window
                                     {
                                         // Staying open keeps the changes; closing would discard them.
                                         App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.FileSystem, "Save before closing failed");
-                                        await App.ShowWarningMessageBoxAsync(
+                                        await App.ShowWarningDialogAsync(
                                             "Could Not Save".Translate(),
                                             "Your changes could not be saved, so the company is still open with them. {0}".TranslateFormat(ex.Message));
                                         return;

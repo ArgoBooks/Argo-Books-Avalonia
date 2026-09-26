@@ -1274,7 +1274,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
 
             if (!response.Success)
             {
-                SendError = response.Message;
+                SendError = response.Message.Translate();
                 return;
             }
 
