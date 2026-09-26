@@ -58,7 +58,8 @@ public class ReportTemplateStorage
         {
             EnsureDirectoryExists();
 
-            var filePath = TemplatePath(templateName);
+            var files = ReadTemplateFiles();
+            var filePath = FindTemplateFile(files, templateName) ?? NewTemplateFile(templateName);
 
             var templateData = new SavedTemplate
             {
@@ -87,9 +88,8 @@ public class ReportTemplateStorage
     {
         try
         {
-            var filePath = TemplatePath(templateName);
-
-            if (!File.Exists(filePath))
+            var filePath = FindTemplateFile(ReadTemplateFiles(), templateName);
+            if (filePath == null)
                 return null;
 
             var json = await File.ReadAllTextAsync(filePath);
@@ -109,36 +109,16 @@ public class ReportTemplateStorage
     /// </summary>
     public List<string> GetSavedTemplateNames()
     {
-        var names = new List<string>();
-
         try
         {
             EnsureDirectoryExists();
-
-            var files = Directory.GetFiles(TemplatesDirectory, $"*{TemplateExtension}");
-            foreach (var file in files)
-            {
-                try
-                {
-                    var json = File.ReadAllText(file);
-                    var templateData = JsonSerializer.Deserialize<SavedTemplate>(json, JsonOptions);
-                    if (templateData?.Name != null)
-                    {
-                        names.Add(templateData.Name);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _errorLogger?.LogWarning($"Failed to read template file {Path.GetFileName(file)}: {ex.Message}", "ReportTemplateStorage");
-                }
-            }
+            return ReadTemplateFiles().Select(t => t.Name).ToList();
         }
         catch (Exception ex)
         {
             _errorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to enumerate report templates");
+            return [];
         }
-
-        return names;
     }
 
     /// <summary>
@@ -148,9 +128,8 @@ public class ReportTemplateStorage
     {
         try
         {
-            var filePath = TemplatePath(templateName);
-
-            if (File.Exists(filePath))
+            var filePath = FindTemplateFile(ReadTemplateFiles(), templateName);
+            if (filePath != null)
             {
                 File.Delete(filePath);
                 return true;
@@ -171,11 +150,12 @@ public class ReportTemplateStorage
     {
         try
         {
-            var oldPath = TemplatePath(oldName);
-            var newPath = TemplatePath(newName);
-
-            if (!File.Exists(oldPath) || File.Exists(newPath))
+            var files = ReadTemplateFiles();
+            var oldPath = FindTemplateFile(files, oldName);
+            if (oldPath == null || FindTemplateFile(files, newName) != null)
                 return false;
+
+            var newPath = NewTemplateFile(newName);
 
             // Load, update, and save atomically (write to temp file first)
             var json = await File.ReadAllTextAsync(oldPath);
@@ -217,10 +197,7 @@ public class ReportTemplateStorage
     /// <summary>
     /// Checks if a template exists.
     /// </summary>
-    public bool TemplateExists(string templateName)
-    {
-        return File.Exists(TemplatePath(templateName));
-    }
+    public bool TemplateExists(string templateName) => FindTemplateFile(ReadTemplateFiles(), templateName) != null;
 
     /// <summary>
     /// Gets the images directory path for storing embedded images.
@@ -256,26 +233,23 @@ public class ReportTemplateStorage
     }
 
     /// <summary>
-    /// The file for the template called <paramref name="templateName"/>: the saved one whose stored
-    /// name matches, else where a new one goes. Looking up by stored name keeps templates saved
-    /// under an older file-naming rule reachable.
+    /// Every template file with the name stored inside it. A template is found by that name, never by
+    /// its file name: sanitising can give two names one file name ("A:B" and "A-B"), and templates
+    /// saved under an older naming rule have file names that match nothing.
     /// </summary>
-    private string TemplatePath(string templateName) =>
-        FindTemplateFile(templateName)
-        ?? Path.Combine(TemplatesDirectory, $"{SafeFileName.Create(templateName, "Template")}{TemplateExtension}");
-
-    private string? FindTemplateFile(string templateName)
+    private List<(string File, string Name)> ReadTemplateFiles()
     {
+        var templates = new List<(string File, string Name)>();
         if (!Directory.Exists(TemplatesDirectory))
-            return null;
+            return templates;
 
         foreach (var file in Directory.GetFiles(TemplatesDirectory, $"*{TemplateExtension}"))
         {
             try
             {
                 var templateData = JsonSerializer.Deserialize<SavedTemplate>(File.ReadAllText(file), JsonOptions);
-                if (templateData?.Name == templateName)
-                    return file;
+                if (templateData?.Name != null)
+                    templates.Add((file, templateData.Name));
             }
             catch (Exception ex)
             {
@@ -283,7 +257,23 @@ public class ReportTemplateStorage
             }
         }
 
-        return null;
+        return templates;
+    }
+
+    private static string? FindTemplateFile(List<(string File, string Name)> templates, string templateName) =>
+        templates.FirstOrDefault(t => t.Name == templateName).File;
+
+    /// <summary>A file for a new template, named after it, that no existing file uses.</summary>
+    private string NewTemplateFile(string templateName)
+    {
+        var stem = SafeFileName.Create(templateName, "Template");
+        for (var n = 1; ; n++)
+        {
+            var path = Path.Combine(TemplatesDirectory, n == 1 ? stem + TemplateExtension : $"{stem}-{n}{TemplateExtension}");
+            // Checks the disk rather than the parsed list, so an unreadable file is never overwritten.
+            if (!File.Exists(path))
+                return path;
+        }
     }
 }
 

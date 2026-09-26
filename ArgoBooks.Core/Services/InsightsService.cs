@@ -1019,8 +1019,8 @@ public class InsightsService(
                     ? Math.Round(li.Subtotal / lineItemsTotal * grossUSD, 2)
                     : 0;
                 var revenueDisplay = ToDisplay(revenueUSD, s.Date);
-                // CostPrice is already in the company's base currency (USD), no conversion needed
-                var costUSD = li.Quantity * (companyData.GetProduct(li.ProductId ?? "")?.CostPrice ?? 0);
+                var costProduct = companyData.GetProduct(li.ProductId ?? "");
+                var costUSD = costProduct == null ? 0 : li.Quantity * InventoryStockService.CostPriceUSD(companyData, costProduct, s.Date);
 
                 var pid = li.ProductId ?? "";
                 if (!productSalesData.ContainsKey(pid))
@@ -1100,7 +1100,8 @@ public class InsightsService(
         if (!overdueInvoices.Any()) return null;
 
         var totalOverdue = overdueInvoices.Sum(i => i.EffectiveBalanceUSD);
-        var oldestDaysOverdue = (int)(DateTime.Today - overdueInvoices.First().DueDate).TotalDays;
+        // At least 1: IsOverdue means the due date is before today.
+        var oldestDaysOverdue = (DateTime.Today - overdueInvoices.First().DueDate.Date).Days;
 
         // Each balance at its invoice's issue date, as the Overdue Invoices card converts it.
         var totalOverdueDisplay = SumDisplay(overdueInvoices, i => i.EffectiveBalanceUSD, i => i.IssueDate);

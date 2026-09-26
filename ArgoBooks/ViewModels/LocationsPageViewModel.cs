@@ -236,8 +236,7 @@ public partial class LocationsPageViewModel : SortablePageViewModelBase
         var inventory = companyData?.Inventory ?? [];
         TotalStockItems = inventory.Sum(i => i.InStock);
 
-        // UnitCost is in USD (docs/Calculations.md §14), so the total converts at today's rate.
-        TotalInventoryValue = CurrencyService.FormatFromUSD(inventory.Sum(i => i.TotalValue), DateTime.Today);
+        TotalInventoryValue = CurrencyService.FormatStockValue(inventory.Sum(i => i.TotalValue));
 
         // Calculate average capacity used
         if (_allLocations.Count > 0)

@@ -180,7 +180,7 @@ public class CompanyManager : IDisposable
         if (!File.Exists(sourceImagePath))
             throw new FileNotFoundException("Avatar source file not found.", sourceImagePath);
 
-        var (destPath, relativePath) = PrepareAvatarDestination(entity.Id, subdirectory);
+        var (destPath, relativePath) = PrepareAvatarDestination(entity, entity.Id, subdirectory);
         var ok = await Task.Run(() => ReceiptImageHelper.ResizeAndSaveAsPng(sourceImagePath, destPath, AvatarMaxDimension));
         if (!ok)
             throw new InvalidOperationException("Selected file could not be loaded as an image.");
@@ -195,7 +195,7 @@ public class CompanyManager : IDisposable
         if (CompanyData == null || _currentTempDirectory == null)
             throw new InvalidOperationException("No company is currently open.");
 
-        var (destPath, relativePath) = PrepareAvatarDestination(entity.Id, subdirectory);
+        var (destPath, relativePath) = PrepareAvatarDestination(entity, entity.Id, subdirectory);
         var ok = await Task.Run(() => ReceiptImageHelper.ResizeBytesAndSaveAsPng(sourceBytes, destPath, AvatarMaxDimension));
         if (!ok)
             throw new InvalidOperationException("Provided bytes could not be decoded as an image.");
@@ -203,15 +203,66 @@ public class CompanyManager : IDisposable
         FinalizeAvatarUpdate(entity, relativePath);
     }
 
-    private (string DestPath, string RelativePath) PrepareAvatarDestination(string entityId, string subdirectory)
+    /// <summary>
+    /// Where to write <paramref name="entity"/>'s avatar. Its current file is reused when no
+    /// other entity points at it; otherwise the name comes from the Id. Ids are free text and
+    /// sanitising can map two of them to one name ("CUS/002" and "CUS-002"), so a name another
+    /// entity references, or a file already on disk, is skipped by adding "-2", "-3", ...
+    /// </summary>
+    private (string DestPath, string RelativePath) PrepareAvatarDestination(IAvatarOwner entity, string entityId, string subdirectory)
+    {
+        var inUse = AvatarPathsReferencedByOthers(entity);
+
+        var avatarsDir = Path.GetFullPath(Path.Combine(_currentTempDirectory!, subdirectory));
+        var ownPath = ResolveAvatarPathSafely(entity.AvatarFileName);
+        if (ownPath != null && !inUse.Contains(ownPath)
+            && string.Equals(Path.GetDirectoryName(ownPath), avatarsDir, StringComparison.OrdinalIgnoreCase))
+        {
+            Directory.CreateDirectory(avatarsDir);
+            return (ownPath, entity.AvatarFileName!);
+        }
+
+        return FreeAvatarDestination(entityId, subdirectory, ".png", inUse, ownPath: null);
+    }
+
+    /// <summary>
+    /// A path in <paramref name="subdirectory"/> named after <paramref name="entityId"/> that no
+    /// other entity references and no file occupies, except <paramref name="ownPath"/>, which is
+    /// the caller's own file and may be kept.
+    /// </summary>
+    private (string DestPath, string RelativePath) FreeAvatarDestination(
+        string entityId, string subdirectory, string extension, HashSet<string> inUse, string? ownPath)
     {
         var avatarsDir = Path.Combine(_currentTempDirectory!, subdirectory);
         Directory.CreateDirectory(avatarsDir);
-        var safeId = AvatarFileStem(entityId);
-        var fileName = $"{safeId}.png";
-        var destPath = Path.Combine(avatarsDir, fileName);
-        var relativePath = Path.Combine(subdirectory, fileName).Replace('\\', '/');
-        return (destPath, relativePath);
+        var stem = SafeFileName.Create(entityId, "avatar");
+
+        for (var n = 1; ; n++)
+        {
+            var fileName = n == 1 ? stem + extension : $"{stem}-{n}{extension}";
+            var destPath = Path.GetFullPath(Path.Combine(avatarsDir, fileName));
+            var isOwn = string.Equals(destPath, ownPath, StringComparison.OrdinalIgnoreCase);
+            if (inUse.Contains(destPath) || (!isOwn && File.Exists(destPath)))
+                continue;
+            return (destPath, $"{subdirectory}/{fileName}");
+        }
+    }
+
+    // Case-insensitive because the Windows and macOS default file systems are, so "cus-1.png"
+    // and "CUS-1.png" are the same file there.
+    private HashSet<string> AvatarPathsReferencedByOthers(IAvatarOwner entity)
+    {
+        var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (CompanyData == null) return paths;
+
+        IEnumerable<IAvatarOwner> owners = CompanyData.Customers;
+        foreach (var owner in owners.Concat(CompanyData.Suppliers))
+        {
+            if (ReferenceEquals(owner, entity)) continue;
+            var path = ResolveAvatarPathSafely(owner.AvatarFileName);
+            if (path != null) paths.Add(path);
+        }
+        return paths;
     }
 
     private void FinalizeAvatarUpdate(IAvatarOwner entity, string relativePath)
@@ -235,7 +286,7 @@ public class CompanyManager : IDisposable
         // Only delete files that resolve safely under the temp directory, guard against
         // a crafted AvatarFileName escaping into the rest of the filesystem.
         var fullPath = ResolveAvatarPathSafely(existing);
-        if (fullPath != null && File.Exists(fullPath))
+        if (fullPath != null && File.Exists(fullPath) && !AvatarPathsReferencedByOthers(entity).Contains(fullPath))
         {
             await Task.Run(() => File.Delete(fullPath));
         }
@@ -276,7 +327,7 @@ public class CompanyManager : IDisposable
             if (!string.IsNullOrEmpty(existing))
             {
                 var path = ResolveAvatarPathSafely(existing);
-                if (path != null && File.Exists(path))
+                if (path != null && File.Exists(path) && !AvatarPathsReferencedByOthers(entity).Contains(path))
                 {
                     try { File.Delete(path); } catch { /* best effort */ }
                 }
@@ -285,7 +336,7 @@ public class CompanyManager : IDisposable
         }
         else
         {
-            var (destPath, relativePath) = PrepareAvatarDestination(entity.Id, subdirectory);
+            var (destPath, relativePath) = PrepareAvatarDestination(entity, entity.Id, subdirectory);
             try
             {
                 File.WriteAllBytes(destPath, bytes);
@@ -337,17 +388,21 @@ public class CompanyManager : IDisposable
         try
         {
             var oldPath = ResolveAvatarPathSafely(entity.AvatarFileName);
+            var inUse = AvatarPathsReferencedByOthers(entity);
             var ext = Path.GetExtension(entity.AvatarFileName);
-            var safeNewId = AvatarFileStem(newId);
-            var newRelative = Path.Combine(subdirectory, safeNewId + ext).Replace('\\', '/');
-            var newPath = Path.Combine(_currentTempDirectory, newRelative);
+            var (newPath, newRelative) = FreeAvatarDestination(newId, subdirectory, ext, inUse, oldPath);
 
-            if (oldPath != null && File.Exists(oldPath) && !string.Equals(oldPath, newPath, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(oldPath, newPath, StringComparison.OrdinalIgnoreCase))
+                return;
+
+            if (oldPath != null && File.Exists(oldPath))
             {
-                Directory.CreateDirectory(Path.GetDirectoryName(newPath)!);
-                if (File.Exists(newPath))
-                    File.Delete(newPath);
-                File.Move(oldPath, newPath);
+                // Files written before avatar names were kept unique can be shared by two
+                // entities; the other one still needs its copy.
+                if (inUse.Contains(oldPath))
+                    File.Copy(oldPath, newPath);
+                else
+                    File.Move(oldPath, newPath);
             }
             // Always update AvatarFileName to the new relative path: even if the old
             // file was missing or unsafe, the entity record should now point inside
@@ -1345,8 +1400,6 @@ public class CompanyManager : IDisposable
     /// typed; only its file is named this.
     /// </summary>
     public static string ToCompanyFileName(string companyName) => SafeFileName.Create(companyName, "Company");
-
-    private static string AvatarFileStem(string entityId) => SafeFileName.Create(entityId, Guid.NewGuid().ToString("N"));
 
     /// <summary>
     /// Renames a customer's Id, cascading to every reference inside the open company

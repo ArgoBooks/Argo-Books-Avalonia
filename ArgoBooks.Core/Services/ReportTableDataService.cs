@@ -931,6 +931,7 @@ public class InventoryTableRow
     public decimal InStock { get; set; }
     public decimal Reserved { get; set; }
     public decimal Available { get; set; }
+    /// <summary>In USD, like <see cref="TotalValue"/>; the renderer converts both.</summary>
     public decimal UnitCost { get; set; }
     public decimal TotalValue { get; set; }
     public string Status { get; set; } = string.Empty;

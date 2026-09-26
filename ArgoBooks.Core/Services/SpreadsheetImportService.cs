@@ -1747,6 +1747,7 @@ public class SpreadsheetImportService
                         invoice.Id = invoice.InvoiceNumber;
                     else if (string.IsNullOrEmpty(invoice.InvoiceNumber))
                         invoice.InvoiceNumber = invoice.Id;
+                    invoice.Status = SavedInvoiceStatus(invoice.Status);
                 }
 
                 if (invoice != null && !string.IsNullOrEmpty(invoice.Id))
@@ -3196,6 +3197,13 @@ public class SpreadsheetImportService
     private DateTime? GetNullableDateTime(List<object?> row, List<string> headers, string columnName)
         => SpreadsheetRowReader.GetNullableDateTime(row, headers, columnName, DateOrderOf(headers, columnName));
 
+    /// <summary>
+    /// Overdue is worked out from the due date and never saved (docs/Calculations.md §6), so a sheet
+    /// saying Overdue is taken to mean sent and not yet paid.
+    /// </summary>
+    private static InvoiceStatus SavedInvoiceStatus(InvoiceStatus status) =>
+        status == InvoiceStatus.Overdue ? InvoiceStatus.Sent : status;
+
     private static TEnum ParseEnum<TEnum>(string value, TEnum defaultValue) where TEnum : struct, Enum
     {
         if (string.IsNullOrEmpty(value)) return defaultValue;
@@ -3595,7 +3603,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             else if (Set("Paid", "Total"))
                 invoice.Balance = Math.Max(0m, invoice.Total - invoice.AmountPaid);
             if (Set("Status"))
-                invoice.Status = ParseEnum(GetString(row, headers, "Status"), InvoiceStatus.Draft);
+                invoice.Status = SavedInvoiceStatus(ParseEnum(GetString(row, headers, "Status"), InvoiceStatus.Draft));
 
             // Per-row currency detected from the amount cells, else the record's own when updating,
             // else the company currency. Left as it is when nothing it is priced from changed.

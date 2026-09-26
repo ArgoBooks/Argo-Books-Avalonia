@@ -987,7 +987,7 @@ public partial class SupplierModalsViewModel : ViewModelBase
             }
         }
 
-        if (!string.IsNullOrWhiteSpace(ModalEmail) && !DataValidator.IsValidEmail(ModalEmail))
+        if (!string.IsNullOrWhiteSpace(ModalEmail) && !DataValidator.IsValidOrUnchangedEmail(ModalEmail, _editingSupplier?.Email))
         {
             ModalEmailError = "Please enter a valid email address.".Translate();
             isValid = false;

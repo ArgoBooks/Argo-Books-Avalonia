@@ -14,7 +14,6 @@ namespace ArgoBooks.Core.Services;
 /// </summary>
 public static class InventoryStockService
 {
-    /// <summary>The location id stock is given when the company has no locations yet.</summary>
     /// <summary>
     /// The location stock belongs to when the caller names none: the company's first location, or a
     /// real one created for it. Every stock row points at a location that exists on the Locations page.
@@ -120,7 +119,7 @@ public static class InventoryStockService
 
             var item = FindStockItem(data, product.Id, line.LocationId);
             var builder = item == null
-                ? Track(item = CreateStockItem(data, product, line.LocationId), product, wasCreated: true)
+                ? Track(item = CreateStockItem(data, product, line.LocationId, transaction.Date), product, wasCreated: true)
                 : Track(item, product, wasCreated: false);
             line.LocationId = item.LocationId;
 
@@ -253,7 +252,7 @@ public static class InventoryStockService
         if (destination == null)
         {
             destination = product != null
-                ? CreateStockItem(data, product, destinationLocationId)
+                ? CreateStockItem(data, product, destinationLocationId, DateTime.Today)
                 : CreateStockItem(data, source, destinationLocationId);
             destination.UnitCost = source.UnitCost;
         }
@@ -364,13 +363,53 @@ public static class InventoryStockService
     /// USD per unit of the transaction's own currency, or null while its rate is not known yet, in
     /// which case a purchase leaves the stock's unit cost as it was.
     /// </summary>
-    public static decimal? UsdPerNative(Transaction transaction)
+    public static decimal? UsdPerNative(Transaction transaction) =>
+        UsdPerNative(OriginalCurrency(transaction), transaction.Total, transaction.TotalUSD, transaction.IsPendingConversion);
+
+    /// <summary><see cref="UsdPerNative(Transaction)"/> for a purchase order, whose line costs are in its own currency.</summary>
+    public static decimal? UsdPerNative(PurchaseOrder order) =>
+        UsdPerNative(string.IsNullOrEmpty(order.OriginalCurrency) ? "USD" : order.OriginalCurrency,
+            order.Total, order.TotalUSD, order.IsPendingConversion);
+
+    private static decimal? UsdPerNative(string currency, decimal total, decimal totalUSD, bool isPending)
     {
-        if (string.Equals(OriginalCurrency(transaction), "USD", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(currency, "USD", StringComparison.OrdinalIgnoreCase))
             return 1m;
-        if (transaction.IsPendingConversion || transaction.Total == 0 || transaction.TotalUSD == 0)
+        if (isPending || total == 0 || totalUSD == 0)
             return null;
-        return transaction.TotalUSD / transaction.Total;
+        return totalUSD / total;
+    }
+
+    /// <summary>
+    /// The product's cost price, which is in the company's currency, in USD at <paramref name="date"/>'s
+    /// rate: the unit cost a new stock record starts at (docs/Calculations.md §14). 0 while that rate
+    /// isn't available, just as a purchase waiting for its rate sets no cost.
+    /// </summary>
+    public static decimal CostPriceUSD(CompanyData data, Product product, DateTime date)
+    {
+        var currency = data.Settings.Localization.Currency;
+        if (string.IsNullOrEmpty(currency) || string.Equals(currency, "USD", StringComparison.OrdinalIgnoreCase))
+            return product.CostPrice;
+
+        return ExchangeRateService.Instance is { } rates
+               && rates.TryConvertToUsdBase(product.CostPrice, currency, date, out var usd)
+            ? usd
+            : 0m;
+    }
+
+    /// <summary>
+    /// A new stock record for <paramref name="product"/>, added to the company, starting at the
+    /// product's cost price as of <paramref name="costDate"/>.
+    /// </summary>
+    public static InventoryItem CreateStockItem(CompanyData data, Product product, string? locationId, DateTime costDate)
+    {
+        var item = NewStockItem(data, product.Id, product.Sku, locationId);
+        item.UnitOfMeasure = product.UnitOfMeasure;
+        item.ReorderPoint = product.ReorderPoint;
+        item.OverstockThreshold = product.OverstockThreshold;
+        item.UnitCost = CostPriceUSD(data, product, costDate);
+        item.Status = item.CalculateStatus();
+        return item;
     }
 
     private static string OriginalCurrency(Transaction transaction) =>
@@ -381,17 +420,6 @@ public static class InventoryStockService
         if (string.IsNullOrEmpty(line.ProductId)) return null;
         var product = data.GetProduct(line.ProductId);
         return product is { TrackInventory: true } ? product : null;
-    }
-
-    private static InventoryItem CreateStockItem(CompanyData data, Product product, string? locationId)
-    {
-        var item = NewStockItem(data, product.Id, product.Sku, locationId);
-        item.UnitOfMeasure = product.UnitOfMeasure;
-        item.ReorderPoint = product.ReorderPoint;
-        item.OverstockThreshold = product.OverstockThreshold;
-        item.UnitCost = product.CostPrice;
-        item.Status = item.CalculateStatus();
-        return item;
     }
 
     private static InventoryItem CreateStockItem(CompanyData data, InventoryItem like, string locationId)

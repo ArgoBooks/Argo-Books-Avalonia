@@ -576,6 +576,101 @@ public class CompanyManagerTests : IDisposable
 
     #endregion
 
+    #region Avatar File Tests
+
+    // "CUS/002" and "CUS-002" both sanitise to "CUS-002", so a name derived from the Id alone
+    // would let one entity overwrite or delete the other's avatar.
+
+    [Fact]
+    public async Task RestoreCustomerAvatar_IdSanitisingToAnotherCustomersFile_KeepsBothAvatars()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"argo-cm-{Guid.NewGuid():N}.argo");
+        try
+        {
+            await _manager.CreateCompanyAsync(path, "Acme");
+            var data = _manager.CompanyData!;
+            var first = new Customer { Id = "CUS-002", Name = "First" };
+            var second = new Customer { Id = "CUS/002", Name = "Second" };
+            data.Customers.Add(first);
+            data.Customers.Add(second);
+
+            _manager.RestoreCustomerAvatar(first, [1, 1, 1]);
+            _manager.RestoreCustomerAvatar(second, [2, 2, 2]);
+
+            Assert.NotEqual(first.AvatarFileName, second.AvatarFileName, StringComparer.OrdinalIgnoreCase);
+            Assert.Equal(new byte[] { 1, 1, 1 }, _manager.ReadCustomerAvatarBytes(first));
+            Assert.Equal(new byte[] { 2, 2, 2 }, _manager.ReadCustomerAvatarBytes(second));
+        }
+        finally
+        {
+            await _manager.CloseCompanyAsync();
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task ChangeCustomerId_ToIdSanitisingToAnotherCustomersFile_KeepsBothAvatars()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"argo-cm-{Guid.NewGuid():N}.argo");
+        try
+        {
+            await _manager.CreateCompanyAsync(path, "Acme");
+            var data = _manager.CompanyData!;
+            var first = new Customer { Id = "CUS-002", Name = "First" };
+            var second = new Customer { Id = "CUS-009", Name = "Second" };
+            data.Customers.Add(first);
+            data.Customers.Add(second);
+            _manager.RestoreCustomerAvatar(first, [1, 1, 1]);
+            _manager.RestoreCustomerAvatar(second, [2, 2, 2]);
+
+            _manager.ChangeCustomerId(second, "CUS/002");
+
+            Assert.NotEqual(first.AvatarFileName, second.AvatarFileName, StringComparer.OrdinalIgnoreCase);
+            Assert.Equal(new byte[] { 1, 1, 1 }, _manager.ReadCustomerAvatarBytes(first));
+            Assert.Equal(new byte[] { 2, 2, 2 }, _manager.ReadCustomerAvatarBytes(second));
+        }
+        finally
+        {
+            await _manager.CloseCompanyAsync();
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    /// <summary>Files written before names were unique can already be shared by two customers.</summary>
+    [Fact]
+    public async Task SharedAvatarFile_RemovingOrRenamingOne_LeavesTheOthersAvatar()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"argo-cm-{Guid.NewGuid():N}.argo");
+        try
+        {
+            await _manager.CreateCompanyAsync(path, "Acme");
+            var data = _manager.CompanyData!;
+            var first = new Customer { Id = "CUS-002", Name = "First" };
+            var second = new Customer { Id = "CUS/002", Name = "Second" };
+            var third = new Customer { Id = "CUS:002", Name = "Third" };
+            data.Customers.Add(first);
+            _manager.RestoreCustomerAvatar(first, [1, 1, 1]);
+            second.AvatarFileName = first.AvatarFileName;
+            third.AvatarFileName = first.AvatarFileName;
+            data.Customers.Add(second);
+            data.Customers.Add(third);
+
+            await _manager.RemoveCustomerAvatarAsync(second);
+            _manager.ChangeCustomerId(third, "CUS-003");
+
+            Assert.Equal(new byte[] { 1, 1, 1 }, _manager.ReadCustomerAvatarBytes(first));
+            Assert.Equal(new byte[] { 1, 1, 1 }, _manager.ReadCustomerAvatarBytes(third));
+            Assert.NotEqual(first.AvatarFileName, third.AvatarFileName, StringComparer.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            await _manager.CloseCompanyAsync();
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    #endregion
+
     #region Cross-Instance Lock Tests
 
     private static CompanyManager NewManager()

@@ -58,4 +58,14 @@ public class InvoiceStatusDisplayTests
     {
         Assert.Equal("Overdue", Display(Invoice(InvoiceStatus.PartiallyRefunded, 50m, 10m, dueInDays: -10)));
     }
+
+    // A saved Overdue from an old file means nothing: the label follows IsOverdue, as the Overdue filter does.
+    [Theory]
+    [InlineData(0, 10, "Sent")]
+    [InlineData(100, -10, "Sent")]
+    [InlineData(0, -10, "Overdue")]
+    public void StoredOverdue_ShowsOverdueOnlyWhenItIsOverdue(int paid, int dueInDays, string expected)
+    {
+        Assert.Equal(expected, Display(Invoice(InvoiceStatus.Overdue, paid, 0m, dueInDays)));
+    }
 }

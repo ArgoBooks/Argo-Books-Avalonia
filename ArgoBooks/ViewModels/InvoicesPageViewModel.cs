@@ -728,12 +728,9 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
 
         if (FilterStatus != "All")
         {
+            // Matches the status each row shows, so Overdue means IsOverdue (docs/Calculations.md §6).
             if (Enum.TryParse<InvoiceStatus>(FilterStatus, out var status))
-            {
-                filtered = status == InvoiceStatus.Overdue
-                    ? filtered.Where(i => i.IsOverdue)
-                    : filtered.Where(i => i.Status == status);
-            }
+                filtered = filtered.Where(i => InvoiceTotalsService.DisplayStatus(i) == status);
         }
 
         if (!string.IsNullOrEmpty(FilterCustomerId))

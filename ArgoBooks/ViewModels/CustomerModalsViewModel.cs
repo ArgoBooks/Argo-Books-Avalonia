@@ -982,7 +982,7 @@ public partial class CustomerModalsViewModel : ViewModelBase
                 Type = "Invoice",
                 Description = $"Invoice #{invoice.InvoiceNumber}",
                 Amount = invoice.Total,
-                Status = invoice.Status.ToString()
+                Status = Core.Services.InvoiceTotalsService.DisplayStatus(invoice).ToString()
             });
         }
 
@@ -1195,7 +1195,7 @@ public partial class CustomerModalsViewModel : ViewModelBase
             isValid = false;
         }
 
-        if (!string.IsNullOrWhiteSpace(ModalEmail) && !DataValidator.IsValidEmail(ModalEmail))
+        if (!string.IsNullOrWhiteSpace(ModalEmail) && !DataValidator.IsValidOrUnchangedEmail(ModalEmail, _editingCustomer?.Email))
         {
             ModalEmailError = "Please enter a valid email address.".Translate();
             isValid = false;

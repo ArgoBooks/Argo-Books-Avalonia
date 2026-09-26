@@ -1321,7 +1321,8 @@ public partial class QuotesModalsViewModel : ViewModelBase
         if (companyData == null) return;
 
         var recipient = SendRecipientEmail?.Trim() ?? string.Empty;
-        if (!DataValidator.IsValidEmail(recipient))
+        var storedEmail = companyData.GetCustomer(SelectedCustomer?.Id ?? string.Empty)?.Email;
+        if (recipient.Length == 0 || !DataValidator.IsValidOrUnchangedEmail(recipient, storedEmail))
         {
             SendError = "Please enter a valid recipient email address.".Translate();
             return;

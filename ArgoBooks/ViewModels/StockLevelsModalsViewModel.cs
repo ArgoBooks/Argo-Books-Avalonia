@@ -615,7 +615,7 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
     /// Saves a new inventory item.
     /// </summary>
     [RelayCommand]
-    private void SaveNewItem()
+    private async Task SaveNewItem()
     {
         AddItemError = null;
         AddItemProductError = null;
@@ -658,6 +658,9 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
             return;
         }
 
+        // The starting unit cost converts the product's cost price to USD at today's rate.
+        await CurrencyService.WarmRateForDateAsync(DateTime.Today);
+
         var newId = new Core.Data.IdGenerator(companyData).NextInventoryItemId();
 
         // Parse thresholds
@@ -675,7 +678,7 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
             ReorderPoint = reorderPoint,
             OverstockThreshold = overstockThreshold,
             UnitOfMeasure = SelectedProduct.UnitOfMeasure,
-            UnitCost = SelectedProduct.CostPrice,
+            UnitCost = InventoryStockService.CostPriceUSD(companyData, SelectedProduct, DateTime.Today),
             LastUpdated = DateTime.UtcNow
         };
         newItem.Status = newItem.CalculateStatus();

@@ -127,6 +127,26 @@ public class ReportTemplateStorageTests : IDisposable
         Assert.Empty(Directory.GetFiles(_testDir, "*.argotemplate"));
     }
 
+    /// <summary>"A:B" and "A-B" make the same file name, so each needs its own file and is found by its own name.</summary>
+    [Fact]
+    public async Task TwoNamesWithTheSameFileName_AreKeptApart()
+    {
+        await _storage.SaveTemplateAsync(new ReportConfiguration { Title = "Colon" }, "A:B");
+
+        Assert.False(_storage.TemplateExists("A-B"));
+
+        await _storage.SaveTemplateAsync(new ReportConfiguration { Title = "Dash" }, "A-B");
+
+        Assert.Equal(2, Directory.GetFiles(_testDir, "*.argotemplate").Length);
+        Assert.Equal("Colon", (await _storage.LoadTemplateAsync("A:B"))?.Title);
+        Assert.Equal("Dash", (await _storage.LoadTemplateAsync("A-B"))?.Title);
+
+        Assert.True(await _storage.RenameTemplateAsync("A-B", "A|B"));
+        Assert.Equal("Colon", (await _storage.LoadTemplateAsync("A:B"))?.Title);
+        Assert.Equal("Dash", (await _storage.LoadTemplateAsync("A|B"))?.Title);
+        Assert.False(_storage.TemplateExists("A-B"));
+    }
+
     [Fact]
     public async Task LoadTemplateAsync_NonExistent_ReturnsNull()
     {

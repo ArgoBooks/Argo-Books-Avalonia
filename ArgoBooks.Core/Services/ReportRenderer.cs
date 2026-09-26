@@ -83,6 +83,12 @@ public class ReportRenderer : IDisposable
     private decimal ToDisplayCurrency(decimal amountUSD, DateTime date) =>
         DisplayCurrency.FromUSD(amountUSD, _currencyCode, date);
 
+    /// <summary>
+    /// The date stock is valued at in a report: its end date, as on the Balance Sheet, which
+    /// <see cref="DisplayCurrency.ReportDates"/> makes sure has a rate. See docs/Calculations.md §14.
+    /// </summary>
+    private DateTime InventoryValuationDate => (_config.Filters.EndDate ?? DateTime.Today).Date;
+
     private string PendingText => Tr("Pending");
 
     /// <summary>
@@ -2853,8 +2859,8 @@ public class ReportRenderer : IDisposable
                         "In Stock" => StockUnits.Format(r.InStock),
                         "Reserved" => StockUnits.Format(r.Reserved),
                         "Available" => StockUnits.Format(r.Available),
-                        "Unit Cost" => FormatCurrency(r.UnitCost),
-                        "Total" => FormatCurrency(r.TotalValue),
+                        "Unit Cost" => FormatCurrency(ToDisplayCurrency(r.UnitCost, InventoryValuationDate)),
+                        "Total" => FormatCurrency(ToDisplayCurrency(r.TotalValue, InventoryValuationDate)),
                         "Status" => r.Status,
                         _ => ""
                     }).ToList());

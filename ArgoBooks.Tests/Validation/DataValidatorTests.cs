@@ -32,4 +32,16 @@ public class DataValidatorTests
     {
         Assert.False(DataValidator.IsValidEmail(email));
     }
+
+    // An address saved under an older, looser check must not block saving an edit that leaves it alone.
+    [Theory]
+    [InlineData("user@domain", "user@domain", true)]
+    [InlineData(" user@domain ", "user@domain", true)]
+    [InlineData("other@domain", "user@domain", false)]
+    [InlineData("new@example.com", "user@domain", true)]
+    [InlineData("user@domain", null, false)]
+    public void IsValidOrUnchangedEmail_OnlyChecksAnAddressThatChanged(string email, string? stored, bool expected)
+    {
+        Assert.Equal(expected, DataValidator.IsValidOrUnchangedEmail(email, stored));
+    }
 }

@@ -59,4 +59,20 @@ public class SpreadsheetImportAiInvoiceTests
         Assert.Equal("INV-2026-00001", Assert.Single(data.Invoices).Id);
         Assert.Equal("INV-2026-00001", Assert.Single(data.Payments).InvoiceId);
     }
+
+    // Overdue is worked out from the due date (docs/Calculations.md §6), so a sheet's Overdue is kept as Sent.
+    [Fact]
+    public void AnInvoiceMarkedOverdue_IsSavedAsSent()
+    {
+        var data = new CompanyData();
+        var svc = new SpreadsheetImportService();
+
+        Import(svc, data, SpreadsheetSheetType.Invoices, "Invoices", Json("""
+            { "id": "INV-1", "customerId": "Acme", "issueDate": "2026-03-01", "dueDate": "2099-01-01", "total": 300, "status": "Overdue" }
+            """));
+
+        var invoice = Assert.Single(data.Invoices);
+        Assert.Equal(InvoiceStatus.Sent, invoice.Status);
+        Assert.False(invoice.IsOverdue);
+    }
 }

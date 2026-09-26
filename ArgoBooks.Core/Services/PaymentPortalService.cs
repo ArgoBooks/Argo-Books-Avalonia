@@ -125,7 +125,8 @@ public class PaymentPortalService : IDisposable
         Balance = Math.Max(0m, invoice.Balance),
         Currency = invoice.OriginalCurrency,
         Notes = invoice.Notes,
-        Status = invoice.Status.ToString().ToLowerInvariant(),
+        // The portal works out overdue from the due date itself, and a stored Overdue means nothing (docs/Calculations.md §6).
+        Status = (invoice.Status == InvoiceStatus.Overdue ? InvoiceStatus.Sent : invoice.Status).ToString().ToLowerInvariant(),
         SendEmail = !string.IsNullOrWhiteSpace(customer.Email),
         // Per-invoice override wins over the template's setting.
         // Per-invoice setting (default on).

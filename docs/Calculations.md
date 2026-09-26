@@ -116,7 +116,7 @@ How an invoice's total is worked out, step by step:
 
 ## 5. Payment totals on an invoice
 
-Each invoice keeps these running totals, worked out from its payments. After changing an invoice's payments, the payment form, portal sync, currency conversion and recurring invoices call `InvoiceTotalsService.Recalculate(invoice, allPayments)`. The spreadsheet importer is different: it takes `AmountPaid`, `Balance` and `Status` straight from the sheet.
+Each invoice keeps these running totals, worked out from its payments. After changing an invoice's payments, the payment form, portal sync, currency conversion and recurring invoices call `InvoiceTotalsService.Recalculate(invoice, allPayments)`. The spreadsheet importer is different: it takes `AmountPaid`, `Balance` and `Status` straight from the sheet, except that an Overdue status is saved as Sent (§6).
 
 | Field | How it's worked out | Notes |
 |---|---|---|
@@ -142,7 +142,7 @@ A refund never changes the payment it gives money back on. The original payment 
 | `Viewed` | The customer opened it. | Only by a spreadsheet import. |
 | `Partial` | The customer paid some and still owes the rest. | `0 < AmountPaid < Total`. |
 | `Paid` | Paid in full (`AmountPaid >= Total`). | When a payment covers the balance. |
-| `Overdue` | Past its due date and still owed (`Balance > 0`), and not a Draft, Paid, Refunded or Cancelled invoice. | Worked out when shown (`Invoice.IsOverdue`). The app never saves it, but a spreadsheet import can, and an invoice saved as Overdue counts as overdue whatever its due date while something is still owed. |
+| `Overdue` | Past its due date and still owed (`Balance > 0`), and not a Draft, Paid, Refunded or Cancelled invoice. | Always worked out when shown (`Invoice.IsOverdue`), never saved. A spreadsheet import saves a sheet's Overdue as Sent. An old file can still hold a saved Overdue; it counts for nothing, and the invoice shows as Sent until it really is overdue. |
 | `Cancelled` | The invoice was voided. | Only by a spreadsheet import. |
 | `PartiallyRefunded` | Paid, then refunded less than `Total`, or refunded in full and then paid again. | The refund status rule below. |
 | `Refunded` | Paid, then refunded in full with no later payment. | The refund status rule below. |
@@ -151,7 +151,7 @@ A refund never changes the payment it gives money back on. The original payment 
 
 **Refund status rule** (`InvoiceTotalsService.RefundedStatus`). If less than `Total` has been refunded, the status is PartiallyRefunded. If at least `Total` has been refunded, it is Refunded, unless the customer then paid again so that net paid (`AmountPaid − AmountRefunded`) is still at least `Total`, in which case it is PartiallyRefunded. A processing fee the customer paid isn't refunded, so a $100 invoice paid with a $3 fee and refunded $100 is Refunded.
 
-Screens and report tables show `InvoiceTotalsService.DisplayStatus`: Overdue if the invoice is overdue; otherwise, if it has refunds, the refund status rule worked out fresh; otherwise the saved status. Never show the saved `Status` on its own.
+Screens and report tables show `InvoiceTotalsService.DisplayStatus`: Overdue if the invoice is overdue; otherwise, if it has refunds, the refund status rule worked out fresh; otherwise the saved status, with a saved Overdue shown as Sent. Never show the saved `Status` on its own. The Invoices page's status filter matches this displayed status.
 
 Every overdue count and total (the Invoices page card and Overdue filter, the dashboard's Overdue Invoices card, customer payment standings, the overdue notification and the Insights card) uses `Invoice.IsOverdue` and nothing else. A draft is never overdue, because it was never sent and nobody owes it yet.
 
@@ -229,7 +229,7 @@ Expenses have no paid or unpaid status, so every expense counts. Expense totals 
 - The Income Statement, General Ledger and Report Builder revenue and expense tables show amounts without tax (`EffectiveSubtotalUSD`), because the Balance Sheet shows tax separately as Sales Tax Payable. Cash figures and Sales by Product (§13) include tax (`EffectiveTotalUSD`).
 - They count all revenue in the date range, paid or not. Accountants call this the accrual basis.
 - Cash (on the Cash Flow Statement and the Balance Sheet's Cash line) includes tax: paid revenue that has no invoice, plus every payment (refunds count as negative), minus every expense.
-- The Balance Sheet lists **Inventory** as a current asset (`InventoryValuationService.TotalValueAsOf`). It counts each item's stock on hand as of the report's end date, placing each stock change on the date of its sale or purchase, or on its own date when it has neither. Stock is valued at the item's current `UnitCost` in USD, because the app doesn't keep a history of costs. The Income Statement shows a Cost of Goods Sold line and Gross Profit whenever a sale in the date range has a cost (§14).
+- The Balance Sheet lists **Inventory** as a current asset (`InventoryValuationService.TotalValueAsOf`). It counts each item's stock on hand as of the report's end date, placing each stock change on the date of its sale or purchase, or on its own date when it has neither. Stock is valued at the item's current `UnitCost` in USD, because the app doesn't keep a history of costs, and converted at the end date's rate (§14, Stock value). The Income Statement shows a Cost of Goods Sold line and Gross Profit whenever a sale in the date range has a cost (§14).
 - The Balance Sheet lists **Security Deposits** as a liability: the deposit on every invoice issued by the end date, less what refunds by then gave back and any part kept by then (`SecurityDeposits.StillHeld`).
 
 ### Insights tab (`InsightsService`)
@@ -362,6 +362,22 @@ Net profit is the Rule 1 formula. The dashboard counts only paid sales, for both
 ### Stock on hand when this began (opening units)
 
 Stock that was already on hand when cost of goods sold was introduced had already been counted as an expense when it was bought, so it must not reduce profit a second time when it sells. The first time a company opens in a version with cost of goods sold, `CompanyManager.StartCostOfGoodsIfNeeded` records each stock record's units on hand as `InventoryItem.OpeningUnits`. Sales use these opening units first, at no cost (`LineItem.OpeningUnitsUsed`), and editing or deleting a sale gives them back. A transfer moves opening units in proportion to the stock it moves. A purchase or sale saved before cost of goods sold was introduced keeps the old treatment when it is edited: it moves stock, stays a full expense (or has no cost), and uses no opening units.
+
+### Stock value
+
+A stock record's `UnitCost` is always in USD. A product's `CostPrice` is in the company's currency. They are set as follows:
+
+- A purchase of tracked stock sets `UnitCost` from the purchase line (above).
+- A new stock record starts at the product's `CostPrice` converted to USD at one day's rate (`InventoryStockService.CostPriceUSD`). The day is the date of the sale or purchase that created the record, the order date for a purchase order being received, and today for a record added on the Stock Levels page. When receiving a purchase order creates the record, its cost comes from the order line instead, converted at the order's own rate, unless the order is still waiting for that rate. Receiving into an existing record doesn't change its cost. A transfer gives the new record the cost of the stock it came from.
+- If the rate for that day isn't available, the new record starts at 0 until a purchase sets its cost, just as a purchase waiting for its rate sets no cost. There is no pending state for a unit cost.
+- The spreadsheet Inventory sheet's Unit Cost column is the stored USD value, both on export and on import.
+
+Stock value is `InStock × UnitCost`, added up in USD and converted to the display currency once, at the date the stock is valued at:
+
+- **On screens** (the dashboard's Inventory Value card and the Locations page), stock is valued as it stands now, at today's rate (`CurrencyService.FormatStockValue`). It shows Pending while today's rate is missing.
+- **In reports** (the Balance Sheet and the Report Builder's inventory table), at the report's end date, the date `DisplayCurrency.ReportDates` makes sure has a rate.
+
+Cost of goods sold uses `UnitCost` directly, since it is already in USD.
 
 ### Locations
 

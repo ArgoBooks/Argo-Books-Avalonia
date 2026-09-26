@@ -180,6 +180,12 @@ public static class CurrencyService
     }
 
     /// <summary>
+    /// Formats a stock value, which is kept in USD, in the display currency at today's rate, because
+    /// stock on hand is valued as it stands now. See docs/Calculations.md §14.
+    /// </summary>
+    public static string FormatStockValue(decimal valueUSD) => FormatFromUSD(valueUSD, DateTime.Today);
+
+    /// <summary>
     /// Currency-aware per-item sum that reports (via the return value) whether EVERY item could be
     /// shown in the display currency. Mirrors <see cref="FormatWithOriginal"/> per item: a row whose
     /// original currency already matches the display currency uses its original amount directly (no

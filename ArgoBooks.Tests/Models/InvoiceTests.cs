@@ -65,10 +65,11 @@ public class InvoiceTests
     }
 
     /// <summary>
-    /// A spreadsheet import can save the Overdue status; it counts while something is owed.
+    /// An old file can hold a saved Overdue status. Overdue is always worked out from the due date,
+    /// so the saved value alone doesn't make an invoice overdue.
     /// </summary>
     [Fact]
-    public void IsOverdue_StoredOverdueStatus_BeforeDueDate_ReturnsTrue()
+    public void IsOverdue_StoredOverdueStatus_BeforeDueDate_ReturnsFalse()
     {
         var invoice = new Invoice
         {
@@ -78,7 +79,7 @@ public class InvoiceTests
             DueDate = DateTime.Today.AddDays(10)
         };
 
-        Assert.True(invoice.IsOverdue);
+        Assert.False(invoice.IsOverdue);
     }
 
     /// <summary>

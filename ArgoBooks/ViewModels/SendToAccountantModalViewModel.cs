@@ -290,7 +290,8 @@ public partial class SendToAccountantModalViewModel : ViewModelBase
             return;
 
         var email = AccountantEmail.Trim();
-        if (!DataValidator.IsValidEmail(email))
+        var storedEmail = App.CompanyManager?.CompanyData?.Settings.Company.AccountantEmail;
+        if (email.Length == 0 || !DataValidator.IsValidOrUnchangedEmail(email, storedEmail))
         {
             EmailError = "Enter your accountant's email address.".Translate();
             return;
