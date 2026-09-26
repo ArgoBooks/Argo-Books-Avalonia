@@ -1753,6 +1753,13 @@ public partial class App : Application
     {
         try
         {
+            // Decrypting the license is a deliberately slow key-stretching pass, so it runs off the
+            // UI thread alongside the work below. Anything else that needs the key while it runs
+            // (usage checks, crash upload) waits on the same cached result.
+            var licenseLoad = LicenseService is { } licenseService
+                ? Task.Run(() => licenseService.LoadLicense())
+                : Task.FromResult(false);
+
             // Load recent companies asynchronously (footer reads from .argo files)
             await LoadRecentCompaniesAsync();
 
@@ -1924,7 +1931,7 @@ public partial class App : Application
             // Load and apply saved license status
             if (LicenseService != null && _appShellViewModel != null)
             {
-                var hasPremium = LicenseService.LoadLicense();
+                var hasPremium = await licenseLoad;
                 if (hasPremium)
                 {
                     _appShellViewModel.SetPlanStatus(hasPremium);
