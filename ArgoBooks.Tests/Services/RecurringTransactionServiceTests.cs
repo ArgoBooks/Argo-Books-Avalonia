@@ -226,11 +226,7 @@ public class RecurringTransactionServiceTests
 
         // A rate that moves by month, so a stale template value would be visible.
         RecurringTransactionService.GenerateDue(data, new DateTime(2026, 3, 15),
-            (amount, _, date, out usd) =>
-            {
-                usd = amount * (0.70m + date.Month * 0.01m);
-                return true;
-            });
+            (_, date) => 0.70m + date.Month * 0.01m);
 
         Assert.Equal(3, data.Expenses.Count);
         Assert.Equal(2000m * 0.71m, data.Expenses[0].TotalUSD);
@@ -245,11 +241,7 @@ public class RecurringTransactionServiceTests
         var (data, _) = WithForeignMonthlyRent(new DateTime(2026, 1, 1));
 
         RecurringTransactionService.GenerateDue(data, new DateTime(2026, 1, 15),
-            (_, _, _, out usd) =>
-            {
-                usd = 0m;
-                return false;
-            });
+            (_, _) => null);
 
         var entry = Assert.Single(data.Expenses);
         Assert.True(entry.IsPendingConversion);
@@ -268,11 +260,7 @@ public class RecurringTransactionServiceTests
         var (data, _) = WithMonthlyRent(new DateTime(2026, 1, 1));
 
         RecurringTransactionService.GenerateDue(data, new DateTime(2026, 1, 15),
-            (_, _, _, out usd) =>
-            {
-                usd = 0m;
-                return false;
-            });
+            (_, _) => null);
 
         var entry = Assert.Single(data.Expenses);
         Assert.False(entry.IsPendingConversion);
@@ -284,17 +272,9 @@ public class RecurringTransactionServiceTests
     private static decimal RateFor(DateTime date) => 0.70m + date.Month * 0.01m;
 
     /// <summary>A rate that moves by month, so an entry converted at the wrong date shows it.</summary>
-    private static bool MonthlyRate(decimal amount, string currency, DateTime date, out decimal usd)
-    {
-        usd = amount * RateFor(date);
-        return true;
-    }
+    private static decimal? MonthlyRate(string currency, DateTime date) => RateFor(date);
 
-    private static bool NoRate(decimal amount, string currency, DateTime date, out decimal usd)
-    {
-        usd = 0m;
-        return false;
-    }
+    private static decimal? NoRate(string currency, DateTime date) => null;
 
     /// <summary>What the schedule editor does on save: a new amount, and its own USD figure.</summary>
     private static void EditTemplateAmount(RecurringTransaction schedule, decimal amount, decimal staleUsd = 0m)

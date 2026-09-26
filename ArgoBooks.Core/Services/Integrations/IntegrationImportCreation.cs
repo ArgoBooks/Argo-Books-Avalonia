@@ -146,16 +146,9 @@ public abstract class IntegrationImportCreation
     /// </summary>
     private void ForgetPendingConversions(CompanyData data)
     {
-        var ids = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var r in Revenues) ids.Add(r.Id);
-        foreach (var e in Expenses) ids.Add(e.Id);
-        if (ids.Count == 0) return;
+        var keys = Revenues.Select(UsdConversion.KeyOf).Concat(Expenses.Select(UsdConversion.KeyOf)).ToList();
+        if (keys.Count == 0) return;
 
-        data.PendingConversions.RemoveAll(p => ids.Contains(p.TransactionId));
-
-        // Fire and forget: it only writes a cache file, and failing to prune it must
-        // never block an undo the user has already seen happen.
-        if (PendingConversionService.Instance is { } svc)
-            _ = svc.ForgetAsync(ids);
+        UsdConversion.Restore(data, keys, []);
     }
 }

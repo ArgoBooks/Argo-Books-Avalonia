@@ -220,31 +220,6 @@ public class ExchangeRateService
         => TryConvertExact(amountUSD, BaseCurrency, toCurrency, date, out result);
 
     /// <summary>
-    /// Converts an amount to USD.
-    /// </summary>
-    /// <param name="amount">The amount in the source currency.</param>
-    /// <param name="fromCurrency">Source currency code.</param>
-    /// <param name="date">The date for the exchange rate.</param>
-    /// <returns>The amount in USD.</returns>
-    public async Task<decimal> ConvertToUSDAsync(decimal amount, string fromCurrency, DateTime date)
-    {
-        if (string.Equals(fromCurrency, BaseCurrency, StringComparison.OrdinalIgnoreCase))
-        {
-            return amount;
-        }
-
-        var rate = await GetExchangeRateAsync(fromCurrency, BaseCurrency, date);
-        if (rate <= 0)
-        {
-            return amount; // conversion unavailable; the caller handles the pending state
-        }
-
-        // The USD base is stored at full precision (no 2dp round), unlike display conversion. See
-        // TryConvertToUsdBase and docs/Calculations.md Rule 3.
-        return amount * rate;
-    }
-
-    /// <summary>
     /// Preloads exchange rates for a range of dates.
     /// Useful for batch operations to minimize API calls.
     /// </summary>

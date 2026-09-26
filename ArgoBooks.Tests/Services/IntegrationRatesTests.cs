@@ -19,8 +19,8 @@ namespace ArgoBooks.Tests.Services;
 /// report, chart and COGS figure that reads the base. That is a plausible wrong number
 /// rather than a visible error, which is what makes it worth pinning down here.
 ///
-/// <see cref="IntegrationRates.ApplyUsdAmounts"/> reads
-/// <see cref="ExchangeRateService.Instance"/>, so each test installs a freshly seeded
+/// The importers store it through <see cref="UsdConversion"/> at the rate the cache holds, which
+/// reads <see cref="ExchangeRateService.Instance"/>, so each test installs a freshly seeded
 /// service as the singleton and restores the prior one.
 /// </summary>
 [Collection("ExchangeRateSingleton")]
@@ -47,6 +47,13 @@ public class IntegrationRatesTests
         return prior;
     }
 
+    /// <summary>What each integration importer does with a row it has built.</summary>
+    private static void Apply(Transaction txn, string currency, CompanyData data)
+    {
+        txn.OriginalCurrency = currency;
+        UsdConversion.Apply(data, txn, UsdConversion.CachedRate(currency, txn.Date));
+    }
+
     private static Expense Row(DateTime date) => new()
     {
         Id = "PUR-2024-00001",
@@ -69,7 +76,7 @@ public class IntegrationRatesTests
             var data = new CompanyData();
             var expense = Row(UnpricedDate);
 
-            IntegrationRates.ApplyUsdAmounts(expense, "USD", data);
+            Apply(expense, "USD", data);
 
             Assert.Equal(100m, expense.TotalUSD);
             Assert.Equal(20m, expense.TaxAmountUSD);
@@ -90,7 +97,7 @@ public class IntegrationRatesTests
             var data = new CompanyData();
             var expense = Row(RateDate);
 
-            IntegrationRates.ApplyUsdAmounts(expense, "EUR", data);
+            Apply(expense, "EUR", data);
 
             Assert.NotEqual(expense.Total, expense.TotalUSD);
             Assert.Equal(100m * (1m / UsdToEur), expense.TotalUSD);
@@ -116,7 +123,7 @@ public class IntegrationRatesTests
             var expense = Row(RateDate);
             expense.Total = 10m;
 
-            IntegrationRates.ApplyUsdAmounts(expense, "EUR", data);
+            Apply(expense, "EUR", data);
 
             Assert.Equal(12.5m, expense.TotalUSD);
             Assert.Equal(10m * (1m / UsdToEur), expense.TotalUSD);
@@ -133,7 +140,7 @@ public class IntegrationRatesTests
             var data = new CompanyData();
             var expense = Row(UnpricedDate);
 
-            IntegrationRates.ApplyUsdAmounts(expense, "EUR", data);
+            Apply(expense, "EUR", data);
 
             Assert.True(expense.IsPendingConversion);
             Assert.Equal(0m, expense.TotalUSD);
@@ -160,7 +167,7 @@ public class IntegrationRatesTests
             var data = new CompanyData();
             var expense = Row(UnpricedDate);
 
-            IntegrationRates.ApplyUsdAmounts(expense, "EUR", data);
+            Apply(expense, "EUR", data);
 
             var entry = Assert.Single(data.PendingConversions);
             Assert.Equal(expense.Id, entry.TransactionId);
@@ -189,7 +196,7 @@ public class IntegrationRatesTests
                 Total = 50m
             };
 
-            IntegrationRates.ApplyUsdAmounts(revenue, "EUR", data);
+            Apply(revenue, "EUR", data);
 
             Assert.Equal("Revenue", Assert.Single(data.PendingConversions).TransactionType);
         }
@@ -205,8 +212,8 @@ public class IntegrationRatesTests
             var data = new CompanyData();
             var expense = Row(UnpricedDate);
 
-            IntegrationRates.ApplyUsdAmounts(expense, "EUR", data);
-            IntegrationRates.ApplyUsdAmounts(expense, "EUR", data);
+            Apply(expense, "EUR", data);
+            Apply(expense, "EUR", data);
 
             Assert.Single(data.PendingConversions);
         }

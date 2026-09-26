@@ -1189,43 +1189,23 @@ public class SpreadsheetImportService
         => ApplyTransactionCurrencyCode(txn, Tier1RowCurrency(rowIndex) ?? currentCurrency ?? CompanyCurrency(data), data);
 
     /// <summary>
-    /// True when an exact-date original-&gt;USD rate is available (or the row is already USD), so the
-    /// row can be priced now rather than deferred. Used to gate the pending decision independently of
-    /// the amount, so a row whose primary amount is 0 but which has non-zero secondary amounts (tax,
-    /// shipping) is still deferred when its rate is missing, instead of being silently zeroed.
+    /// The exact date's rate from the cache, which the import's rate gate filled beforehand, so a
+    /// miss means the date can't be priced yet (a future date) and the row waits in the queue.
     /// </summary>
-    private bool HasExactRate(string code, DateTime date)
-    {
-        if (string.Equals(code, "USD", StringComparison.OrdinalIgnoreCase))
-            return true;
-        return ExchangeRates is { } rates && rates.GetExchangeRate(code, "USD", date) > 0;
-    }
+    private decimal? RateOn(string code, DateTime date) => UsdConversion.CachedRate(code, date, ExchangeRates);
 
     /// <summary>Per-row currency for a Payment, else <paramref name="currentCurrency"/> (an updated record's own), else the company currency.</summary>
     private void ApplyPaymentCurrency(Payment payment, int rowIndex, CompanyData data, string? currentCurrency = null)
         => ApplyPaymentCurrencyCode(payment, Tier1RowCurrency(rowIndex) ?? currentCurrency ?? CompanyCurrency(data), data);
 
     /// <summary>
-    /// Converts a Payment's amount to USD at its exact date for <paramref name="code"/>; on an
-    /// unpriceable (future-dated, or gate miss) row, defers the USD value and enqueues it so
-    /// PendingConversionService converts it later instead of leaving a permanent 0. Shared by the
-    /// Tier 1 and Tier 2 import paths.
+    /// Stamps a Payment with <paramref name="code"/> and stores its USD amount at its exact date, or
+    /// leaves it pending in the conversion queue. Shared by the Tier 1 and Tier 2 import paths.
     /// </summary>
     private void ApplyPaymentCurrencyCode(Payment payment, string code, CompanyData data)
     {
         payment.OriginalCurrency = code;
-        if (HasExactRate(code, payment.Date))
-        {
-            TryConvertRowAmountToUSD(payment.Amount, code, payment.Date, out var amtUsd);
-            payment.AmountUSD = amtUsd;
-            payment.IsPendingConversion = false;
-        }
-        else
-        {
-            payment.AmountUSD = 0m;
-            payment.IsPendingConversion = true;
-            EnqueueImportPendingPayment(data, payment);
-        }
+        UsdConversion.Apply(data, payment, RateOn(code, payment.Date));
     }
 
     /// <summary>Per-row currency for an Invoice, else <paramref name="currentCurrency"/> (an updated record's own), else the company currency.</summary>
@@ -1233,28 +1213,14 @@ public class SpreadsheetImportService
         => ApplyInvoiceCurrencyCode(invoice, Tier1RowCurrency(rowIndex) ?? currentCurrency ?? CompanyCurrency(data), data);
 
     /// <summary>
-    /// Converts an Invoice's Total and Balance to USD at its exact issue date; on an unpriceable row,
-    /// defers both USD values and enqueues it so PendingConversionService converts it later. Shared by
-    /// the Tier 1 and Tier 2 import paths.
+    /// Stamps an Invoice with <paramref name="code"/> and stores its Total and Balance in USD at its
+    /// exact issue date, or leaves it pending in the conversion queue. Shared by the Tier 1 and Tier 2
+    /// import paths.
     /// </summary>
     private void ApplyInvoiceCurrencyCode(Invoice invoice, string code, CompanyData data)
     {
         invoice.OriginalCurrency = code;
-        if (HasExactRate(code, invoice.IssueDate))
-        {
-            TryConvertRowAmountToUSD(invoice.Total, code, invoice.IssueDate, out var totalUsd);
-            invoice.TotalUSD = totalUsd;
-            TryConvertRowAmountToUSD(invoice.Balance, code, invoice.IssueDate, out var balUsd);
-            invoice.BalanceUSD = balUsd;
-            invoice.IsPendingConversion = false;
-        }
-        else
-        {
-            invoice.TotalUSD = 0m;
-            invoice.BalanceUSD = 0m;
-            invoice.IsPendingConversion = true;
-            EnqueueImportPendingInvoice(data, invoice);
-        }
+        UsdConversion.Apply(data, invoice, RateOn(code, invoice.IssueDate));
     }
 
     /// <summary>Per-row currency for a PurchaseOrder, else <paramref name="currentCurrency"/> (an updated record's own), else the company currency.</summary>
@@ -1262,177 +1228,25 @@ public class SpreadsheetImportService
         => ApplyPurchaseOrderCurrencyCode(po, Tier1RowCurrency(rowIndex) ?? currentCurrency ?? CompanyCurrency(data), data);
 
     /// <summary>
-    /// Converts a PurchaseOrder's Total to USD at its exact order date; on an unpriceable row, defers
-    /// the USD value and enqueues it so PendingConversionService converts it later. Shared by the
-    /// Tier 1 and Tier 2 import paths.
+    /// Stamps a PurchaseOrder with <paramref name="code"/> and stores its Total in USD at its exact
+    /// order date, or leaves it pending in the conversion queue. Shared by the Tier 1 and Tier 2
+    /// import paths.
     /// </summary>
     private void ApplyPurchaseOrderCurrencyCode(PurchaseOrder po, string code, CompanyData data)
     {
         po.OriginalCurrency = code;
-        if (HasExactRate(code, po.OrderDate))
-        {
-            TryConvertRowAmountToUSD(po.Total, code, po.OrderDate, out var poUsd);
-            po.TotalUSD = poUsd;
-            po.IsPendingConversion = false;
-        }
-        else
-        {
-            po.TotalUSD = 0m;
-            po.IsPendingConversion = true;
-            EnqueueImportPendingPurchaseOrder(data, po);
-        }
+        UsdConversion.Apply(data, po, RateOn(code, po.OrderDate));
     }
 
     /// <summary>
-    /// Converts a row amount from its original currency to USD at the row's EXACT date. Returns
-    /// <see langword="false"/> when no exact-date rate is cached (e.g. a future-dated row, or a date
-    /// the import gate missed); the caller then marks the row pending instead of storing a
-    /// wrong-date value. The import rate gate fetches every past/today date before import runs, so a
-    /// false result means the date is genuinely unpriceable (future). See docs/Calculations.md.
-    /// </summary>
-    private bool TryConvertRowAmountToUSD(decimal amount, string originalCurrency, DateTime date, out decimal usd)
-    {
-        if (amount == 0m || string.Equals(originalCurrency, "USD", StringComparison.OrdinalIgnoreCase))
-        {
-            usd = amount;
-            return true;
-        }
-        var rates = ExchangeRates;
-        if (rates == null)
-        {
-            usd = 0m;
-            return false;
-        }
-        // Store the USD base at full precision (no 2dp round); display rounds at the boundary. Must
-        // match PendingConversionService's heal path so an imported and a healed row are identical.
-        // See docs/Calculations.md Rule 3.
-        return rates.TryConvertToUsdBase(amount, originalCurrency, date, out usd);
-    }
-
-    /// <summary>
-    /// Applies a detected per-row currency to a Revenue/Expense: converts its amounts to USD at the
-    /// exact transaction date. When the exact-date rate is unavailable (future-dated, or a gate
-    /// miss), the native amounts are kept, the USD fields are zeroed, the row is flagged
-    /// <see cref="Transaction.IsPendingConversion"/>, and it is enqueued so the background
-    /// <see cref="PendingConversionService"/> converts it at its exact date once that rate exists.
+    /// Stamps a Revenue/Expense with <paramref name="code"/> and stores every amount in USD at its
+    /// exact date, or leaves it pending in the conversion queue. The decision rests on the rate, not
+    /// the total, so a row with a zero total but a tax or fee still waits rather than losing them.
     /// </summary>
     private void ApplyTransactionCurrencyCode(Transaction txn, string code, CompanyData data)
     {
         txn.OriginalCurrency = code;
-        // Gate on rate availability, not on Total, so a row with Total == 0 but non-zero tax/shipping
-        // is still deferred (and healed later) when its exact-date rate is missing, instead of being
-        // marked converted with those secondary USD fields silently zeroed.
-        if (HasExactRate(code, txn.Date))
-        {
-            // Convert every money field at the exact date, matching PendingConversionService's
-            // heal path so an immediately-converted row and a later-healed row are identical.
-            TryConvertRowAmountToUSD(txn.Total, code, txn.Date, out var totalUsd);
-            txn.TotalUSD = totalUsd;
-            TryConvertRowAmountToUSD(txn.TaxAmount, code, txn.Date, out var taxUsd);
-            txn.TaxAmountUSD = taxUsd;
-            TryConvertRowAmountToUSD(txn.ShippingCost, code, txn.Date, out var shipUsd);
-            txn.ShippingCostUSD = shipUsd;
-            TryConvertRowAmountToUSD(txn.Discount, code, txn.Date, out var discUsd);
-            txn.DiscountUSD = discUsd;
-            TryConvertRowAmountToUSD(txn.Fee, code, txn.Date, out var feeUsd);
-            txn.FeeUSD = feeUsd;
-            TryConvertRowAmountToUSD(txn.UnitPrice, code, txn.Date, out var unitUsd);
-            txn.UnitPriceUSD = unitUsd;
-            txn.IsPendingConversion = false;
-        }
-        else
-        {
-            txn.TotalUSD = 0m;
-            txn.TaxAmountUSD = 0m;
-            txn.ShippingCostUSD = 0m;
-            txn.DiscountUSD = 0m;
-            txn.FeeUSD = 0m;
-            txn.UnitPriceUSD = 0m;
-            txn.IsPendingConversion = true;
-            EnqueueImportPending(data, txn);
-        }
-    }
-
-    /// <summary>
-    /// Enqueues an import row that could not be converted (future-dated or a gate miss) so the
-    /// background <see cref="PendingConversionService"/> converts it at its exact date later. Only
-    /// Revenue/Expense are supported by the pending queue. Mirrors the manual-entry enqueue.
-    /// </summary>
-    private static void EnqueueImportPending(CompanyData data, Transaction txn)
-    {
-        var type = txn is Revenue ? "Revenue" : "Expense";
-        // Replaced rather than kept: the conversion is made from this snapshot, so an updated row's
-        // new amounts have to win over the ones queued when it was first imported.
-        data.PendingConversions.RemoveAll(p => p.TransactionId == txn.Id);
-        data.PendingConversions.Add(new PendingConversion
-        {
-            TransactionId = txn.Id,
-            TransactionType = type,
-            OriginalCurrency = txn.OriginalCurrency,
-            TransactionDate = txn.Date,
-            Total = txn.Total,
-            TaxAmount = txn.TaxAmount,
-            ShippingCost = txn.ShippingCost,
-            Discount = txn.Discount,
-            Fee = txn.Fee,
-            UnitPrice = txn.UnitPrice
-        });
-    }
-
-    /// <summary>
-    /// Enqueues an unpriceable imported Payment so the background <see cref="PendingConversionService"/>
-    /// converts its amount at the exact payment date later. Only the single amount is carried.
-    /// </summary>
-    private static void EnqueueImportPendingPayment(CompanyData data, Payment payment)
-    {
-        // Replaced rather than kept, for the reason in EnqueueImportPending.
-        data.PendingConversions.RemoveAll(p => p.TransactionId == payment.Id);
-        data.PendingConversions.Add(new PendingConversion
-        {
-            TransactionId = payment.Id,
-            TransactionType = "Payment",
-            OriginalCurrency = payment.OriginalCurrency,
-            TransactionDate = payment.Date,
-            Total = payment.Amount
-        });
-    }
-
-    /// <summary>
-    /// Enqueues an unpriceable imported PurchaseOrder so the background <see cref="PendingConversionService"/>
-    /// converts its total at the exact order date later. Only the single amount is carried.
-    /// </summary>
-    private static void EnqueueImportPendingPurchaseOrder(CompanyData data, PurchaseOrder po)
-    {
-        // Replaced rather than kept, for the reason in EnqueueImportPending.
-        data.PendingConversions.RemoveAll(p => p.TransactionId == po.Id);
-        data.PendingConversions.Add(new PendingConversion
-        {
-            TransactionId = po.Id,
-            TransactionType = "PurchaseOrder",
-            OriginalCurrency = po.OriginalCurrency,
-            TransactionDate = po.OrderDate,
-            Total = po.Total
-        });
-    }
-
-    /// <summary>
-    /// Enqueues an unpriceable imported Invoice so the background <see cref="PendingConversionService"/>
-    /// converts its Total and Balance at the exact issue date later, instead of leaving the invoice's
-    /// USD value (and the Outstanding/Overdue aggregates that depend on it) permanently at 0.
-    /// </summary>
-    private static void EnqueueImportPendingInvoice(CompanyData data, Invoice invoice)
-    {
-        // Replaced rather than kept, for the reason in EnqueueImportPending.
-        data.PendingConversions.RemoveAll(p => p.TransactionId == invoice.Id);
-        data.PendingConversions.Add(new PendingConversion
-        {
-            TransactionId = invoice.Id,
-            TransactionType = "Invoice",
-            OriginalCurrency = invoice.OriginalCurrency,
-            TransactionDate = invoice.IssueDate,
-            Total = invoice.Total,
-            Balance = invoice.Balance
-        });
+        UsdConversion.Apply(data, txn, RateOn(code, txn.Date));
     }
 
     /// <summary>Paid invoices brought in by the current import, given their revenue by <see cref="FinishImport"/>.</summary>
@@ -1523,14 +1337,10 @@ public class SpreadsheetImportService
             ReferenceNumber = invoice.InvoiceNumber,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
-            OriginalCurrency = invoice.OriginalCurrency,
-            IsPendingConversion = invoice.IsPendingConversion,
-            TotalUSD = invoice.IsPendingConversion ? 0m : (invoice.TotalUSD > 0 ? invoice.TotalUSD : invoice.Total)
+            OriginalCurrency = invoice.OriginalCurrency
         };
+        UsdConversion.Apply(data, revenue, UsdConversion.InvoiceRate(invoice));
         data.Revenues.Add(revenue);
-
-        if (invoice.IsPendingConversion)
-            EnqueueImportPending(data, revenue);
     }
 
     private static List<LineItem> CopyLines(Invoice invoice) =>
@@ -1778,11 +1588,18 @@ public class SpreadsheetImportService
                         invoice.Id = invoice.InvoiceNumber;
                     else if (string.IsNullOrEmpty(invoice.InvoiceNumber))
                         invoice.InvoiceNumber = invoice.Id;
-                    SetImportedStatus(invoice, invoice.Status, amountsSet: true);
                 }
 
                 if (invoice != null && !string.IsNullOrEmpty(invoice.Id))
                 {
+                    var existing = data.Invoices.FirstOrDefault(i => i.Id == invoice.Id);
+                    if (skipExisting && existing != null) return ImportEntityResult.SkippedExisting;
+
+                    SetImportedBalance(invoice,
+                        HasJsonValue(entityJson, "amountPaid") ? invoice.AmountPaid : null,
+                        HasJsonValue(entityJson, "balance") ? invoice.Balance : null,
+                        recompute: true);
+                    SetImportedStatus(invoice, invoice.Status, amountsSet: true, statusGiven: HasJsonValue(entityJson, "status"));
 
                     // Convert Total/Balance at the exact issue date from the row's own currency, or
                     // the company currency when it names none, deferring (pending + enqueue) when
@@ -1792,8 +1609,6 @@ public class SpreadsheetImportService
                     // Resolve customer reference by name, else create a placeholder
                     invoice.CustomerId = EnsureCustomerExists(data, invoice.CustomerId, refContext) ?? invoice.CustomerId;
 
-                    var existing = data.Invoices.FirstOrDefault(i => i.Id == invoice.Id);
-                    if (skipExisting && existing != null) return ImportEntityResult.SkippedExisting;
                     if (existing != null) data.Invoices.Remove(existing);
                     data.Invoices.Add(invoice);
 
@@ -1806,6 +1621,11 @@ public class SpreadsheetImportService
                 var expense = JsonSerializer.Deserialize<Expense>(jsonStr, opts);
                 if (expense != null && !string.IsNullOrEmpty(expense.Id))
                 {
+                    // Checked before anything is queued or created for the row, so a skipped row
+                    // leaves the existing record's queued conversion alone.
+                    var existing = data.Expenses.FirstOrDefault(e => e.Id == expense.Id);
+                    if (skipExisting && existing != null) return ImportEntityResult.SkippedExisting;
+
                     // Convert each amount to USD at the transaction's EXACT date, from the row's own
                     // currency or else the company's. Future-dated/unpriceable rows become pending.
                     ApplyTransactionCurrencyCode(expense, ExtractRowCurrency(entityJson, options) ?? CompanyCurrency(data), data);
@@ -1852,8 +1672,6 @@ public class SpreadsheetImportService
                         }
                     }
 
-                    var existing = data.Expenses.FirstOrDefault(e => e.Id == expense.Id);
-                    if (skipExisting && existing != null) return ImportEntityResult.SkippedExisting;
                     if (existing != null) data.Expenses.Remove(existing);
                     data.Expenses.Add(expense);
                     return existing != null ? ImportEntityResult.Updated : ImportEntityResult.Inserted;
@@ -1863,6 +1681,9 @@ public class SpreadsheetImportService
                 var revenue = JsonSerializer.Deserialize<Revenue>(jsonStr, opts);
                 if (revenue != null && !string.IsNullOrEmpty(revenue.Id))
                 {
+                    var existing = data.Revenues.FirstOrDefault(r => r.Id == revenue.Id);
+                    if (skipExisting && existing != null) return ImportEntityResult.SkippedExisting;
+
                     // PaymentStatus is already normalized by the enum's JSON
                     // converter (legacy typos → Paid fallback), no separate call.
                     // Convert each amount to USD at the transaction's EXACT date, from the row's own
@@ -1915,8 +1736,6 @@ public class SpreadsheetImportService
                         }
                     }
 
-                    var existing = data.Revenues.FirstOrDefault(r => r.Id == revenue.Id);
-                    if (skipExisting && existing != null) return ImportEntityResult.SkippedExisting;
                     if (existing != null) data.Revenues.Remove(existing);
                     data.Revenues.Add(revenue);
                     return existing != null ? ImportEntityResult.Updated : ImportEntityResult.Inserted;
@@ -1926,6 +1745,9 @@ public class SpreadsheetImportService
                 var payment = JsonSerializer.Deserialize<Payment>(jsonStr, opts);
                 if (payment != null && !string.IsNullOrEmpty(payment.Id))
                 {
+                    var existing = data.Payments.FirstOrDefault(p => p.Id == payment.Id);
+                    if (skipExisting && existing != null) return ImportEntityResult.SkippedExisting;
+
                     // Convert at the exact payment date from the row's own currency or else the
                     // company's, deferring (pending + enqueue) when unpriceable so it self-heals
                     // later rather than being stuck at 0. Shared with the Tier 1 path.
@@ -1935,8 +1757,6 @@ public class SpreadsheetImportService
                     payment.CustomerId = EnsureCustomerExists(data, payment.CustomerId, refContext) ?? payment.CustomerId;
                     payment.InvoiceId = EnsureInvoiceExists(data, payment.InvoiceId, payment.CustomerId) ?? payment.InvoiceId;
 
-                    var existing = data.Payments.FirstOrDefault(p => p.Id == payment.Id);
-                    if (skipExisting && existing != null) return ImportEntityResult.SkippedExisting;
                     if (existing != null) data.Payments.Remove(existing);
                     data.Payments.Add(payment);
                     return existing != null ? ImportEntityResult.Updated : ImportEntityResult.Inserted;
@@ -1968,13 +1788,13 @@ public class SpreadsheetImportService
                 var invItem = JsonSerializer.Deserialize<InventoryItem>(jsonStr, opts);
                 if (invItem != null && !string.IsNullOrEmpty(invItem.Id))
                 {
-                    if (invItem.LastUpdated == DateTime.MinValue)
-                        invItem.LastUpdated = DateTime.UtcNow;
-                    var existing = data.Inventory.FirstOrDefault(i => i.Id == invItem.Id);
-                    if (skipExisting && existing != null) return ImportEntityResult.SkippedExisting;
-                    if (existing != null) data.Inventory.Remove(existing);
-                    data.Inventory.Add(invItem);
-                    return existing != null ? ImportEntityResult.Updated : ImportEntityResult.Inserted;
+                    if (skipExisting && data.Inventory.Any(i => i.Id == invItem.Id)) return ImportEntityResult.SkippedExisting;
+                    var fields = entityJson.ValueKind == JsonValueKind.Object
+                        ? entityJson.EnumerateObject().Select(p => p.Name).ToHashSet(StringComparer.OrdinalIgnoreCase)
+                        : [];
+                    return InventoryStockService.ImportStockRecord(data, invItem, fields)
+                        ? ImportEntityResult.Inserted
+                        : ImportEntityResult.Updated;
                 }
                 return ImportEntityResult.Failed;
             case SpreadsheetSheetType.RentalInventory:
@@ -2031,6 +1851,9 @@ public class SpreadsheetImportService
                 var po = JsonSerializer.Deserialize<PurchaseOrder>(jsonStr, opts);
                 if (po != null && !string.IsNullOrEmpty(po.Id))
                 {
+                    var existing = data.PurchaseOrders.FirstOrDefault(p => p.Id == po.Id);
+                    if (skipExisting && existing != null) return ImportEntityResult.SkippedExisting;
+
                     // Convert at the exact order date from the row's own currency or else the
                     // company's, deferring (pending + enqueue) when unpriceable. Shared with Tier 1.
                     ApplyPurchaseOrderCurrencyCode(po, ExtractRowCurrency(entityJson, options) ?? CompanyCurrency(data), data);
@@ -2038,8 +1861,6 @@ public class SpreadsheetImportService
                     if (!string.IsNullOrEmpty(po.SupplierId))
                         po.SupplierId = EnsureSupplierExists(data, po.SupplierId, refContext) ?? po.SupplierId;
 
-                    var existing = data.PurchaseOrders.FirstOrDefault(p => p.Id == po.Id);
-                    if (skipExisting && existing != null) return ImportEntityResult.SkippedExisting;
                     if (existing != null) data.PurchaseOrders.Remove(existing);
                     data.PurchaseOrders.Add(po);
                     return existing != null ? ImportEntityResult.Updated : ImportEntityResult.Inserted;
@@ -3140,17 +2961,44 @@ public class SpreadsheetImportService
         => SpreadsheetRowReader.GetNullableDateTime(row, headers, columnName, DateOrderOf(headers, columnName));
 
     /// <summary>
+    /// The balance an imported invoice still owes: the total less the amount paid when the row gives
+    /// one, else the row's own balance, else (when <paramref name="recompute"/>) the total less what
+    /// was already paid. Every invoice import sets it this way before working out the status, so a
+    /// row with a total and an amount paid but no balance isn't read as paid in full.
+    /// </summary>
+    private static void SetImportedBalance(Invoice invoice, decimal? paid, decimal? balance, bool recompute)
+    {
+        if (paid.HasValue)
+            invoice.Balance = Math.Max(0m, invoice.Total - paid.Value);
+        else if (balance.HasValue)
+            invoice.Balance = Math.Max(0m, balance.Value);
+        else if (recompute)
+            invoice.Balance = Math.Max(0m, invoice.Total - invoice.AmountPaid);
+    }
+
+    /// <summary>Whether an AI-extracted row carries a value for <paramref name="name"/> (any case).</summary>
+    private static bool HasJsonValue(JsonElement row, string name) =>
+        row.ValueKind == JsonValueKind.Object && row.EnumerateObject().Any(p =>
+            string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase)
+            && p.Value.ValueKind is not (JsonValueKind.Null or JsonValueKind.Undefined)
+            && !(p.Value.ValueKind == JsonValueKind.String && string.IsNullOrWhiteSpace(p.Value.GetString())));
+
+    /// <summary>
     /// Gives an imported invoice its status once its amounts are set. Overdue is worked out from the
     /// due date and never saved (docs/Calculations.md §6), so a sheet saying Overdue is taken to mean
-    /// sent. The amount paid then decides the payment status the way a recorded payment does
+    /// sent. A sheet that says Draft, Cancelled, Refunded or PartiallyRefunded is taken at its word
+    /// whatever the amounts, since none of those can be worked out from an amount paid. Otherwise the
+    /// amount paid decides the payment status the way a recorded payment does
     /// (<see cref="InvoiceTotalsService.RecalculateStatus"/>): an Overdue invoice with half paid is
     /// Partial. An update that sets only the status, such as marking a batch paid, is taken as given,
-    /// except Overdue, which is never a status of its own. A refund status is kept as the sheet gives
-    /// it, since the sheet carries no refund amounts to work it out from.
+    /// except Overdue, which is never a status of its own.
     /// </summary>
-    private static void SetImportedStatus(Invoice invoice, InvoiceStatus status, bool amountsSet)
+    private static void SetImportedStatus(Invoice invoice, InvoiceStatus status, bool amountsSet, bool statusGiven)
     {
         invoice.Status = status == InvoiceStatus.Overdue ? InvoiceStatus.Sent : status;
+        if (statusGiven && status is InvoiceStatus.Draft or InvoiceStatus.Cancelled
+                or InvoiceStatus.Refunded or InvoiceStatus.PartiallyRefunded)
+            return;
         if (!amountsSet && status != InvoiceStatus.Overdue)
             return;
         if (invoice.Status is InvoiceStatus.Refunded or InvoiceStatus.PartiallyRefunded && invoice.AmountRefunded == 0)
@@ -3551,16 +3399,13 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             var paid = SpreadsheetRowReader.GetNullableDecimal(row, headers, "Paid");
             if (Set("Paid"))
                 invoice.AmountPaid = paid ?? 0m;
-            if (paid.HasValue)
-                invoice.Balance = Math.Max(0m, invoice.Total - paid.Value);
-            else if (Set("Balance"))
-                invoice.Balance = Math.Max(0m, GetDecimal(row, headers, "Balance"));
-            else if (Set("Paid", "Total"))
-                invoice.Balance = Math.Max(0m, invoice.Total - invoice.AmountPaid);
+            SetImportedBalance(invoice, paid, SpreadsheetRowReader.GetNullableDecimal(row, headers, "Balance"),
+                recompute: Set("Paid", "Total"));
             if (Set("Status", "Paid", "Balance", "Total"))
                 SetImportedStatus(invoice, Set("Status")
                     ? ParseEnum(GetString(row, headers, "Status"), InvoiceStatus.Draft)
-                    : invoice.Status, amountsSet: Set("Paid", "Balance", "Total"));
+                    : invoice.Status, amountsSet: Set("Paid", "Balance", "Total"),
+                    statusGiven: !string.IsNullOrWhiteSpace(GetString(row, headers, "Status")));
 
             // Per-row currency detected from the amount cells, else the record's own when updating,
             // else the company currency. Left as it is when nothing it is priced from changed.
@@ -3818,6 +3663,14 @@ Respond with ONLY a JSON array, one entry per product in the same order:
         }
     }
 
+    /// <summary>The Inventory sheet's columns and the stock record fields they fill.</summary>
+    private static readonly (string Column, string Field)[] InventoryColumns =
+    [
+        ("Product ID", "productId"), ("Location ID", "locationId"), ("In Stock", "inStock"),
+        ("Reserved", "reserved"), ("Reorder Point", "reorderPoint"), ("Unit Cost", "unitCost"),
+        ("Last Updated", "lastUpdated")
+    ];
+
     private void ImportInventory(CompanyData data, List<string> headers, List<List<object?>> rows, ImportOptions? options = null)
     {
         var takenIds = TakenIds(data.Inventory.Select(i => i.Id), headers, rows, "ID");
@@ -3836,42 +3689,27 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             if (string.IsNullOrWhiteSpace(id))
                 id = new IdGenerator(data).NextInventoryItemId(takenIds);
 
-            var existing = data.Inventory.FirstOrDefault(i => i.Id == id);
-            if (options?.SkipExistingRecords == true && existing != null) { options.SkippedCount++; continue; }
+            var existing = data.Inventory.Any(i => i.Id == id);
+            if (options?.SkipExistingRecords == true && existing) { options.SkippedCount++; continue; }
 
-            var item = existing ?? new InventoryItem();
-
-            // Updating a stock level changes only what the sheet has columns for; a new one takes every field.
-            bool Set(params string[] columns) => existing == null || columns.Any(headers.Contains);
-
-            item.Id = id;
-            if (Set("Product ID"))
-                item.ProductId = productId;
-            if (Set("Location ID"))
-                item.LocationId = locationId;
-            if (Set("In Stock"))
-                item.InStock = GetDecimal(row, headers, "In Stock");
-            if (Set("Reserved"))
-                item.Reserved = GetDecimal(row, headers, "Reserved");
-            if (Set("Reorder Point"))
-                item.ReorderPoint = GetDecimal(row, headers, "Reorder Point");
-            // A cost still waiting for its rate is exported as 0, so only a different figure replaces it.
-            var unitCost = GetDecimal(row, headers, "Unit Cost");
-            if (Set("Unit Cost") && (unitCost != item.UnitCost || !item.IsPendingConversion))
+            // Updating a stock level changes only what the sheet has columns for.
+            var fields = InventoryColumns
+                .Where(c => headers.Contains(c.Column))
+                .Select(c => c.Field)
+                .ToHashSet();
+            var record = new InventoryItem
             {
-                item.UnitCost = unitCost;
-                item.IsPendingConversion = false;
-            }
-            if (Set("Last Updated"))
-            {
-                item.LastUpdated = GetDateTime(row, headers, "Last Updated");
-                if (item.LastUpdated == DateTime.MinValue)
-                    item.LastUpdated = DateTime.UtcNow;
-            }
+                Id = id,
+                ProductId = productId,
+                LocationId = locationId,
+                InStock = GetDecimal(row, headers, "In Stock"),
+                Reserved = GetDecimal(row, headers, "Reserved"),
+                ReorderPoint = GetDecimal(row, headers, "Reorder Point"),
+                UnitCost = GetDecimal(row, headers, "Unit Cost"),
+                LastUpdated = GetDateTime(row, headers, "Last Updated")
+            };
 
-            if (existing == null)
-                data.Inventory.Add(item);
-            else if (options != null)
+            if (!InventoryStockService.ImportStockRecord(data, record, fields) && options != null)
                 options.UpdatedCount++;
         }
     }

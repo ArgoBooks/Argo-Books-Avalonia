@@ -71,6 +71,8 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
     /// Formats a currency amount that is ALREADY in <see cref="DisplayCode"/> (conversion happens at
     /// production via <see cref="ToDisplay"/>), so this only formats; it does not convert.
     /// </summary>
+    private const string PendingText = "Pending";
+
     private string FormatCurrency(decimal amount)
     {
         return CurrencyInfo.FormatAmount(amount, DisplayCode);
@@ -345,6 +347,11 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         var costOfGoods = revenues.Sum(r => ToDisplay(CostOfGoodsAggregator.CostOfGoodsSoldUSD(r), r.Date));
         var netIncome = totalRevenue - costOfGoods - totalExpenses;
 
+        // A sale waiting for its stock's cost counts none yet, so the figures that subtract cost
+        // of goods sold aren't known and read Pending rather than overstated (Calculations.md §14).
+        var costPending = CostOfGoodsAggregator.IsCostOfGoodsPending(revenues);
+        string AfterCost(decimal amount) => costPending ? PendingText : FormatCurrencyWithSign(amount);
+
         // Revenue section
         data.Rows.Add(new AccountingRow
         {
@@ -382,12 +389,12 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             RowType = AccountingRowType.SubtotalRow
         });
 
-        if (costOfGoods != 0)
+        if (costOfGoods != 0 || costPending)
         {
             data.Rows.Add(new AccountingRow
             {
                 Label = "Cost of Goods Sold",
-                Values = [FormatCurrencyWithSign(-costOfGoods)],
+                Values = [AfterCost(-costOfGoods)],
                 IndentLevel = 1,
                 RowType = AccountingRowType.DataRow
             });
@@ -395,7 +402,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             data.Rows.Add(new AccountingRow
             {
                 Label = "Gross Profit",
-                Values = [FormatCurrencyWithSign(totalRevenue - costOfGoods)],
+                Values = [AfterCost(totalRevenue - costOfGoods)],
                 RowType = AccountingRowType.SubtotalRow
             });
         }
@@ -436,7 +443,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         data.Rows.Add(new AccountingRow
         {
             Label = t.NetIncome,
-            Values = [FormatCurrencyWithSign(netIncome)],
+            Values = [AfterCost(netIncome)],
             RowType = AccountingRowType.GrandTotalRow
         });
 

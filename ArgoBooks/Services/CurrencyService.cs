@@ -260,6 +260,16 @@ public static class CurrencyService
         TryComputeDisplay(total, out var amount) ? Format(amount) : PendingMarker;
 
     /// <summary>
+    /// Net profit for the range (Rule 1, paid sales only), or <see cref="PendingMarker"/> while any
+    /// part of it isn't known yet: a row waiting for its exchange rate, or a sale waiting for its
+    /// stock's cost (docs/Calculations.md §14). Every profit card shows it this way.
+    /// </summary>
+    public static string FormatNetProfitOrPending(CompanyData data, DateTime start, DateTime end) =>
+        CostOfGoodsAggregator.IsCostOfGoodsPending(data.Revenues, start, end, collectedOnly: true)
+            ? PendingMarker
+            : FormatTotalOrPending(convert => ProfitCalculator.CalculateNetProfitDisplay(data, start, end, convert));
+
+    /// <summary>
     /// Runs <paramref name="compute"/> with a converter that converts each amount at its own date, and
     /// returns false when any of them is still waiting for its exact-date rate, so the caller shows
     /// <see cref="PendingMarker"/> instead of a figure with USD mixed in.
@@ -375,39 +385,6 @@ public static class CurrencyService
 
         // Otherwise convert from USD to the target currency
         return FormatFromUSD(amountUSD, date);
-    }
-
-    /// <summary>
-    /// Creates a MonetaryValue from a user-entered amount in the current currency.
-    /// </summary>
-    /// <param name="amount">The amount entered by the user.</param>
-    /// <param name="date">The transaction date for exchange rate lookup.</param>
-    /// <returns>A MonetaryValue with both original and USD amounts.</returns>
-    public static Task<MonetaryValue> CreateMonetaryValueAsync(decimal amount, DateTime date)
-        => CreateMonetaryValueAsync(amount, CurrentCurrencyCode, date);
-
-    /// <summary>
-    /// <see cref="CreateMonetaryValueAsync(decimal, DateTime)"/> for an amount in
-    /// <paramref name="currency"/> rather than the company currency, such as an entry being edited
-    /// that was recorded in another currency.
-    /// </summary>
-    public static async Task<MonetaryValue> CreateMonetaryValueAsync(decimal amount, string currency, DateTime date)
-    {
-        if (string.Equals(currency, "USD", StringComparison.OrdinalIgnoreCase))
-        {
-            return new MonetaryValue(amount, "USD", amount, date);
-        }
-
-        // Convert to USD
-        var exchangeService = ExchangeRateService.Instance;
-        decimal amountUSD = amount;
-
-        if (exchangeService != null)
-        {
-            amountUSD = await exchangeService.ConvertToUSDAsync(amount, currency, date);
-        }
-
-        return new MonetaryValue(amount, currency, amountUSD, date);
     }
 
     /// <summary>

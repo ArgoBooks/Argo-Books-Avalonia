@@ -232,6 +232,63 @@ public class InventoryCostCurrencyTests
         }
     }
 
+    // Undo put back the cost as it was before the sale, pending, even when that cost had converted
+    // since, so the stock went back to waiting for a rate it already had.
+    [Fact]
+    public async Task UndoingASale_AfterThePendingCostConverted_KeepsTheConvertedCost()
+    {
+        var prior = SetInstance(await SeededServiceAsync());
+        try
+        {
+            var data = CadCompany();
+            data.Inventory.Add(new InventoryItem { Id = "INV-1", ProductId = "PRD-1", LocationId = "LOC-1", InStock = 5, UnitCost = 4m });
+            var purchase = Purchase("PUR-1", "EUR", unitPrice: 10m, pending: true);
+            InventoryStockService.Apply(data, purchase.LineItems, purchase, isPurchase: true);
+
+            var sale = Sale(2);
+            data.Revenues.Add(sale);
+            var changes = InventoryStockService.Apply(data, sale.LineItems, sale, isPurchase: false);
+            await ConvertQueueAsync(data);
+
+            InventoryStockService.Revert(data, changes);
+
+            var item = data.Inventory[0];
+            Assert.False(item.IsPendingConversion);
+            Assert.Equal(12.5m, item.UnitCost);
+            Assert.Empty(data.PendingConversions);
+        }
+        finally
+        {
+            SetInstance(prior);
+        }
+    }
+
+    [Fact]
+    public async Task UndoingASale_WhileTheCostStillWaits_LeavesItWaiting()
+    {
+        var prior = SetInstance(await SeededServiceAsync());
+        try
+        {
+            var data = CadCompany();
+            data.Inventory.Add(new InventoryItem { Id = "INV-1", ProductId = "PRD-1", LocationId = "LOC-1", InStock = 5, UnitCost = 4m });
+            var purchase = Purchase("PUR-1", "EUR", unitPrice: 10m, pending: true);
+            InventoryStockService.Apply(data, purchase.LineItems, purchase, isPurchase: true);
+            var queued = Assert.Single(data.PendingConversions);
+
+            var sale = Sale(2);
+            data.Revenues.Add(sale);
+            var changes = InventoryStockService.Apply(data, sale.LineItems, sale, isPurchase: false);
+            InventoryStockService.Revert(data, changes);
+
+            Assert.True(data.Inventory[0].IsPendingConversion);
+            Assert.Same(queued, Assert.Single(data.PendingConversions));
+        }
+        finally
+        {
+            SetInstance(prior);
+        }
+    }
+
     // A margin needs both amounts: a line whose cost price can't be converted yet used to count as
     // costing nothing, which inflated the product's margin.
     [Fact]

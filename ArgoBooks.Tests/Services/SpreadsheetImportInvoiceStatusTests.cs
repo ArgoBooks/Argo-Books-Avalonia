@@ -12,7 +12,8 @@ namespace ArgoBooks.Tests.Services;
 /// <summary>
 /// An imported invoice's status is worked out from its amounts the way a recorded payment works it
 /// out (docs/Calculations.md §6). Overdue is never saved, and a sheet's Overdue used to become Sent
-/// even when half of it had been paid.
+/// even when half of it had been paid. A Draft, Cancelled or refund status is taken as the sheet
+/// gives it: a cancelled invoice with a payment used to become Partial, and then overdue.
 /// </summary>
 public class SpreadsheetImportInvoiceStatusTests : IDisposable
 {
@@ -32,7 +33,10 @@ public class SpreadsheetImportInvoiceStatusTests : IDisposable
     [InlineData("Paid", 50, InvoiceStatus.Partial)]
     [InlineData("Draft", 0, InvoiceStatus.Draft)]
     [InlineData("Cancelled", 0, InvoiceStatus.Cancelled)]
+    [InlineData("Cancelled", 50, InvoiceStatus.Cancelled)]
+    [InlineData("Draft", 50, InvoiceStatus.Draft)]
     [InlineData("Refunded", 100, InvoiceStatus.Refunded)]
+    [InlineData("Refunded", 50, InvoiceStatus.Refunded)]
     [InlineData("PartiallyRefunded", 100, InvoiceStatus.PartiallyRefunded)]
     public void AiImport_StatusFollowsTheAmountPaid(string sheetStatus, int paid, InvoiceStatus expected)
     {
@@ -46,6 +50,52 @@ public class SpreadsheetImportInvoiceStatusTests : IDisposable
         new SpreadsheetImportService().ImportProcessedEntities(data, [chunk], "Invoices");
 
         Assert.Equal(expected, Assert.Single(data.Invoices).Status);
+    }
+
+    // With no balance given, the AI import left it at 0, so an invoice half paid read as paid in full.
+    [Fact]
+    public void AiImport_NoBalance_OwesTheTotalLessWhatWasPaid()
+    {
+        var data = new CompanyData();
+        var chunk = new LlmProcessedData { EntityType = SpreadsheetSheetType.Invoices };
+        chunk.Entities.Add(JsonDocument.Parse("""
+            { "id": "INV-1", "customerId": "Acme", "issueDate": "2026-03-01", "dueDate": "2026-03-31",
+              "total": 100, "amountPaid": 50, "status": "Sent" }
+            """).RootElement.Clone());
+
+        new SpreadsheetImportService().ImportProcessedEntities(data, [chunk], "Invoices");
+
+        var invoice = Assert.Single(data.Invoices);
+        Assert.Equal(50m, invoice.Balance);
+        Assert.Equal(InvoiceStatus.Partial, invoice.Status);
+    }
+
+    [Fact]
+    public async Task SheetImport_NoBalanceColumn_OwesTheTotalLessWhatWasPaid()
+    {
+        var data = new CompanyData();
+
+        await new SpreadsheetImportService().ImportFromExcelAsync(InvoiceSheet(
+            ["ID", "Invoice #", "Customer ID", "Issue Date", "Due Date", "Total", "Status"],
+            ["INV-1", "#INV-1", "CUS-001", "2026-03-01", "2099-03-31", "100", "Sent"]), data);
+
+        var invoice = Assert.Single(data.Invoices);
+        Assert.Equal(100m, invoice.Balance);
+        Assert.Equal(InvoiceStatus.Sent, invoice.Status);
+    }
+
+    [Fact]
+    public async Task SheetImport_CancelledWithAPayment_StaysCancelled_AndIsNotOverdue()
+    {
+        var data = new CompanyData();
+
+        await new SpreadsheetImportService().ImportFromExcelAsync(InvoiceSheet(
+            ["ID", "Invoice #", "Customer ID", "Issue Date", "Due Date", "Total", "Paid", "Status"],
+            ["INV-1", "#INV-1", "CUS-001", "2026-03-01", "2026-03-31", "100", "50", "Cancelled"]), data);
+
+        var invoice = Assert.Single(data.Invoices);
+        Assert.Equal(InvoiceStatus.Cancelled, invoice.Status);
+        Assert.False(invoice.IsOverdue);
     }
 
     [Fact]

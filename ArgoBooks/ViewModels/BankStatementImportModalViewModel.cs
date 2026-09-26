@@ -240,7 +240,6 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
 
         // linkToBankLine: false -> plain transactions, no bank-match flag.
         var creation = new BankLineImportService().CreateFromLines(data, resolutions, linkToBankLine: false);
-        creation.MirrorPendingConversions(data);
 
         // Learn a rule per line (merchant -> product + counterparty) so the next import is pre-filled.
         var ruleCaptures = LearnRules(data, resolutions);

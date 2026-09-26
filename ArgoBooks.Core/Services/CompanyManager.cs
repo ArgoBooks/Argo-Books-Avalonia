@@ -879,7 +879,7 @@ public class CompanyManager : IDisposable
     private static bool TakeDepositOutOfRevenue(CompanyData data, Invoice invoice)
     {
         var deposit = invoice.SecurityDeposit;
-        var pendingIds = new List<string>();
+        var pendingKeys = new List<PendingConversionKey>();
         var changed = false;
 
         // Only revenue still carrying the invoice's whole total counted the deposit. Revenue the user
@@ -895,17 +895,17 @@ public class CompanyManager : IDisposable
             revenue.Total = total;
 
             // A revenue still waiting for its rate converts from its queue entry, not the row.
-            foreach (var pending in data.PendingConversions.Where(p => p.TransactionId == revenue.Id))
+            if (UsdConversion.Queued(data, UsdConversion.KeyOf(revenue)) is { } pending)
             {
                 pending.Total = total;
                 pending.Fee = Math.Max(0m, pending.Fee - deposit);
-                pendingIds.Add(revenue.Id);
+                pendingKeys.Add(pending.Key);
             }
             changed = true;
         }
 
-        if (pendingIds.Count > 0)
-            _ = PendingConversionService.Instance?.MirrorAsync(data, pendingIds);
+        if (pendingKeys.Count > 0)
+            UsdConversion.Mirror(data, pendingKeys);
         return changed;
     }
 

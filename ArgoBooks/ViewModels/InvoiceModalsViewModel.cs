@@ -2128,15 +2128,14 @@ public partial class InvoiceModalsViewModel : ViewModelBase
     {
         var properties = typeof(Invoice).GetProperties().Where(p => p.CanWrite).ToArray();
         var values = properties.Select(p => p.GetValue(draft)).ToArray();
-        var conversions = companyData.PendingConversions.Where(p => p.TransactionId == draft.Id).ToList();
+        var key = UsdConversion.KeyOf(draft);
+        var conversions = UsdConversion.Snapshot(companyData, [key]);
 
         return () =>
         {
             for (var i = 0; i < properties.Length; i++)
                 properties[i].SetValue(draft, values[i]);
-            companyData.PendingConversions.RemoveAll(p => p.TransactionId == draft.Id);
-            companyData.PendingConversions.AddRange(conversions);
-            _ = PendingConversionService.Instance?.MirrorAsync(companyData, [draft.Id]);
+            UsdConversion.Restore(companyData, [key], conversions);
         };
     }
 
@@ -2566,38 +2565,10 @@ public partial class InvoiceModalsViewModel : ViewModelBase
     /// </summary>
     private static async Task ApplyUsdTotalAsync(CompanyData companyData, Invoice invoice)
     {
-        companyData.PendingConversions.RemoveAll(p => p.TransactionId == invoice.Id);
-
-        if (string.Equals(invoice.OriginalCurrency, "USD", StringComparison.OrdinalIgnoreCase))
-        {
-            invoice.TotalUSD = invoice.Total;
-            invoice.IsPendingConversion = false;
-        }
-        else
-        {
-            var rate = ExchangeRateService.Instance is { } exchangeService
-                ? await exchangeService.GetExchangeRateAsync(invoice.OriginalCurrency, "USD", invoice.IssueDate)
-                : 0m;
-
-            // USD base stored full-precision (no 2dp round); display rounds. See Calculations.md Rule 3.
-            invoice.TotalUSD = rate > 0 ? invoice.Total * rate : 0m;
-            invoice.IsPendingConversion = rate <= 0;
-
-            if (invoice.IsPendingConversion)
-            {
-                companyData.PendingConversions.Add(new PendingConversion
-                {
-                    TransactionId = invoice.Id,
-                    TransactionType = "Invoice",
-                    OriginalCurrency = invoice.OriginalCurrency,
-                    TransactionDate = invoice.IssueDate,
-                    Total = invoice.Total,
-                    Balance = Math.Max(0, invoice.Total - invoice.AmountPaid)
-                });
-            }
-        }
-
-        _ = PendingConversionService.Instance?.MirrorAsync(companyData, [invoice.Id]);
+        // What it owes before this save's payments are counted, which the queue converts if it waits.
+        invoice.Balance = Math.Max(0, invoice.Total - invoice.AmountPaid);
+        UsdConversion.Apply(companyData, invoice,
+            await UsdConversion.FetchRateAsync(invoice.OriginalCurrency, invoice.IssueDate));
     }
 
     /// <summary>
@@ -2657,48 +2628,13 @@ public partial class InvoiceModalsViewModel : ViewModelBase
             ReferenceNumber = invoice.InvoiceNumber,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
-            // Currency fields: use EffectiveTotalUSD to avoid mixing currencies
-            // (returns 0 for pending-conversion invoices, correct USD for others)
-            OriginalCurrency = invoice.OriginalCurrency,
-            // USD base fields stored full-precision (no 2dp round) so they stay consistent with the
-            // unrounded TotalUSD above; display rounds at the boundary. See docs/Calculations.md Rule 3.
-            TotalUSD = invoice.Total > 0 ? invoice.EffectiveTotalUSD * total / invoice.Total : 0,
-            TaxAmountUSD = invoice.EffectiveTotalUSD > 0 && invoice.Total > 0
-                ? invoice.TaxAmount * (invoice.EffectiveTotalUSD / invoice.Total)
-                : string.Equals(invoice.OriginalCurrency, "USD", StringComparison.OrdinalIgnoreCase) ? invoice.TaxAmount : 0,
-            FeeUSD = invoice.EffectiveTotalUSD > 0 && invoice.Total > 0
-                ? (feeAmount + invoice.ShippingAmount) * (invoice.EffectiveTotalUSD / invoice.Total)
-                : string.Equals(invoice.OriginalCurrency, "USD", StringComparison.OrdinalIgnoreCase) ? feeAmount + invoice.ShippingAmount : 0,
-            DiscountUSD = invoice.EffectiveTotalUSD > 0 && invoice.Total > 0
-                ? discountAmount * (invoice.EffectiveTotalUSD / invoice.Total)
-                : string.Equals(invoice.OriginalCurrency, "USD", StringComparison.OrdinalIgnoreCase) ? discountAmount : 0,
-
-            // An invoice still waiting for its rate hands the wait on to its revenue, which the
-            // queue then converts from the same amounts. Otherwise the revenue counted as 0 for good.
-            IsPendingConversion = invoice.IsPendingConversion
+            OriginalCurrency = invoice.OriginalCurrency
         };
 
+        // At the invoice's rate. An invoice still waiting for its rate hands the wait on to its
+        // revenue, which the queue then converts from the same amounts.
+        UsdConversion.Apply(companyData, revenue, UsdConversion.InvoiceRate(invoice));
         companyData.Revenues.Add(revenue);
-
-        if (revenue.IsPendingConversion)
-        {
-            var pendingEntry = new PendingConversion
-            {
-                TransactionId = revenue.Id,
-                TransactionType = "Revenue",
-                OriginalCurrency = revenue.OriginalCurrency,
-                TransactionDate = revenue.Date,
-                Total = revenue.Total,
-                TaxAmount = revenue.TaxAmount,
-                ShippingCost = revenue.ShippingCost,
-                Discount = revenue.Discount,
-                Fee = revenue.Fee,
-                UnitPrice = revenue.UnitPrice
-            };
-            companyData.PendingConversions.RemoveAll(p => p.TransactionId == revenue.Id);
-            companyData.PendingConversions.Add(pendingEntry);
-            _ = PendingConversionService.Instance?.AddPendingConversionAsync(pendingEntry);
-        }
     }
 
     /// <summary>

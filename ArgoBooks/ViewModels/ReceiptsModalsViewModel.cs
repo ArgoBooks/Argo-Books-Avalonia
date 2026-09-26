@@ -1555,7 +1555,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
-                ApplyDisplayCurrency(companyData, revenue, "Revenue", currency);
+                ApplyDisplayCurrency(companyData, revenue, currency);
 
                 receipt.TransactionId = revenueId;
                 companyData.Revenues.Add(revenue);
@@ -1586,7 +1586,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
-                ApplyDisplayCurrency(companyData, expense, "Expense", currency);
+                ApplyDisplayCurrency(companyData, expense, currency);
 
                 receipt.TransactionId = expenseId;
                 companyData.Expenses.Add(expense);
@@ -1599,8 +1599,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
 
         RemoveCreatedEntitiesNotUsedBy(companyData, createdExpenses, createdRevenues);
         var createdEntities = CaptureCreatedEntities();
-        var transactionIds = createdExpenses.Select(e => e.Id).Concat(createdRevenues.Select(r => r.Id)).ToHashSet();
-        List<PendingConversion> withdrawn = [];
+        var createdTransactions = createdExpenses.Cast<Transaction>().Concat(createdRevenues).ToList();
 
         var action = new DelegateAction(
             $"Bulk scan {approvedItems.Count} receipts",
@@ -1609,7 +1608,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
                 foreach (var e in createdExpenses) companyData.Expenses.Remove(e);
                 foreach (var r in createdRevenues) companyData.Revenues.Remove(r);
                 foreach (var r in createdReceipts) companyData.Receipts.Remove(r);
-                withdrawn = WithdrawPendingConversions(companyData, transactionIds);
+                WithdrawPendingConversions(companyData, createdTransactions);
                 createdEntities.Remove(companyData);
             },
             () =>
@@ -1618,7 +1617,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
                 foreach (var e in createdExpenses) companyData.Expenses.Add(e);
                 foreach (var r in createdRevenues) companyData.Revenues.Add(r);
                 foreach (var r in createdReceipts) companyData.Receipts.Add(r);
-                RequeuePendingConversions(companyData, withdrawn);
+                RequeuePendingConversions(companyData, createdTransactions);
             });
 
         // The auto-created entities now belong to the undo action, so closing must not roll them back.
@@ -2534,114 +2533,27 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
 
     /// <summary>
     /// Tags a receipt-created transaction with the receipt's currency and its USD amounts, like the
-    /// normal expense/revenue save. The USD amounts are converted at the transaction's own date when
-    /// the exact-date rate is cached; otherwise the row is marked pending and queued for the
-    /// self-heal, which fills them once the rate is available (Calculations.md Rule 3a).
+    /// normal expense/revenue save: converted at its own date when that rate is held, otherwise
+    /// pending and queued until it is (Calculations.md Rule 3a).
     /// </summary>
-    private static void ApplyDisplayCurrency(
-        CompanyData companyData, Transaction txn, string transactionType, string currency)
+    private static void ApplyDisplayCurrency(CompanyData companyData, Transaction txn, string currency)
     {
         txn.OriginalCurrency = currency;
-
-        if (string.Equals(currency, "USD", StringComparison.OrdinalIgnoreCase))
-        {
-            txn.TotalUSD = txn.Total;
-            txn.TaxAmountUSD = txn.TaxAmount;
-            txn.ShippingCostUSD = txn.ShippingCost;
-            txn.DiscountUSD = txn.Discount;
-            txn.FeeUSD = txn.Fee;
-            txn.UnitPriceUSD = txn.UnitPrice;
-            txn.IsPendingConversion = false;
-            return;
-        }
-
-        var rates = ExchangeRateService.Instance;
-        if (rates != null && rates.TryConvertToUsdBase(txn.Total, currency, txn.Date, out var totalUsd))
-        {
-            // Convert every amount, not just the total: UnitPriceUSD/DiscountUSD/etc. feed USD-based
-            // reports, COGS, and cross-currency edits, so leaving them at 0 would undercount. The USD
-            // base is stored full-precision (no 2dp round); display rounds. See Calculations.md Rule 3.
-            txn.TotalUSD = totalUsd;
-            rates.TryConvertToUsdBase(txn.TaxAmount, currency, txn.Date, out var taxUsd);
-            txn.TaxAmountUSD = taxUsd;
-            rates.TryConvertToUsdBase(txn.ShippingCost, currency, txn.Date, out var shipUsd);
-            txn.ShippingCostUSD = shipUsd;
-            rates.TryConvertToUsdBase(txn.Discount, currency, txn.Date, out var discUsd);
-            txn.DiscountUSD = discUsd;
-            rates.TryConvertToUsdBase(txn.Fee, currency, txn.Date, out var feeUsd);
-            txn.FeeUSD = feeUsd;
-            rates.TryConvertToUsdBase(txn.UnitPrice, currency, txn.Date, out var unitUsd);
-            txn.UnitPriceUSD = unitUsd;
-            txn.IsPendingConversion = false;
-            return;
-        }
-
-        // Exact-date rate not cached: defer all the USD amounts to the self-heal queue, exactly like
-        // the normal save.
-        txn.IsPendingConversion = true;
-        var entry = new PendingConversion
-        {
-            TransactionId = txn.Id,
-            TransactionType = transactionType,
-            OriginalCurrency = currency,
-            TransactionDate = txn.Date,
-            Total = txn.Total,
-            TaxAmount = txn.TaxAmount,
-            ShippingCost = txn.ShippingCost,
-            Discount = txn.Discount,
-            Fee = txn.Fee,
-            UnitPrice = txn.UnitPrice
-        };
-        companyData.PendingConversions.Add(entry);
-        _ = PendingConversionService.Instance?.AddPendingConversionAsync(entry);
+        UsdConversion.Apply(companyData, txn, UsdConversion.CachedRate(currency, txn.Date));
     }
 
     /// <summary>
-    /// Takes an undone row's conversion out of the company's queue and the conversion service's copy.
-    /// Processing an entry whose row is gone drops it for good, so if it stayed queued while the row
-    /// was undone, redo would bring the row back pending with nothing left to convert it.
+    /// Takes undone rows' conversions out of the company's queue and the conversion service's copy.
+    /// Processing an entry whose row is gone drops it for good.
     /// </summary>
-    private static List<PendingConversion> WithdrawPendingConversions(
-        CompanyData companyData, IReadOnlyCollection<string> transactionIds)
+    private static void WithdrawPendingConversions(CompanyData companyData, IEnumerable<Transaction> transactions) =>
+        UsdConversion.Restore(companyData, transactions.Select(UsdConversion.KeyOf), []);
+
+    /// <summary>Queues redone rows again, those still waiting for their rate.</summary>
+    private static void RequeuePendingConversions(CompanyData companyData, IEnumerable<Transaction> transactions)
     {
-        var withdrawn = companyData.PendingConversions.Where(p => transactionIds.Contains(p.TransactionId)).ToList();
-        if (withdrawn.Count == 0) return withdrawn;
-
-        companyData.PendingConversions.RemoveAll(withdrawn.Contains);
-        MirrorPendingQueue(companyData, transactionIds);
-        return withdrawn;
-    }
-
-    private static void RequeuePendingConversions(CompanyData companyData, List<PendingConversion> entries)
-    {
-        if (entries.Count == 0) return;
-
-        companyData.PendingConversions.AddRange(entries);
-        MirrorPendingQueue(companyData, entries.Select(p => p.TransactionId).ToList());
-    }
-
-    /// <summary>
-    /// Called on the UI thread: MirrorAsync reads the company file's rows before it first awaits.
-    /// </summary>
-    private static void MirrorPendingQueue(CompanyData companyData, IReadOnlyCollection<string> transactionIds)
-    {
-        var service = PendingConversionService.Instance;
-        if (service == null) return;
-
-        _ = MirrorPendingQueueAsync(service, companyData, transactionIds);
-    }
-
-    private static async Task MirrorPendingQueueAsync(
-        PendingConversionService service, CompanyData companyData, IReadOnlyCollection<string> transactionIds)
-    {
-        try
-        {
-            await service.MirrorAsync(companyData, transactionIds);
-        }
-        catch (Exception ex)
-        {
-            App.ErrorLogger?.LogWarning($"Failed to update queued conversions: {ex.Message}", "ReceiptScan");
-        }
+        foreach (var txn in transactions)
+            UsdConversion.Requeue(companyData, txn);
     }
 
     private void CreateExpenseTransaction(CompanyData companyData, string receiptId, string? fileData,
@@ -2672,7 +2584,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
-        ApplyDisplayCurrency(companyData, expense, "Expense", currency);
+        ApplyDisplayCurrency(companyData, expense, currency);
 
         var receipt = new Receipt
         {
@@ -2695,7 +2607,6 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         var capturedReceipt = receipt;
         var capturedExpense = expense;
         var createdEntities = CaptureCreatedEntities();
-        List<PendingConversion> withdrawn = [];
 
         var action = new DelegateAction(
             $"AI scan expense {expenseId}",
@@ -2703,7 +2614,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             {
                 companyData.Expenses.Remove(capturedExpense);
                 companyData.Receipts.Remove(capturedReceipt);
-                withdrawn = WithdrawPendingConversions(companyData, [expenseId]);
+                WithdrawPendingConversions(companyData, [capturedExpense]);
                 createdEntities.Remove(companyData);
             },
             () =>
@@ -2711,7 +2622,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
                 createdEntities.Restore(companyData);
                 companyData.Expenses.Add(capturedExpense);
                 companyData.Receipts.Add(capturedReceipt);
-                RequeuePendingConversions(companyData, withdrawn);
+                RequeuePendingConversions(companyData, [capturedExpense]);
             });
 
         companyData.Expenses.Add(expense);
@@ -2749,7 +2660,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
-        ApplyDisplayCurrency(companyData, revenue, "Revenue", currency);
+        ApplyDisplayCurrency(companyData, revenue, currency);
 
         var receipt = new Receipt
         {
@@ -2772,7 +2683,6 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         var capturedReceipt = receipt;
         var capturedRevenue = revenue;
         var createdEntities = CaptureCreatedEntities();
-        List<PendingConversion> withdrawn = [];
 
         var action = new DelegateAction(
             $"AI scan revenue {revenueId}",
@@ -2780,7 +2690,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             {
                 companyData.Revenues.Remove(capturedRevenue);
                 companyData.Receipts.Remove(capturedReceipt);
-                withdrawn = WithdrawPendingConversions(companyData, [revenueId]);
+                WithdrawPendingConversions(companyData, [capturedRevenue]);
                 createdEntities.Remove(companyData);
             },
             () =>
@@ -2788,7 +2698,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
                 createdEntities.Restore(companyData);
                 companyData.Revenues.Add(capturedRevenue);
                 companyData.Receipts.Add(capturedReceipt);
-                RequeuePendingConversions(companyData, withdrawn);
+                RequeuePendingConversions(companyData, [capturedRevenue]);
             });
 
         companyData.Revenues.Add(revenue);

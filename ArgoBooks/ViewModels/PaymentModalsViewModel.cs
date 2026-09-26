@@ -284,50 +284,15 @@ public partial class PaymentModalsViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// The payment's USD figure at its own date's rate, or pending when there is none: future
-    /// dated, offline, or no rate service (docs/Calculations.md Rule 3a).
-    /// </summary>
-    private static async Task<(decimal AmountUSD, bool IsPending)> ConvertToUsdAsync(decimal amount, string currency, DateTime date)
-    {
-        if (string.Equals(currency, "USD", StringComparison.OrdinalIgnoreCase))
-            return (amount, false);
-
-        var rate = ExchangeRateService.Instance is { } exchangeService
-            ? await exchangeService.GetExchangeRateAsync(currency, "USD", date)
-            : 0m;
-
-        // USD base stored full-precision (no 2dp round); display rounds. See Calculations.md Rule 3.
-        return rate > 0 ? (amount * rate, false) : (0m, true);
-    }
-
-    /// <summary>
     /// Keeps the payment's conversion queue entry in step with it: there while it waits for a
     /// rate, gone once it doesn't. The service drops an entry whose payment is missing, so undo
     /// and redo have to move the entry with the payment or a redone payment waits forever.
     /// </summary>
-    private static void QueueConversion(Core.Data.CompanyData companyData, Payment payment)
-    {
-        companyData.PendingConversions.RemoveAll(p => p.TransactionId == payment.Id);
-        if (payment.IsPendingConversion)
-        {
-            companyData.PendingConversions.Add(new PendingConversion
-            {
-                TransactionId = payment.Id,
-                TransactionType = "Payment",
-                OriginalCurrency = payment.OriginalCurrency,
-                TransactionDate = payment.Date,
-                Total = payment.Amount
-            });
-        }
+    private static void QueueConversion(Core.Data.CompanyData companyData, Payment payment) =>
+        UsdConversion.Requeue(companyData, payment);
 
-        _ = PendingConversionService.Instance?.MirrorAsync(companyData, [payment.Id]);
-    }
-
-    private static void ForgetConversion(Core.Data.CompanyData companyData, Payment payment)
-    {
-        companyData.PendingConversions.RemoveAll(p => p.TransactionId == payment.Id);
-        _ = PendingConversionService.Instance?.MirrorAsync(companyData, [payment.Id]);
-    }
+    private static void ForgetConversion(Core.Data.CompanyData companyData, Payment payment) =>
+        UsdConversion.Set(companyData, UsdConversion.KeyOf(payment), null);
 
     public async Task SaveNewPayment()
     {
@@ -348,7 +313,8 @@ public partial class PaymentModalsViewModel : ViewModelBase
         var currentCurrency = ResolvePaymentCurrency(companyData);
         var paymentDate = ModalDate?.DateTime ?? DateTime.Today;
 
-        var (amountUSD, isPending) = await ConvertToUsdAsync(parsedAmount, currentCurrency, paymentDate);
+        // At its own date's rate, or pending when there is none (docs/Calculations.md Rule 3a).
+        var rate = await UsdConversion.FetchRateAsync(currentCurrency, paymentDate);
 
         var newPayment = new Payment
         {
@@ -361,13 +327,11 @@ public partial class PaymentModalsViewModel : ViewModelBase
             ReferenceNumber = string.IsNullOrWhiteSpace(ModalReferenceNumber) ? null : ModalReferenceNumber.Trim(),
             Notes = ModalNotes.Trim(),
             CreatedAt = DateTime.UtcNow,
-            OriginalCurrency = currentCurrency,
-            AmountUSD = amountUSD,
-            IsPendingConversion = isPending
+            OriginalCurrency = currentCurrency
         };
 
+        UsdConversion.Apply(companyData, newPayment, rate);
         companyData.Payments.Add(newPayment);
-        QueueConversion(companyData, newPayment);
         _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.PaymentRecorded);
         // Recalc the affected invoice's totals + status. Without this the
         // invoice's AmountPaid / Balance / Status drift out of sync with
@@ -524,7 +488,7 @@ public partial class PaymentModalsViewModel : ViewModelBase
         // Convert to USD for consistent reporting. Tag the payment with the linked invoice's/revenue's
         // currency, not the company display currency, so it counts toward that invoice's totals (§5).
         var editCurrentCurrency = ResolvePaymentCurrency(companyData);
-        var (newAmountUSD, newIsPending) = await ConvertToUsdAsync(newAmount, editCurrentCurrency, newDate);
+        var newRate = await UsdConversion.FetchRateAsync(editCurrentCurrency, newDate);
 
         var newPaymentMethod = PaymentMethodExtensions.ParseDisplayName(ModalPaymentMethod);
         var newReferenceNumber = string.IsNullOrWhiteSpace(ModalReferenceNumber) ? null : ModalReferenceNumber.Trim();
@@ -566,9 +530,9 @@ public partial class PaymentModalsViewModel : ViewModelBase
         paymentToEdit2.ReferenceNumber = newReferenceNumber;
         paymentToEdit2.Notes = newNotesVal;
         paymentToEdit2.OriginalCurrency = editCurrentCurrency;
-        paymentToEdit2.AmountUSD = newAmountUSD;
-        paymentToEdit2.IsPendingConversion = newIsPending;
-        QueueConversion(companyData, paymentToEdit2);
+        UsdConversion.Apply(companyData, paymentToEdit2, newRate);
+        var newAmountUSD = paymentToEdit2.AmountUSD;
+        var newIsPending = paymentToEdit2.IsPendingConversion;
 
         // Recalc both invoices when the payment moves between them; recalc
         // just the one when only the amount/details changed. See §5.

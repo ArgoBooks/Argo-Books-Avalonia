@@ -695,8 +695,7 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
 
         companyData.Inventory.Add(newItem);
         InventoryStockService.StartAtCostPrice(companyData, newItem, product, DateTime.Today);
-        var pendingCost = companyData.PendingConversions.FirstOrDefault(p =>
-            p.TransactionId == newItem.Id && p.TransactionType == InventoryStockService.PendingCostType);
+        var pendingCost = UsdConversion.Queued(companyData, UsdConversion.KeyOf(newItem));
         companyData.MarkAsModified();
 
         App.UndoRedoManager.RecordAction(new DelegateAction(
@@ -704,14 +703,14 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
             () =>
             {
                 companyData.Inventory.Remove(newItem);
-                InventoryStockService.SetPendingCostEntry(companyData, newItem.Id, null);
+                UsdConversion.Set(companyData, UsdConversion.KeyOf(newItem), null);
                 companyData.MarkAsModified();
                 ItemSaved?.Invoke(this, EventArgs.Empty);
             },
             () =>
             {
                 companyData.Inventory.Add(newItem);
-                InventoryStockService.SetPendingCostEntry(companyData, newItem.Id, newItem.IsPendingConversion ? pendingCost : null);
+                UsdConversion.Set(companyData, UsdConversion.KeyOf(newItem), newItem.IsPendingConversion ? pendingCost : null);
                 companyData.MarkAsModified();
                 ItemSaved?.Invoke(this, EventArgs.Empty);
             }));

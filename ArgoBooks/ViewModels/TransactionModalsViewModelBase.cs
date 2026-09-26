@@ -243,18 +243,16 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         SaveErrorMessage = string.Empty;
     }
 
-    // USD conversion result - stored for use by derived classes
-    protected MonetaryValue? ConvertedTotal;
-    protected MonetaryValue? ConvertedTaxAmount;
-    protected MonetaryValue? ConvertedShippingCost;
-    protected MonetaryValue? ConvertedDiscount;
-    protected MonetaryValue? ConvertedFee;
+    /// <summary>The currency the form's amounts are in, set when saving.</summary>
+    protected string SaveCurrency = "USD";
 
     /// <summary>
-    /// Set to true when saving a transaction offline without USD conversion.
-    /// Passed through to the transaction model's IsPendingConversion flag.
+    /// USD per unit of <see cref="SaveCurrency"/> at the transaction's date, or null when the rate
+    /// can't be had, in which case the transaction is saved pending (docs/Calculations.md Rule 3a).
     /// </summary>
-    protected bool IsPendingConversion;
+    protected decimal? SaveRate = 1m;
+
+    protected bool IsPendingConversion => SaveRate == null;
 
     public ObservableCollection<CounterpartyOption> CounterpartyOptions { get; } = [];
     public ObservableCollection<CategoryOption> CategoryOptions { get; } = [];
@@ -923,66 +921,20 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
             // Yield to let the UI render the loading indicator
             await Task.Delay(1);
 
-            // Perform USD conversion if currency is not USD
             var currentCurrency = FormCurrencyCode;
             var transactionDate = ModalDate?.DateTime ?? DateTime.Now;
 
-            IsPendingConversion = false;
-
-            if (!string.Equals(currentCurrency, "USD", StringComparison.OrdinalIgnoreCase))
+            if (!UsdConversion.IsUsd(currentCurrency) && ExchangeRateService.Instance == null)
             {
-                try
-                {
-                    var exchangeService = ExchangeRateService.Instance;
-                    if (exchangeService == null)
-                    {
-                        HasSaveError = true;
-                        ReportValidationBlock("no-exchange-rate-service");
-                        SaveErrorMessage = "Exchange rate service is not available. Please restart the application.".Translate();
-                        return;
-                    }
+                HasSaveError = true;
+                ReportValidationBlock("no-exchange-rate-service");
+                SaveErrorMessage = "Exchange rate service is not available. Please restart the application.".Translate();
+                return;
+            }
 
-                    // Try to get rate (uses cache first, then fetches from API if needed)
-                    var rate = await exchangeService.GetExchangeRateAsync(currentCurrency, "USD", transactionDate, fetchIfMissing: true);
-                    if (rate > 0)
-                    {
-                        ConvertedTotal = await CurrencyService.CreateMonetaryValueAsync(Total, currentCurrency, transactionDate);
-                        ConvertedTaxAmount = await CurrencyService.CreateMonetaryValueAsync(TaxAmount, currentCurrency, transactionDate);
-                        ConvertedShippingCost = await CurrencyService.CreateMonetaryValueAsync(ShippingAmount, currentCurrency, transactionDate);
-                        ConvertedDiscount = await CurrencyService.CreateMonetaryValueAsync(DiscountAmount, currentCurrency, transactionDate);
-                        ConvertedFee = await CurrencyService.CreateMonetaryValueAsync(FeeAmount, currentCurrency, transactionDate);
-                    }
-                    else
-                    {
-                        // Rate unavailable, save with pending conversion for later
-                        IsPendingConversion = true;
-                        ConvertedTotal = new MonetaryValue(Total, currentCurrency, 0, transactionDate);
-                        ConvertedTaxAmount = new MonetaryValue(TaxAmount, currentCurrency, 0, transactionDate);
-                        ConvertedShippingCost = new MonetaryValue(ShippingAmount, currentCurrency, 0, transactionDate);
-                        ConvertedDiscount = new MonetaryValue(DiscountAmount, currentCurrency, 0, transactionDate);
-                        ConvertedFee = new MonetaryValue(FeeAmount, currentCurrency, 0, transactionDate);
-                    }
-                }
-                catch (Exception)
-                {
-                    // Network or other error, save with pending conversion
-                    IsPendingConversion = true;
-                    ConvertedTotal = new MonetaryValue(Total, currentCurrency, 0, transactionDate);
-                    ConvertedTaxAmount = new MonetaryValue(TaxAmount, currentCurrency, 0, transactionDate);
-                    ConvertedShippingCost = new MonetaryValue(ShippingAmount, currentCurrency, 0, transactionDate);
-                    ConvertedDiscount = new MonetaryValue(DiscountAmount, currentCurrency, 0, transactionDate);
-                    ConvertedFee = new MonetaryValue(FeeAmount, currentCurrency, 0, transactionDate);
-                }
-            }
-            else
-            {
-                // USD currency - no conversion needed
-                ConvertedTotal = new MonetaryValue(Total, "USD", Total, transactionDate);
-                ConvertedTaxAmount = new MonetaryValue(TaxAmount, "USD", TaxAmount, transactionDate);
-                ConvertedShippingCost = new MonetaryValue(ShippingAmount, "USD", ShippingAmount, transactionDate);
-                ConvertedDiscount = new MonetaryValue(DiscountAmount, "USD", DiscountAmount, transactionDate);
-                ConvertedFee = new MonetaryValue(FeeAmount, "USD", FeeAmount, transactionDate);
-            }
+            // Fetched if it isn't held. Without it the transaction saves pending and converts later.
+            SaveCurrency = currentCurrency;
+            SaveRate = await UsdConversion.FetchRateAsync(currentCurrency, transactionDate);
 
             if (typedLines != null)
                 ResolveTypedItems(companyData, typedLines);
@@ -1301,17 +1253,6 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
             }));
     }
 
-    /// <summary>
-    /// Replaces the row's conversion queue entries in the company file and in the conversion
-    /// service's copy, which converts from its own entries rather than from the row.
-    /// </summary>
-    protected static void SetQueuedConversions(CompanyData companyData, string transactionId, List<PendingConversion> entries)
-    {
-        companyData.PendingConversions.RemoveAll(p => p.TransactionId == transactionId);
-        companyData.PendingConversions.AddRange(entries);
-        _ = PendingConversionService.Instance?.MirrorAsync(companyData, [transactionId]);
-    }
-
     protected (string description, decimal totalQuantity, decimal averageUnitPrice) GetLineItemSummary()
     {
         var description = LineItems.Count == 1
@@ -1344,12 +1285,8 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         AddLineItem();
         ReceiptFileName = "No receipt attached";
         ReceiptFilePath = null;
-        ConvertedTotal = null;
-        ConvertedTaxAmount = null;
-        ConvertedShippingCost = null;
-        ConvertedDiscount = null;
-        ConvertedFee = null;
-        IsPendingConversion = false;
+        SaveCurrency = "USD";
+        SaveRate = 1m;
         ClearValidationErrors();
     }
 

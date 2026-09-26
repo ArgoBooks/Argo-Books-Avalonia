@@ -182,22 +182,7 @@ public static class RentalBookings
         var revenue = TransactionFactory.CreateRevenue(data, new TransactionDraft(
             date, $"Rental {rental.Id}: {ItemNames(data, rental)}", amount, rental.CustomerId, null, currency));
         revenue.ReferenceNumber = rental.Id;
-
-        if (string.Equals(currency, "USD", StringComparison.OrdinalIgnoreCase))
-        {
-            revenue.TotalUSD = amount;
-            revenue.UnitPriceUSD = amount;
-        }
-        else if (ExchangeRateService.Instance is { } rates && rates.TryConvertToUsdBase(amount, currency, date, out var usd))
-        {
-            revenue.TotalUSD = usd;
-            revenue.UnitPriceUSD = usd;
-        }
-        else
-        {
-            revenue.IsPendingConversion = true;
-        }
-
+        UsdConversion.Apply(data, revenue, UsdConversion.CachedRate(currency, date));
         return revenue;
     }
 

@@ -556,12 +556,14 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
             () =>
             {
                 companyData.PurchaseOrders.Remove(order);
+                Core.Services.UsdConversion.Set(companyData, Core.Services.UsdConversion.KeyOf(order), null);
                 companyData.MarkAsModified();
                 OrderSaved?.Invoke(this, EventArgs.Empty);
             },
             () =>
             {
                 companyData.PurchaseOrders.Add(order);
+                Core.Services.UsdConversion.Requeue(companyData, order);
                 companyData.MarkAsModified();
                 OrderSaved?.Invoke(this, EventArgs.Empty);
             }));
@@ -571,46 +573,15 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
 
     /// <summary>
     /// Tags a purchase order with the company's display currency and its USD total, so a non-USD
-    /// company's PO rows show the amount instead of "Pending". Converts at the order date when the
-    /// exact-date rate is cached; otherwise marks it pending and queues it for the self-heal. The
-    /// display is correct immediately because the original currency matches the display currency.
+    /// company's PO rows show the amount instead of "Pending". Converts at the order date when that
+    /// rate is held; otherwise it is pending and queued until it is. The display is right straight
+    /// away because the order's currency is the display currency.
     /// </summary>
     private static void ApplyDisplayCurrency(CompanyData companyData, PurchaseOrder order)
     {
-        var currency = CurrencyService.CurrentCurrencyCode;
-        order.OriginalCurrency = currency;
-
-        if (string.Equals(currency, "USD", StringComparison.OrdinalIgnoreCase))
-        {
-            order.TotalUSD = order.Total;
-            order.IsPendingConversion = false;
-            return;
-        }
-
-        var rates = Core.Services.ExchangeRateService.Instance;
-        if (rates != null && rates.TryConvertToUsdBase(order.Total, currency, order.OrderDate, out var usd))
-        {
-            order.TotalUSD = usd;
-            order.IsPendingConversion = false;
-            return;
-        }
-
-        // Exact-date rate not cached: the display is already correct (original currency == display
-        // currency); defer the USD total to the self-heal queue.
-        order.IsPendingConversion = true;
-        var entry = new Core.Models.Common.PendingConversion
-        {
-            TransactionId = order.Id,
-            TransactionType = "PurchaseOrder",
-            OriginalCurrency = currency,
-            TransactionDate = order.OrderDate,
-            Total = order.Total
-        };
-        // Drop any earlier pending entry for this order first, so re-editing an offline/future-dated
-        // PO doesn't accumulate duplicates in the saved file (matches the manual edit path).
-        companyData.PendingConversions.RemoveAll(p => p.TransactionId == order.Id);
-        companyData.PendingConversions.Add(entry);
-        _ = Core.Services.PendingConversionService.Instance?.AddPendingConversionAsync(entry);
+        order.OriginalCurrency = CurrencyService.CurrentCurrencyCode;
+        Core.Services.UsdConversion.Apply(companyData, order,
+            Core.Services.UsdConversion.CachedRate(order.OriginalCurrency, order.OrderDate));
     }
 
     private string? SaveEditedOrder(CompanyData companyData, decimal shipping)
@@ -627,13 +598,11 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
         var oldShipping = order.ShippingCost;
         var oldTotal = order.Total;
         var oldNotes = order.Notes;
-        // Currency-conversion fields are mutated by ApplyDisplayCurrency below (and it may add a
-        // PendingConversions entry). Capture them so undo/redo restore them symmetrically instead of
-        // leaving a stale USD total / pending flag and an orphaned self-heal entry.
+        // Currency-conversion fields are changed by ApplyDisplayCurrency below, which also queues or
+        // unqueues the order, so undo and redo put them back and queue the order to match.
         var oldOriginalCurrency = order.OriginalCurrency;
         var oldTotalUSD = order.TotalUSD;
         var oldIsPendingConversion = order.IsPendingConversion;
-        var oldPending = companyData.PendingConversions.Where(p => p.TransactionId == order.Id).ToList();
 
         // Update order
         order.SupplierId = SelectedSupplier!.Id;
@@ -668,7 +637,6 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
         var newOriginalCurrency = order.OriginalCurrency;
         var newTotalUSD = order.TotalUSD;
         var newIsPendingConversion = order.IsPendingConversion;
-        var newPending = companyData.PendingConversions.Where(p => p.TransactionId == order.Id).ToList();
         App.UndoRedoManager.RecordAction(new DelegateAction(
             $"Edit order '{order.PoNumber}'",
             () =>
@@ -684,8 +652,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
                 editedOrder.OriginalCurrency = oldOriginalCurrency;
                 editedOrder.TotalUSD = oldTotalUSD;
                 editedOrder.IsPendingConversion = oldIsPendingConversion;
-                companyData.PendingConversions.RemoveAll(p => p.TransactionId == editedOrder.Id);
-                companyData.PendingConversions.AddRange(oldPending);
+                Core.Services.UsdConversion.Requeue(companyData, editedOrder);
                 companyData.MarkAsModified();
                 OrderSaved?.Invoke(this, EventArgs.Empty);
             },
@@ -702,8 +669,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
                 editedOrder.OriginalCurrency = newOriginalCurrency;
                 editedOrder.TotalUSD = newTotalUSD;
                 editedOrder.IsPendingConversion = newIsPendingConversion;
-                companyData.PendingConversions.RemoveAll(p => p.TransactionId == editedOrder.Id);
-                companyData.PendingConversions.AddRange(newPending);
+                Core.Services.UsdConversion.Requeue(companyData, editedOrder);
                 companyData.MarkAsModified();
                 OrderSaved?.Invoke(this, EventArgs.Empty);
             }));
@@ -1110,7 +1076,6 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
         IsSendCcBccExpanded = false;
 
         var settings = companyData.Settings.PurchaseOrderEmail;
-        var symbol = CurrencyService.CurrentSymbol;
 
         var supplier = companyData.GetSupplier(order.SupplierId);
         SendRecipientEmail = supplier?.Email ?? string.Empty;
@@ -1126,7 +1091,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
 
         IsSendModalOpen = true;
 
-        _ = GenerateSendPreviewAsync(order, companyData, symbol);
+        _ = GenerateSendPreviewAsync(order, companyData);
     }
 
     [RelayCommand]
@@ -1178,7 +1143,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
             var companyData = App.CompanyManager?.CompanyData;
             if (companyData == null) return;
 
-            _sendPdfBytes ??= PurchaseOrderPdfRenderer.Render(SendingOrder, companyData, CurrencyService.CurrentSymbol);
+            _sendPdfBytes ??= PurchaseOrderPdfRenderer.Render(SendingOrder, companyData);
 
             var topLevel = Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
                 ? desktop.MainWindow
@@ -1270,7 +1235,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
         {
             try
             {
-                _sendPdfBytes = PurchaseOrderPdfRenderer.Render(SendingOrder, companyData, CurrencyService.CurrentSymbol);
+                _sendPdfBytes = PurchaseOrderPdfRenderer.Render(SendingOrder, companyData);
             }
             catch (Exception ex)
             {
@@ -1369,11 +1334,11 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
         }
     }
 
-    private async Task GenerateSendPreviewAsync(PurchaseOrder order, CompanyData companyData, string symbol)
+    private async Task GenerateSendPreviewAsync(PurchaseOrder order, CompanyData companyData)
     {
         try
         {
-            var bytes = await Task.Run(() => PurchaseOrderPdfRenderer.Render(order, companyData, symbol));
+            var bytes = await Task.Run(() => PurchaseOrderPdfRenderer.Render(order, companyData));
             _sendPdfBytes = bytes;
 
             var rendered = await PdfThumbnailService.Instance.RenderPdfFirstPageAsync(bytes);

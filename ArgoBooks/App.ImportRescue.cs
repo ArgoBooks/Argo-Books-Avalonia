@@ -73,7 +73,6 @@ public partial class App
         // Commit extracted entities, mirroring the Tier-2 commit path.
         var importStopwatch = System.Diagnostics.Stopwatch.StartNew();
         var snapshot = CreateCompanyDataSnapshot(companyData);
-        var queuedBeforeImport = companyData.PendingConversions.ToHashSet();
         var importOptions = new ImportOptions();
 
         using var importCts = new CancellationTokenSource();
@@ -90,9 +89,6 @@ public partial class App
         await importService.AiCategorizeMissingProductsAsync(companyData, importCts.Token);
         await Task.Yield();
         _mainWindowViewModel?.HideLoading();
-
-        MirrorQueuedConversions(companyData, companyData.PendingConversions
-            .Where(p => !queuedBeforeImport.Contains(p)).Select(p => p.TransactionId));
 
         var importedSnapshot = CreateCompanyDataSnapshot(companyData);
         void RestoreImportSnapshotAndRefresh(string snapshotJson)

@@ -2877,7 +2877,6 @@ public partial class App : Application
 
             // Create snapshot for undo
             var snapshot = CreateCompanyDataSnapshot(companyData);
-            var queuedBeforeImport = companyData.PendingConversions.ToHashSet();
 
             // Step 3: Split sheets by processing tier
             // Respect the AI's tier recommendation for both Excel and CSV files.
@@ -3179,11 +3178,6 @@ public partial class App : Application
                 importContext = isCsv ? "ai-csv-mixed" : "ai-xlsx-mixed";
             _ = TelemetryManager?.TrackFeatureAsync(
                 FeatureName.DataImported, importContext, importStopwatch.ElapsedMilliseconds);
-
-            // Rows the import could not price yet were queued, or requeued with new amounts, in the
-            // company file only.
-            MirrorQueuedConversions(companyData, companyData.PendingConversions
-                .Where(p => !queuedBeforeImport.Contains(p)).Select(p => p.TransactionId));
 
             // Create snapshot for redo
             var importedSnapshot = CreateCompanyDataSnapshot(companyData);
@@ -3684,18 +3678,6 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// Brings the conversion service's queue in line with the company file for these rows. The
-    /// service converts from its own copy, and takes in the company file's only when it opens, so
-    /// a row queued or unqueued anywhere else has to be handed over or it is missed or dropped.
-    /// </summary>
-    private static void MirrorQueuedConversions(CompanyData data, IEnumerable<string> transactionIds)
-    {
-        var ids = transactionIds.Distinct().ToList();
-        if (ids.Count > 0)
-            _ = Core.Services.PendingConversionService.Instance?.MirrorAsync(data, ids);
-    }
-
-    /// <summary>
     /// Restores company data collections from a JSON snapshot.
     /// </summary>
     internal static void RestoreCompanyDataFromSnapshot(CompanyData data, string snapshotJson)
@@ -3707,7 +3689,7 @@ public partial class App : Application
 
         using var doc = System.Text.Json.JsonDocument.Parse(snapshotJson);
         var root = doc.RootElement;
-        var queuedBefore = data.PendingConversions.Select(p => p.TransactionId).ToList();
+        var queuedBefore = data.PendingConversions.Select(p => p.Key).ToList();
 
         // Helper to deserialize a list property
         void RestoreList<T>(List<T> list, string propertyName)
@@ -3782,7 +3764,7 @@ public partial class App : Application
         RestoreList(data.PendingConversions, "PendingConversions");
 
         // An undo takes away rows whose conversions were queued, and a redo brings them back pending.
-        MirrorQueuedConversions(data, queuedBefore.Concat(data.PendingConversions.Select(p => p.TransactionId)));
+        Core.Services.UsdConversion.Mirror(data, queuedBefore.Concat(data.PendingConversions.Select(p => p.Key)));
     }
 
     /// <summary>

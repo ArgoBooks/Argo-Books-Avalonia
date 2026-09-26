@@ -3340,7 +3340,7 @@ public class ReportRenderer : IDisposable
                 TransactionType.Expenses => Tr("Total Expenses"),
                 _ => Tr("Net Profit")
             };
-            lines.Add($"{label}: {FormatCurrency(total)}");
+            lines.Add($"{label}: {(IsSummaryCostPending(summary) ? PendingText : FormatCurrency(total))}");
         }
 
         if (summary.ShowTotalTransactions)
@@ -4176,6 +4176,19 @@ public class ReportRenderer : IDisposable
 
         var (startDate, endDate) = SummaryDateRange();
         return SummaryAmount(summary.TransactionType, startDate, endDate, ToDisplayCurrency);
+    }
+
+    /// <summary>
+    /// Whether the Summary box's net profit is still waiting for a sale's stock cost, as the Net
+    /// Profit card is (Calculations.md §14).
+    /// </summary>
+    private bool IsSummaryCostPending(SummaryReportElement summary)
+    {
+        if (_companyData == null || summary.TransactionType is TransactionType.Revenue or TransactionType.Expenses)
+            return false;
+
+        var (startDate, endDate) = SummaryDateRange();
+        return CostOfGoodsAggregator.IsCostOfGoodsPending(_companyData.Revenues, startDate, endDate, collectedOnly: true);
     }
 
     private int CalculateTransactionCount(SummaryReportElement summary)

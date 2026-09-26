@@ -63,4 +63,32 @@ public class PendingConversion
     /// <summary>Invoice outstanding balance to convert (Invoice entries only; 0 otherwise).</summary>
     [JsonPropertyName("balance")]
     public decimal Balance { get; set; }
+
+    /// <summary>
+    /// Which record the entry is for. Ids alone are not unique across types: an imported sheet
+    /// keeps its own ids, so a stock record and a revenue can both be "1".
+    /// </summary>
+    [JsonIgnore]
+    public PendingConversionKey Key => new(TransactionId, TransactionType);
+
+    /// <summary>
+    /// The rate the queue converted this entry at, set when it leaves the queue. Lets undo put a
+    /// record back as converted rather than pending again. Not saved: undo history isn't either.
+    /// </summary>
+    [JsonIgnore]
+    public decimal? ConvertedRate { get; set; }
+}
+
+/// <summary>Identifies a queued record by id and type together.</summary>
+public readonly record struct PendingConversionKey(string TransactionId, string TransactionType);
+
+/// <summary>The record types the conversion queue converts.</summary>
+public static class PendingConversionType
+{
+    public const string Revenue = "Revenue";
+    public const string Expense = "Expense";
+    public const string Payment = "Payment";
+    public const string PurchaseOrder = "PurchaseOrder";
+    public const string Invoice = "Invoice";
+    public const string InventoryItem = "InventoryItem";
 }

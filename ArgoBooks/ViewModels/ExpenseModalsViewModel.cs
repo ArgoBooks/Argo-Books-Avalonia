@@ -425,38 +425,9 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
             ReferenceNumber = string.Empty,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
-            // USD conversion fields
-            OriginalCurrency = ConvertedTotal?.OriginalCurrency ?? "USD",
-            TotalUSD = ConvertedTotal?.AmountUSD ?? Total,
-            TaxAmountUSD = ConvertedTaxAmount?.AmountUSD ?? TaxAmount,
-            ShippingCostUSD = ConvertedShippingCost?.AmountUSD ?? ModalShipping,
-            DiscountUSD = ConvertedDiscount?.AmountUSD ?? ModalDiscount,
-            FeeUSD = ConvertedFee?.AmountUSD ?? ModalFee,
-            UnitPriceUSD = ConvertedTotal != null && ConvertedTotal.OriginalCurrency != "USD" && Subtotal > 0 && Total != 0
-                ? ConvertedTotal.AmountUSD / Total * averageUnitPrice
-                : averageUnitPrice,
-            IsPendingConversion = IsPendingConversion
+            OriginalCurrency = SaveCurrency
         };
-
-        // Queue for offline conversion if pending
-        if (IsPendingConversion)
-        {
-            var pendingEntry = new PendingConversion
-            {
-                TransactionId = expenseId,
-                TransactionType = "Expense",
-                OriginalCurrency = ConvertedTotal?.OriginalCurrency ?? "USD",
-                TransactionDate = expense.Date,
-                Total = Total,
-                TaxAmount = TaxAmount,
-                ShippingCost = ModalShipping,
-                Discount = ModalDiscount,
-                Fee = ModalFee,
-                UnitPrice = averageUnitPrice
-            };
-            companyData.PendingConversions.Add(pendingEntry);
-            _ = PendingConversionService.Instance?.AddPendingConversionAsync(pendingEntry);
-        }
+        UsdConversion.Apply(companyData, expense, SaveRate);
 
         // Create Receipt if file was attached
         Receipt? receipt = null;
@@ -482,6 +453,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
             () =>
             {
                 companyData.Expenses.Remove(expense);
+                UsdConversion.Set(companyData, UsdConversion.KeyOf(expense), null);
                 if (capturedReceipt != null)
                     companyData.Receipts.Remove(capturedReceipt);
                 RevertInventoryAdjustments(companyData, inventoryResults);
@@ -490,6 +462,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
             () =>
             {
                 companyData.Expenses.Add(expense);
+                UsdConversion.Requeue(companyData, expense);
                 if (capturedReceipt != null)
                     companyData.Receipts.Add(capturedReceipt);
                 inventoryResults = AdjustInventoryForLineItems(companyData, expense, modelLineItems, isExpense: true);
@@ -513,7 +486,8 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
 
         // Store original values for undo
         var original = CaptureTransactionState(expense);
-        var originalQueued = companyData.PendingConversions.Where(p => p.TransactionId == expense.Id).ToList();
+        var queueKey = UsdConversion.KeyOf(expense);
+        var originalQueued = UsdConversion.Snapshot(companyData, [queueKey]);
 
         var (description, totalQuantity, averageUnitPrice) = GetLineItemSummary();
         var modelLineItems = CreateModelLineItems();
@@ -535,39 +509,9 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
         expense.PaymentMethod = Enum.TryParse<PaymentMethod>(SelectedPaymentMethod.Replace(" ", ""), out var pm) ? pm : PaymentMethod.Cash;
         expense.Notes = ModalNotes;
         expense.UpdatedAt = DateTime.UtcNow;
-        // USD conversion fields
-        expense.OriginalCurrency = ConvertedTotal?.OriginalCurrency ?? "USD";
-        expense.TotalUSD = ConvertedTotal?.AmountUSD ?? Total;
-        expense.TaxAmountUSD = ConvertedTaxAmount?.AmountUSD ?? TaxAmount;
-        expense.ShippingCostUSD = ConvertedShippingCost?.AmountUSD ?? ModalShipping;
-        expense.DiscountUSD = ConvertedDiscount?.AmountUSD ?? ModalDiscount;
-        expense.FeeUSD = ConvertedFee?.AmountUSD ?? ModalFee;
-        expense.UnitPriceUSD = ConvertedTotal != null && ConvertedTotal.OriginalCurrency != "USD" && Subtotal > 0 && Total != 0
-            ? ConvertedTotal.AmountUSD / Total * averageUnitPrice
-            : averageUnitPrice;
-        expense.IsPendingConversion = IsPendingConversion;
-
-        // Queue for offline conversion if pending; a row that converted leaves the queue
-        List<PendingConversion> editedQueued = [];
-        if (IsPendingConversion)
-        {
-            editedQueued.Add(new PendingConversion
-            {
-                TransactionId = expense.Id,
-                TransactionType = "Expense",
-                OriginalCurrency = ConvertedTotal?.OriginalCurrency ?? "USD",
-                TransactionDate = expense.Date,
-                Total = Total,
-                TaxAmount = TaxAmount,
-                ShippingCost = ModalShipping,
-                Discount = ModalDiscount,
-                Fee = ModalFee,
-                UnitPrice = averageUnitPrice
-            });
-        }
-        var queueTouched = originalQueued.Count > 0 || editedQueued.Count > 0;
-        if (queueTouched)
-            SetQueuedConversions(companyData, expense.Id, editedQueued);
+        expense.OriginalCurrency = SaveCurrency;
+        UsdConversion.Apply(companyData, expense, SaveRate);
+        var editedQueued = UsdConversion.Snapshot(companyData, [queueKey]);
 
         // Handle receipt. The form loads an existing receipt's OriginalFilePath, so only a different
         // path means Change picked a new file.
@@ -599,8 +543,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
             () =>
             {
                 RestoreTransactionState(expense, original);
-                if (queueTouched)
-                    SetQueuedConversions(companyData, expense.Id, originalQueued);
+                UsdConversion.Restore(companyData, [queueKey], originalQueued);
                 if (capturedNewReceipt != null)
                     companyData.Receipts.Remove(capturedNewReceipt);
                 if (replacedReceipt != null && !companyData.Receipts.Contains(replacedReceipt))
@@ -611,8 +554,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
             () =>
             {
                 RestoreTransactionState(expense, edited);
-                if (queueTouched)
-                    SetQueuedConversions(companyData, expense.Id, editedQueued);
+                UsdConversion.Restore(companyData, [queueKey], editedQueued);
                 if (replacedReceipt != null)
                     companyData.Receipts.Remove(replacedReceipt);
                 if (capturedNewReceipt != null && !companyData.Receipts.Contains(capturedNewReceipt))

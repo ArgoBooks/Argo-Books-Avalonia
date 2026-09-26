@@ -28,11 +28,11 @@ public class CurrencyStoragePrecisionTests
     }
 
     [Fact]
-    public async Task ConvertToUSD_StoresFullPrecision_NotRoundedToCents()
+    public async Task StoredUsdBase_KeepsFullPrecision_NotRoundedToCents()
     {
         var service = await SeededServiceAsync();
 
-        var usdBase = await service.ConvertToUSDAsync(10m, "CAD", RateDate);
+        var usdBase = 10m * UsdConversion.CachedRate("CAD", RateDate, service)!.Value;
 
         // A $10 CAD amount is 6.1349... USD; the stored base must keep the sub-cent precision.
         Assert.NotEqual(Math.Round(usdBase, 2), usdBase);
@@ -44,7 +44,7 @@ public class CurrencyStoragePrecisionTests
         var service = await SeededServiceAsync();
 
         // Store: CAD -> USD base (the value a chart/aggregate reads).
-        var usdBase = await service.ConvertToUSDAsync(10m, "CAD", RateDate);
+        var usdBase = 10m * UsdConversion.CachedRate("CAD", RateDate, service)!.Value;
 
         // Display: USD base -> CAD at the boundary (still 2dp rounded).
         var ok = service.TryConvertExact(usdBase, "USD", "CAD", RateDate, out var displayed);

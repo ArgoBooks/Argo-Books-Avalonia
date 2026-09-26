@@ -248,11 +248,12 @@ public partial class StatCardWidgetViewModel : WidgetViewModelBase
         var profitUSD = ProfitCalculator.CalculateNetProfitUSD(data, startDate, endDate);
         // Convert each contributing transaction at its OWN date before summing (Calculations.md Rule 3a).
         // profitUSD is kept for the currency-agnostic period-over-period change below.
-        Value = CurrencyService.FormatTotalOrPending(convert =>
-            ProfitCalculator.CalculateNetProfitDisplay(data, startDate, endDate, convert));
+        Value = CurrencyService.FormatNetProfitOrPending(data, startDate, endDate);
 
+        // A profit still waiting for its stock's cost is overstated, so there is no change to show.
+        var costPending = CostOfGoodsAggregator.IsCostOfGoodsPending(data.Revenues, startDate, endDate, collectedOnly: true);
         var (prevStart, prevEnd) = DashboardCalculations.GetComparisonPeriod();
-        if (prevStart != DateTime.MinValue && DashboardCalculations.HasSufficientPriorData(data, prevStart))
+        if (!costPending && prevStart != DateTime.MinValue && DashboardCalculations.HasSufficientPriorData(data, prevStart))
         {
             var prevProfit = ProfitCalculator.CalculateNetProfitUSD(data, prevStart, prevEnd);
             ChangeValue = DashboardCalculations.CalculatePercentageChange(prevProfit, profitUSD);

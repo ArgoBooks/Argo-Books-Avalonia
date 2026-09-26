@@ -132,7 +132,7 @@ public static class ReceiptTypeConverter
         receipt.TransactionId = created.Id;
         receipt.TransactionType = toRevenue ? Revenue : Expense;
 
-        var moved = MoveConversion(data, existing.Id, created.Id, receipt.TransactionType);
+        var moved = MoveConversion(data, UsdConversion.KeyOf(existing), created.Id, receipt.TransactionType);
 
         return new ReceiptSwitchResult(
             existing, created, toRevenue ? Expense : Revenue,
@@ -153,9 +153,9 @@ public static class ReceiptTypeConverter
     /// </para>
     /// </summary>
     private static PendingConversion? MoveConversion(
-        CompanyData data, string fromId, string toId, string toType)
+        CompanyData data, PendingConversionKey from, string toId, string toType)
     {
-        var entry = data.PendingConversions.FirstOrDefault(p => p.TransactionId == fromId);
+        var entry = UsdConversion.Queued(data, from);
         if (entry == null) return null;
 
         entry.TransactionId = toId;

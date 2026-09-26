@@ -225,7 +225,8 @@ public class ArgoApiImporter
             OriginalCurrency = currency,
             LineItems = BuildLineItems(data, api.LineItems, currency, api.Description, subtotal, tax, subtotal)
         };
-        IntegrationRates.ApplyUsdAmounts(expense, currency, data);
+        expense.OriginalCurrency = currency;
+        UsdConversion.Apply(data, expense, UsdConversion.CachedRate(currency, expense.Date));
 
         data.Expenses.Add(expense);
         creation.Expenses.Add(expense);
@@ -265,7 +266,8 @@ public class ArgoApiImporter
             PaymentStatus = RevenuePaymentStatus.Paid,
             LineItems = BuildLineItems(data, api.LineItems, currency, api.Description, subtotal, tax, taxableBase)
         };
-        IntegrationRates.ApplyUsdAmounts(revenue, currency, data);
+        revenue.OriginalCurrency = currency;
+        UsdConversion.Apply(data, revenue, UsdConversion.CachedRate(currency, revenue.Date));
 
         data.Revenues.Add(revenue);
         creation.Revenues.Add(revenue);
@@ -290,7 +292,8 @@ public class ArgoApiImporter
                 Notes = $"Processing fee for {revenue.Id} (Argo Books API {api.Id})",
                 OriginalCurrency = currency
             };
-            IntegrationRates.ApplyUsdAmounts(feeExpense, currency, data);
+            feeExpense.OriginalCurrency = currency;
+            UsdConversion.Apply(data, feeExpense, UsdConversion.CachedRate(currency, feeExpense.Date));
             data.Expenses.Add(feeExpense);
             creation.Expenses.Add(feeExpense);
         }
@@ -332,7 +335,8 @@ public class ArgoApiImporter
                 Notes = $"Refund imported from the Argo Books API for {api.Revenue}, with no matching sale in this company.",
                 OriginalCurrency = currency
             };
-            IntegrationRates.ApplyUsdAmounts(expense, currency, data);
+            expense.OriginalCurrency = currency;
+            UsdConversion.Apply(data, expense, UsdConversion.CachedRate(currency, expense.Date));
             data.Expenses.Add(expense);
             creation.Expenses.Add(expense);
             Claim(creation, api.Id, expense.Id);

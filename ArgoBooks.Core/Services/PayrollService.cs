@@ -480,14 +480,10 @@ public class PayrollService(PayrollRateService? rateService = null)
                 Notes: $"Net pay for {run.PeriodStart:yyyy-MM-dd} to {run.PeriodEnd:yyyy-MM-dd} ({run.Id}).",
                 OriginalCurrency: companyCurrency));
 
-            // Pass the amount straight through to the USD base, exactly as the bank import does.
-            // Payroll is computed in the company's own currency by CRA rules, so there is no
-            // exchange rate involved and none to look up. Left unset, the display path treats the
-            // figure as USD needing conversion at the pay date, finds no rate, and shows Pending
-            // instead of the amount. Worse, once a rate did arrive it would show a converted
-            // number that was never what anyone was paid.
-            expense.TotalUSD = expense.Total;
-            expense.UnitPriceUSD = expense.UnitPrice;
+            // Pay is worked out in the company's currency. Its USD base is that amount at the pay
+            // date's rate like any other expense, so totals across currencies add up; screens in
+            // the company's currency still show the amount paid (docs/Calculations.md Rule 3a).
+            UsdConversion.Apply(data, expense, UsdConversion.CachedRate(companyCurrency, run.PayDate));
 
             data.Expenses.Add(expense);
             line.ExpenseId = expense.Id;

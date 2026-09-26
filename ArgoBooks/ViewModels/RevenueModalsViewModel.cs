@@ -473,38 +473,9 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
             ReferenceNumber = string.Empty,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
-            // USD conversion fields
-            OriginalCurrency = ConvertedTotal?.OriginalCurrency ?? "USD",
-            TotalUSD = ConvertedTotal?.AmountUSD ?? Total,
-            TaxAmountUSD = ConvertedTaxAmount?.AmountUSD ?? TaxAmount,
-            ShippingCostUSD = ConvertedShippingCost?.AmountUSD ?? ModalShipping,
-            DiscountUSD = ConvertedDiscount?.AmountUSD ?? ModalDiscount,
-            FeeUSD = ConvertedFee?.AmountUSD ?? ModalFee,
-            UnitPriceUSD = ConvertedTotal != null && ConvertedTotal.OriginalCurrency != "USD" && Subtotal > 0 && Total != 0
-                ? ConvertedTotal.AmountUSD / Total * averageUnitPrice
-                : averageUnitPrice,
-            IsPendingConversion = IsPendingConversion
+            OriginalCurrency = SaveCurrency
         };
-
-        // Queue for offline conversion if pending
-        if (IsPendingConversion)
-        {
-            var pendingEntry = new PendingConversion
-            {
-                TransactionId = revenueId,
-                TransactionType = "Revenue",
-                OriginalCurrency = ConvertedTotal?.OriginalCurrency ?? "USD",
-                TransactionDate = revenue.Date,
-                Total = Total,
-                TaxAmount = TaxAmount,
-                ShippingCost = ModalShipping,
-                Discount = ModalDiscount,
-                Fee = ModalFee,
-                UnitPrice = averageUnitPrice
-            };
-            companyData.PendingConversions.Add(pendingEntry);
-            _ = PendingConversionService.Instance?.AddPendingConversionAsync(pendingEntry);
-        }
+        UsdConversion.Apply(companyData, revenue, SaveRate);
 
         // Create Receipt if file was attached
         Receipt? receipt = null;
@@ -530,6 +501,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
             () =>
             {
                 companyData.Revenues.Remove(revenue);
+                UsdConversion.Set(companyData, UsdConversion.KeyOf(revenue), null);
                 if (capturedReceipt != null)
                     companyData.Receipts.Remove(capturedReceipt);
                 RevertInventoryAdjustments(companyData, inventoryResults);
@@ -538,6 +510,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
             () =>
             {
                 companyData.Revenues.Add(revenue);
+                UsdConversion.Requeue(companyData, revenue);
                 if (capturedReceipt != null)
                     companyData.Receipts.Add(capturedReceipt);
                 inventoryResults = AdjustInventoryForLineItems(companyData, revenue, modelLineItems, isExpense: false);
@@ -561,7 +534,8 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
 
         // Store original values for undo
         var original = CaptureTransactionState(revenue);
-        var originalQueued = companyData.PendingConversions.Where(p => p.TransactionId == revenue.Id).ToList();
+        var queueKey = UsdConversion.KeyOf(revenue);
+        var originalQueued = UsdConversion.Snapshot(companyData, [queueKey]);
 
         var (description, totalQuantity, averageUnitPrice) = GetLineItemSummary();
         var modelLineItems = CreateModelLineItems();
@@ -587,39 +561,9 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
             revenue.PaymentStatus = ModalPaid ? RevenuePaymentStatus.Paid : RevenuePaymentStatus.Unpaid;
         revenue.Notes = ModalNotes;
         revenue.UpdatedAt = DateTime.UtcNow;
-        // USD conversion fields
-        revenue.OriginalCurrency = ConvertedTotal?.OriginalCurrency ?? "USD";
-        revenue.TotalUSD = ConvertedTotal?.AmountUSD ?? Total;
-        revenue.TaxAmountUSD = ConvertedTaxAmount?.AmountUSD ?? TaxAmount;
-        revenue.ShippingCostUSD = ConvertedShippingCost?.AmountUSD ?? ModalShipping;
-        revenue.DiscountUSD = ConvertedDiscount?.AmountUSD ?? ModalDiscount;
-        revenue.FeeUSD = ConvertedFee?.AmountUSD ?? ModalFee;
-        revenue.UnitPriceUSD = ConvertedTotal != null && ConvertedTotal.OriginalCurrency != "USD" && Subtotal > 0 && Total != 0
-            ? ConvertedTotal.AmountUSD / Total * averageUnitPrice
-            : averageUnitPrice;
-        revenue.IsPendingConversion = IsPendingConversion;
-
-        // Queue for offline conversion if pending; a row that converted leaves the queue
-        List<PendingConversion> editedQueued = [];
-        if (IsPendingConversion)
-        {
-            editedQueued.Add(new PendingConversion
-            {
-                TransactionId = revenue.Id,
-                TransactionType = "Revenue",
-                OriginalCurrency = ConvertedTotal?.OriginalCurrency ?? "USD",
-                TransactionDate = revenue.Date,
-                Total = Total,
-                TaxAmount = TaxAmount,
-                ShippingCost = ModalShipping,
-                Discount = ModalDiscount,
-                Fee = ModalFee,
-                UnitPrice = averageUnitPrice
-            });
-        }
-        var queueTouched = originalQueued.Count > 0 || editedQueued.Count > 0;
-        if (queueTouched)
-            SetQueuedConversions(companyData, revenue.Id, editedQueued);
+        revenue.OriginalCurrency = SaveCurrency;
+        UsdConversion.Apply(companyData, revenue, SaveRate);
+        var editedQueued = UsdConversion.Snapshot(companyData, [queueKey]);
 
         // Handle receipt. The form loads an existing receipt's OriginalFilePath, so only a different
         // path means Change picked a new file.
@@ -651,8 +595,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
             () =>
             {
                 RestoreTransactionState(revenue, original);
-                if (queueTouched)
-                    SetQueuedConversions(companyData, revenue.Id, originalQueued);
+                UsdConversion.Restore(companyData, [queueKey], originalQueued);
                 if (capturedNewReceipt != null)
                     companyData.Receipts.Remove(capturedNewReceipt);
                 if (replacedReceipt != null && !companyData.Receipts.Contains(replacedReceipt))
@@ -663,8 +606,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
             () =>
             {
                 RestoreTransactionState(revenue, edited);
-                if (queueTouched)
-                    SetQueuedConversions(companyData, revenue.Id, editedQueued);
+                UsdConversion.Restore(companyData, [queueKey], editedQueued);
                 if (replacedReceipt != null)
                     companyData.Receipts.Remove(replacedReceipt);
                 if (capturedNewReceipt != null && !companyData.Receipts.Contains(capturedNewReceipt))

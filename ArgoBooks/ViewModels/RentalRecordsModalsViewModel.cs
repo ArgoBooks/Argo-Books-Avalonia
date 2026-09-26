@@ -937,7 +937,7 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
         if (amount <= 0)
             return null;
 
-        return new Revenue
+        var revenue = new Revenue
         {
             Id = new Core.Data.IdGenerator(companyData).NextRevenueId(date),
             Date = date,
@@ -954,11 +954,11 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
             ReferenceNumber = invoice.InvoiceNumber,
             IsKeptDeposit = true,
             OriginalCurrency = invoice.OriginalCurrency,
-            TotalUSD = invoice.Total > 0 ? invoice.EffectiveTotalUSD * amount / invoice.Total : 0,
-            IsPendingConversion = invoice.IsPendingConversion,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
+        UsdConversion.Apply(companyData, revenue, UsdConversion.InvoiceRate(invoice), RateDate(companyData, revenue));
+        return revenue;
     }
 
     /// <summary>
@@ -1013,32 +1013,23 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
                 .TranslateFormat(rental.Id));
     }
 
+    /// <summary>
+    /// The date a rental's revenue waits for the rate of. A kept deposit is dated on the return, but
+    /// the money came in with the invoice, so it waits for the invoice's rate.
+    /// </summary>
+    private static DateTime RateDate(CompanyData companyData, Revenue revenue) =>
+        companyData.GetInvoice(revenue.InvoiceId ?? "")?.IssueDate ?? revenue.Date;
+
     private static void AddRentalRevenue(CompanyData companyData, Revenue revenue)
     {
         companyData.Revenues.Add(revenue);
-        if (!revenue.IsPendingConversion)
-            return;
-
-        // A kept deposit is dated on the return, but the money came in with the invoice, so it waits for the invoice's rate.
-        var entry = new PendingConversion
-        {
-            TransactionId = revenue.Id,
-            TransactionType = "Revenue",
-            OriginalCurrency = revenue.OriginalCurrency,
-            TransactionDate = companyData.GetInvoice(revenue.InvoiceId ?? "")?.IssueDate ?? revenue.Date,
-            Total = revenue.Total,
-            UnitPrice = revenue.UnitPrice
-        };
-        companyData.PendingConversions.RemoveAll(p => p.TransactionId == revenue.Id);
-        companyData.PendingConversions.Add(entry);
-        _ = PendingConversionService.Instance?.AddPendingConversionAsync(entry);
+        UsdConversion.Requeue(companyData, revenue, RateDate(companyData, revenue));
     }
 
     private static void RemoveRentalRevenue(CompanyData companyData, Revenue revenue)
     {
         companyData.Revenues.Remove(revenue);
-        if (companyData.PendingConversions.RemoveAll(p => p.TransactionId == revenue.Id) > 0)
-            _ = PendingConversionService.Instance?.ForgetAsync([revenue.Id]);
+        UsdConversion.Set(companyData, UsdConversion.KeyOf(revenue), null);
     }
 
     #endregion
