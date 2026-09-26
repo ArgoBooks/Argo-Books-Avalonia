@@ -82,9 +82,9 @@ public partial class ModalOverlay : UserControl
     }
 
     /// <summary>
-    /// The room the window leaves for the modal, less a small gap at each edge. A modal with a fixed
-    /// Width or Height binds its MaxWidth/MaxHeight to these so it shrinks instead of running off
-    /// a window made smaller than it.
+    /// The room inside the content presenter, which already keeps the edge gap from the window. A
+    /// modal with a fixed Width or Height binds its MaxWidth/MaxHeight to these so it shrinks instead
+    /// of running off a window made smaller than it.
     /// </summary>
     public double AvailableWidth
     {
@@ -98,8 +98,6 @@ public partial class ModalOverlay : UserControl
         get => GetValue(AvailableHeightProperty);
         private set => SetValue(AvailableHeightProperty, value);
     }
-
-    private const double WindowEdgeGap = 16;
 
     #endregion
 
@@ -146,8 +144,9 @@ public partial class ModalOverlay : UserControl
         }
         else if (change.Property == BoundsProperty)
         {
-            AvailableWidth = Math.Max(0, Bounds.Width - WindowEdgeGap);
-            AvailableHeight = Math.Max(0, Bounds.Height - WindowEdgeGap);
+            var gap = _modalContentPresenter?.Margin ?? default;
+            AvailableWidth = Math.Max(0, Bounds.Width - gap.Left - gap.Right);
+            AvailableHeight = Math.Max(0, Bounds.Height - gap.Top - gap.Bottom);
         }
     }
 

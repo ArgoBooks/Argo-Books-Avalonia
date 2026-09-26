@@ -17,7 +17,6 @@
                     CornerRadius="12"
                     MaxWidth="520"
                     MinWidth="420"
-                    Margin="40"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center"
                     BoxShadow="0 8 32 0 #40000000">

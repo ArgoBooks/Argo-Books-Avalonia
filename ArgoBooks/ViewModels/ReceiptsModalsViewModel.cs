@@ -268,11 +268,6 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
     public double ModalHeight => IsFullscreen ? double.NaN : (HasScanResult || IsBulkReviewOpen ? 850 : 400);
 
     /// <summary>
-    /// Gets the modal margin. Zero when fullscreen, auto-centered otherwise.
-    /// </summary>
-    public Avalonia.Thickness ModalMargin => IsFullscreen ? new Avalonia.Thickness(8) : new Avalonia.Thickness(0);
-
-    /// <summary>
     /// Gets modal horizontal alignment. Stretch when fullscreen.
     /// </summary>
     public Avalonia.Layout.HorizontalAlignment ModalHorizontalAlignment =>
@@ -306,7 +301,6 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
     {
         OnPropertyChanged(nameof(ModalWidth));
         OnPropertyChanged(nameof(ModalHeight));
-        OnPropertyChanged(nameof(ModalMargin));
         OnPropertyChanged(nameof(ModalHorizontalAlignment));
         OnPropertyChanged(nameof(ModalVerticalAlignment));
     }

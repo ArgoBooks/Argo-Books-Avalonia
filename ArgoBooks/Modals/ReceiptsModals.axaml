@@ -183,17 +183,11 @@
                     Height="{Binding ModalHeight}"
                     MaxWidth="{Binding $parent[controls:ModalOverlay].AvailableWidth}"
                     MaxHeight="{Binding $parent[controls:ModalOverlay].AvailableHeight}"
-                    Margin="{Binding ModalMargin}"
                     HorizontalAlignment="{Binding ModalHorizontalAlignment}"
                     VerticalAlignment="{Binding ModalVerticalAlignment}"
                     Background="{DynamicResource SurfaceBrush}"
                     CornerRadius="12"
                     BoxShadow="0 8 32 0 #40000000">
-                    <Border.Transitions>
-                        <Transitions>
-                            <ThicknessTransition Property="Margin" Duration="0:0:0.2" Easing="CubicEaseInOut" />
-                        </Transitions>
-                    </Border.Transitions>
                 <Grid RowDefinitions="Auto,*,Auto">
                     <!-- Header -->
                     <Border Grid.Row="0"
@@ -1469,7 +1463,6 @@
                         Height="{Binding ModalHeight}"
                         MaxWidth="{Binding $parent[controls:ModalOverlay].AvailableWidth}"
                         MaxHeight="{Binding $parent[controls:ModalOverlay].AvailableHeight}"
-                        Margin="{Binding ModalMargin}"
                         HorizontalAlignment="{Binding ModalHorizontalAlignment}"
                         VerticalAlignment="{Binding ModalVerticalAlignment}"
                         Background="{DynamicResource SurfaceBrush}"

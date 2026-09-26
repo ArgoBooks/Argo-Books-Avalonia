@@ -21,7 +21,7 @@
                 Width="550"
                 MaxHeight="700">
 
-            <Grid RowDefinitions="Auto,Auto,Auto">
+            <Grid RowDefinitions="Auto,*,Auto">
                 <!-- Header -->
                 <controls:ModalHeader Grid.Row="0"
                                       Title="{loc:Loc 'Export As'}"
