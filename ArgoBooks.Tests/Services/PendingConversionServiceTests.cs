@@ -270,6 +270,60 @@ public class PendingConversionServiceTests
         Assert.Equal(1980m, expense.TotalUSD);
     }
 
+    // A spreadsheet import changes records and the queue off the UI thread, while the timer's pass
+    // changed the same list on the UI thread. The import now suspends the passes: it waits for one
+    // under way, which stops before its next rate, and none runs until the import is done.
+    [Fact]
+    public async Task Suspend_WaitsForThePassUnderWay_AndHoldsOffPassesUntilDisposed()
+    {
+        var date = DateTime.Today.AddMonths(-2);
+        var data = new CompanyData();
+        var first = new Expense { Id = "E1", Total = 100m, OriginalCurrency = "EUR", Date = date, IsPendingConversion = true };
+        var second = new Expense { Id = "E2", Total = 200m, OriginalCurrency = "EUR", Date = date, IsPendingConversion = true };
+        data.Expenses.AddRange([first, second]);
+        data.PendingConversions.AddRange([Row("E1", 100m, date), Row("E2", 200m, date)]);
+
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var ex = new ExchangeRateService(new MockPlatform(), new HttpClient(new GatedEurHandler(0.8m, entered, release)));
+        var svc = new PendingConversionService(exchangeRateService: ex);
+        svc.ReconcileWithCompanyData(data);
+
+        var pass = svc.ProcessPendingConversionsAsync(data);
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        var suspending = svc.SuspendAsync();
+        Assert.False(suspending.IsCompleted);
+
+        release.SetResult();
+        using (await suspending.WaitAsync(TimeSpan.FromSeconds(10)))
+        {
+            Assert.True(pass.IsCompleted);
+            Assert.False(first.IsPendingConversion);
+            Assert.True(second.IsPendingConversion);
+
+            await svc.ProcessPendingConversionsAsync(data);
+            Assert.True(second.IsPendingConversion);
+        }
+
+        await svc.ProcessPendingConversionsAsync(data);
+        Assert.False(second.IsPendingConversion);
+        Assert.Empty(data.PendingConversions);
+    }
+
+    private sealed class GatedEurHandler(decimal usdToEur, TaskCompletionSource entered, TaskCompletionSource release) : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            entered.TrySetResult();
+            await release.Task;
+            var payload = $$"""{ "success": true, "base": "USD", "rates": { "EUR": {{usdToEur}} } }""";
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(payload, Encoding.UTF8, "application/json")
+            };
+        }
+    }
+
     private static PendingConversion Row(string id, decimal total, DateTime date) => new()
     {
         TransactionId = id,

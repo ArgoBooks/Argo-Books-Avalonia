@@ -76,12 +76,15 @@ Every row is read and split into batches of 100. Up to 10 batches go to the AI a
 - Read amounts correctly, removing currency symbols and handling each region's separators
 - Skip subtotal rows, repeated headers and empty rows
 - Join several rows into one record where that makes sense
+- Give only the fields the row has a value for, leaving out the rest rather than inventing a value or writing 0 or an empty one. A product's category and type are given only when the row has them.
 
 Records that appear in more than one batch are merged, and when two share an ID the last one wins. The records are then added one batch at a time, because company data can't safely be changed from several threads at once.
 
+A record that already exists is updated with only the fields the AI's record gives (docs/Calculations.md §5). A field counts as given when it has a value: one left out, null, blank or an empty list is not given, so the record keeps its own. The AI's record is all the importer sees, not the cell it came from, so a 0 or false the AI writes for an empty cell can't be told from a real one and would replace the stored value. That is why it is told to leave such fields out.
+
 ### 5. Categorize
 
-After the import, any product without a category is sent to the AI, which picks a category from its name and description (for example "Industrial Drill Press" goes under "Power Tools").
+After the import, any product without a category is sent to the AI, which picks a category from its name and description (for example "Industrial Drill Press" goes under "Power Tools"). This covers products sheets from both tiers: neither one makes up a category during the import, so a product whose row has none reaches this step. A product created for a sale or expense whose description names none takes its name as its category when it is created. When the AI can't be reached, the product's name is used as its category here too.
 
 ## When the AI can't make sense of a file
 
@@ -116,4 +119,4 @@ AI imports have a monthly limit, handled by `UsageLimitService`. The count goes 
 
 ## Where it is run from
 
-`PerformAiImportAsync` in `ArgoBooks/App.axaml.cs` runs the whole import: it calls the services, shows the dialogs and progress, takes the undo snapshot and records telemetry.
+`PerformAiImportAsync` in `ArgoBooks/App.axaml.cs` runs the whole import: it calls the services, shows the dialogs and progress, takes the undo snapshot and records telemetry. The Tier 1 import runs off the UI thread, so the exchange-rate conversion pass, which changes the same records and queue on the UI thread every 15 seconds, is held off while it runs (`PendingConversionService.SuspendAsync`), after any pass already under way has finished.

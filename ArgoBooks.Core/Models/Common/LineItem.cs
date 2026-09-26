@@ -113,4 +113,7 @@ public class LineItem
     /// </summary>
     [JsonIgnore]
     public decimal Amount => Math.Round(Subtotal + TaxAmount, 2);
+
+    /// <summary>A copy with every field, including what stock the line took.</summary>
+    public LineItem Clone() => (LineItem)MemberwiseClone();
 }

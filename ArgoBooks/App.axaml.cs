@@ -3010,9 +3010,13 @@ public partial class App : Application
                     _mainWindowViewModel?.ShowLoading("Importing data...".Translate(), p.detail, p.percent, importCts, ConfirmCancelAsync);
                 });
 
-                tier1Result = isCsv
-                    ? await importService.ImportCsvWithMappingsAsync(filePath, companyData, updatedAnalysis, importOptions, importCts.Token, importProgress)
-                    : await importService.ImportWithMappingsAsync(filePath, companyData, updatedAnalysis, importOptions, importCts.Token, importProgress);
+                // It runs off the UI thread, where the conversion pass changes the same records and queue.
+                using (PendingConversionService is { } conversions ? await conversions.SuspendAsync() : null)
+                {
+                    tier1Result = isCsv
+                        ? await importService.ImportCsvWithMappingsAsync(filePath, companyData, updatedAnalysis, importOptions, importCts.Token, importProgress)
+                        : await importService.ImportWithMappingsAsync(filePath, companyData, updatedAnalysis, importOptions, importCts.Token, importProgress);
+                }
 
                 // AI-categorize any products that ended up without a category
                 // (skip if Tier 2 sheets will handle it after their processing)

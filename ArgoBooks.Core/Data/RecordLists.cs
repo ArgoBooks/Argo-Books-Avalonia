@@ -17,7 +17,7 @@ public static class RecordLists
 {
     private static readonly ConditionalWeakTable<object, StrongBox<int>> SameIdLeftWhenRemoved = new();
     private static readonly ConcurrentDictionary<Type, Action<object, object>?> Copiers = new();
-    private static readonly ConcurrentDictionary<Type, (string Name, Func<object, object?> Get, Action<object, object?> Set)[]> SavedProperties = new();
+    private static readonly ConcurrentDictionary<Type, (string Name, Func<object, object?> Get, Action<object, object?> Set, bool IsObject)[]> SavedProperties = new();
 
     private static readonly MethodInfo RestoreNestedMethod =
         typeof(RecordLists).GetMethod(nameof(RestoreNested), BindingFlags.NonPublic | BindingFlags.Static)!;
@@ -77,27 +77,53 @@ public static class RecordLists
     /// (as the company file spells it, any case) isn't in <paramref name="given"/> is taken from
     /// <paramref name="existing"/>. Writing the result over <paramref name="existing"/> with
     /// <see cref="AddOrUpdate{T}"/> then changes only the given fields. Returns
-    /// <paramref name="incoming"/>.
+    /// <paramref name="incoming"/>. A nested object, such as an address, is filled the same way when
+    /// <paramref name="given"/> names its fields as dotted paths ("address.city"), so a row giving only
+    /// the city keeps the street; one given without any of its fields named is taken whole.
     /// </summary>
     public static T FillAbsent<T>(this T incoming, T existing, IReadOnlySet<string> given) where T : class
     {
-        foreach (var (name, get, set) in SavedProperties.GetOrAdd(incoming.GetType(), ReadSavedProperties))
-        {
-            if (!given.Contains(name))
-                set(incoming, get(existing));
-        }
+        FillAbsent(incoming, existing, given, "");
         return incoming;
     }
 
-    private static (string, Func<object, object?>, Action<object, object?>)[] ReadSavedProperties(Type type)
+    private static void FillAbsent(object incoming, object existing, IReadOnlySet<string> given, string prefix)
+    {
+        foreach (var (name, get, set, isObject) in SavedProperties.GetOrAdd(incoming.GetType(), ReadSavedProperties))
+        {
+            var path = prefix + name;
+            if (!given.Contains(path))
+                set(incoming, get(existing));
+            else if (isObject
+                     && get(incoming) is { } inner && get(existing) is { } current
+                     && inner.GetType() == current.GetType()
+                     && given.Any(g => g.StartsWith(path + ".", StringComparison.OrdinalIgnoreCase)))
+                FillAbsent(inner, current, given, path + ".");
+        }
+    }
+
+    private static (string, Func<object, object?>, Action<object, object?>, bool)[] ReadSavedProperties(Type type)
     {
         var info = JsonSerializerOptions.Default.GetTypeInfo(type);
         return info.Kind != JsonTypeInfoKind.Object
             ? []
             : info.Properties
                 .Where(p => p.Get != null && p.Set != null)
-                .Select(p => (p.Name, p.Get!, p.Set!))
+                .Select(p => (p.Name, p.Get!, p.Set!, IsPlainObject(p.PropertyType)))
                 .ToArray();
+    }
+
+    private static bool IsPlainObject(Type type)
+    {
+        if (type == typeof(object)) return false;
+        try
+        {
+            return JsonSerializerOptions.Default.GetTypeInfo(type).Kind == JsonTypeInfoKind.Object;
+        }
+        catch (NotSupportedException)
+        {
+            return false;
+        }
     }
 
     /// <summary>

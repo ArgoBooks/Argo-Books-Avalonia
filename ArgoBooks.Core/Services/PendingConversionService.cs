@@ -167,11 +167,81 @@ public class PendingConversionService
         }
     }
 
+    // While above 0, no pass starts, and one under way stops before its next rate. See SuspendAsync.
+    private int _suspended;
+    private readonly List<Task> _passes = [];
+
+    private bool IsSuspended
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _suspended > 0;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Holds off conversion passes until the returned handle is disposed, once any pass under way has
+    /// finished. A spreadsheet import changes the company's records and queue off the UI thread, where
+    /// a pass also changes them, so it runs inside one of these.
+    /// </summary>
+    public async Task<IDisposable> SuspendAsync()
+    {
+        Task[] running;
+        lock (_lock)
+        {
+            _suspended++;
+            running = [.. _passes];
+        }
+
+        await Task.WhenAll(running);
+        return new Resumer(this);
+    }
+
+    private sealed class Resumer(PendingConversionService service) : IDisposable
+    {
+        private int _disposed;
+
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+            lock (service._lock)
+            {
+                service._suspended--;
+            }
+        }
+    }
+
     /// <summary>
     /// Attempts to process all pending conversions by fetching exchange rates.
-    /// Only processes entries where rates are available (online).
+    /// Only processes entries where rates are available (online). Does nothing while suspended.
     /// </summary>
     public async Task ProcessPendingConversionsAsync(CompanyData companyData)
+    {
+        var pass = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        lock (_lock)
+        {
+            if (_suspended > 0) return;
+            _passes.Add(pass.Task);
+        }
+
+        try
+        {
+            await RunPassAsync(companyData);
+        }
+        finally
+        {
+            lock (_lock)
+            {
+                _passes.Remove(pass.Task);
+            }
+            pass.SetResult();
+        }
+    }
+
+    private async Task RunPassAsync(CompanyData companyData)
     {
         var exchangeService = _exchangeRateService ?? ExchangeRateService.Instance;
         if (exchangeService == null)
@@ -227,6 +297,9 @@ public class PendingConversionService
 
         foreach (var entry in toProcess)
         {
+            if (IsSuspended)
+                break;
+
             // No rate exists yet for a date that has not happened, so a row dated ahead stays queued
             // until its own date arrives rather than asking every pass for something that cannot
             // come back. Compared against the local date, which is what the row was entered in.

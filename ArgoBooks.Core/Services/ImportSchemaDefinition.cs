@@ -146,7 +146,7 @@ public static class ImportSchemaDefinition
                 new("SKU", "string", "Stock keeping unit code", JsonName: "sku"),
                 new("Description", "string", "Product description", JsonName: "description"),
                 new("Category ID", "string", "Category identifier", JsonName: "categoryId"),
-                new("Category Name", "string", "Name of the category - ALWAYS provide this, infer from product name/description if not in source data", JsonName: "categoryName"),
+                new("Category Name", "string", "Name of the category the product is in", JsonName: "categoryName"),
                 new("Supplier ID", "string", "Supplier identifier", JsonName: "supplierId"),
                 new("Supplier Name", "string", "Name of the supplier (alternative to ID)"),
                 new("Reorder Point", "decimal", "Stock level that triggers reorder", JsonName: "reorderPoint"),
