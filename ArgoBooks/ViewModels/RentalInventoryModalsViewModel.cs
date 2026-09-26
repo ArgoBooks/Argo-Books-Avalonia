@@ -431,7 +431,6 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
         customerModals.OpenAddModal();
     }
 
-    [RelayCommand]
     public void SaveNewItem()
     {
         if (!ValidateModal())
@@ -517,7 +516,6 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
         IsEditModalOpen = true;
     }
 
-    [RelayCommand]
     public void CloseEditModal()
     {
         IsEditModalOpen = false;
@@ -525,7 +523,6 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
         ClearModalFields();
     }
 
-    [RelayCommand]
     public async Task RequestCloseEditModalAsync()
     {
         if (HasEditModalChanges)
@@ -537,7 +534,6 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
         CloseEditModal();
     }
 
-    [RelayCommand]
     public void SaveEditedItem()
     {
         if (!ValidateModal() || _editingItem == null)

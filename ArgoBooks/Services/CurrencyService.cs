@@ -180,22 +180,6 @@ public static class CurrencyService
     }
 
     /// <summary>
-    /// Sums per-item USD amounts after converting EACH to the display currency at that item's OWN
-    /// date, per the totals rule in docs/Calculations.md Rule 3a. Use this for any total over
-    /// multiple transactions instead of converting the pre-summed USD at one date
-    /// (<c>FormatFromUSD(sum, DateTime.Now)</c>), which silently re-prices historical rows at today's
-    /// rate. For a USD display currency this is identical to summing the USD amounts directly.
-    /// </summary>
-    public static decimal SumDisplayFromUSD<T>(
-        IEnumerable<T> items, Func<T, decimal> amountUSD, Func<T, DateTime> date)
-    {
-        decimal total = 0m;
-        foreach (var item in items)
-            total += GetDisplayAmount(amountUSD(item), date(item));
-        return total;
-    }
-
-    /// <summary>
     /// Currency-aware per-item sum that reports (via the return value) whether EVERY item could be
     /// shown in the display currency. Mirrors <see cref="FormatWithOriginal"/> per item: a row whose
     /// original currency already matches the display currency uses its original amount directly (no
@@ -411,31 +395,6 @@ public static class CurrencyService
         }
 
         return new MonetaryValue(amount, currency, amountUSD, date);
-    }
-
-    /// <summary>
-    /// Creates a MonetaryValue synchronously (uses cached rates only).
-    /// </summary>
-    public static MonetaryValue CreateMonetaryValue(decimal amount, DateTime date)
-    {
-        var currentCurrency = CurrentCurrencyCode;
-
-        if (string.Equals(currentCurrency, "USD", StringComparison.OrdinalIgnoreCase))
-        {
-            return new MonetaryValue(amount, "USD", amount, date);
-        }
-
-        var exchangeService = ExchangeRateService.Instance;
-        decimal amountUSD = amount;
-
-        // Store the USD base at full precision (no 2dp round) so same-currency round-trips don't drift
-        // a cent; display rounds at the boundary. See docs/Calculations.md Rule 3.
-        if (exchangeService != null && exchangeService.TryConvertToUsdBase(amount, currentCurrency, date, out var converted))
-        {
-            amountUSD = converted;
-        }
-
-        return new MonetaryValue(amount, currentCurrency, amountUSD, date);
     }
 
     /// <summary>

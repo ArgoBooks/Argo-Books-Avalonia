@@ -220,25 +220,6 @@ public class ExchangeRateService
         => TryConvertExact(amountUSD, BaseCurrency, toCurrency, date, out result);
 
     /// <summary>
-    /// Converts an amount from one currency to another.
-    /// </summary>
-    /// <param name="amount">The amount to convert.</param>
-    /// <param name="fromCurrency">Source currency code.</param>
-    /// <param name="toCurrency">Target currency code.</param>
-    /// <param name="date">The date for the exchange rate.</param>
-    /// <returns>The converted amount, or the original amount if conversion fails.</returns>
-    public async Task<decimal> ConvertAsync(decimal amount, string fromCurrency, string toCurrency, DateTime date)
-    {
-        var rate = await GetExchangeRateAsync(fromCurrency, toCurrency, date);
-        if (rate <= 0)
-        {
-            return amount; // Return original if conversion fails
-        }
-
-        return Math.Round(amount * rate, 2);
-    }
-
-    /// <summary>
     /// Converts an amount to USD.
     /// </summary>
     /// <param name="amount">The amount in the source currency.</param>

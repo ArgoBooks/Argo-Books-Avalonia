@@ -248,32 +248,6 @@ public class UnsavedChangesDialogViewModelTests
 
     #endregion
 
-    #region ChangeItem Tests
-
-    [Theory]
-    [InlineData(ChangeType.Added, "Plus")]
-    [InlineData(ChangeType.Deleted, "Trash")]
-    [InlineData(ChangeType.Modified, "Pencil")]
-    public void ChangeItem_IconName_ReturnsCorrectIconForChangeType(ChangeType changeType, string expectedIcon)
-    {
-        var item = new ChangeItem { ChangeType = changeType };
-
-        Assert.Equal(expectedIcon, item.IconName);
-    }
-
-    [Theory]
-    [InlineData(ChangeType.Added, "success")]
-    [InlineData(ChangeType.Deleted, "danger")]
-    [InlineData(ChangeType.Modified, "warning")]
-    public void ChangeItem_ColorClass_ReturnsCorrectColorForChangeType(ChangeType changeType, string expectedColor)
-    {
-        var item = new ChangeItem { ChangeType = changeType };
-
-        Assert.Equal(expectedColor, item.ColorClass);
-    }
-
-    #endregion
-
     #region ToggleCategory Tests
 
     [Fact]

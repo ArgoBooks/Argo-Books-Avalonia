@@ -45,7 +45,6 @@ The license is saved in the app's global settings file, encrypted so it only wor
 | `LicenseData` | The encrypted license: premium status, key and activation date |
 | `Salt` | A random salt used when making the encryption key |
 | `Iv` | The random IV for AES-256-GCM |
-| `LastValidationDate` | When the license was last checked with the server |
 
 The encryption password is made from the computer's own ID (`IPlatformService.GetMachineId()`) plus the fixed text `ArgoBooks_License_v2`, hashed with SHA-256. The encryption service turns that and the salt into an AES-256-GCM key. Because the machine ID is part of it, the license can't be copied to another computer. If it can't be decrypted, for example because the machine ID changed, the app treats it as missing and goes back to the free plan.
 

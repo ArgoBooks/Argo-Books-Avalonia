@@ -338,15 +338,6 @@ public partial class StockLevelsPageViewModel : SortablePageViewModelBase
     }
 
     /// <summary>
-    /// Refreshes the items from the data source.
-    /// </summary>
-    [RelayCommand]
-    private void RefreshItems()
-    {
-        LoadItems();
-    }
-
-    /// <summary>
     /// Filters items based on current tab, search query, and filters.
     /// </summary>
     private void FilterItems()

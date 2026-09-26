@@ -14,7 +14,6 @@ public partial class ErrorLogger : IErrorLogger
     private readonly ConcurrentQueue<ErrorLogEntry> _logEntries = new();
     private readonly int _maxEntries;
     private readonly Lock _trimLock = new();
-    private readonly JsonSerializerOptions _jsonOptions;
 
     // Patterns for sanitizing PII from error messages and stack traces
     [GeneratedRegex(@"[A-Za-z]:\\Users\\[^\\]+", RegexOptions.IgnoreCase)]
@@ -48,12 +47,6 @@ public partial class ErrorLogger : IErrorLogger
     public ErrorLogger(int maxEntries = 1000)
     {
         _maxEntries = maxEntries;
-        _jsonOptions = new JsonSerializerOptions
-        {
-            WriteIndented = true,
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            Converters = { new JsonStringEnumConverter() }
-        };
     }
 
     /// <inheritdoc />
@@ -164,32 +157,6 @@ public partial class ErrorLogger : IErrorLogger
             .OrderByDescending(e => e.Timestamp)
             .Take(count)
             .ToList();
-    }
-
-    /// <inheritdoc />
-    public IReadOnlyList<ErrorLogEntry> GetAllErrors()
-    {
-        return _logEntries
-            .Where(e => e.Level >= LogLevel.Warning)
-            .OrderByDescending(e => e.Timestamp)
-            .ToList();
-    }
-
-    /// <inheritdoc />
-    public Task<string> ExportErrorLogAsync()
-    {
-        var entries = _logEntries.OrderByDescending(e => e.Timestamp).ToList();
-        var json = JsonSerializer.Serialize(entries, _jsonOptions);
-        return Task.FromResult(json);
-    }
-
-    /// <inheritdoc />
-    public void ClearLogs()
-    {
-        while (_logEntries.TryDequeue(out _))
-        {
-            // Clear all entries
-        }
     }
 
     private ErrorLogEntry CreateLogEntry(

@@ -225,101 +225,6 @@ public class PasswordValidatorTests
 
     #endregion
 
-    #region GetAllValidationErrors Tests
-
-    [Fact]
-    public void GetAllValidationErrors_ValidPassword_ReturnsEmptyList()
-    {
-        var errors = PasswordValidator.GetAllValidationErrors("Password123");
-        Assert.Empty(errors);
-    }
-
-    [Fact]
-    public void GetAllValidationErrors_NullPassword_ReturnsSingleRequiredError()
-    {
-        var errors = PasswordValidator.GetAllValidationErrors(null);
-        Assert.Single(errors);
-        Assert.Equal("Password is required.", errors[0]);
-    }
-
-    [Fact]
-    public void GetAllValidationErrors_EmptyPassword_ReturnsSingleRequiredError()
-    {
-        var errors = PasswordValidator.GetAllValidationErrors("");
-        Assert.Single(errors);
-        Assert.Equal("Password is required.", errors[0]);
-    }
-
-    [Fact]
-    public void GetAllValidationErrors_TooShortAndNoDigit_ReturnsMultipleErrors()
-    {
-        // "abc" is too short and has no digit
-        var errors = PasswordValidator.GetAllValidationErrors("abc");
-        Assert.Equal(2, errors.Count);
-        Assert.Contains(errors, e => e.Contains("at least", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(errors, e => e.Contains("number", StringComparison.OrdinalIgnoreCase));
-    }
-
-    [Fact]
-    public void GetAllValidationErrors_TooShortAndNoLetter_ReturnsMultipleErrors()
-    {
-        // "123" is too short and has no letter
-        var errors = PasswordValidator.GetAllValidationErrors("123");
-        Assert.Equal(2, errors.Count);
-        Assert.Contains(errors, e => e.Contains("at least", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(errors, e => e.Contains("letter", StringComparison.OrdinalIgnoreCase));
-    }
-
-    [Fact]
-    public void GetAllValidationErrors_TooShortNoLetterNoDigit_ReturnsThreeErrors()
-    {
-        // "!!!" is too short, has no letter, and has no digit
-        var errors = PasswordValidator.GetAllValidationErrors("!!!");
-        Assert.Equal(3, errors.Count);
-        Assert.Contains(errors, e => e.Contains("at least", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(errors, e => e.Contains("letter", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(errors, e => e.Contains("number", StringComparison.OrdinalIgnoreCase));
-    }
-
-    [Fact]
-    public void GetAllValidationErrors_OnlyDigits_LongEnough_ReturnsSingleLetterError()
-    {
-        // "12345678" has enough length but no letter
-        var errors = PasswordValidator.GetAllValidationErrors("12345678");
-        Assert.Single(errors);
-        Assert.Contains("letter", errors[0], StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public void GetAllValidationErrors_OnlyLetters_LongEnough_ReturnsSingleDigitError()
-    {
-        // "abcdefgh" has enough length but no digit
-        var errors = PasswordValidator.GetAllValidationErrors("abcdefgh");
-        Assert.Single(errors);
-        Assert.Contains("number", errors[0], StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public void GetAllValidationErrors_TooLongPassword_ReturnsTooLongError()
-    {
-        var password = new string('A', PasswordValidator.MaxLength + 1) + "1";
-        var errors = PasswordValidator.GetAllValidationErrors(password);
-        Assert.Contains(errors, e => e.Contains("no more than", StringComparison.OrdinalIgnoreCase));
-    }
-
-    [Fact]
-    public void GetAllValidationErrors_NullDoesNotCheckOtherRules()
-    {
-        // When null, only "Password is required." should be returned, not length/letter/digit errors
-        var errors = PasswordValidator.GetAllValidationErrors(null);
-        Assert.Single(errors);
-        Assert.DoesNotContain(errors, e => e.Contains("at least", StringComparison.OrdinalIgnoreCase));
-        Assert.DoesNotContain(errors, e => e.Contains("letter", StringComparison.OrdinalIgnoreCase));
-        Assert.DoesNotContain(errors, e => e.Contains("number", StringComparison.OrdinalIgnoreCase));
-    }
-
-    #endregion
-
     #region GetStrengthScore Tests
 
     [Fact]
@@ -656,15 +561,6 @@ public class PasswordValidatorTests
     }
 
     [Fact]
-    public void GetAllValidationErrors_PasswordWithOnlySpecialChars_ReturnsBothLetterAndDigitErrors()
-    {
-        var errors = PasswordValidator.GetAllValidationErrors("!@#$%^&*");
-        Assert.Equal(2, errors.Count);
-        Assert.Contains(errors, e => e.Contains("letter", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(errors, e => e.Contains("number", StringComparison.OrdinalIgnoreCase));
-    }
-
-    [Fact]
     public void GetStrengthScore_PasswordAtExactlyMinLength_ScoresReasonably()
     {
         // "Abcdef1!" = exactly 8 chars
@@ -715,17 +611,6 @@ public class PasswordValidatorTests
     {
         var password = new string('A', PasswordValidator.MaxLength) + "1";
         Assert.False(PasswordValidator.IsValid(password));
-    }
-
-    [Fact]
-    public void GetAllValidationErrors_ExactlyMaxLengthPlusOne_NoLetterNoDigit_ReturnsAllErrors()
-    {
-        var password = new string('!', PasswordValidator.MaxLength + 1);
-        var errors = PasswordValidator.GetAllValidationErrors(password);
-        Assert.Equal(3, errors.Count);
-        Assert.Contains(errors, e => e.Contains("no more than", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(errors, e => e.Contains("letter", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(errors, e => e.Contains("number", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

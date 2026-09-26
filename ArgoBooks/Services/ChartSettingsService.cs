@@ -150,7 +150,7 @@ public partial class ChartSettingsService : ObservableObject
         if (settings == null) return;
 
         // Try to load company-specific settings first
-        ChartSettings? chartSettings = null;
+        CompanyChartPreferences? chartSettings = null;
         if (!string.IsNullOrEmpty(_currentCompanyPath) &&
             settings.Ui.CompanyChartSettings.TryGetValue(_currentCompanyPath, out var companyChart))
         {
@@ -198,11 +198,10 @@ public partial class ChartSettingsService : ObservableObject
         var settings = _globalSettingsService?.GetSettings();
         if (settings == null) return;
 
-        var chartData = new ChartSettings
+        var chartData = new CompanyChartPreferences
         {
             ChartType = SelectedChartType,
-            DateRange = SelectedDateRange,
-            MaxPieSlices = settings.Ui.Chart.MaxPieSlices
+            DateRange = SelectedDateRange
         };
 
         if (HasAppliedCustomRange && SelectedDateRange == DateRangePreset.CustomRange.GetDisplayName())

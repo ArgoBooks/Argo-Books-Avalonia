@@ -16,12 +16,12 @@ public class PortalSettings
     public static readonly string ApiBaseUrl = $"{ApiConfig.BaseUrl}/api/portal";
 
     /// <summary>
-    /// Environment variable name for the portal API key (per-company, obtained during registration).
+    /// Key under which the open company's portal API key is held in <see cref="DotEnv"/>.
     /// </summary>
     public const string ApiKeyEnvVar = "PAYMENT_PORTAL_API_KEY";
 
     /// <summary>
-    /// Gets the active portal API key (from DotEnv, which is loaded per-company).
+    /// Gets the open company's portal API key, as set by <see cref="ActivateApiKey"/>.
     /// </summary>
     [JsonIgnore]
     public static string ApiKey => DotEnv.Get(ApiKeyEnvVar);

@@ -104,18 +104,6 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
             .ToList();
     }
 
-    /// <summary>
-    /// Gets total revenue value (in USD).
-    /// </summary>
-    public decimal GetTotalRevenue()
-    {
-        if (companyData?.Revenues == null)
-            return 0;
-
-        var (startDate, endDate) = GetDateRange();
-        return RevenueAggregator.SumCollectedRevenueUSD(companyData.Revenues, startDate, endDate);
-    }
-
     #endregion
 
     #region Expense Charts
@@ -197,18 +185,6 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
             .OrderByDescending(p => p.Value)
             .Take(10)
             .ToList();
-    }
-
-    /// <summary>
-    /// Gets total expenses value (in USD).
-    /// </summary>
-    public decimal GetTotalExpenses()
-    {
-        if (companyData?.Expenses == null)
-            return 0;
-
-        var (startDate, endDate) = GetDateRange();
-        return ExpenseAggregator.SumExpensesUSD(companyData.Expenses, startDate, endDate);
     }
 
     #endregion

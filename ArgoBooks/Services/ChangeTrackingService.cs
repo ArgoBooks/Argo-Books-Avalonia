@@ -9,19 +9,6 @@ namespace ArgoBooks.Services;
 public class ChangeTrackingService
 {
     /// <summary>
-    /// Event raised when the overall change state changes.
-    /// </summary>
-    public event EventHandler? ChangeStateChanged;
-
-    /// <summary>
-    /// Clears all tracked changes.
-    /// </summary>
-    public void ClearAllChanges()
-    {
-        ChangeStateChanged?.Invoke(this, EventArgs.Empty);
-    }
-
-    /// <summary>
     /// Gets all change categories with their changes.
     /// </summary>
     public IEnumerable<ChangeCategory> GetAllChangeCategories()

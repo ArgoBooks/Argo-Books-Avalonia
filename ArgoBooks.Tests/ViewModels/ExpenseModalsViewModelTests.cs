@@ -57,7 +57,7 @@ public class ExpenseModalsViewModelTests : ModalViewModelTestBase
         vm.ModalNotes = "first";
         vm.ModalDate = new DateTimeOffset(new DateTime(2026, 3, 1), TimeSpan.Zero);
 
-        await vm.SaveExpenseCommand.ExecuteAsync(null);
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
 
         var expense = Assert.Single(Company.Expenses);
         Assert.Equal(100m, expense.Total);
@@ -70,7 +70,7 @@ public class ExpenseModalsViewModelTests : ModalViewModelTestBase
         var vm = NewExpenseVmWithProduct();
         FillLineItem(vm, 100m);
         vm.ModalNotes = "first";
-        await vm.SaveExpenseCommand.ExecuteAsync(null);
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
 
         Undo();
         Assert.Empty(Company.Expenses);
@@ -88,14 +88,14 @@ public class ExpenseModalsViewModelTests : ModalViewModelTestBase
         var vm = NewExpenseVmWithProduct();
         FillLineItem(vm, 100m);
         vm.ModalNotes = "first";
-        await vm.SaveExpenseCommand.ExecuteAsync(null);
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
         var expenseId = Company.Expenses.Single().Id;
 
         // Edit it to $250 noted "second".
         vm.OpenEditModal(new ExpenseDisplayItem { Id = expenseId });
         vm.LineItems.First().UnitPrice = 250m;
         vm.ModalNotes = "second";
-        await vm.SaveExpenseCommand.ExecuteAsync(null);
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
 
         var edited = Company.Expenses.Single();
         Assert.Equal(250m, edited.Total);
@@ -131,7 +131,7 @@ public class ExpenseModalsViewModelTests : ModalViewModelTestBase
         var stock = TrackStock(10);
         FillLineItem(vm, 100m);
         vm.LineItems.First().Quantity = 5;
-        await vm.SaveExpenseCommand.ExecuteAsync(null);
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
         Assert.Equal(15, stock.InStock);
 
         vm.DeleteExpense(Company.Expenses.Single().Id);
@@ -162,7 +162,7 @@ public class ExpenseModalsViewModelTests : ModalViewModelTestBase
         second.SelectedProduct = vm.ProductOptions.First(p => p.Id == "P1");
         second.Quantity = 5;
         second.UnitPrice = 100m;
-        await vm.SaveExpenseCommand.ExecuteAsync(null);
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
         Assert.Equal(20, stock.InStock);
 
         Undo();
@@ -176,13 +176,13 @@ public class ExpenseModalsViewModelTests : ModalViewModelTestBase
         var vm = NewExpenseVmWithProduct();
         FillLineItem(vm, 100m);
         vm.PickReceiptFile(TempReceiptFile("first.png", [1, 2, 3]));
-        await vm.SaveExpenseCommand.ExecuteAsync(null);
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
         var expense = Company.Expenses.Single();
         var oldReceipt = Company.Receipts.Single();
 
         vm.OpenEditModal(new ExpenseDisplayItem { Id = expense.Id });
         vm.PickReceiptFile(TempReceiptFile("second.png", [4, 5, 6]));
-        await vm.SaveExpenseCommand.ExecuteAsync(null);
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
 
         var newReceipt = Assert.Single(Company.Receipts);
         Assert.Equal("second.png", newReceipt.FileName);
@@ -203,13 +203,13 @@ public class ExpenseModalsViewModelTests : ModalViewModelTestBase
         var vm = NewExpenseVmWithProduct();
         FillLineItem(vm, 100m);
         vm.PickReceiptFile(TempReceiptFile("first.png", [1, 2, 3]));
-        await vm.SaveExpenseCommand.ExecuteAsync(null);
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
         var expense = Company.Expenses.Single();
         var receipt = Company.Receipts.Single();
 
         vm.OpenEditModal(new ExpenseDisplayItem { Id = expense.Id });
         vm.ModalNotes = "second";
-        await vm.SaveExpenseCommand.ExecuteAsync(null);
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
 
         Assert.Same(receipt, Assert.Single(Company.Receipts));
         Assert.Equal(receipt.Id, expense.ReceiptId);

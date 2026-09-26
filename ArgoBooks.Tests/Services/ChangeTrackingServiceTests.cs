@@ -17,15 +17,4 @@ public class ChangeTrackingServiceTests
 
         Assert.Empty(categories);
     }
-
-    [Fact]
-    public void ClearAllChanges_RaisesChangeStateChanged()
-    {
-        var eventRaised = false;
-        _service.ChangeStateChanged += (_, _) => eventRaised = true;
-
-        _service.ClearAllChanges();
-
-        Assert.True(eventRaised);
-    }
 }

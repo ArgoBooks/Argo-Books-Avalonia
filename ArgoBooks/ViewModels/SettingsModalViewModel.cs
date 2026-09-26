@@ -258,17 +258,6 @@ public partial class SettingsModalViewModel : ViewModelBase
     private string _selectedAccentColor;
 
     public ObservableCollection<string> Themes { get; } = new(ThemeModeExtensions.GetAllDisplayNames());
-
-    public ObservableCollection<AccentColorItem> AccentColors { get; } =
-    [
-        new("Blue", AppColors.Primary),
-        new("Green", AppColors.Emerald),
-        new("Purple", AppColors.Violet),
-        new("Pink", AppColors.Pink),
-        new("Orange", AppColors.Orange),
-        new("Teal", AppColors.Teal)
-    ];
-
     #endregion
 
     #region Security Settings
@@ -4132,15 +4121,6 @@ public partial class SettingsModalViewModel : ViewModelBase
     }
 
     #endregion
-}
-
-/// <summary>
-/// Represents an accent color option.
-/// </summary>
-public class AccentColorItem(string name, string colorHex)
-{
-    public string Name { get; } = name;
-    public string ColorHex { get; } = colorHex;
 }
 
 /// <summary>

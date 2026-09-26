@@ -17,6 +17,7 @@ public class PaymentPortalServiceTests
     {
         // Remove the portal API key from both the in-memory cache and
         // environment so the service takes the "not configured" path.
+        var priorKey = DotEnv.Get(PortalSettings.ApiKeyEnvVar);
         DotEnv.Unset(PortalSettings.ApiKeyEnvVar);
 
         try
@@ -30,8 +31,8 @@ public class PaymentPortalServiceTests
         }
         finally
         {
-            // Reload from .env to restore original state.
-            DotEnv.Reload();
+            if (!string.IsNullOrEmpty(priorKey))
+                DotEnv.SetInMemory(PortalSettings.ApiKeyEnvVar, priorKey);
         }
     }
 

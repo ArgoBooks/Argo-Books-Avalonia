@@ -166,28 +166,4 @@ public static class InvoiceTemplateFactory
             ShowDueDateProminent = false
         };
     }
-
-    /// <summary>
-    /// Creates a custom template with the specified base type.
-    /// </summary>
-    public static InvoiceTemplate CreateCustomTemplate(string id, string name, InvoiceTemplateType baseType)
-    {
-        var baseTemplate = baseType switch
-        {
-            InvoiceTemplateType.Professional => CreateProfessionalTemplate(),
-            InvoiceTemplateType.Modern => CreateModernTemplate(),
-            InvoiceTemplateType.Classic => CreateClassicTemplate(),
-            InvoiceTemplateType.Elegant => CreateElegantTemplate(),
-            InvoiceTemplateType.Ribbon => CreateRibbonTemplate(),
-            _ => CreateProfessionalTemplate()
-        };
-
-        baseTemplate.Id = id;
-        baseTemplate.Name = name;
-        baseTemplate.IsDefault = false;
-        baseTemplate.CreatedAt = DateTime.UtcNow;
-        baseTemplate.UpdatedAt = DateTime.UtcNow;
-
-        return baseTemplate;
-    }
 }

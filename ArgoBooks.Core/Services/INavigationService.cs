@@ -34,35 +34,7 @@ public interface INavigationService
     Task<bool> NavigateToAsync(string pageName, object? parameter = null);
 
     /// <summary>
-    /// Navigates back to the previous page.
-    /// </summary>
-    /// <returns>True if navigation occurred, false if at the start.</returns>
-    bool GoBack();
-
-    /// <summary>
-    /// Navigates forward to the next page (if available).
-    /// </summary>
-    /// <returns>True if navigation occurred, false if at the end.</returns>
-    bool GoForward();
-
-    /// <summary>
-    /// Gets whether back navigation is available.
-    /// </summary>
-    bool CanGoBack { get; }
-
-    /// <summary>
-    /// Gets whether forward navigation is available.
-    /// </summary>
-    bool CanGoForward { get; }
-
-    /// <summary>
-    /// Clears the navigation history.
-    /// </summary>
-    void ClearHistory();
-
-    /// <summary>
     /// Re-creates the current page to refresh its content.
-    /// Does not affect the back/forward navigation stacks.
     /// </summary>
     void RefreshCurrentPage();
 
@@ -71,12 +43,6 @@ public interface INavigationService
     /// </summary>
     /// <param name="guard">The guard callback to register.</param>
     void RegisterNavigationGuard(NavigationGuardCallback guard);
-
-    /// <summary>
-    /// Unregisters a previously registered navigation guard.
-    /// </summary>
-    /// <param name="guard">The guard callback to unregister.</param>
-    void UnregisterNavigationGuard(NavigationGuardCallback guard);
 
     /// <summary>
     /// Event raised when navigation occurs.

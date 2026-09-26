@@ -141,44 +141,6 @@ public class ReportTemplateStorage
     }
 
     /// <summary>
-    /// Gets all saved templates with metadata.
-    /// </summary>
-    public async Task<List<SavedTemplate>> GetAllTemplatesAsync()
-    {
-        var templates = new List<SavedTemplate>();
-
-        try
-        {
-            EnsureDirectoryExists();
-
-            var files = Directory.GetFiles(TemplatesDirectory, "*.argotemplate");
-            foreach (var file in files)
-            {
-                try
-                {
-                    var json = await File.ReadAllTextAsync(file);
-                    var templateData = JsonSerializer.Deserialize<SavedTemplate>(json, JsonOptions);
-                    if (templateData != null)
-                    {
-                        templateData.FilePath = file;
-                        templates.Add(templateData);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _errorLogger?.LogWarning($"Failed to read template file {Path.GetFileName(file)}: {ex.Message}", "ReportTemplateStorage");
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            _errorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to enumerate report templates");
-        }
-
-        return templates.OrderByDescending(t => t.ModifiedAt).ToList();
-    }
-
-    /// <summary>
     /// Deletes a template from storage.
     /// </summary>
     public bool DeleteTemplate(string templateName)

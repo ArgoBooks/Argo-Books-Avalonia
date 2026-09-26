@@ -118,9 +118,6 @@ public partial class LanguageService
     {
         try
         {
-            // Migrate legacy monolithic translations.json to per-language files
-            MigrateLegacyTranslationsFile();
-
             // Load English translations
             LoadLanguageFile("en", ref _englishCache);
 
@@ -171,48 +168,6 @@ public partial class LanguageService
         LoadLanguageFile(isoCode, ref cache);
         _currentLanguageCache = cache;
         _currentLoadedIsoCode = isoCode;
-    }
-
-    /// <summary>
-    /// Migrates the legacy monolithic translations.json file to individual per-language files.
-    /// </summary>
-    private void MigrateLegacyTranslationsFile()
-    {
-        var legacyPath = Path.Combine(_cacheDirectory, "translations.json");
-        if (!File.Exists(legacyPath))
-            return;
-
-        try
-        {
-            var content = File.ReadAllText(legacyPath);
-            if (string.IsNullOrWhiteSpace(content))
-                return;
-
-            var allTranslations = JsonSerializer.Deserialize<Dictionary<string, Dictionary<string, string>>>(content);
-            if (allTranslations == null)
-                return;
-
-            var options = new JsonSerializerOptions { WriteIndented = true };
-            foreach (var (isoCode, translations) in allTranslations)
-            {
-                var filePath = GetLanguageFilePath(isoCode);
-                if (!File.Exists(filePath)) // Don't overwrite existing per-language files
-                {
-                    var sorted = translations
-                        .OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase)
-                        .ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.OrdinalIgnoreCase);
-                    File.WriteAllText(filePath, JsonSerializer.Serialize(sorted, options));
-                }
-            }
-
-            // Remove the legacy file after successful migration
-            File.Delete(legacyPath);
-            App.ErrorLogger?.LogDebug($"LanguageService: Migrated {allTranslations.Count} languages from legacy translations.json");
-        }
-        catch (Exception ex)
-        {
-            App.ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to migrate legacy translations.json");
-        }
     }
 
     /// <summary>

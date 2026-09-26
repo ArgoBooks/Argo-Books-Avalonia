@@ -487,35 +487,6 @@ public partial class HeaderViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Sets the user information.
-    /// </summary>
-    /// <param name="displayName">User display name.</param>
-    /// <param name="email">User email.</param>
-    /// <param name="role">User role.</param>
-    /// <param name="avatarSource">Optional avatar image.</param>
-    public void SetUserInfo(string? displayName, string? email = null, string? role = null, Bitmap? avatarSource = null, int userId = 0)
-    {
-        UserId = userId;
-        UserDisplayName = displayName;
-        UserEmail = email;
-        UserRole = role;
-        UserAvatarSource = avatarSource;
-        HasUserAvatar = avatarSource != null;
-
-        // Generate initials from display name
-        if (!string.IsNullOrWhiteSpace(displayName))
-        {
-            UserInitials = Helpers.InitialsHelper.From(displayName);
-            ShowUserInitials = !HasUserAvatar;
-        }
-        else
-        {
-            UserInitials = null;
-            ShowUserInitials = false;
-        }
-    }
-
-    /// <summary>
     /// Adds a notification and shows a toast popup for 10 seconds.
     /// </summary>
     /// <param name="notification">Notification to add.</param>

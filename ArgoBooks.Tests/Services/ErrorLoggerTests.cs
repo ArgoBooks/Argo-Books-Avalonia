@@ -37,7 +37,7 @@ public class ErrorLoggerTests
         _errorLogger.LogError(new TaskCanceledException(), ErrorCategory.Network, "cancelled request");
         _errorLogger.LogError(new OperationCanceledException(), ErrorCategory.Network);
 
-        Assert.Empty(_errorLogger.GetAllErrors());
+        Assert.Empty(_errorLogger.GetRecentErrors(int.MaxValue));
     }
 
     [Fact]
@@ -150,7 +150,7 @@ public class ErrorLoggerTests
     {
         _errorLogger.LogWarning("Test warning", "Warning context");
 
-        var errors = _errorLogger.GetAllErrors();
+        var errors = _errorLogger.GetRecentErrors(int.MaxValue);
         var warning = errors.FirstOrDefault(e => e.Level == LogLevel.Warning);
         Assert.NotNull(warning);
         Assert.Equal("Test warning", warning.Message);
@@ -162,8 +162,8 @@ public class ErrorLoggerTests
         _errorLogger.LogInfo("Test info message");
 
         // Info messages are stored but not returned by GetRecentErrors (which filters to Warning+)
-        var allErrors = _errorLogger.GetAllErrors();
-        Assert.Empty(allErrors); // GetAllErrors also filters to Warning+
+        var allErrors = _errorLogger.GetRecentErrors(int.MaxValue);
+        Assert.Empty(allErrors);
     }
 
     [Fact]
@@ -192,43 +192,8 @@ public class ErrorLoggerTests
             smallLogger.LogError($"Error {i}", ErrorCategory.Unknown);
         }
 
-        var errors = smallLogger.GetAllErrors();
+        var errors = smallLogger.GetRecentErrors(int.MaxValue);
         Assert.True(errors.Count <= 10, "Logger should trim to capacity");
-    }
-
-    #endregion
-
-    #region Export Tests
-
-    [Fact]
-    public async Task ExportErrorLogAsync_ReturnsValidJson()
-    {
-        _errorLogger.LogError("Test error", ErrorCategory.Api);
-        _errorLogger.LogWarning("Test warning");
-
-        var json = await _errorLogger.ExportErrorLogAsync();
-
-        Assert.NotEmpty(json);
-        Assert.Contains("Test error", json);
-        Assert.Contains("Test warning", json);
-        Assert.Contains("Api", json);
-    }
-
-    #endregion
-
-    #region Clear Tests
-
-    [Fact]
-    public void ClearLogs_RemovesAllEntries()
-    {
-        _errorLogger.LogError("Error 1", ErrorCategory.Unknown);
-        _errorLogger.LogError("Error 2", ErrorCategory.Unknown);
-        _errorLogger.LogWarning("Warning 1");
-
-        _errorLogger.ClearLogs();
-
-        var errors = _errorLogger.GetAllErrors();
-        Assert.Empty(errors);
     }
 
     #endregion
@@ -279,7 +244,7 @@ public class ErrorLoggerTests
 
         Assert.Empty(telemetry.Reported);
         // Still recorded in the in-app log, which is where support reads it from.
-        Assert.Single(logger.GetAllErrors());
+        Assert.Single(logger.GetRecentErrors(int.MaxValue));
     }
 
     [Fact]

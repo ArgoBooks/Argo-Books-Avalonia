@@ -75,16 +75,6 @@ public class ReportChartDataServiceTests
         Assert.Empty(result);
     }
 
-    [Fact]
-    public void GetTotalRevenue_NullCompanyData_ReturnsZero()
-    {
-        var service = new ReportChartDataService(null, CreateDefaultFilters());
-
-        var result = service.GetTotalRevenue();
-
-        Assert.Equal(0m, result);
-    }
-
     #endregion
 
     #region Expense Chart Tests
@@ -107,16 +97,6 @@ public class ReportChartDataServiceTests
         var result = service.GetExpenseDistribution();
 
         Assert.Empty(result);
-    }
-
-    [Fact]
-    public void GetTotalExpenses_NullCompanyData_ReturnsZero()
-    {
-        var service = new ReportChartDataService(null, CreateDefaultFilters());
-
-        var result = service.GetTotalExpenses();
-
-        Assert.Equal(0m, result);
     }
 
     #endregion
@@ -298,7 +278,7 @@ public class ReportChartDataServiceTests
             ? new ReportFilters { DatePresetName = DatePresetNames.LastYear }
             : new ReportFilters { DatePresetName = DatePresetNames.Custom, StartDate = lastDay.AddMonths(-1), EndDate = lastDay };
 
-        Assert.Equal(100m, new ReportChartDataService(data, filters).GetTotalRevenue());
+        Assert.Equal(100d, new ReportChartDataService(data, filters).GetRevenueOverTime().Sum(p => p.Value));
     }
 
     // A range that starts partway through a month counts only that month's tax from inside the range,

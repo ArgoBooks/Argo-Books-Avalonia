@@ -133,7 +133,7 @@ They are saved here:
 | **macOS** | `~/Library/Caches/ArgoBooks/Languages/` |
 | **Linux** | `~/.cache/ArgoBooks/Languages/` |
 
-The folder holds `translations.json` (every language except English), `en.json` (English), and optionally a `{isoCode}.json` file for single languages.
+The folder holds one `{isoCode}.json` file per downloaded language, with `en.json` for English.
 
 Each file maps keys to text:
 

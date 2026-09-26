@@ -329,7 +329,6 @@ public partial class PaymentModalsViewModel : ViewModelBase
         _ = PendingConversionService.Instance?.MirrorAsync(companyData, [payment.Id]);
     }
 
-    [RelayCommand]
     public async Task SaveNewPayment()
     {
         if (!ValidateModal())
@@ -435,7 +434,6 @@ public partial class PaymentModalsViewModel : ViewModelBase
         IsEditModalOpen = true;
     }
 
-    [RelayCommand]
     public void CloseEditModal()
     {
         IsEditModalOpen = false;
@@ -446,7 +444,6 @@ public partial class PaymentModalsViewModel : ViewModelBase
     /// <summary>
     /// Requests to close the Edit modal, showing confirmation if changes were made.
     /// </summary>
-    [RelayCommand]
     public async Task RequestCloseEditModalAsync()
     {
         if (HasEditModalChanges)
@@ -458,7 +455,6 @@ public partial class PaymentModalsViewModel : ViewModelBase
         CloseEditModal();
     }
 
-    [RelayCommand]
     public async Task SaveEditedPayment()
     {
         if (_editingPayment == null)

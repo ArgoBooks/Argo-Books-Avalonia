@@ -196,12 +196,6 @@ public partial class LostDamagedPageViewModel : SortablePageViewModelBase
         TotalLossValue = complete ? CurrencyService.Format(totalValue) : CurrencyService.PendingMarker;
     }
 
-    [RelayCommand]
-    private void RefreshItems()
-    {
-        LoadItems();
-    }
-
     private void FilterItems()
     {
         IEnumerable<LostDamaged> filtered = _allItems;

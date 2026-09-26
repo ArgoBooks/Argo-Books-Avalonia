@@ -10,7 +10,7 @@ public class LocationsModalsViewModelTests : ModalViewModelTestBase
         vm.OpenAddModal();
         vm.ModalName = name;
         vm.ModalCode = code;
-        vm.SaveNewLocationCommand.Execute(null);
+        vm.SaveFormCommand.Execute(null);
     }
 
     // A location added without a code must get one that's free, not fail with "already exists"

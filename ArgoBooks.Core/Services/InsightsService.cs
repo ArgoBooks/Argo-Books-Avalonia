@@ -121,24 +121,6 @@ public class InsightsService(
         return await Task.Run(() => GenerateForecast(companyData, dateRange));
     }
 
-    /// <inheritdoc />
-    public async Task<List<InsightItem>> DetectAnomaliesAsync(CompanyData companyData, AnalysisDateRange dateRange)
-    {
-        return await Task.Run(() => DetectAnomalies(companyData, dateRange));
-    }
-
-    /// <inheritdoc />
-    public async Task<List<InsightItem>> AnalyzeTrendsAsync(CompanyData companyData, AnalysisDateRange dateRange)
-    {
-        return await Task.Run(() => AnalyzeTrends(companyData, dateRange));
-    }
-
-    /// <inheritdoc />
-    public async Task<List<InsightItem>> GenerateRecommendationsAsync(CompanyData companyData, AnalysisDateRange dateRange)
-    {
-        return await Task.Run(() => GenerateRecommendations(companyData, dateRange));
-    }
-
     #region Data Sufficiency Check
 
     private (bool HasSufficientData, string? Message, int MonthsOfData) CheckDataSufficiency(
@@ -178,7 +160,7 @@ public class InsightsService(
 
     #region Trend Analysis
 
-    private List<InsightItem> AnalyzeTrends(CompanyData companyData, AnalysisDateRange dateRange)
+    internal List<InsightItem> AnalyzeTrends(CompanyData companyData, AnalysisDateRange dateRange)
     {
         var insights = new List<InsightItem>();
         ResolveDisplayCode(companyData);
@@ -968,7 +950,7 @@ public class InsightsService(
 
     #region Recommendations
 
-    private List<InsightItem> GenerateRecommendations(CompanyData companyData, AnalysisDateRange dateRange)
+    internal List<InsightItem> GenerateRecommendations(CompanyData companyData, AnalysisDateRange dateRange)
     {
         var recommendations = new List<InsightItem>();
         ResolveDisplayCode(companyData);

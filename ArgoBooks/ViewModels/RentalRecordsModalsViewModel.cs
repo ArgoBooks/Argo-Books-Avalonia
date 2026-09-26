@@ -527,7 +527,6 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
         customerModals.OpenAddModal();
     }
 
-    [RelayCommand]
     public void SaveNewRecord()
     {
         if (!ValidateModal())
@@ -634,7 +633,6 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
         IsEditModalOpen = true;
     }
 
-    [RelayCommand]
     public void CloseEditModal()
     {
         IsEditModalOpen = false;
@@ -645,7 +643,6 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
     /// <summary>
     /// Requests to close the Edit modal, showing confirmation if changes were made.
     /// </summary>
-    [RelayCommand]
     public async Task RequestCloseEditModalAsync()
     {
         if (HasEditModalChanges)
@@ -657,7 +654,6 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
         CloseEditModal();
     }
 
-    [RelayCommand]
     public void SaveEditedRecord()
     {
         if (_editingRecord == null || ModalCustomer == null || !ValidateModal())

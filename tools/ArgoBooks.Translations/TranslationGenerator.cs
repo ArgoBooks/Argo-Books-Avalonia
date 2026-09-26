@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 using ArgoBooks.Data;
 using ArgoBooks.Services;
 
-namespace ArgoBooks.Localization;
+namespace ArgoBooks.Translations;
 
 /// <summary>
 /// Admin tool for generating translations.
@@ -170,10 +170,6 @@ public partial class TranslationGenerator
         var csFiles = Directory.GetFiles(sourceDirectory, "*.cs", SearchOption.AllDirectories);
         foreach (var file in csFiles)
         {
-            // Skip the TranslationGenerator itself
-            if (file.EndsWith("TranslationGenerator.cs", StringComparison.OrdinalIgnoreCase))
-                continue;
-
             CollectFromCsFile(file, strings);
         }
 

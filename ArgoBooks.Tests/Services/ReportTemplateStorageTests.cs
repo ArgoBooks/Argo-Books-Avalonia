@@ -154,29 +154,6 @@ public class ReportTemplateStorageTests : IDisposable
 
     #endregion
 
-    #region GetAllTemplatesAsync Tests
-
-    [Fact]
-    public async Task GetAllTemplatesAsync_EmptyDirectory_ReturnsEmptyList()
-    {
-        var result = await _storage.GetAllTemplatesAsync();
-
-        Assert.Empty(result);
-    }
-
-    [Fact]
-    public async Task GetAllTemplatesAsync_WithTemplates_ReturnsAll()
-    {
-        await _storage.SaveTemplateAsync(new ReportConfiguration(), "Template 1");
-        await _storage.SaveTemplateAsync(new ReportConfiguration(), "Template 2");
-
-        var result = await _storage.GetAllTemplatesAsync();
-
-        Assert.Equal(2, result.Count);
-    }
-
-    #endregion
-
     #region GetImagesDirectory Tests
 
     [Fact]

@@ -35,11 +35,6 @@ public class ReceiptScanCoordinatorTests
 
         public Task<ReceiptScanResult> ScanReceiptAsync(byte[] imageData, string fileName, bool skipPreprocessing, CancellationToken cancellationToken = default)
             => ScanReceiptAsync(imageData, fileName, cancellationToken);
-
-        public Task<ReceiptScanResult> ScanReceiptFromFileAsync(string filePath, CancellationToken cancellationToken = default)
-            => Task.FromResult(_result);
-
-        public Task<bool> ValidateConfigurationAsync() => Task.FromResult(true);
     }
 
     [Fact]

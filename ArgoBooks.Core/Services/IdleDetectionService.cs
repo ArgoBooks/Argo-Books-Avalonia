@@ -98,32 +98,6 @@ public class IdleDetectionService : IDisposable
         IsEnabled = enabled && timeoutMinutes > 0;
     }
 
-    /// <summary>
-    /// Parses a timeout string like "5 minutes" to minutes.
-    /// </summary>
-    /// <param name="timeoutString">The timeout string (e.g., "5 minutes", "1 hour", "Never").</param>
-    /// <returns>Timeout in minutes, or 0 for "Never".</returns>
-    public static int ParseTimeoutString(string? timeoutString)
-    {
-        if (string.IsNullOrEmpty(timeoutString) || timeoutString == "Never")
-            return 0;
-
-        if (timeoutString.Contains("hour"))
-        {
-            // "1 hour"
-            return 60;
-        }
-
-        // Try to parse "X minutes"
-        var parts = timeoutString.Split(' ');
-        if (parts.Length >= 1 && int.TryParse(parts[0], out var minutes))
-        {
-            return minutes;
-        }
-
-        return 0;
-    }
-
     private void OnIdleTimerElapsed(object? sender, ElapsedEventArgs e)
     {
         if (!_isEnabled || _timeoutMinutes <= 0)

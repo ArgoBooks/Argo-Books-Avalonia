@@ -56,7 +56,7 @@ public class RevenueModalsViewModelTests : ModalViewModelTestBase
         vm.ModalNotes = "first";
         vm.ModalDate = new DateTimeOffset(new DateTime(2026, 3, 1), TimeSpan.Zero);
 
-        await vm.SaveRevenueCommand.ExecuteAsync(null);
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
 
         var revenue = Assert.Single(Company.Revenues);
         Assert.Equal(100m, revenue.Total);
@@ -69,7 +69,7 @@ public class RevenueModalsViewModelTests : ModalViewModelTestBase
         var vm = NewRevenueVmWithProduct();
         FillLineItem(vm, 100m);
         vm.ModalNotes = "first";
-        await vm.SaveRevenueCommand.ExecuteAsync(null);
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
 
         Undo();
         Assert.Empty(Company.Revenues);
@@ -86,13 +86,13 @@ public class RevenueModalsViewModelTests : ModalViewModelTestBase
         var vm = NewRevenueVmWithProduct();
         FillLineItem(vm, 100m);
         vm.ModalNotes = "first";
-        await vm.SaveRevenueCommand.ExecuteAsync(null);
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
         var revenueId = Company.Revenues.Single().Id;
 
         vm.OpenEditModal(new RevenueDisplayItem { Id = revenueId });
         vm.LineItems.First().UnitPrice = 250m;
         vm.ModalNotes = "second";
-        await vm.SaveRevenueCommand.ExecuteAsync(null);
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
 
         Assert.Equal(250m, Company.Revenues.Single().Total);
         Assert.Equal("second", Company.Revenues.Single().Notes);
@@ -115,7 +115,7 @@ public class RevenueModalsViewModelTests : ModalViewModelTestBase
         Company.Inventory.Add(stock);
         FillLineItem(vm, 100m);
         vm.LineItems.First().Quantity = 5;
-        await vm.SaveRevenueCommand.ExecuteAsync(null);
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
         Assert.Equal(5, stock.InStock);
 
         decimal LedgerNet() => Company.StockAdjustments.Sum(InventoryValuationService.SignedDelta);
@@ -142,13 +142,13 @@ public class RevenueModalsViewModelTests : ModalViewModelTestBase
         var vm = NewRevenueVmWithProduct();
         FillLineItem(vm, 100m);
         vm.PickReceiptFile(TempReceiptFile("first.png", [1, 2, 3]));
-        await vm.SaveRevenueCommand.ExecuteAsync(null);
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
         var revenue = Company.Revenues.Single();
         var oldReceipt = Company.Receipts.Single();
 
         vm.OpenEditModal(new RevenueDisplayItem { Id = revenue.Id });
         vm.PickReceiptFile(TempReceiptFile("second.png", [4, 5, 6]));
-        await vm.SaveRevenueCommand.ExecuteAsync(null);
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
 
         var newReceipt = Assert.Single(Company.Receipts);
         Assert.Equal("second.png", newReceipt.FileName);

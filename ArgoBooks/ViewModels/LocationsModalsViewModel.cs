@@ -251,7 +251,6 @@ public partial class LocationsModalsViewModel : ViewModelBase
     /// <summary>
     /// Saves a new location.
     /// </summary>
-    [RelayCommand]
     private void SaveNewLocation()
     {
         if (!ValidateModal())
@@ -353,7 +352,6 @@ public partial class LocationsModalsViewModel : ViewModelBase
     /// <summary>
     /// Closes the Edit modal.
     /// </summary>
-    [RelayCommand]
     private void CloseEditModal()
     {
         IsEditModalOpen = false;
@@ -364,7 +362,6 @@ public partial class LocationsModalsViewModel : ViewModelBase
     /// <summary>
     /// Requests to close the Edit modal, showing confirmation if changes were made.
     /// </summary>
-    [RelayCommand]
     public async Task RequestCloseEditModalAsync()
     {
         if (HasEditModalChanges)
@@ -379,7 +376,6 @@ public partial class LocationsModalsViewModel : ViewModelBase
     /// <summary>
     /// Saves changes to an existing location.
     /// </summary>
-    [RelayCommand]
     private void SaveEditedLocation()
     {
         if (!ValidateModal() || _editingLocation == null)

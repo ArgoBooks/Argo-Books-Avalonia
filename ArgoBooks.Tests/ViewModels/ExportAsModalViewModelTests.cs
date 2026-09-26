@@ -30,22 +30,6 @@ public class ExportAsModalViewModelTests
 
     #endregion
 
-    #region FileFormats Tests
-
-    [Fact]
-    public void FileFormats_IsPopulated()
-    {
-        Assert.NotEmpty(_viewModel.FileFormats);
-    }
-
-    [Fact]
-    public void FileFormats_ContainsXlsx()
-    {
-        Assert.Contains("xlsx", _viewModel.FileFormats);
-    }
-
-    #endregion
-
     #region DataItems Tests
 
     [Fact]

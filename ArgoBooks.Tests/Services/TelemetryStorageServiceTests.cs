@@ -110,22 +110,6 @@ public class TelemetryStorageServiceTests
 
     #endregion
 
-    #region ExportToJsonAsync Tests
-
-    [Fact]
-    public async Task ExportToJsonAsync_EmptyService_ReturnsValidJson()
-    {
-        var platformService = new MockPlatformService();
-        var service = new TelemetryStorageService(platformService);
-
-        var json = await service.ExportToJsonAsync();
-
-        Assert.NotNull(json);
-        Assert.False(string.IsNullOrEmpty(json));
-    }
-
-    #endregion
-
     #region Mock Classes
 
     private class MockPlatformService : IPlatformService
@@ -140,8 +124,6 @@ public class TelemetryStorageServiceTests
         public PlatformType Platform => PlatformType.Linux;
         public string GetAppDataPath() => _appDataPath;
         public string GetTempPath() => Path.GetTempPath();
-        public string GetDefaultDocumentsPath() => Path.GetTempPath();
-        public string GetLogsPath() => Path.GetTempPath();
         public string GetCachePath() => Path.GetTempPath();
         public void EnsureDirectoryExists(string path) => Directory.CreateDirectory(path);
         public bool SupportsFileSystem => true;
@@ -158,7 +140,6 @@ public class TelemetryStorageServiceTests
         public string NormalizePath(string path) => path;
         public string CombinePaths(params string[] paths) => Path.Combine(paths);
         public string GetMachineId() => "test-machine-id";
-        public void RegisterFileTypeAssociations(string iconPath) { }
         public StringComparer PathComparer => StringComparer.Ordinal;
     }
 

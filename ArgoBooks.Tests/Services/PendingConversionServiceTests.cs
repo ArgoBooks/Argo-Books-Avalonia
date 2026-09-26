@@ -183,8 +183,6 @@ public class PendingConversionServiceTests
         public PlatformType Platform => PlatformType.Linux;
         public string GetAppDataPath() => Path.GetTempPath();
         public string GetTempPath() => Path.GetTempPath();
-        public string GetDefaultDocumentsPath() => Path.GetTempPath();
-        public string GetLogsPath() => Path.GetTempPath();
         public string GetCachePath() => Path.GetTempPath();
         public void EnsureDirectoryExists(string path) { }
         public bool SupportsFileSystem => false;
@@ -201,7 +199,6 @@ public class PendingConversionServiceTests
         public string NormalizePath(string path) => path;
         public string CombinePaths(params string[] paths) => Path.Combine(paths);
         public string GetMachineId() => "test-machine-id";
-        public void RegisterFileTypeAssociations(string iconPath) { }
         public StringComparer PathComparer => StringComparer.Ordinal;
     }
 }

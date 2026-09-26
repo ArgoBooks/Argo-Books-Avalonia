@@ -1,51 +1,26 @@
 namespace ArgoBooks.Core.Services;
 
 /// <summary>
-/// Loads environment variables from a .env file.
+/// Process-level key/value store for values that live only for the session, such as the open
+/// company's portal API key. Nothing is read from or written to disk; values are mirrored into
+/// the process environment.
 /// </summary>
 public static class DotEnv
 {
     private static readonly Dictionary<string, string> EnvVars = new(StringComparer.OrdinalIgnoreCase);
-    private static bool _isLoaded;
 
     /// <summary>
-    /// Loads environment variables from the .env file.
-    /// Searches for .env in the application directory and parent directories.
-    /// </summary>
-    public static void Load()
-    {
-        if (_isLoaded) return;
-
-        var envPath = FindEnvFile();
-        if (!string.IsNullOrEmpty(envPath) && File.Exists(envPath))
-        {
-            LoadFromFile(envPath);
-        }
-
-        _isLoaded = true;
-    }
-
-    /// <summary>
-    /// Gets an environment variable value.
-    /// First checks the loaded .env values, then falls back to system environment variables.
+    /// Gets a value, falling back to the process environment.
     /// </summary>
     /// <param name="key">The variable name.</param>
     /// <returns>The value, or empty string if not found.</returns>
     public static string Get(string key)
     {
-        // Ensure .env is loaded
-        if (!_isLoaded)
-        {
-            Load();
-        }
-
-        // First check our loaded values
         if (EnvVars.TryGetValue(key, out var value))
         {
             return value;
         }
 
-        // Fall back to system environment variables
         return Environment.GetEnvironmentVariable(key) ?? string.Empty;
     }
 
@@ -60,116 +35,23 @@ public static class DotEnv
     }
 
     /// <summary>
-    /// Maximum number of parent directories to search for .env file.
-    /// </summary>
-    private const int MaxParentSearchDepth = 1;
-
-    /// <summary>
-    /// Finds the .env file by searching the application directory and up to one parent directory.
-    /// Limited to prevent an attacker from injecting a .env file in a distant parent directory.
-    /// </summary>
-    private static string? FindEnvFile()
-    {
-        // Start from the application's base directory
-        var directory = AppDomain.CurrentDomain.BaseDirectory;
-
-        // Search up the directory tree for .env file (limited depth)
-        for (var depth = 0; depth <= MaxParentSearchDepth && !string.IsNullOrEmpty(directory); depth++)
-        {
-            var envPath = Path.Combine(directory, ".env");
-            if (File.Exists(envPath))
-            {
-                return envPath;
-            }
-
-            // Move to parent directory
-            var parent = Directory.GetParent(directory);
-            if (parent == null) break;
-            directory = parent.FullName;
-        }
-
-        return null;
-    }
-
-    /// <summary>
-    /// Loads environment variables from the specified .env file.
-    /// </summary>
-    private static void LoadFromFile(string path)
-    {
-        try
-        {
-            var lines = File.ReadAllLines(path);
-
-            foreach (var line in lines)
-            {
-                // Skip empty lines and comments
-                var trimmedLine = line.Trim();
-                if (string.IsNullOrEmpty(trimmedLine) || trimmedLine.StartsWith('#'))
-                {
-                    continue;
-                }
-
-                // Parse KEY=VALUE format
-                var separatorIndex = trimmedLine.IndexOf('=');
-                if (separatorIndex <= 0) continue;
-
-                var key = trimmedLine[..separatorIndex].Trim();
-                var value = trimmedLine[(separatorIndex + 1)..].Trim();
-
-                // Remove surrounding quotes if present
-                if (value.Length >= 2)
-                {
-                    if ((value.StartsWith('"') && value.EndsWith('"')) ||
-                        (value.StartsWith('\'') && value.EndsWith('\'')))
-                    {
-                        value = value[1..^1];
-                    }
-                }
-
-                EnvVars[key] = value;
-
-                // Also set as system environment variable for the current process
-                Environment.SetEnvironmentVariable(key, value);
-            }
-        }
-        catch
-        {
-            // .env file loading is best-effort; errors are non-critical
-        }
-    }
-
-    /// <summary>
-    /// Sets an environment variable in-memory only (no disk write).
-    /// Use for transient/per-session values that should not persist across app restarts.
+    /// Sets a value for the current process only.
     /// </summary>
     /// <param name="key">The variable name.</param>
     /// <param name="value">The value to set.</param>
     public static void SetInMemory(string key, string value)
     {
-        if (!_isLoaded) Load();
         EnvVars[key] = value;
         Environment.SetEnvironmentVariable(key, value);
     }
 
     /// <summary>
-    /// Removes a key from the in-memory cache and clears the corresponding
-    /// environment variable for the current process. Does not modify the .env file.
+    /// Removes a value and clears the corresponding environment variable for the current process.
     /// </summary>
     /// <param name="key">The variable name to remove.</param>
     public static void Unset(string key)
     {
-        if (!_isLoaded) Load();
         EnvVars.Remove(key);
         Environment.SetEnvironmentVariable(key, null);
-    }
-
-    /// <summary>
-    /// Reloads the .env file, clearing any cached values.
-    /// </summary>
-    public static void Reload()
-    {
-        EnvVars.Clear();
-        _isLoaded = false;
-        Load();
     }
 }

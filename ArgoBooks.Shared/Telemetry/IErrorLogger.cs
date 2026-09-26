@@ -80,23 +80,6 @@ public interface IErrorLogger
     IReadOnlyList<ErrorLogEntry> GetRecentErrors(int count = 50);
 
     /// <summary>
-    /// Gets all error log entries.
-    /// </summary>
-    /// <returns>All error entries.</returns>
-    IReadOnlyList<ErrorLogEntry> GetAllErrors();
-
-    /// <summary>
-    /// Exports the error log to a string (JSON format).
-    /// </summary>
-    /// <returns>JSON string of all error logs.</returns>
-    Task<string> ExportErrorLogAsync();
-
-    /// <summary>
-    /// Clears all error logs.
-    /// </summary>
-    void ClearLogs();
-
-    /// <summary>
     /// Event raised when a new error is logged.
     /// </summary>
     event EventHandler<ErrorLogEntry>? ErrorLogged;

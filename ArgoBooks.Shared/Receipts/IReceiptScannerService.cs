@@ -155,18 +155,4 @@ public interface IReceiptScannerService
     /// run <see cref="ReceiptImageHelper.PreprocessForOcr"/> on the image data.
     /// </summary>
     Task<ReceiptScanResult> ScanReceiptAsync(byte[] imageData, string fileName, bool skipPreprocessing, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Scans a receipt from a file path.
-    /// </summary>
-    /// <param name="filePath">Path to the receipt image file.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The scan result containing extracted data.</returns>
-    Task<ReceiptScanResult> ScanReceiptFromFileAsync(string filePath, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Validates that the service is properly configured.
-    /// </summary>
-    /// <returns>True if configured correctly, false otherwise.</returns>
-    Task<bool> ValidateConfigurationAsync();
 }

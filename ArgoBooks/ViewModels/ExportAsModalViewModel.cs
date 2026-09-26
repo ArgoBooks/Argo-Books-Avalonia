@@ -65,11 +65,6 @@ public partial class ExportAsModalViewModel : ViewModelBase
     private bool _selectAllData;
 
     /// <summary>
-    /// Available file formats for spreadsheet export.
-    /// </summary>
-    public ObservableCollection<string> FileFormats { get; } = ["xlsx"];
-
-    /// <summary>
     /// Data items available for export.
     /// </summary>
     public ObservableCollection<ExportDataItem> DataItems { get; } = [];

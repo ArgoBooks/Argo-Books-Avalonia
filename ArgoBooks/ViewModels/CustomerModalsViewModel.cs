@@ -438,7 +438,6 @@ public partial class CustomerModalsViewModel : ViewModelBase
         CloseAddModal();
     }
 
-    [RelayCommand]
     public async Task SaveNewCustomerAsync()
     {
         if (!ValidateModal())
@@ -611,7 +610,6 @@ public partial class CustomerModalsViewModel : ViewModelBase
         IsEditModalOpen = true;
     }
 
-    [RelayCommand]
     public void CloseEditModal()
     {
         IsEditModalOpen = false;
@@ -622,7 +620,6 @@ public partial class CustomerModalsViewModel : ViewModelBase
     /// <summary>
     /// Requests to close the Edit modal, showing confirmation if changes were made.
     /// </summary>
-    [RelayCommand]
     public async Task RequestCloseEditModalAsync()
     {
         if (HasEditModalChanges)
@@ -634,7 +631,6 @@ public partial class CustomerModalsViewModel : ViewModelBase
         CloseEditModal();
     }
 
-    [RelayCommand]
     public async Task SaveEditedCustomerAsync()
     {
         if (!ValidateModal() || _editingCustomer == null)

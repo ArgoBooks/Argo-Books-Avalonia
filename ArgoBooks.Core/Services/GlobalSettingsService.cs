@@ -5,12 +5,11 @@ using ArgoBooks.Core.Platform;
 namespace ArgoBooks.Core.Services;
 
 /// <summary>
-/// Service for managing global and company settings.
+/// Service for managing global settings.
 /// </summary>
 public class GlobalSettingsService : IGlobalSettingsService
 {
     private const string GlobalSettingsFileName = "settings.json";
-    private const string CompanySettingsFileName = "settings.json";
 
     private readonly IPlatformService _platformService;
     private readonly IErrorLogger? _errorLogger;
@@ -51,8 +50,6 @@ public class GlobalSettingsService : IGlobalSettingsService
     /// A file that fails to parse does not count: those settings are someone's, just unreadable.
     /// </summary>
     public bool IsFirstRun { get; private set; }
-
-    public CompanySettings? CompanySettings { get; private set; }
 
     public async Task LoadGlobalSettingsAsync(CancellationToken cancellationToken = default)
     {
@@ -167,58 +164,6 @@ public class GlobalSettingsService : IGlobalSettingsService
         }
     }
 
-    public async Task LoadCompanySettingsAsync(string tempDirectory, CancellationToken cancellationToken = default)
-    {
-        ArgumentException.ThrowIfNullOrEmpty(tempDirectory);
-
-        var settingsPath = Path.Combine(tempDirectory, CompanySettingsFileName);
-
-        if (!File.Exists(settingsPath))
-        {
-            CompanySettings = new CompanySettings();
-            return;
-        }
-
-        try
-        {
-            await using var fileStream = File.OpenRead(settingsPath);
-            var settings = await JsonSerializer.DeserializeAsync<CompanySettings>(
-                fileStream,
-                _jsonOptions,
-                cancellationToken);
-
-            CompanySettings = settings ?? new CompanySettings();
-        }
-        catch (JsonException)
-        {
-            // Corrupted settings file, use defaults
-            CompanySettings = new CompanySettings();
-        }
-    }
-
-    public async Task SaveCompanySettingsAsync(string tempDirectory, CancellationToken cancellationToken = default)
-    {
-        ArgumentException.ThrowIfNullOrEmpty(tempDirectory);
-
-        if (CompanySettings == null)
-            return;
-
-        var settingsPath = Path.Combine(tempDirectory, CompanySettingsFileName);
-        _platformService.EnsureDirectoryExists(tempDirectory);
-
-        await using var fileStream = File.Create(settingsPath);
-        await JsonSerializer.SerializeAsync(
-            fileStream,
-            CompanySettings,
-            _jsonOptions,
-            cancellationToken);
-    }
-
-    public void ClearCompanySettings()
-    {
-        CompanySettings = null;
-    }
-
     /// <inheritdoc cref="IGlobalSettingsService.AddRecentCompany"/>
     public void AddRecentCompany(string filePath)
     {
@@ -298,23 +243,6 @@ public class GlobalSettingsService : IGlobalSettingsService
             .Distinct(_platformService.PathComparer)
             .ToList()
             .AsReadOnly();
-    }
-
-    /// <summary>
-    /// Creates a new company settings instance for a new company.
-    /// </summary>
-    /// <param name="companyName">Name of the company.</param>
-    /// <returns>The created company settings.</returns>
-    public CompanySettings CreateCompanySettings(string companyName)
-    {
-        CompanySettings = new CompanySettings
-        {
-            Company = new CompanyInfo
-            {
-                Name = companyName
-            }
-        };
-        return CompanySettings;
     }
 
     private string GetGlobalSettingsPath()

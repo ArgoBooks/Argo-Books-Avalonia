@@ -242,12 +242,6 @@ public partial class RentalInventoryPageViewModel : SortablePageViewModelBase
         MaintenanceItems = maintenance;
     }
 
-    [RelayCommand]
-    private void RefreshItems()
-    {
-        LoadItems();
-    }
-
     private void FilterItems()
     {
         var companyData = App.CompanyManager?.CompanyData;

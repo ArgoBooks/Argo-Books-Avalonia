@@ -20,34 +20,6 @@ public class GeminiReceiptScannerServiceTests
 
     #endregion
 
-    #region ValidateConfiguration Tests
-
-    [Fact]
-    public async Task ValidateConfigurationAsync_WithoutApiAuth_ReturnsFalse()
-    {
-        var service = new GeminiReceiptScannerService("https://example.com");
-
-        var result = await service.ValidateConfigurationAsync();
-
-        Assert.False(result);
-    }
-
-    #endregion
-
-    #region ScanReceiptFromFile Tests
-
-    [Fact]
-    public async Task ScanReceiptFromFileAsync_FileNotFound_ReturnsFailedResult()
-    {
-        var service = new GeminiReceiptScannerService("https://example.com");
-
-        var result = await service.ScanReceiptFromFileAsync("/nonexistent/file.jpg");
-
-        Assert.False(result.IsSuccess);
-    }
-
-    #endregion
-
     #region ParseResponse Tests
 
     [Fact]

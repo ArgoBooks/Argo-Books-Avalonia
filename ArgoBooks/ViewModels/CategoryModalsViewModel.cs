@@ -229,7 +229,6 @@ public partial class CategoryModalsViewModel : ViewModelBase
         CloseAddModal();
     }
 
-    [RelayCommand]
     public void SaveNewCategory()
     {
         if (!ValidateModal()) return;
@@ -292,7 +291,6 @@ public partial class CategoryModalsViewModel : ViewModelBase
         IsEditModalOpen = true;
     }
 
-    [RelayCommand]
     public void CloseEditModal()
     {
         IsEditModalOpen = false;
@@ -303,7 +301,6 @@ public partial class CategoryModalsViewModel : ViewModelBase
     /// <summary>
     /// Requests to close the Edit modal, showing confirmation if changes were made.
     /// </summary>
-    [RelayCommand]
     public async Task RequestCloseEditModalAsync()
     {
         if (HasEditModalChanges)
@@ -315,7 +312,6 @@ public partial class CategoryModalsViewModel : ViewModelBase
         CloseEditModal();
     }
 
-    [RelayCommand]
     public void SaveEditedCategory()
     {
         if (!ValidateModal() || _editingCategory == null) return;

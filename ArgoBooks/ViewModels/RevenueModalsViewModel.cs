@@ -80,9 +80,6 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
         set => FilterCounterpartyId = value;
     }
 
-    // Command aliases for AXAML bindings
-    public IAsyncRelayCommand SaveRevenueCommand => SaveTransactionCommand;
-
     #endregion
 
     #region Reason Options

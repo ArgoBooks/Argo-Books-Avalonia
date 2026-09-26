@@ -53,7 +53,7 @@ public class TransactionEditCurrencyTests : ModalViewModelTestBase
 
         var vm = new ExpenseModalsViewModel();
         vm.OpenEditModal(new ExpenseDisplayItem { Id = "PUR-2026-00001" });
-        await vm.SaveExpenseCommand.ExecuteAsync(null);
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
 
         var expense = Company.Expenses.Single();
         Assert.Equal(("CAD", 1100m), (expense.OriginalCurrency, expense.Total));
@@ -217,14 +217,14 @@ public class TransactionEditCurrencyTests : ModalViewModelTestBase
             var vm = new ExpenseModalsViewModel();
             vm.OpenEditModal(new ExpenseDisplayItem { Id = EntryId });
             vm.ModalNotes = "Edited";
-            await vm.SaveExpenseCommand.ExecuteAsync(null);
+            await vm.SaveTransactionCommand.ExecuteAsync(null);
         }
         else
         {
             var vm = new RevenueModalsViewModel();
             vm.OpenEditModal(new RevenueDisplayItem { Id = EntryId });
             vm.ModalNotes = "Edited";
-            await vm.SaveRevenueCommand.ExecuteAsync(null);
+            await vm.SaveTransactionCommand.ExecuteAsync(null);
         }
     }
 
@@ -257,12 +257,12 @@ public class TransactionEditCurrencyTests : ModalViewModelTestBase
         var vm = new ExpenseModalsViewModel();
         vm.OpenAddModal();
         FillLine(vm.LineItems.First(), vm.ProductOptions, 100m);
-        await vm.SaveExpenseCommand.ExecuteAsync(null);
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
         var id = Company.Expenses.Single().Id;
 
         vm.OpenEditModal(new ExpenseDisplayItem { Id = id });
         vm.LineItems.First().UnitPrice = 250m;
-        await vm.SaveExpenseCommand.ExecuteAsync(null);
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
 
         Undo();
         var afterUndo = (QueuedTotal(id), await QueuedTotal(service, id));
@@ -280,12 +280,12 @@ public class TransactionEditCurrencyTests : ModalViewModelTestBase
         var vm = new RevenueModalsViewModel();
         vm.OpenAddModal();
         FillLine(vm.LineItems.First(), vm.ProductOptions, 100m);
-        await vm.SaveRevenueCommand.ExecuteAsync(null);
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
         var id = Company.Revenues.Single().Id;
 
         vm.OpenEditModal(new RevenueDisplayItem { Id = id });
         vm.LineItems.First().UnitPrice = 250m;
-        await vm.SaveRevenueCommand.ExecuteAsync(null);
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
 
         Undo();
         var afterUndo = (QueuedTotal(id), await QueuedTotal(service, id));
@@ -365,8 +365,6 @@ public class TransactionEditCurrencyTests : ModalViewModelTestBase
         public PlatformType Platform => PlatformType.Linux;
         public string GetAppDataPath() => Path.GetTempPath();
         public string GetTempPath() => Path.GetTempPath();
-        public string GetDefaultDocumentsPath() => Path.GetTempPath();
-        public string GetLogsPath() => Path.GetTempPath();
         public string GetCachePath() => Path.GetTempPath();
         public void EnsureDirectoryExists(string path) { }
         public bool SupportsFileSystem => false;
@@ -383,7 +381,6 @@ public class TransactionEditCurrencyTests : ModalViewModelTestBase
         public string NormalizePath(string path) => path;
         public string CombinePaths(params string[] paths) => Path.Combine(paths);
         public string GetMachineId() => "test-machine-id";
-        public void RegisterFileTypeAssociations(string iconPath) { }
         public StringComparer PathComparer => StringComparer.Ordinal;
     }
 }

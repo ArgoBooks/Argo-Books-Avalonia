@@ -1779,13 +1779,6 @@ public partial class App : Application
             // Load settings and recent companies asynchronously after window is shown
             _ = InitializeAsync();
         }
-        else if (ApplicationLifetime is ISingleViewApplicationLifetime singleViewPlatform)
-        {
-            singleViewPlatform.MainView = new MainView
-            {
-                DataContext = new MainViewModel()
-            };
-        }
 
         base.OnFrameworkInitializationCompleted();
     }

@@ -74,9 +74,6 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
         set => FilterCounterpartyId = value;
     }
 
-    // Command aliases for AXAML bindings
-    public IAsyncRelayCommand SaveExpenseCommand => SaveTransactionCommand;
-
     #endregion
 
     #region Reason Options

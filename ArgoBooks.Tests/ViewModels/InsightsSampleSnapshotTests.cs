@@ -35,10 +35,6 @@ public class InsightsSampleSnapshotTests : ModalViewModelTestBase
             ForecastCalls++;
             return Task.FromResult(new ForecastData());
         }
-
-        public Task<List<InsightItem>> DetectAnomaliesAsync(CompanyData companyData, AnalysisDateRange dateRange) => Task.FromResult(new List<InsightItem>());
-        public Task<List<InsightItem>> AnalyzeTrendsAsync(CompanyData companyData, AnalysisDateRange dateRange) => Task.FromResult(new List<InsightItem>());
-        public Task<List<InsightItem>> GenerateRecommendationsAsync(CompanyData companyData, AnalysisDateRange dateRange) => Task.FromResult(new List<InsightItem>());
     }
 
     [Fact]

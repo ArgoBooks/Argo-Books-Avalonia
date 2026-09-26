@@ -100,7 +100,6 @@ public class LicenseService
         settings.License.LicenseData = Convert.ToBase64String(encryptedData);
         settings.License.Salt = salt;
         settings.License.Iv = iv;
-        settings.License.LastValidationDate = DateTime.UtcNow;
 
         await _settingsService.SaveAsync(settings);
     }

@@ -72,22 +72,22 @@ public class InsightsServiceTests
     private static readonly DateTime TrendsToday = new(2026, 9, 11);
 
     [Fact]
-    public async Task AnalyzeTrendsAsync_NextMonth_SteadyDailyRevenue_ReportsNoDecline()
+    public void AnalyzeTrends_NextMonth_SteadyDailyRevenue_ReportsNoDecline()
     {
         var data = DailyRevenue(new DateTime(2026, 7, 1), TrendsToday, 100m);
 
-        var trends = await ServiceOn(TrendsToday).AnalyzeTrendsAsync(data, NextMonth(TrendsToday));
+        var trends = ServiceOn(TrendsToday).AnalyzeTrends(data, NextMonth(TrendsToday));
 
         Assert.DoesNotContain(trends, t => t.Title == "Revenue Decline Detected");
     }
 
     [Fact]
-    public async Task AnalyzeTrendsAsync_NextMonth_CountsTodaysEntries()
+    public void AnalyzeTrends_NextMonth_CountsTodaysEntries()
     {
         var data = DailyRevenue(new DateTime(2026, 7, 1), TrendsToday, 100m);
         data.Revenues.Add(UsdRevenue("Today", TrendsToday.AddHours(15), 2000m));
 
-        var trends = await ServiceOn(TrendsToday).AnalyzeTrendsAsync(data, NextMonth(TrendsToday));
+        var trends = ServiceOn(TrendsToday).AnalyzeTrends(data, NextMonth(TrendsToday));
 
         // Sep 1-11 is 11 x 100 + 2000; Aug 1-11 is 11 x 100.
         var growth = Assert.Single(trends, t => t.Title == "Revenue Growth Detected");
@@ -121,7 +121,7 @@ public class InsightsServiceTests
     // Insights has to compare a period with the same one the dashboard does for that preset.
 
     [Fact]
-    public async Task AnalyzeTrendsAsync_LastMonth_ComparesAgainstTheWholeMonthBefore()
+    public void AnalyzeTrends_LastMonth_ComparesAgainstTheWholeMonthBefore()
     {
         var today = new DateTime(2026, 4, 15);
         var data = DailyRevenue(new DateTime(2026, 1, 29), new DateTime(2026, 1, 31), 100m);
@@ -129,7 +129,7 @@ public class InsightsServiceTests
         AddDailyRevenue(data, new DateTime(2026, 3, 1), new DateTime(2026, 3, 31), 100m);
         var lastMonth = Preset(DateRangePreset.LastMonth, new DateTime(2026, 3, 1), new DateTime(2026, 3, 31, 23, 59, 59));
 
-        var trends = await ServiceOn(today).AnalyzeTrendsAsync(data, lastMonth);
+        var trends = ServiceOn(today).AnalyzeTrends(data, lastMonth);
 
         // March is 31 x 100; February is 28 x 50. The 31 days before March would reach back to Jan 29.
         var growth = Assert.Single(trends, t => t.Title == "Revenue Growth Detected");
@@ -138,7 +138,7 @@ public class InsightsServiceTests
     }
 
     [Fact]
-    public async Task AnalyzeTrendsAsync_ThisMonth_ComparesAgainstTheSameDaysOfLastMonth()
+    public void AnalyzeTrends_ThisMonth_ComparesAgainstTheSameDaysOfLastMonth()
     {
         var today = new DateTime(2026, 9, 11);
         var data = DailyRevenue(new DateTime(2026, 8, 1), new DateTime(2026, 8, 11), 100m);
@@ -146,7 +146,7 @@ public class InsightsServiceTests
         AddDailyRevenue(data, new DateTime(2026, 9, 1), today, 200m);
         var thisMonth = Preset(DateRangePreset.ThisMonth, new DateTime(2026, 9, 1), today.AddDays(1).AddTicks(-1));
 
-        var trends = await ServiceOn(today).AnalyzeTrendsAsync(data, thisMonth);
+        var trends = ServiceOn(today).AnalyzeTrends(data, thisMonth);
 
         // Sep 1-11 is 11 x 200; Aug 1-11 is 11 x 100. The 11 days just before are Aug 21-31 at 50.
         var growth = Assert.Single(trends, t => t.Title == "Revenue Growth Detected");
@@ -155,7 +155,7 @@ public class InsightsServiceTests
     }
 
     [Fact]
-    public async Task AnalyzeTrendsAsync_Last3Months_ComparesAgainstTheSameNumberOfDaysBefore()
+    public void AnalyzeTrends_Last3Months_ComparesAgainstTheSameNumberOfDaysBefore()
     {
         var today = new DateTime(2026, 9, 11);
         var data = DailyRevenue(new DateTime(2026, 3, 1), new DateTime(2026, 6, 10), 100m);
@@ -167,7 +167,7 @@ public class InsightsServiceTests
             PresetName = "Last 3 Months"
         };
 
-        var trends = await ServiceOn(today).AnalyzeTrendsAsync(data, last3Months);
+        var trends = ServiceOn(today).AnalyzeTrends(data, last3Months);
 
         // Jun 11 - Sep 11 is 93 x 200; the 93 days before, Mar 10 - Jun 10, are 93 x 100.
         var growth = Assert.Single(trends, t => t.Title == "Revenue Growth Detected");
@@ -359,8 +359,6 @@ public class InsightsServiceTests
         public PlatformType Platform => PlatformType.Linux;
         public string GetAppDataPath() => Path.GetTempPath();
         public string GetTempPath() => Path.GetTempPath();
-        public string GetDefaultDocumentsPath() => Path.GetTempPath();
-        public string GetLogsPath() => Path.GetTempPath();
         public string GetCachePath() => Path.GetTempPath();
         public void EnsureDirectoryExists(string path) { }
         public bool SupportsFileSystem => false;
@@ -377,7 +375,6 @@ public class InsightsServiceTests
         public string NormalizePath(string path) => path;
         public string CombinePaths(params string[] paths) => Path.Combine(paths);
         public string GetMachineId() => "test-machine-id";
-        public void RegisterFileTypeAssociations(string iconPath) { }
         public StringComparer PathComparer => StringComparer.Ordinal;
     }
 

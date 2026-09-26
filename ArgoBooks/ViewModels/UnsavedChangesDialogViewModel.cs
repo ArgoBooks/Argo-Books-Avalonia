@@ -19,26 +19,6 @@ public class ChangeItem
     /// Gets or sets the type of change (Added, Modified, Deleted).
     /// </summary>
     public ChangeType ChangeType { get; set; } = ChangeType.Modified;
-
-    /// <summary>
-    /// Gets the icon name based on the change type.
-    /// </summary>
-    public string IconName => ChangeType switch
-    {
-        ChangeType.Added => "Plus",
-        ChangeType.Deleted => "Trash",
-        _ => "Pencil"
-    };
-
-    /// <summary>
-    /// Gets the color class based on the change type.
-    /// </summary>
-    public string ColorClass => ChangeType switch
-    {
-        ChangeType.Added => "success",
-        ChangeType.Deleted => "danger",
-        _ => "warning"
-    };
 }
 
 /// <summary>

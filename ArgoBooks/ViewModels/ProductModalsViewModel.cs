@@ -402,7 +402,6 @@ public partial class ProductModalsViewModel : ViewModelBase
         supplierModals.OpenAddModal();
     }
 
-    [RelayCommand]
     public void SaveNewProduct()
     {
         if (!ValidateModal())
@@ -528,7 +527,6 @@ public partial class ProductModalsViewModel : ViewModelBase
         OpenEditModal(item);
     }
 
-    [RelayCommand]
     public void CloseEditModal()
     {
         IsEditModalOpen = false;
@@ -539,7 +537,6 @@ public partial class ProductModalsViewModel : ViewModelBase
     /// <summary>
     /// Requests to close the Edit modal, showing confirmation if changes were made.
     /// </summary>
-    [RelayCommand]
     public async Task RequestCloseEditModalAsync()
     {
         if (HasEditModalChanges)
@@ -551,7 +548,6 @@ public partial class ProductModalsViewModel : ViewModelBase
         CloseEditModal();
     }
 
-    [RelayCommand]
     public void SaveEditedProduct()
     {
         if (!ValidateModal() || _editingProduct == null)

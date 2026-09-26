@@ -137,25 +137,9 @@ public partial class App
             // before navigating so the dashboard renders with the right range.
             ChartSettingsService.Instance.LoadForCompany(args.FilePath);
 
-            // Migrate: if a legacy .env API key exists but the company has no persisted key,
-            // adopt the .env key, but only if this company actually has portal activity
-            // (connected providers or a portal URL), so we don't assign the key to the wrong company.
-            // Best-effort: persists to .argo on next save; re-runs harmlessly if the save doesn't happen.
-            var portalSettings = CompanyManager.CompanyData?.Settings.PaymentPortal;
-            if (portalSettings != null
-                && string.IsNullOrEmpty(portalSettings.PersistedApiKey)
-                && DotEnv.HasValue(PortalSettings.ApiKeyEnvVar)
-                && (portalSettings.ConnectedAccounts.StripeConnected
-                    || portalSettings.ConnectedAccounts.PaypalConnected
-                    || portalSettings.ConnectedAccounts.SquareConnected
-                    || !string.IsNullOrEmpty(portalSettings.PortalUrl)))
-            {
-                portalSettings.PersistedApiKey = DotEnv.Get(PortalSettings.ApiKeyEnvVar);
-            }
-
             // Load this company's portal API key into the process-level cache (cheap, so any
             // portal-dependent UI has it on first paint; the actual sync is deferred below).
-            PortalSettings.ActivateApiKey(portalSettings);
+            PortalSettings.ActivateApiKey(CompanyManager.CompanyData?.Settings.PaymentPortal);
 
             // Navigate to Dashboard when company is opened
             NavigationService?.NavigateTo("Dashboard");
@@ -285,7 +269,6 @@ public partial class App
 
             UndoRedoManager.Clear();
             EventLogService?.Clear();
-            ChangeTrackingService?.ClearAllChanges();
             _appShellViewModel.HeaderViewModel.ClearNotifications();
 
             // Stop pending conversion timer when company is closed
@@ -322,9 +305,6 @@ public partial class App
 
             // Mark undo/redo state as saved so IsAtSavedState returns true
             UndoRedoManager.MarkSaved(_saveUndoPoint);
-
-            // Clear tracked changes after saving
-            ChangeTrackingService?.ClearAllChanges();
         };
 
         CompanyManager.CompanyDataChanged += (_, _) =>

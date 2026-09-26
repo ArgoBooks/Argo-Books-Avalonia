@@ -34,18 +34,9 @@ public partial class DashboardLayoutViewModel : ObservableObject
 
         // Sample company always gets the default layout
         DashboardLayout? layout = null;
-        if (companyManager.IsSampleCompany)
-        {
-            layout = DashboardLayout.CreateDefault();
-        }
-        else
-        {
-            // Load per-company layout, fall back to legacy global layout, then default
-            if (!string.IsNullOrEmpty(companyPath) && settings?.Ui.CompanyDashboardLayouts.TryGetValue(companyPath, out var companyLayout) == true)
-                layout = companyLayout;
-            layout ??= settings?.Ui.DashboardLayout ?? DashboardLayout.CreateDefault();
-        }
-        layout.MigrateIfNeeded();
+        if (!companyManager.IsSampleCompany && !string.IsNullOrEmpty(companyPath))
+            settings?.Ui.CompanyDashboardLayouts.TryGetValue(companyPath, out layout);
+        layout ??= DashboardLayout.CreateDefault();
 
         _savedLayout = layout.Clone();
         LoadFromLayout(layout);
@@ -169,13 +160,10 @@ public partial class DashboardLayoutViewModel : ObservableObject
         _savedLayout = layout.Clone();
 
         var settings = App.SettingsService?.GlobalSettings;
-        if (settings != null)
+        var companyPath = _companyManager?.CurrentFilePath;
+        if (settings != null && !string.IsNullOrEmpty(companyPath))
         {
-            var companyPath = _companyManager?.CurrentFilePath;
-            if (!string.IsNullOrEmpty(companyPath))
-                settings.Ui.CompanyDashboardLayouts[companyPath] = layout;
-            else
-                settings.Ui.DashboardLayout = layout;
+            settings.Ui.CompanyDashboardLayouts[companyPath] = layout;
             await App.SettingsService!.SaveGlobalSettingsAsync();
         }
     }
@@ -205,13 +193,10 @@ public partial class DashboardLayoutViewModel : ObservableObject
         // Persist the reset so it survives close/reopen
         _savedLayout = layout.Clone();
         var settings = App.SettingsService?.GlobalSettings;
-        if (settings != null)
+        var companyPath = _companyManager?.CurrentFilePath;
+        if (settings != null && !string.IsNullOrEmpty(companyPath))
         {
-            var companyPath = _companyManager?.CurrentFilePath;
-            if (!string.IsNullOrEmpty(companyPath))
-                settings.Ui.CompanyDashboardLayouts[companyPath] = layout;
-            else
-                settings.Ui.DashboardLayout = layout;
+            settings.Ui.CompanyDashboardLayouts[companyPath] = layout;
             await App.SettingsService!.SaveGlobalSettingsAsync();
         }
     }

@@ -66,11 +66,6 @@ public class TutorialService
     public event EventHandler? AllChecklistItemsCompleted;
 
     /// <summary>
-    /// Event raised when a page is visited for the first time.
-    /// </summary>
-    public event EventHandler<string>? PageFirstVisited;
-
-    /// <summary>
     /// Event raised when tutorial state changes.
     /// </summary>
     public event EventHandler? TutorialStateChanged;
@@ -288,14 +283,6 @@ public class TutorialService
     }
 
     /// <summary>
-    /// Checks if a checklist item is completed.
-    /// </summary>
-    public bool IsChecklistItemCompleted(string itemId)
-    {
-        return Settings.CompletedChecklistItems.Contains(itemId);
-    }
-
-    /// <summary>
     /// Marks a checklist item as completed.
     /// <para>
     /// No step is a prerequisite for another. The checklist is shown in order, but each step
@@ -389,15 +376,6 @@ public class TutorialService
     private bool _legacyChecklistMigrated;
 
     /// <summary>
-    /// Gets the total count of checklist items.
-    /// </summary>
-    public int GetTotalChecklistCount()
-    {
-        // Core items that all users should complete
-        return 3;
-    }
-
-    /// <summary>
     /// Checks if a page has been visited before.
     /// </summary>
     public bool HasVisitedPage(string pageId)
@@ -415,7 +393,6 @@ public class TutorialService
         {
             settings.Tutorial.VisitedPages.Add(pageId);
             SaveSettings();
-            PageFirstVisited?.Invoke(this, pageId);
         }
     }
 
@@ -483,32 +460,6 @@ public class TutorialService
             SaveSettings();
             TutorialStateChanged?.Invoke(this, EventArgs.Empty);
         }
-    }
-
-    /// <summary>
-    /// Gets the first-visit hint text for a page.
-    /// </summary>
-    public static string? GetFirstVisitHint(string pageId)
-    {
-        return pageId switch
-        {
-            Pages.Dashboard => "This is your business overview. Key metrics and recent activity appear here.",
-            Pages.Analytics => "Explore your business data with interactive charts. Try the different tabs to see various insights.",
-            Pages.Insights => "AI-powered recommendations to help grow your business appear here.",
-            Pages.Reports => "Create and customize financial reports. Use templates or build your own.",
-            Pages.Expenses => "Record business expenses here. Use categories to organize them for tax time.",
-            Pages.Revenue => "Track your income and sales. Each entry can have line items for detailed records.",
-            Pages.Invoices => "Create professional invoices for your customers. Track payments and send reminders.",
-            Pages.Products => "Manage your product catalog with pricing, categories, and inventory tracking.",
-            Pages.Customers => "Keep track of customer information, purchase history, and contact details.",
-            Pages.Suppliers => "Manage your vendors and suppliers for easy reordering.",
-            Pages.Categories => "Organize your transactions and products with custom categories.",
-            Pages.StockLevels => "Monitor inventory levels and get alerts when stock runs low.",
-            Pages.Receipts => "Upload receipt images and our AI will extract the details automatically.",
-            Pages.RentalInventory => "Track equipment available for rental with availability status.",
-            Pages.RentalRecords => "Record rental transactions and manage rental periods.",
-            _ => null
-        };
     }
 
     /// <summary>

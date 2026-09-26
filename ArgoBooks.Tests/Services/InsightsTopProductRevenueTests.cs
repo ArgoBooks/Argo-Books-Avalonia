@@ -16,7 +16,7 @@ namespace ArgoBooks.Tests.Services;
 public class InsightsTopProductRevenueTests
 {
     [Fact]
-    public async Task TopProductRevenue_IsGrossNotPreTax()
+    public void TopProductRevenue_IsGrossNotPreTax()
     {
         var data = new CompanyData();
         data.Products.Add(new Product { Id = "P1", Name = "Widget", CostPrice = 20m });
@@ -36,7 +36,7 @@ public class InsightsTopProductRevenueTests
         var service = new InsightsService();
         var range = new AnalysisDateRange { StartDate = DateTime.Now.AddMonths(-12), EndDate = DateTime.Now };
 
-        var recs = await service.GenerateRecommendationsAsync(data, range);
+        var recs = service.GenerateRecommendations(data, range);
         var top = recs.FirstOrDefault(r => r.Title == "Top Performing Product");
 
         Assert.NotNull(top);
