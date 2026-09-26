@@ -2043,9 +2043,20 @@
                             BorderThickness="1"
                             CornerRadius="12"
                             Padding="20">
-                        <Grid RowDefinitions="*,Auto">
-                            <!-- Trend chart fills the card; product name/SKU float over its top-left -->
-                            <Panel Grid.Row="0" MinHeight="220">
+                        <Grid RowDefinitions="Auto,*,Auto">
+                            <!-- Product name + SKU, on their own line so a narrow card can't run them into the chart -->
+                            <StackPanel Grid.Row="0" Spacing="2" Margin="0,0,0,8">
+                                <TextBlock Text="{Binding SelectedProduct.ProductName, FallbackValue=''}"
+                                           FontSize="16" FontWeight="SemiBold"
+                                           TextTrimming="CharacterEllipsis"
+                                           ToolTip.Tip="{Binding SelectedProduct.ProductName, FallbackValue=''}"
+                                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                                <TextBlock Text="{Binding SelectedProduct.Sku}"
+                                           IsVisible="{Binding SelectedProduct.HasSku, FallbackValue=False}"
+                                           FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
+                            </StackPanel>
+
+                            <Panel Grid.Row="1" MinHeight="220">
                                 <lvc:CartesianChart Tag="{x:Static enums:ChartDataType.ProductRevenueTrend}"
                                                     Title="{Binding ProductRevenueTrendTitle}"
                                                     PointerPressed="OnChartPointerPressed"
@@ -2059,21 +2070,10 @@
                                     IsVisible="{Binding !HasProductTrendData}"
                                     DefaultMessage="{loc:Loc 'No revenue data for this product in the selected period'}"
                                     ShowDateRangeMessage="{Binding ShowFinancialDateRangeMessage}" />
-
-                                <!-- Product name + SKU overlaid on the chart's top-left -->
-                                <StackPanel HorizontalAlignment="Left" VerticalAlignment="Top"
-                                            Spacing="2" IsHitTestVisible="False">
-                                    <TextBlock Text="{Binding SelectedProduct.ProductName, FallbackValue=''}"
-                                               FontSize="16" FontWeight="SemiBold"
-                                               Foreground="{DynamicResource TextPrimaryBrush}" />
-                                    <TextBlock Text="{Binding SelectedProduct.Sku}"
-                                               IsVisible="{Binding SelectedProduct.HasSku, FallbackValue=False}"
-                                               FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                </StackPanel>
                             </Panel>
 
                             <!-- Mini KPIs row -->
-                            <StackPanel Grid.Row="1" Margin="0,16,0,0">
+                            <StackPanel Grid.Row="2" Margin="0,16,0,0">
                                 <Border Height="1" Background="{DynamicResource BorderBrush}" Margin="0,0,0,16" />
                                 <Grid ColumnDefinitions="*,*,*">
                                     <StackPanel Grid.Column="0" Spacing="2">
