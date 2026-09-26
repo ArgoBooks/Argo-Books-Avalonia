@@ -3409,7 +3409,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
     /// </summary>
     private static HashSet<string> TakenIds(IEnumerable<string> existingIds, List<string> headers, List<List<object?>> rows, params string[] idColumns)
     {
-        var taken = new HashSet<string>(existingIds.Where(id => !string.IsNullOrWhiteSpace(id)), StringComparer.OrdinalIgnoreCase);
+        var taken = IdGenerator.TakenSet(existingIds);
         foreach (var row in rows)
         {
             foreach (var column in idColumns)
@@ -5159,24 +5159,24 @@ Respond with ONLY a JSON array, one entry per product in the same order:
     /// <summary>
     /// Raises each counter past the highest id now present. Only ever raises: a counter already
     /// ahead of every present id is ahead because a record was deleted, and lowering it would
-    /// hand that deleted id to the next new record.
+    /// hand that deleted id to the next new record. Printed numbers (Invoice #, PO #) don't move a
+    /// counter: IdGenerator already skips a number whose printed form is taken, and a printed
+    /// number from another system (INV-20260315) would throw the counter far ahead.
     /// </summary>
     private static void UpdateIdCounters(CompanyData data)
     {
         foreach (var type in Enum.GetValues<SpreadsheetSheetType>())
             RaiseIdCounter(data, type, GetExistingEntityIds(data, type));
 
-        RaiseIdCounter(data, SpreadsheetSheetType.Invoices, data.Invoices.Select(i => i.InvoiceNumber));
-        RaiseIdCounter(data, SpreadsheetSheetType.PurchaseOrders, data.PurchaseOrders.Select(p => p.PoNumber));
-
         var c = data.IdCounters;
-        c.Quote = Math.Max(c.Quote, IdGenerator.HighestNumber(data.Quotes.SelectMany(q => new[] { q.Id, q.QuoteNumber }), "QUO-"));
+        c.Quote = Math.Max(c.Quote, IdGenerator.HighestNumber(data.Quotes.Select(q => q.Id), "QUO-"));
     }
 
     /// <summary>
-    /// Raises the counter a record type is numbered from past the highest number in
-    /// <paramref name="ids"/>, whatever their width, so a new id never repeats a number already
-    /// used (ADJ-00001 beside ADJ-001).
+    /// Raises the counter a record type is numbered from past the highest number among
+    /// <paramref name="ids"/> written in that type's own format, whatever their width, so a new id
+    /// never repeats a number already used (ADJ-00001 beside ADJ-001). See
+    /// <see cref="IdGenerator.HighestNumber"/> for which ids count.
     /// </summary>
     private static void RaiseIdCounter(CompanyData data, SpreadsheetSheetType type, IEnumerable<string?> ids)
     {
@@ -5184,12 +5184,14 @@ Respond with ONLY a JSON array, one entry per product in the same order:
         switch (type)
         {
             case SpreadsheetSheetType.Customers: c.Customer = Math.Max(c.Customer, IdGenerator.HighestNumber(ids, "CUS-")); break;
-            case SpreadsheetSheetType.Products: c.Product = Math.Max(c.Product, IdGenerator.HighestNumber(ids, "PRD-")); break;
+            case SpreadsheetSheetType.Products: c.Product = Math.Max(c.Product, IdGenerator.HighestNumber(ids, "PRD-", "PRD-IMP-")); break;
             case SpreadsheetSheetType.Suppliers: c.Supplier = Math.Max(c.Supplier, IdGenerator.HighestNumber(ids, "SUP-")); break;
-            case SpreadsheetSheetType.Categories: c.Category = Math.Max(c.Category, IdGenerator.HighestNumber(ids, "CAT-")); break;
+            // Older files also have CAT-SAL- and CAT-PUR- ids. All types share one counter.
+            case SpreadsheetSheetType.Categories: c.Category = Math.Max(c.Category, IdGenerator.HighestNumber(ids,
+                "CAT-REV-", "CAT-EXP-", "CAT-RNT-", "CAT-GEN-", "CAT-SAL-", "CAT-PUR-")); break;
             case SpreadsheetSheetType.Locations: c.Location = Math.Max(c.Location, IdGenerator.HighestNumber(ids, "LOC-")); break;
-            // Older files have SAL- revenue ids; the number is the last part either way.
-            case SpreadsheetSheetType.Revenue: c.Revenue = Math.Max(c.Revenue, IdGenerator.HighestNumber(ids, "REV-")); break;
+            // Older files have SAL- revenue ids.
+            case SpreadsheetSheetType.Revenue: c.Revenue = Math.Max(c.Revenue, IdGenerator.HighestNumber(ids, "REV-", "SAL-")); break;
             case SpreadsheetSheetType.Expenses: c.Expense = Math.Max(c.Expense, IdGenerator.HighestNumber(ids, "PUR-")); break;
             case SpreadsheetSheetType.Invoices: c.Invoice = Math.Max(c.Invoice, IdGenerator.HighestNumber(ids, "INV-")); break;
             case SpreadsheetSheetType.Payments: c.Payment = Math.Max(c.Payment, IdGenerator.HighestNumber(ids, "PAY-")); break;
@@ -5205,21 +5207,45 @@ Respond with ONLY a JSON array, one entry per product in the same order:
     }
 
     /// <summary>
+    /// Columns on any sheet that name a record of another type. A reference can make that record
+    /// (a placeholder customer named after the id), so its number is reserved like an id column's.
+    /// </summary>
+    private static readonly (string Column, SpreadsheetSheetType Type)[] ReferenceColumns =
+    [
+        ("Customer ID", SpreadsheetSheetType.Customers),
+        ("Supplier ID", SpreadsheetSheetType.Suppliers),
+        ("Product ID", SpreadsheetSheetType.Products),
+        ("Category ID", SpreadsheetSheetType.Categories),
+        ("Parent ID", SpreadsheetSheetType.Categories),
+        ("Location ID", SpreadsheetSheetType.Locations),
+        ("Invoice ID", SpreadsheetSheetType.Invoices),
+        ("Inventory Item ID", SpreadsheetSheetType.Inventory),
+        ("Rental Item ID", SpreadsheetSheetType.RentalInventory),
+        ("PO ID", SpreadsheetSheetType.PurchaseOrders),
+        ("Original Transaction ID", SpreadsheetSheetType.Revenue),
+        ("Original Transaction ID", SpreadsheetSheetType.Expenses),
+    ];
+
+    /// <summary>
     /// Brings every counter past the highest number the company or any sheet of this import
-    /// already uses, before a single id is minted. Sheets are read one after another, so without
-    /// this a blank row could be numbered into an id a later sheet brings in, or into the same
-    /// number as a sheet's id written in an older width.
+    /// already uses, in an id column or a reference to another record, before a single id is
+    /// minted. Sheets are read one after another, so without this a blank row could be numbered
+    /// into an id a later sheet brings in or refers to, or into the same number as a sheet's id
+    /// written in an older width.
     /// </summary>
     private static void ReserveIdNumbers(CompanyData data, IEnumerable<ImportSheet> sheets)
     {
         UpdateIdCounters(data);
         foreach (var sheet in sheets)
         {
-            var idColumns = sheet.Type == SpreadsheetSheetType.Invoices ? new[] { "ID", "Invoice #" } : ["ID"];
-            RaiseIdCounter(data, sheet.Type,
-                sheet.Rows.SelectMany(row => idColumns.Select(column => GetString(row, sheet.Headers, column))));
+            RaiseIdCounter(data, sheet.Type, ColumnValues(sheet, "ID"));
+            foreach (var (column, type) in ReferenceColumns)
+                RaiseIdCounter(data, type, ColumnValues(sheet, column));
         }
     }
+
+    private static IEnumerable<string?> ColumnValues(ImportSheet sheet, string column) =>
+        sheet.Rows.Select(row => GetString(row, sheet.Headers, column));
 
     #endregion
 }

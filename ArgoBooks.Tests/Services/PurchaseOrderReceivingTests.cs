@@ -92,6 +92,41 @@ public class PurchaseOrderReceivingTests
     }
 
     [Fact]
+    public void TwoLinesOfTheSameProduct_MakeOneAdjustmentForTheirCombinedQuantity()
+    {
+        var data = Company();
+        var existing = new InventoryItem { Id = "INV-ITM-00001", ProductId = "PRD-001", LocationId = "LOC-001", InStock = 2, UnitCost = 4m };
+        data.Inventory.Add(existing);
+        var order = EuroOrder(quantity: 3, unitCost: 10m);
+        order.LineItems.Add(new PurchaseOrderLineItem { ProductId = "PRD-001", Quantity = 4, UnitCost = 11m });
+
+        var changes = InventoryStockService.ReceivePurchaseOrder(data, order,
+            [(order.LineItems[0], 3m), (order.LineItems[1], 4m)]);
+
+        Assert.Single(changes);
+        Assert.Equal(9, existing.InStock);
+        var adjustment = Assert.Single(data.StockAdjustments);
+        Assert.Equal((AdjustmentType.Add, 7m, 2m, 9m),
+            (adjustment.AdjustmentType, adjustment.Quantity, adjustment.PreviousStock, adjustment.NewStock));
+    }
+
+    [Fact]
+    public void AdjustmentsForSeveralRecords_SkipAnIdTypedByHand()
+    {
+        var data = Company();
+        data.Products.Add(new Product { Id = "PRD-002", Name = "Sugar", TrackInventory = true });
+        data.Products.Add(new Product { Id = "PRD-003", Name = "Salt", TrackInventory = true });
+        data.StockAdjustments.Add(new StockAdjustment { Id = "ADJ-00002", InventoryItemId = "other" });
+        var order = EuroOrder(quantity: 1, unitCost: 10m);
+        order.LineItems.Add(new PurchaseOrderLineItem { ProductId = "PRD-002", Quantity = 1, UnitCost = 1m });
+        order.LineItems.Add(new PurchaseOrderLineItem { ProductId = "PRD-003", Quantity = 1, UnitCost = 1m });
+
+        InventoryStockService.ReceivePurchaseOrder(data, order, order.LineItems.Select(l => (l, 1m)).ToList());
+
+        Assert.Equal(["ADJ-00001", "ADJ-00002", "ADJ-00003", "ADJ-00004"], data.StockAdjustments.Select(a => a.Id).Order().ToList());
+    }
+
+    [Fact]
     public void Revert_PutsStockBackAndRemovesWhatReceivingAdded()
     {
         var data = Company();

@@ -72,4 +72,18 @@ public class StripeDetailImporterTests
         Assert.Empty(data.Customers);
         Assert.True(string.IsNullOrEmpty(data.Revenues[0].CustomerId));
     }
+
+    [Fact]
+    public void Import_ManyCharges_GetDistinctIds_PastOneTypedByHand()
+    {
+        var data = new CompanyData();
+        data.Revenues.Add(new ArgoBooks.Core.Models.Transactions.Revenue { Id = "REV-2023-00002" });
+
+        new StripeDetailImporter().ImportCharges(data,
+            [Charge("ch_1", 1000, 30, 0, 0), Charge("ch_2", 1000, 30, 0, 0), Charge("ch_3", 1000, 30, 0, 0)]);
+
+        Assert.Equal(["REV-2023-00001", "REV-2023-00003", "REV-2023-00004"],
+            data.Revenues.Where(r => r.ReferenceNumber.StartsWith("ch_")).Select(r => r.Id).ToList());
+        Assert.Equal(3, data.Expenses.Select(e => e.Id).Distinct().Count());
+    }
 }

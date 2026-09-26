@@ -25,7 +25,7 @@ public partial class App
         SpreadsheetAnalysisService analysisService,
         SpreadsheetImportService importService,
         string originalFileName,
-        AiImportUsageService usageService)
+        UsageLimitService usageService)
     {
         using var rescueCts = new CancellationTokenSource();
         _mainWindowViewModel?.ShowLoading(

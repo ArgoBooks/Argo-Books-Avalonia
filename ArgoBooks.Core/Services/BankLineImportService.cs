@@ -163,6 +163,8 @@ public class BankLineImportService(UsdConverter? convert = null)
         var customerCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var categoryCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var productCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var expenseIds = IdGenerator.TakenSet(data.Expenses.Select(e => e.Id));
+        var revenueIds = IdGenerator.TakenSet(data.Revenues.Select(r => r.Id));
 
         foreach (var r in resolutions)
         {
@@ -206,8 +208,8 @@ public class BankLineImportService(UsdConverter? convert = null)
                 ProductId: productId);
 
             Transaction tx = isExpense
-                ? TransactionFactory.CreateExpense(data, draft)
-                : TransactionFactory.CreateRevenue(data, draft);
+                ? TransactionFactory.CreateExpense(data, draft, expenseIds)
+                : TransactionFactory.CreateRevenue(data, draft, revenueIds);
 
             ApplyUsdAmounts(data, creation, tx);
 

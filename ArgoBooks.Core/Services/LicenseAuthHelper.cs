@@ -28,16 +28,18 @@ public static class LicenseAuthHelper
     /// Adds authentication headers to an HTTP request.
     /// Uses license key if available, otherwise device ID.
     /// </summary>
-    public static void AddAuthHeaders(HttpRequestMessage request)
+    public static void AddAuthHeaders(HttpRequestMessage request) =>
+        AddAuthHeaders(request, GetLicenseKey(), GetDeviceId());
+
+    /// <summary>Adds the headers for a license key and device ID the caller already has.</summary>
+    public static void AddAuthHeaders(HttpRequestMessage request, string? licenseKey, string? deviceId)
     {
-        var licenseKey = GetLicenseKey();
         if (!string.IsNullOrEmpty(licenseKey))
         {
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", licenseKey);
             request.Headers.Add("X-License-Key", licenseKey);
         }
 
-        var deviceId = GetDeviceId();
         if (!string.IsNullOrEmpty(deviceId))
         {
             request.Headers.Add("X-Device-Id", deviceId);

@@ -56,24 +56,28 @@ The upgrade modal gets current prices from `/api/pricing/plans.php`. Users buy a
 
 ## Usage limits
 
-Receipt scans and AI spreadsheet imports each have a monthly limit that depends on the plan. The server keeps the count for each license key. `ReceiptUsageService` and `AiImportUsageService` handle it the same way:
+Receipt scans, AI imports (spreadsheet and bank statement) and, on the free plan, invoice sends each have a monthly limit that depends on the plan. The server keeps the count for each license key, or for the device when there is no key. One service, `UsageLimitService`, handles all of them the same way; each limit only differs in the server address it calls and the names the server gives its fields.
 
-- **Before each scan or import**, the app asks the server how many are left. The answer is reused for 5 minutes to save calls.
-- **After a successful one**, the app tells the server to add one to the count. If the server can't be reached at that moment, the result is still kept; it just isn't counted.
-- **If the limit is reached**, the scan or import is blocked and the user sees the date the count resets (the first of next month).
-- **If the server can't be reached** and there is no answer from the last 5 minutes, it is blocked with a message saying whether the internet or the Argo Books server is down. Scans and imports need the internet anyway, because the AI is reached through the server.
+Before each scan, import or send, the app decides whether it may go ahead:
 
-One difference: when the server replies with an error other than "limit reached", an AI import is allowed to go ahead, but a receipt scan is blocked.
+- **A recent answer is reused.** An answer from the server less than 5 minutes old is used again, to save calls.
+- **Limit reached:** the server says no more are left this month, so it is blocked and the user sees the date the count resets (the first of next month).
+- **The server answers with an error**, or can't be reached while the internet works: it goes ahead. The count server had a problem, and the scan, import or send makes its own call to the server, which fails with its own message if the server is really down.
+- **No internet:** it is blocked with a message saying the internet is down, because the scan, import or send can't work without it.
+- **No license key and no device ID:** it is blocked, because the server has nothing to count against.
+
+After a successful one, the app tells the server to add one to the count. If the server can't be reached at that moment, the result is still kept; it just isn't counted. Cancelling this call is not treated as a network problem.
 
 The server's answer includes:
 
 | Field | Meaning |
 |-------|---------|
-| `ScanCount` | Used this month (`ImportCount` for AI imports) |
-| `MonthlyLimit` | The limit for the plan |
-| `Remaining` | Left this month |
-| `Tier` | The plan's name |
-| `ResetsAt` | When the count resets |
+| `can_scan`, `can_import`, `can_send` | Whether one more may go ahead (the name depends on the limit) |
+| `scan_count`, `import_count`, `send_count` | Used this month |
+| `monthly_limit` | The limit for the plan, or -1 when there is no limit |
+| `remaining` | Left this month |
+| `tier` | The plan's name |
+| `resets_at` | When the count resets |
 
 ## Connection problems
 
@@ -86,8 +90,7 @@ License calls time out after 30 seconds; usage calls after 15 seconds.
 | Service | File | What it does |
 |---------|------|--------------|
 | `LicenseService` | `ArgoBooks.Core/Services/LicenseService.cs` | Saving, encrypting and loading the license, checking it online, the device ID |
-| `ReceiptUsageService` | `ArgoBooks.Core/Services/ReceiptUsageService.cs` | Receipt scan limits |
-| `AiImportUsageService` | `ArgoBooks.Core/Services/AiImportUsageService.cs` | AI import limits |
+| `UsageLimitService` | `ArgoBooks.Core/Services/UsageLimitService.cs` | Receipt scan, AI import and invoice send limits |
 | `UpgradeModalViewModel` | `ArgoBooks/ViewModels/UpgradeModalViewModel.cs` | The upgrade modal: entering and activating a key, prices |
 
 ## Clearing a license

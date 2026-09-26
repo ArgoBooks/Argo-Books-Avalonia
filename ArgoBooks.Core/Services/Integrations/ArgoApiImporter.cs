@@ -39,9 +39,23 @@ public class ArgoApiImporter
     private IReadOnlyDictionary<string, ArgoExternalRef> _external =
         new Dictionary<string, ArgoExternalRef>();
 
+    /// <summary>The ids taken for each record type, built once per import rather than once per record.</summary>
+    private sealed class TakenIds(CompanyData data)
+    {
+        public readonly HashSet<string> Customers = IdGenerator.TakenSet(data.Customers.Select(c => c.Id));
+        public readonly HashSet<string> Suppliers = IdGenerator.TakenSet(data.Suppliers.Select(s => s.Id));
+        public readonly HashSet<string> Products = IdGenerator.TakenSet(data.Products.Select(p => p.Id));
+        public readonly HashSet<string> Expenses = IdGenerator.TakenSet(data.Expenses.Select(e => e.Id));
+        public readonly HashSet<string> Revenues = IdGenerator.TakenSet(data.Revenues.Select(r => r.Id));
+        public readonly HashSet<string> Returns = IdGenerator.TakenSet(data.Returns.Select(r => r.Id));
+    }
+
+    private TakenIds _taken = null!;
+
     public void Import(CompanyData data, ArgoApiSyncPreview preview, ArgoApiImportCreation creation)
     {
         _external = preview.ExternalRefs;
+        _taken = new TakenIds(data);
 
         foreach (var c in preview.Categories) ImportCategory(data, c, creation);
         foreach (var c in preview.Customers) ImportCustomer(data, c, creation);
@@ -114,7 +128,7 @@ public class ArgoApiImporter
 
         var customer = new Customer
         {
-            Id = new IdGenerator(data).NextCustomerId(),
+            Id = new IdGenerator(data).NextCustomerId(_taken.Customers),
             Name = api.Name,
             Email = api.Email ?? string.Empty,
             Phone = api.Phone ?? string.Empty
@@ -138,7 +152,7 @@ public class ArgoApiImporter
 
         var supplier = new Supplier
         {
-            Id = new IdGenerator(data).NextSupplierId(),
+            Id = new IdGenerator(data).NextSupplierId(_taken.Suppliers),
             Name = api.Name,
             Email = api.Email ?? string.Empty,
             Phone = api.Phone ?? string.Empty,
@@ -171,7 +185,7 @@ public class ArgoApiImporter
 
         var product = new Product
         {
-            Id = new IdGenerator(data).NextProductId(),
+            Id = new IdGenerator(data).NextProductId(_taken.Products),
             Name = api.Name,
             CategoryId = categoryId,
             Type = productType,
@@ -193,7 +207,7 @@ public class ArgoApiImporter
 
         var expense = new Expense
         {
-            Id = new IdGenerator(data).NextExpenseId(date),
+            Id = new IdGenerator(data).NextExpenseId(date, _taken.Expenses),
             Date = date,
             Description = api.Description,
             SupplierId = ResolveRef(data, _suppliers, api.Supplier, MatchSupplier),
@@ -233,7 +247,7 @@ public class ArgoApiImporter
 
         var revenue = new Revenue
         {
-            Id = new IdGenerator(data).NextRevenueId(date),
+            Id = new IdGenerator(data).NextRevenueId(date, _taken.Revenues),
             Date = date,
             Description = api.Description,
             CustomerId = ResolveRef(data, _customers, api.Customer, MatchCustomer) ?? string.Empty,
@@ -265,7 +279,7 @@ public class ArgoApiImporter
         {
             var feeExpense = new Expense
             {
-                Id = new IdGenerator(data).NextExpenseId(date),
+                Id = new IdGenerator(data).NextExpenseId(date, _taken.Expenses),
                 Date = date,
                 Description = "Processing fee",
                 Quantity = 1,
@@ -307,7 +321,7 @@ public class ArgoApiImporter
             var date = ParseDate(api.OccurredOn);
             var expense = new Expense
             {
-                Id = new IdGenerator(data).NextExpenseId(date),
+                Id = new IdGenerator(data).NextExpenseId(date, _taken.Expenses),
                 Date = date,
                 Description = string.IsNullOrWhiteSpace(api.Reason) ? "Refund" : $"Refund: {api.Reason}",
                 Quantity = 1,
@@ -327,7 +341,7 @@ public class ArgoApiImporter
 
         var ret = new Return
         {
-            Id = new IdGenerator(data).NextReturnId(),
+            Id = new IdGenerator(data).NextReturnId(_taken.Returns),
             OriginalTransactionId = revenue.Id,
             ReturnType = "Customer",
             CustomerId = revenue.CustomerId ?? string.Empty,

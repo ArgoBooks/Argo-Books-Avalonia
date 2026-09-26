@@ -216,6 +216,7 @@ public static class InventoryStockService
         CompanyData data, List<StockChange.Builder> touched, string reason, string reference)
     {
         var changes = new List<StockChange>(touched.Count);
+        HashSet<string>? takenIds = null;
         foreach (var builder in touched)
         {
             var item = builder.Item;
@@ -228,7 +229,8 @@ public static class InventoryStockService
             {
                 adjustment = new StockAdjustment
                 {
-                    Id = new IdGenerator(data).NextStockAdjustmentId(),
+                    Id = new IdGenerator(data).NextStockAdjustmentId(
+                        takenIds ??= IdGenerator.TakenSet(data.StockAdjustments.Select(a => a.Id))),
                     InventoryItemId = item.Id,
                     AdjustmentType = net > 0 ? AdjustmentType.Add : AdjustmentType.Remove,
                     Quantity = Math.Abs(net),

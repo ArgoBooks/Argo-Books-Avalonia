@@ -1116,8 +1116,8 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
         SendRecipientEmail = supplier?.Email ?? string.Empty;
         SendCcEmail = string.Empty;
         SendBccEmail = settings.BccEmail;
-        SendSubject = PurchaseOrderEmailService.FillTemplate(settings.SubjectTemplate, order, companyData, symbol);
-        SendBody = PurchaseOrderEmailService.FillTemplate(settings.BodyTemplate, order, companyData, symbol);
+        SendSubject = PurchaseOrderEmailService.FillTemplate(settings.SubjectTemplate, order, companyData);
+        SendBody = PurchaseOrderEmailService.FillTemplate(settings.BodyTemplate, order, companyData);
         SendPdfFilename = $"{SafeFileName.Create(order.PoNumber, "PurchaseOrder", replaceSpaces: true)}.pdf";
 
         SendPdfPreview?.Dispose();

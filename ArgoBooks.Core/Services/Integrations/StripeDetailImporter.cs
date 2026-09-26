@@ -24,10 +24,15 @@ public class StripeDetailImporter
     public StripeDetailResult ImportCharges(CompanyData data, IReadOnlyList<StripeChargeDetail> charges)
     {
         int revs = 0, exps = 0;
+        var ids = new IdGenerator(data);
+        var revenueIds = IdGenerator.TakenSet(data.Revenues.Select(r => r.Id));
+        var expenseIds = IdGenerator.TakenSet(data.Expenses.Select(e => e.Id));
+        var customerIds = IdGenerator.TakenSet(data.Customers.Select(c => c.Id));
+        var productIds = IdGenerator.TakenSet(data.Products.Select(p => p.Id));
         foreach (var ch in charges)
         {
-            var customerId = ResolveCustomer(data, ch);
-            var productId = ResolveProduct(data, ch.ProductName);
+            var customerId = ResolveCustomer(data, ch, customerIds);
+            var productId = ResolveProduct(data, ch.ProductName, productIds);
 
             var currency = ImportLookup.NormalizeCurrency(ch.Currency);
             var gross = ArgoMoney.ToDecimal(ch.GrossCents, currency);
@@ -43,7 +48,7 @@ public class StripeDetailImporter
 
             var rev = new Revenue
             {
-                Id = new IdGenerator(data).NextRevenueId(date),
+                Id = ids.NextRevenueId(date, revenueIds),
                 Date = date,
                 Description = ch.ProductName,
                 CustomerId = customerId ?? string.Empty,
@@ -82,7 +87,7 @@ public class StripeDetailImporter
                 var feeAmount = ArgoMoney.ToDecimal(ch.FeeCents, feeCurrency);
                 var fee = new Expense
                 {
-                    Id = new IdGenerator(data).NextExpenseId(date),
+                    Id = ids.NextExpenseId(date, expenseIds),
                     Date = date,
                     Description = "Stripe processing fee",
                     Quantity = 1,
@@ -104,7 +109,7 @@ public class StripeDetailImporter
         return new StripeDetailResult(revs, exps, 0);
     }
 
-    private string? ResolveCustomer(CompanyData data, StripeChargeDetail ch)
+    private string? ResolveCustomer(CompanyData data, StripeChargeDetail ch, HashSet<string> customerIds)
     {
         var key = string.IsNullOrWhiteSpace(ch.CustomerEmail) ? ch.CustomerName : ch.CustomerEmail;
         if (string.IsNullOrWhiteSpace(key)) return null;
@@ -115,7 +120,7 @@ public class StripeDetailImporter
 
         var customer = new Customer
         {
-            Id = new IdGenerator(data).NextCustomerId(),
+            Id = new IdGenerator(data).NextCustomerId(customerIds),
             Name = string.IsNullOrWhiteSpace(ch.CustomerName) ? (ch.CustomerEmail ?? "Stripe customer") : ch.CustomerName!,
             Email = ch.CustomerEmail ?? string.Empty
         };
@@ -124,7 +129,7 @@ public class StripeDetailImporter
         return customer.Id;
     }
 
-    private string ResolveProduct(CompanyData data, string name)
+    private string ResolveProduct(CompanyData data, string name, HashSet<string> productIds)
     {
         if (_productCache.TryGetValue(name, out var cached)) return cached;
         var existing = ImportLookup.FindProduct(data, name, CategoryType.Revenue);
@@ -133,7 +138,7 @@ public class StripeDetailImporter
         var categoryId = ResolveStripeCategory(data);
         var product = new Product
         {
-            Id = new IdGenerator(data).NextProductId(),
+            Id = new IdGenerator(data).NextProductId(productIds),
             Name = name,
             CategoryId = categoryId,
             Type = CategoryType.Revenue,
@@ -152,6 +157,9 @@ public class StripeDetailImporter
     public int ApplyRefunds(CompanyData data, IReadOnlyList<StripeChargeDetail> charges)
     {
         var made = 0;
+        var ids = new IdGenerator(data);
+        var returnIds = IdGenerator.TakenSet(data.Returns.Select(r => r.Id));
+        var expenseIds = IdGenerator.TakenSet(data.Expenses.Select(e => e.Id));
         foreach (var ch in charges)
         {
             if (ch.AmountRefundedCents <= 0) continue;
@@ -165,7 +173,7 @@ public class StripeDetailImporter
 
                 data.Returns.Add(new Return
                 {
-                    Id = new IdGenerator(data).NextReturnId(),
+                    Id = ids.NextReturnId(returnIds),
                     OriginalTransactionId = rev.Id,
                     ReturnType = "Customer",
                     CustomerId = rev.CustomerId ?? string.Empty,
@@ -184,7 +192,7 @@ public class StripeDetailImporter
                 var refundDate = DateTime.Now;
                 var exp = new Expense
                 {
-                    Id = new IdGenerator(data).NextExpenseId(refundDate),
+                    Id = ids.NextExpenseId(refundDate, expenseIds),
                     Date = refundDate,
                     Description = "Stripe refund",
                     Quantity = 1,

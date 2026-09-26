@@ -476,7 +476,7 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
         if (usageService == null || HasPremium) return;
 
         var result = await usageService.CheckUsageAsync();
-        if (!result.Success) return;
+        if (result.IsOffline) return;
 
         // Server returns monthly_limit = -1 as a sentinel for Premium /
         // unlimited. If we update SendCount but not the limit, the UI ends
@@ -492,7 +492,7 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
 
         if (result.MonthlyLimit > 0)
             InvoiceMonthlyLimit = result.MonthlyLimit;
-        SentInvoicesThisMonthCount = result.SendCount;
+        SentInvoicesThisMonthCount = result.Used;
     }
 
     private void OnCurrencyChanged(object? sender, EventArgs e)

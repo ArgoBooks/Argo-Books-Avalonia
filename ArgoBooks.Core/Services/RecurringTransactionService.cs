@@ -157,6 +157,9 @@ public static class RecurringTransactionService
 
         var generated = new List<Transaction>();
         var asOfDate = today.Date;
+        var takenIds = new Lazy<TakenIds>(() => new TakenIds(
+            IdGenerator.TakenSet(data.Revenues.Select(r => r.Id)),
+            IdGenerator.TakenSet(data.Expenses.Select(e => e.Id))));
 
         foreach (var schedule in data.RecurringTransactions)
         {
@@ -177,7 +180,7 @@ public static class RecurringTransactionService
                 var skipped = schedule.SkippedDates.Any(d => d.Date == occurrence);
                 if (!skipped && !AlreadyGenerated(data, schedule, occurrence))
                 {
-                    generated.Add(CloneFor(schedule, occurrence, data, convert));
+                    generated.Add(CloneFor(schedule, occurrence, data, convert, takenIds.Value));
                     schedule.LastGeneratedAt = DateTime.UtcNow;
                 }
 
@@ -341,22 +344,25 @@ public static class RecurringTransactionService
             : data.Expenses.Any(Matches);
     }
 
+    /// <summary>The revenue and expense ids taken, built once per run rather than once per occurrence.</summary>
+    private sealed record TakenIds(HashSet<string> Revenues, HashSet<string> Expenses);
+
     private static Transaction CloneFor(
-        RecurringTransaction schedule, DateTime occurrence, CompanyData data, UsdConverter convert)
+        RecurringTransaction schedule, DateTime occurrence, CompanyData data, UsdConverter convert, TakenIds taken)
     {
         Transaction entry;
 
         if (schedule.Type == CategoryType.Revenue)
         {
             var revenue = Clone(schedule.RevenueTemplate!);
-            revenue.Id = new IdGenerator(data).NextRevenueId(occurrence);
+            revenue.Id = new IdGenerator(data).NextRevenueId(occurrence, taken.Revenues);
             data.Revenues.Add(revenue);
             entry = revenue;
         }
         else
         {
             var expense = Clone(schedule.ExpenseTemplate!);
-            expense.Id = new IdGenerator(data).NextExpenseId(occurrence);
+            expense.Id = new IdGenerator(data).NextExpenseId(occurrence, taken.Expenses);
             data.Expenses.Add(expense);
             entry = expense;
         }

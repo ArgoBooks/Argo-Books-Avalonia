@@ -198,7 +198,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
     #region AI Scan Review Modal State
 
     private IReceiptScannerService? _scannerService;
-    private IReceiptUsageService? _usageService;
+    private IUsageLimitService? _usageService;
 
     /// <summary>
     /// Invalidates cached scan services so the next scan attempt picks up
@@ -207,8 +207,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
     public void InvalidateScanServices()
     {
         _usageService?.InvalidateCache();
-        // Dispose before dropping the reference, IReceiptUsageService now owns
-        // an HttpClient when constructed via the parameterless overload.
+        // Dispose before dropping the reference: the service owns an HttpClient.
         _usageService?.Dispose();
         _usageService = null;
         _scannerService = null;
@@ -946,7 +945,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             var usageCheck = await _usageService.CheckUsageAsync();
             UpdateUsageDisplay(usageCheck);
 
-            if (!usageCheck.CanScan)
+            if (!usageCheck.Allowed)
             {
                 IsBulkScanning = false;
                 if (!string.IsNullOrEmpty(usageCheck.ErrorMessage))
@@ -956,13 +955,13 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
                 else
                 {
                     await UpgradePromptHelper.ShowReceiptScanLimitPromptAsync(
-                        usageCheck.ScanCount, usageCheck.MonthlyLimit, usageCheck.ResetsAt);
+                        usageCheck.Used, usageCheck.MonthlyLimit, usageCheck.ResetsAt);
                 }
                 return;
             }
 
             // Ask, then scan only what the allowance covers.
-            if (usageCheck.Remaining < BulkItems.Count)
+            if (!usageCheck.IsOffline && usageCheck.Remaining < BulkItems.Count)
             {
                 ScansRemaining = usageCheck.Remaining;
 
@@ -1106,7 +1105,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             if (_usageService != null)
             {
                 var usageCheck = await _usageService.CheckUsageAsync();
-                if (!usageCheck.CanScan)
+                if (!usageCheck.Allowed)
                 {
                     await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
                     {
@@ -1672,7 +1671,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
     {
         _usageService ??= CreateUsageService();
         var usageCheck = await _usageService.CheckUsageAsync();
-        if (!usageCheck.CanScan)
+        if (!usageCheck.Allowed)
         {
             if (!string.IsNullOrEmpty(usageCheck.ErrorMessage))
             {
@@ -1681,7 +1680,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             else
             {
                 await UpgradePromptHelper.ShowReceiptScanLimitPromptAsync(
-                    usageCheck.ScanCount,
+                    usageCheck.Used,
                     usageCheck.MonthlyLimit,
                     usageCheck.ResetsAt);
             }
@@ -2047,7 +2046,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
                 var usageCheck = await _usageService.CheckUsageAsync();
                 UpdateUsageDisplay(usageCheck);
 
-                if (!usageCheck.CanScan)
+                if (!usageCheck.Allowed)
                 {
                     IsScanning = false;
 
@@ -2062,7 +2061,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
                     else
                     {
                         await UpgradePromptHelper.ShowReceiptScanLimitPromptAsync(
-                            usageCheck.ScanCount,
+                            usageCheck.Used,
                             usageCheck.MonthlyLimit,
                             usageCheck.ResetsAt);
                     }
@@ -2104,9 +2103,9 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             if (_usageService != null)
             {
                 var incrementResult = await _usageService.IncrementUsageAsync();
-                if (incrementResult.Success)
+                if (incrementResult.Success && !incrementResult.IsOffline)
                 {
-                    ScansUsed = incrementResult.ScanCount;
+                    ScansUsed = incrementResult.Used;
                     ScansRemaining = incrementResult.Remaining;
                     IsNearLimit = incrementResult.MonthlyLimit > 0 && incrementResult.Remaining > 0 && incrementResult.Remaining <= incrementResult.MonthlyLimit / 10;
                 }
@@ -2137,8 +2136,9 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
 
     private void UpdateUsageDisplay(UsageCheckResult usageCheck)
     {
+        if (usageCheck.IsOffline) return;
         HasUsageInfo = true;
-        ScansUsed = usageCheck.ScanCount;
+        ScansUsed = usageCheck.Used;
         ScansLimit = usageCheck.MonthlyLimit;
         ScansRemaining = usageCheck.Remaining;
         UsageTier = usageCheck.Tier;
@@ -3497,10 +3497,8 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
                 OperationTimingService.Instance?.RecordResult(OperationKind.ReceiptScan, serverMs, wallClockMs, uploadBytes, loadFactor));
     }
 
-    private IReceiptUsageService CreateUsageService()
-    {
-        return new ReceiptUsageService(App.LicenseService);
-    }
+    private IUsageLimitService CreateUsageService() =>
+        new UsageLimitService(UsageLimit.ReceiptScans, App.LicenseService, App.ErrorLogger);
 
     private OcrData CreateOcrData()
     {

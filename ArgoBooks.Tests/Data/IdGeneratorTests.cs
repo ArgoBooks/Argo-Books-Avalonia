@@ -451,5 +451,64 @@ public class IdGeneratorTests
         Assert.Equal(7, companyData.IdCounters.Payment);
     }
 
+    [Fact]
+    public void ACounterAtTheLimit_Throws_InsteadOfWrappingToANegativeId()
+    {
+        var companyData = CreateCompanyData();
+        companyData.IdCounters.Customer = int.MaxValue;
+
+        Assert.Throws<OverflowException>(() => new IdGenerator(companyData).NextCustomerId());
+        Assert.Equal(int.MaxValue, companyData.IdCounters.Customer);
+    }
+
+    #endregion
+
+    #region Which IDs move a counter
+
+    [Theory]
+    [InlineData("CUS-007", "CUS-", 7)]
+    [InlineData("cus-00042", "CUS-", 42)]
+    [InlineData("CUS-999999", "CUS-", 999999)]
+    [InlineData("CUS-1000000", "CUS-", 0)]
+    [InlineData("CUS-2147483647", "CUS-", 0)]
+    [InlineData("CUS-99999999999", "CUS-", 0)]
+    [InlineData("1045", "EMP-", 0)]
+    [InlineData("SUP-009", "CUS-", 0)]
+    [InlineData("INV-2024-00042", "INV-", 42)]
+    [InlineData("INV-001", "INV-", 1)]
+    [InlineData("INV-20260315", "INV-", 0)]
+    [InlineData("INV-ITM-00009", "INV-", 0)]
+    [InlineData("RNT-ITM-004", "RNT-", 0)]
+    [InlineData("PAY-2026-00005", "PAY-", 5)]
+    public void HighestNumber_CountsOnlyIdsInTheRecordsOwnFormat(string id, string prefix, int expected)
+    {
+        Assert.Equal(expected, IdGenerator.HighestNumber([id], prefix));
+    }
+
+    [Fact]
+    public void HighestNumber_TakesEveryPrefixAFormatHasHad()
+    {
+        Assert.Equal(9, IdGenerator.HighestNumber(["SAL-2023-00009", "REV-2024-00003"], "REV-", "SAL-"));
+    }
+
+    [Fact]
+    public void EmployeeIds_IgnoreFreeTextAndOutsizedNumbers()
+    {
+        var companyData = CreateCompanyData();
+        companyData.Employees.Add(new Employee { Id = "1045" });
+        companyData.Employees.Add(new Employee { Id = "EMP-2147483647" });
+
+        Assert.Equal("EMP-001", new IdGenerator(companyData).NextEmployeeId());
+    }
+
+    [Fact]
+    public void WithoutASet_AnIdTakenInAnotherCase_IsStillSkipped()
+    {
+        var companyData = CreateCompanyData();
+        companyData.Customers.Add(new Customer { Id = "cus-001" });
+
+        Assert.Equal("CUS-002", new IdGenerator(companyData).NextCustomerId());
+    }
+
     #endregion
 }

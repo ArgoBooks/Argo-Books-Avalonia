@@ -112,7 +112,7 @@ The app owns the wording shown for each code (`ImportRescueMessages.ForReason`).
 
 ## Monthly limit
 
-AI imports have a monthly limit, handled by `AiImportUsageService`. The count goes up after each successful import. See [LicenseKey](LicenseKey.md#usage-limits) for how the limit is checked, including what happens when the server can't be reached.
+AI imports have a monthly limit, handled by `UsageLimitService`. The count goes up after each successful import. See [LicenseKey](LicenseKey.md#usage-limits) for how the limit is checked, including what happens when the server can't be reached.
 
 ## Where it is run from
 

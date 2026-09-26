@@ -141,17 +141,79 @@ public class ImportIdNumberingTests : IDisposable
     }
 
     [Fact]
-    public async Task AnImportedInvoiceNumber_IsNotReusedByTheNextInvoice()
+    public async Task AnImportedInvoiceNumber_IsNotReusedByABlankRowOrTheNextInvoice()
     {
-        // Its id is something else, so only the printed number carries the 3.
+        // Its id is something else, so only the printed number is taken. The blank row comes first.
         var path = Workbook(("Invoices", ["ID", "Invoice #", "Customer ID", "Total"],
         [
-            ["legacy-a", $"#INV-{Year}-0003", "CUS-001", "100"],
+            ["", "", "CUS-001", "50"],
+            ["legacy-a", $"#INV-{Year}-00001", "CUS-001", "100"],
         ]));
         var data = new CompanyData();
 
         await new SpreadsheetImportService().ImportFromExcelAsync(path, data);
 
-        Assert.Equal(($"INV-{Year}-00004", $"#INV-{Year}-00004"), new IdGenerator(data).PeekNextInvoice());
+        var minted = Assert.Single(data.Invoices, i => i.Total == 50);
+        Assert.Equal(($"INV-{Year}-00002", $"#INV-{Year}-00002"), (minted.Id, minted.InvoiceNumber));
+        Assert.Equal(($"INV-{Year}-00003", $"#INV-{Year}-00003"), new IdGenerator(data).PeekNextInvoice());
+    }
+
+    [Fact]
+    public async Task ADateCodedInvoiceNumber_DoesNotThrowTheCounterAhead()
+    {
+        var path = Workbook(("Invoices", ["ID", "Invoice #", "Customer ID", "Total"],
+        [
+            ["legacy-a", "INV-20260315", "CUS-001", "100"],
+            ["", "INV-20260316", "CUS-001", "100"],
+        ]));
+        var data = new CompanyData();
+
+        await new SpreadsheetImportService().ImportFromExcelAsync(path, data);
+
+        Assert.Equal(0, data.IdCounters.Invoice);
+        Assert.Equal(($"INV-{Year}-00001", $"#INV-{Year}-00001"), new IdGenerator(data).PeekNextInvoice());
+    }
+
+    [Fact]
+    public async Task AnOutsizedId_IsIgnoredByTheCounter_AndBlankRowsStillGetDistinctIds()
+    {
+        // CUS-2147483647 raised the counter to int.MaxValue, and the next ++ wrapped it negative.
+        var path = Workbook(("Customers", ["ID", "Name"],
+        [
+            ["CUS-2147483647", "Big"],
+            ["", "Walk-in"],
+            ["CUS-002", "Typed"],
+            ["", "Second walk-in"],
+        ]));
+        var data = new CompanyData();
+
+        await new SpreadsheetImportService().ImportFromExcelAsync(path, data);
+
+        Assert.Equal(["CUS-003", "CUS-004"],
+            data.Customers.Where(c => c.Name.Contains("walk-in", StringComparison.OrdinalIgnoreCase)).Select(c => c.Id).Order().ToList());
+        Assert.Equal(4, data.IdCounters.Customer);
+        Assert.Equal("CUS-005", new IdGenerator(data).NextCustomerId());
+    }
+
+    [Fact]
+    public async Task AnIdReferencedFromALaterSheet_IsNotMintedForABlankRow()
+    {
+        // The Customers sheet comes first. Its blank row would have been CUS-001, the customer the
+        // invoice names, so the invoice would have been linked to the wrong customer.
+        var path = Workbook(
+            ("Customers", ["ID", "Name"],
+            [
+                ["", "Walk-in"],
+            ]),
+            ("Invoices", ["ID", "Invoice #", "Customer ID", "Total"],
+            [
+                ["INV-A", "", "CUS-001", "100"],
+            ]));
+        var data = new CompanyData();
+
+        await new SpreadsheetImportService().ImportFromExcelAsync(path, data);
+
+        Assert.Equal("CUS-002", Assert.Single(data.Customers, c => c.Name == "Walk-in").Id);
+        Assert.Equal("CUS-001", Assert.Single(data.Invoices).CustomerId);
     }
 }

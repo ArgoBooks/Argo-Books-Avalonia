@@ -1,34 +1,23 @@
-using System.Text;
+using System.Globalization;
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Models;
+using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Models.Invoices;
-
 using ArgoBooks.Core.Models.Transactions;
 
 namespace ArgoBooks.Core.Services.InvoiceTemplates;
 
 /// <summary>
-/// Service for sending invoice emails via the configured API endpoint.
+/// Sends invoice emails through the website's invoice email endpoint, which needs a Premium
+/// license key.
 /// </summary>
-public class InvoiceEmailService : IDisposable
+public class InvoiceEmailService(ArgoEmailClient client) : IDisposable
 {
-    private static readonly JsonSerializerOptions SerializeOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        WriteIndented = false
-    };
-
-    private static readonly JsonSerializerOptions DeserializeOptions = new()
-    {
-        PropertyNameCaseInsensitive = true
-    };
-
-    private readonly HttpClient _httpClient = new()
-    {
-        Timeout = TimeSpan.FromSeconds(30)
-    };
     private readonly InvoiceHtmlRenderer _htmlRenderer = new();
-    private bool _disposed;
+
+    public InvoiceEmailService() : this(new ArgoEmailClient(TimeSpan.FromSeconds(30)))
+    {
+    }
 
     /// <summary>
     /// Sends an invoice email to the customer.
@@ -48,16 +37,6 @@ public class InvoiceEmailService : IDisposable
         string currencySymbol = "$",
         CancellationToken cancellationToken = default)
     {
-        if (!LicenseAuthHelper.IsConfigured)
-        {
-            return new InvoiceEmailResponse
-            {
-                Success = false,
-                Message = "Premium subscription required to send invoice emails. Please activate your license key.",
-                ErrorCode = "NOT_CONFIGURED"
-            };
-        }
-
         var customer = companyData.GetCustomer(invoice.CustomerId);
         if (customer == null)
         {
@@ -79,17 +58,10 @@ public class InvoiceEmailService : IDisposable
             };
         }
 
+        InvoiceEmailRequest request;
         try
         {
-            // Render the HTML email content
-            var html = _htmlRenderer.RenderInvoice(invoice, template, companyData, currencySymbol);
-            var plainText = _htmlRenderer.RenderPlainText(invoice, template, companyData, currencySymbol);
-
-            // Build the subject line
-            var subject = BuildSubject(emailSettings.SubjectTemplate, invoice, companyData.Settings);
-
-            // Build the request
-            var request = new InvoiceEmailRequest
+            request = new InvoiceEmailRequest
             {
                 To = customer.Email,
                 ToName = customer.Name,
@@ -103,30 +75,10 @@ public class InvoiceEmailService : IDisposable
                 Bcc = !string.IsNullOrWhiteSpace(emailSettings.BccEmail)
                     ? emailSettings.BccEmail
                     : null,
-                Subject = subject,
-                Html = html,
-                Text = plainText,
+                Subject = BuildSubject(emailSettings.SubjectTemplate, invoice, companyData.Settings),
+                Html = _htmlRenderer.RenderInvoice(invoice, template, companyData, currencySymbol),
+                Text = _htmlRenderer.RenderPlainText(invoice, template, companyData, currencySymbol),
                 InvoiceId = invoice.Id
-            };
-
-            return await SendEmailRequestAsync(request, emailSettings, cancellationToken);
-        }
-        catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            return new InvoiceEmailResponse
-            {
-                Success = false,
-                Message = await ConnectivityMessage.ResolveAsync(),
-                ErrorCode = "TIMEOUT"
-            };
-        }
-        catch (HttpRequestException)
-        {
-            return new InvoiceEmailResponse
-            {
-                Success = false,
-                Message = await ConnectivityMessage.ResolveAsync(),
-                ErrorCode = "NETWORK_ERROR"
             };
         }
         catch (Exception ex)
@@ -138,73 +90,9 @@ public class InvoiceEmailService : IDisposable
                 ErrorCode = "UNKNOWN_ERROR"
             };
         }
-    }
 
-    /// <summary>
-    /// Sends a custom email request to the API.
-    /// </summary>
-    public async Task<InvoiceEmailResponse> SendEmailRequestAsync(
-        InvoiceEmailRequest request,
-        InvoiceEmailSettings emailSettings,
-        CancellationToken cancellationToken = default)
-    {
-        var json = JsonSerializer.Serialize(request, SerializeOptions);
-
-        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, InvoiceEmailSettings.ApiEndpoint);
-        httpRequest.Content = new StringContent(json, Encoding.UTF8, "application/json");
-
-        LicenseAuthHelper.AddAuthHeaders(httpRequest);
-
-        using var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
-
-        var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
-
-        if (response.IsSuccessStatusCode)
-        {
-            try
-            {
-                var result = JsonSerializer.Deserialize<InvoiceEmailResponse>(responseContent, DeserializeOptions);
-
-                return result ?? new InvoiceEmailResponse
-                {
-                    Success = true,
-                    Message = "Email sent successfully.",
-                    Timestamp = DateTime.UtcNow
-                };
-            }
-            catch
-            {
-                // If we can't parse the response, assume success since HTTP status was OK
-                return new InvoiceEmailResponse
-                {
-                    Success = true,
-                    Message = "Email sent successfully.",
-                    Timestamp = DateTime.UtcNow
-                };
-            }
-        }
-
-        // Try to parse error response
-        try
-        {
-            var errorResult = JsonSerializer.Deserialize<InvoiceEmailResponse>(responseContent, DeserializeOptions);
-
-            return errorResult ?? new InvoiceEmailResponse
-            {
-                Success = false,
-                Message = $"API error: {response.StatusCode} - {responseContent}",
-                ErrorCode = ((int)response.StatusCode).ToString()
-            };
-        }
-        catch
-        {
-            return new InvoiceEmailResponse
-            {
-                Success = false,
-                Message = $"API error: {response.StatusCode} - {responseContent}",
-                ErrorCode = ((int)response.StatusCode).ToString()
-            };
-        }
+        return await client.SendAsync<InvoiceEmailRequest, InvoiceEmailResponse>(
+            InvoiceEmailSettings.ApiEndpoint, request, EmailAuth.LicenseKey, cancellationToken: cancellationToken);
     }
 
     /// <summary>
@@ -227,35 +115,19 @@ public class InvoiceEmailService : IDisposable
         return _htmlRenderer.RenderPreview(template, companySettings, lockAspectRatio);
     }
 
-    private static string BuildSubject(string template, Invoice invoice, CompanySettings settings)
-    {
-        var subject = template;
-
-        subject = subject.Replace("{InvoiceNumber}", invoice.InvoiceNumber);
-        subject = subject.Replace("{InvoiceId}", invoice.Id);
-        subject = subject.Replace("{CompanyName}", settings.Company.Name);
-        subject = subject.Replace("{IssueDate}", invoice.IssueDate.ToString("yyyy-MM-dd"));
-        subject = subject.Replace("{DueDate}", invoice.DueDate.ToString("yyyy-MM-dd"));
-        subject = subject.Replace("{Total}", invoice.Total.ToString("N2"));
-
-        return subject;
-    }
+    /// <summary>Fills the subject template. The total is written in the invoice's own currency.</summary>
+    internal static string BuildSubject(string template, Invoice invoice, CompanySettings settings) =>
+        template
+            .Replace("{InvoiceNumber}", invoice.InvoiceNumber)
+            .Replace("{InvoiceId}", invoice.Id)
+            .Replace("{CompanyName}", settings.Company.Name)
+            .Replace("{IssueDate}", invoice.IssueDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))
+            .Replace("{DueDate}", invoice.DueDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))
+            .Replace("{Total}", CurrencyInfo.FormatAmount(invoice.Total, invoice.OriginalCurrency));
 
     public void Dispose()
     {
-        Dispose(true);
+        client.Dispose();
         GC.SuppressFinalize(this);
-    }
-
-    protected virtual void Dispose(bool disposing)
-    {
-        if (!_disposed)
-        {
-            if (disposing)
-            {
-                _httpClient.Dispose();
-            }
-            _disposed = true;
-        }
     }
 }

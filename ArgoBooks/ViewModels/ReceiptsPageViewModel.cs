@@ -390,12 +390,12 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
         {
             // Disposed each time: this constructor builds its own HttpClient and owns it, so a
             // fresh one per refresh with no dispose leaks a socket handle per page load.
-            using var usageService = new ReceiptUsageService(App.LicenseService, App.ErrorLogger);
+            using var usageService = new UsageLimitService(UsageLimit.ReceiptScans, App.LicenseService, App.ErrorLogger);
             var usage = await usageService.CheckUsageAsync();
 
             if (usage.MonthlyLimit > 0)
             {
-                ScanUsage = "{0} of {1} scans used".TranslateFormat(usage.ScanCount, usage.MonthlyLimit);
+                ScanUsage = "{0} of {1} scans used".TranslateFormat(usage.Used, usage.MonthlyLimit);
                 return;
             }
 

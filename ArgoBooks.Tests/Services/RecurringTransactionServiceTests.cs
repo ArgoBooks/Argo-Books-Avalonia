@@ -528,4 +528,16 @@ public class RecurringTransactionServiceTests
     }
 
     #endregion
+
+    [Fact]
+    public void GenerateDue_CatchUp_GivesEachOccurrenceItsOwnId_PastOneTypedByHand()
+    {
+        var (data, _) = WithMonthlyRent(new DateTime(2026, 1, 1));
+        data.Expenses.Add(new Expense { Id = "PUR-2026-00002", Description = "Typed by hand" });
+
+        RecurringTransactionService.GenerateDue(data, new DateTime(2026, 3, 15));
+
+        Assert.Equal(["PUR-2026-00001", "PUR-2026-00003", "PUR-2026-00004"],
+            data.Expenses.Where(e => e.RecurringScheduleId != null).Select(e => e.Id).ToList());
+    }
 }

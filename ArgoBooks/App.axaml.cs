@@ -117,7 +117,7 @@ public partial class App : Application
     /// <summary>
     /// Gets the invoice usage service for tracking free-tier send limits.
     /// </summary>
-    public static InvoiceUsageService? InvoiceUsageService { get; private set; }
+    public static UsageLimitService? InvoiceUsageService { get; private set; }
 
     /// <summary>
     /// Gets the license service instance for secure license storage.
@@ -1460,7 +1460,7 @@ public partial class App : Application
                 PaymentPortalService,
                 () => CompanyManager?.CompanyData,
                 errorLogger);
-            InvoiceUsageService = new InvoiceUsageService(LicenseService, ErrorLogger);
+            InvoiceUsageService = new UsageLimitService(UsageLimit.InvoiceSends, LicenseService, ErrorLogger);
 
             // Initialize mobile-sync service (shares the same long-lived HttpClient)
             SyncService = new SyncService(httpClient);
@@ -2740,10 +2740,10 @@ public partial class App : Application
         }
 
         // Check rate limit via server-side API
-        using var usageService = new AiImportUsageService(LicenseService, ErrorLogger);
+        using var usageService = new UsageLimitService(UsageLimit.AiImports(), LicenseService, ErrorLogger);
         var usageCheck = await usageService.CheckUsageAsync();
 
-        if (!usageCheck.CanImport)
+        if (!usageCheck.Allowed)
         {
             _mainWindowViewModel?.HideLoading();
 
@@ -2762,7 +2762,7 @@ public partial class App : Application
             else
             {
                 await UpgradePromptHelper.ShowAiImportLimitPromptAsync(
-                    usageCheck.ImportCount,
+                    usageCheck.Used,
                     usageCheck.MonthlyLimit,
                     usageCheck.ResetsAt);
             }
@@ -3583,17 +3583,17 @@ public partial class App : Application
     /// extraction succeeds. Shared by the Bank Matching page import and the review-modal import so the
     /// gate lives in one place.
     /// </summary>
-    internal static async Task<AiImportUsageService?> TryBeginBankPdfImportAsync()
+    internal static async Task<UsageLimitService?> TryBeginBankPdfImportAsync()
     {
-        var usage = new AiImportUsageService(LicenseService, ErrorLogger, importType: "bank");
+        var usage = new UsageLimitService(UsageLimit.AiImports("bank"), LicenseService, ErrorLogger);
         var check = await usage.CheckUsageAsync();
-        if (check.CanImport) return usage;
+        if (check.Allowed) return usage;
 
         usage.Dispose();
         if (check.ErrorMessage != null)
             await UpgradePromptHelper.ShowUsageCheckFailedAsync(check.ErrorMessage);
         else
-            await UpgradePromptHelper.ShowAiImportLimitPromptAsync(check.ImportCount, check.MonthlyLimit, check.ResetsAt);
+            await UpgradePromptHelper.ShowAiImportLimitPromptAsync(check.Used, check.MonthlyLimit, check.ResetsAt);
         return null;
     }
 

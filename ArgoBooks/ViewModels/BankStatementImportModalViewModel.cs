@@ -334,7 +334,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
 
         try
         {
-            using var usage = new AiImportUsageService(App.LicenseService, App.ErrorLogger, importType: "bank");
+            using var usage = new UsageLimitService(UsageLimit.AiImports("bank"), App.LicenseService, App.ErrorLogger);
             // PDF imports already paid their single bank-import credit at extraction, so they neither
             // re-check the limit nor charge again here. CSV/Excel imports pay their one credit at this
             // step, so they check availability first.
@@ -342,7 +342,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
             {
                 var check = await usage.CheckUsageAsync();
                 // No AI imports available (or offline): leave blanks for the user. The import still works.
-                if (!check.CanImport)
+                if (!check.Allowed)
                 {
                     SetAiUnavailable(!string.IsNullOrEmpty(check.ErrorMessage)
                         ? "AI categorization is unavailable: couldn't reach the server.".Translate()
