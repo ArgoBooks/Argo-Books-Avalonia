@@ -2113,52 +2113,6 @@
     </Panel>
 
     <UserControl.Styles>
-        <!-- TabControl - page tabs styling -->
-        <Style Selector="TabControl.page-tabs">
-            <Setter Property="Background" Value="Transparent" />
-        </Style>
-        <Style Selector="TabControl.page-tabs /template/ ItemsPresenter#PART_ItemsPresenter">
-            <Setter Property="Margin" Value="24,0" />
-        </Style>
-        <Style Selector="TabControl.page-tabs /template/ Border#PART_InnerBorder">
-            <Setter Property="BorderThickness" Value="0" />
-        </Style>
-        <Style Selector="TabControl.page-tabs /template/ ContentPresenter#PART_SelectedContentHost">
-            <Setter Property="IsVisible" Value="False" />
-        </Style>
-
-        <!-- Tab Item Styling -->
-        <Style Selector="TabControl.page-tabs TabItem">
-            <Setter Property="FontSize" Value="14" />
-            <Setter Property="FontWeight" Value="Medium" />
-            <Setter Property="Padding" Value="4,12,4,10" />
-            <Setter Property="Margin" Value="8,0" />
-            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Cursor" Value="Hand" />
-        </Style>
-        <Style Selector="TabControl.page-tabs TabItem:pointerover">
-            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-        </Style>
-        <Style Selector="TabControl.page-tabs TabItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="TextBlock.Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-        </Style>
-        <Style Selector="TabControl.page-tabs TabItem:selected">
-            <Setter Property="Foreground" Value="{DynamicResource PrimaryBrush}" />
-        </Style>
-        <Style Selector="TabControl.page-tabs TabItem:selected /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="TextBlock.Foreground" Value="{DynamicResource PrimaryBrush}" />
-        </Style>
-        <Style Selector="TabControl.page-tabs TabItem:selected /template/ Border#PART_SelectedPipe">
-            <Setter Property="IsVisible" Value="True" />
-            <Setter Property="Background" Value="{DynamicResource PrimaryBrush}" />
-            <Setter Property="Height" Value="2" />
-            <Setter Property="VerticalAlignment" Value="Bottom" />
-            <Setter Property="Margin" Value="0,0,0,0" />
-            <Setter Property="CornerRadius" Value="1" />
-        </Style>
-
         <!-- Segmented Button (RadioButton) -->
         <Style Selector="RadioButton.segmented-button">
             <Setter Property="Background" Value="Transparent" />
