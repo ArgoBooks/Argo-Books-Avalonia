@@ -1,4 +1,5 @@
-﻿using ArgoBooks.Controls;
+﻿using ArgoBooks.Core.Data;
+using ArgoBooks.Controls;
 using ArgoBooks.Services;
 using ArgoBooks.Localization;
 using System.Collections.ObjectModel;
@@ -497,13 +498,13 @@ public partial class CustomerModalsViewModel : ViewModelBase
             {
                 if (newAvatarBytes != null)
                     App.CompanyManager?.RestoreCustomerAvatar(customerToUndo, null);
-                companyData.Customers.Remove(customerToUndo);
+                companyData.Customers.RemoveRecord(customerToUndo);
                 companyData.MarkAsModified();
                 CustomerSaved?.Invoke(this, EventArgs.Empty);
             },
             () =>
             {
-                companyData.Customers.Add(customerToUndo);
+                companyData.Customers.RestoreRecord(customerToUndo);
                 if (newAvatarBytes != null)
                     App.CompanyManager?.RestoreCustomerAvatar(customerToUndo, newAvatarBytes);
                 companyData.MarkAsModified();

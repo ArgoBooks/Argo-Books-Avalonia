@@ -1,3 +1,4 @@
+using ArgoBooks.Core.Data;
 using System.Collections.ObjectModel;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models;
@@ -300,13 +301,13 @@ public partial class LocationsModalsViewModel : ViewModelBase
             $"Add location '{newLocation.Name}'",
             () =>
             {
-                companyData.Locations.Remove(locationToUndo);
+                companyData.Locations.RemoveRecord(locationToUndo);
                 companyData.MarkAsModified();
                 LocationSaved?.Invoke(this, EventArgs.Empty);
             },
             () =>
             {
-                companyData.Locations.Add(locationToUndo);
+                companyData.Locations.RestoreRecord(locationToUndo);
                 companyData.MarkAsModified();
                 LocationSaved?.Invoke(this, EventArgs.Empty);
             }));

@@ -257,20 +257,8 @@ public class UndoRedoManager : ObservableObject, IUndoRedoManager
         _lastRecordTime = now;
         _redoStack.Clear();
 
-        // Trim history if it exceeds max size
         if (_undoStack.Count > _maxHistorySize)
-        {
-            var tempStack = new Stack<IUndoableAction>();
-            for (int i = 0; i < _maxHistorySize; i++)
-            {
-                tempStack.Push(_undoStack.Pop());
-            }
-            _undoStack.Clear();
-            while (tempStack.Count > 0)
-            {
-                _undoStack.Push(tempStack.Pop());
-            }
-        }
+            TrimOldest();
 
         // Notify the EventLogService to create an audit event
         ActionRecorded?.Invoke(this, new ActionRecordedEventArgs(action));
@@ -358,6 +346,22 @@ public class UndoRedoManager : ObservableObject, IUndoRedoManager
         _redoStack.Clear();
         _savedState = null;
         OnStateChanged();
+    }
+
+    private void TrimOldest()
+    {
+        // A stack enumerates newest first.
+        var kept = _undoStack.Take(_maxHistorySize).Reverse().ToList();
+        var trimmed = _undoStack.Skip(_maxHistorySize).ToList();
+        _undoStack.Clear();
+        foreach (var action in kept)
+            _undoStack.Push(action);
+
+        // Undoing everything now stops just after the newest trimmed action; any state before it is gone.
+        if (ReferenceEquals(_savedState, trimmed[0]))
+            _savedState = null;
+        else if (_savedState == null || trimmed.Contains(_savedState))
+            _savedState = NoSavedState.Instance;
     }
 
     private void OnStateChanged()

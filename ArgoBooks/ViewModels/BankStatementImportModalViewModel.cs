@@ -524,7 +524,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
             var cap = ruleCaptures[i];
             if (cap.Prior == null)
             {
-                data.BankCategoryRules.Remove(cap.Rule);
+                data.BankCategoryRules.RemoveRecord(cap.Rule);
             }
             else
             {
@@ -552,7 +552,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
             if (cap.Prior == null)
             {
                 if (!data.BankCategoryRules.Contains(cap.Rule))
-                    data.BankCategoryRules.Add(cap.Rule);
+                    data.BankCategoryRules.RestoreRecord(cap.Rule);
             }
             else
             {

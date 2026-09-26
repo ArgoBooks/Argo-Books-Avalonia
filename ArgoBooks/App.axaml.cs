@@ -4307,7 +4307,8 @@ public partial class App : Application
                 Message = message,
                 PrimaryButtonText = "Retry".Translate(),
                 SecondaryButtonText = "Save to a different folder…".Translate(),
-                CancelButtonText = "Cancel".Translate()
+                CancelButtonText = "Cancel".Translate(),
+                CloseOnBackdropClick = false
             });
 
             return result switch

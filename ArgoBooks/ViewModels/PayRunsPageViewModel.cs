@@ -382,7 +382,7 @@ public partial class PayRunsPageViewModel : SortablePageViewModelBase
             $"Void pay run {run.Id}",
             () =>
             {
-                data.PayRuns.Remove(reversal);
+                data.PayRuns.RemoveRecord(reversal);
                 PayrollService.RestoreWageExpenses(data, removed);
                 run.Status = PayRunStatus.Approved;
                 foreach ((PayRunLine line, string? expenseId) in expenseIds)
@@ -395,7 +395,7 @@ public partial class PayRunsPageViewModel : SortablePageViewModelBase
             },
             () =>
             {
-                data.PayRuns.Add(reversal);
+                data.PayRuns.RestoreRecord(reversal);
                 PayrollService.RemoveWageExpenses(data, removed);
                 run.Status = PayRunStatus.Void;
                 foreach ((PayRunLine line, string? _) in expenseIds)

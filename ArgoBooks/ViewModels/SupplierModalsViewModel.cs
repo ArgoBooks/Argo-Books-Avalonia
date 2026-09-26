@@ -1,4 +1,5 @@
-﻿using System.Collections.ObjectModel;
+﻿using ArgoBooks.Core.Data;
+using System.Collections.ObjectModel;
 using ArgoBooks.Controls;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models;
@@ -482,13 +483,13 @@ public partial class SupplierModalsViewModel : ViewModelBase
             {
                 if (newAvatarBytes != null)
                     App.CompanyManager?.RestoreSupplierAvatar(supplierToUndo, null);
-                companyData.Suppliers.Remove(supplierToUndo);
+                companyData.Suppliers.RemoveRecord(supplierToUndo);
                 companyData.MarkAsModified();
                 SupplierSaved?.Invoke(this, EventArgs.Empty);
             },
             () =>
             {
-                companyData.Suppliers.Add(supplierToUndo);
+                companyData.Suppliers.RestoreRecord(supplierToUndo);
                 if (newAvatarBytes != null)
                     App.CompanyManager?.RestoreSupplierAvatar(supplierToUndo, newAvatarBytes);
                 companyData.MarkAsModified();

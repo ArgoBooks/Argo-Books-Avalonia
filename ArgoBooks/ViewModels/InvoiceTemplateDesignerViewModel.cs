@@ -1,3 +1,4 @@
+using ArgoBooks.Core.Data;
 using System.Collections.ObjectModel;
 using ArgoBooks.Core;
 using ArgoBooks.Core.Models.Invoices;
@@ -407,14 +408,14 @@ public partial class InvoiceTemplateDesignerViewModel : ViewModelBase
                 $"Delete invoice template '{deletedTemplate.Name}'",
                 () =>
                 {
-                    companyData.InvoiceTemplates.Add(deletedTemplate);
+                    companyData.InvoiceTemplates.RestoreRecord(deletedTemplate);
                     App.CompanyManager?.MarkAsChanged();
                     LoadSavedTemplates();
                     TemplateSaved?.Invoke(this, EventArgs.Empty);
                 },
                 () =>
                 {
-                    companyData.InvoiceTemplates.Remove(deletedTemplate);
+                    companyData.InvoiceTemplates.RemoveRecord(deletedTemplate);
                     App.CompanyManager?.MarkAsChanged();
                     LoadSavedTemplates();
                     TemplateSaved?.Invoke(this, EventArgs.Empty);
@@ -632,13 +633,13 @@ public partial class InvoiceTemplateDesignerViewModel : ViewModelBase
                 $"Add invoice template '{template.Name}'",
                 () =>
                 {
-                    companyData.InvoiceTemplates.Remove(templateToUndo);
+                    companyData.InvoiceTemplates.RemoveRecord(templateToUndo);
                     companyData.MarkAsModified();
                     TemplateSaved?.Invoke(this, EventArgs.Empty);
                 },
                 () =>
                 {
-                    companyData.InvoiceTemplates.Add(templateToUndo);
+                    companyData.InvoiceTemplates.RestoreRecord(templateToUndo);
                     companyData.MarkAsModified();
                     TemplateSaved?.Invoke(this, EventArgs.Empty);
                 }));

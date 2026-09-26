@@ -435,7 +435,7 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
                     inventoryItem.InStock = oldInStock;
                     inventoryItem.Status = oldStatus;
                     App.CheckAndNotifyStockStatus(inventoryItem, newStock);
-                    companyData.StockAdjustments.Remove(adjustmentRecord);
+                    companyData.StockAdjustments.RemoveRecord(adjustmentRecord);
                     companyData.MarkAsModified();
                     ItemSaved?.Invoke(this, EventArgs.Empty);
                 },
@@ -444,7 +444,7 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
                     inventoryItem.InStock = newStock;
                     inventoryItem.Status = inventoryItem.CalculateStatus();
                     App.CheckAndNotifyStockStatus(inventoryItem, oldInStock);
-                    companyData.StockAdjustments.Add(adjustmentRecord);
+                    companyData.StockAdjustments.RestoreRecord(adjustmentRecord);
                     companyData.MarkAsModified();
                     ItemSaved?.Invoke(this, EventArgs.Empty);
                 }));

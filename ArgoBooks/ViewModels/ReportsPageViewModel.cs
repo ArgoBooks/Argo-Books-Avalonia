@@ -1297,12 +1297,12 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
     /// </summary>
     private async Task<bool> SaveToCurrentTemplateAsync()
     {
+        var savePoint = UndoRedoManager.SavePoint;
         var success = await _templateStorage.SaveTemplateAsync(Configuration, SelectedTemplateName);
         if (success)
         {
             LoadCustomTemplates();
-            // Mark save point so asterisk disappears
-            UndoRedoManager.MarkSaved();
+            UndoRedoManager.MarkSaved(savePoint);
             // Show save confirmation message
             ShowSaveConfirmation = true;
             await Task.Delay(2000);
@@ -1993,6 +1993,7 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
             return;
         }
 
+        var savePoint = UndoRedoManager.SavePoint;
         var success = await storage.SaveTemplateAsync(Configuration, SaveTemplateName);
 
         if (success)
@@ -2008,8 +2009,7 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
             // Refresh custom templates list
             LoadCustomTemplates();
 
-            // Mark save point so asterisk disappears
-            UndoRedoManager.MarkSaved();
+            UndoRedoManager.MarkSaved(savePoint);
 
             // Show the "Saved" overlay notification
             ShowSaveConfirmation = true;

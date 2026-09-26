@@ -249,13 +249,13 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
                     $"Mark expense '{purchase.Id}' as lost/damaged",
                     () =>
                     {
-                        companyData.LostDamaged.Remove(record);
+                        companyData.LostDamaged.RemoveRecord(record);
                         companyData.MarkAsModified();
                         RaiseTransactionSaved();
                     },
                     () =>
                     {
-                        companyData.LostDamaged.Add(record);
+                        companyData.LostDamaged.RestoreRecord(record);
                         companyData.MarkAsModified();
                         RaiseTransactionSaved();
                     }));
@@ -268,13 +268,13 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
                     $"Mark expense '{purchase.Id}' as returned",
                     () =>
                     {
-                        companyData.Returns.Remove(record);
+                        companyData.Returns.RemoveRecord(record);
                         companyData.MarkAsModified();
                         RaiseTransactionSaved();
                     },
                     () =>
                     {
-                        companyData.Returns.Add(record);
+                        companyData.Returns.RestoreRecord(record);
                         companyData.MarkAsModified();
                         RaiseTransactionSaved();
                     }));
@@ -290,13 +290,13 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
                         $"Undo lost/damaged status for expense '{purchase.Id}'",
                         () =>
                         {
-                            companyData.LostDamaged.Add(record);
+                            companyData.LostDamaged.RestoreRecord(record);
                             companyData.MarkAsModified();
                             RaiseTransactionSaved();
                         },
                         () =>
                         {
-                            companyData.LostDamaged.Remove(record);
+                            companyData.LostDamaged.RemoveRecord(record);
                             companyData.MarkAsModified();
                             RaiseTransactionSaved();
                         }));
@@ -313,13 +313,13 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
                         $"Undo returned status for expense '{purchase.Id}'",
                         () =>
                         {
-                            companyData.Returns.Add(record);
+                            companyData.Returns.RestoreRecord(record);
                             companyData.MarkAsModified();
                             RaiseTransactionSaved();
                         },
                         () =>
                         {
-                            companyData.Returns.Remove(record);
+                            companyData.Returns.RemoveRecord(record);
                             companyData.MarkAsModified();
                             RaiseTransactionSaved();
                         }));

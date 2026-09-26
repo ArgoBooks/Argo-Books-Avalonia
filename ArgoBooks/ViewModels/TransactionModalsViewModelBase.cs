@@ -1240,14 +1240,14 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
             () =>
             {
                 foreach (var m in moved) m.Product.CategoryId = m.OldCategoryId;
-                foreach (var p in createdProducts) companyData.Products.Remove(p);
-                foreach (var c in createdCategories) companyData.Categories.Remove(c);
+                foreach (var p in createdProducts) companyData.Products.RemoveRecord(p);
+                foreach (var c in createdCategories) companyData.Categories.RemoveRecord(c);
                 companyData.MarkAsModified();
             },
             () =>
             {
-                companyData.Categories.AddRange(createdCategories);
-                companyData.Products.AddRange(createdProducts);
+                foreach (var c in createdCategories) companyData.Categories.RestoreRecord(c);
+                foreach (var p in createdProducts) companyData.Products.RestoreRecord(p);
                 foreach (var m in moved) m.Product.CategoryId = m.NewCategoryId;
                 companyData.MarkAsModified();
             }));

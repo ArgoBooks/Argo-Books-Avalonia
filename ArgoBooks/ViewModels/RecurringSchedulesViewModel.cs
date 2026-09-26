@@ -1,3 +1,4 @@
+using ArgoBooks.Core.Data;
 using System.Collections.ObjectModel;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Transactions;
@@ -193,13 +194,12 @@ public partial class RecurringSchedulesViewModel : ViewModelBase, ICleanupViewMo
 
         if (result != ConfirmationResult.Primary) return;
 
-        var index = data.RecurringTransactions.IndexOf(schedule);
         data.RecurringTransactions.Remove(schedule);
 
         App.UndoRedoManager.RecordAction(new DelegateAction(
             $"Delete schedule {schedule.Id}",
-            () => data.RecurringTransactions.Insert(Math.Min(index, data.RecurringTransactions.Count), schedule),
-            () => data.RecurringTransactions.Remove(schedule)));
+            () => data.RecurringTransactions.RestoreRecord(schedule),
+            () => data.RecurringTransactions.RemoveRecord(schedule)));
 
         App.CompanyManager?.MarkAsChanged();
         Load();

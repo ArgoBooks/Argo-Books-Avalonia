@@ -294,13 +294,13 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
                     $"Mark revenue '{revenue.Id}' as lost/damaged",
                     () =>
                     {
-                        companyData.LostDamaged.Remove(record);
+                        companyData.LostDamaged.RemoveRecord(record);
                         companyData.MarkAsModified();
                         RaiseTransactionSaved();
                     },
                     () =>
                     {
-                        companyData.LostDamaged.Add(record);
+                        companyData.LostDamaged.RestoreRecord(record);
                         companyData.MarkAsModified();
                         RaiseTransactionSaved();
                     }));
@@ -313,13 +313,13 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
                     $"Mark revenue '{revenue.Id}' as returned",
                     () =>
                     {
-                        companyData.Returns.Remove(record);
+                        companyData.Returns.RemoveRecord(record);
                         companyData.MarkAsModified();
                         RaiseTransactionSaved();
                     },
                     () =>
                     {
-                        companyData.Returns.Add(record);
+                        companyData.Returns.RestoreRecord(record);
                         companyData.MarkAsModified();
                         RaiseTransactionSaved();
                     }));
@@ -335,13 +335,13 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
                         $"Undo lost/damaged status for revenue '{revenue.Id}'",
                         () =>
                         {
-                            companyData.LostDamaged.Add(record);
+                            companyData.LostDamaged.RestoreRecord(record);
                             companyData.MarkAsModified();
                             RaiseTransactionSaved();
                         },
                         () =>
                         {
-                            companyData.LostDamaged.Remove(record);
+                            companyData.LostDamaged.RemoveRecord(record);
                             companyData.MarkAsModified();
                             RaiseTransactionSaved();
                         }));
@@ -358,13 +358,13 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
                         $"Undo returned status for revenue '{revenue.Id}'",
                         () =>
                         {
-                            companyData.Returns.Add(record);
+                            companyData.Returns.RestoreRecord(record);
                             companyData.MarkAsModified();
                             RaiseTransactionSaved();
                         },
                         () =>
                         {
-                            companyData.Returns.Remove(record);
+                            companyData.Returns.RemoveRecord(record);
                             companyData.MarkAsModified();
                             RaiseTransactionSaved();
                         }));

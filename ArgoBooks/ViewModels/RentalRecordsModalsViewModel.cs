@@ -570,14 +570,14 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
             $"Create rental '{rental.Id}'",
             () =>
             {
-                companyData.Rentals.Remove(rental);
+                companyData.Rentals.RemoveRecord(rental);
                 ReplayStock(companyData, adjustments, undo: true);
                 companyData.MarkAsModified();
                 changed();
             },
             () =>
             {
-                companyData.Rentals.Add(rental);
+                companyData.Rentals.RestoreRecord(rental);
                 ReplayStock(companyData, adjustments, undo: false);
                 companyData.MarkAsModified();
                 changed();
@@ -1521,9 +1521,9 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
             }
 
             if (undo)
-                companyData.StockAdjustments.Remove(adjustment);
+                companyData.StockAdjustments.RemoveRecord(adjustment);
             else
-                companyData.StockAdjustments.Add(adjustment);
+                companyData.StockAdjustments.RestoreRecord(adjustment);
         }
     }
 

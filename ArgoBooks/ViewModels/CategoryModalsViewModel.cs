@@ -1,3 +1,4 @@
+using ArgoBooks.Core.Data;
 using ArgoBooks.Core;
 using ArgoBooks.Core.Models;
 using ArgoBooks.Services;
@@ -258,8 +259,8 @@ public partial class CategoryModalsViewModel : ViewModelBase
         var categoryToUndo = newCategory;
         App.UndoRedoManager.RecordAction(new DelegateAction(
             $"Add category '{newCategory.Name}'",
-            () => { companyData.Categories.Remove(categoryToUndo); companyData.MarkAsModified(); CategorySaved?.Invoke(this, EventArgs.Empty); },
-            () => { companyData.Categories.Add(categoryToUndo); companyData.MarkAsModified(); CategorySaved?.Invoke(this, EventArgs.Empty); }));
+            () => { companyData.Categories.RemoveRecord(categoryToUndo); companyData.MarkAsModified(); CategorySaved?.Invoke(this, EventArgs.Empty); },
+            () => { companyData.Categories.RestoreRecord(categoryToUndo); companyData.MarkAsModified(); CategorySaved?.Invoke(this, EventArgs.Empty); }));
 
         LastSavedCategoryId = newCategory.Id;
         CategorySaved?.Invoke(this, EventArgs.Empty);

@@ -468,13 +468,13 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
             $"Add rental item '{itemName}'",
             () =>
             {
-                companyData.RentalInventory.Remove(itemToUndo);
+                companyData.RentalInventory.RemoveRecord(itemToUndo);
                 companyData.MarkAsModified();
                 ItemSaved?.Invoke(this, EventArgs.Empty);
             },
             () =>
             {
-                companyData.RentalInventory.Add(itemToUndo);
+                companyData.RentalInventory.RestoreRecord(itemToUndo);
                 companyData.MarkAsModified();
                 ItemSaved?.Invoke(this, EventArgs.Empty);
             }));

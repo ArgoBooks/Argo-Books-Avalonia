@@ -817,14 +817,14 @@ public partial class PayRunModalsViewModel : ViewModelBase
             $"Approve pay run {run.Id}",
             () =>
             {
-                data.PayRuns.Remove(run);
+                data.PayRuns.RemoveRecord(run);
                 PayrollService.RemoveWageExpenses(data, expenses);
                 App.CompanyManager?.MarkAsChanged();
                 PayRunChanged?.Invoke(this, EventArgs.Empty);
             },
             () =>
             {
-                data.PayRuns.Add(run);
+                data.PayRuns.RestoreRecord(run);
                 PayrollService.RestoreWageExpenses(data, expenses);
                 App.CompanyManager?.MarkAsChanged();
                 PayRunChanged?.Invoke(this, EventArgs.Empty);

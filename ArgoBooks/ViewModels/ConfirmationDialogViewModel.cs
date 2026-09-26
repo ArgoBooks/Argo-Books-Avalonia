@@ -27,6 +27,9 @@ public class ConfirmationDialogOptions
     public string? CancelButtonText { get; set; } = "Cancel";
     public bool IsPrimaryDestructive { get; set; }
     public bool IsSecondaryDestructive { get; set; }
+
+    /// <summary>False for notices and prompts a stray click must not dismiss; only a button or Escape closes them.</summary>
+    public bool CloseOnBackdropClick { get; set; } = true;
 }
 
 /// <summary>
@@ -69,6 +72,9 @@ public partial class ConfirmationDialogViewModel : ViewModelBase
     private bool _isSecondaryDestructive;
 
     [ObservableProperty]
+    private bool _closeOnBackdropClick = true;
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasIcon), nameof(IsInfoIcon), nameof(IsWarningIcon), nameof(IsErrorIcon))]
     private DialogIcon _icon;
 
@@ -109,6 +115,7 @@ public partial class ConfirmationDialogViewModel : ViewModelBase
         ShowCancelButton = !string.IsNullOrEmpty(options.CancelButtonText);
         IsPrimaryDestructive = options.IsPrimaryDestructive;
         IsSecondaryDestructive = options.IsSecondaryDestructive;
+        CloseOnBackdropClick = options.CloseOnBackdropClick;
 
         IsOpen = true;
     }
@@ -123,7 +130,8 @@ public partial class ConfirmationDialogViewModel : ViewModelBase
             Title = title,
             Message = message,
             PrimaryButtonText = "OK".Translate(),
-            CancelButtonText = null
+            CancelButtonText = null,
+            CloseOnBackdropClick = false
         });
 
     /// <summary>

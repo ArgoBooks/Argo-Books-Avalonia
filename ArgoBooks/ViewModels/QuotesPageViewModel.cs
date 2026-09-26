@@ -1,3 +1,4 @@
+using ArgoBooks.Core.Data;
 using ArgoBooks.Controls;
 using ArgoBooks.Controls.ColumnWidths;
 using ArgoBooks.Core;
@@ -570,7 +571,7 @@ public partial class QuotesPageViewModel : SortablePageViewModelBase
             $"Convert quote '{item.QuoteNumber}' to invoice",
             () =>
             {
-                companyData.Invoices.Remove(invoice);
+                companyData.Invoices.RemoveRecord(invoice);
                 quote.Status = oldStatus;
                 quote.ConvertedInvoiceId = oldConvertedId;
                 companyData.MarkAsModified();
@@ -578,7 +579,7 @@ public partial class QuotesPageViewModel : SortablePageViewModelBase
             },
             () =>
             {
-                companyData.Invoices.Add(invoice);
+                companyData.Invoices.RestoreRecord(invoice);
                 quote.Status = QuoteStatus.Converted;
                 quote.ConvertedInvoiceId = invoice.Id;
                 companyData.MarkAsModified();

@@ -114,6 +114,49 @@ public class UndoRedoManagerTests
         Assert.True(_manager.HasUnsavedChanges);
     }
 
+    // Undoing everything a trimmed history still holds leaves the oldest action applied, which
+    // the empty file saved beforehand does not have.
+    [Fact]
+    public void SaveWithNoHistory_ThenTrimmed_UndoAll_IsUnsaved()
+    {
+        var manager = new UndoRedoManager(3);
+        manager.MarkSaved();
+
+        foreach (var name in new[] { "First", "Second", "Third", "Fourth" })
+            manager.RecordAction(new MockUndoableAction(name));
+        while (manager.Undo()) { }
+
+        Assert.True(manager.HasUnsavedChanges);
+    }
+
+    [Fact]
+    public void Save_ThenSavedActionTrimmed_UndoAll_IsBackAtSave()
+    {
+        var manager = new UndoRedoManager(3);
+        manager.RecordAction(new MockUndoableAction("First"));
+        manager.MarkSaved();
+
+        foreach (var name in new[] { "Second", "Third", "Fourth" })
+            manager.RecordAction(new MockUndoableAction(name));
+        while (manager.Undo()) { }
+
+        Assert.False(manager.HasUnsavedChanges);
+    }
+
+    [Fact]
+    public void Save_ThenTrimmedPastTheSavedAction_UndoAll_IsUnsaved()
+    {
+        var manager = new UndoRedoManager(3);
+        manager.RecordAction(new MockUndoableAction("First"));
+        manager.MarkSaved();
+
+        foreach (var name in new[] { "Second", "Third", "Fourth", "Fifth" })
+            manager.RecordAction(new MockUndoableAction(name));
+        while (manager.Undo()) { }
+
+        Assert.True(manager.HasUnsavedChanges);
+    }
+
     [Fact]
     public void Clear_ResetsHistoryAndUnsavedChanges()
     {

@@ -1,4 +1,5 @@
-﻿using ArgoBooks.Localization;
+﻿using ArgoBooks.Core.Data;
+using ArgoBooks.Localization;
 using ArgoBooks.Core.Models.Inventory;
 using ArgoBooks.Services;
 using System.Collections.ObjectModel;
@@ -453,13 +454,13 @@ public partial class ProductModalsViewModel : ViewModelBase
             $"Add product '{newProduct.Name}'",
             () =>
             {
-                companyData.Products.Remove(productToUndo);
+                companyData.Products.RemoveRecord(productToUndo);
                 companyData.MarkAsModified();
                 ProductSaved?.Invoke(this, EventArgs.Empty);
             },
             () =>
             {
-                companyData.Products.Add(productToUndo);
+                companyData.Products.RestoreRecord(productToUndo);
                 companyData.MarkAsModified();
                 ProductSaved?.Invoke(this, EventArgs.Empty);
             }));

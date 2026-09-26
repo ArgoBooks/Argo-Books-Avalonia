@@ -538,13 +538,13 @@ public partial class QuotesModalsViewModel : PaperDocumentEditorViewModelBase<Qu
             $"Create quote '{quote.QuoteNumber}'",
             () =>
             {
-                companyData.Quotes.Remove(quote);
+                companyData.Quotes.RemoveRecord(quote);
                 companyData.MarkAsModified();
                 QuoteSaved?.Invoke(this, EventArgs.Empty);
             },
             () =>
             {
-                companyData.Quotes.Add(quote);
+                companyData.Quotes.RestoreRecord(quote);
                 companyData.MarkAsModified();
                 QuoteSaved?.Invoke(this, EventArgs.Empty);
             }));

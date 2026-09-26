@@ -1,3 +1,4 @@
+using ArgoBooks.Core.Data;
 using System.Collections.ObjectModel;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Inventory;
@@ -314,7 +315,7 @@ public partial class StockAdjustmentsModalsViewModel : ViewModelBase
                 {
                     itemToUndo.InStock = oldInStock;
                     itemToUndo.Status = oldStatus;
-                    companyData.StockAdjustments.Remove(adjustmentRecord);
+                    companyData.StockAdjustments.RemoveRecord(adjustmentRecord);
                     companyData.MarkAsModified();
                     AdjustmentSaved?.Invoke(this, EventArgs.Empty);
                 },
@@ -322,7 +323,7 @@ public partial class StockAdjustmentsModalsViewModel : ViewModelBase
                 {
                     itemToUndo.InStock = newStock;
                     itemToUndo.Status = itemToUndo.CalculateStatus();
-                    companyData.StockAdjustments.Add(adjustmentRecord);
+                    companyData.StockAdjustments.RestoreRecord(adjustmentRecord);
                     companyData.MarkAsModified();
                     AdjustmentSaved?.Invoke(this, EventArgs.Empty);
                     App.CheckAndNotifyStockStatus(itemToUndo);

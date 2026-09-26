@@ -1,4 +1,5 @@
 using ArgoBooks.Core.Enums;
+using ArgoBooks.Core.Models.Common;
 
 namespace ArgoBooks.Core.Models.BankMatching;
 
@@ -10,7 +11,7 @@ public enum RuleSource { Learned, Manual }
 /// supplier/customer). Stored per company; learned automatically when the user categorizes
 /// a created line, or added/edited manually in Settings.
 /// </summary>
-public class BankCategoryRule
+public class BankCategoryRule : IRecord
 {
     [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;
