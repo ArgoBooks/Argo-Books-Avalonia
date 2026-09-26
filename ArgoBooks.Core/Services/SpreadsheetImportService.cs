@@ -1250,14 +1250,15 @@ public class SpreadsheetImportService
 
     /// <summary>
     /// Imported revenue rows that named an invoice, settled by <see cref="FinishImport"/>, with whether
-    /// each is new and the invoice it named before the import.
+    /// each is new, the invoice it named before the import, and whether its pre-tax amount is worked
+    /// out from its quantity and price rather than given.
     /// </summary>
-    private readonly List<(Revenue Revenue, bool IsNew, string? InvoiceBefore)> _revenuesNamingAnInvoice = [];
+    private readonly List<(Revenue Revenue, bool IsNew, string? InvoiceBefore, bool AmountDerived)> _revenuesNamingAnInvoice = [];
 
-    private void NoteRevenueNamingAnInvoice(Revenue revenue, bool isNew, string? invoiceBefore)
+    private void NoteRevenueNamingAnInvoice(Revenue revenue, bool isNew, string? invoiceBefore, bool amountDerived)
     {
         if (!string.IsNullOrEmpty(revenue.InvoiceId))
-            _revenuesNamingAnInvoice.Add((revenue, isNew, invoiceBefore));
+            _revenuesNamingAnInvoice.Add((revenue, isNew, invoiceBefore, amountDerived));
     }
 
     /// <summary>
@@ -1271,7 +1272,7 @@ public class SpreadsheetImportService
     {
         UpdateIdCounters(data);
 
-        foreach (var (revenue, isNew, invoiceBefore) in _revenuesNamingAnInvoice)
+        foreach (var (revenue, isNew, invoiceBefore, amountDerived) in _revenuesNamingAnInvoice)
         {
             if (!data.Revenues.Contains(revenue))
                 continue;
@@ -1300,8 +1301,17 @@ public class SpreadsheetImportService
 
             // Its description only summarises the invoice's lines ("Widget (+2 more)"), so the
             // lines come from the invoice. A kept deposit has none, as when the app records one.
+            // A new revenue moves no stock, even when an adjustment already names its id.
             if (takesLines && !revenue.IsKeptDeposit && invoice.LineItems.Count > 0)
-                ReplaceLines(data, revenue, revenue.LineItems, CopyLines(invoice), isPurchase: false);
+            {
+                if (isNew)
+                    revenue.LineItems = CopyLines(invoice);
+                else
+                    ReplaceLines(data, revenue, revenue.LineItems, CopyLines(invoice), isPurchase: false);
+            }
+
+            if (amountDerived)
+                revenue.Amount = DerivedAmount(revenue);
         }
         _revenuesNamingAnInvoice.Clear();
 
@@ -1669,7 +1679,7 @@ public class SpreadsheetImportService
                     var expenseAmountDerived = !given.Contains("amount") && Changes(existing, ["quantity", "unitPrice"]);
                     expense = Merge(expense, existing, expenseAmountDerived ? ["amount"] : []);
                     if (expenseAmountDerived || expense.Amount == 0)
-                        expense.Amount = expense.Quantity * expense.UnitPrice;
+                        expense.Amount = DerivedAmount(expense);
 
                     // Convert each amount to USD at the transaction's EXACT date, from the row's own
                     // currency or else the record's or the company's. Future-dated/unpriceable rows
@@ -1698,8 +1708,9 @@ public class SpreadsheetImportService
                     // (Quantity defaults to 1) before building the line item.
                     var revenueAmountDerived = !given.Contains("amount") && Changes(existing, ["quantity", "unitPrice"]);
                     revenue = Merge(revenue, existing, revenueAmountDerived ? ["amount"] : []);
-                    if (revenueAmountDerived || revenue.Amount == 0)
-                        revenue.Amount = revenue.Quantity * revenue.UnitPrice;
+                    revenueAmountDerived |= revenue.Amount == 0;
+                    if (revenueAmountDerived)
+                        revenue.Amount = DerivedAmount(revenue);
 
                     // PaymentStatus is already normalized by the enum's JSON
                     // converter (legacy typos → Paid fallback), no separate call.
@@ -1719,7 +1730,7 @@ public class SpreadsheetImportService
 
                     var invoiceBefore = existing?.InvoiceId;
                     var liveRevenue = data.Revenues.AddOrUpdate(existing, revenue);
-                    NoteRevenueNamingAnInvoice(liveRevenue, existing == null, invoiceBefore);
+                    NoteRevenueNamingAnInvoice(liveRevenue, existing == null, invoiceBefore, revenueAmountDerived);
                     return existing != null ? ImportEntityResult.Updated : ImportEntityResult.Inserted;
                 }
                 return ImportEntityResult.Failed;
@@ -3531,6 +3542,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             if (options?.SkipExistingRecords == true && existing != null) { options.SkippedCount++; continue; }
 
             var purchase = existing ?? new Expense();
+            (DateTime Date, string Currency)? costedAt = existing == null ? null : CostedAt(existing);
 
             // Updating an expense changes only what the sheet has columns for; a new one takes every field.
             bool Set(params string[] columns) => existing == null || columns.Any(headers.Contains);
@@ -3554,7 +3566,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             if (Set("Unit Price"))
                 purchase.UnitPrice = GetDecimal(row, headers, "Unit Price");
             if (Set("Quantity", "Unit Price"))
-                purchase.Amount = purchase.Quantity * purchase.UnitPrice;
+                purchase.Amount = DerivedAmount(purchase);
             if (Set("Tax"))
                 purchase.TaxAmount = GetDecimal(row, headers, "Tax");
             if (Set("Total"))
@@ -3571,7 +3583,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             if (Set(TransactionPriceColumns))
                 ApplyTransactionCurrency(purchase, rowIndex, data, existing?.OriginalCurrency);
 
-            SetSingleLine(data, purchase, existing?.LineItems, ColumnLineFields(headers), isPurchase: true);
+            SetSingleLine(data, purchase, existing?.LineItems, ColumnLineFields(headers), isPurchase: true, costedAt: costedAt);
 
             if (existing == null)
                 data.Expenses.Add(purchase);
@@ -4111,7 +4123,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             if (Set("Unit Price"))
                 revenue.UnitPrice = GetDecimal(row, headers, "Unit Price");
             if (Set("Quantity", "Unit Price"))
-                revenue.Amount = revenue.Quantity * revenue.UnitPrice;
+                revenue.Amount = DerivedAmount(revenue);
             if (Set("Tax"))
                 revenue.TaxAmount = GetDecimal(row, headers, "Tax");
             if (Set("Total"))
@@ -4136,7 +4148,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             // Revenue from an invoice takes its lines from the invoice, which may be on a later
             // sheet, so it is settled once every sheet is in.
             if (!string.IsNullOrEmpty(revenue.InvoiceId))
-                NoteRevenueNamingAnInvoice(revenue, existing == null, invoiceBefore);
+                NoteRevenueNamingAnInvoice(revenue, existing == null, invoiceBefore, Set("Quantity", "Unit Price"));
             else
                 SetSingleLine(data, revenue, existing?.LineItems, ColumnLineFields(headers), isPurchase: false);
 
@@ -4273,7 +4285,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
                 ? LineFields.All
                 : new LineFields(given.Contains("description"), given.Contains("quantity"), given.Contains("unitPrice"),
                     given.Contains("taxAmount") || given.Contains("amount"));
-            SetSingleLine(data, txn, existing?.LineItems, fields, isPurchase, category);
+            SetSingleLine(data, txn, existing?.LineItems, fields, isPurchase, category, existing == null ? null : CostedAt(existing));
             return;
         }
 
@@ -4293,13 +4305,25 @@ Respond with ONLY a JSON array, one entry per product in the same order:
     /// names. An existing one with a single line, or none, has it rebuilt when the row gives any field
     /// it is made from, keeping the line's own values for those the row leaves out; one with several
     /// lines keeps them, since one row can't describe them. The line keeps the stock it took and its
-    /// cost of goods sold while its product and quantity (and a purchase's price) are unchanged;
-    /// otherwise the record goes through <see cref="ReplaceLines"/>.
+    /// cost of goods sold while its product and quantity (and a purchase's price, date and currency)
+    /// are unchanged; otherwise the record goes through <see cref="ReplaceLines"/>. A description
+    /// that still names the line's product keeps it, so a product renamed since, or sharing its
+    /// name with another, isn't swapped for a different one.
+    /// <paramref name="costedAt"/> is what an existing purchase's stock was costed at, taken before
+    /// the row changed it.
     /// </summary>
-    private void SetSingleLine(CompanyData data, Transaction txn, List<LineItem>? currentLines, LineFields fields, bool isPurchase, string? category = null)
+    private void SetSingleLine(CompanyData data, Transaction txn, List<LineItem>? currentLines, LineFields fields, bool isPurchase,
+        string? category = null, (DateTime Date, string Currency)? costedAt = null)
     {
+        var recost = isPurchase && costedAt != null && currentLines != null
+                     && currentLines.Any(l => l.IsStockPurchase) && costedAt != CostedAt(txn);
+
         if (currentLines != null && (!fields.Any || currentLines.Count > 1))
+        {
+            if (recost)
+                ReplaceLines(data, txn, currentLines, currentLines.Select(l => l.Clone()).ToList(), isPurchase);
             return;
+        }
 
         var old = currentLines?.SingleOrDefault();
         if (old == null && string.IsNullOrEmpty(txn.Description))
@@ -4309,7 +4333,8 @@ Respond with ONLY a JSON array, one entry per product in the same order:
         var line = old?.Clone() ?? new LineItem();
         if ((all || fields.Product) && !string.IsNullOrEmpty(txn.Description))
         {
-            line.ProductId = ProductNamed(data, txn, isPurchase, category).Id;
+            if (!NamesLineProduct(data, old, txn.Description))
+                line.ProductId = ProductNamed(data, txn, isPurchase, category).Id;
             line.Description = txn.Description;
         }
         if (all || fields.Quantity)
@@ -4321,12 +4346,34 @@ Respond with ONLY a JSON array, one entry per product in the same order:
 
         List<LineItem> lines = [line];
         if (currentLines != null
-            && (old == null || line.ProductId != old.ProductId || line.Quantity != old.Quantity
+            && (old == null || recost || line.ProductId != old.ProductId || line.Quantity != old.Quantity
                 || (isPurchase && line.UnitPrice != old.UnitPrice)))
             ReplaceLines(data, txn, currentLines, lines, isPurchase);
         else
             txn.LineItems = lines;
     }
+
+    /// <summary>The date and currency a purchase's stock is costed at (<see cref="InventoryStockService.ApplyEdit"/>).</summary>
+    private static (DateTime Date, string Currency) CostedAt(Transaction txn) =>
+        (txn.Date.Date, string.IsNullOrEmpty(txn.OriginalCurrency) ? "USD" : txn.OriginalCurrency.ToUpperInvariant());
+
+    /// <summary>Whether <paramref name="text"/> is the line's own description or its product's current name.</summary>
+    private static bool NamesLineProduct(CompanyData data, LineItem? line, string text)
+    {
+        if (string.IsNullOrEmpty(line?.ProductId))
+            return false;
+
+        bool Same(string? name) => string.Equals(name?.Trim(), text.Trim(), StringComparison.OrdinalIgnoreCase);
+        return Same(line.Description) || Same(data.GetProduct(line.ProductId)?.Name);
+    }
+
+    /// <summary>
+    /// The pre-tax amount a row's quantity and unit price give. A record with several lines takes
+    /// its lines' subtotal instead, as the app saves it: one row gives their total quantity and
+    /// average price (as the export writes them), whose product isn't the lines' sum.
+    /// </summary>
+    private static decimal DerivedAmount(Transaction txn) =>
+        txn.LineItems is { Count: > 1 } lines ? InvoiceMath.Subtotal(lines) : txn.Quantity * txn.UnitPrice;
 
     /// <summary>
     /// Gives an existing revenue or expense new lines. One that moved stock, or whose lines say what
