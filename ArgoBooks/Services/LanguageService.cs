@@ -225,6 +225,31 @@ public partial class LanguageService
             }
         }
 
+        ApplyLanguage(languageName, isoCode, previousLanguage, previousIsoCode);
+        return true;
+    }
+
+    /// <summary>
+    /// Switches to a language whose translations are already on disk, synchronously and without
+    /// touching the network. Startup uses it so the first window is built in the saved language.
+    /// Returns false when that language has no cached file, which only <see cref="SetLanguageAsync"/>
+    /// can fix.
+    /// </summary>
+    public bool TrySetCachedLanguage(string languageName)
+    {
+        if (string.IsNullOrEmpty(languageName) || !Languages.IsValidLanguage(languageName))
+            return false;
+
+        var isoCode = Languages.GetIsoCode(languageName);
+        if (isoCode != "en" && !File.Exists(GetLanguageFilePath(isoCode)))
+            return false;
+
+        ApplyLanguage(languageName, isoCode, CurrentLanguage, CurrentIsoCode);
+        return true;
+    }
+
+    private void ApplyLanguage(string languageName, string isoCode, string previousLanguage, string previousIsoCode)
+    {
         // Load the language into memory
         EnsureLanguageLoaded(isoCode);
 
@@ -238,7 +263,6 @@ public partial class LanguageService
         }
 
         App.ErrorLogger?.LogDebug($"LanguageService: Language changed to {languageName} ({isoCode})");
-        return true;
     }
 
     /// <summary>

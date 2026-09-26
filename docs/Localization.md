@@ -117,6 +117,12 @@ This only works for the text inside a `TextBlock`. It doesn't work for text in a
 2. `LanguageService` downloads the translations if they aren't saved yet, then raises `LanguageChanged`.
 3. `LocalizationManager` receives it and refreshes every translated binding on screen.
 
+## Language at launch
+
+A `{loc:Loc}` value is read once, when its view is created. The saved language is therefore applied before any window is built, from the file already saved on disk (`LanguageService.TrySetCachedLanguage`), so the first screen appears translated and nothing has to be refreshed.
+
+When the saved language has no file yet, as on a fresh install that starts in the computer's own language, the app opens in English. Once the window is up it downloads the file through `SetLanguageAsync`, and the screen refreshes as described above.
+
 ## Downloading and saving translations
 
 ![Download Flow](diagrams/localization/download-flow.svg)

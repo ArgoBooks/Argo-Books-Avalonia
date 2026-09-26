@@ -1357,6 +1357,18 @@ public partial class App : Application
                 errorLogger.LogWarning($"Failed to apply saved theme during startup: {ex.Message}", "Startup");
             }
 
+            // Also before any XAML is built: {loc:Loc} reads the language once, when the view is
+            // created, so applying it after the window opens shows English and then rewrites every
+            // label. A language not yet on disk is downloaded later, in InitializeAsync.
+            try
+            {
+                ApplyStartupLanguageFromCache();
+            }
+            catch (Exception ex)
+            {
+                errorLogger.LogWarning($"Failed to apply saved language during startup: {ex.Message}", "Startup");
+            }
+
             // Show a splash straight away. Avalonia only shows MainWindow once this method
             // returns, and everything below builds the service graph first, so without this
             // the screen stays empty for several seconds. Users read that as a failed launch
@@ -1747,6 +1759,36 @@ public partial class App : Application
     }
 
     /// <summary>
+    /// Settles which language this launch uses and switches to it when its translations are
+    /// already cached. Runs before any window is built.
+    /// </summary>
+    private static void ApplyStartupLanguageFromCache()
+    {
+        if (SettingsService == null)
+            return;
+
+        var language = SettingsService.GlobalSettings.Ui.Language;
+
+        // A fresh install starts in the machine's own language when we have that translation.
+        // Only on the very first run: after that the setting is the user's answer, and a
+        // machine whose language changes later must not overrule it.
+        if (SettingsService.IsFirstRun
+            && Data.Languages.MatchSystemLanguage(System.Globalization.CultureInfo.CurrentUICulture.Name)
+                is { } detected
+            && detected != language)
+        {
+            language = detected;
+            SettingsService.GlobalSettings.Ui.Language = detected;
+            _ = SettingsService.SaveGlobalSettingsAsync();
+        }
+
+        if (!string.IsNullOrEmpty(language) && language != "English")
+        {
+            LanguageService.Instance.TrySetCachedLanguage(language);
+        }
+    }
+
+    /// <summary>
     /// Performs async initialization after the main window is displayed.
     /// </summary>
     private static async Task InitializeAsync()
@@ -1877,20 +1919,9 @@ public partial class App : Application
             {
                 var language = SettingsService.GlobalSettings.Ui.Language;
 
-                // A fresh install starts in the machine's own language when we have that translation.
-                // Only on the very first run: after that the setting is the user's answer, and a
-                // machine whose language changes later must not overrule it.
-                if (SettingsService.IsFirstRun
-                    && Data.Languages.MatchSystemLanguage(System.Globalization.CultureInfo.CurrentUICulture.Name)
-                        is { } detected
-                    && detected != language)
-                {
-                    language = detected;
-                    SettingsService.GlobalSettings.Ui.Language = detected;
-                    _ = SettingsService.SaveGlobalSettingsAsync();
-                }
-
-                if (!string.IsNullOrEmpty(language) && language != "English")
+                // Only reached when startup found no cached file for it, so this downloads.
+                if (!string.IsNullOrEmpty(language) && language != "English"
+                    && LanguageService.Instance.CurrentLanguage != language)
                 {
                     await LanguageService.Instance.SetLanguageAsync(language);
                 }
