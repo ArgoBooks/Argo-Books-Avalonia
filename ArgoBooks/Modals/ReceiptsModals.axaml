@@ -181,6 +181,8 @@
             <controls:ModalOverlay.ModalContent>
                 <Border Width="{Binding ModalWidth}"
                     Height="{Binding ModalHeight}"
+                    MaxWidth="{Binding $parent[controls:ModalOverlay].AvailableWidth}"
+                    MaxHeight="{Binding $parent[controls:ModalOverlay].AvailableHeight}"
                     Margin="{Binding ModalMargin}"
                     HorizontalAlignment="{Binding ModalHorizontalAlignment}"
                     VerticalAlignment="{Binding ModalVerticalAlignment}"
@@ -203,7 +205,7 @@
                                 <PathIcon Data="{x:Static icons:Icons.ScanReceipt}"
                                           Width="24" Height="24"
                                           Foreground="{DynamicResource PrimaryBrush}" />
-                                <TextBlock Text="{loc:Loc 'AI Receipt Scanner'}"
+                                <TextBlock Text="{loc:Loc 'Receipt Scanner'}"
                                            FontSize="18"
                                            FontWeight="SemiBold"
                                            Foreground="{DynamicResource TextPrimaryBrush}"
@@ -1465,6 +1467,8 @@
             <controls:ModalOverlay.ModalContent>
                 <Border Width="{Binding ModalWidth}"
                         Height="{Binding ModalHeight}"
+                        MaxWidth="{Binding $parent[controls:ModalOverlay].AvailableWidth}"
+                        MaxHeight="{Binding $parent[controls:ModalOverlay].AvailableHeight}"
                         Margin="{Binding ModalMargin}"
                         HorizontalAlignment="{Binding ModalHorizontalAlignment}"
                         VerticalAlignment="{Binding ModalVerticalAlignment}"

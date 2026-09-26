@@ -33,6 +33,12 @@ public partial class ModalOverlay : UserControl
     public static readonly StyledProperty<ICommand?> ClosingCommandProperty =
         AvaloniaProperty.Register<ModalOverlay, ICommand?>(nameof(ClosingCommand));
 
+    public static readonly StyledProperty<double> AvailableWidthProperty =
+        AvaloniaProperty.Register<ModalOverlay, double>(nameof(AvailableWidth), double.PositiveInfinity);
+
+    public static readonly StyledProperty<double> AvailableHeightProperty =
+        AvaloniaProperty.Register<ModalOverlay, double>(nameof(AvailableHeight), double.PositiveInfinity);
+
     #endregion
 
     #region Properties
@@ -74,6 +80,26 @@ public partial class ModalOverlay : UserControl
         get => GetValue(ClosingCommandProperty);
         set => SetValue(ClosingCommandProperty, value);
     }
+
+    /// <summary>
+    /// The room the window leaves for the modal, less a small gap at each edge. A modal with a fixed
+    /// Width or Height binds its MaxWidth/MaxHeight to these so it shrinks instead of running off
+    /// a window made smaller than it.
+    /// </summary>
+    public double AvailableWidth
+    {
+        get => GetValue(AvailableWidthProperty);
+        private set => SetValue(AvailableWidthProperty, value);
+    }
+
+    /// <inheritdoc cref="AvailableWidth"/>
+    public double AvailableHeight
+    {
+        get => GetValue(AvailableHeightProperty);
+        private set => SetValue(AvailableHeightProperty, value);
+    }
+
+    private const double WindowEdgeGap = 16;
 
     #endregion
 
@@ -117,6 +143,11 @@ public partial class ModalOverlay : UserControl
         else if (change.Property == ModalContentProperty && _modalContentPresenter != null)
         {
             _modalContentPresenter.Content = ModalContent;
+        }
+        else if (change.Property == BoundsProperty)
+        {
+            AvailableWidth = Math.Max(0, Bounds.Width - WindowEdgeGap);
+            AvailableHeight = Math.Max(0, Bounds.Height - WindowEdgeGap);
         }
     }
 
