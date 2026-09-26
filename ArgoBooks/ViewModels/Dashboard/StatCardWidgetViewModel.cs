@@ -241,9 +241,9 @@ public partial class StatCardWidgetViewModel : WidgetViewModelBase
         Value = CurrencyService.FormatNetProfitOrPending(data, startDate, endDate);
 
         // A profit still waiting for its stock's cost is overstated, so there is no change to show.
-        var costPending = CostOfGoodsAggregator.IsCostOfGoodsPending(data.Revenues, startDate, endDate, collectedOnly: true);
         var (prevStart, prevEnd) = DashboardCalculations.GetComparisonPeriod();
-        if (!costPending && prevStart != DateTime.MinValue && DashboardCalculations.HasSufficientPriorData(data, prevStart))
+        if (prevStart != DateTime.MinValue && DashboardCalculations.HasSufficientPriorData(data, prevStart)
+            && !CostOfGoodsAggregator.IsProfitChangePending(data.Revenues, startDate, endDate, prevStart, prevEnd))
         {
             var prevProfit = ProfitCalculator.CalculateNetProfitUSD(data, prevStart, prevEnd);
             ChangeValue = DashboardCalculations.CalculatePercentageChange(prevProfit, profitUSD);

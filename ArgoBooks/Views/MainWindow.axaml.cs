@@ -388,6 +388,10 @@ public partial class MainWindow : Window
         {
             await App.TelemetryManager.EndSessionAsync();
         }
+        if (Core.Services.PendingConversionService.Instance is { } conversions)
+        {
+            await conversions.FlushAsync();
+        }
         _isClosingConfirmed = true;
         Close();
     }

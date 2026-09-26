@@ -308,7 +308,6 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
 
             var dateBefore = created.NextDate;
             var generated = OwnEntries(GenerateDueNow(data), created);
-            var queued = QueueGenerated(data, generated);
             var dateAfter = created.NextDate;
 
             App.UndoRedoManager.RecordAction(new DelegateAction(
@@ -323,7 +322,7 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
                 () =>
                 {
                     data.RecurringTransactions.Add(created);
-                    RestoreGenerated(data, generated, queued);
+                    RestoreGenerated(data, generated);
                     created.NextDate = dateAfter;
                     Saved?.Invoke();
                 }));
@@ -372,7 +371,6 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
             var after = Capture(existing);
 
             var generated = OwnEntries(GenerateDueNow(data), existing);
-            var queued = QueueGenerated(data, generated);
             var dateAfter = existing.NextDate;
             var lastGeneratedAfter = existing.LastGeneratedAt;
             var statusAfter = existing.Status;
@@ -391,7 +389,7 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
                 () =>
                 {
                     Restore(existing, after);
-                    RestoreGenerated(data, generated, queued);
+                    RestoreGenerated(data, generated);
                     existing.NextDate = dateAfter;
                     existing.LastGeneratedAt = lastGeneratedAfter;
                     existing.Status = statusAfter;
@@ -429,11 +427,6 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
         IReadOnlyList<Transaction> generated, RecurringTransaction schedule) =>
         generated.Where(t => t.RecurringScheduleId == schedule.Id).ToList();
 
-    /// <summary>The conversions generation queued, so redo can put them back with the entries.</summary>
-    private static IReadOnlyList<Core.Models.Common.PendingConversion> QueueGenerated(
-        Core.Data.CompanyData data, IReadOnlyList<Transaction> generated) =>
-        UsdConversion.Snapshot(data, generated.Select(UsdConversion.KeyOf));
-
     private static void RemoveGenerated(Core.Data.CompanyData data, IReadOnlyList<Transaction> generated)
     {
         foreach (var entry in generated)
@@ -445,16 +438,15 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
         UsdConversion.Restore(data, generated.Select(UsdConversion.KeyOf), []);
     }
 
-    private static void RestoreGenerated(
-        Core.Data.CompanyData data, IReadOnlyList<Transaction> generated, IReadOnlyList<Core.Models.Common.PendingConversion> queued)
+    /// <summary>An entry converted before the undo keeps its USD figure, so only one still waiting queues again.</summary>
+    private static void RestoreGenerated(Core.Data.CompanyData data, IReadOnlyList<Transaction> generated)
     {
         foreach (var entry in generated)
         {
             if (entry is Expense expense && !data.Expenses.Contains(expense)) data.Expenses.Add(expense);
             else if (entry is Revenue revenue && !data.Revenues.Contains(revenue)) data.Revenues.Add(revenue);
+            UsdConversion.Requeue(data, entry);
         }
-
-        UsdConversion.Restore(data, generated.Select(UsdConversion.KeyOf), queued.ToList());
     }
 
     /// <summary>

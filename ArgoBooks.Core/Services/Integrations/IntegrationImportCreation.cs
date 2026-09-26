@@ -84,6 +84,10 @@ public abstract class IntegrationImportCreation
         }
         foreach (var r in Revenues) if (!data.Revenues.Contains(r)) data.Revenues.Add(r);
         foreach (var e in Expenses) if (!data.Expenses.Contains(e)) data.Expenses.Add(e);
+
+        // A row converted before the undo already has its USD figure, so only still-pending rows requeue.
+        foreach (var r in Revenues) UsdConversion.Requeue(data, r);
+        foreach (var e in Expenses) UsdConversion.Requeue(data, e);
         ApplyStock(data);
         foreach (var ret in Returns) if (!data.Returns.Contains(ret)) data.Returns.Add(ret);
 

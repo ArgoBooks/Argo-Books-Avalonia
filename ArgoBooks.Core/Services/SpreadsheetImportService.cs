@@ -1595,11 +1595,12 @@ public class SpreadsheetImportService
                     var existing = data.Invoices.FirstOrDefault(i => i.Id == invoice.Id);
                     if (skipExisting && existing != null) return ImportEntityResult.SkippedExisting;
 
+                    var givenStatus = ParseImportedInvoiceStatus(JsonText(entityJson, "status"));
                     SetImportedBalance(invoice,
                         HasJsonValue(entityJson, "amountPaid") ? invoice.AmountPaid : null,
                         HasJsonValue(entityJson, "balance") ? invoice.Balance : null,
-                        recompute: true);
-                    SetImportedStatus(invoice, invoice.Status, amountsSet: true, statusGiven: HasJsonValue(entityJson, "status"));
+                        recompute: true, givenStatus);
+                    SetImportedStatus(invoice, givenStatus ?? InvoiceStatus.Draft, amountsSet: true, statusGiven: givenStatus != null);
 
                     // Convert Total/Balance at the exact issue date from the row's own currency, or
                     // the company currency when it names none, deferring (pending + enqueue) when
@@ -2962,18 +2963,56 @@ public class SpreadsheetImportService
 
     /// <summary>
     /// The balance an imported invoice still owes: the total less the amount paid when the row gives
-    /// one, else the row's own balance, else (when <paramref name="recompute"/>) the total less what
-    /// was already paid. Every invoice import sets it this way before working out the status, so a
-    /// row with a total and an amount paid but no balance isn't read as paid in full.
+    /// one, else the row's own balance. With neither, and only when <paramref name="recompute"/>,
+    /// nothing when the row says it was paid (Paid, Refunded or PartiallyRefunded, which are all paid
+    /// in full before any refund), else the total less what was already paid. Every invoice import
+    /// sets it this way before working out the status, so a row with a total and an amount paid but
+    /// no balance isn't read as paid in full, and one marked paid with no amounts isn't read as owed.
     /// </summary>
-    private static void SetImportedBalance(Invoice invoice, decimal? paid, decimal? balance, bool recompute)
+    private static void SetImportedBalance(
+        Invoice invoice, decimal? paid, decimal? balance, bool recompute, InvoiceStatus? givenStatus)
     {
         if (paid.HasValue)
             invoice.Balance = Math.Max(0m, invoice.Total - paid.Value);
         else if (balance.HasValue)
             invoice.Balance = Math.Max(0m, balance.Value);
-        else if (recompute)
+        else if (!recompute)
+            return;
+        else if (givenStatus is InvoiceStatus.Paid or InvoiceStatus.Refunded or InvoiceStatus.PartiallyRefunded)
+        {
+            invoice.AmountPaid = invoice.Total;
+            invoice.Balance = 0m;
+        }
+        else
             invoice.Balance = Math.Max(0m, invoice.Total - invoice.AmountPaid);
+    }
+
+    // Spellings other software uses for a status, read as ours. Unpaid and Open have no status of
+    // their own: the amounts decide those.
+    private static readonly Dictionary<string, InvoiceStatus> InvoiceStatusAliases = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["canceled"] = InvoiceStatus.Cancelled,
+        ["paidinfull"] = InvoiceStatus.Paid,
+        ["partiallypaid"] = InvoiceStatus.Partial
+    };
+
+    /// <summary>
+    /// The invoice status a sheet's text names, or null when it names none, which leaves the status
+    /// to the amounts. Only a status's own name (any case, spaces, hyphens and underscores ignored)
+    /// or a known alias counts: an unrecognised word must not be taken as a Draft the sheet chose.
+    /// </summary>
+    internal static InvoiceStatus? ParseImportedInvoiceStatus(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return null;
+
+        var key = text.Replace(" ", "").Replace("-", "").Replace("_", "");
+        if (InvoiceStatusAliases.TryGetValue(key, out var alias)) return alias;
+        foreach (var status in Enum.GetValues<InvoiceStatus>())
+        {
+            if (string.Equals(status.ToString(), key, StringComparison.OrdinalIgnoreCase))
+                return status;
+        }
+        return null;
     }
 
     /// <summary>Whether an AI-extracted row carries a value for <paramref name="name"/> (any case).</summary>
@@ -2982,6 +3021,15 @@ public class SpreadsheetImportService
             string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase)
             && p.Value.ValueKind is not (JsonValueKind.Null or JsonValueKind.Undefined)
             && !(p.Value.ValueKind == JsonValueKind.String && string.IsNullOrWhiteSpace(p.Value.GetString())));
+
+    /// <summary>An AI-extracted row's text for <paramref name="name"/> (any case), or null.</summary>
+    private static string? JsonText(JsonElement row, string name) =>
+        row.ValueKind == JsonValueKind.Object
+            ? row.EnumerateObject()
+                .Where(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase) && p.Value.ValueKind == JsonValueKind.String)
+                .Select(p => p.Value.GetString())
+                .FirstOrDefault()
+            : null;
 
     /// <summary>
     /// Gives an imported invoice its status once its amounts are set. Overdue is worked out from the
@@ -3399,13 +3447,12 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             var paid = SpreadsheetRowReader.GetNullableDecimal(row, headers, "Paid");
             if (Set("Paid"))
                 invoice.AmountPaid = paid ?? 0m;
+            var givenStatus = Set("Status") ? ParseImportedInvoiceStatus(GetString(row, headers, "Status")) : null;
             SetImportedBalance(invoice, paid, SpreadsheetRowReader.GetNullableDecimal(row, headers, "Balance"),
-                recompute: Set("Paid", "Total"));
+                recompute: Set("Paid", "Total"), givenStatus);
             if (Set("Status", "Paid", "Balance", "Total"))
-                SetImportedStatus(invoice, Set("Status")
-                    ? ParseEnum(GetString(row, headers, "Status"), InvoiceStatus.Draft)
-                    : invoice.Status, amountsSet: Set("Paid", "Balance", "Total"),
-                    statusGiven: !string.IsNullOrWhiteSpace(GetString(row, headers, "Status")));
+                SetImportedStatus(invoice, Set("Status") ? givenStatus ?? InvoiceStatus.Draft : invoice.Status,
+                    amountsSet: Set("Paid", "Balance", "Total"), statusGiven: givenStatus != null);
 
             // Per-row currency detected from the amount cells, else the record's own when updating,
             // else the company currency. Left as it is when nothing it is priced from changed.

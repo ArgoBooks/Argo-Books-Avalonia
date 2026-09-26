@@ -65,6 +65,15 @@ public static class CostOfGoodsAggregator
         IEnumerable<Revenue> revenues, DateTime start, DateTime end, bool collectedOnly) =>
         IsCostOfGoodsPending(InRange(revenues, start, end, collectedOnly));
 
+    /// <summary>
+    /// Whether the change in profit against the previous period can't be worked out yet: a paid sale
+    /// in either period is still waiting for its stock's cost, so that period's profit reads high.
+    /// </summary>
+    public static bool IsProfitChangePending(
+        IEnumerable<Revenue> revenues, DateTime start, DateTime end, DateTime previousStart, DateTime previousEnd) =>
+        IsCostOfGoodsPending(revenues, start, end, collectedOnly: true)
+        || IsCostOfGoodsPending(revenues, previousStart, previousEnd, collectedOnly: true);
+
     /// <inheritdoc cref="IsCostOfGoodsPending(IEnumerable{Revenue}, DateTime, DateTime, bool)"/>
     public static bool IsCostOfGoodsPending(IEnumerable<Revenue> sales) =>
         sales.Any(r => r.LineItems.Any(li => li.IsCostOfGoodsPending));

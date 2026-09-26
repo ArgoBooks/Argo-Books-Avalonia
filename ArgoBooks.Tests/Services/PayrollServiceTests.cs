@@ -280,6 +280,46 @@ public class PayrollServiceTests
         Assert.Null(run.Lines[0].ExpenseId);
     }
 
+    // Undoing an approval took the wages out and left their queued conversion behind, which a pass
+    // then dropped as having nothing to convert. Redo put the wages back still waiting, with nothing
+    // queued to convert them, so they counted as 0 for good.
+    [Fact]
+    public void UndoAndRedoOfWages_TakesTheQueuedConversionOutAndBack()
+    {
+        CompanyData data = DataWithEmployee();
+        var wages = new Expense { Id = "PUR-2026-00001", Date = PayDate, OriginalCurrency = "CAD", Total = 1856.41m };
+        UsdConversion.Apply(data, wages, rate: null);
+        data.Expenses.Add(wages);
+
+        PayrollService.RemoveWageExpenses(data, [wages]);
+
+        Assert.Empty(data.Expenses);
+        Assert.Empty(data.PendingConversions);
+
+        PayrollService.RestoreWageExpenses(data, [wages]);
+
+        Assert.Same(wages, Assert.Single(data.Expenses));
+        var entry = Assert.Single(data.PendingConversions);
+        Assert.Equal((wages.Id, "Expense", 1856.41m, PayDate), (entry.TransactionId, entry.TransactionType, entry.Total, entry.TransactionDate));
+    }
+
+    [Fact]
+    public void Void_DropsTheWagesQueuedConversion()
+    {
+        CompanyData data = DataWithEmployee();
+        PayRun run = ApprovedRun("PR-0001", PayDate, "EMP-001", 2000m, 110.99m, 32.60m);
+        run.Status = PayRunStatus.Draft;
+        var service = new PayrollService();
+        Expense wages = Assert.Single(service.ApproveAndRecord(data, run));
+        wages.OriginalCurrency = "CAD";
+        UsdConversion.Apply(data, wages, rate: null);
+
+        service.Void(data, run);
+
+        Assert.Empty(data.Expenses);
+        Assert.Empty(data.PendingConversions);
+    }
+
     [Fact]
     public void Void_LeavesUnrelatedExpensesAlone()
     {

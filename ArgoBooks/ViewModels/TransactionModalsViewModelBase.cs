@@ -1593,8 +1593,12 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
             ? null
             : companyData.Receipts.FirstOrDefault(r => r.Id == transaction.ReceiptId);
         var reason = isExpense ? "Expense deleted" : "Revenue deleted";
+        var queueKey = UsdConversion.KeyOf(transaction);
         List<StockChange> stockChanges = [];
+        List<PendingConversion> queued = [];
 
+        // The queued conversion leaves with the row and comes back with it as it was, keeping the
+        // date whose rate it waits for.
         RemoveWithUndo(companyData, list, transaction,
             $"Delete {(isExpense ? "expense" : "revenue")} {transaction.Id}",
             () => RaiseTransactionDeleted(),
@@ -1602,12 +1606,15 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
             {
                 if (receipt != null)
                     companyData.Receipts.Remove(receipt);
+                queued = UsdConversion.Snapshot(companyData, [queueKey]);
+                UsdConversion.Set(companyData, queueKey, null);
                 stockChanges = AdjustInventoryForEdit(companyData, transaction, transaction.LineItems, [], isExpense, reason);
             },
             onRestore: () =>
             {
                 if (receipt != null)
                     companyData.Receipts.Add(receipt);
+                UsdConversion.Restore(companyData, [queueKey], queued);
                 RevertInventoryAdjustments(companyData, stockChanges);
             });
 

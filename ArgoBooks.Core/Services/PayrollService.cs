@@ -547,19 +547,48 @@ public class PayrollService(PayrollRateService? rateService = null)
         // not observed in the world, and a voided run is one whose money never left. Leaving
         // a matching pair of plus and minus expenses would double the transaction count on
         // every report for no gain.
+        List<Expense> wages = run.Lines
+            .Where(l => l.ExpenseId is { Length: > 0 })
+            .SelectMany(l => data.Expenses.Where(e => e.Id == l.ExpenseId))
+            .ToList();
+        RemoveWageExpenses(data, wages);
         foreach (PayRunLine line in run.Lines)
         {
-            if (line.ExpenseId is not { Length: > 0 } expenseId)
-            {
-                continue;
-            }
-
-            data.Expenses.RemoveAll(e => e.Id == expenseId);
             line.ExpenseId = null;
         }
 
         run.Status = PayRunStatus.Void;
         data.PayRuns.Add(reversal);
         return reversal;
+    }
+
+    /// <summary>
+    /// Takes a run's wage expenses out of the books, with any conversion still queued for them,
+    /// for a void and for undoing an approval.
+    /// </summary>
+    public static void RemoveWageExpenses(CompanyData data, IReadOnlyCollection<Expense> expenses)
+    {
+        data.Expenses.RemoveAll(e => expenses.Contains(e));
+        foreach (Expense expense in expenses)
+        {
+            UsdConversion.Set(data, UsdConversion.KeyOf(expense), null);
+        }
+    }
+
+    /// <summary>
+    /// Puts wage expenses back into the books, queued again while one still waits for its rate,
+    /// for undoing a void and redoing an approval.
+    /// </summary>
+    public static void RestoreWageExpenses(CompanyData data, IReadOnlyCollection<Expense> expenses)
+    {
+        foreach (Expense expense in expenses)
+        {
+            if (!data.Expenses.Contains(expense))
+            {
+                data.Expenses.Add(expense);
+            }
+
+            UsdConversion.Requeue(data, expense);
+        }
     }
 }

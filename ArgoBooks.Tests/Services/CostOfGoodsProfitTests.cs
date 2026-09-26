@@ -109,6 +109,26 @@ public class CostOfGoodsProfitTests
             ArgoBooks.Services.CurrencyService.FormatNetProfitOrPending(data, Start, End));
     }
 
+    // Only the current period was checked, so a sale still waiting in the previous period made the
+    // change against it look better than it was.
+    [Fact]
+    public void SaleWaitingForItsStockCost_InThePreviousPeriod_LeavesTheProfitChangeUnknown()
+    {
+        var data = new CompanyData();
+        var earlier = SaleCosting(0m);
+        earlier.Date = new DateTime(2025, 12, 10);
+        earlier.LineItems[0].IsCostOfGoodsPending = true;
+        data.Revenues.Add(earlier);
+        data.Revenues.Add(SaleCosting(30m));
+        var (previousStart, previousEnd) = (new DateTime(2025, 12, 1), new DateTime(2025, 12, 31));
+
+        Assert.False(CostOfGoodsAggregator.IsCostOfGoodsPending(data.Revenues, Start, End, collectedOnly: true));
+        Assert.True(CostOfGoodsAggregator.IsProfitChangePending(data.Revenues, Start, End, previousStart, previousEnd));
+
+        earlier.LineItems[0].IsCostOfGoodsPending = false;
+        Assert.False(CostOfGoodsAggregator.IsProfitChangePending(data.Revenues, Start, End, previousStart, previousEnd));
+    }
+
     [Fact]
     public void SaleWaitingForItsStockCost_LeavesGrossProfitAndNetIncomePending_OnTheIncomeStatement()
     {

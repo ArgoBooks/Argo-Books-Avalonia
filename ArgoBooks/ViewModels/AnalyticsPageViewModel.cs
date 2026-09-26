@@ -2256,13 +2256,14 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         // Profit and margin both subtract cost of goods sold, so a sale waiting for its stock's cost
         // leaves both Pending rather than overstated (docs/Calculations.md §14).
         var costPending = CostOfGoodsAggregator.IsCostOfGoodsPending(data.Revenues, StartDate, EndDate, collectedOnly: true);
+        var changePending = CostOfGoodsAggregator.IsProfitChangePending(data.Revenues, StartDate, EndDate, prevStartDate, prevEndDate);
         NetProfit = CurrencyService.FormatNetProfitOrPending(data, StartDate, EndDate);
-        var showProfitChange = !costPending && hasPrevPeriodData && prevNetProfit != 0;
+        var showProfitChange = !changePending && hasPrevPeriodData && prevNetProfit != 0;
         ProfitChangeValue = showProfitChange ? (double)profitChange : null;
         ProfitChangeText = showProfitChange ? $"{Math.Abs(profitChange):F1}%" : null;
 
         ProfitMargin = costPending ? CurrencyService.PendingMarker : $"{margin:F1}%";
-        var showMarginChange = !costPending && hasPrevPeriodData && prevSalesUSD > 0;
+        var showMarginChange = !changePending && hasPrevPeriodData && prevSalesUSD > 0;
         ProfitMarginChangeValue = showMarginChange ? (double)marginChange : null;
         ProfitMarginChangeText = showMarginChange ? $"{Math.Abs(marginChange):F1}%" : null;
     }

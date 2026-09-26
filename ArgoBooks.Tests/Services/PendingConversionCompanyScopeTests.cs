@@ -142,6 +142,110 @@ public class PendingConversionCompanyScopeTests
         }
     }
 
+    // A save waiting behind another took the queue as it was when its turn came. By then another
+    // company could be open, so its entries went to that company's file and this one's never did.
+    [Fact]
+    public async Task SaveAskedForBeforeAnotherCompanyOpens_WritesThatCompanysEntries()
+    {
+        var appData = Directory.CreateTempSubdirectory("argo-queue-").FullName;
+        try
+        {
+            var (platform, entered, release) = FirstWriteHeld(appData, failOnWrite: 0);
+            var pathA = Path.Combine(appData, "A.argo");
+            var pathB = Path.Combine(appData, "B.argo");
+            var a = CompanyWithPendingExpense();
+            var b = CompanyWithPendingExpense();
+            var open = a;
+            var service = new PendingConversionService(platform)
+            {
+                CurrentCompany = () => (open, open == a ? pathA : pathB)
+            };
+
+            var first = Task.Run(() => service.AddPendingConversionAsync(Entry("A-1", 100m)));
+            Assert.True(entered.Wait(TimeSpan.FromSeconds(10)));
+            var second = service.AddPendingConversionAsync(Entry("A-2", 200m));
+            open = b;
+            var third = service.AddPendingConversionAsync(Entry("B-1", 300m));
+            release.Set();
+            await Task.WhenAll(first, second, third);
+
+            Assert.Equal(new[] { 100m, 200m }, (await SavedAsync(appData, pathA)).Select(e => e.Total).Order());
+            Assert.Equal(new[] { 300m }, (await SavedAsync(appData, pathB)).Select(e => e.Total));
+        }
+        finally
+        {
+            Directory.Delete(appData, recursive: true);
+        }
+    }
+
+    // A write marked everything asked for so far as saved before it wrote, so when it failed, the
+    // saves waiting behind it skipped, and the file kept the queue from before them.
+    [Fact]
+    public async Task FailedWrite_LeavesTheSavesBehindItToWrite()
+    {
+        var appData = Directory.CreateTempSubdirectory("argo-queue-").FullName;
+        try
+        {
+            var (platform, entered, release) = FirstWriteHeld(appData, failOnWrite: 2);
+            var path = Path.Combine(appData, "A.argo");
+            var company = CompanyWithPendingExpense();
+            var service = new PendingConversionService(platform)
+            {
+                CurrentCompany = () => (company, path)
+            };
+
+            var first = Task.Run(() => service.AddPendingConversionAsync(Entry("A-1", 100m)));
+            Assert.True(entered.Wait(TimeSpan.FromSeconds(10)));
+            var second = service.AddPendingConversionAsync(Entry("A-2", 200m));
+            var third = service.AddPendingConversionAsync(Entry("A-3", 300m));
+            release.Set();
+            await Task.WhenAll(first, second, third);
+            await service.FlushAsync();
+
+            Assert.Equal(new[] { 100m, 200m, 300m }, (await SavedAsync(appData, path)).Select(e => e.Total).Order());
+        }
+        finally
+        {
+            Directory.Delete(appData, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// A platform whose first queue file write waits until released, so later saves queue up behind
+    /// it, and whose write number <paramref name="failOnWrite"/> fails.
+    /// </summary>
+    private static (TestPlatform Platform, ManualResetEventSlim Entered, ManualResetEventSlim Release) FirstWriteHeld(
+        string appData, int failOnWrite)
+    {
+        var entered = new ManualResetEventSlim();
+        var release = new ManualResetEventSlim();
+        var writes = 0;
+        var platform = new TestPlatform(appData, _ =>
+        {
+            var write = Interlocked.Increment(ref writes);
+            if (write == 1)
+            {
+                entered.Set();
+                release.Wait(TimeSpan.FromSeconds(10));
+            }
+            if (write == failOnWrite)
+                throw new IOException("The disk is full.");
+        });
+        return (platform, entered, release);
+    }
+
+    /// <summary>What the company's queue file holds, read the way the next session reads it.</summary>
+    private static async Task<List<PendingConversion>> SavedAsync(string appData, string companyPath)
+    {
+        var reopened = new CompanyData();
+        var service = new PendingConversionService(new TestPlatform(appData))
+        {
+            CurrentCompany = () => (reopened, companyPath)
+        };
+        await service.ReconcileWithCompanyDataAsync(reopened);
+        return reopened.PendingConversions;
+    }
+
     private static CompanyData CompanyWithPendingExpense()
     {
         var data = new CompanyData();
@@ -149,9 +253,11 @@ public class PendingConversionCompanyScopeTests
         return data;
     }
 
-    private static PendingConversion Entry(decimal total) => new()
+    private static PendingConversion Entry(decimal total) => Entry(Id, total);
+
+    private static PendingConversion Entry(string id, decimal total) => new()
     {
-        TransactionId = Id,
+        TransactionId = id,
         TransactionType = "Expense",
         OriginalCurrency = "EUR",
         TransactionDate = Date,
@@ -170,14 +276,23 @@ public class PendingConversionCompanyScopeTests
         }
     }
 
-    /// <summary>Writes to <paramref name="appData"/> when given one, and nowhere otherwise.</summary>
-    private sealed class TestPlatform(string? appData) : IPlatformService
+    /// <summary>
+    /// Writes to <paramref name="appData"/> when given one, and nowhere otherwise.
+    /// <paramref name="beforeWrite"/> runs as each queue file is about to be written.
+    /// </summary>
+    private sealed class TestPlatform(string? appData, Action<string>? beforeWrite = null) : IPlatformService
     {
         public PlatformType Platform => PlatformType.Linux;
         public string GetAppDataPath() => appData ?? Path.GetTempPath();
         public string GetTempPath() => Path.GetTempPath();
         public string GetCachePath() => Path.GetTempPath();
-        public void EnsureDirectoryExists(string path) => Directory.CreateDirectory(path);
+
+        public void EnsureDirectoryExists(string path)
+        {
+            beforeWrite?.Invoke(path);
+            Directory.CreateDirectory(path);
+        }
+
         public bool SupportsFileSystem => appData != null;
         public bool SupportsNativeDialogs => false;
         public bool SupportsBiometrics => false;

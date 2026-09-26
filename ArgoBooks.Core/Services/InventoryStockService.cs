@@ -251,9 +251,12 @@ public static class InventoryStockService
     /// Puts stock back as it was before <paramref name="changes"/>: stock, opening units, unit cost and
     /// cost price restored, adjustments removed, and stock records the change created removed. A cost
     /// that was pending then and has converted since comes back converted rather than pending again.
+    /// An undo puts a sale back before this runs, and a line of it still waiting for that cost gets
+    /// it here, since the queue has already converted it and will not again.
     /// </summary>
     public static void Revert(CompanyData data, IReadOnlyList<StockChange> changes)
     {
+        var converted = new Dictionary<InventoryItem, PendingConversion>();
         for (var i = changes.Count - 1; i >= 0; i--)
         {
             var change = changes[i];
@@ -280,7 +283,16 @@ public static class InventoryStockService
             var entry = change.WasCreated || convertedRate != null ? null : change.OldPendingCost;
             if (!ReferenceEquals(PendingCostEntry(data, item.Id), entry))
                 UsdConversion.Set(data, UsdConversion.KeyOf(item), entry);
+
+            // The earliest change to a record says what it goes back to, so it is the one that counts.
+            if (!change.WasCreated && convertedRate != null)
+                converted[item] = change.OldPendingCost!;
+            else
+                converted.Remove(item);
         }
+
+        foreach (var (_, entry) in converted)
+            ApplyConvertedCost(data, entry, entry.ConvertedRate!.Value);
     }
 
     /// <summary>

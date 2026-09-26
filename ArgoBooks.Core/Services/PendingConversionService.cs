@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
 using ArgoBooks.Core.Data;
@@ -24,15 +25,24 @@ public class PendingConversionService
     private readonly List<PendingConversion> _queue = [];
     private readonly Lock _lock = new();
 
+    // When each entry was last added to the queue, so a pass removes only the entries it converted
+    // and not one put back meanwhile, by an undo or redo, that still waits for its rate.
+    private readonly ConditionalWeakTable<PendingConversion, StrongBox<long>> _queuedAt = new();
+    private long _queueSequence;
+
     // Saves are serialized and coalesced: a burst of queue changes, such as an import queuing a
     // row at a time, writes the file once or twice rather than once per row, and never twice at once.
+    // Each save keeps the queue and the file of the company open when it was asked for, so one that
+    // waits while another company opens still writes the right entries to the right file. A file
+    // counts as saved through a request only once its write has succeeded (QueueFile).
     private readonly SemaphoreSlim _saveGate = new(1, 1);
     private long _saveRequests;
-    private long _savedThrough;
+    private readonly List<Task> _savesInFlight = [];
 
     // The company the queue holds entries for, and the path of its file. See CurrentCompany.
     private CompanyData? _scopeCompany;
     private string? _scopeFilePath;
+    private QueueFile _scopeFile = new();
 
     // Currency and date pairs whose rate could not be had, and when to ask again. The app
     // retries every 15 seconds, so without this one row that could not be priced asked the
@@ -114,7 +124,7 @@ public class PendingConversionService
 
             // A later edit's amounts win: the queue converts from this snapshot, not the live row.
             _queue.RemoveAll(p => p.Key == entry.Key);
-            _queue.Add(entry);
+            Enqueue(entry);
         }
 
         await SaveToDiskAsync();
@@ -142,7 +152,7 @@ public class PendingConversionService
             if (_queue.RemoveAll(p => mirrored.Contains(p.Key)) == 0 && after.Count == 0)
                 return;
 
-            _queue.AddRange(after);
+            after.ForEach(Enqueue);
         }
 
         await SaveToDiskAsync();
@@ -181,7 +191,7 @@ public class PendingConversionService
             {
                 if (existingKeys.Add(entry.Key))
                 {
-                    _queue.Add(entry);
+                    Enqueue(entry);
                 }
             }
 
@@ -284,6 +294,7 @@ public class PendingConversionService
         }
 
         var processed = new List<PendingConversion>();
+        var processedAt = new Dictionary<PendingConversion, long>(ReferenceEqualityComparer.Instance);
 
         foreach (var entry in toProcess)
         {
@@ -315,10 +326,12 @@ public class PendingConversionService
 
                 // The record may have been saved again while the rate was fetched, replacing this
                 // entry with newer amounts. Those convert on the next pass; these must not overwrite them.
+                long queuedAt;
                 lock (_lock)
                 {
                     if (!_queue.Contains(entry))
                         continue;
+                    queuedAt = QueuedAt(entry);
                 }
 
                 // Apply the conversion to the matching record (a no-op if it was deleted since it
@@ -326,6 +339,7 @@ public class PendingConversionService
                 ApplyConversion(companyData, entry, rate);
                 entry.ConvertedRate = rate;
                 processed.Add(entry);
+                processedAt[entry] = queuedAt;
             }
             catch (Exception ex)
             {
@@ -342,9 +356,9 @@ public class PendingConversionService
                 EnsureScope();
                 if (!IsOpen(companyData)) return;
 
-                // Only the entries converted: one queued for the same record since is newer.
-                var done = processed.ToHashSet(ReferenceEqualityComparer.Instance);
-                _queue.RemoveAll(done.Contains);
+                // Only the entries converted, as they were then: one queued for the same record
+                // since is newer, and one put back since, even the same entry, waits again.
+                _queue.RemoveAll(p => processedAt.TryGetValue(p, out var at) && QueuedAt(p) == at);
 
                 // Sync back to CompanyData
                 companyData.PendingConversions.Clear();
@@ -463,8 +477,9 @@ public class PendingConversionService
         {
             _scopeCompany = company;
             _scopeFilePath = filePath;
+            _scopeFile = new QueueFile { Path = GetQueueFilePath(filePath) };
             _queue.Clear();
-            _queue.AddRange(ReadQueueFile(filePath));
+            ReadQueueFile(filePath).ForEach(Enqueue);
             return;
         }
 
@@ -472,10 +487,11 @@ public class PendingConversionService
             return;
 
         if (_scopeFilePath == null)
-            _queue.AddRange(ReadQueueFile(filePath).Where(saved => _queue.All(p => p.Key != saved.Key)));
+            ReadQueueFile(filePath).Where(saved => _queue.All(p => p.Key != saved.Key)).ToList().ForEach(Enqueue);
         else
             MoveQueueFile(_scopeFilePath, filePath);
         _scopeFilePath = filePath;
+        _scopeFile.Path = GetQueueFilePath(filePath);
     }
 
     private List<PendingConversion> ReadQueueFile(string? companyFilePath)
@@ -512,47 +528,81 @@ public class PendingConversionService
         }
     }
 
-    private async Task SaveToDiskAsync()
+    /// <summary>
+    /// Waits for every queue file write asked for so far, so closing the company or the app
+    /// doesn't cut one short.
+    /// </summary>
+    public Task FlushAsync()
+    {
+        lock (_lock)
+        {
+            return Task.WhenAll(_savesInFlight);
+        }
+    }
+
+    private Task SaveToDiskAsync()
     {
         if (!_platformService.SupportsFileSystem)
-            return;
+            return Task.CompletedTask;
 
-        var request = Interlocked.Increment(ref _saveRequests);
+        QueueFile file;
+        long request;
+        lock (_lock)
+        {
+            file = _scopeFile;
+            request = ++_saveRequests;
+            file.Unsaved = (request, [.. _queue]);
+            _savesInFlight.RemoveAll(t => t.IsCompleted);
+        }
+
+        var save = WriteQueueFileAsync(file, request);
+        lock (_lock)
+        {
+            _savesInFlight.Add(save);
+        }
+        return save;
+    }
+
+    private async Task WriteQueueFileAsync(QueueFile file, long request)
+    {
         await _saveGate.WaitAsync();
         try
         {
-            // A save that began after this request was made has already written what it asked for.
-            if (Interlocked.Read(ref _savedThrough) >= request)
-                return;
-            var through = Interlocked.Read(ref _saveRequests);
-
-            List<PendingConversion> snapshot;
-            string? filePath;
+            string path;
+            long through;
+            List<PendingConversion> entries;
             lock (_lock)
             {
-                snapshot = [.. _queue];
-                filePath = GetQueueFilePath(_scopeFilePath);
+                // An earlier write already took this request's entries, or newer ones. A company
+                // with no file yet keeps them until it has one.
+                if (file.SavedThrough >= request || file.Unsaved is not { } unsaved || file.Path is not { } known)
+                    return;
+                (through, entries) = unsaved;
+                path = known;
             }
-            Interlocked.Exchange(ref _savedThrough, through);
 
-            if (filePath == null)
-                return;
-
-            if (snapshot.Count == 0)
+            if (entries.Count == 0)
             {
-                if (File.Exists(filePath))
-                    File.Delete(filePath);
-                return;
+                if (File.Exists(path))
+                    File.Delete(path);
             }
-
-            var directory = Path.GetDirectoryName(filePath);
-            if (!string.IsNullOrEmpty(directory))
+            else
             {
-                _platformService.EnsureDirectoryExists(directory);
+                var directory = Path.GetDirectoryName(path);
+                if (!string.IsNullOrEmpty(directory))
+                {
+                    _platformService.EnsureDirectoryExists(directory);
+                }
+
+                await File.WriteAllTextAsync(path, JsonSerializer.Serialize(entries, JsonOptions));
             }
 
-            var json = JsonSerializer.Serialize(snapshot, JsonOptions);
-            await File.WriteAllTextAsync(filePath, json);
+            lock (_lock)
+            {
+                file.SavedThrough = through;
+                if (file.Unsaved?.Request == through)
+                    file.Unsaved = null;
+            }
         }
         catch (Exception ex)
         {
@@ -563,6 +613,27 @@ public class PendingConversionService
             _saveGate.Release();
         }
     }
+
+    /// <summary>
+    /// One company's queue file: where it is (it moves with a Save As), the newest entries asked to be
+    /// saved to it, and the last request whose entries reached it.
+    /// </summary>
+    private sealed class QueueFile
+    {
+        public string? Path;
+        public (long Request, List<PendingConversion> Entries)? Unsaved;
+        public long SavedThrough;
+    }
+
+    /// <summary>Adds an entry to the queue and notes when. Call under <see cref="_lock"/>.</summary>
+    private void Enqueue(PendingConversion entry)
+    {
+        _queuedAt.AddOrUpdate(entry, new StrongBox<long>(++_queueSequence));
+        _queue.Add(entry);
+    }
+
+    private long QueuedAt(PendingConversion entry) =>
+        _queuedAt.TryGetValue(entry, out var at) ? at.Value : 0;
 
     /// <summary>
     /// The company's queue file, named by a hash of the company's path so any path gives a valid

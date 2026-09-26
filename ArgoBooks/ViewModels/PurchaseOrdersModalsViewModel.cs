@@ -935,7 +935,9 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
             if (companyData == null || order == null) return;
 
             RemoveWithUndo(companyData, companyData.PurchaseOrders, order, $"Delete order '{item.PoNumber}'",
-                () => OrderDeleted?.Invoke(this, EventArgs.Empty));
+                () => OrderDeleted?.Invoke(this, EventArgs.Empty),
+                onRemove: () => Core.Services.UsdConversion.Set(companyData, Core.Services.UsdConversion.KeyOf(order), null),
+                onRestore: () => Core.Services.UsdConversion.Requeue(companyData, order));
         }
         catch (Exception ex)
         {

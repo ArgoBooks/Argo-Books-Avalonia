@@ -263,6 +263,80 @@ public class InventoryCostCurrencyTests
         }
     }
 
+    // A sale deleted while its stock's cost waited was out of the books when the cost converted, and
+    // undoing the delete brought its lines back still waiting, with nothing left to fill them.
+    [Fact]
+    public async Task UndoingASaleDelete_AfterTheCostConverted_GivesItsLinesTheCost()
+    {
+        var prior = SetInstance(await SeededServiceAsync());
+        try
+        {
+            var data = CadCompany();
+            data.Inventory.Add(new InventoryItem { Id = "INV-1", ProductId = "PRD-1", LocationId = "LOC-1", InStock = 5, UnitCost = 4m });
+            var purchase = Purchase("PUR-1", "EUR", unitPrice: 10m, pending: true);
+            InventoryStockService.Apply(data, purchase.LineItems, purchase, isPurchase: true);
+
+            var sale = Sale(2);
+            data.Revenues.Add(sale);
+            InventoryStockService.Apply(data, sale.LineItems, sale, isPurchase: false);
+            Assert.True(sale.LineItems[0].IsCostOfGoodsPending);
+
+            data.Revenues.Remove(sale);
+            var deleted = InventoryStockService.ApplyEdit(data, sale.LineItems, [], sale, isPurchase: false, "Revenue deleted");
+            await ConvertQueueAsync(data);
+
+            data.Revenues.Add(sale);
+            InventoryStockService.Revert(data, deleted);
+
+            Assert.False(sale.LineItems[0].IsCostOfGoodsPending);
+            Assert.Equal(25m, sale.LineItems[0].CostOfGoodsUSD);
+            Assert.Equal(12.5m, data.Inventory[0].UnitCost);
+            Assert.False(CostOfGoodsAggregator.IsCostOfGoodsPending(data.Revenues));
+            Assert.Empty(data.PendingConversions);
+        }
+        finally
+        {
+            SetInstance(prior);
+        }
+    }
+
+    // The same after a later purchase with a known rate gave the stock a new cost: the sale takes the
+    // cost it was waiting for, and the stock keeps the later one.
+    [Fact]
+    public async Task UndoingASaleDelete_AfterALaterPurchase_GivesItsLinesTheCostTheyWaitedFor()
+    {
+        var prior = SetInstance(await SeededServiceAsync());
+        try
+        {
+            var data = CadCompany();
+            data.Inventory.Add(new InventoryItem { Id = "INV-1", ProductId = "PRD-1", LocationId = "LOC-1", InStock = 5, UnitCost = 4m });
+            var eurPurchase = Purchase("PUR-1", "EUR", unitPrice: 10m, pending: true);
+            InventoryStockService.Apply(data, eurPurchase.LineItems, eurPurchase, isPurchase: true);
+
+            var sale = Sale(2);
+            data.Revenues.Add(sale);
+            InventoryStockService.Apply(data, sale.LineItems, sale, isPurchase: false);
+            var usdPurchase = Purchase("PUR-2", "USD", unitPrice: 7m, pending: false);
+            InventoryStockService.Apply(data, usdPurchase.LineItems, usdPurchase, isPurchase: true);
+
+            data.Revenues.Remove(sale);
+            var deleted = InventoryStockService.ApplyEdit(data, sale.LineItems, [], sale, isPurchase: false, "Revenue deleted");
+            await ProcessQueueAsync(data);
+
+            data.Revenues.Add(sale);
+            InventoryStockService.Revert(data, deleted);
+
+            Assert.False(sale.LineItems[0].IsCostOfGoodsPending);
+            Assert.Equal(25m, sale.LineItems[0].CostOfGoodsUSD);
+            Assert.Equal(7m, data.Inventory[0].UnitCost);
+            Assert.Empty(data.PendingConversions);
+        }
+        finally
+        {
+            SetInstance(prior);
+        }
+    }
+
     [Fact]
     public async Task UndoingASale_WhileTheCostStillWaits_LeavesItWaiting()
     {
@@ -338,6 +412,19 @@ public class InventoryCostCurrencyTests
         var rates = new ExchangeRateService(new MockPlatformService(), new HttpClient(new FixedRatesHandler()));
         var queue = new PendingConversionService(new MockPlatformService(), exchangeRateService: rates);
         await queue.ReconcileWithCompanyDataAsync(data);
+        await queue.ProcessPendingConversionsAsync(data);
+    }
+
+    /// <summary>
+    /// A conversion pass while the company stays open, over the entries the queue already holds.
+    /// Unlike opening the company, it doesn't first drop an entry nothing is waiting on.
+    /// </summary>
+    private static async Task ProcessQueueAsync(CompanyData data)
+    {
+        var rates = new ExchangeRateService(new MockPlatformService(), new HttpClient(new FixedRatesHandler()));
+        var queue = new PendingConversionService(new MockPlatformService(), exchangeRateService: rates);
+        foreach (var entry in data.PendingConversions.ToList())
+            await queue.AddPendingConversionAsync(entry);
         await queue.ProcessPendingConversionsAsync(data);
     }
 

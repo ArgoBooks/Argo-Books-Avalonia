@@ -105,6 +105,51 @@ public class PendingConversionServiceTests
         Assert.Empty(data.PendingConversions);
     }
 
+    /// <summary>
+    /// An undo and a redo while a pass was still fetching rates put the record back waiting, with the
+    /// very entry the pass had already converted. The pass then removed that entry as done, and the
+    /// record waited for good.
+    /// </summary>
+    [Fact]
+    public async Task Process_EntryPutBackAfterItConverted_StaysQueued()
+    {
+        var date = DateTime.Today.AddMonths(-2);
+        var data = new CompanyData();
+        var expense = new Expense { Id = "E1", Total = 2000m, OriginalCurrency = "EUR", Date = date, IsPendingConversion = true };
+        data.Expenses.Add(expense);
+        var entry = Row("E1", 2000m, date);
+        data.PendingConversions.Add(entry);
+        data.PendingConversions.Add(new PendingConversion
+        {
+            TransactionId = "E2", TransactionType = "Expense", OriginalCurrency = "GBP", TransactionDate = date, Total = 5m
+        });
+
+        PendingConversionService? svc = null;
+        var requests = 0;
+        var handler = new AlwaysEurHandler(0.8m, onRequest: () =>
+        {
+            // The second request is for the GBP row, after the EUR one has converted.
+            if (++requests != 2) return;
+            expense.IsPendingConversion = true;
+            expense.TotalUSD = 0m;
+            svc!.MirrorAsync(data, [entry.Key]).GetAwaiter().GetResult();
+        });
+        var ex = new ExchangeRateService(new MockPlatform(), new HttpClient(handler));
+        svc = new PendingConversionService(new MockPlatform(), exchangeRateService: ex);
+        await svc.ReconcileWithCompanyDataAsync(data);
+
+        await svc.ProcessPendingConversionsAsync(data);
+
+        Assert.True(expense.IsPendingConversion);
+        Assert.Contains(entry, data.PendingConversions);
+
+        await svc.ProcessPendingConversionsAsync(data);
+
+        var rate = await ex.GetExchangeRateAsync("EUR", "USD", date);
+        Assert.False(expense.IsPendingConversion);
+        Assert.Equal(2000m * rate, expense.TotalUSD);
+    }
+
     [Fact]
     public async Task Process_PastRow_ExactRateUnavailable_StaysPending_NotTodaysRate()
     {

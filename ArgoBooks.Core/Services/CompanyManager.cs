@@ -1279,6 +1279,9 @@ public class CompanyManager : IDisposable
     /// <param name="cancellationToken">Cancellation token.</param>
     public async Task CloseCompanyAsync(CancellationToken cancellationToken = default)
     {
+        if (PendingConversionService.Instance is { } conversions)
+            await conversions.FlushAsync();
+
         ReleaseFileLock();
         _instanceLock.Release();
 

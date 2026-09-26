@@ -136,6 +136,31 @@ public class RevenueModalsViewModelTests : ModalViewModelTestBase
         Assert.Equal(0, LedgerNet());
     }
 
+    // Deleting a revenue still waiting for its rate left its queued conversion behind for a pass to
+    // drop, and undo brought the revenue back with nothing queued, so it counted as 0 for good.
+    [Fact]
+    public void DeleteRevenue_WaitingForItsRate_UndoQueuesItAgainForTheSameDate()
+    {
+        var rateDate = new DateTime(2026, 2, 1);
+        var revenue = new ArgoBooks.Core.Models.Transactions.Revenue
+        {
+            Id = "REV-2026-00001", Date = new DateTime(2026, 3, 1), OriginalCurrency = "EUR", Total = 100m
+        };
+        UsdConversion.Apply(Company, revenue, rate: null, rateDate);
+        Company.Revenues.Add(revenue);
+        var vm = new RevenueModalsViewModel();
+
+        vm.DeleteRevenue(revenue.Id);
+        Assert.Empty(Company.PendingConversions);
+
+        Undo();
+        var entry = Assert.Single(Company.PendingConversions);
+        Assert.Equal((revenue.Id, rateDate, 100m), (entry.TransactionId, entry.TransactionDate, entry.Total));
+
+        Redo();
+        Assert.Empty(Company.PendingConversions);
+    }
+
     [Fact]
     public async Task EditRevenue_ChangeReceipt_ReplacesItAndUndoRedoSwapsIt()
     {

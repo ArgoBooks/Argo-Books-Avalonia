@@ -52,6 +52,83 @@ public class SpreadsheetImportInvoiceStatusTests : IDisposable
         Assert.Equal(expected, Assert.Single(data.Invoices).Status);
     }
 
+    // A status the app has no name for used to be read as a Draft the sheet chose, which kept a
+    // fully paid invoice a Draft. Now the amounts decide, and common spellings are understood.
+    [Theory]
+    [InlineData("Unpaid", 100, InvoiceStatus.Paid)]
+    [InlineData("Open", 50, InvoiceStatus.Partial)]
+    [InlineData("Open", 0, InvoiceStatus.Draft)]
+    [InlineData("Canceled", 50, InvoiceStatus.Cancelled)]
+    [InlineData("Paid in full", 100, InvoiceStatus.Paid)]
+    [InlineData("Partially paid", 50, InvoiceStatus.Partial)]
+    [InlineData("partially-refunded", 100, InvoiceStatus.PartiallyRefunded)]
+    public void AiImport_StatusNotOneOfOurs_IsLeftToTheAmounts(string sheetStatus, int paid, InvoiceStatus expected)
+    {
+        var data = new CompanyData();
+        var chunk = new LlmProcessedData { EntityType = SpreadsheetSheetType.Invoices };
+        chunk.Entities.Add(JsonDocument.Parse($$"""
+            { "id": "INV-1", "customerId": "Acme", "issueDate": "2026-03-01", "dueDate": "2026-03-31",
+              "total": 100, "amountPaid": {{paid}}, "balance": {{100 - paid}}, "status": "{{sheetStatus}}" }
+            """).RootElement.Clone());
+
+        new SpreadsheetImportService().ImportProcessedEntities(data, [chunk], "Invoices");
+
+        Assert.Equal(expected, Assert.Single(data.Invoices).Status);
+    }
+
+    [Fact]
+    public async Task SheetImport_StatusNotOneOfOurs_IsLeftToTheAmounts()
+    {
+        var data = new CompanyData();
+
+        await new SpreadsheetImportService().ImportFromExcelAsync(InvoiceSheet(
+            ["ID", "Invoice #", "Customer ID", "Issue Date", "Due Date", "Total", "Paid", "Status"],
+            ["INV-1", "#INV-1", "CUS-001", "2026-03-01", "2099-03-31", "100", "100", "Open"],
+            ["INV-2", "#INV-2", "CUS-001", "2026-03-01", "2099-03-31", "100", "50", "Canceled"]), data);
+
+        Assert.Equal(InvoiceStatus.Paid, data.Invoices.Single(i => i.Id == "INV-1").Status);
+        Assert.Equal(InvoiceStatus.Cancelled, data.Invoices.Single(i => i.Id == "INV-2").Status);
+    }
+
+    // A row marked paid with no amounts used to owe its whole total, so it showed in the Outstanding
+    // card. A refunded one was paid before it was refunded, so it owes nothing either.
+    [Theory]
+    [InlineData("Paid", InvoiceStatus.Paid)]
+    [InlineData("Refunded", InvoiceStatus.Refunded)]
+    [InlineData("PartiallyRefunded", InvoiceStatus.PartiallyRefunded)]
+    public void AiImport_MarkedPaidWithNoAmounts_IsPaidInFull(string sheetStatus, InvoiceStatus expected)
+    {
+        var data = new CompanyData();
+        var chunk = new LlmProcessedData { EntityType = SpreadsheetSheetType.Invoices };
+        chunk.Entities.Add(JsonDocument.Parse($$"""
+            { "id": "INV-1", "customerId": "Acme", "issueDate": "2026-03-01", "dueDate": "2026-03-31",
+              "total": 100, "status": "{{sheetStatus}}", "originalCurrency": "USD" }
+            """).RootElement.Clone());
+
+        new SpreadsheetImportService().ImportProcessedEntities(data, [chunk], "Invoices");
+
+        var invoice = Assert.Single(data.Invoices);
+        Assert.Equal(expected, invoice.Status);
+        Assert.Equal(100m, invoice.AmountPaid);
+        Assert.Equal(0m, invoice.Balance);
+        Assert.Equal(0m, invoice.BalanceUSD);
+    }
+
+    [Fact]
+    public async Task SheetImport_MarkedPaidWithNoAmountColumns_IsPaidInFull()
+    {
+        var data = new CompanyData();
+
+        await new SpreadsheetImportService().ImportFromExcelAsync(InvoiceSheet(
+            ["ID", "Invoice #", "Customer ID", "Issue Date", "Due Date", "Total", "Status"],
+            ["INV-1", "#INV-1", "CUS-001", "2026-03-01", "2026-03-31", "100", "Paid"]), data);
+
+        var invoice = Assert.Single(data.Invoices);
+        Assert.Equal(InvoiceStatus.Paid, invoice.Status);
+        Assert.Equal(100m, invoice.AmountPaid);
+        Assert.Equal(0m, invoice.Balance);
+    }
+
     // With no balance given, the AI import left it at 0, so an invoice half paid read as paid in full.
     [Fact]
     public void AiImport_NoBalance_OwesTheTotalLessWhatWasPaid()

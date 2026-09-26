@@ -1,4 +1,3 @@
-using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Models.Tracking;
@@ -58,20 +57,11 @@ public static class ReceiptTypeSwitchService
             if (result != ConfirmationResult.Primary) return false;
 
             var switched = ReceiptTypeConverter.Switch(companyData, receipt);
-            ResyncPendingQueue(companyData, switched);
 
             App.UndoRedoManager.RecordAction(new DelegateAction(
                 $"Change receipt {receipt.Id} to {target.ToLowerInvariant()}",
-                () =>
-                {
-                    ReceiptTypeConverter.Revert(companyData, receipt, switched);
-                    ResyncPendingQueue(companyData, switched);
-                },
-                () =>
-                {
-                    ReceiptTypeConverter.Reapply(companyData, receipt, switched);
-                    ResyncPendingQueue(companyData, switched);
-                }));
+                () => ReceiptTypeConverter.Revert(companyData, receipt, switched),
+                () => ReceiptTypeConverter.Reapply(companyData, receipt, switched)));
 
             App.CompanyManager?.MarkAsChanged();
             return true;
@@ -81,19 +71,6 @@ public static class ReceiptTypeSwitchService
             App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.Validation, "Receipt.SwitchType");
             return false;
         }
-    }
-
-    /// <summary>
-    /// Moves a queued currency conversion in the conversion service to match the move the
-    /// converter just made in the company file. The service works from its own copy of the queue,
-    /// so re-pointing the row in the company file alone would leave it chasing the transaction
-    /// the switch deleted until the company was next opened.
-    /// </summary>
-    private static void ResyncPendingQueue(CompanyData companyData, ReceiptSwitchResult switched)
-    {
-        if (switched.MovedConversion == null) return;
-
-        UsdConversion.Mirror(companyData, [UsdConversion.KeyOf(switched.Removed), UsdConversion.KeyOf(switched.Created)]);
     }
 
     private static string BlockMessage(ReceiptSwitchBlock block, Receipt receipt) => block switch

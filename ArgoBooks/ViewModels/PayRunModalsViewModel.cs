@@ -813,20 +813,19 @@ public partial class PayRunModalsViewModel : ViewModelBase
 
         // Undo has to take the expenses with it, otherwise the wages stay in the books after
         // the run they came from is gone.
-        List<string> expenseIds = expenses.Select(e => e.Id).ToList();
         App.UndoRedoManager.RecordAction(new DelegateAction(
             $"Approve pay run {run.Id}",
             () =>
             {
                 data.PayRuns.Remove(run);
-                data.Expenses.RemoveAll(e => expenseIds.Contains(e.Id));
+                PayrollService.RemoveWageExpenses(data, expenses);
                 App.CompanyManager?.MarkAsChanged();
                 PayRunChanged?.Invoke(this, EventArgs.Empty);
             },
             () =>
             {
                 data.PayRuns.Add(run);
-                data.Expenses.AddRange(expenses);
+                PayrollService.RestoreWageExpenses(data, expenses);
                 App.CompanyManager?.MarkAsChanged();
                 PayRunChanged?.Invoke(this, EventArgs.Empty);
             }));
