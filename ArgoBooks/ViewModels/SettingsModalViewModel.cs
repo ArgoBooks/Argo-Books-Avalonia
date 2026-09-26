@@ -36,7 +36,7 @@ public partial class SettingsModalViewModel : ViewModelBase
     private string _originalAccentColor;
     private string _originalLanguage = "English";
     private string _originalDateFormat = "MM/DD/YYYY";
-    private TimeZoneItem _originalTimeZone = TimeZones.FindById("UTC");
+    private TimeZoneItem _originalTimeZone = TimeZones.Utc;
     private string _originalTimeFormat = "12h";
     private int _originalMaxPieSlices = 6;
     private bool _originalLowStockAlert = true;
@@ -100,7 +100,7 @@ public partial class SettingsModalViewModel : ViewModelBase
     private string _selectedDateFormat = "MM/DD/YYYY";
 
     [ObservableProperty]
-    private TimeZoneItem _selectedTimeZone = TimeZones.FindById("UTC");
+    private TimeZoneItem _selectedTimeZone = TimeZones.Utc;
 
     [ObservableProperty]
     private string _selectedTimeFormat = "12h";
