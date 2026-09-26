@@ -1,3 +1,5 @@
+using ArgoBooks.Core.Models.Reports;
+
 namespace ArgoBooks.Core.Enums;
 
 /// <summary>
@@ -23,48 +25,41 @@ public enum DateRangePreset
 /// </summary>
 public static class DateRangePresetExtensions
 {
-    /// <summary>
-    /// Gets the display name for a date range preset (used in UI and serialization).
-    /// </summary>
-    public static string GetDisplayName(this DateRangePreset preset)
-    {
-        return preset switch
-        {
-            DateRangePreset.ThisMonth => "This Month",
-            DateRangePreset.LastMonth => "Last Month",
-            DateRangePreset.Last30Days => "Last 30 Days",
-            DateRangePreset.Last100Days => "Last 100 Days",
-            DateRangePreset.Last365Days => "Last 365 Days",
-            DateRangePreset.ThisQuarter => "This Quarter",
-            DateRangePreset.LastQuarter => "Last Quarter",
-            DateRangePreset.ThisYear => "This Year",
-            DateRangePreset.LastYear => "Last Year",
-            DateRangePreset.AllTime => "All Time",
-            DateRangePreset.CustomRange => "Custom Range",
-            _ => preset.ToString()
-        };
-    }
+    private static readonly (DateRangePreset Preset, string Name)[] Names =
+    [
+        (DateRangePreset.ThisMonth, DatePresetNames.ThisMonth),
+        (DateRangePreset.LastMonth, DatePresetNames.LastMonth),
+        (DateRangePreset.Last30Days, DatePresetNames.Last30Days),
+        (DateRangePreset.Last100Days, DatePresetNames.Last100Days),
+        (DateRangePreset.Last365Days, DatePresetNames.Last365Days),
+        (DateRangePreset.ThisQuarter, DatePresetNames.ThisQuarter),
+        (DateRangePreset.LastQuarter, DatePresetNames.LastQuarter),
+        (DateRangePreset.ThisYear, DatePresetNames.YearToDate),
+        (DateRangePreset.LastYear, DatePresetNames.LastYear),
+        (DateRangePreset.AllTime, DatePresetNames.AllTime),
+        (DateRangePreset.CustomRange, DatePresetNames.CustomRange)
+    ];
 
     /// <summary>
-    /// Parses a display name string to a DateRangePreset enum value.
+    /// The preset's name in <see cref="DatePresetNames"/>, the one vocabulary shown in the UI and
+    /// stored in settings and report templates.
+    /// </summary>
+    public static string GetDisplayName(this DateRangePreset preset) =>
+        Names.FirstOrDefault(n => n.Preset == preset).Name ?? preset.ToString();
+
+    /// <summary>
+    /// The preset a stored or displayed name stands for, ignoring case. Both custom spellings
+    /// (<see cref="DatePresetNames.CustomRange"/> from chart settings, <see cref="DatePresetNames.Custom"/>
+    /// from report templates) read as <see cref="DateRangePreset.CustomRange"/>.
     /// </summary>
     public static DateRangePreset? ParseDateRange(string? displayName)
     {
-        return displayName switch
-        {
-            "This Month" => DateRangePreset.ThisMonth,
-            "Last Month" => DateRangePreset.LastMonth,
-            "Last 30 Days" => DateRangePreset.Last30Days,
-            "Last 100 Days" => DateRangePreset.Last100Days,
-            "Last 365 Days" => DateRangePreset.Last365Days,
-            "This Quarter" => DateRangePreset.ThisQuarter,
-            "Last Quarter" => DateRangePreset.LastQuarter,
-            "This Year" => DateRangePreset.ThisYear,
-            "Last Year" => DateRangePreset.LastYear,
-            "All Time" => DateRangePreset.AllTime,
-            "Custom Range" => DateRangePreset.CustomRange,
-            _ => null
-        };
+        if (string.Equals(displayName, DatePresetNames.Custom, StringComparison.OrdinalIgnoreCase))
+            return DateRangePreset.CustomRange;
+        foreach (var (preset, name) in Names)
+            if (string.Equals(displayName, name, StringComparison.OrdinalIgnoreCase))
+                return preset;
+        return null;
     }
 
     public static string GetComparisonPeriodLabel(this DateRangePreset preset)

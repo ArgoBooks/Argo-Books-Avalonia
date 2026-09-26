@@ -3591,57 +3591,72 @@ public partial class App : Application
         return null;
     }
 
-    /// <summary>
-    /// PDF bank statement import for the Bank Matching page: checks the usage limit, calls the AI
-    /// extractor, and consumes the single bank-import credit on success. Returns the extracted rows,
-    /// or an empty list if out of imports or nothing could be extracted.
-    /// </summary>
-    private static async Task<List<Core.Models.BankMatching.BankStatementLine>> ImportPdfStatementAsync(string filePath)
-    {
-        // This path shows the rows on the Bank Matching page with no follow-up categorization, so the
-        // extraction below is the single charge.
-        using var usage = await TryBeginBankPdfImportAsync();
-        if (usage == null) return [];
-        if (PdfStatementExtractor == null) return [];
+    /// <summary>How a screen shows a PDF statement being read. See <see cref="ReadBankPdfStatementAsync"/>.</summary>
+    /// <param name="Begin">Reading starts; given the file's size, for a progress estimate.</param>
+    /// <param name="End">Reading is over; true when rows came back.</param>
+    /// <param name="StillWanted">False once the user has closed the screen, so no message is shown.</param>
+    internal sealed record BankPdfReadProgress(Action<long> Begin, Action<bool> End, Func<bool> StillWanted);
 
-        // Reading the PDF is a slow network + AI round-trip; show the loading overlay for the
-        // whole wait so there's instant feedback. Hide it before any dialog.
-        ShowBusyOverlay("Reading PDF statement...".Translate());
+    /// <summary>
+    /// The one way a PDF bank statement is read, for the Bank Matching page and the import modal:
+    /// checks the bank-import limit, sends the PDF to the AI extractor, and charges the single
+    /// bank-import credit once rows come back. Returns the rows, or an empty list when the user is
+    /// out of imports, the server is busy, or nothing could be read (each told to the user).
+    /// </summary>
+    internal static async Task<List<Core.Models.BankMatching.BankStatementLine>> ReadBankPdfStatementAsync(
+        string filePath, BankPdfReadProgress progress)
+    {
+        using var usage = await TryBeginBankPdfImportAsync();
+        if (usage == null || PdfStatementExtractor == null) return [];
+
+        progress.Begin(new FileInfo(filePath).Length);
+        List<Core.Models.BankMatching.BankStatementLine> extracted;
         try
         {
             var bytes = await SharedFileReader.ReadAllBytesAsync(filePath);
-            List<Core.Models.BankMatching.BankStatementLine> extracted;
-            try
-            {
-                extracted = await PdfStatementExtractor.ExtractAsync(bytes, Path.GetFileName(filePath));
-            }
-            catch (ServerRateLimitedException ex)
-            {
-                // Nothing was read, so nothing is charged; the file itself may be fine.
-                HideBusyOverlay();
+            extracted = await PdfStatementExtractor.ExtractAsync(bytes, Path.GetFileName(filePath));
+        }
+        catch (ServerRateLimitedException ex)
+        {
+            // Nothing was read, so nothing is charged; the file itself may be fine.
+            progress.End(false);
+            if (progress.StillWanted())
                 await ShowInfoMessageBoxAsync("Import Bank Statement".Translate(), ex.Message);
-                return [];
-            }
-            HideBusyOverlay();
-            if (extracted.Count == 0)
-            {
-                // Don't fail silently: the extractor returns nothing both when the PDF has no
-                // recognizable transactions and when the server couldn't process it.
+            return [];
+        }
+        catch
+        {
+            progress.End(false);
+            throw;
+        }
+
+        progress.End(extracted.Count > 0);
+        if (extracted.Count == 0)
+        {
+            // Don't fail silently: the extractor returns nothing both when the PDF has no
+            // recognizable transactions and when the server couldn't process it. Nothing is charged.
+            if (progress.StillWanted())
                 await ShowInfoMessageBoxAsync(
                     "Import Bank Statement".Translate(),
                     "We couldn't read any transactions from that PDF. It may not be a recognizable bank statement, or the server couldn't process it. Try again, or import a CSV or Excel export instead.".Translate());
-                return [];
-            }
+            return [];
+        }
 
-            // Extraction succeeded: consume the single bank-import credit and return the rows.
-            await usage.IncrementUsageAsync();
-            return extracted;
-        }
-        finally
-        {
-            HideBusyOverlay();
-        }
+        // Charged even if the user has since closed the screen, or a start-and-cancel loop could
+        // read PDFs without ever using up the limit.
+        await usage.IncrementUsageAsync();
+        return extracted;
     }
+
+    /// <summary>
+    /// PDF bank statement import for the Bank Matching page, behind the loading overlay. The rows go
+    /// straight to the page with no follow-up categorization, so the read is the single charge.
+    /// </summary>
+    private static Task<List<Core.Models.BankMatching.BankStatementLine>> ImportPdfStatementAsync(string filePath) =>
+        ReadBankPdfStatementAsync(filePath, new BankPdfReadProgress(
+            _ => ShowBusyOverlay("Reading PDF statement...".Translate()),
+            _ => HideBusyOverlay(),
+            () => true));
 
     internal static string CreateCompanyDataSnapshot(CompanyData data)
     {

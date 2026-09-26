@@ -421,7 +421,11 @@ public static class DatePresetNames
     public const string YearToDate = "This Year";
     public const string LastYear = "Last Year";
     public const string AllTime = "All Time";
+    /// <summary>A custom range as report templates store it.</summary>
     public const string Custom = "Custom";
+
+    /// <summary>A custom range as the dashboard and Analytics store it (settings.json); reads the same as <see cref="Custom"/>.</summary>
+    public const string CustomRange = "Custom Range";
 
     // Future date range presets (for insights/forecasting)
     public const string NextMonth = "Next Month";

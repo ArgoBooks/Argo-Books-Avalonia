@@ -8,6 +8,7 @@ using ArgoBooks.Core.Services.Integrations;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
 using ArgoBooks.Utilities;
+using ArgoBooks.ViewModels.Dashboard;
 using ArgoBooks.Helpers;
 using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -402,29 +403,13 @@ public RevenuePageViewModel()
 
     private void UpdateStatistics()
     {
-        var now = DateTime.Now;
-        var startOfMonth = new DateTime(now.Year, now.Month, 1);
-        var endOfMonth = startOfMonth.AddMonths(1).AddTicks(-1);
         var companyData = App.CompanyManager?.CompanyData;
 
-        // Total monthly revenue, net of refunds (cash-basis: refund counts on
-        // the day it was issued). Mirrors the dashboard's stat-card semantics
-        // exactly so the two never drift: paid-only, capped at end of month.
-        // Convert each row/refund at its OWN date before summing (Calculations.md Rule 3a).
-        var grossComplete = CurrencyService.TrySumDisplayFromUSD(
-            RevenueAggregator.OnlyCollected(
-                _allRevenue.Where(s => s.Date >= startOfMonth && s.Date <= endOfMonth)),
-            s => s.Total, s => s.OriginalCurrency, s => s.TotalUSD, s => s.Date, out var monthlyGrossDisplay);
-        var refundsComplete = true;
-        var monthlyRefundsDisplay = 0m;
-        if (companyData?.Payments != null)
-            refundsComplete = CurrencyService.TrySumDisplayFromUSD(
-                companyData.Payments.Where(p => p.IsRefund && p.Date >= startOfMonth && p.Date <= endOfMonth),
-                p => Math.Abs(p.Amount) * p.RevenueShare, p => p.OriginalCurrency, p => Math.Abs(p.AmountUSD) * p.RevenueShare, p => p.Date, out monthlyRefundsDisplay);
-        // Pending if any component is still awaiting its rate, so the total isn't shown partial.
-        TotalMonthlyRevenue = grossComplete && refundsComplete
-            ? CurrencyService.Format(monthlyGrossDisplay - monthlyRefundsDisplay)
-            : CurrencyService.PendingMarker;
+        // The dashboard's Total Revenue card for This Month, so the two always match.
+        var (monthStart, monthEnd) = DashboardCalculations.ThisMonth();
+        TotalMonthlyRevenue = companyData != null
+            ? DashboardCalculations.FormatRevenue(companyData, monthStart, monthEnd)
+            : CurrencyService.Format(0m);
 
         SalesCount = _allRevenue.Count;
 
@@ -815,47 +800,15 @@ public RevenuePageViewModel()
         if (data == null || stripe == null || !stripe.Connected || App.SharedHttpClient == null) return;
 
         IsSyncingStripe = true;
-        StripeSyncStatus = "Checking Stripe for new activity...".Translate();
         try
         {
-            var svc = new StripeSyncService(new StripeApiClient(App.SharedHttpClient));
-            var preview = await svc.PreviewAsync(data);
-            if (!preview.HasActivity)
+            await IntegrationImportFlow.RunStripeAsync(data, App.SharedHttpClient, new IntegrationImportFlow.Host
             {
-                App.AddNotification("Stripe".Translate(), "You're already up to date.".Translate());
-                await CheckStripePendingAsync();
-                return;
-            }
-
-            if (App.ConfirmationDialog == null) return; // never import without a review step
-            var confirmed = await App.ConfirmationDialog.ShowAsync(new ConfirmationDialogOptions
-            {
-                Title = "Import from Stripe".Translate(),
-                Message = "Import your Stripe activity: {0} in sales and {1} in fees?"
-                    .TranslateFormat(preview.TotalRevenue.ToString("C2"), preview.TotalFees.ToString("C2")),
-                PrimaryButtonText = "Import".Translate(),
-                CancelButtonText = "Cancel".Translate()
-            }) == ConfirmationResult.Primary;
-            if (!confirmed) return;
-
-            StripeSyncStatus = "Importing...".Translate();
-            var creation = await svc.ImportPreviewAsync(data, preview, RateProgress(v => StripeSyncStatus = v));
-            if (creation.AnyCreated)
-                App.UndoRedoManager.RecordAction(new DelegateAction(
-                    "Import from Stripe".Translate(),
-                    () => { creation.Undo(data); App.CompanyManager?.MarkAsChanged(); LoadRevenue(); },
-                    () => { creation.Redo(data); App.CompanyManager?.MarkAsChanged(); LoadRevenue(); }));
-            App.CompanyManager?.MarkAsChanged();
-            LoadRevenue();
-            App.AddNotification("Stripe".Translate(),
-                "Imported {0} sales and {1} expense entries from Stripe.".TranslateFormat(creation.RevenuesCreated, creation.ExpensesCreated),
-                NotificationType.Success);
-
-            await CheckStripePendingAsync();
-        }
-        catch
-        {
-            // Leave the banner as-is; the user can retry the sync manually.
+                SetStatus = v => StripeSyncStatus = v,
+                Inform = Notify,
+                AfterChange = LoadRevenue,
+                AfterQueueChange = CheckStripePendingAsync
+            });
         }
         finally
         {
@@ -864,13 +817,11 @@ public RevenuePageViewModel()
         }
     }
 
-    /// <summary>
-    /// Turns the rate fetch's 0-100 into the line the banner shows. Only the fetch
-    /// reports a percentage, so the wording names that phase rather than the import
-    /// as a whole, which would sit at 100% for the part that actually writes rows.
-    /// </summary>
-    private static IProgress<int> RateProgress(Action<string> set)
-        => new Progress<int>(pct => set("Fetching exchange rates... {0}%".TranslateFormat(pct)));
+    private static Task Notify(string title, string message)
+    {
+        App.AddNotification(title, message, NotificationType.Success);
+        return Task.CompletedTask;
+    }
 
     [RelayCommand]
     private void DismissStripeBanner() => StripeBannerVisible = false;
@@ -960,72 +911,15 @@ public RevenuePageViewModel()
         if (data == null || api == null || !api.Enabled || App.SharedHttpClient == null) return;
 
         IsSyncingArgoApi = true;
-        ArgoApiSyncStatus = "Checking for new data...".Translate();
         try
         {
-            var svc = new ArgoApiSyncService(new ArgoApiClient(App.SharedHttpClient));
-            var preview = await svc.PreviewAsync(data);
-            if (!preview.HasActivity)
+            await IntegrationImportFlow.RunArgoApiAsync(data, App.SharedHttpClient, new IntegrationImportFlow.Host
             {
-                App.AddNotification("Argo Books API".Translate(), "You're already up to date.".Translate());
-                await CheckArgoApiPendingAsync();
-                return;
-            }
-
-            if (App.ConfirmationDialog == null) return; // never import without a review step
-            var confirmed = await App.ConfirmationDialog.ShowAsync(new ConfirmationDialogOptions
-            {
-                Title = "Import from the Argo Books API".Translate(),
-                Message = "Import {0} items sent by your connected apps: {1} in revenue and {2} in expenses?"
-                    .TranslateFormat(
-                        preview.TotalObjects,
-                        preview.TotalRevenue.ToString("C2"),
-                        preview.TotalExpenses.ToString("C2")),
-                PrimaryButtonText = "Import".Translate(),
-                CancelButtonText = "Cancel".Translate()
-            }) == ConfirmationResult.Primary;
-            if (!confirmed) return;
-
-            ArgoApiSyncStatus = "Importing...".Translate();
-            var creation = await svc.ImportPreviewAsync(data, preview, RateProgress(v => ArgoApiSyncStatus = v));
-            if (creation.AnyCreated)
-            {
-                App.UndoRedoManager.RecordAction(new DelegateAction(
-                    "Import from the Argo Books API".Translate(),
-                    () =>
-                    {
-                        creation.Undo(data);
-                        App.CompanyManager?.MarkAsChanged();
-                        LoadRevenue();
-                        // Hand the objects back on the server too, or the queue keeps
-                        // reporting as imported what is no longer in the books. The
-                        // banner is refreshed afterwards rather than before, so it
-                        // reflects the queue as it is once the release has landed.
-                        _ = ReleaseThenRefreshAsync(svc, data, creation.BatchId);
-                    },
-                    () =>
-                    {
-                        creation.Redo(data);
-                        App.CompanyManager?.MarkAsChanged();
-                        LoadRevenue();
-                        // Undo gave the objects back. Without claiming them again the
-                        // books hold rows the server still calls pending, and the next
-                        // sync imports every one of them a second time.
-                        _ = ReclaimThenRefreshAsync(svc, data, creation);
-                    }));
-            }
-
-            App.CompanyManager?.MarkAsChanged();
-            LoadRevenue();
-            App.AddNotification("Argo Books API".Translate(),
-                "Imported {0} sales and {1} expense entries.".TranslateFormat(creation.RevenuesCreated, creation.ExpensesCreated),
-                NotificationType.Success);
-
-            await CheckArgoApiPendingAsync();
-        }
-        catch
-        {
-            // Leave the banner as-is; the user can retry from here or from Settings.
+                SetStatus = v => ArgoApiSyncStatus = v,
+                Inform = Notify,
+                AfterChange = LoadRevenue,
+                AfterQueueChange = RefreshArgoApiQueueAsync
+            });
         }
         finally
         {
@@ -1035,51 +929,14 @@ public RevenuePageViewModel()
     }
 
     /// <summary>
-    /// Release the batch after an undo, then re-read the queue so the banner comes
-    /// back on its own. Without the refresh the merchant has to leave the page and
-    /// return before anything tells them the data is waiting again.
+    /// Re-reads the queue so the banner reflects it. The last-notified count is reset first, since
+    /// after an undo the count returns to what it was before the import and the "new data is
+    /// waiting" notice would otherwise be suppressed as a repeat.
     /// </summary>
-    private async Task ReleaseThenRefreshAsync(ArgoApiSyncService svc, CompanyData data, string? batchId)
+    private Task RefreshArgoApiQueueAsync()
     {
-        if (batchId != null)
-            await svc.TryReleaseBatchAsync(data, batchId);
-
-        // The count is about to return to what it was before the import, so without
-        // this the "new data is waiting" notice would be suppressed as a repeat.
         _lastNotifiedArgoApiPending = 0;
-        await CheckArgoApiPendingAsync();
-    }
-
-    /// <summary>
-    /// Claim the objects again after a redo, and say so if that fails.
-    ///
-    /// Failure is not cosmetic: the rows are back in the books while the server still
-    /// lists the objects as waiting, so the next sync would offer them again and
-    /// importing would duplicate them. It cannot be fixed from here, since the reason
-    /// it failed is usually that something else already took them, so the honest move
-    /// is to say what happened rather than fail quietly and let the duplicate arrive
-    /// later with no explanation.
-    /// </summary>
-    private async Task ReclaimThenRefreshAsync(ArgoApiSyncService svc, CompanyData data, ArgoApiImportCreation creation)
-    {
-        var reclaimed = await svc.TryReclaimBatchAsync(data, creation);
-
-        // Redo re-recorded the old batch id. If the claim did not land, that id names a
-        // batch the server has reverted, so leaving it recorded is worse than nothing.
-        if (!reclaimed && creation.BatchId != null)
-        {
-            data.Settings.Integrations.ArgoApi.ImportedBatches.Remove(creation.BatchId);
-            creation.BatchId = null;
-            App.CompanyManager?.MarkAsChanged();
-
-            await App.ShowWarningMessageBoxAsync(
-                "Argo Books API".Translate(),
-                ("The restored items are back in your books, but the server could not be told they were taken. " +
-                 "They may still show as waiting on your next sync. Importing them again would create duplicates, " +
-                 "so check before you do.").Translate());
-        }
-
-        await CheckArgoApiPendingAsync();
+        return CheckArgoApiPendingAsync();
     }
 
     [RelayCommand]

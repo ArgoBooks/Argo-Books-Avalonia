@@ -205,7 +205,7 @@ public partial class ReturnsPageViewModel : SortablePageViewModelBase
         // Each refund is in its sale's or purchase's currency (Calculations.md §10).
         if (App.CompanyManager?.CompanyData is not { } companyData)
             return;
-        var complete = ReturnLossAmounts.TrySumDisplay(
+        var complete = DisplayCurrency.TrySumFromNative(
             _allReturns, r => r.NetRefund, r => ReturnLossAmounts.CurrencyOf(companyData, r), r => r.ReturnDate,
             CurrencyService.GetDisplayAmountFromNative, out var totalRefundedValue);
         TotalRefunded = complete ? CurrencyService.Format(totalRefundedValue) : CurrencyService.PendingMarker;

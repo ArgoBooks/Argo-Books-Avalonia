@@ -60,41 +60,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
             .Where(s => s.Date >= startDate && s.Date <= endDate)
             .Where(RevenueAggregator.IsCollected))
         {
-            // When a display converter is supplied, convert each transaction's USD amount at the
-            // transaction's OWN date before grouping (Calculations.md Rule 3a) so the category
-            // totals aren't re-priced at one date. Default (null) keeps USD for the formal report
-            // path (a documented exception) and unit tests.
-            decimal Display(decimal amountUSD) => toDisplay != null ? toDisplay(amountUSD, s.Date) : amountUSD;
-
-            if (s.LineItems.Count > 0)
-            {
-                var lineItemsTotal = s.LineItems.Sum(li => li.Subtotal);
-                var subtotalUSD = s.EffectiveTotalUSD;
-
-                if (lineItemsTotal != 0)
-                {
-                    foreach (var li in s.LineItems)
-                    {
-                        var product = li.ProductId != null ? companyData.GetProduct(li.ProductId) : null;
-                        var categoryName = product?.CategoryId != null
-                            ? companyData.GetCategory(product.CategoryId)?.Name ?? "Other"
-                            : "Other";
-                        categoryTotals.TryAdd(categoryName, 0);
-                        categoryTotals[categoryName] += Display(li.Subtotal / lineItemsTotal * subtotalUSD);
-                    }
-                }
-                else
-                {
-                    // Line items sum to 0, allocate full transaction amount to "Other"
-                    categoryTotals.TryAdd("Other", 0);
-                    categoryTotals["Other"] += Display(subtotalUSD);
-                }
-            }
-            else
-            {
-                categoryTotals.TryAdd("Other", 0);
-                categoryTotals["Other"] += Display(s.EffectiveTotalUSD);
-            }
+            AddGrossByCategory(categoryTotals, s, toDisplay);
         }
 
         return categoryTotals
@@ -144,40 +110,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
 
         foreach (var p in companyData.Expenses.Where(p => p.Date >= startDate && p.Date <= endDate))
         {
-            // When a display converter is supplied, convert each transaction's USD amount at the
-            // transaction's OWN date before grouping (Calculations.md Rule 3a). Default (null)
-            // keeps USD for the formal report path and unit tests.
-            decimal Display(decimal amountUSD) => toDisplay != null ? toDisplay(amountUSD, p.Date) : amountUSD;
-
-            if (p.LineItems.Count > 0)
-            {
-                var lineItemsTotal = p.LineItems.Sum(li => li.Subtotal);
-                var subtotalUSD = p.EffectiveTotalUSD;
-
-                if (lineItemsTotal != 0)
-                {
-                    foreach (var li in p.LineItems)
-                    {
-                        var product = li.ProductId != null ? companyData.GetProduct(li.ProductId) : null;
-                        var categoryName = product?.CategoryId != null
-                            ? companyData.GetCategory(product.CategoryId)?.Name ?? "Other"
-                            : "Other";
-                        categoryTotals.TryAdd(categoryName, 0);
-                        categoryTotals[categoryName] += Display(li.Subtotal / lineItemsTotal * subtotalUSD);
-                    }
-                }
-                else
-                {
-                    // Line items sum to 0, allocate full transaction amount to "Other"
-                    categoryTotals.TryAdd("Other", 0);
-                    categoryTotals["Other"] += Display(subtotalUSD);
-                }
-            }
-            else
-            {
-                categoryTotals.TryAdd("Other", 0);
-                categoryTotals["Other"] += Display(p.EffectiveTotalUSD);
-            }
+            AddGrossByCategory(categoryTotals, p, toDisplay);
         }
 
         return categoryTotals
@@ -185,6 +118,34 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
             .OrderByDescending(p => p.Value)
             .Take(10)
             .ToList();
+    }
+
+    /// <summary>
+    /// Adds a transaction's gross USD amount to its lines' product categories, shared out by
+    /// <see cref="LineAllocation"/>; what no line can take goes to "Other". Each share is converted at
+    /// the transaction's own date before adding up (Rule 3a); without a converter it stays USD.
+    /// </summary>
+    private void AddGrossByCategory(Dictionary<string, decimal> categoryTotals, Transaction txn,
+        Func<decimal, DateTime, decimal>? toDisplay)
+    {
+        decimal Display(decimal amountUSD) => toDisplay != null ? toDisplay(amountUSD, txn.Date) : amountUSD;
+        void Add(string category, decimal amount) => categoryTotals[category] = categoryTotals.GetValueOrDefault(category) + amount;
+
+        var allocation = LineAllocation.Allocate(txn, LineAllocationBasis.Gross);
+        if (!allocation.IsSplit)
+        {
+            Add("Other", Display(allocation.UnallocatedUSD));
+            return;
+        }
+
+        foreach (var (li, amountUSD) in allocation.Shares)
+        {
+            var product = li.ProductId != null ? companyData!.GetProduct(li.ProductId) : null;
+            var categoryName = product?.CategoryId != null
+                ? companyData!.GetCategory(product.CategoryId)?.Name ?? "Other"
+                : "Other";
+            Add(categoryName, Display(amountUSD));
+        }
     }
 
     #endregion
@@ -884,34 +845,18 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
 
         var (startDate, endDate) = GetDateRange();
 
-        // Convert each revenue at its OWN date before summing (display currency), matching the
-        // other monetary distributions; falls back to raw USD when no converter is supplied.
-        decimal Display(decimal amountUSD, DateTime date) => toDisplay != null ? toDisplay(amountUSD, date) : amountUSD;
-
-        // Refunds in range come off each customer's revenue in full, as on the Revenue card (§8).
-        var refundedByCustomer = companyData.Payments
-            .Where(p => p.IsRefund && p.Date >= startDate && p.Date <= endDate && !string.IsNullOrEmpty(p.CustomerId))
-            .GroupBy(p => p.CustomerId)
-            .ToDictionary(g => g.Key, g => g.Sum(p => Display(Math.Abs(p.EffectiveAmountUSD) * p.RevenueShare, p.Date)));
-
-        return companyData.Revenues
-            .Where(s => s.Date >= startDate && s.Date <= endDate && !string.IsNullOrEmpty(s.CustomerId))
-            .Where(RevenueAggregator.IsCollected)
-            .GroupBy(s => s.CustomerId)
-            .Select(g =>
+        // In the display currency when a converter is given, USD otherwise.
+        return TopCustomers.Rank(companyData.Revenues, companyData.Payments, startDate, endDate,
+                toDisplay ?? ((amountUSD, _) => amountUSD))
+            .Select(c =>
             {
-                var customer = companyData.GetCustomer(g.Key ?? "");
-                var customerName = customer?.Name ?? customer?.CompanyName ?? "Unknown";
+                var customer = companyData.GetCustomer(c.Customer.CustomerId);
                 return new ChartDataPoint
                 {
-                    Label = customerName,
-                    Value = (double)(g.Sum(s => Display(s.EffectiveTotalUSD, s.Date))
-                                     - refundedByCustomer.GetValueOrDefault(g.Key!, 0m))
+                    Label = customer?.Name ?? customer?.CompanyName ?? "Unknown",
+                    Value = (double)c.Amount
                 };
             })
-            // A customer refunded more than they bought in the range isn't a top customer.
-            .Where(p => p.Value > 0)
-            .OrderByDescending(p => p.Value)
             .Take(10)
             .ToList();
     }
@@ -1484,14 +1429,15 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
 
     private IEnumerable<Payment> Refunds => companyData!.Payments.Where(p => p.IsRefund);
 
-    private decimal RefundTaxUSD(Payment refund) =>
-        RefundAggregator.TaxPortionUSD(refund, _invoicesById ??= ProfitCalculator.BuildInvoiceLookup(companyData!.Invoices));
+    private Dictionary<string, Invoice> InvoicesById => _invoicesById ??= ProfitCalculator.BuildInvoiceLookup(companyData!.Invoices);
+
+    private decimal RefundTaxUSD(Payment refund) => RefundAggregator.TaxPortionUSD(refund, InvoicesById);
 
     private decimal NetTaxCollected(DateTime start, DateTime end, Func<decimal, DateTime, decimal>? toDisplay)
     {
         decimal Display(decimal usd, DateTime date) => toDisplay != null ? toDisplay(usd, date) : usd;
         return CollectedRevenues.Where(r => r.Date >= start && r.Date <= end).Sum(r => Display(r.EffectiveTaxAmountUSD, r.Date))
-               - Refunds.Where(p => p.Date >= start && p.Date <= end).Sum(p => Display(RefundTaxUSD(p), p.Date));
+               - RefundAggregator.GetRefundedTaxInDateRangeDisplay(companyData!.Payments, InvoicesById, start, end, Display);
     }
 
     private bool HasTaxData(DateTime start, DateTime end) =>
@@ -1908,11 +1854,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
     /// </summary>
     private Dictionary<DateTime, decimal> NetRevenueByDayUSD(DateTime start, DateTime end)
     {
-        var byDay = companyData!.Revenues
-            .Where(s => s.Date >= start && s.Date <= end)
-            .Where(RevenueAggregator.IsCollected)
-            .GroupBy(s => s.Date.Date)
-            .ToDictionary(g => g.Key, g => g.Sum(s => s.EffectiveTotalUSD));
+        var byDay = RevenueAggregator.GroupCollectedRevenueByDayUSD(companyData!.Revenues, start, end);
 
         foreach (var (day, refunded) in RefundAggregator.GroupRefundsByDayUSD(companyData.Payments, start, end))
             byDay[day] = byDay.GetValueOrDefault(day) - refunded;
@@ -1920,10 +1862,8 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
         return byDay;
     }
 
-    private Dictionary<DateTime, decimal> ExpensesByDayUSD(DateTime start, DateTime end) => companyData!.Expenses
-        .Where(p => p.Date >= start && p.Date <= end)
-        .GroupBy(p => p.Date.Date)
-        .ToDictionary(g => g.Key, g => g.Sum(p => p.EffectiveTotalUSD));
+    private Dictionary<DateTime, decimal> ExpensesByDayUSD(DateTime start, DateTime end) =>
+        ExpenseAggregator.GroupExpensesByDayUSD(companyData!.Expenses, start, end);
 
     /// <summary>
     /// Gets the months between two dates.

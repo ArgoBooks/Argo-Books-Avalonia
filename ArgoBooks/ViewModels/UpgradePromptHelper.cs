@@ -1,4 +1,5 @@
 using ArgoBooks.Core.Enums;
+using ArgoBooks.Core.Services;
 using ArgoBooks.Localization;
 using ArgoBooks.Shared.Telemetry;
 
@@ -40,14 +41,15 @@ public static class UpgradePromptHelper
     }
 
     /// <summary>
-    /// Shows a plain error dialog when a usage check could not be completed, e.g. the
-    /// device is offline or the server was unreachable. This is shown instead of a
+    /// Shows a plain error dialog when a usage check could not be completed (offline) or the
+    /// server refused it (rate limited, license not verified). This is shown instead of a
     /// limit/upgrade prompt, since the user hasn't actually hit a limit (the count would
-    /// otherwise read a misleading "0/0"). The message is produced by the usage service,
-    /// which checks connectivity to tailor the wording.
+    /// otherwise read a misleading "0/0"). The message is produced by the usage service.
     /// </summary>
     public static Task ShowUsageCheckFailedAsync(string? message)
-        => App.ShowConnectivityErrorAsync(message);
+        => string.IsNullOrWhiteSpace(message) || ConnectivityMessage.IsConnectivityMessage(message)
+            ? App.ShowConnectivityErrorAsync(message)
+            : App.ShowErrorMessageBoxAsync("Unable to Continue".Translate(), message.Translate());
 
     /// <summary>
     /// Shows a compelling upgrade prompt when the AI import limit is reached.

@@ -78,4 +78,27 @@ public static class DisplayCurrency
         foreach (var l in data.LostDamaged) yield return l.DateDiscovered;
         yield return endDate ?? DateTime.Today;
     }
+
+    /// <summary>
+    /// Sums amounts recorded in their own currencies (returns, losses, an integration sync's preview)
+    /// in the display currency. <paramref name="toDisplay"/> converts one amount from its currency at
+    /// its date, or returns null when that date's rate is unavailable. Such an amount counts as 0 and
+    /// the result is false, so a caller can show pending instead of a partial total.
+    /// </summary>
+    public static bool TrySumFromNative<T>(
+        IEnumerable<T> items, Func<T, decimal> amount, Func<T, string> currency, Func<T, DateTime> date,
+        Func<decimal, string, DateTime, decimal?> toDisplay, out decimal total)
+    {
+        total = 0m;
+        var complete = true;
+        foreach (var item in items)
+        {
+            var converted = toDisplay(amount(item), currency(item), date(item));
+            if (converted.HasValue)
+                total += converted.Value;
+            else
+                complete = false;
+        }
+        return complete;
+    }
 }

@@ -104,6 +104,16 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
     }
 
     /// <summary>
+    /// The same whole days as <see cref="IsInDateRange"/>, as the [start, end] the aggregators take.
+    /// An unset end is open, as an unset start is.
+    /// </summary>
+    private DateTime RangeStart => filters.StartDate?.Date ?? DateTime.MinValue;
+
+    private DateTime RangeEnd => filters.EndDate is { } end && end.Date < DateTime.MaxValue.Date
+        ? end.Date.AddDays(1).AddTicks(-1)
+        : DateTime.MaxValue;
+
+    /// <summary>
     /// Checks whether a date falls on or before the end date filter.
     /// Used for cumulative/balance calculations.
     /// </summary>
@@ -229,31 +239,19 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
 
         foreach (var txn in transactions)
         {
-            var lineItemsTotal = txn.LineItems.Sum(li => li.Subtotal);
-
-            // Proportional allocation needs a non-zero line-item subtotal to divide by.
-            if (txn.LineItems.Count > 0 && lineItemsTotal != 0)
+            var allocation = LineAllocation.Allocate(txn, LineAllocationBasis.PreTax);
+            if (!allocation.IsSplit)
             {
-                // Convert line item amounts to USD using the transaction's conversion ratio
-                var subtotalUSD = txn.EffectiveSubtotalUSD;
-
-                foreach (var lineItem in txn.LineItems)
-                {
-                    var categoryName = GetCategoryNameForProduct(lineItem.ProductId);
-                    result.TryAdd(categoryName, 0);
-                    // Proportionally allocate USD subtotal across line items, then convert at the
-                    // transaction's own date.
-                    var lineItemUSD = Math.Round(lineItem.Subtotal / lineItemsTotal * subtotalUSD, 2);
-                    result[categoryName] += ToDisplay(lineItemUSD, txn.Date);
-                }
+                // No lines, or lines that add up to 0 (a 100% discount): post the transaction's own
+                // pre-tax amount so it isn't dropped.
+                result["Uncategorized"] = result.GetValueOrDefault("Uncategorized") + ToDisplay(allocation.UnallocatedUSD, txn.Date);
+                continue;
             }
-            else
+
+            foreach (var (lineItem, lineUSD) in allocation.Shares)
             {
-                // No line items, or every line item nets to a zero subtotal (e.g. a 100% discount):
-                // post the transaction-level pre-tax amount so the transaction is not dropped.
-                var categoryName = "Uncategorized";
-                result.TryAdd(categoryName, 0);
-                result[categoryName] += ToDisplay(txn.EffectiveSubtotalUSD, txn.Date);
+                var categoryName = GetCategoryNameForProduct(lineItem.ProductId);
+                result[categoryName] = result.GetValueOrDefault(categoryName) + ToDisplay(lineUSD, txn.Date);
             }
         }
 
@@ -284,15 +282,11 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
 
             var remainingUSD = expense.EffectiveSubtotalUSD - CostOfGoodsAggregator.StockPurchaseUSD(expense);
             var otherLines = expense.LineItems.Where(li => !li.IsStockPurchase).ToList();
-            var otherTotal = otherLines.Sum(li => li.Subtotal);
-
-            if (otherLines.Count > 0 && otherTotal != 0)
+            var allocation = LineAllocation.Allocate(otherLines, remainingUSD);
+            if (allocation.IsSplit)
             {
-                foreach (var line in otherLines)
-                {
-                    var lineUSD = Math.Round(line.Subtotal / otherTotal * remainingUSD, 2);
+                foreach (var (line, lineUSD) in allocation.Shares)
                     Add(GetCategoryNameForProduct(line.ProductId), ToDisplay(lineUSD, expense.Date));
-                }
             }
             else if (remainingUSD != 0)
             {
@@ -338,9 +332,8 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         var expenseByCategory = GroupExpensesByCategory(expenses);
 
         // Refunds come off revenue on their own date, before tax (docs/Calculations.md §8).
-        var refunds = companyData.Payments
-            .Where(p => p.IsRefund && IsInDateRange(p.Date))
-            .Sum(p => ToDisplay(RefundAggregator.PreTaxPortionUSD(p, InvoicesById), p.Date));
+        var refunds = RefundAggregator.GetRefundedPreTaxInDateRangeDisplay(
+            companyData.Payments, InvoicesById, RangeStart, RangeEnd, ToDisplay);
 
         var totalRevenue = revenueByCategory.Values.Sum() - refunds;
         var totalExpenses = expenseByCategory.Values.Sum();
@@ -507,9 +500,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             .Where(p => string.IsNullOrEmpty(p.RevenueId) && IsOnOrBeforeEndDate(p.Date))
             .Sum(p => ToDisplay(p.EffectiveAmountUSD, p.Date));
 
-        var cashPaidForExpenses = companyData.Expenses
-            .Where(e => IsOnOrBeforeEndDate(e.Date))
-            .Sum(e => ToDisplay(e.EffectiveTotalUSD, e.Date));
+        var cashPaidForExpenses = ExpenseAggregator.SumExpensesDisplay(companyData.Expenses, DateTime.MinValue, RangeEnd, ToDisplay);
 
         var cash = cashFromRevenue + cashFromPayments - cashPaidForExpenses;
 
@@ -542,9 +533,8 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         var taxCollected = companyData.Revenues
             .Where(r => IsOnOrBeforeEndDate(r.Date))
             .Sum(r => ToDisplay(r.EffectiveTotalUSD - r.EffectiveSubtotalUSD, r.Date));
-        var taxRefunded = companyData.Payments
-            .Where(p => p.IsRefund && IsOnOrBeforeEndDate(p.Date))
-            .Sum(p => ToDisplay(RefundAggregator.TaxPortionUSD(p, InvoicesById), p.Date));
+        var taxRefunded = RefundAggregator.GetRefundedTaxInDateRangeDisplay(
+            companyData.Payments, InvoicesById, DateTime.MinValue, RangeEnd, ToDisplay);
         var taxPaidOnExpenses = companyData.Expenses
             .Where(e => IsOnOrBeforeEndDate(e.Date))
             .Sum(e => ToDisplay(e.EffectiveTotalUSD - e.EffectiveSubtotalUSD, e.Date));
@@ -779,9 +769,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             .Where(p => string.IsNullOrEmpty(p.RevenueId) && IsInDateRange(p.Date))
             .Sum(p => ToDisplay(p.EffectiveAmountUSD, p.Date));
 
-        var cashPaidForExpenses = companyData.Expenses
-            .Where(e => IsInDateRange(e.Date))
-            .Sum(e => ToDisplay(e.EffectiveTotalUSD, e.Date));
+        var cashPaidForExpenses = ExpenseAggregator.SumExpensesDisplay(companyData.Expenses, RangeStart, RangeEnd, ToDisplay);
 
         var totalOperating = cashFromSales + cashFromInvoicePayments - cashPaidForExpenses;
 
@@ -880,36 +868,32 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         // Revenue transactions (credits), all amounts in USD
         foreach (var rev in companyData.Revenues.Where(r => IsInDateRange(r.Date)))
         {
-            var lineItemsTotal = rev.LineItems.Sum(li => li.Subtotal);
-            if (rev.LineItems.Count > 0 && lineItemsTotal != 0)
+            var allocation = LineAllocation.Allocate(rev, LineAllocationBasis.PreTax);
+            // No lines, or lines that add up to 0 (a 100% discount) post the transaction's own
+            // amount, so the entry is not dropped from the ledger.
+            if (allocation.IsSplit)
             {
-                var subtotalUSD = rev.EffectiveSubtotalUSD;
-
-                foreach (var li in rev.LineItems)
+                foreach (var (li, lineUSD) in allocation.Shares)
                 {
-                    var catName = GetCategoryNameForProduct(li.ProductId);
-                    var lineItemUSD = Math.Round(li.Subtotal / lineItemsTotal * subtotalUSD, 2);
-                    AddLedgerEntry(entries, catName, new LedgerEntry
+                    AddLedgerEntry(entries, GetCategoryNameForProduct(li.ProductId), new LedgerEntry
                     {
                         Date = rev.Date,
                         Description = li.Description.Length > 0 ? li.Description : rev.Description,
                         Reference = rev.Id,
                         Debit = 0,
-                        Credit = ToDisplay(lineItemUSD, rev.Date)
+                        Credit = ToDisplay(lineUSD, rev.Date)
                     });
                 }
             }
             else
             {
-                // No line items, or every line item nets to a zero subtotal (e.g. a 100% discount):
-                // post the transaction-level amount so the entry is not dropped from the ledger.
                 AddLedgerEntry(entries, t.RevenueCategory, new LedgerEntry
                 {
                     Date = rev.Date,
                     Description = rev.Description,
                     Reference = rev.Id,
                     Debit = 0,
-                    Credit = ToDisplay(rev.EffectiveSubtotalUSD, rev.Date)
+                    Credit = ToDisplay(allocation.UnallocatedUSD, rev.Date)
                 });
             }
         }
@@ -917,21 +901,17 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         // Expense transactions (debits), all amounts in USD
         foreach (var exp in companyData.Expenses.Where(e => IsInDateRange(e.Date)))
         {
-            var lineItemsTotal = exp.LineItems.Sum(li => li.Subtotal);
-            if (exp.LineItems.Count > 0 && lineItemsTotal != 0)
+            var allocation = LineAllocation.Allocate(exp, LineAllocationBasis.PreTax);
+            if (allocation.IsSplit)
             {
-                var subtotalUSD = exp.EffectiveSubtotalUSD;
-
-                foreach (var li in exp.LineItems)
+                foreach (var (li, lineUSD) in allocation.Shares)
                 {
-                    var catName = GetCategoryNameForProduct(li.ProductId);
-                    var lineItemUSD = Math.Round(li.Subtotal / lineItemsTotal * subtotalUSD, 2);
-                    AddLedgerEntry(entries, catName, new LedgerEntry
+                    AddLedgerEntry(entries, GetCategoryNameForProduct(li.ProductId), new LedgerEntry
                     {
                         Date = exp.Date,
                         Description = li.Description.Length > 0 ? li.Description : exp.Description,
                         Reference = exp.Id,
-                        Debit = ToDisplay(lineItemUSD, exp.Date),
+                        Debit = ToDisplay(lineUSD, exp.Date),
                         Credit = 0
                     });
                 }
@@ -943,7 +923,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
                     Date = exp.Date,
                     Description = exp.Description,
                     Reference = exp.Id,
-                    Debit = ToDisplay(exp.EffectiveSubtotalUSD, exp.Date),
+                    Debit = ToDisplay(allocation.UnallocatedUSD, exp.Date),
                     Credit = 0
                 });
             }
@@ -1468,9 +1448,8 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             AddTaxByRate(taxPaidByRate, exp);
 
         // Tax handed back on refunds in range is no longer owed (docs/Calculations.md §8).
-        var taxRefunded = companyData.Payments
-            .Where(p => p.IsRefund && IsInDateRange(p.Date))
-            .Sum(p => ToDisplay(RefundAggregator.TaxPortionUSD(p, InvoicesById), p.Date));
+        var taxRefunded = RefundAggregator.GetRefundedTaxInDateRangeDisplay(
+            companyData.Payments, InvoicesById, RangeStart, RangeEnd, ToDisplay);
 
         var totalTaxCollected = taxCollectedByRate.Values.Sum() - taxRefunded;
         var totalTaxPaid = taxPaidByRate.Values.Sum();

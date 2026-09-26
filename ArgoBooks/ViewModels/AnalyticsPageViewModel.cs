@@ -2313,15 +2313,16 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         var purchases = data.Expenses.Where(p => p.Date >= StartDate && p.Date <= EndDate).ToList();
 
         var totalTransactionsCount = sales.Count + purchases.Count;
-        var allTransactionValues = sales.Select(s => s.EffectiveTotalUSD).Concat(purchases.Select(p => p.EffectiveTotalUSD)).ToList();
-        var avgTransactionValue = allTransactionValues.Count > 0 ? allTransactionValues.Average() : 0;
+        var avgTransactionValue = totalTransactionsCount > 0
+            ? (RevenueAggregator.SumCollectedRevenueUSD(data.Revenues, StartDate, EndDate)
+               + ExpenseAggregator.SumExpensesUSD(data.Expenses, StartDate, EndDate)) / totalTransactionsCount
+            : 0;
 
-        // Average display value: convert each transaction at its OWN date (Calculations.md Rule 3a),
-        // sum, then divide by the same count used above.
-        var salesComplete = CurrencyService.TrySumDisplayFromUSD(sales, s => s.Total, s => s.OriginalCurrency, s => s.TotalUSD, s => s.Date, out var salesSumDisplay);
-        var purchasesComplete = CurrencyService.TrySumDisplayFromUSD(purchases, p => p.Total, p => p.OriginalCurrency, p => p.TotalUSD, p => p.Date, out var purchasesSumDisplay);
-        var transactionsComplete = salesComplete && purchasesComplete;
-        var transactionsValueDisplay = salesSumDisplay + purchasesSumDisplay;
+        // Average display value: each transaction converted at its OWN date (Calculations.md Rule 3a),
+        // summed, then divided by the same count used above.
+        var transactionsComplete = CurrencyService.TryComputeDisplay(convert =>
+            RevenueAggregator.SumCollectedRevenueDisplay(data.Revenues, StartDate, EndDate, convert)
+            + ExpenseAggregator.SumExpensesDisplay(data.Expenses, StartDate, EndDate, convert), out var transactionsValueDisplay);
         var avgTransactionValueDisplay = totalTransactionsCount > 0 ? transactionsValueDisplay / totalTransactionsCount : 0;
 
         // Shipping on collected sales and on expenses, as the Average Shipping Costs chart counts it,
@@ -2343,8 +2344,10 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         var prevPurchases = data.Expenses.Where(p => p.Date >= prevStartDate && p.Date <= prevEndDate).ToList();
 
         var prevTotalTransactionsCount = prevSales.Count + prevPurchases.Count;
-        var prevAllTransactionValues = prevSales.Select(s => s.EffectiveTotalUSD).Concat(prevPurchases.Select(p => p.EffectiveTotalUSD)).ToList();
-        var prevAvgTransactionValue = prevAllTransactionValues.Count > 0 ? prevAllTransactionValues.Average() : 0;
+        var prevAvgTransactionValue = prevTotalTransactionsCount > 0
+            ? (RevenueAggregator.SumCollectedRevenueUSD(data.Revenues, prevStartDate, prevEndDate)
+               + ExpenseAggregator.SumExpensesUSD(data.Expenses, prevStartDate, prevEndDate)) / prevTotalTransactionsCount
+            : 0;
         var prevAvgShipping = prevTotalTransactionsCount > 0
             ? (prevSales.Sum(s => s.EffectiveShippingCostUSD) + prevPurchases.Sum(p => p.EffectiveShippingCostUSD)) / prevTotalTransactionsCount
             : 0;
@@ -2412,7 +2415,8 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         var customerIds = sales.Select(s => s.CustomerId).Distinct().ToList();
         // Convert each sale at its OWN date (Calculations.md Rule 3a), then divide by the
         // same distinct-customer count.
-        var custSalesComplete = CurrencyService.TrySumDisplayFromUSD(sales, s => s.Total, s => s.OriginalCurrency, s => s.TotalUSD, s => s.Date, out var salesValueDisplay);
+        var custSalesComplete = CurrencyService.TryComputeDisplay(convert =>
+            RevenueAggregator.SumCollectedRevenueDisplay(data.Revenues, StartDate, EndDate, convert), out var salesValueDisplay);
         var avgValueDisplay = customerIds.Count > 0 ? salesValueDisplay / customerIds.Count : 0;
 
         RetentionRate = "N/A";
@@ -2431,7 +2435,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
 
         var totalReturnsCount = returns.Count;
         // Refund amounts are in their sale's own currency, so each converts from it at the return's date.
-        var impactComplete = ReturnLossAmounts.TrySumDisplay(returns, r => r.RefundAmount,
+        var impactComplete = DisplayCurrency.TrySumFromNative(returns, r => r.RefundAmount,
             r => ReturnLossAmounts.CurrencyOf(data, r), r => r.ReturnDate,
             CurrencyService.GetDisplayAmountFromNative, out var financialImpact);
 
@@ -2444,7 +2448,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
 
         var prevReturns = data.Returns.Where(r => r.ReturnDate >= prevStartDate && r.ReturnDate <= prevEndDate).ToList();
         var prevReturnsCount = prevReturns.Count;
-        ReturnLossAmounts.TrySumDisplay(prevReturns, r => r.RefundAmount,
+        DisplayCurrency.TrySumFromNative(prevReturns, r => r.RefundAmount,
             r => ReturnLossAmounts.CurrencyOf(data, r), r => r.ReturnDate,
             CurrencyService.GetDisplayAmountFromNative, out var prevFinancialImpact);
         var prevSalesTransactions = data.Revenues.Count(s => s.Date >= prevStartDate && s.Date <= prevEndDate);
@@ -2482,7 +2486,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
 
         var totalLossesCount = losses.Count;
         // Loss values are in their sale's or purchase's own currency, so each converts from it at the loss's date.
-        var impactComplete = ReturnLossAmounts.TrySumDisplay(losses, l => l.ValueLost,
+        var impactComplete = DisplayCurrency.TrySumFromNative(losses, l => l.ValueLost,
             l => ReturnLossAmounts.CurrencyOf(data, l), l => l.DateDiscovered,
             CurrencyService.GetDisplayAmountFromNative, out var financialImpact);
 
@@ -2499,7 +2503,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
 
         var prevLosses = data.LostDamaged.Where(l => l.DateDiscovered >= prevStartDate && l.DateDiscovered <= prevEndDate).ToList();
         var prevLossesCount = prevLosses.Count;
-        ReturnLossAmounts.TrySumDisplay(prevLosses, l => l.ValueLost,
+        DisplayCurrency.TrySumFromNative(prevLosses, l => l.ValueLost,
             l => ReturnLossAmounts.CurrencyOf(data, l), l => l.DateDiscovered,
             CurrencyService.GetDisplayAmountFromNative, out var prevFinancialImpact);
         var prevTotalTransactions = data.Revenues.Count(s => s.Date >= prevStartDate && s.Date <= prevEndDate) +
@@ -2537,11 +2541,9 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         // Paid sales only (Rule 2), and the tax a refund handed back comes off tax collected on the
         // refund's date, as in the Tax Summary report (docs/Calculations.md §8).
         var invoicesById = ProfitCalculator.BuildInvoiceLookup(data.Invoices);
-        decimal RefundTaxUSD(Payment p) => RefundAggregator.TaxPortionUSD(p, invoicesById);
 
         var revenues = data.Revenues.Where(r => r.Date >= StartDate && r.Date <= EndDate).Where(RevenueAggregator.IsCollected).ToList();
         var expenses = data.Expenses.Where(e => e.Date >= StartDate && e.Date <= EndDate).ToList();
-        var refunds = data.Payments.Where(p => p.IsRefund && p.Date >= StartDate && p.Date <= EndDate).ToList();
 
         // EffectiveTaxAmountUSD, not a hand-rolled "USD if we have it, native otherwise".
         // docs/Calculations.md §3 forbids summing native fields into a USD total. The Effective
@@ -2549,7 +2551,8 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         // from the row's own Total/TotalUSD ratio and yields 0 when there is nothing to derive
         // it from, so a rate that never arrived reads as nothing rather than as dollars.
         var grossTaxCollectedUSD = revenues.Sum(r => r.EffectiveTaxAmountUSD);
-        var taxCollectedUSD = grossTaxCollectedUSD - refunds.Sum(RefundTaxUSD);
+        var taxCollectedUSD = grossTaxCollectedUSD
+            - RefundAggregator.GetRefundedTaxInDateRangeUSD(data.Payments, invoicesById, StartDate, EndDate);
         var taxPaidUSD = expenses.Sum(e => e.EffectiveTaxAmountUSD);
         var netLiability = taxCollectedUSD - taxPaidUSD;
 
@@ -2563,10 +2566,10 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
 
         var prevRevenues = data.Revenues.Where(r => r.Date >= prevStartDate && r.Date <= prevEndDate).Where(RevenueAggregator.IsCollected).ToList();
         var prevExpenses = data.Expenses.Where(e => e.Date >= prevStartDate && e.Date <= prevEndDate).ToList();
-        var prevRefunds = data.Payments.Where(p => p.IsRefund && p.Date >= prevStartDate && p.Date <= prevEndDate);
 
         var prevGrossTaxCollected = prevRevenues.Sum(r => r.EffectiveTaxAmountUSD);
-        var prevTaxCollected = prevGrossTaxCollected - prevRefunds.Sum(RefundTaxUSD);
+        var prevTaxCollected = prevGrossTaxCollected
+            - RefundAggregator.GetRefundedTaxInDateRangeUSD(data.Payments, invoicesById, prevStartDate, prevEndDate);
         var prevTaxPaid = prevExpenses.Sum(e => e.EffectiveTaxAmountUSD);
         var prevNetLiability = prevTaxCollected - prevTaxPaid;
         var prevTotalPreTax = prevRevenues.Sum(r => r.EffectiveSubtotalUSD) + prevExpenses.Sum(e => e.EffectiveSubtotalUSD);
@@ -2585,8 +2588,9 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         var grossCollectedComplete = CurrencyService.TrySumDisplayFromUSD(
             revenues, r => r.TaxAmount, r => r.OriginalCurrency, r => r.EffectiveTaxAmountUSD, r => r.Date, out var grossTaxCollectedDisplay);
         // Refund tax is only known in USD, so it always converts from USD at the refund's date.
-        var refundedComplete = CurrencyService.TrySumDisplayFromUSD(
-            refunds, RefundTaxUSD, _ => "USD", RefundTaxUSD, p => p.Date, out var taxRefundedDisplay);
+        var refundedComplete = CurrencyService.TryComputeDisplay(convert =>
+            RefundAggregator.GetRefundedTaxInDateRangeDisplay(data.Payments, invoicesById, StartDate, EndDate, convert),
+            out var taxRefundedDisplay);
         var collectedComplete = grossCollectedComplete && refundedComplete;
         var taxCollectedDisplay = grossTaxCollectedDisplay - taxRefundedDisplay;
         var paidComplete = CurrencyService.TrySumDisplayFromUSD(

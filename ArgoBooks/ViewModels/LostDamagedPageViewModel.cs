@@ -190,7 +190,7 @@ public partial class LostDamagedPageViewModel : SortablePageViewModelBase
         // Each loss is in its sale's or purchase's currency (Calculations.md §10).
         if (App.CompanyManager?.CompanyData is not { } companyData)
             return;
-        var complete = ReturnLossAmounts.TrySumDisplay(
+        var complete = DisplayCurrency.TrySumFromNative(
             _allItems, l => l.ValueLost, l => ReturnLossAmounts.CurrencyOf(companyData, l), l => l.DateDiscovered,
             CurrencyService.GetDisplayAmountFromNative, out var totalValue);
         TotalLossValue = complete ? CurrencyService.Format(totalValue) : CurrencyService.PendingMarker;

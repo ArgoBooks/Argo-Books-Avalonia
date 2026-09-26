@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text;
 using ArgoBooks.Core.Models.Telemetry;
 
@@ -26,6 +27,9 @@ public class UsageLimitService : IUsageLimitService
 {
     public const string NoIdentityMessage = "No license key or device ID found.";
     public const string CancelledMessage = "Request was cancelled.";
+    public const string UnverifiedLicenseMessage = "Your license key couldn't be verified. If your subscription has ended, restart Argo Books to continue on the free plan.";
+    public const string RateLimitedMessage = "Too many requests. Please try again in a few minutes.";
+    private const string RefusedPrefix = "The server refused the monthly limit check.";
 
     private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(5);
 
@@ -60,7 +64,7 @@ public class UsageLimitService : IUsageLimitService
 
     /// <summary>
     /// Whether one more may go ahead. A blocked result with no <see cref="UsageCheckResult.ErrorMessage"/>
-    /// means the limit is reached; with one, the check itself couldn't be made.
+    /// means the limit is reached; with one, the check couldn't be made or the server refused it.
     /// </summary>
     public async Task<UsageCheckResult> CheckUsageAsync(CancellationToken cancellationToken = default)
     {
@@ -71,10 +75,11 @@ public class UsageLimitService : IUsageLimitService
         if (_cached != null && DateTime.UtcNow < _cacheExpiry)
             return _cached;
 
-        UsageAnswer answer;
+        HttpStatusCode status;
+        UsageAnswer? answer;
         try
         {
-            answer = await CallApiAsync("check", licenseKey, deviceId, cancellationToken);
+            (status, answer) = await CallApiAsync("check", licenseKey, deviceId, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -97,27 +102,46 @@ public class UsageLimitService : IUsageLimitService
             return AllowedUncounted();
         }
 
-        var limitReached = !answer.Allowed && (answer.Success || answer.MonthlyLimit > 0);
-        if (!answer.Success && !limitReached)
+        // A reached limit can come back as a failure carrying the counts; it is still an answer.
+        if (answer != null && (answer.Success || (!answer.Allowed && answer.MonthlyLimit > 0)))
         {
-            _errorLogger?.LogError(new Exception(answer.Error ?? "Unknown API error"), ErrorCategory.Api,
+            var result = new UsageCheckResult
+            {
+                Allowed = answer.Allowed,
+                Used = answer.Count,
+                MonthlyLimit = answer.MonthlyLimit,
+                Remaining = answer.Remaining,
+                Tier = answer.Tier,
+                ResetsAt = answer.ResetsAt
+            };
+            if (answer.Success)
+                Cache(result);
+            return result;
+        }
+
+        // A 4xx is the server refusing this request (rate limited, bad input, unknown key), not the
+        // usage server being down, so it blocks. Only a 5xx, or an unreadable answer without a 4xx
+        // status, lets it through uncounted.
+        var code = (int)status;
+        if (code >= 500 || (answer == null && code < 400))
+        {
+            _errorLogger?.LogError(new Exception(answer?.Error ?? $"HTTP {(int)status}, unreadable answer"), ErrorCategory.Api,
                 $"{_limit.Name} usage check returned a server error, allowing");
             return AllowedUncounted();
         }
 
-        var result = new UsageCheckResult
-        {
-            Allowed = answer.Allowed,
-            Used = answer.Count,
-            MonthlyLimit = answer.MonthlyLimit,
-            Remaining = answer.Remaining,
-            Tier = answer.Tier,
-            ResetsAt = answer.ResetsAt
-        };
-        if (answer.Success)
-            Cache(result);
-        return result;
+        _errorLogger?.LogWarning($"{_limit.Name} usage check refused (HTTP {code}): {answer?.Error}", category: ErrorCategory.Api);
+        return new UsageCheckResult { ErrorMessage = RefusedMessage(status, answer), IsOffline = true };
     }
+
+    private static string RefusedMessage(HttpStatusCode status, UsageAnswer? answer) => status switch
+    {
+        HttpStatusCode.Unauthorized => UnverifiedLicenseMessage,
+        HttpStatusCode.TooManyRequests => answer?.Error ?? RateLimitedMessage,
+        _ => answer?.Error is { Length: > 0 } error
+            ? $"{RefusedPrefix} {error}"
+            : $"{RefusedPrefix} (HTTP {(int)status})"
+    };
 
     /// <summary>
     /// Counts one after it has gone through. The work is done by then, so a network failure is
@@ -129,10 +153,10 @@ public class UsageLimitService : IUsageLimitService
         if (string.IsNullOrEmpty(licenseKey) && string.IsNullOrEmpty(deviceId))
             return new UsageIncrementResult { ErrorMessage = NoIdentityMessage };
 
-        UsageAnswer answer;
+        UsageAnswer? answer;
         try
         {
-            answer = await CallApiAsync("increment", licenseKey, deviceId, cancellationToken);
+            (_, answer) = await CallApiAsync("increment", licenseKey, deviceId, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -146,6 +170,12 @@ public class UsageLimitService : IUsageLimitService
         catch (Exception ex)
         {
             _errorLogger?.LogError(ex, ErrorCategory.Api, $"{_limit.Name} usage increment got an unreadable answer");
+            return new UsageIncrementResult { ErrorMessage = "Unable to record usage." };
+        }
+
+        if (answer == null)
+        {
+            _errorLogger?.LogError($"{_limit.Name} usage increment got an unreadable answer", ErrorCategory.Api);
             return new UsageIncrementResult { ErrorMessage = "Unable to record usage." };
         }
 
@@ -201,7 +231,8 @@ public class UsageLimitService : IUsageLimitService
     /// <summary>The request never got an answer: no connection, the server unreachable, or a timeout.</summary>
     private static bool IsTransportFailure(Exception ex) => ex is HttpRequestException or TaskCanceledException;
 
-    private async Task<UsageAnswer> CallApiAsync(string action, string? licenseKey, string? deviceId, CancellationToken cancellationToken)
+    /// <summary>The status and the parsed answer, or a null answer when the body isn't a JSON object.</summary>
+    private async Task<(HttpStatusCode Status, UsageAnswer? Answer)> CallApiAsync(string action, string? licenseKey, string? deviceId, CancellationToken cancellationToken)
     {
         var body = new Dictionary<string, string>
         {
@@ -215,19 +246,23 @@ public class UsageLimitService : IUsageLimitService
         using var content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
         using var response = await _httpClient.PostAsync($"{ApiConfig.BaseUrl}{_limit.Endpoint}", content, cancellationToken);
         var json = await response.Content.ReadAsStringAsync(cancellationToken);
-        return UsageAnswer.Parse(json, _limit);
+        return (response.StatusCode, UsageAnswer.TryParse(json, _limit));
     }
 
     private sealed record UsageAnswer(
         bool Success, bool Allowed, bool HasAllowed, int Count, int MonthlyLimit, int Remaining,
         string? Tier, string? ResetsAt, string? Error)
     {
-        public static UsageAnswer Parse(string json, UsageLimit limit)
+        public static UsageAnswer? TryParse(string json, UsageLimit limit)
         {
-            using var document = JsonDocument.Parse(json);
-            var root = document.RootElement;
+            JsonDocument document;
+            try { document = JsonDocument.Parse(json); }
+            catch (JsonException) { return null; }
+
+            using var owned = document;
+            var root = owned.RootElement;
             if (root.ValueKind != JsonValueKind.Object)
-                throw new JsonException($"Expected a JSON object, got {root.ValueKind}.");
+                return null;
 
             bool Bool(string name) => root.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.True;
             int Int(string name) => root.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number && v.TryGetInt32(out var i) ? i : 0;
@@ -242,7 +277,7 @@ public class UsageLimitService : IUsageLimitService
                 Int("remaining"),
                 Text("tier"),
                 Text("resets_at"),
-                Text("error"));
+                Text("error") ?? Text("message"));
         }
     }
 }

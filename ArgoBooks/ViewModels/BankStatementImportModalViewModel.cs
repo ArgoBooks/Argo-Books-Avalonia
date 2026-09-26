@@ -344,7 +344,9 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
                 if (!check.Allowed)
                 {
                     SetAiUnavailable(!string.IsNullOrEmpty(check.ErrorMessage)
-                        ? "AI categorization is unavailable: couldn't reach the server.".Translate()
+                        ? ConnectivityMessage.IsConnectivityMessage(check.ErrorMessage)
+                            ? "AI categorization is unavailable: couldn't reach the server.".Translate()
+                            : "AI categorization is unavailable: {0}".TranslateFormat(check.ErrorMessage)
                         : check.MonthlyLimit > 0
                             ? "AI categorization is off: you've used all {0} AI imports this month.".TranslateFormat(check.MonthlyLimit)
                             : "AI categorization needs a registered company.".Translate());
@@ -883,83 +885,52 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// PDF bank statement import. The usage check runs first (as a dialog); on success the import
-    /// modal opens and the PDF is read INSIDE it, driving the modal's progress bar, so the whole
-    /// import uses one consistent UI rather than a separate floating overlay.
+    /// PDF bank statement import through <see cref="App.ReadBankPdfStatementAsync"/>. The usage check
+    /// runs first (as a dialog); on success the import modal opens and the PDF is read INSIDE it,
+    /// driving the modal's progress bar, so the whole import uses one consistent UI.
     /// </summary>
     private async Task<List<BankStatementLine>> ImportPdfStatementAsync(string filePath)
     {
-        // Usage check runs before the modal opens, so a limit failure shows its prompt without
-        // briefly flashing the import modal. A PDF consumes one "bank" AI import, charged at
-        // extraction (below); the follow-up AI categorization skips its own charge for PDFs
-        // (see _pdfExtractionCharged).
-        using var usage = await App.TryBeginBankPdfImportAsync();
-        if (usage == null) return [];
-        if (App.PdfStatementExtractor == null) return [];
-
-        // Open the import modal and read the PDF inside it (driving the modal's progress bar).
-        LoadingMessage = "Reading PDF statement...".Translate();
-        CategorizeProgress = 0;
-        ShowCategorizeProgress = true;
-        IsLoading = true;
-        IsOpen = true;
-
-        var bytes = await SharedFileReader.ReadAllBytesAsync(filePath);
-        List<BankStatementLine> extracted;
-        // Reading fills the first 60% of the bar; the categorize phase fills the rest, so the whole
-        // import reads as one continuous bar.
-        using (var ticker = new EstimatedProgressTicker(
-            OperationKind.BankPdfExtract, pct => CategorizeProgress = pct * 0.6, uploadBytes: bytes.Length))
-        {
-            ticker.Start();
-            try
+        EstimatedProgressTicker? ticker = null;
+        var extracted = await App.ReadBankPdfStatementAsync(filePath, new App.BankPdfReadProgress(
+            Begin: size =>
             {
-                extracted = await App.PdfStatementExtractor.ExtractAsync(bytes, Path.GetFileName(filePath));
-            }
-            catch (ServerRateLimitedException ex)
+                LoadingMessage = "Reading PDF statement...".Translate();
+                CategorizeProgress = 0;
+                ShowCategorizeProgress = true;
+                IsLoading = true;
+                IsOpen = true;
+                // Reading fills the first 60% of the bar; the categorize phase fills the rest, so the
+                // whole import reads as one continuous bar.
+                ticker = new EstimatedProgressTicker(
+                    OperationKind.BankPdfExtract, pct => CategorizeProgress = pct * 0.6, uploadBytes: size);
+                ticker.Start();
+            },
+            End: succeeded =>
             {
-                // Nothing was read, so nothing is charged; the file itself may be fine.
-                if (IsOpen)
+                if (succeeded)
+                {
+                    ticker?.Complete();
+                    _categorizeProgressFloor = 60;
+                }
+                ticker?.Dispose();
+                if (!succeeded && IsOpen)
                 {
                     IsOpen = false;
                     IsLoading = false;
-                    await App.ShowInfoMessageBoxAsync("Import Bank Statement".Translate(), ex.Message);
                 }
-                return [];
-            }
-            ticker.Complete();
-        }
-        _categorizeProgressFloor = 60;
+            },
+            StillWanted: () => IsOpen));
 
         if (extracted.Count == 0)
-        {
-            // The extractor returns nothing both when the PDF has no recognizable transactions and when
-            // the server couldn't process it. Don't charge a credit for a no-result extraction; only
-            // surface the message if the modal is still open.
-            if (IsOpen)
-            {
-                IsOpen = false;
-                IsLoading = false;
-                await App.ShowInfoMessageBoxAsync(
-                    "Import Bank Statement".Translate(),
-                    "We couldn't read any transactions from that PDF. It may not be a recognizable bank statement, or the server couldn't process it. Try again, or import a CSV or Excel export instead.".Translate());
-            }
             return [];
-        }
-
-        // Extraction succeeded and cost a credit, so consume it even if the user has since closed the
-        // modal. Skipping it on close would let a start/cancel loop extract PDFs without ever consuming
-        // quota. (The server's per-identity rate limit still caps the absolute number of calls.)
-        await usage.IncrementUsageAsync();
 
         // This PDF import has now paid its single bank-import credit, so the AI categorization pass
         // that runs next must not charge again.
         _pdfExtractionCharged = true;
 
         // Closed during the read: the credit is counted, but don't hand rows to a modal nobody's viewing.
-        if (!IsOpen) return [];
-
-        return extracted;
+        return IsOpen ? extracted : [];
     }
 
     // -----------------------------------------------------------------------

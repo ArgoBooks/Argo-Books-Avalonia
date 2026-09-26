@@ -255,6 +255,10 @@ Returns (items returned by customers or sent back to suppliers) and Losses (lost
 
 Neither record stores a USD amount or its own currency. The amount is in the currency of the sale or purchase it came from (`Return.OriginalTransactionId`, `LostDamaged.InventoryItemId`), or in the company's currency if there is none, and it is converted from that currency at the record's own date (`ReturnLossAmounts.CurrencyOf`, `DisplayCurrency.FromNative`). An amount already in the display currency is used as it is. If the rate is missing, the amount counts as 0 on a chart and shows Pending on a stat card or page total.
 
+### Integration import previews
+
+Before a Stripe or Argo Books API sync imports anything, it asks the user with totals of the sales, fees or expenses it is about to bring in (`IntegrationImportFlow`). Those rows aren't in the books yet, so they have no USD amount. Each total converts every amount from its own currency at its own date (`DisplayCurrency.TrySumFromNative`), the way Returns and Losses are converted, and shows Pending while a rate is missing. Amounts in different currencies are never added together as they stand.
+
 ### Bank matching
 
 Bank Matching (`BankMatchingService`) only marks revenue, expenses, invoices and payments as matched (`BankMatched`); it never changes an amount. It compares each row's amount in its own currency (`Total`, or a payment's `Amount`) with the bank line, not a USD amount.
@@ -271,8 +275,9 @@ Use this table to check where a number on screen comes from. For a new chart or 
 
 | Screen | Revenue field | Expense field | Paid sales only? | Refunds subtracted? |
 |---|---|---|---|---|
-| Total Revenue card, Revenue Over Time, Revenue Growth (Analytics), Top Customers (chart and dashboard widget) | `EffectiveTotalUSD` | — | Yes | Yes, in full |
-| Total Expenses card, Expenses Over Time | — | `EffectiveTotalUSD` | n/a | n/a |
+| Total Revenue card (dashboard and the Revenue page's Monthly Revenue card), Revenue Over Time, Revenue Growth (Analytics) | `EffectiveTotalUSD` | — | Yes | Yes, in full |
+| Top Customers (the Analytics chart and the dashboard widget, both over the selected date range, `TopCustomers.Rank`) | `EffectiveTotalUSD` | — | Yes | Yes, in full, the refunds issued in the range. A customer left at or below 0 is not listed |
+| Total Expenses card (dashboard and the Expenses page's Monthly Expenses card), Expenses Over Time | — | `EffectiveTotalUSD` | n/a | n/a |
 | Net Profit card, Profit Margin (Analytics), Profit Over Time | `EffectiveSubtotalUSD` | `OperatingExpenseUSD`, plus cost of goods sold (§14) | Yes | Yes, the pre-tax part |
 | Revenue vs Expenses | `EffectiveTotalUSD` | `EffectiveTotalUSD` | Yes (revenue) | Yes, in full (revenue) |
 | Report Summary box total | The same as the Total Revenue card (Revenue reports), the Total Expenses card (Expenses reports) or the Net Profit card (all other reports) | | | |
@@ -291,7 +296,7 @@ Use this table to check where a number on screen comes from. For a new chart or 
 
 ## 12. Implementation pointers
 
-Helpers in `ArgoBooks.Core/Services/` for adding things up:
+Helpers for adding things up, in `ArgoBooks.Core/Services/` unless the entry says otherwise:
 
 - `RevenueAggregator.SumCollectedRevenueUSD(revenues, start, end)`: collected revenue, tax included, in USD.
 - `RevenueAggregator.SumCollectedRevenuePreTaxUSD(revenues, start, end)`: collected revenue without tax, in USD (for profit, not for display).
@@ -299,6 +304,8 @@ Helpers in `ArgoBooks.Core/Services/` for adding things up:
 - `RefundAggregator.GroupRefundsByDayUSD(payments, start, end)`: refunds by day, for time-series charts.
 - `ProfitCalculator.CalculateNetProfitUSD(data, start, end)` and `CalculateNetProfitByDayUSD`: the Rule 1 net profit, as a total and by day. Every screen that shows profit calls these rather than working it out again.
 - `CostOfGoodsAggregator`: cost of goods sold on sales (`SumCostOfGoodsSoldUSD`, paid only or all), and expenses without the tracked stock they bought (`SumOperatingExpensesUSD`). `ProfitCalculator` uses both.
+- `DatePresetNames.GetDateRange(preset)` (in `ArgoBooks.Core/Models/Reports/`): the dates every preset covers, and the only code that works them out (the dashboard, Analytics, Insights, report templates, and the Revenue and Expenses pages' monthly cards). This week, month, quarter and year run from their first day to the end of today, not to the end of the period, so a future-dated row isn't counted yet and the comparison below compares like with like. Last month, quarter and year cover the whole period. The preset names are `DatePresetNames`; the `DateRangePreset` enum names the same presets for code, and both custom spellings, "Custom Range" (dashboard and Analytics settings) and "Custom" (report templates), read as a custom range.
+- `DashboardCalculations.FormatRevenue` and `FormatExpenses` (in `ArgoBooks/ViewModels/Dashboard/`): the Total Revenue and Total Expenses cards. The Revenue and Expenses pages' monthly cards call them with This Month's dates, so they always match the dashboard set to This Month.
 - `ComparisonPeriod.For(preset, start, end)`: the period every "vs previous period" figure compares against (the dashboard, Analytics, Insights trends, and the report Summary box's growth rate). This month, quarter or year so far is compared with the same days of the previous one, cut short if the previous one is shorter (This Month on Sep 11 compares with Aug 1 to Aug 11; This Year on Feb 29 compares with Jan 1 to Feb 28). Last month, quarter or year is compared with the whole period before it. Every other range is compared with the same number of days just before it.
 
 ---
@@ -316,17 +323,27 @@ A transaction's USD total isn't stored per line, so each line gets a share of it
 ```
 lineItemsTotal = Σ over LineItem of li.Subtotal          (in the transaction's own currency, before tax)
 revenueUSD(li) = lineItemsTotal != 0
-               ? round(li.Subtotal / lineItemsTotal × txn.EffectiveTotalUSD, 2)
+               ? li.Subtotal / lineItemsTotal × txn.EffectiveTotalUSD     (the last line takes what is left)
                : 0
 ```
 
-Lines with no product are grouped under "Unknown". A transaction with no lines at all is left out.
+Lines with no product are grouped under "Unknown". A transaction with no lines at all is left out, and one whose lines add up to 0 (every line discounted to nothing) counts its units but no revenue.
+
+**One way to share out a transaction.** `LineAllocation.Allocate` is the only code that splits a transaction's USD amount across its lines, for every screen that shows money per product or per category: Sales by Product, Insights' Top Performing Product, the revenue and expense by-category charts, and the Income Statement and General Ledger. The shares are kept at full precision (Rule 3) and the last line takes whatever is left, so the lines always add up to the transaction's amount exactly. Only the number shown is rounded. What each screen shares out, and where a transaction goes when its lines can't take it (no lines, or lines that add up to 0), differs by screen:
+
+| Screen | Amount shared out | When the lines can't take it |
+|---|---|---|
+| Sales by Product (both), Top Performing Product (Insights) | `EffectiveTotalUSD` | Left out, since it can't be put on any product |
+| Revenue and expense by-category charts | `EffectiveTotalUSD` | "Other" |
+| Income Statement categories, General Ledger | `EffectiveSubtotalUSD` | The transaction's own line ("Uncategorized" on the Income Statement, the Revenue or Expenses heading in the General Ledger), so the report still balances |
+
+On the Income Statement, an expense that bought tracked stock shares out only what is left after the stock (§14) across its other lines.
 
 Units sold is the sum of the lines' quantities. Average sale price is revenue ÷ units sold (0 when no units were sold), rounded to 2 decimals.
 
 ### Which revenue each one counts
 
-- **Analytics Products tab** (`cashBasis: true`) counts paid sales only (`RevenueAggregator.IsCollected`). Its total can differ from the Total Revenue card in two ways: it is higher by any refunds, because it doesn't subtract them (below), and lower by any revenue that has no lines.
+- **Analytics Products tab** (`cashBasis: true`) counts paid sales only (`RevenueAggregator.IsCollected`). Its total can differ from the Total Revenue card in two ways: it is higher by any refunds, because it doesn't subtract them (below), and lower by any revenue that has no lines or whose lines add up to 0.
 - **Report Builder template** (`cashBasis: false`) counts all revenue in the date range, paid or not, like the Income Statement.
 
 Refunds are recorded against a whole invoice (§8), not against individual lines, so per-product revenue can't subtract them. Returns by Product and Losses by Product show returned and lost stock instead.

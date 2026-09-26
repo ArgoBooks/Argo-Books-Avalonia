@@ -1,6 +1,13 @@
 namespace ArgoBooks.Core.Services.Integrations;
 
 /// <summary>
+/// An amount an integration sync is about to import, in its own currency, with the date it will be
+/// converted at. A preview's totals add these up in the display currency, never as raw numbers,
+/// since they can be in different currencies.
+/// </summary>
+public readonly record struct IncomingAmount(decimal Amount, string Currency, DateTime Date);
+
+/// <summary>
 /// Fetches the exact-date exchange rates an integration sync is about to need.
 ///
 /// Money is displayed by converting the USD figure at the transaction's own date,
@@ -30,6 +37,14 @@ public static class IntegrationRates
     /// is a 15-second network call in the middle of an import that otherwise shows
     /// nothing, which reads as the app having hung.
     /// </param>
+    public static Task EnsureAsync(
+        IEnumerable<IncomingAmount> amounts,
+        string? displayCurrency,
+        IProgress<int>? progress = null,
+        IErrorLogger? errorLogger = null,
+        CancellationToken ct = default) =>
+        EnsureAsync(amounts.Select(a => (a.Date, a.Currency)), displayCurrency, progress, errorLogger, ct);
+
     public static async Task EnsureAsync(
         IEnumerable<(DateTime Date, string Currency)> rows,
         string? displayCurrency,

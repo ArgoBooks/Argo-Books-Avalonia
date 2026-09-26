@@ -181,18 +181,10 @@ public class InsightsService(
             .Where(RevenueAggregator.IsCollected)
             .ToList();
 
-        var currentPurchases = companyData.Expenses
-            .Where(p => p.Date >= currentPeriod.StartDate && p.Date <= currentPeriod.EndDate)
-            .ToList();
-
-        var previousPurchases = companyData.Expenses
-            .Where(p => p.Date >= previousPeriod.StartDate && p.Date <= previousPeriod.EndDate)
-            .ToList();
-
         // Revenue trend: display the gross figure the user recognises from
         // the Revenue stat card (Total, not pre-tax).
-        var currentRevenue = currentSales.Sum(s => s.EffectiveTotalUSD);
-        var previousRevenue = previousSales.Sum(s => s.EffectiveTotalUSD);
+        var currentRevenue = RevenueAggregator.SumCollectedRevenueUSD(companyData.Revenues, currentPeriod.StartDate, currentPeriod.EndDate);
+        var previousRevenue = RevenueAggregator.SumCollectedRevenueUSD(companyData.Revenues, previousPeriod.StartDate, previousPeriod.EndDate);
 
         if (previousRevenue > 0)
         {
@@ -203,8 +195,10 @@ public class InsightsService(
                 var isGrowth = revenueChange > 0;
                 // Convert each sale at its own date for the displayed figures; the percentage above
                 // stays USD-based (currency-invariant).
-                var previousRevenueDisplay = SumDisplay(previousSales, s => s.EffectiveTotalUSD, s => s.Date);
-                var currentRevenueDisplay = SumDisplay(currentSales, s => s.EffectiveTotalUSD, s => s.Date);
+                var previousRevenueDisplay = RevenueAggregator.SumCollectedRevenueDisplay(
+                    companyData.Revenues, previousPeriod.StartDate, previousPeriod.EndDate, ToDisplay);
+                var currentRevenueDisplay = RevenueAggregator.SumCollectedRevenueDisplay(
+                    companyData.Revenues, currentPeriod.StartDate, currentPeriod.EndDate, ToDisplay);
                 insights.Add(new InsightItem
                 {
                     Title = isGrowth ? "Revenue Growth Detected" : "Revenue Decline Detected",
@@ -221,8 +215,8 @@ public class InsightsService(
         }
 
         // Expense trend: display gross (Total), matching the Expenses stat card.
-        var currentExpenses = currentPurchases.Sum(p => p.EffectiveTotalUSD);
-        var previousExpenses = previousPurchases.Sum(p => p.EffectiveTotalUSD);
+        var currentExpenses = ExpenseAggregator.SumExpensesUSD(companyData.Expenses, currentPeriod.StartDate, currentPeriod.EndDate);
+        var previousExpenses = ExpenseAggregator.SumExpensesUSD(companyData.Expenses, previousPeriod.StartDate, previousPeriod.EndDate);
 
         if (previousExpenses > 0)
         {
@@ -231,8 +225,10 @@ public class InsightsService(
             if (Math.Abs(expenseChange) >= SignificantChangePercent)
             {
                 var isIncrease = expenseChange > 0;
-                var previousExpensesDisplay = SumDisplay(previousPurchases, p => p.EffectiveTotalUSD, p => p.Date);
-                var currentExpensesDisplay = SumDisplay(currentPurchases, p => p.EffectiveTotalUSD, p => p.Date);
+                var previousExpensesDisplay = ExpenseAggregator.SumExpensesDisplay(
+                    companyData.Expenses, previousPeriod.StartDate, previousPeriod.EndDate, ToDisplay);
+                var currentExpensesDisplay = ExpenseAggregator.SumExpensesDisplay(
+                    companyData.Expenses, currentPeriod.StartDate, currentPeriod.EndDate, ToDisplay);
                 insights.Add(new InsightItem
                 {
                     Title = isIncrease ? "Expense Increase Detected" : "Expense Reduction Achieved",
@@ -468,10 +464,8 @@ public class InsightsService(
 
         if (weeklyExpenses.Count < 4) return null;
 
-        var currentWeekList = companyData.Expenses
-            .Where(p => p.Date >= dateRange.EndDate.AddDays(-7) && p.Date <= dateRange.EndDate)
-            .ToList();
-        var currentWeekExpenses = currentWeekList.Sum(p => p.EffectiveTotalUSD);
+        var weekStart = dateRange.EndDate.AddDays(-7);
+        var currentWeekExpenses = ExpenseAggregator.SumExpensesUSD(companyData.Expenses, weekStart, dateRange.EndDate);
 
         var stats = CalculateStatistics(weeklyExpenses.Select(x => (double)x).ToList());
 
@@ -484,7 +478,7 @@ public class InsightsService(
                 var percentAbove = ((currentWeekExpenses / (decimal)stats.Mean) - 1) * 100;
                 // Both figures convert each expense at its own (cached) date: this week's total, and
                 // the typical-week average taken over the same weekly buckets in display currency.
-                var currentWeekDisplay = SumDisplay(currentWeekList, p => p.EffectiveTotalUSD, p => p.Date);
+                var currentWeekDisplay = ExpenseAggregator.SumExpensesDisplay(companyData.Expenses, weekStart, dateRange.EndDate, ToDisplay);
                 var meanDisplay = weeklyGroups.Average(g => SumDisplay(g, p => p.EffectiveTotalUSD, p => p.Date));
                 return new InsightItem
                 {
@@ -1009,18 +1003,9 @@ public class InsightsService(
                      .Where(RevenueAggregator.IsCollected)
                      .Where(s => !s.IsPendingConversion))
         {
-            if (s.LineItems.Count == 0) continue;
-            var lineItemsTotal = s.LineItems.Sum(li => li.Subtotal);
-            // Weight by each line's pre-tax subtotal, but distribute the GROSS (tax-inclusive) USD
-            // total, matching docs/Calculations.md §13 and ProductSalesService so per-product revenue
-            // agrees across the Insights, Analytics, and Report surfaces.
-            var grossUSD = s.EffectiveTotalUSD;
-
-            foreach (var li in s.LineItems)
+            // Gross, shared out the same way as ProductSalesService (Calculations.md §13).
+            foreach (var (li, revenueUSD) in LineAllocation.Allocate(s, LineAllocationBasis.Gross).Shares)
             {
-                var revenueUSD = lineItemsTotal != 0
-                    ? Math.Round(li.Subtotal / lineItemsTotal * grossUSD, 2)
-                    : 0;
                 var costProduct = companyData.GetProduct(li.ProductId ?? "");
                 var unitCostUSD = 0m;
                 if (costProduct != null && !InventoryStockService.TryCostPriceUSD(companyData, costProduct, s.Date, out unitCostUSD))

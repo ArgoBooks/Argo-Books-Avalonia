@@ -1779,48 +1779,15 @@ public partial class SettingsModalViewModel : ViewModelBase
         if (data == null || stripe == null || !stripe.Connected || App.SharedHttpClient == null) return;
 
         IsSyncingStripe = true;
-        StripeSyncStatus = "Checking Stripe for new activity...".Translate();
         try
         {
-            var svc = new StripeSyncService(new StripeApiClient(App.SharedHttpClient));
-            var preview = await svc.PreviewAsync(data);
-            if (!preview.HasActivity)
+            await IntegrationImportFlow.RunStripeAsync(data, App.SharedHttpClient, new IntegrationImportFlow.Host
             {
-                // A message box rather than a notification: this runs from the
-                // settings modal, which sits on top of where notifications
-                // appear, so the user would never see it.
-                await App.ShowInfoMessageBoxAsync("Stripe".Translate(), "You're already up to date.".Translate());
-                return;
-            }
-
-            if (App.ConfirmationDialog == null) return; // never import without a review step
-            var confirmed = await App.ConfirmationDialog.ShowAsync(new ConfirmationDialogOptions
-            {
-                Title = "Import from Stripe".Translate(),
-                Message = "Import your Stripe activity: {0} in sales and {1} in fees?"
-                    .TranslateFormat(preview.TotalRevenue.ToString("C2"), preview.TotalFees.ToString("C2")),
-                PrimaryButtonText = "Import".Translate(),
-                CancelButtonText = "Cancel".Translate()
-            }) == ConfirmationResult.Primary;
-            if (!confirmed) return;
-
-            var creation = await svc.ImportPreviewAsync(data, preview, SyncProgress(v => StripeSyncStatus = v));
-            if (creation.AnyCreated)
-                App.UndoRedoManager.RecordAction(new DelegateAction(
-                    "Import from Stripe".Translate(),
-                    () => { creation.Undo(data); App.CompanyManager?.MarkAsChanged(); },
-                    () => { creation.Redo(data); App.CompanyManager?.MarkAsChanged(); }));
-            App.CompanyManager?.MarkAsChanged();
-            RefreshStripeLastSynced(stripe);
-            await App.ShowInfoMessageBoxAsync("Stripe".Translate(),
-                "Imported {0} sales and {1} expense entries from Stripe.".TranslateFormat(creation.RevenuesCreated, creation.ExpensesCreated));
-        }
-        catch (Exception ex)
-        {
-            // Never let a Stripe/network error crash the app; surface it instead.
-            App.ErrorLogger?.LogError(ex, ErrorCategory.Api, "Stripe sync failed");
-            await App.ShowWarningMessageBoxAsync("Stripe".Translate(),
-                "Sync failed: {0}".TranslateFormat(ex.Message));
+                SetStatus = v => StripeSyncStatus = v,
+                // A message box, not a notification: this modal sits over where notifications appear.
+                Inform = App.ShowInfoMessageBoxAsync,
+                AfterChange = () => RefreshStripeLastSynced(stripe)
+            });
         }
         finally
         {
@@ -2274,14 +2241,6 @@ public partial class SettingsModalViewModel : ViewModelBase
         }
     }
 
-    /// <summary>
-    /// Turns the rate fetch's 0-100 into the line shown beside the button. Only the
-    /// fetch reports a percentage, so the wording names that phase rather than the
-    /// import as a whole, which would sit at 100% while it writes the rows.
-    /// </summary>
-    private static IProgress<int> SyncProgress(Action<string> set)
-        => new Progress<int>(pct => set("Fetching exchange rates... {0}%".TranslateFormat(pct)));
-
     [RelayCommand]
     private void OpenArgoApiDocs()
     {
@@ -2305,11 +2264,8 @@ public partial class SettingsModalViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Pull what developers have pushed, show the merchant what it adds up to, and
-    /// import on approval as one undoable action.
-    ///
-    /// The undo also tells the server to release the batch, otherwise the queue
-    /// would keep reporting data as imported that is no longer in anyone's books.
+    /// Pull what developers have pushed, show the merchant what it adds up to, and import on
+    /// approval as one undoable action (<see cref="IntegrationImportFlow"/>).
     /// </summary>
     [RelayCommand]
     private async Task SyncArgoApiAsync()
@@ -2323,114 +2279,22 @@ public partial class SettingsModalViewModel : ViewModelBase
         ArgoApiError = null;
         try
         {
-            var svc = new ArgoApiSyncService(new ArgoApiClient(App.SharedHttpClient));
-            var preview = await svc.PreviewAsync(data);
-
-            if (!preview.HasActivity)
+            var result = await IntegrationImportFlow.RunArgoApiAsync(data, App.SharedHttpClient, new IntegrationImportFlow.Host
             {
-                ArgoApiPendingSummary = null;
-                await App.ShowInfoMessageBoxAsync("Argo Books API".Translate(),
-                    "Nothing is waiting to be imported.".Translate());
-                return;
-            }
-
-            ArgoApiPendingSummary = "{0} items waiting".TranslateFormat(preview.TotalObjects);
-
-            if (App.ConfirmationDialog == null) return; // never import without a review step
-
-            // Three answers, not two. Cancel leaves everything queued for next time, which
-            // is the right response to "not now" but a poor one to "never": without Discard
-            // an unwanted object is re-offered on every sync forever, and the app that sent
-            // it cannot tell refusal from inattention.
-            var choice = await App.ConfirmationDialog.ShowAsync(new ConfirmationDialogOptions
-            {
-                Title = "Import from the Argo Books API".Translate(),
-                Message = "Import {0} items sent by your connected apps: {1} in revenue and {2} in expenses?\n\nDiscard removes them for good and tells the apps that sent them. Cancel leaves them waiting."
-                    .TranslateFormat(
-                        preview.TotalObjects,
-                        preview.TotalRevenue.ToString("C2"),
-                        preview.TotalExpenses.ToString("C2")),
-                PrimaryButtonText = "Import".Translate(),
-                SecondaryButtonText = "Discard".Translate(),
-                IsSecondaryDestructive = true,
-                CancelButtonText = "Cancel".Translate()
+                SetStatus = v => ArgoApiSyncStatus = v,
+                Inform = App.ShowInfoMessageBoxAsync,
+                AfterChange = () => RefreshArgoApiLastSynced(api)
             });
-
-            if (choice == ConfirmationResult.Secondary)
-            {
-                ArgoApiSyncStatus = "Discarding...".Translate();
-                var discarded = await svc.RejectPreviewAsync(data, preview);
-                ArgoApiPendingSummary = null;
-                await App.ShowInfoMessageBoxAsync(
-                    "Argo Books API".Translate(),
-                    "Discarded {0} items. They will not be offered again."
-                        .TranslateFormat(discarded));
-                return;
-            }
-
-            if (choice != ConfirmationResult.Primary) return;
-
-            var creation = await svc.ImportPreviewAsync(data, preview, SyncProgress(v => ArgoApiSyncStatus = v));
-
-            if (creation.AnyCreated)
-            {
-                App.UndoRedoManager.RecordAction(new DelegateAction(
-                    "Import from the Argo Books API".Translate(),
-                    () =>
-                    {
-                        creation.Undo(data);
-                        if (creation.BatchId != null)
-                            _ = svc.TryReleaseBatchAsync(data, creation.BatchId);
-                        App.CompanyManager?.MarkAsChanged();
-                    },
-                    () =>
-                    {
-                        creation.Redo(data);
-                        App.CompanyManager?.MarkAsChanged();
-                        _ = ReclaimAfterRedoAsync(svc, data, creation);
-                    }));
-            }
-
-            App.CompanyManager?.MarkAsChanged();
-            ArgoApiPendingSummary = null;
-            RefreshArgoApiLastSynced(api);
-
-            await App.ShowInfoMessageBoxAsync("Argo Books API".Translate(),
-                "Imported {0} sales and {1} expense entries.".TranslateFormat(creation.RevenuesCreated, creation.ExpensesCreated));
-        }
-        catch (Exception ex)
-        {
-            App.ErrorLogger?.LogError(ex, ErrorCategory.Api, "Argo Books API sync failed");
-            ArgoApiError = ex.Message;
-            await App.ShowWarningMessageBoxAsync("Argo Books API".Translate(),
-                "Import failed: {0}".TranslateFormat(ex.Message));
+            ArgoApiPendingSummary = result.Outcome == IntegrationImportOutcome.Cancelled
+                ? "{0} items waiting".TranslateFormat(result.Waiting)
+                : null;
+            ArgoApiError = result.Error;
         }
         finally
         {
             IsSyncingArgoApi = false;
             ArgoApiSyncStatus = string.Empty;
         }
-    }
-
-    /// <summary>
-    /// Claim a redone import's objects again. Undo handed them back to the queue, so without this
-    /// the next sync imports every one of them a second time. Same as the Revenue page's redo.
-    /// </summary>
-    private static async Task ReclaimAfterRedoAsync(ArgoApiSyncService svc, CompanyData data, ArgoApiImportCreation creation)
-    {
-        if (await svc.TryReclaimBatchAsync(data, creation) || creation.BatchId == null)
-            return;
-
-        // Redo re-recorded the old batch id, which names a batch the server has reverted.
-        data.Settings.Integrations.ArgoApi.ImportedBatches.Remove(creation.BatchId);
-        creation.BatchId = null;
-        App.CompanyManager?.MarkAsChanged();
-
-        await App.ShowWarningMessageBoxAsync(
-            "Argo Books API".Translate(),
-            ("The restored items are back in your books, but the server could not be told they were taken. " +
-             "They may still show as waiting on your next sync. Importing them again would create duplicates, " +
-             "so check before you do.").Translate());
     }
 
     private void RefreshArgoApiLastSynced(ArgoApiIntegrationSettings? api)

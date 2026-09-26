@@ -82,4 +82,24 @@ public static class RevenueAggregator
             .Where(IsCollected)
             .Sum(s => toDisplay(s.EffectiveSubtotalUSD, s.Date));
     }
+
+    /// <summary>Collected revenue, tax included (USD), by day, for time-series charts.</summary>
+    public static Dictionary<DateTime, decimal> GroupCollectedRevenueByDayUSD(
+        IEnumerable<Revenue> revenues, DateTime start, DateTime end) =>
+        GroupCollectedByDay(revenues, start, end, s => s.EffectiveTotalUSD);
+
+    /// <summary>Collected revenue without tax (USD), by day, for per-day profit.</summary>
+    public static Dictionary<DateTime, decimal> GroupCollectedRevenuePreTaxByDayUSD(
+        IEnumerable<Revenue> revenues, DateTime start, DateTime end) =>
+        GroupCollectedByDay(revenues, start, end, s => s.EffectiveSubtotalUSD);
+
+    private static Dictionary<DateTime, decimal> GroupCollectedByDay(
+        IEnumerable<Revenue> revenues, DateTime start, DateTime end, Func<Revenue, decimal> amountUSD)
+    {
+        return revenues
+            .Where(s => s.Date >= start && s.Date <= end)
+            .Where(IsCollected)
+            .GroupBy(s => s.Date.Date)
+            .ToDictionary(g => g.Key, g => g.Sum(amountUSD));
+    }
 }

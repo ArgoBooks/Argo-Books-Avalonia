@@ -38,4 +38,14 @@ public static class ExpenseAggregator
             .Where(e => e.Date >= start && e.Date <= end)
             .Sum(e => toDisplay(e.EffectiveTotalUSD, e.Date));
     }
+
+    /// <summary>Gross USD expenses by day, for time-series charts.</summary>
+    public static Dictionary<DateTime, decimal> GroupExpensesByDayUSD(
+        IEnumerable<Expense> expenses, DateTime start, DateTime end)
+    {
+        return expenses
+            .Where(e => e.Date >= start && e.Date <= end)
+            .GroupBy(e => e.Date.Date)
+            .ToDictionary(g => g.Key, g => g.Sum(e => e.EffectiveTotalUSD));
+    }
 }

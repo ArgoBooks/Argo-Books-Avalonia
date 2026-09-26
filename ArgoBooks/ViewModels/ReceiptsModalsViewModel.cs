@@ -1110,7 +1110,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
                     await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
                     {
                         item.Status = BulkScanStatus.Failed;
-                        item.ErrorMessage = "Monthly scan limit reached".Translate();
+                        item.ErrorMessage = usageCheck.ErrorMessage ?? "Monthly scan limit reached".Translate();
                         BulkScansCompleted++;
                         BulkScansFailed++;
                     });

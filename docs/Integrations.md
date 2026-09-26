@@ -52,11 +52,13 @@ This brings in payments taken through Stripe so they don't have to be typed in. 
 | `StripeSyncService` | Gets the balance transactions since the last sync and builds a preview |
 | `StripeDetailImporter` | Turns each charge into a sale, creating the product and customer if needed |
 | `StripeImportCreation` | Adds the whole import as a single step that can be undone |
+| `IntegrationImportFlow` | The preview, the question and the import, the same whether the sync starts from the Revenue page's banner or from Settings. The Argo Books API import uses it too |
 
 Good to know:
 
 - **Sales come in with all their detail.** Tax, discounts and Stripe's processing fee are all brought in, not just the amount paid out.
 - **Refunds become returns** against the original sale. When there's no sale to attach one to, it is recorded as an expense instead, and that expense is never added twice.
+- **The question before importing shows totals in the company's currency.** Each sale and fee is converted at its own date, the same rate the import then uses, so a sync with sales in several currencies shows the right total rather than the numbers added together. The rates are fetched before the question is asked, and a total with a rate that still can't be had shows Pending.
 - **Syncing again doesn't create duplicates.** The last imported charge is remembered, so the next sync only gets what came after it.
 - **Payouts are remembered** in `importedPayouts`. When a bank statement is imported later, `BankMatchingService` automatically ignores a deposit within 1 cent or 1% of a payout and inside the matching date window. That stops the Stripe payout being counted on top of the sales already imported from Stripe.
 

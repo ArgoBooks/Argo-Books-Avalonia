@@ -171,12 +171,7 @@ public partial class StatCardWidgetViewModel : WidgetViewModelBase
         var grossUSD = RevenueAggregator.SumCollectedRevenueUSD(data.Revenues, startDate, endDate);
         var refundsUSD = RefundAggregator.GetRefundedInDateRangeUSD(data.Payments, startDate, endDate);
         var currentUSD = grossUSD - refundsUSD;
-        // Convert each revenue/refund at its OWN date before summing (Calculations.md Rule 3a),
-        // so a non-USD display total isn't re-priced at today's rate. currentUSD is kept for the
-        // currency-agnostic period-over-period change below.
-        Value = CurrencyService.FormatTotalOrPending(convert =>
-            RevenueAggregator.SumCollectedRevenueDisplay(data.Revenues, startDate, endDate, convert)
-            - RefundAggregator.GetRefundedInDateRangeDisplay(data.Payments, startDate, endDate, convert));
+        Value = DashboardCalculations.FormatRevenue(data, startDate, endDate);
 
         var (prevStart, prevEnd) = DashboardCalculations.GetComparisonPeriod();
         if (prevStart != DateTime.MinValue && DashboardCalculations.HasSufficientPriorData(data, prevStart))
@@ -197,12 +192,7 @@ public partial class StatCardWidgetViewModel : WidgetViewModelBase
     private void LoadExpenses(CompanyData data, DateTime startDate, DateTime endDate)
     {
         var currentUSD = ExpenseAggregator.SumExpensesUSD(data.Expenses, startDate, endDate);
-        // Convert each expense at its OWN date before summing (Calculations.md Rule 3a), so a
-        // non-USD display total isn't re-priced at today's rate. The USD value above is kept for the
-        // currency-agnostic period-over-period change below.
-        Value = CurrencyService.FormatSumDisplayFromUSD(
-            data.Expenses.Where(e => e.Date >= startDate && e.Date <= endDate),
-            e => e.Total, e => e.OriginalCurrency, e => e.TotalUSD, e => e.Date);
+        Value = DashboardCalculations.FormatExpenses(data, startDate, endDate);
 
         var (prevStart, prevEnd) = DashboardCalculations.GetComparisonPeriod();
         if (prevStart != DateTime.MinValue && DashboardCalculations.HasSufficientPriorData(data, prevStart))

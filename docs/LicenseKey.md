@@ -62,7 +62,11 @@ Before each scan, import or send, the app decides whether it may go ahead:
 
 - **A recent answer is reused.** An answer from the server less than 5 minutes old is used again, to save calls.
 - **Limit reached:** the server says no more are left this month, so it is blocked and the user sees the date the count resets (the first of next month).
-- **The server answers with an error**, or can't be reached while the internet works: it goes ahead. The count server had a problem, and the scan, import or send makes its own call to the server, which fails with its own message if the server is really down.
+- **The count server is down:** it answers with a server error (a 5xx status), answers with something that can't be read, or can't be reached while the internet works. It goes ahead, uncounted. The scan, import or send makes its own call to the server, which fails with its own message if the server is really down.
+- **The server refuses the check** (a 4xx status): it is blocked, and the user sees why. A refusal is an answer about this request, not a sign the server is down, and letting it through would give unlimited uncounted uses. This matters most for invoice sends on the free plan, which only the app enforces. The refusals the server gives are:
+  - *Too many requests* (429, from the server's per-address rate limit): the message says how long to wait.
+  - *License not recognised* (401): the key isn't known, or, for AI imports only, it is a Premium key whose subscription has ended (the other two limits fall back to the device's free count for an ended key). The message asks the user to restart, because the check at startup removes an ended license and the app then uses the free plan's count.
+  - *Bad request* (400): the message gives the server's reason.
 - **No internet:** it is blocked with a message saying the internet is down, because the scan, import or send can't work without it.
 - **No license key and no device ID:** it is blocked, because the server has nothing to count against.
 

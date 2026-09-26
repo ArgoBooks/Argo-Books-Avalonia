@@ -58,18 +58,14 @@ public static class ProfitCalculator
     public static Dictionary<DateTime, decimal> CalculateNetProfitByDayUSD(
         CompanyData data, DateTime start, DateTime end)
     {
-        var revenueByDay = data.Revenues
-            .Where(s => s.Date >= start && s.Date <= end)
-            .Where(RevenueAggregator.IsCollected)
-            .GroupBy(s => s.Date.Date)
-            .ToDictionary(g => g.Key, g => g.Sum(s => s.EffectiveSubtotalUSD));
+        var revenueByDay = RevenueAggregator.GroupCollectedRevenuePreTaxByDayUSD(data.Revenues, start, end);
 
         var expensesByDay = data.Expenses
             .Where(p => p.Date >= start && p.Date <= end)
             .GroupBy(p => p.Date.Date)
             .ToDictionary(g => g.Key, g => g.Sum(CostOfGoodsAggregator.OperatingExpenseUSD));
 
-        var refundsByDay = BuildPreTaxRefundsByDay(data, start, end);
+        var refundsByDay = RefundAggregator.GroupPreTaxRefundsByDayUSD(data.Payments, BuildInvoiceLookup(data.Invoices), start, end);
 
         var costOfGoodsByDay = data.Revenues
             .Where(s => s.Date >= start && s.Date <= end)
@@ -100,17 +96,5 @@ public static class ProfitCalculator
                 dict[inv.Id] = inv;
         }
         return dict;
-    }
-
-    private static Dictionary<DateTime, decimal> BuildPreTaxRefundsByDay(
-        CompanyData data, DateTime start, DateTime end)
-    {
-        if (data.Payments == null) return new Dictionary<DateTime, decimal>();
-
-        var invoicesById = BuildInvoiceLookup(data.Invoices);
-        return data.Payments
-            .Where(p => p.IsRefund && p.Date >= start && p.Date <= end)
-            .GroupBy(p => p.Date.Date)
-            .ToDictionary(g => g.Key, g => g.Sum(p => RefundAggregator.PreTaxPortionUSD(p, invoicesById)));
     }
 }

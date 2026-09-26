@@ -9,7 +9,8 @@ namespace ArgoBooks.Tests.Services;
 
 /// <summary>
 /// Receipt scans, AI imports and invoice sends share one usage-limit policy
-/// (docs/LicenseKey.md "Usage limits"). Each case runs for every limit, since the three used to
+/// (docs/LicenseKey.md "Usage limits"): a server that is down (5xx, unreadable, unreachable) lets
+/// it through, while a 4xx refusal blocks. Each case runs for every limit, since the three used to
 /// behave differently on the same failure.
 /// </summary>
 public class UsageLimitServiceTests
@@ -105,6 +106,82 @@ public class UsageLimitServiceTests
         Assert.True(result.Allowed);
         Assert.True(result.IsOffline);
         Assert.Equal(1, h.Logger.ErrorCount);
+    }
+
+    [Theory, MemberData(nameof(Limits))]
+    public async Task ServiceUnavailable_Allows(string limit)
+    {
+        var h = new Harness(limit);
+        h.Handler.Respond("""{"success":false,"error":"Service temporarily unavailable"}""", HttpStatusCode.ServiceUnavailable);
+
+        var result = await h.Service.CheckUsageAsync();
+
+        Assert.True(result.Allowed);
+        Assert.True(result.IsOffline);
+    }
+
+    [Theory, MemberData(nameof(Limits))]
+    public async Task RateLimited_Blocks_WithTheServersWaitMessage(string limit)
+    {
+        var h = new Harness(limit);
+        h.Handler.Respond("""{"success":false,"message":"Too many requests. Please try again in 15 minutes.","errorCode":"RATE_LIMITED"}""",
+            HttpStatusCode.TooManyRequests);
+
+        var result = await h.Service.CheckUsageAsync();
+
+        Assert.False(result.Allowed);
+        Assert.Equal("Too many requests. Please try again in 15 minutes.", result.ErrorMessage);
+    }
+
+    [Theory, MemberData(nameof(Limits))]
+    public async Task RateLimited_WithAnUnreadableBody_StillBlocks(string limit)
+    {
+        var h = new Harness(limit);
+        h.Handler.Respond("<html>Too Many Requests</html>", HttpStatusCode.TooManyRequests);
+
+        var result = await h.Service.CheckUsageAsync();
+
+        Assert.False(result.Allowed);
+        Assert.Equal(UsageLimitService.RateLimitedMessage, result.ErrorMessage);
+    }
+
+    [Theory, MemberData(nameof(Limits))]
+    public async Task BadRequest_Blocks_WithTheServersReason(string limit)
+    {
+        var h = new Harness(limit);
+        h.Handler.Respond("""{"success":false,"message":"Invalid identifier length.","errorCode":"INVALID_INPUT"}""",
+            HttpStatusCode.BadRequest);
+
+        var result = await h.Service.CheckUsageAsync();
+
+        Assert.False(result.Allowed);
+        Assert.Contains("Invalid identifier length.", result.ErrorMessage);
+    }
+
+    [Theory, MemberData(nameof(Limits))]
+    public async Task UnverifiedLicense_Blocks_AndSaysHowToGetBackToTheFreePlan(string limit)
+    {
+        var h = new Harness(limit);
+        h.Handler.Respond("""{"success":false,"error":"Invalid or expired license key"}""", HttpStatusCode.Unauthorized);
+
+        var result = await h.Service.CheckUsageAsync();
+
+        Assert.False(result.Allowed);
+        Assert.Equal(UsageLimitService.UnverifiedLicenseMessage, result.ErrorMessage);
+    }
+
+    [Theory, MemberData(nameof(Limits))]
+    public async Task ARefusal_IsNotCached(string limit)
+    {
+        var h = new Harness(limit);
+        h.Handler.Respond("""{"success":false,"errorCode":"RATE_LIMITED"}""", HttpStatusCode.TooManyRequests);
+        await h.Service.CheckUsageAsync();
+
+        h.Handler.Respond(h.Answer(success: true, allowed: true));
+        var second = await h.Service.CheckUsageAsync();
+
+        Assert.True(second.Allowed);
+        Assert.Equal(2, h.Handler.Calls);
     }
 
     [Theory, MemberData(nameof(Limits))]

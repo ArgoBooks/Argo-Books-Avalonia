@@ -54,10 +54,10 @@ public partial class ChartSettingsService : ObservableObject
     private string _selectedDateRange = DateRangePreset.ThisMonth.GetDisplayName();
 
     [ObservableProperty]
-    private DateTime _startDate = new(DateTime.Now.Year, DateTime.Now.Month, 1);
+    private DateTime _startDate = DatePresetNames.GetDateRange(DatePresetNames.ThisMonth).Start;
 
     [ObservableProperty]
-    private DateTime _endDate = DateTime.Now;
+    private DateTime _endDate = DatePresetNames.GetDateRange(DatePresetNames.ThisMonth).End;
 
     [ObservableProperty]
     private bool _hasAppliedCustomRange;
@@ -258,82 +258,16 @@ public partial class ChartSettingsService : ObservableObject
     }
 
     /// <summary>
-    /// Updates the start and end dates based on the selected date range option.
+    /// Updates the start and end dates from the selected preset, through the one preset computation
+    /// (<see cref="DatePresetNames.GetDateRange"/>). A custom range keeps its dates.
     /// </summary>
     public void UpdateDateRangeFromSelection()
     {
-        var now = DateTime.Now;
-        // End-of-today, used as the inclusive upper bound for any "current"
-        // range. Without this, EndDate is the moment the dashboard refreshed
-        // (e.g., 11:43 AM) and transactions stored later in the day,
-        // including rows saved with DateTime.UtcNow on a behind-UTC clock,
-        // get filtered out of stat cards even though the chart's own
-        // end-of-day normalization includes them.
-        var endOfToday = now.Date.AddDays(1).AddTicks(-1);
+        if (DateRangePresetExtensions.ParseDateRange(SelectedDateRange) is null or DateRangePreset.CustomRange)
+            return;
 
-        var preset = DateRangePresetExtensions.ParseDateRange(SelectedDateRange);
-        switch (preset)
-        {
-            case DateRangePreset.ThisMonth:
-                StartDate = new DateTime(now.Year, now.Month, 1);
-                EndDate = endOfToday;
-                break;
-
-            case DateRangePreset.LastMonth:
-                var lastMonth = now.AddMonths(-1);
-                StartDate = new DateTime(lastMonth.Year, lastMonth.Month, 1);
-                EndDate = new DateTime(lastMonth.Year, lastMonth.Month,
-                    DateTime.DaysInMonth(lastMonth.Year, lastMonth.Month)).AddDays(1).AddTicks(-1);
-                break;
-
-            case DateRangePreset.Last30Days:
-                StartDate = now.AddDays(-29).Date;
-                EndDate = endOfToday;
-                break;
-
-            case DateRangePreset.Last100Days:
-                StartDate = now.AddDays(-99).Date;
-                EndDate = endOfToday;
-                break;
-
-            case DateRangePreset.Last365Days:
-                StartDate = now.AddDays(-364).Date;
-                EndDate = endOfToday;
-                break;
-
-            case DateRangePreset.ThisQuarter:
-                var quarterStart = new DateTime(now.Year, ((now.Month - 1) / 3) * 3 + 1, 1);
-                StartDate = quarterStart;
-                EndDate = endOfToday;
-                break;
-
-            case DateRangePreset.LastQuarter:
-                var lastQuarterEnd = new DateTime(now.Year, ((now.Month - 1) / 3) * 3 + 1, 1).AddDays(-1);
-                var lastQuarterStart = lastQuarterEnd.AddMonths(-2);
-                lastQuarterStart = new DateTime(lastQuarterStart.Year, lastQuarterStart.Month, 1);
-                StartDate = lastQuarterStart;
-                EndDate = lastQuarterEnd.Date.AddDays(1).AddTicks(-1);
-                break;
-
-            case DateRangePreset.ThisYear:
-                StartDate = new DateTime(now.Year, 1, 1);
-                EndDate = endOfToday;
-                break;
-
-            case DateRangePreset.LastYear:
-                StartDate = new DateTime(now.Year - 1, 1, 1);
-                EndDate = new DateTime(now.Year - 1, 12, 31).AddDays(1).AddTicks(-1);
-                break;
-
-            case DateRangePreset.AllTime:
-                StartDate = App.CompanyManager?.CompanyData?.GetEarliestDate() ?? DateTime.Today;
-                EndDate = endOfToday;
-                break;
-
-            case DateRangePreset.CustomRange:
-                // Keep current values
-                break;
-        }
+        (StartDate, EndDate) = DatePresetNames.GetDateRange(SelectedDateRange,
+            App.CompanyManager?.CompanyData?.GetEarliestDate());
     }
 
     /// <summary>

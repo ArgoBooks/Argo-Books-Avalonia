@@ -17,6 +17,9 @@ namespace ArgoBooks.Core.Services;
 /// </summary>
 public static class RefundAggregator
 {
+    /// <summary>The part of one refund that comes off revenue (USD, positive): all of it but a deposit it gave back.</summary>
+    public static decimal RevenuePortionUSD(Payment refund) => Math.Abs(refund.EffectiveAmountUSD) * refund.RevenueShare;
+
     /// <summary>
     /// USD-normalized variant for dashboard aggregations. Uses Payment.EffectiveAmountUSD
     /// so multi-currency portals roll up consistently.
@@ -25,7 +28,7 @@ public static class RefundAggregator
     {
         return allPayments
             .Where(p => p.IsRefund && p.Date >= start && p.Date <= end)
-            .Sum(p => Math.Abs(p.EffectiveAmountUSD) * p.RevenueShare);
+            .Sum(RevenuePortionUSD);
     }
 
     /// <summary>
@@ -38,7 +41,7 @@ public static class RefundAggregator
     {
         return allPayments
             .Where(p => p.IsRefund && p.Date >= start && p.Date <= end)
-            .Sum(p => toDisplay(Math.Abs(p.EffectiveAmountUSD) * p.RevenueShare, p.Date));
+            .Sum(p => toDisplay(RevenuePortionUSD(p), p.Date));
     }
 
     /// <summary>
@@ -52,7 +55,7 @@ public static class RefundAggregator
         return allPayments
             .Where(p => p.IsRefund && p.Date >= start && p.Date <= end)
             .GroupBy(p => p.Date.Date)
-            .ToDictionary(g => g.Key, g => g.Sum(p => Math.Abs(p.EffectiveAmountUSD) * p.RevenueShare));
+            .ToDictionary(g => g.Key, g => g.Sum(RevenuePortionUSD));
     }
 
     /// <summary>
@@ -74,7 +77,7 @@ public static class RefundAggregator
     /// </summary>
     public static decimal PreTaxPortionUSD(Payment refund, IReadOnlyDictionary<string, Invoice> invoicesById)
     {
-        var refundUSD = Math.Abs(refund.EffectiveAmountUSD) * refund.RevenueShare;
+        var refundUSD = RevenuePortionUSD(refund);
         return !string.IsNullOrEmpty(refund.InvoiceId)
                && invoicesById.TryGetValue(refund.InvoiceId, out var invoice)
                && invoice.Total > 0
@@ -87,7 +90,7 @@ public static class RefundAggregator
     /// deposit part carried no tax.
     /// </summary>
     public static decimal TaxPortionUSD(Payment refund, IReadOnlyDictionary<string, Invoice> invoicesById) =>
-        Math.Abs(refund.EffectiveAmountUSD) * refund.RevenueShare - PreTaxPortionUSD(refund, invoicesById);
+        RevenuePortionUSD(refund) - PreTaxPortionUSD(refund, invoicesById);
 
     /// <summary>
     /// Pre-tax USD portion of refunds inside [start, end], for profit math.
@@ -120,5 +123,43 @@ public static class RefundAggregator
         return allPayments
             .Where(x => x.IsRefund && x.Date >= start && x.Date <= end)
             .Sum(p => toDisplay(PreTaxPortionUSD(p, invoicesById), p.Date));
+    }
+
+    /// <summary>
+    /// Pre-tax USD refunds by the day each was issued, for per-day profit (docs/Calculations.md §8).
+    /// </summary>
+    public static Dictionary<DateTime, decimal> GroupPreTaxRefundsByDayUSD(
+        IEnumerable<Payment> allPayments,
+        IReadOnlyDictionary<string, Invoice> invoicesById,
+        DateTime start, DateTime end)
+    {
+        return allPayments
+            .Where(p => p.IsRefund && p.Date >= start && p.Date <= end)
+            .GroupBy(p => p.Date.Date)
+            .ToDictionary(g => g.Key, g => g.Sum(p => PreTaxPortionUSD(p, invoicesById)));
+    }
+
+    /// <summary>
+    /// The sales tax refunds inside [start, end] handed back (USD), which comes off tax collected on
+    /// each refund's own date (docs/Calculations.md §8).
+    /// </summary>
+    public static decimal GetRefundedTaxInDateRangeUSD(
+        IEnumerable<Payment> allPayments,
+        IReadOnlyDictionary<string, Invoice> invoicesById,
+        DateTime start, DateTime end) =>
+        GetRefundedTaxInDateRangeDisplay(allPayments, invoicesById, start, end, (usd, _) => usd);
+
+    /// <summary>
+    /// Display-currency variant of <see cref="GetRefundedTaxInDateRangeUSD"/>: each refund's tax part
+    /// converted at its OWN date via <paramref name="toDisplay"/> before summing (Rule 3a).
+    /// </summary>
+    public static decimal GetRefundedTaxInDateRangeDisplay(
+        IEnumerable<Payment> allPayments,
+        IReadOnlyDictionary<string, Invoice> invoicesById,
+        DateTime start, DateTime end, Func<decimal, DateTime, decimal> toDisplay)
+    {
+        return allPayments
+            .Where(x => x.IsRefund && x.Date >= start && x.Date <= end)
+            .Sum(p => toDisplay(TaxPortionUSD(p, invoicesById), p.Date));
     }
 }
