@@ -222,7 +222,13 @@ public class GlobalSettingsService : IGlobalSettingsService
     /// Gets all recent company paths that still exist.
     /// </summary>
     /// <returns>List of valid recent company paths.</returns>
-    public IReadOnlyList<string> GetValidRecentCompanies()
+    public IReadOnlyList<string> GetValidRecentCompanies() => GetValidRecentCompanies(GlobalSettings.RecentCompanies);
+
+    /// <summary>
+    /// The same filtering over a list the caller passes in: a copy taken on the UI thread, which
+    /// edits the real list, lets the file checks run on another thread.
+    /// </summary>
+    public IReadOnlyList<string> GetValidRecentCompanies(IReadOnlyList<string> recentCompanies)
     {
         // Get sample company path to filter it out
         var samplePath = SampleCompanyService.GetSampleCompanyPath();
@@ -230,7 +236,7 @@ public class GlobalSettingsService : IGlobalSettingsService
         if (!_platformService.SupportsFileSystem)
         {
             // Browser platform - return all without file existence check, but exclude sample company
-            return GlobalSettings.RecentCompanies
+            return recentCompanies
                 .Where(p => !string.Equals(p, samplePath, StringComparison.OrdinalIgnoreCase))
                 .ToList()
                 .AsReadOnly();
@@ -238,7 +244,7 @@ public class GlobalSettingsService : IGlobalSettingsService
 
         // Filter to existing files, exclude sample company, and deduplicate using platform-appropriate comparison
         // (handles case-insensitive duplicates on Windows)
-        return GlobalSettings.RecentCompanies
+        return recentCompanies
             .Where(p => File.Exists(p) && !string.Equals(p, samplePath, StringComparison.OrdinalIgnoreCase))
             .Distinct(_platformService.PathComparer)
             .ToList()

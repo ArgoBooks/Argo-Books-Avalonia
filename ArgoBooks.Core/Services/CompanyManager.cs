@@ -1601,37 +1601,45 @@ public class CompanyManager : IDisposable
     /// <returns>List of recent company info.</returns>
     public async Task<List<RecentCompanyInfo>> GetRecentCompaniesAsync(CancellationToken cancellationToken = default)
     {
-        var recentPaths = _settingsService.GetValidRecentCompanies();
+        // Copied on the caller's thread, the one that edits the list. The file checks and footer
+        // reads below can stall on a slow or disconnected drive, so they run on the thread pool
+        // instead of holding up the UI thread at launch.
+        var snapshot = _settingsService.GlobalSettings.RecentCompanies.ToList();
 
-        // Footer reads are pure I/O on independent files opened with FileShare.Read, so we can
-        // run them concurrently. Per-task try/catch preserves the previous skip-on-error behavior;
-        // Task.WhenAll returns results in input order, preserving most-recent-first ordering.
-        var tasks = recentPaths.Select(async path =>
+        return await Task.Run(async () =>
         {
-            try
-            {
-                var footer = await GetFileInfoAsync(path, cancellationToken);
-                if (footer == null)
-                    return null;
+            var recentPaths = _settingsService.GetValidRecentCompanies(snapshot);
 
-                return new RecentCompanyInfo
+            // Footer reads are pure I/O on independent files opened with FileShare.Read, so we can
+            // run them concurrently. Per-task try/catch preserves the previous skip-on-error behavior;
+            // Task.WhenAll returns results in input order, preserving most-recent-first ordering.
+            var tasks = recentPaths.Select(async path =>
+            {
+                try
                 {
-                    FilePath = path,
-                    CompanyName = footer.CompanyName,
-                    IsEncrypted = footer.IsEncrypted,
-                    ModifiedAt = footer.ModifiedAt,
-                    LogoThumbnail = footer.LogoThumbnail
-                };
-            }
-            catch
-            {
-                // File may be corrupted or inaccessible, skip it
-                return null;
-            }
-        });
+                    var footer = await GetFileInfoAsync(path, cancellationToken);
+                    if (footer == null)
+                        return null;
 
-        var results = await Task.WhenAll(tasks);
-        return results.Where(r => r != null).Cast<RecentCompanyInfo>().ToList();
+                    return new RecentCompanyInfo
+                    {
+                        FilePath = path,
+                        CompanyName = footer.CompanyName,
+                        IsEncrypted = footer.IsEncrypted,
+                        ModifiedAt = footer.ModifiedAt,
+                        LogoThumbnail = footer.LogoThumbnail
+                    };
+                }
+                catch
+                {
+                    // File may be corrupted or inaccessible, skip it
+                    return null;
+                }
+            });
+
+            var results = await Task.WhenAll(tasks);
+            return results.Where(r => r != null).Cast<RecentCompanyInfo>().ToList();
+        }, cancellationToken);
     }
 
     /// <summary>
