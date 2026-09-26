@@ -206,8 +206,9 @@ public partial class PayrollModalsViewModel : ViewModelBase
     /// </param>
     public PayrollModalsViewModel(Core.Services.PayrollRateService? rates = null)
     {
+        // The province list is filled when the employee modal opens, not here: reading it parses
+        // the payroll rate editions, which launch has no use for.
         _rates = rates ?? new Core.Services.PayrollRateService();
-        RefreshSupportedProvinces();
     }
 
     /// <summary>Event raised after a save, so the page can reload.</summary>
