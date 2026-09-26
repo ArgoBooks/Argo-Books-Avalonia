@@ -130,40 +130,22 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
 
     public bool ShowPreviewContent => IsShowingPreview && !IsShowingSuccess && !IsSending;
 
-    /// <summary>
-    /// Gets the modal width based on current state. Success and sending overlays use the
-    /// same compact size so the transition from "Sending invoice..." to "Invoice Sent!"
-    /// doesn't resize the modal.
-    /// </summary>
-    public double ModalWidth => (IsShowingSuccess || IsSending) ? 400 : (IsShowingPreview ? 850 : 750);
-
-    /// <summary>
-    /// Gets the modal height based on current state.
-    /// </summary>
-    public double ModalHeight => (IsShowingSuccess || IsSending) ? 380 : 700;
-
     partial void OnIsShowingPreviewChanged(bool value)
     {
         OnPropertyChanged(nameof(ShowEditContent));
         OnPropertyChanged(nameof(ShowPreviewContent));
-        OnPropertyChanged(nameof(ModalWidth));
-        OnPropertyChanged(nameof(ModalHeight));
     }
 
     partial void OnIsShowingSuccessChanged(bool value)
     {
         OnPropertyChanged(nameof(ShowEditContent));
         OnPropertyChanged(nameof(ShowPreviewContent));
-        OnPropertyChanged(nameof(ModalWidth));
-        OnPropertyChanged(nameof(ModalHeight));
     }
 
     partial void OnIsSendingChanged(bool value)
     {
         OnPropertyChanged(nameof(ShowEditContent));
         OnPropertyChanged(nameof(ShowPreviewContent));
-        OnPropertyChanged(nameof(ModalWidth));
-        OnPropertyChanged(nameof(ModalHeight));
     }
 
     #endregion

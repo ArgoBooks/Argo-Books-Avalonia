@@ -32,8 +32,8 @@
                 <Border HorizontalAlignment="Center"
                         VerticalAlignment="Stretch"
                         Width="1040"
-                        MaxWidth="1040"
-                        Margin="24,32"
+                        MaxWidth="{Binding $parent[controls:ModalOverlay].AvailableWidth}"
+                        Margin="0,32"
                         Background="{DynamicResource SurfaceBrush}"
                         CornerRadius="12"
                         ClipToBounds="True"
@@ -273,7 +273,9 @@
             <controls:ModalOverlay.ModalContent>
                 <Border Classes="modal-card"
                         Width="900"
-                        Height="760">
+                        Height="760"
+                        MaxWidth="{Binding $parent[controls:ModalOverlay].AvailableWidth}"
+                        MaxHeight="{Binding $parent[controls:ModalOverlay].AvailableHeight}">
                     <Grid RowDefinitions="Auto,*,Auto">
                         <controls:ModalHeader Grid.Row="0"
                                               Title="{loc:Loc 'Quote Details'}"

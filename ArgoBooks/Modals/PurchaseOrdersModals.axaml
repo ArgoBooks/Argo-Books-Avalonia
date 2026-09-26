@@ -544,6 +544,8 @@
             <controls:ModalOverlay.ModalContent>
                 <Border Width="{Binding SendModalWidth}"
                         Height="{Binding SendModalHeight}"
+                        MaxWidth="{Binding $parent[controls:ModalOverlay].AvailableWidth}"
+                        MaxHeight="{Binding $parent[controls:ModalOverlay].AvailableHeight}"
                         Margin="{Binding IsSendFullscreen, Converter={x:Static local:BoolConverters.ToFullscreenMargin}}"
                         HorizontalAlignment="{Binding IsSendFullscreen, Converter={x:Static local:BoolConverters.ToFullscreenHorizontalAlignment}}"
                         VerticalAlignment="{Binding IsSendFullscreen, Converter={x:Static local:BoolConverters.ToFullscreenVerticalAlignment}}"
