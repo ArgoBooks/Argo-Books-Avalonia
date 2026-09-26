@@ -188,14 +188,15 @@
             <ScrollViewer Grid.Row="2"
                           x:Name="HorizontalTableScroll"
                           HorizontalScrollBarVisibility="{Binding #Root.NeedsHorizontalScroll, Converter={x:Static local:BoolConverters.ToScrollBarVisibility}}"
-                          VerticalScrollBarVisibility="Disabled">
+                          VerticalScrollBarVisibility="Disabled"
+                          AllowAutoHide="False"
+                          SizeChanged="OnTableViewportSizeChanged">
                 <Grid RowDefinitions="Auto,*" x:Name="TableGrid"
-                      MinWidth="{Binding #Root.MinimumTotalWidth}"
-                      SizeChanged="OnTableGridSizeChanged">
+                      MinWidth="{Binding #Root.MinimumTotalWidth}">
                     <!-- Table Header (content slot - provided by page) -->
                     <Border Grid.Row="0"
                             Background="{DynamicResource SurfaceAltBrush}"
-                            Padding="24,0"
+                            Padding="24,0,0,0"
                             MinHeight="40"
                             IsVisible="{Binding #Root.ShowColumnHeaders}"
                             PointerPressed="OnTableHeaderPointerPressed">

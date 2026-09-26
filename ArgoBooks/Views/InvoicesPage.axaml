@@ -401,7 +401,7 @@
                     <ItemsControl Classes="table-rows" ItemsSource="{Binding Invoices}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="vm:InvoiceDisplayItem">
-                                <Border Padding="24,0"
+                                <Border Padding="24,0,0,0"
                                         BorderBrush="{DynamicResource BorderBrush}"
                                         BorderThickness="0,0,0,1"
                                         Classes.highlighted-row="{Binding IsHighlighted}"
@@ -655,7 +655,7 @@
                     <ItemsControl Classes="table-rows" ItemsSource="{Binding Schedules}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="vm:RecurringScheduleDisplayItem">
-                                <Border Padding="24,0"
+                                <Border Padding="24,0,0,0"
                                         BorderBrush="{DynamicResource BorderBrush}"
                                         BorderThickness="0,0,0,1"
                                         MinHeight="56">

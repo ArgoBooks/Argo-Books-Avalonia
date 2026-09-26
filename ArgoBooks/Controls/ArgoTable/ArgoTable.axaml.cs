@@ -549,7 +549,7 @@ public partial class ArgoTable : UserControl, INotifyPropertyChanged
     #region Events
 
     /// <summary>
-    /// Raised when the table grid size changes (for column width calculation).
+    /// Raised when the width the table is shown in changes, after the columns have been refitted.
     /// </summary>
     public event EventHandler<SizeChangedEventArgs>? TableGridSizeChanged;
 
@@ -729,7 +729,9 @@ public partial class ArgoTable : UserControl, INotifyPropertyChanged
         SetCurrentValue(SearchBoxMinHeightProperty, _responsiveHeader.SearchBoxMinHeight);
     }
 
-    private void OnTableGridSizeChanged(object? sender, SizeChangedEventArgs e)
+    // Measured from the scroll viewer, not the grid inside it: the grid widens to the columns'
+    // minimum once scrolling starts, so measuring it switched scrolling straight back off.
+    private void OnTableViewportSizeChanged(object? sender, SizeChangedEventArgs e)
     {
         if (e.WidthChanged)
         {

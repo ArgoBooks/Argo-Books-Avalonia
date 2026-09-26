@@ -126,12 +126,9 @@ public partial class ReceiptsPage : UserControl
 
     private void OnTableSizeChanged(object? sender, SizeChangedEventArgs e)
     {
-        if (DataContext is ReceiptsPageViewModel viewModel && e.WidthChanged)
-        {
-            viewModel.ColumnWidths.SetAvailableWidth(e.NewSize.Width);
-            if (viewModel.IsGridView)
-                viewModel.ColumnWidths.NeedsHorizontalScroll = false;
-        }
+        // ArgoTable has already passed the width on; only grid view's override is left to do.
+        if (DataContext is ReceiptsPageViewModel viewModel && e.WidthChanged && viewModel.IsGridView)
+            viewModel.ColumnWidths.NeedsHorizontalScroll = false;
     }
 
     private void OnDragOver(object? sender, DragEventArgs e)

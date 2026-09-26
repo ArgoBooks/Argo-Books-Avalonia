@@ -111,7 +111,7 @@
                     <ItemsControl Classes="table-rows" ItemsSource="{Binding Items}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="vm:LostDamagedDisplayItem">
-                                <Border Padding="24,0"
+                                <Border Padding="24,0,0,0"
                                         BorderBrush="{DynamicResource BorderBrush}"
                                         BorderThickness="0,0,0,1"
                                         MinHeight="52">

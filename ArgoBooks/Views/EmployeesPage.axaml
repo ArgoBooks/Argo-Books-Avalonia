@@ -110,7 +110,7 @@
                             <DataTemplate DataType="vm:EmployeeDisplayItem">
                                 <!-- Padding matches the header border in ArgoTable, otherwise every
                                      column separator sits 24px left of its header. -->
-                                <Border Padding="24,0"
+                                <Border Padding="24,0,0,0"
                                         BorderBrush="{DynamicResource BorderBrush}"
                                         BorderThickness="0,0,0,1"
                                         MinHeight="52">

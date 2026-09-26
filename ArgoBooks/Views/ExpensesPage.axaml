@@ -239,7 +239,7 @@
                     <ItemsControl Classes="table-rows" ItemsSource="{Binding Expenses}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="vm:ExpenseDisplayItem">
-                                <Border Padding="24,0"
+                                <Border Padding="24,0,0,0"
                                         MinHeight="52"
                                         BorderBrush="{DynamicResource BorderBrush}"
                                         BorderThickness="0,0,0,1"

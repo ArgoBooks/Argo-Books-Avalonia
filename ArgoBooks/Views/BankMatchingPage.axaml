@@ -147,7 +147,7 @@
                         <ItemsControl Classes="table-rows" IsVisible="{Binding !LinesShowCalendar}" ItemsSource="{Binding Lines}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate DataType="vm:BankLineRow">
-                                    <Border Padding="24,0" MinHeight="52"
+                                    <Border Padding="24,0,0,0" MinHeight="52"
                                             BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
                                         <StackPanel Orientation="Horizontal">
                                             <table:ArgoTableCell Text="{Binding DateDisplay}"
@@ -301,7 +301,7 @@
                         <ItemsControl Classes="table-rows" IsVisible="{Binding !MissingShowCalendar}" ItemsSource="{Binding UnmatchedBookRecords}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate DataType="bm:BookRecordRef">
-                                    <Border Padding="24,0" MinHeight="44"
+                                    <Border Padding="24,0,0,0" MinHeight="44"
                                             BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
                                         <StackPanel Orientation="Horizontal">
                                             <table:ArgoTableCell Text="{Binding Date, StringFormat='MMM dd, yyyy'}"

@@ -115,7 +115,7 @@
                     <ItemsControl Classes="table-rows" ItemsSource="{Binding Suppliers}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="vm:SupplierDisplayItem">
-                                <Border Padding="24,0"
+                                <Border Padding="24,0,0,0"
                                         BorderBrush="{DynamicResource BorderBrush}"
                                         BorderThickness="0,0,0,1"
                                         Classes.highlighted-row="{Binding IsHighlighted}"
