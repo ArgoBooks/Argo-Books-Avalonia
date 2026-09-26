@@ -31,6 +31,10 @@ public partial class SidebarViewModel : ViewModelBase
     private const double ExpandedWidth = 250;
     private const double CollapsedWidth = 70;
 
+    private bool _userCollapsed;
+    private bool _isNarrowWindow;
+    private bool _isApplyingWindowWidth;
+
     #endregion
 
     #region Company Info
@@ -218,6 +222,13 @@ public partial class SidebarViewModel : ViewModelBase
         // Update all items with collapsed state
         UpdateItemsCollapsedState(value);
 
+        // A collapse forced by a narrow window is not the user's choice, so it is neither
+        // remembered nor saved.
+        if (_isApplyingWindowWidth)
+            return;
+
+        _userCollapsed = value;
+
         // Persist collapsed state to settings
         var settings = App.SettingsService?.GlobalSettings;
         if (settings != null)
@@ -248,6 +259,28 @@ public partial class SidebarViewModel : ViewModelBase
         foreach (var item in InventoryItems) item.IsCollapsed = isCollapsed;
         foreach (var item in PayrollItems) item.IsCollapsed = isCollapsed;
         foreach (var item in TrackingItems) item.IsCollapsed = isCollapsed;
+    }
+
+    /// <summary>
+    /// Collapses the sidebar when the window becomes narrow and puts back the user's own choice when
+    /// it widens. Acts only when the window crosses the threshold, so expanding the sidebar by hand
+    /// in a narrow window sticks until the next crossing.
+    /// </summary>
+    public void SetNarrowWindow(bool isNarrow)
+    {
+        if (isNarrow == _isNarrowWindow)
+            return;
+
+        _isNarrowWindow = isNarrow;
+        _isApplyingWindowWidth = true;
+        try
+        {
+            IsCollapsed = isNarrow || _userCollapsed;
+        }
+        finally
+        {
+            _isApplyingWindowWidth = false;
+        }
     }
 
     /// <summary>

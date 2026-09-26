@@ -85,6 +85,17 @@ public partial class StatCard : UserControl
         AvaloniaProperty.Register<StatCard, bool>(nameof(IsMinimal));
 
     /// <summary>
+    /// Inherited: set on a container (AppShell sets it on the page host when the window is short) to
+    /// put every card inside it in compact mode, whatever its width.
+    /// </summary>
+    public static readonly AttachedProperty<bool> ForceCompactProperty =
+        AvaloniaProperty.RegisterAttached<StatCard, Control, bool>("ForceCompact", inherits: true);
+
+    public static bool GetForceCompact(Control element) => element.GetValue(ForceCompactProperty);
+
+    public static void SetForceCompact(Control element, bool value) => element.SetValue(ForceCompactProperty, value);
+
+    /// <summary>
     /// The width threshold below which the card switches to compact mode.
     /// </summary>
     private const double CompactThreshold = 320;
@@ -300,7 +311,8 @@ public partial class StatCard : UserControl
     {
         // Update compact mode based on available width
         var wasCompact = IsCompact;
-        var shouldBeCompact = finalSize.Width > 0 && finalSize.Width < CompactThreshold;
+        var shouldBeCompact = finalSize.Width > 0 &&
+                              (finalSize.Width < CompactThreshold || GetValue(ForceCompactProperty));
 
         if (wasCompact != shouldBeCompact)
         {
@@ -358,6 +370,11 @@ public partial class StatCard : UserControl
         if (change.Property == IsMinimalProperty)
         {
             UpdateMinimalClass();
+        }
+
+        if (change.Property == ForceCompactProperty)
+        {
+            InvalidateArrange();
         }
 
         // Auto-show change indicator when ChangeValue or ChangeText is set
