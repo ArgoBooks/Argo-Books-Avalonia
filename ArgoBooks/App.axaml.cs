@@ -1464,7 +1464,7 @@ public partial class App : Application
             ReceiptViewerModal = new ReceiptViewerModalViewModel();
             PendingConversionService = new PendingConversionService(errorLogger)
             {
-                CurrentCompany = () => (CompanyManager?.CompanyData, CompanyManager?.CurrentFilePath)
+                CurrentCompany = () => CompanyManager?.CompanyData
             };
             PdfStatementExtractor = new PdfStatementExtractor(ErrorLogger);
             _idleDetectionService = new IdleDetectionService();
@@ -1920,12 +1920,6 @@ public partial class App : Application
             // progress bars). Non-blocking: loads the disk cache, refreshes priors in the
             // background, and falls back to seed priors when offline.
             InitializeOperationTimingService();
-
-            // Load pending conversion queue from disk
-            if (PendingConversionService != null)
-            {
-                await PendingConversionService.LoadAsync();
-            }
 
             // Load and apply saved license status
             if (LicenseService != null && _appShellViewModel != null)
@@ -2438,7 +2432,7 @@ public partial class App : Application
             // convert at today's rate, so both are settled before anything is frozen.
             if (PendingConversionService != null && data.PendingConversions.Count > 0)
             {
-                await PendingConversionService.ReconcileWithCompanyDataAsync(data);
+                PendingConversionService.ReconcileWithCompanyData(data);
                 await PendingConversionService.ProcessPendingConversionsAsync(data);
                 data.MarkAsSaved();
                 if (_mainWindowViewModel != null)
@@ -3692,38 +3686,9 @@ public partial class App : Application
         void RestoreList<T>(List<T> list, string propertyName) where T : class, Core.Models.Common.IRecord =>
             list.RestoreInPlace(Read<T>(propertyName));
 
-        // Restore IdCounters
-        if (root.TryGetProperty("IdCounters", out var counters))
-        {
-            var restoredCounters = System.Text.Json.JsonSerializer.Deserialize<IdCounters>(counters.GetRawText(), options);
-            if (restoredCounters != null)
-            {
-                data.IdCounters.Customer = restoredCounters.Customer;
-                data.IdCounters.Product = restoredCounters.Product;
-                data.IdCounters.Supplier = restoredCounters.Supplier;
-                data.IdCounters.Category = restoredCounters.Category;
-                data.IdCounters.Location = restoredCounters.Location;
-                data.IdCounters.Revenue = restoredCounters.Revenue;
-                data.IdCounters.Expense = restoredCounters.Expense;
-                data.IdCounters.Invoice = restoredCounters.Invoice;
-                data.IdCounters.Quote = restoredCounters.Quote;
-                data.IdCounters.Payment = restoredCounters.Payment;
-                data.IdCounters.RecurringInvoice = restoredCounters.RecurringInvoice;
-                data.IdCounters.InventoryItem = restoredCounters.InventoryItem;
-                data.IdCounters.StockAdjustment = restoredCounters.StockAdjustment;
-                data.IdCounters.PurchaseOrder = restoredCounters.PurchaseOrder;
-                data.IdCounters.RentalItem = restoredCounters.RentalItem;
-                data.IdCounters.Rental = restoredCounters.Rental;
-                // Restore the remaining counters too, so a snapshot restore is faithful and later
-                // IDs don't drift/gap for these entity types.
-                data.IdCounters.Accountant = restoredCounters.Accountant;
-                data.IdCounters.StockTransfer = restoredCounters.StockTransfer;
-                data.IdCounters.Return = restoredCounters.Return;
-                data.IdCounters.LostDamaged = restoredCounters.LostDamaged;
-                data.IdCounters.Receipt = restoredCounters.Receipt;
-                data.IdCounters.InvoiceTemplate = restoredCounters.InvoiceTemplate;
-            }
-        }
+        if (root.TryGetProperty("IdCounters", out var counters)
+            && System.Text.Json.JsonSerializer.Deserialize<IdCounters>(counters.GetRawText(), options) is { } restoredCounters)
+            data.IdCounters.CopyFrom(restoredCounters);
 
         // Restore all collections
         RestoreList(data.Customers, "Customers");
@@ -3750,8 +3715,19 @@ public partial class App : Application
         RestoreList(data.EventLog, "EventLog");
         RestoreList(data.BankImportSessions, "BankImportSessions");
         RestoreList(data.Employees, "Employees");
+        // An entry the restore leaves as it was stays the same object too: a stock undo reads the
+        // rate the queue converted its entry at off the entry it holds (StockChange.OldPendingCost).
+        var liveEntries = data.PendingConversions
+            .GroupBy(p => p.Key)
+            .ToDictionary(g => g.Key, g => g.First());
+        var restoredEntries = Read<Core.Models.Common.PendingConversion>("PendingConversions")
+            .Select(e => liveEntries.TryGetValue(e.Key, out var live)
+                         && System.Text.Json.JsonSerializer.Serialize(live) == System.Text.Json.JsonSerializer.Serialize(e)
+                ? live
+                : e)
+            .ToList();
         data.PendingConversions.Clear();
-        data.PendingConversions.AddRange(Read<Core.Models.Common.PendingConversion>("PendingConversions"));
+        data.PendingConversions.AddRange(restoredEntries);
         data.InvalidateLookupCaches();
 
         // An undo takes away rows whose conversions were queued, and a redo brings them back pending.

@@ -572,6 +572,7 @@ public partial class QuotesPageViewModel : SortablePageViewModelBase
             () =>
             {
                 companyData.Invoices.RemoveRecord(invoice);
+                UsdConversion.Set(companyData, UsdConversion.KeyOf(invoice), null);
                 quote.Status = oldStatus;
                 quote.ConvertedInvoiceId = oldConvertedId;
                 companyData.MarkAsModified();
@@ -580,6 +581,7 @@ public partial class QuotesPageViewModel : SortablePageViewModelBase
             () =>
             {
                 companyData.Invoices.RestoreRecord(invoice);
+                UsdConversion.Requeue(companyData, invoice);
                 quote.Status = QuoteStatus.Converted;
                 quote.ConvertedInvoiceId = invoice.Id;
                 companyData.MarkAsModified();

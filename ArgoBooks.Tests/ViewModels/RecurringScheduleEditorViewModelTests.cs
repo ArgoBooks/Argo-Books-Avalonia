@@ -2,7 +2,6 @@ using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Entities;
 using ArgoBooks.Core.Models.Transactions;
-using ArgoBooks.Core.Platform;
 using ArgoBooks.Core.Services;
 using ArgoBooks.ViewModels;
 using Xunit;
@@ -30,22 +29,13 @@ public class RecurringScheduleEditorViewModelTests : ModalViewModelTestBase
     }
 
     /// <summary>
-    /// The conversion service's own queue, which a successful pass copies back over the company
-    /// file's. Created with a platform that never writes the real queue file.
+    /// The conversion service whose queue the view model's saves mirror into.
     /// </summary>
     private static PendingConversionService ConversionService() =>
-        PendingConversionService.Instance ?? new PendingConversionService(new NoDiskPlatform());
+        PendingConversionService.Instance ?? new PendingConversionService();
 
-    /// <summary>
-    /// Reads the service's queue without a test hook: reconciling into an empty company copies the
-    /// whole queue into it, since none of those rows exist there to have been converted.
-    /// </summary>
-    private static async Task<bool> ServiceHasQueued(string transactionId)
-    {
-        var probe = new CompanyData();
-        await ConversionService().ReconcileWithCompanyDataAsync(probe);
-        return probe.PendingConversions.Any(p => p.TransactionId == transactionId);
-    }
+    private static bool ServiceHasQueued(string transactionId) =>
+        ConversionService().Entries.Any(p => p.TransactionId == transactionId);
 
     private RecurringScheduleEditorViewModel NewRentSchedule(DateTime start)
     {
@@ -68,7 +58,7 @@ public class RecurringScheduleEditorViewModelTests : ModalViewModelTestBase
 
         var entry = Assert.Single(Company.Expenses);
         Assert.True(entry.IsPendingConversion);
-        Assert.True(await ServiceHasQueued(entry.Id), "Only the company file queued it, so the next conversion pass drops it");
+        Assert.True(ServiceHasQueued(entry.Id), "Only the company file queued it, so the next conversion pass drops it");
     }
 
     [Fact]
@@ -81,9 +71,9 @@ public class RecurringScheduleEditorViewModelTests : ModalViewModelTestBase
         var entry = Assert.Single(Company.Expenses);
 
         Undo();
-        var afterUndo = (Company.PendingConversions.Any(p => p.TransactionId == entry.Id), await ServiceHasQueued(entry.Id));
+        var afterUndo = (Company.PendingConversions.Any(p => p.TransactionId == entry.Id), ServiceHasQueued(entry.Id));
         Redo();
-        var afterRedo = (Company.PendingConversions.Any(p => p.TransactionId == entry.Id), await ServiceHasQueued(entry.Id));
+        var afterRedo = (Company.PendingConversions.Any(p => p.TransactionId == entry.Id), ServiceHasQueued(entry.Id));
 
         Assert.Equal((false, false), afterUndo);
         Assert.Equal((true, true), afterRedo);
@@ -271,29 +261,5 @@ public class RecurringScheduleEditorViewModelTests : ModalViewModelTestBase
         await second.SaveCommand.ExecuteAsync(null);
 
         Assert.Contains(Company.Expenses, e => e.OccurrenceDate == newStart);
-    }
-
-    private sealed class NoDiskPlatform : IPlatformService
-    {
-        public PlatformType Platform => PlatformType.Linux;
-        public string GetAppDataPath() => Path.GetTempPath();
-        public string GetTempPath() => Path.GetTempPath();
-        public string GetCachePath() => Path.GetTempPath();
-        public void EnsureDirectoryExists(string path) { }
-        public bool SupportsFileSystem => false;
-        public bool SupportsNativeDialogs => false;
-        public bool SupportsBiometrics => false;
-        public Task<bool> IsBiometricAvailableAsync() => Task.FromResult(false);
-        public Task<string> GetBiometricAvailabilityDetailsAsync() => Task.FromResult("");
-        public Task<bool> AuthenticateWithBiometricAsync(string reason) => Task.FromResult(false);
-        public void StorePasswordForBiometric(string fileId, string password) { }
-        public string? GetPasswordForBiometric(string fileId) => null;
-        public void ClearPasswordForBiometric(string fileId) { }
-        public bool SupportsAutoUpdate => false;
-        public int MaxRecentCompanies => 10;
-        public string NormalizePath(string path) => path;
-        public string CombinePaths(params string[] paths) => Path.Combine(paths);
-        public string GetMachineId() => "test-machine-id";
-        public StringComparer PathComparer => StringComparer.Ordinal;
     }
 }

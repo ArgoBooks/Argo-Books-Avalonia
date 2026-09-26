@@ -110,10 +110,9 @@ public static class RefundAnalyticsService
     public static IReadOnlyList<ProductRefundTotal> TopRefundedProducts(
         CompanyData company, DateTime since, int top, Func<decimal, DateTime, decimal>? toDisplay = null)
     {
-        // Sum refund amounts per invoice, then attribute proportionally across the
-        // invoice's line items by their share of the original total. This is an
-        // approximation: the true refunded line items are stored in the server's
-        // line_items_json snapshot but not surfaced to the desktop.
+        // Sum refund amounts per invoice, then share each across the invoice's line items the way
+        // any amount is (LineAllocation). This is an approximation: the true refunded line items are
+        // stored in the server's line_items_json snapshot but not surfaced to the desktop.
         var convert = toDisplay ?? IdentityUSD;
         var byProduct = new Dictionary<string, decimal>();
         var refundsByInvoice = company.Payments
@@ -126,13 +125,11 @@ public static class RefundAnalyticsService
         {
             var invoice = company.GetInvoice(invoiceId);
             if (invoice?.LineItems == null || invoice.Total <= 0) continue;
-            var totalLines = invoice.LineItems.Sum(li => li.Amount);
-            if (totalLines <= 0) continue;
-            // refundAmt is in the target currency; (li.Amount / totalLines) is a
-            // dimensionless share, so product attribution stays in that currency.
-            foreach (var li in invoice.LineItems)
+            var allocation = LineAllocation.Allocate(invoice.LineItems, refundAmt);
+            if (!allocation.IsSplit) continue;
+            // refundAmt is already in the target currency, and the shares stay in it.
+            foreach (var (li, share) in allocation.Shares)
             {
-                var share = (li.Amount / totalLines) * refundAmt;
                 var key = string.IsNullOrEmpty(li.Description) ? "(unnamed)" : li.Description;
                 byProduct[key] = byProduct.GetValueOrDefault(key) + share;
             }

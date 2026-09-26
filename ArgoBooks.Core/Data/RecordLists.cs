@@ -17,6 +17,7 @@ public static class RecordLists
 {
     private static readonly ConditionalWeakTable<object, StrongBox<int>> SameIdLeftWhenRemoved = new();
     private static readonly ConcurrentDictionary<Type, Action<object, object>?> Copiers = new();
+    private static readonly ConcurrentDictionary<Type, (string Name, Func<object, object?> Get, Action<object, object?> Set)[]> SavedProperties = new();
 
     private static readonly MethodInfo RestoreNestedMethod =
         typeof(RecordLists).GetMethod(nameof(RestoreNested), BindingFlags.NonPublic | BindingFlags.Static)!;
@@ -69,6 +70,34 @@ public static class RecordLists
         list.Remove(existing);
         list.Add(incoming);
         return incoming;
+    }
+
+    /// <summary>
+    /// For an import updating a record with only what its row gives: every saved property whose name
+    /// (as the company file spells it, any case) isn't in <paramref name="given"/> is taken from
+    /// <paramref name="existing"/>. Writing the result over <paramref name="existing"/> with
+    /// <see cref="AddOrUpdate{T}"/> then changes only the given fields. Returns
+    /// <paramref name="incoming"/>.
+    /// </summary>
+    public static T FillAbsent<T>(this T incoming, T existing, IReadOnlySet<string> given) where T : class
+    {
+        foreach (var (name, get, set) in SavedProperties.GetOrAdd(incoming.GetType(), ReadSavedProperties))
+        {
+            if (!given.Contains(name))
+                set(incoming, get(existing));
+        }
+        return incoming;
+    }
+
+    private static (string, Func<object, object?>, Action<object, object?>)[] ReadSavedProperties(Type type)
+    {
+        var info = JsonSerializerOptions.Default.GetTypeInfo(type);
+        return info.Kind != JsonTypeInfoKind.Object
+            ? []
+            : info.Properties
+                .Where(p => p.Get != null && p.Set != null)
+                .Select(p => (p.Name, p.Get!, p.Set!))
+                .ToArray();
     }
 
     /// <summary>

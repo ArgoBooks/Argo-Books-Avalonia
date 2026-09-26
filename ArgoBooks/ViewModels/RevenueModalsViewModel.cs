@@ -549,7 +549,12 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
         revenue.Notes = ModalNotes;
         revenue.UpdatedAt = DateTime.UtcNow;
         revenue.OriginalCurrency = SaveCurrency;
-        UsdConversion.Apply(companyData, revenue, SaveRate);
+        // A kept deposit converts at its invoice's rate, as when it was created (Rule 3a).
+        if (revenue.IsKeptDeposit && companyData.GetInvoice(revenue.InvoiceId ?? "") is { } depositInvoice
+            && string.Equals(depositInvoice.OriginalCurrency, SaveCurrency, StringComparison.OrdinalIgnoreCase))
+            UsdConversion.Apply(companyData, revenue, UsdConversion.InvoiceRate(depositInvoice), depositInvoice.IssueDate);
+        else
+            UsdConversion.Apply(companyData, revenue, SaveRate);
         var editedQueued = UsdConversion.Snapshot(companyData, [queueKey]);
 
         // Handle receipt. The form loads an existing receipt's OriginalFilePath, so only a different

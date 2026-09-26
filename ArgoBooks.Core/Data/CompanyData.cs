@@ -245,8 +245,8 @@ public class CompanyData
     #region Pending Conversions
 
     /// <summary>
-    /// Transactions saved offline that are awaiting USD conversion.
-    /// Persisted in the .argo file as a secondary backup (primary backup is in app data directory).
+    /// Records waiting for their exchange rate, the conversion queue itself. Saved in the .argo file
+    /// with the records it converts, and the only copy that is (docs/Calculations.md Rule 3a).
     /// </summary>
     [JsonPropertyName("pendingConversions")]
     public List<PendingConversion> PendingConversions { get; init; } = [];
@@ -467,6 +467,48 @@ public class CompanyData
 /// </summary>
 public class IdCounters
 {
+    // Every counter the company file saves, read off its JSON contract so a counter added later is
+    // copied, rewound and raised with the rest without being listed here.
+    private static readonly (Func<object, object?> Get, Action<object, object?> Set)[] All =
+        System.Text.Json.JsonSerializerOptions.Default.GetTypeInfo(typeof(IdCounters)).Properties
+            .Where(p => p.PropertyType == typeof(int) && p.Get != null && p.Set != null)
+            .Select(p => (p.Get!, p.Set!))
+            .ToArray();
+
+    public IdCounters Clone()
+    {
+        var copy = new IdCounters();
+        copy.CopyFrom(this);
+        return copy;
+    }
+
+    public void CopyFrom(IdCounters other)
+    {
+        foreach (var (get, set) in All)
+            set(this, get(other));
+    }
+
+    /// <summary>
+    /// Undoes an import: each counter goes back to <paramref name="before"/>, but only while it is
+    /// still where the import left it (<paramref name="after"/>). One that has moved on issued an id
+    /// to a record the undo does not remove, and lowering it would issue that id again.
+    /// </summary>
+    public void RewindTo(IdCounters before, IdCounters after)
+    {
+        foreach (var (get, set) in All)
+        {
+            if ((int)get(this)! == (int)get(after)!)
+                set(this, get(before));
+        }
+    }
+
+    /// <summary>Redoes an import: up to <paramref name="after"/>, never down, so an id issued meanwhile stays issued.</summary>
+    public void RaiseTo(IdCounters after)
+    {
+        foreach (var (get, set) in All)
+            set(this, Math.Max((int)get(this)!, (int)get(after)!));
+    }
+
     [JsonPropertyName("customer")]
     public int Customer { get; set; }
 

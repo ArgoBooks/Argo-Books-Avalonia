@@ -120,14 +120,12 @@ public class BankImportCreation
 /// Turns resolved unmatched bank lines into Expense/Revenue transactions, auto-creating any
 /// new supplier/customer/category, and marks each line matched to its new transaction.
 /// </summary>
-/// <param name="convert">
-/// Converts to the USD base at a date. Injectable so tests needn't install the exchange rate
-/// singleton; defaults to its cache-only exact-date conversion.
+/// <param name="rates">
+/// The USD rate for a currency on a date. Injectable so tests needn't install the exchange rate
+/// singleton; defaults to its cache-only exact-date rate.
 /// </param>
 public class BankLineImportService(UsdRateSource? rates = null)
 {
-
-
     public BankImportCreation CreateFromLines(CompanyData data, IReadOnlyList<BankLineResolution> resolutions, bool linkToBankLine = true)
     {
         var creation = new BankImportCreation();

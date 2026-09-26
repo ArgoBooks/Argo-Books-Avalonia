@@ -22,8 +22,8 @@ public abstract class IntegrationImportCreation
     public DateTime? PreviousSyncTime { get; set; }
     public DateTime? NewSyncTime { get; set; }
 
-    public CounterSnapshot Pre { get; set; }
-    public CounterSnapshot Post { get; set; }
+    public IdCounters Pre { get; set; } = new();
+    public IdCounters Post { get; set; } = new();
 
     public int RevenuesCreated => Revenues.Count;
     public int ExpensesCreated => Expenses.Count;
@@ -67,7 +67,7 @@ public abstract class IntegrationImportCreation
         ForgetPendingConversions(data);
         UndoIntegrationState(data);
 
-        Pre.RewindTo(data.IdCounters, Post);
+        data.IdCounters.RewindTo(Pre, Post);
         data.MarkAsModified();
     }
 
@@ -93,7 +93,7 @@ public abstract class IntegrationImportCreation
 
         RedoIntegrationState(data);
 
-        Post.RaiseTo(data.IdCounters);
+        data.IdCounters.RaiseTo(Post);
         data.MarkAsModified();
     }
 
@@ -102,45 +102,6 @@ public abstract class IntegrationImportCreation
 
     /// <summary>Puts the integration's own sync state back to how the import left it.</summary>
     protected abstract void RedoIntegrationState(CompanyData data);
-
-    /// <summary>
-    /// Snapshot of the id counters an integration import can bump, so undo/redo can put them back.
-    /// A counter an import never touches is the same before and after, so undo and redo leave it be.
-    /// </summary>
-    public readonly record struct CounterSnapshot(
-        int Revenue, int Expense, int Customer, int Supplier, int Product, int Category, int Return)
-    {
-        public static CounterSnapshot From(IdCounters c) =>
-            new(c.Revenue, c.Expense, c.Customer, c.Supplier, c.Product, c.Category, c.Return);
-
-        /// <summary>
-        /// Back to this snapshot, but only for a counter still where the import left it. One that
-        /// has moved on issued an id to a record the undo does not remove, and lowering it would
-        /// issue that id again.
-        /// </summary>
-        public void RewindTo(IdCounters c, CounterSnapshot post)
-        {
-            if (c.Revenue == post.Revenue) c.Revenue = Revenue;
-            if (c.Expense == post.Expense) c.Expense = Expense;
-            if (c.Customer == post.Customer) c.Customer = Customer;
-            if (c.Supplier == post.Supplier) c.Supplier = Supplier;
-            if (c.Product == post.Product) c.Product = Product;
-            if (c.Category == post.Category) c.Category = Category;
-            if (c.Return == post.Return) c.Return = Return;
-        }
-
-        /// <summary>Up to this snapshot, never down: an id issued while the import was undone stays issued.</summary>
-        public void RaiseTo(IdCounters c)
-        {
-            c.Revenue = Math.Max(c.Revenue, Revenue);
-            c.Expense = Math.Max(c.Expense, Expense);
-            c.Customer = Math.Max(c.Customer, Customer);
-            c.Supplier = Math.Max(c.Supplier, Supplier);
-            c.Product = Math.Max(c.Product, Product);
-            c.Category = Math.Max(c.Category, Category);
-            c.Return = Math.Max(c.Return, Return);
-        }
-    }
 
     /// <summary>
     /// Withdraw the currency-conversion entries this import queued, from the company

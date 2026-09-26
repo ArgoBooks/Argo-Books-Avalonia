@@ -19,7 +19,7 @@ public class PendingConversionServiceTests
     public PendingConversionServiceTests()
     {
         // The queues these tests build must not become the shared one other tests mirror into.
-        _ = PendingConversionService.Instance ?? new PendingConversionService(new MockPlatform());
+        _ = PendingConversionService.Instance ?? new PendingConversionService();
     }
 
     /// <summary>
@@ -48,8 +48,8 @@ public class PendingConversionServiceTests
             OriginalCurrency = "EUR", TransactionDate = date, Total = 100m
         });
 
-        var svc = new PendingConversionService(new MockPlatform(), exchangeRateService: ex);
-        await svc.ReconcileWithCompanyDataAsync(data);
+        var svc = new PendingConversionService(exchangeRateService: ex);
+        svc.ReconcileWithCompanyData(data);
         Assert.Equal(2, svc.PendingCount);
 
         await svc.ProcessPendingConversionsAsync(data);
@@ -85,11 +85,11 @@ public class PendingConversionServiceTests
             expense.Total = 2200m;
             data.PendingConversions.Clear();
             data.PendingConversions.Add(Row("E1", 2200m, date));
-            svc!.MirrorAsync(data, [new PendingConversionKey("E1", "Expense")]).GetAwaiter().GetResult();
+            svc!.Mirror(data, [new PendingConversionKey("E1", "Expense")]);
         });
         var ex = new ExchangeRateService(new MockPlatform(), new HttpClient(handler));
-        svc = new PendingConversionService(new MockPlatform(), exchangeRateService: ex);
-        await svc.ReconcileWithCompanyDataAsync(data);
+        svc = new PendingConversionService(exchangeRateService: ex);
+        svc.ReconcileWithCompanyData(data);
 
         await svc.ProcessPendingConversionsAsync(data);
 
@@ -132,11 +132,11 @@ public class PendingConversionServiceTests
             if (++requests != 2) return;
             expense.IsPendingConversion = true;
             expense.TotalUSD = 0m;
-            svc!.MirrorAsync(data, [entry.Key]).GetAwaiter().GetResult();
+            svc!.Mirror(data, [entry.Key]);
         });
         var ex = new ExchangeRateService(new MockPlatform(), new HttpClient(handler));
-        svc = new PendingConversionService(new MockPlatform(), exchangeRateService: ex);
-        await svc.ReconcileWithCompanyDataAsync(data);
+        svc = new PendingConversionService(exchangeRateService: ex);
+        svc.ReconcileWithCompanyData(data);
 
         await svc.ProcessPendingConversionsAsync(data);
 
@@ -172,15 +172,9 @@ public class PendingConversionServiceTests
         };
         data.Expenses.Add(expense);
 
-        var svc = new PendingConversionService(new MockPlatform(), exchangeRateService: ex);
-        await svc.AddPendingConversionAsync(new PendingConversion
-        {
-            TransactionId = "E1",
-            TransactionType = "Expense",
-            Total = 100m,
-            OriginalCurrency = "EUR",
-            TransactionDate = past
-        });
+        UsdConversion.Apply(data, expense, rate: null);
+        var svc = new PendingConversionService(exchangeRateService: ex);
+        svc.ReconcileWithCompanyData(data);
 
         await svc.ProcessPendingConversionsAsync(data);
 
@@ -202,27 +196,21 @@ public class PendingConversionServiceTests
         {
             Id = "INV-1",
             OriginalCurrency = "EUR",
+            IssueDate = date,
             Total = 100m,
-            AmountPaid = 100m,
-            Balance = 0m,            // fully paid in its own currency
-            IsPendingConversion = true,
-            TotalUSD = 0m,
-            BalanceUSD = 0m
+            Balance = 100m
         };
         data.Invoices.Add(invoice);
-        // A USD payment that fully covers the invoice in USD terms.
+        // Queued with its balance as imported, BEFORE the payment.
+        UsdConversion.Apply(data, invoice, rate: null);
+
+        // Then fully paid in its own currency, by a USD payment that covers it in USD terms too.
+        invoice.AmountPaid = 100m;
+        invoice.Balance = 0m;
         data.Payments.Add(new Payment { Id = "P1", InvoiceId = "INV-1", Amount = 100m, OriginalCurrency = "USD" });
 
-        var svc = new PendingConversionService(new MockPlatform(), exchangeRateService: ex);
-        await svc.AddPendingConversionAsync(new PendingConversion
-        {
-            TransactionId = "INV-1",
-            TransactionType = "Invoice",
-            Total = 100m,
-            Balance = 100m,          // snapshot captured at import, BEFORE the payment
-            OriginalCurrency = "EUR",
-            TransactionDate = date
-        });
+        var svc = new PendingConversionService(exchangeRateService: ex);
+        svc.ReconcileWithCompanyData(data);
 
         await svc.ProcessPendingConversionsAsync(data);
 
@@ -238,7 +226,7 @@ public class PendingConversionServiceTests
     /// is what gets converted.
     /// </summary>
     [Fact]
-    public async Task MirrorAsync_StaleQueuedAmount_IsReplacedBeforeItConverts()
+    public async Task Mirror_StaleQueuedAmount_IsReplacedBeforeItConverts()
     {
         var date = DateTime.Today.AddMonths(-2);
         var ex = new ExchangeRateService(new MockPlatform(), new HttpClient(new AlwaysEurHandler(0.9m)));
@@ -246,11 +234,13 @@ public class PendingConversionServiceTests
         var expense = new Expense { Id = "E1", Total = 2200m, OriginalCurrency = "EUR", Date = date, IsPendingConversion = true };
         data.Expenses.Add(expense);
 
-        var svc = new PendingConversionService(new MockPlatform(), exchangeRateService: ex);
-        await svc.AddPendingConversionAsync(Row("E1", 2000m, date));
+        data.PendingConversions.Add(Row("E1", 2000m, date));
+        var svc = new PendingConversionService(exchangeRateService: ex);
+        svc.ReconcileWithCompanyData(data);
+        data.PendingConversions.Clear();
         data.PendingConversions.Add(Row("E1", 2200m, date));
 
-        await svc.MirrorAsync(data, [new PendingConversionKey("E1", "Expense")]);
+        svc.Mirror(data, [new PendingConversionKey("E1", "Expense")]);
         await svc.ProcessPendingConversionsAsync(data);
 
         var rate = await ex.GetExchangeRateAsync("EUR", "USD", date);
@@ -259,18 +249,22 @@ public class PendingConversionServiceTests
 
     /// <summary>Processing does not check the row is still wanted, so one left behind overwrites.</summary>
     [Fact]
-    public async Task MirrorAsync_RowTheCompanyNoLongerQueues_IsForgotten()
+    public async Task Mirror_RowTheCompanyNoLongerQueues_IsForgotten()
     {
         var date = DateTime.Today.AddMonths(-2);
         var ex = new ExchangeRateService(new MockPlatform(), new HttpClient(new AlwaysEurHandler(0.9m)));
         var data = new CompanyData();
-        var expense = new Expense { Id = "E1", Total = 2200m, OriginalCurrency = "EUR", Date = date, TotalUSD = 1980m };
+        var expense = new Expense { Id = "E1", Total = 2200m, OriginalCurrency = "EUR", Date = date, IsPendingConversion = true };
         data.Expenses.Add(expense);
+        data.PendingConversions.Add(Row("E1", 2000m, date));
+        var svc = new PendingConversionService(exchangeRateService: ex);
+        svc.ReconcileWithCompanyData(data);
 
-        var svc = new PendingConversionService(new MockPlatform(), exchangeRateService: ex);
-        await svc.AddPendingConversionAsync(Row("E1", 2000m, date));
-
-        await svc.MirrorAsync(data, [new PendingConversionKey("E1", "Expense")]);
+        // Converted and taken off the company's queue some other way, such as an edit made online.
+        expense.IsPendingConversion = false;
+        expense.TotalUSD = 1980m;
+        data.PendingConversions.Clear();
+        svc.Mirror(data, [new PendingConversionKey("E1", "Expense")]);
         await svc.ProcessPendingConversionsAsync(data);
 
         Assert.Equal(1980m, expense.TotalUSD);

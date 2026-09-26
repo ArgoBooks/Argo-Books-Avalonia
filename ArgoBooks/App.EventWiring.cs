@@ -226,7 +226,7 @@ public partial class App
                     // Reconcile and process any pending currency conversions
                     if (PendingConversionService != null && CompanyManager.CompanyData != null)
                     {
-                        await PendingConversionService.ReconcileWithCompanyDataAsync(CompanyManager.CompanyData);
+                        PendingConversionService.ReconcileWithCompanyData(CompanyManager.CompanyData);
                         await PendingConversionService.ProcessPendingConversionsAsync(CompanyManager.CompanyData);
                     }
 

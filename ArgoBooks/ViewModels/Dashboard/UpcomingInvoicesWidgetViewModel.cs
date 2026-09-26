@@ -81,8 +81,11 @@ public partial class UpcomingInvoicesWidgetViewModel : WidgetViewModelBase
             InvoiceStatus.Overdue
         };
 
+        // Overdue is worked out, never read off a saved status (docs/Calculations.md §6).
         var items = data.Invoices
-            .Where(inv => unpaidStatuses.Contains(inv.Status) && inv.DueDate.Date <= cutoff)
+            .Where(inv => inv.IsOverdue
+                          || (unpaidStatuses.Contains(inv.Status) && inv.Balance > 0
+                              && inv.DueDate.Date >= today && inv.DueDate.Date <= cutoff))
             .OrderBy(inv => inv.DueDate)
             .Select(inv =>
             {
@@ -100,8 +103,8 @@ public partial class UpcomingInvoicesWidgetViewModel : WidgetViewModelBase
                     amount,
                     dueDateStr,
                     daysUntilDue,
-                    IsOverdue: daysUntilDue < 0,
-                    IsUrgent: daysUntilDue is >= 0 and <= 3);
+                    IsOverdue: inv.IsOverdue,
+                    IsUrgent: !inv.IsOverdue && daysUntilDue is >= 0 and <= 3);
             })
             .ToList();
 

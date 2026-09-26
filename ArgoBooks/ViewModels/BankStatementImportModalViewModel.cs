@@ -236,7 +236,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
         }).ToList();
 
         // Snapshot id counters before CreateFromLines bumps them.
-        var preCounters = new IdCounterSnapshot(data.IdCounters);
+        var preCounters = data.IdCounters.Clone();
 
         // linkToBankLine: false -> plain transactions, no bank-match flag.
         var creation = new BankLineImportService().CreateFromLines(data, resolutions, linkToBankLine: false);
@@ -244,11 +244,11 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
         // Learn a rule per line (merchant -> product + counterparty) so the next import is pre-filled.
         var ruleCaptures = LearnRules(data, resolutions);
 
-        var postCounters = new IdCounterSnapshot(data.IdCounters);
+        var postCounters = data.IdCounters.Clone();
 
         App.UndoRedoManager.RecordAction(new DelegateAction(
             "Import bank statement".Translate(),
-            () => UndoImport(data, creation, ruleCaptures, preCounters),
+            () => UndoImport(data, creation, ruleCaptures, preCounters, postCounters),
             () => RedoImport(data, creation, ruleCaptures, postCounters)));
 
         App.CompanyManager?.MarkAsChanged();
@@ -513,7 +513,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
     // -----------------------------------------------------------------------
 
     private void UndoImport(CompanyData data, BankImportCreation creation,
-        List<RuleLearningCapture> ruleCaptures, IdCounterSnapshot preCounters)
+        List<RuleLearningCapture> ruleCaptures, IdCounters preCounters, IdCounters postCounters)
     {
         creation.Undo(data);
 
@@ -537,13 +537,13 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
             }
         }
 
-        preCounters.RestoreTo(data.IdCounters);
+        data.IdCounters.RewindTo(preCounters, postCounters);
         data.MarkAsModified();
         App.CompanyManager?.MarkAsChanged();
     }
 
     private void RedoImport(CompanyData data, BankImportCreation creation,
-        List<RuleLearningCapture> ruleCaptures, IdCounterSnapshot postCounters)
+        List<RuleLearningCapture> ruleCaptures, IdCounters postCounters)
     {
         creation.Redo(data);
 
@@ -564,7 +564,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
             }
         }
 
-        postCounters.RestoreTo(data.IdCounters);
+        data.IdCounters.RaiseTo(postCounters);
         data.MarkAsModified();
         App.CompanyManager?.MarkAsChanged();
     }
@@ -933,7 +933,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
     }
 
     // -----------------------------------------------------------------------
-    // Nested helper types (rule capture, id-counter snapshot)
+    // Nested helper types (rule capture)
     // -----------------------------------------------------------------------
 
     private sealed record RulePriorState(
@@ -956,36 +956,6 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
         BankCategoryRule Rule,
         RulePriorState? Prior,
         RulePostState Post);
-
-    private sealed class IdCounterSnapshot
-    {
-        private readonly int _expense;
-        private readonly int _revenue;
-        private readonly int _supplier;
-        private readonly int _customer;
-        private readonly int _category;
-        private readonly int _product;
-
-        public IdCounterSnapshot(IdCounters counters)
-        {
-            _expense = counters.Expense;
-            _revenue = counters.Revenue;
-            _supplier = counters.Supplier;
-            _customer = counters.Customer;
-            _category = counters.Category;
-            _product = counters.Product;
-        }
-
-        public void RestoreTo(IdCounters counters)
-        {
-            counters.Expense = _expense;
-            counters.Revenue = _revenue;
-            counters.Supplier = _supplier;
-            counters.Customer = _customer;
-            counters.Category = _category;
-            counters.Product = _product;
-        }
-    }
 }
 
 /// <summary>

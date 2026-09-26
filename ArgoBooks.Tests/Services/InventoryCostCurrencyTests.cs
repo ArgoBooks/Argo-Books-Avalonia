@@ -31,7 +31,7 @@ public class InventoryCostCurrencyTests
     public InventoryCostCurrencyTests()
     {
         // The queues these tests convert with must not become the shared one the stock service mirrors into.
-        _ = PendingConversionService.Instance ?? new PendingConversionService(new MockPlatformService());
+        _ = PendingConversionService.Instance ?? new PendingConversionService();
     }
 
     private static CompanyData CadCompany()
@@ -410,8 +410,8 @@ public class InventoryCostCurrencyTests
     private static async Task ConvertQueueAsync(CompanyData data)
     {
         var rates = new ExchangeRateService(new MockPlatformService(), new HttpClient(new FixedRatesHandler()));
-        var queue = new PendingConversionService(new MockPlatformService(), exchangeRateService: rates);
-        await queue.ReconcileWithCompanyDataAsync(data);
+        var queue = new PendingConversionService(exchangeRateService: rates);
+        queue.ReconcileWithCompanyData(data);
         await queue.ProcessPendingConversionsAsync(data);
     }
 
@@ -422,9 +422,8 @@ public class InventoryCostCurrencyTests
     private static async Task ProcessQueueAsync(CompanyData data)
     {
         var rates = new ExchangeRateService(new MockPlatformService(), new HttpClient(new FixedRatesHandler()));
-        var queue = new PendingConversionService(new MockPlatformService(), exchangeRateService: rates);
-        foreach (var entry in data.PendingConversions.ToList())
-            await queue.AddPendingConversionAsync(entry);
+        var queue = new PendingConversionService(exchangeRateService: rates);
+        queue.Mirror(data, data.PendingConversions.Select(p => p.Key));
         await queue.ProcessPendingConversionsAsync(data);
     }
 

@@ -126,12 +126,12 @@ public class TransactionEditCurrencyTests : ModalViewModelTestBase
         Assert.Equal(("EUR", 100m, true), (expense.OriginalCurrency, expense.Total, expense.IsPendingConversion));
         Assert.Equal([30m, 20m], expense.LineItems.Select(li => li.UnitPrice));
         Assert.Equal(("EUR", 100m), Queued(expense.Id));
-        Assert.Equal(("EUR", 100m), await Queued(service, expense.Id));
+        Assert.Equal(("EUR", 100m), Queued(service, expense.Id));
 
         Undo();
         Assert.Equal(before, Snapshot(expense));
         Assert.Equal((null, null), Queued(expense.Id));
-        Assert.Equal((null, null), await Queued(service, expense.Id));
+        Assert.Equal((null, null), Queued(service, expense.Id));
     }
 
     [Theory]
@@ -150,12 +150,12 @@ public class TransactionEditCurrencyTests : ModalViewModelTestBase
         Assert.Equal(("EUR", 100m, true), (revenue.OriginalCurrency, revenue.Total, revenue.IsPendingConversion));
         Assert.Equal([30m, 20m], revenue.LineItems.Select(li => li.UnitPrice));
         Assert.Equal(("EUR", 100m), Queued(revenue.Id));
-        Assert.Equal(("EUR", 100m), await Queued(service, revenue.Id));
+        Assert.Equal(("EUR", 100m), Queued(service, revenue.Id));
 
         Undo();
         Assert.Equal(before, Snapshot(revenue));
         Assert.Equal((null, null), Queued(revenue.Id));
-        Assert.Equal((null, null), await Queued(service, revenue.Id));
+        Assert.Equal((null, null), Queued(service, revenue.Id));
     }
 
     [Fact]
@@ -242,11 +242,9 @@ public class TransactionEditCurrencyTests : ModalViewModelTestBase
         return (entry?.OriginalCurrency, entry?.Total);
     }
 
-    private static async Task<(string? Currency, decimal? Total)> Queued(PendingConversionService service, string id)
+    private static (string? Currency, decimal? Total) Queued(PendingConversionService service, string id)
     {
-        var probe = new CompanyData();
-        await service.ReconcileWithCompanyDataAsync(probe);
-        var entry = probe.PendingConversions.SingleOrDefault(p => p.TransactionId == id);
+        var entry = service.Entries.SingleOrDefault(p => p.TransactionId == id);
         return (entry?.OriginalCurrency, entry?.Total);
     }
 
@@ -265,9 +263,9 @@ public class TransactionEditCurrencyTests : ModalViewModelTestBase
         await vm.SaveTransactionCommand.ExecuteAsync(null);
 
         Undo();
-        var afterUndo = (QueuedTotal(id), await QueuedTotal(service, id));
+        var afterUndo = (QueuedTotal(id), QueuedTotal(service, id));
         Redo();
-        var afterRedo = (QueuedTotal(id), await QueuedTotal(service, id));
+        var afterRedo = (QueuedTotal(id), QueuedTotal(service, id));
 
         Assert.Equal((100m, 100m), afterUndo);
         Assert.Equal((250m, 250m), afterRedo);
@@ -288,9 +286,9 @@ public class TransactionEditCurrencyTests : ModalViewModelTestBase
         await vm.SaveTransactionCommand.ExecuteAsync(null);
 
         Undo();
-        var afterUndo = (QueuedTotal(id), await QueuedTotal(service, id));
+        var afterUndo = (QueuedTotal(id), QueuedTotal(service, id));
         Redo();
-        var afterRedo = (QueuedTotal(id), await QueuedTotal(service, id));
+        var afterRedo = (QueuedTotal(id), QueuedTotal(service, id));
 
         Assert.Equal((100m, 100m), afterUndo);
         Assert.Equal((250m, 250m), afterRedo);
@@ -315,7 +313,7 @@ public class TransactionEditCurrencyTests : ModalViewModelTestBase
     {
         UseNoExchangeRates(); // puts the shared rate service back after the test
         RatesInstance.SetValue(null, new ExchangeRateService(new NoDiskPlatform(), new HttpClient(handler)));
-        return PendingConversionService.Instance ?? new PendingConversionService(new NoDiskPlatform());
+        return PendingConversionService.Instance ?? new PendingConversionService();
     }
 
     private static void FillLine(TransactionLineItemBase line, IEnumerable<ProductOption> options, decimal unitPrice)
@@ -328,16 +326,9 @@ public class TransactionEditCurrencyTests : ModalViewModelTestBase
     private decimal? QueuedTotal(string id) =>
         Company.PendingConversions.SingleOrDefault(p => p.TransactionId == id)?.Total;
 
-    /// <summary>
-    /// The service's own copy of the queue: reconciling into an empty company copies all of it
-    /// across, since none of those rows exist there to have been converted.
-    /// </summary>
-    private static async Task<decimal?> QueuedTotal(PendingConversionService service, string id)
-    {
-        var probe = new CompanyData();
-        await service.ReconcileWithCompanyDataAsync(probe);
-        return probe.PendingConversions.SingleOrDefault(p => p.TransactionId == id)?.Total;
-    }
+    /// <summary>The service's own copy of the queue, which is what it converts.</summary>
+    private static decimal? QueuedTotal(PendingConversionService service, string id) =>
+        service.Entries.SingleOrDefault(p => p.TransactionId == id)?.Total;
 
     private sealed class NoRatesHandler : HttpMessageHandler
     {

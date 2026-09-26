@@ -10,6 +10,7 @@ using ArgoBooks.Core.Services;
 using ArgoBooks.Helpers;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
+using ArgoBooks.ViewModels.Dashboard;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LiveChartsCore;
@@ -2232,15 +2233,11 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
 
         // Update properties (convert each transaction at its OWN date per Calculations.md Rule 3a).
         // The same figures as the dashboard cards, showing Pending while a rate is missing.
-        TotalPurchases = CurrencyService.FormatSumDisplayFromUSD(
-            data.Expenses.Where(e => e.Date >= StartDate && e.Date <= EndDate),
-            e => e.Total, e => e.OriginalCurrency, e => e.TotalUSD, e => e.Date);
+        TotalPurchases = DashboardCalculations.FormatExpenses(data, StartDate, EndDate);
         PurchasesChangeValue = hasPrevPeriodData && prevPurchasesUSD > 0 ? (double)purchasesChange : null;
         PurchasesChangeText = hasPrevPeriodData && prevPurchasesUSD > 0 ? $"{Math.Abs(purchasesChange):F1}%" : null;
 
-        TotalRevenue = CurrencyService.FormatTotalOrPending(convert =>
-            RevenueAggregator.SumCollectedRevenueDisplay(data.Revenues, StartDate, EndDate, convert)
-            - RefundAggregator.GetRefundedInDateRangeDisplay(data.Payments, StartDate, EndDate, convert));
+        TotalRevenue = DashboardCalculations.FormatRevenue(data, StartDate, EndDate);
         RevenueChangeValue = hasPrevPeriodData && prevSalesUSD > 0 ? (double)revenueChange : null;
         RevenueChangeText = hasPrevPeriodData && prevSalesUSD > 0 ? $"{Math.Abs(revenueChange):F1}%" : null;
 

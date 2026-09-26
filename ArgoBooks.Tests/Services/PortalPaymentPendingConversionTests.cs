@@ -59,8 +59,8 @@ public class PortalPaymentPendingConversionTests : ModalViewModelTestBase
 
         // The rates arrive, and the queue converts the invoice and the payment.
         var rates = new ExchangeRateService(new NoDiskPlatform(), new HttpClient(new EurHandler(0.9m)));
-        var queue = new PendingConversionService(new NoDiskPlatform(), exchangeRateService: rates);
-        await queue.ReconcileWithCompanyDataAsync(data);
+        var queue = new PendingConversionService(exchangeRateService: rates);
+        queue.ReconcileWithCompanyData(data);
         await queue.ProcessPendingConversionsAsync(data);
 
         Assert.False(payment.IsPendingConversion);

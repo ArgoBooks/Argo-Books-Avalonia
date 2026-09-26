@@ -1208,10 +1208,6 @@ public class SpreadsheetImportService
         UsdConversion.Apply(data, payment, RateOn(code, payment.Date));
     }
 
-    /// <summary>Per-row currency for an Invoice, else <paramref name="currentCurrency"/> (an updated record's own), else the company currency.</summary>
-    private void ApplyInvoiceCurrency(Invoice invoice, int rowIndex, CompanyData data, string? currentCurrency = null)
-        => ApplyInvoiceCurrencyCode(invoice, Tier1RowCurrency(rowIndex) ?? currentCurrency ?? CompanyCurrency(data), data);
-
     /// <summary>
     /// Stamps an Invoice with <paramref name="code"/> and stores its Total and Balance in USD at its
     /// exact issue date, or leaves it pending in the conversion queue. Shared by the Tier 1 and Tier 2
@@ -1536,6 +1532,20 @@ public class SpreadsheetImportService
         var jsonStr = entityJson.GetRawText();
         var opts = ImportJsonOptions;
         var skipExisting = options?.SkipExistingRecords == true;
+        var given = GivenFields(entityJson);
+
+        // An update changes only what the row gives, as the column import does; a new record takes
+        // the row as it is. Derived fields the importer works out from given ones count as given.
+        T Merge<T>(T incoming, T? existing, params string[] alsoGiven) where T : class
+        {
+            if (existing == null) return incoming;
+            var fields = new HashSet<string>(given, StringComparer.OrdinalIgnoreCase);
+            fields.UnionWith(alsoGiven);
+            return incoming.FillAbsent(existing, fields);
+        }
+
+        // Whether the row changes any of these fields, which a new record always does.
+        bool Changes(object? existing, string[] fields) => existing == null || fields.Any(given.Contains);
 
         switch (entityType)
         {
@@ -1543,9 +1553,10 @@ public class SpreadsheetImportService
                 var customer = JsonSerializer.Deserialize<Customer>(jsonStr, opts);
                 if (customer != null && !string.IsNullOrEmpty(customer.Id))
                 {
-                    customer.Name = NameOrUnknown(customer.Name);
                     var existing = data.Customers.FirstOrDefault(c => c.Id == customer.Id);
                     if (skipExisting && existing != null) return ImportEntityResult.SkippedExisting;
+                    customer = Merge(customer, existing);
+                    customer.Name = NameOrUnknown(customer.Name);
                     data.Customers.AddOrUpdate(existing, customer);
                     return existing != null ? ImportEntityResult.Updated : ImportEntityResult.Inserted;
                 }
@@ -1556,7 +1567,7 @@ public class SpreadsheetImportService
                 {
                     var existing = data.Suppliers.FirstOrDefault(s => s.Id == supplier.Id);
                     if (skipExisting && existing != null) return ImportEntityResult.SkippedExisting;
-                    data.Suppliers.AddOrUpdate(existing, supplier);
+                    data.Suppliers.AddOrUpdate(existing, Merge(supplier, existing));
                     return existing != null ? ImportEntityResult.Updated : ImportEntityResult.Inserted;
                 }
                 return ImportEntityResult.Failed;
@@ -1564,11 +1575,17 @@ public class SpreadsheetImportService
                 var product = JsonSerializer.Deserialize<Product>(jsonStr, opts);
                 if (product != null && !string.IsNullOrEmpty(product.Id))
                 {
-                    // Auto-create category if product has a category name but no matching category
-                    ResolveProductCategory(data, product, entityJson);
-
                     var existing = data.Products.FirstOrDefault(p => p.Id == product.Id);
                     if (skipExisting && existing != null) return ImportEntityResult.SkippedExisting;
+
+                    // A category named by the row replaces the one the product had.
+                    var categoryGiven = given.Contains("categoryName") || given.Contains("categoryId");
+                    product = Merge(product, existing, categoryGiven ? ["categoryId"] : []);
+
+                    // Auto-create category if product has a category name but no matching category
+                    if (existing == null || categoryGiven)
+                        ResolveProductCategory(data, product, entityJson);
+
                     data.Products.AddOrUpdate(existing, product);
                     return existing != null ? ImportEntityResult.Updated : ImportEntityResult.Inserted;
                 }
@@ -1591,21 +1608,31 @@ public class SpreadsheetImportService
                 {
                     var existing = data.Invoices.FirstOrDefault(i => i.Id == invoice.Id);
                     if (skipExisting && existing != null) return ImportEntityResult.SkippedExisting;
+                    invoice = Merge(invoice, existing);
+
+                    // The currency first: the invoice's payments are matched to it by currency.
+                    var priced = Changes(existing, InvoicePriceFields);
+                    if (priced)
+                        invoice.OriginalCurrency = ExtractRowCurrency(entityJson, options) ?? existing?.OriginalCurrency ?? CompanyCurrency(data);
 
                     var givenStatus = ParseImportedInvoiceStatus(JsonText(entityJson, "status"));
                     SetImportedBalance(invoice,
-                        HasJsonValue(entityJson, "amountPaid") ? invoice.AmountPaid : null,
-                        HasJsonValue(entityJson, "balance") ? invoice.Balance : null,
-                        recompute: true, givenStatus, data.Payments);
-                    SetImportedStatus(invoice, givenStatus ?? InvoiceStatus.Draft, amountsSet: true, statusGiven: givenStatus != null);
+                        given.Contains("amountPaid") ? invoice.AmountPaid : null,
+                        given.Contains("balance") ? invoice.Balance : null,
+                        recompute: Changes(existing, ["amountPaid", "total"]), givenStatus, data.Payments);
+                    if (Changes(existing, ["status", "amountPaid", "balance", "total"]))
+                        SetImportedStatus(invoice, givenStatus ?? existing?.Status ?? InvoiceStatus.Draft,
+                            amountsSet: Changes(existing, ["amountPaid", "balance", "total"]),
+                            statusKept: givenStatus != null || existing != null);
 
-                    // Convert Total/Balance at the exact issue date from the row's own currency, or
-                    // the company currency when it names none, deferring (pending + enqueue) when
-                    // unpriceable. Shared with Tier 1.
-                    ApplyInvoiceCurrencyCode(invoice, ExtractRowCurrency(entityJson, options) ?? CompanyCurrency(data), data);
+                    // Convert Total/Balance at the exact issue date, deferring (pending + enqueue)
+                    // when unpriceable. Left as it is when nothing it is priced from changed.
+                    if (priced)
+                        ApplyInvoiceCurrencyCode(invoice, invoice.OriginalCurrency, data);
 
                     // Resolve customer reference by name, else create a placeholder
-                    invoice.CustomerId = EnsureCustomerExists(data, invoice.CustomerId, refContext) ?? invoice.CustomerId;
+                    if (Changes(existing, ["customerId"]))
+                        invoice.CustomerId = EnsureCustomerExists(data, invoice.CustomerId, refContext) ?? invoice.CustomerId;
 
                     _invoicesAwaitingRevenue.Add(data.Invoices.AddOrUpdate(existing, invoice));
 
@@ -1621,23 +1648,27 @@ public class SpreadsheetImportService
                     var existing = data.Expenses.FirstOrDefault(e => e.Id == expense.Id);
                     if (skipExisting && existing != null) return ImportEntityResult.SkippedExisting;
 
-                    // Convert each amount to USD at the transaction's EXACT date, from the row's own
-                    // currency or else the company's. Future-dated/unpriceable rows become pending.
-                    ApplyTransactionCurrencyCode(expense, ExtractRowCurrency(entityJson, options) ?? CompanyCurrency(data), data);
-
-                    // Resolve supplier reference by name, else create a placeholder
-                    if (!string.IsNullOrEmpty(expense.SupplierId))
-                        expense.SupplierId = EnsureSupplierExists(data, expense.SupplierId, refContext);
-
                     // The AI emits quantity + unit price but not the pre-tax Amount, so derive it
                     // (Quantity defaults to 1) before building the line item, so the line-item
-                    // subtotal reconciles with the stored Total.
-                    if (expense.Amount == 0)
+                    // subtotal agrees with the stored Total.
+                    var expenseAmountDerived = !given.Contains("amount") && Changes(existing, ["quantity", "unitPrice"]);
+                    expense = Merge(expense, existing, expenseAmountDerived ? ["amount"] : []);
+                    if (expenseAmountDerived || expense.Amount == 0)
                         expense.Amount = expense.Quantity * expense.UnitPrice;
+
+                    // Convert each amount to USD at the transaction's EXACT date, from the row's own
+                    // currency or else the record's or the company's. Future-dated/unpriceable rows
+                    // become pending. Left as it is when nothing it is priced from changed.
+                    if (Changes(existing, TransactionPriceFields))
+                        ApplyTransactionCurrencyCode(expense, ExtractRowCurrency(entityJson, options) ?? existing?.OriginalCurrency ?? CompanyCurrency(data), data);
+
+                    // Resolve supplier reference by name, else create a placeholder
+                    if (!string.IsNullOrEmpty(expense.SupplierId) && Changes(existing, ["supplierId"]))
+                        expense.SupplierId = EnsureSupplierExists(data, expense.SupplierId, refContext);
 
                     // Link product by name and auto-create if missing
                     var expProductName = expense.Description;
-                    if (!string.IsNullOrEmpty(expProductName))
+                    if (!string.IsNullOrEmpty(expProductName) && Changes(existing, ["description"]))
                     {
                         // Report category (mixed-report rescue emits this; normal rows omit it).
                         var expCategory = entityJson.TryGetProperty("categoryName", out var ec) ? ec.GetString() : null;
@@ -1678,25 +1709,29 @@ public class SpreadsheetImportService
                     var existing = data.Revenues.FirstOrDefault(r => r.Id == revenue.Id);
                     if (skipExisting && existing != null) return ImportEntityResult.SkippedExisting;
 
+                    // The AI emits quantity + unit price but not the pre-tax Amount, so derive it
+                    // (Quantity defaults to 1) before building the line item.
+                    var revenueAmountDerived = !given.Contains("amount") && Changes(existing, ["quantity", "unitPrice"]);
+                    revenue = Merge(revenue, existing, revenueAmountDerived ? ["amount"] : []);
+                    if (revenueAmountDerived || revenue.Amount == 0)
+                        revenue.Amount = revenue.Quantity * revenue.UnitPrice;
+
                     // PaymentStatus is already normalized by the enum's JSON
                     // converter (legacy typos → Paid fallback), no separate call.
                     // Convert each amount to USD at the transaction's EXACT date, from the row's own
-                    // currency or else the company's. Future-dated/unpriceable rows become pending.
-                    ApplyTransactionCurrencyCode(revenue, ExtractRowCurrency(entityJson, options) ?? CompanyCurrency(data), data);
+                    // currency or else the record's or the company's. Future-dated/unpriceable rows
+                    // become pending. Left as it is when nothing it is priced from changed.
+                    if (Changes(existing, TransactionPriceFields))
+                        ApplyTransactionCurrencyCode(revenue, ExtractRowCurrency(entityJson, options) ?? existing?.OriginalCurrency ?? CompanyCurrency(data), data);
 
                     // Resolve customer reference by name, else create a placeholder
-                    if (!string.IsNullOrEmpty(revenue.CustomerId))
+                    if (!string.IsNullOrEmpty(revenue.CustomerId) && Changes(existing, ["customerId"]))
                         revenue.CustomerId = EnsureCustomerExists(data, revenue.CustomerId, refContext) ?? revenue.CustomerId;
-
-                    // The AI emits quantity + unit price but not the pre-tax Amount, so derive it
-                    // (Quantity defaults to 1) before building the line item.
-                    if (revenue.Amount == 0)
-                        revenue.Amount = revenue.Quantity * revenue.UnitPrice;
 
                     // Link product by name and auto-create if missing. Revenue from an invoice takes
                     // the invoice's lines instead, once every sheet is in.
                     var productName = revenue.Description;
-                    if (string.IsNullOrEmpty(revenue.InvoiceId) && !string.IsNullOrEmpty(productName))
+                    if (string.IsNullOrEmpty(revenue.InvoiceId) && !string.IsNullOrEmpty(productName) && Changes(existing, ["description"]))
                     {
                         var revCategory = entityJson.TryGetProperty("categoryName", out var rc) ? rc.GetString() : null;
                         var revenueProduct = FindProductByName(data, productName, CategoryType.Revenue)
@@ -1738,15 +1773,20 @@ public class SpreadsheetImportService
                 {
                     var existing = data.Payments.FirstOrDefault(p => p.Id == payment.Id);
                     if (skipExisting && existing != null) return ImportEntityResult.SkippedExisting;
+                    payment = Merge(payment, existing);
 
                     // Convert at the exact payment date from the row's own currency or else the
-                    // company's, deferring (pending + enqueue) when unpriceable so it self-heals
-                    // later rather than being stuck at 0. Shared with the Tier 1 path.
-                    ApplyPaymentCurrencyCode(payment, ExtractRowCurrency(entityJson, options) ?? CompanyCurrency(data), data);
+                    // record's or the company's, deferring (pending + enqueue) when unpriceable so it
+                    // self-heals later rather than being stuck at 0. Shared with the Tier 1 path.
+                    if (Changes(existing, ["date", "amount", "originalCurrency"]))
+                        ApplyPaymentCurrencyCode(payment, ExtractRowCurrency(entityJson, options) ?? existing?.OriginalCurrency ?? CompanyCurrency(data), data);
 
                     // Resolve customer reference by name, else create a placeholder
-                    payment.CustomerId = EnsureCustomerExists(data, payment.CustomerId, refContext) ?? payment.CustomerId;
-                    payment.InvoiceId = EnsureInvoiceExists(data, payment.InvoiceId, payment.CustomerId) ?? payment.InvoiceId;
+                    if (Changes(existing, ["customerId", "invoiceId"]))
+                    {
+                        payment.CustomerId = EnsureCustomerExists(data, payment.CustomerId, refContext) ?? payment.CustomerId;
+                        payment.InvoiceId = EnsureInvoiceExists(data, payment.InvoiceId, payment.CustomerId) ?? payment.InvoiceId;
+                    }
 
                     data.Payments.AddOrUpdate(existing, payment);
                     return existing != null ? ImportEntityResult.Updated : ImportEntityResult.Inserted;
@@ -1758,7 +1798,7 @@ public class SpreadsheetImportService
                 {
                     var existing = data.Categories.FirstOrDefault(c => c.Id == category.Id);
                     if (skipExisting && existing != null) return ImportEntityResult.SkippedExisting;
-                    data.Categories.AddOrUpdate(existing, category);
+                    data.Categories.AddOrUpdate(existing, Merge(category, existing));
                     return existing != null ? ImportEntityResult.Updated : ImportEntityResult.Inserted;
                 }
                 return ImportEntityResult.Failed;
@@ -1768,7 +1808,7 @@ public class SpreadsheetImportService
                 {
                     var existing = data.Locations.FirstOrDefault(l => l.Id == location.Id);
                     if (skipExisting && existing != null) return ImportEntityResult.SkippedExisting;
-                    data.Locations.AddOrUpdate(existing, location);
+                    data.Locations.AddOrUpdate(existing, Merge(location, existing));
                     return existing != null ? ImportEntityResult.Updated : ImportEntityResult.Inserted;
                 }
                 return ImportEntityResult.Failed;
@@ -1777,10 +1817,7 @@ public class SpreadsheetImportService
                 if (invItem != null && !string.IsNullOrEmpty(invItem.Id))
                 {
                     if (skipExisting && data.Inventory.Any(i => i.Id == invItem.Id)) return ImportEntityResult.SkippedExisting;
-                    var fields = entityJson.ValueKind == JsonValueKind.Object
-                        ? entityJson.EnumerateObject().Select(p => p.Name).ToHashSet(StringComparer.OrdinalIgnoreCase)
-                        : [];
-                    return InventoryStockService.ImportStockRecord(data, invItem, fields)
+                    return InventoryStockService.ImportStockRecord(data, invItem, given)
                         ? ImportEntityResult.Inserted
                         : ImportEntityResult.Updated;
                 }
@@ -1791,7 +1828,7 @@ public class SpreadsheetImportService
                 {
                     var existing = data.RentalInventory.FirstOrDefault(r => r.Id == rentalItem.Id);
                     if (skipExisting && existing != null) return ImportEntityResult.SkippedExisting;
-                    data.RentalInventory.AddOrUpdate(existing, rentalItem);
+                    data.RentalInventory.AddOrUpdate(existing, Merge(rentalItem, existing));
                     return existing != null ? ImportEntityResult.Updated : ImportEntityResult.Inserted;
                 }
                 return ImportEntityResult.Failed;
@@ -1799,10 +1836,11 @@ public class SpreadsheetImportService
                 var rental = JsonSerializer.Deserialize<RentalRecord>(jsonStr, opts);
                 if (rental != null && !string.IsNullOrEmpty(rental.Id))
                 {
-                    if (!string.IsNullOrEmpty(rental.CustomerId))
-                        rental.CustomerId = EnsureCustomerExists(data, rental.CustomerId, refContext) ?? rental.CustomerId;
                     var existing = data.Rentals.FirstOrDefault(r => r.Id == rental.Id);
                     if (skipExisting && existing != null) return ImportEntityResult.SkippedExisting;
+                    rental = Merge(rental, existing);
+                    if (!string.IsNullOrEmpty(rental.CustomerId) && Changes(existing, ["customerId"]))
+                        rental.CustomerId = EnsureCustomerExists(data, rental.CustomerId, refContext) ?? rental.CustomerId;
                     data.Rentals.AddOrUpdate(existing, rental);
                     return existing != null ? ImportEntityResult.Updated : ImportEntityResult.Inserted;
                 }
@@ -1811,12 +1849,13 @@ public class SpreadsheetImportService
                 var recurring = JsonSerializer.Deserialize<RecurringInvoice>(jsonStr, opts);
                 if (recurring != null && !string.IsNullOrEmpty(recurring.Id))
                 {
-                    if (!string.IsNullOrEmpty(recurring.CustomerId))
+                    var existing = data.RecurringInvoices.FirstOrDefault(r => r.Id == recurring.Id);
+                    if (skipExisting && existing != null) return ImportEntityResult.SkippedExisting;
+                    recurring = Merge(recurring, existing);
+                    if (!string.IsNullOrEmpty(recurring.CustomerId) && Changes(existing, ["customerId"]))
                         recurring.CustomerId = EnsureCustomerExists(data, recurring.CustomerId, refContext) ?? recurring.CustomerId;
                     if (recurring.Status == default)
                         recurring.Status = RecurringInvoiceStatus.Active;
-                    var existing = data.RecurringInvoices.FirstOrDefault(r => r.Id == recurring.Id);
-                    if (skipExisting && existing != null) return ImportEntityResult.SkippedExisting;
                     data.RecurringInvoices.AddOrUpdate(existing, recurring);
                     return existing != null ? ImportEntityResult.Updated : ImportEntityResult.Inserted;
                 }
@@ -1827,7 +1866,7 @@ public class SpreadsheetImportService
                 {
                     var existing = data.StockAdjustments.FirstOrDefault(s => s.Id == adjustment.Id);
                     if (skipExisting && existing != null) return ImportEntityResult.SkippedExisting;
-                    data.StockAdjustments.AddOrUpdate(existing, adjustment);
+                    data.StockAdjustments.AddOrUpdate(existing, Merge(adjustment, existing));
                     return existing != null ? ImportEntityResult.Updated : ImportEntityResult.Inserted;
                 }
                 return ImportEntityResult.Failed;
@@ -1837,12 +1876,15 @@ public class SpreadsheetImportService
                 {
                     var existing = data.PurchaseOrders.FirstOrDefault(p => p.Id == po.Id);
                     if (skipExisting && existing != null) return ImportEntityResult.SkippedExisting;
+                    po = Merge(po, existing);
 
                     // Convert at the exact order date from the row's own currency or else the
-                    // company's, deferring (pending + enqueue) when unpriceable. Shared with Tier 1.
-                    ApplyPurchaseOrderCurrencyCode(po, ExtractRowCurrency(entityJson, options) ?? CompanyCurrency(data), data);
+                    // record's or the company's, deferring (pending + enqueue) when unpriceable.
+                    // Shared with Tier 1.
+                    if (Changes(existing, ["orderDate", "total", "originalCurrency"]))
+                        ApplyPurchaseOrderCurrencyCode(po, ExtractRowCurrency(entityJson, options) ?? existing?.OriginalCurrency ?? CompanyCurrency(data), data);
 
-                    if (!string.IsNullOrEmpty(po.SupplierId))
+                    if (!string.IsNullOrEmpty(po.SupplierId) && Changes(existing, ["supplierId"]))
                         po.SupplierId = EnsureSupplierExists(data, po.SupplierId, refContext) ?? po.SupplierId;
 
                     data.PurchaseOrders.AddOrUpdate(existing, po);
@@ -1888,12 +1930,13 @@ public class SpreadsheetImportService
                 var returnRecord = JsonSerializer.Deserialize<Return>(jsonStr, opts);
                 if (returnRecord != null && !string.IsNullOrEmpty(returnRecord.Id))
                 {
-                    if (!string.IsNullOrEmpty(returnRecord.CustomerId))
-                        returnRecord.CustomerId = EnsureCustomerExists(data, returnRecord.CustomerId, refContext) ?? returnRecord.CustomerId;
-                    if (!string.IsNullOrEmpty(returnRecord.SupplierId))
-                        returnRecord.SupplierId = EnsureSupplierExists(data, returnRecord.SupplierId, refContext) ?? returnRecord.SupplierId;
                     var existing = data.Returns.FirstOrDefault(r => r.Id == returnRecord.Id);
                     if (skipExisting && existing != null) return ImportEntityResult.SkippedExisting;
+                    returnRecord = Merge(returnRecord, existing);
+                    if (!string.IsNullOrEmpty(returnRecord.CustomerId) && Changes(existing, ["customerId"]))
+                        returnRecord.CustomerId = EnsureCustomerExists(data, returnRecord.CustomerId, refContext) ?? returnRecord.CustomerId;
+                    if (!string.IsNullOrEmpty(returnRecord.SupplierId) && Changes(existing, ["supplierId"]))
+                        returnRecord.SupplierId = EnsureSupplierExists(data, returnRecord.SupplierId, refContext) ?? returnRecord.SupplierId;
                     data.Returns.AddOrUpdate(existing, returnRecord);
                     return existing != null ? ImportEntityResult.Updated : ImportEntityResult.Inserted;
                 }
@@ -1904,7 +1947,7 @@ public class SpreadsheetImportService
                 {
                     var existing = data.LostDamaged.FirstOrDefault(ld => ld.Id == lostDamaged.Id);
                     if (skipExisting && existing != null) return ImportEntityResult.SkippedExisting;
-                    data.LostDamaged.AddOrUpdate(existing, lostDamaged);
+                    data.LostDamaged.AddOrUpdate(existing, Merge(lostDamaged, existing));
                     return existing != null ? ImportEntityResult.Updated : ImportEntityResult.Inserted;
                 }
                 return ImportEntityResult.Failed;
@@ -1914,9 +1957,10 @@ public class SpreadsheetImportService
                 var employee = JsonSerializer.Deserialize<Models.Payroll.Employee>(jsonStr, opts);
                 if (employee != null && !string.IsNullOrEmpty(employee.Id))
                 {
-                    employee.Name = NameOrUnknown(employee.Name);
                     var existingEmployee = data.Employees.FirstOrDefault(e => e.Id == employee.Id);
                     if (skipExisting && existingEmployee != null) return ImportEntityResult.SkippedExisting;
+                    employee = Merge(employee, existingEmployee);
+                    employee.Name = NameOrUnknown(employee.Name);
                     data.Employees.AddOrUpdate(existingEmployee, employee);
                     return existingEmployee != null ? ImportEntityResult.Updated : ImportEntityResult.Inserted;
                 }
@@ -2870,6 +2914,12 @@ public class SpreadsheetImportService
     private static readonly string[] TransactionLineColumns = ["Product", "Description", "Quantity", "Unit Price", "Tax"];
 
     private static readonly string[] InvoicePriceColumns = ["Issue Date", "Subtotal", "Tax", "Total", "Paid", "Balance", "Currency"];
+
+    // The same, as the AI import's rows name them.
+    private static readonly string[] TransactionPriceFields =
+        ["date", "quantity", "unitPrice", "amount", "taxAmount", "total", "shippingCost", "discount", "fee", "originalCurrency"];
+    private static readonly string[] InvoicePriceFields =
+        ["issueDate", "subtotal", "taxAmount", "total", "amountPaid", "balance", "originalCurrency"];
     private static readonly string[] RentalLineColumns = ["Rental Item ID", "Quantity", "Rate Type", "Rate Amount", "Security Deposit"];
 
     private static string? GetNullableString(List<object?> row, List<string> headers, string columnName) => SpreadsheetRowReader.GetNullableString(row, headers, columnName);
@@ -3005,12 +3055,18 @@ public class SpreadsheetImportService
         return null;
     }
 
-    /// <summary>Whether an AI-extracted row carries a value for <paramref name="name"/> (any case).</summary>
-    private static bool HasJsonValue(JsonElement row, string name) =>
-        row.ValueKind == JsonValueKind.Object && row.EnumerateObject().Any(p =>
-            string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase)
-            && p.Value.ValueKind is not (JsonValueKind.Null or JsonValueKind.Undefined)
-            && !(p.Value.ValueKind == JsonValueKind.String && string.IsNullOrWhiteSpace(p.Value.GetString())));
+    /// <summary>
+    /// The fields an AI-extracted row gives a value for, any case. A null or blank value gives none,
+    /// so an update leaves that field as it is.
+    /// </summary>
+    private static HashSet<string> GivenFields(JsonElement row) =>
+        row.ValueKind == JsonValueKind.Object
+            ? row.EnumerateObject()
+                .Where(p => p.Value.ValueKind is not (JsonValueKind.Null or JsonValueKind.Undefined)
+                            && !(p.Value.ValueKind == JsonValueKind.String && string.IsNullOrWhiteSpace(p.Value.GetString())))
+                .Select(p => p.Name)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase)
+            : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>An AI-extracted row's text for <paramref name="name"/> (any case), or null.</summary>
     private static string? JsonText(JsonElement row, string name) =>
@@ -3022,25 +3078,27 @@ public class SpreadsheetImportService
             : null;
 
     /// <summary>
-    /// Gives an imported invoice its status once its amounts are set. Overdue is worked out from the
-    /// due date and never saved (docs/Calculations.md §6), so a sheet saying Overdue is taken to mean
-    /// sent. A sheet that says Draft, Cancelled, Refunded or PartiallyRefunded is taken at its word
-    /// whatever the amounts, since none of those can be worked out from an amount paid. Otherwise the
-    /// amount paid decides the payment status the way a recorded payment does
-    /// (<see cref="InvoiceTotalsService.RecalculateStatus"/>): an Overdue invoice with half paid is
-    /// Partial. An update that sets only the status, such as marking a batch paid, is taken as given,
-    /// except Overdue, which is never a status of its own.
+    /// Gives an imported invoice its status once its amounts are set (docs/Calculations.md §6).
+    /// Overdue is worked out from the due date and never saved, so a sheet saying Overdue is taken to
+    /// mean sent. Draft, Cancelled, Refunded and PartiallyRefunded can't be worked out from an amount
+    /// paid, so one the sheet gives, or an existing invoice already has, is kept whatever the amounts
+    /// (<paramref name="statusKept"/>). Any other status is one the amounts decide: it starts from the
+    /// status the invoice had before any payment (Sent when it has none) and the amount paid moves it
+    /// on the way a recorded payment does (<see cref="InvoiceTotalsService.RecalculateStatus"/>), so
+    /// an Overdue invoice with half paid is Partial and one marked Paid with nothing paid is owed. An
+    /// update that sets only the status, such as marking a batch paid, is taken as given, except
+    /// Overdue, which is never a status of its own.
     /// </summary>
-    private static void SetImportedStatus(Invoice invoice, InvoiceStatus status, bool amountsSet, bool statusGiven)
+    private static void SetImportedStatus(Invoice invoice, InvoiceStatus status, bool amountsSet, bool statusKept)
     {
         invoice.Status = status == InvoiceStatus.Overdue ? InvoiceStatus.Sent : status;
-        if (statusGiven && status is InvoiceStatus.Draft or InvoiceStatus.Cancelled
+        if (statusKept && status is InvoiceStatus.Draft or InvoiceStatus.Cancelled
                 or InvoiceStatus.Refunded or InvoiceStatus.PartiallyRefunded)
             return;
         if (!amountsSet && status != InvoiceStatus.Overdue)
             return;
-        if (invoice.Status is InvoiceStatus.Refunded or InvoiceStatus.PartiallyRefunded && invoice.AmountRefunded == 0)
-            return;
+        if (invoice.Status is InvoiceStatus.Paid or InvoiceStatus.Partial)
+            invoice.Status = invoice.StatusBeforePayment ?? InvoiceStatus.Sent;
         InvoiceTotalsService.RecalculateStatus(invoice);
     }
 
@@ -3429,6 +3487,11 @@ Respond with ONLY a JSON array, one entry per product in the same order:
                 invoice.TaxAmount = GetDecimal(row, headers, "Tax");
             if (Set("Total"))
                 invoice.Total = total;
+            // Per-row currency detected from the amount cells, else the record's own when updating,
+            // else the company currency. Set before the amounts, whose payments match it by currency.
+            var priced = Set(InvoicePriceColumns);
+            if (priced)
+                invoice.OriginalCurrency = Tier1RowCurrency(rowIndex) ?? existing?.OriginalCurrency ?? CompanyCurrency(data);
             // Detect whether a "Paid" amount was actually supplied (GetNullableDecimal returns null for
             // an absent column, vs 0 for a genuine zero). When it is, derive the balance from it;
             // otherwise trust the imported "Balance" column, and with neither, a new total keeps
@@ -3443,12 +3506,11 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             // A blank or unrecognised status keeps an existing invoice's own; a new one's is left to its amounts.
             if (Set("Status", "Paid", "Balance", "Total"))
                 SetImportedStatus(invoice, givenStatus ?? existing?.Status ?? InvoiceStatus.Draft,
-                    amountsSet: Set("Paid", "Balance", "Total"), statusGiven: givenStatus != null);
+                    amountsSet: Set("Paid", "Balance", "Total"), statusKept: givenStatus != null || existing != null);
 
-            // Per-row currency detected from the amount cells, else the record's own when updating,
-            // else the company currency. Left as it is when nothing it is priced from changed.
-            if (Set(InvoicePriceColumns))
-                ApplyInvoiceCurrency(invoice, rowIndex, data, existing?.OriginalCurrency);
+            // Converted once its amounts are set. Left as it is when nothing it is priced from changed.
+            if (priced)
+                ApplyInvoiceCurrencyCode(invoice, invoice.OriginalCurrency, data);
 
             if (existing == null)
                 data.Invoices.Add(invoice);

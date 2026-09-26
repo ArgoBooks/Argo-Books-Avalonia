@@ -377,10 +377,6 @@ public partial class MainWindow : Window
         {
             await App.TelemetryManager.EndSessionAsync();
         }
-        if (Core.Services.PendingConversionService.Instance is { } conversions)
-        {
-            await conversions.FlushForCloseAsync(TimeSpan.FromSeconds(3));
-        }
         _isClosingConfirmed = true;
         Close();
     }

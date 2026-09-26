@@ -67,12 +67,12 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         return $"Amounts in {DisplayCode}";
     }
 
+    private const string PendingText = "Pending";
+
     /// <summary>
     /// Formats a currency amount that is ALREADY in <see cref="DisplayCode"/> (conversion happens at
     /// production via <see cref="ToDisplay"/>), so this only formats; it does not convert.
     /// </summary>
-    private const string PendingText = "Pending";
-
     private string FormatCurrency(decimal amount)
     {
         return CurrencyInfo.FormatAmount(amount, DisplayCode);
@@ -192,8 +192,9 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
     /// <summary>
     /// Adds a transaction's tax, by rate, to <paramref name="byRate"/> for the Tax Summary. The amount
     /// is the transaction's own recorded tax (<c>EffectiveTaxAmountUSD</c>), the figure the Balance
-    /// Sheet and the tax charts use, split across its line items' rates by each line's share of the
-    /// line tax. A transaction whose lines carry no rate goes under its own rate.
+    /// Sheet and the tax charts use, shared across its lines by each line's own tax
+    /// (<see cref="LineAllocation.AllocateTax"/>). A transaction whose lines carry no tax goes under
+    /// its own rate.
     /// </summary>
     private void AddTaxByRate(Dictionary<decimal, decimal> byRate, Transaction txn)
     {
@@ -202,25 +203,17 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             return;
 
         // LineItem.TaxRate is a fraction (0.08); Transaction.TaxRate is a percentage (8).
-        var taxedLines = txn.LineItems.Where(li => li.TaxRate > 0 && li.TaxAmount != 0).ToList();
-        var lineTax = taxedLines.Sum(li => li.TaxAmount);
-        if (lineTax == 0)
+        if (!LineAllocation.HasLineTax(txn.LineItems))
         {
             var rate = Math.Round(txn.TaxRate / 100m, 4);
             byRate[rate] = byRate.GetValueOrDefault(rate) + taxDisplay;
             return;
         }
 
-        var allocated = 0m;
-        for (var i = 0; i < taxedLines.Count; i++)
+        foreach (var (line, share) in LineAllocation.AllocateTax(txn.LineItems, taxDisplay).Shares)
         {
-            var li = taxedLines[i];
-            // The last line takes the rounding remainder, so the rates add up to the recorded tax.
-            var share = i == taxedLines.Count - 1
-                ? taxDisplay - allocated
-                : Math.Round(taxDisplay * li.TaxAmount / lineTax, 2);
-            allocated += share;
-            var rate = Math.Round(li.TaxRate, 2);
+            if (share == 0) continue;
+            var rate = Math.Round(line.TaxRate, 2);
             byRate[rate] = byRate.GetValueOrDefault(rate) + share;
         }
     }
@@ -261,9 +254,8 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
     /// <summary>
     /// <see cref="GroupTransactionsByCategory"/> for expenses, leaving out tracked stock bought: it is
     /// stock until it sells, when it shows as cost of goods sold (docs/Calculations.md §14). The rest of
-    /// such an expense, shipping and fees included, is spread over its other lines, or kept under its
-    /// first line's category when every line bought stock. Expenses that bought no stock group exactly
-    /// as before.
+    /// such an expense, shipping and fees included, is spread over its other lines, or goes under
+    /// Uncategorized when they can't take it, as for any transaction (§13).
     /// </summary>
     private Dictionary<string, decimal> GroupExpensesByCategory(IEnumerable<Expense> expenses)
     {
@@ -290,7 +282,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             }
             else if (remainingUSD != 0)
             {
-                Add(GetCategoryNameForProduct(expense.LineItems[0].ProductId), ToDisplay(remainingUSD, expense.Date));
+                Add("Uncategorized", ToDisplay(remainingUSD, expense.Date));
             }
         }
 
@@ -1046,8 +1038,8 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         // in DisplayCode (USD identity for the USD-company/fallback path).
         var products = ProductSalesService.GetProductSales(
             companyData,
-            filters.StartDate ?? DateTime.MinValue,
-            filters.EndDate ?? DateTime.MaxValue,
+            RangeStart,
+            RangeEnd,
             cashBasis: false,
             toDisplay: ToDisplay);
 

@@ -118,6 +118,10 @@ public static class UsdConversion
     public static void Requeue(CompanyData data, PurchaseOrder order) =>
         Set(data, KeyOf(order), order.IsPendingConversion ? EntryFor(order) : null);
 
+    /// <inheritdoc cref="Requeue(CompanyData, Transaction, DateTime?)"/>
+    public static void Requeue(CompanyData data, Invoice invoice) =>
+        Set(data, KeyOf(invoice), invoice.IsPendingConversion ? EntryFor(invoice) : null);
+
     #endregion
 
     #region Queue
@@ -177,7 +181,7 @@ public static class UsdConversion
     public static void Mirror(CompanyData data, IEnumerable<PendingConversionKey> keys)
     {
         if (PendingConversionService.Instance is { } service)
-            _ = service.MirrorAsync(data, keys);
+            service.Mirror(data, keys);
     }
 
     #endregion
