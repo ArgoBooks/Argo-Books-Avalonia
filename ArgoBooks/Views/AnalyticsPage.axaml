@@ -1986,10 +1986,12 @@
             </Panel>
         </ScrollViewer>
 
-        <!-- Products Tab Content: bounded; table fills the left half, chart sits on the right -->
-        <Panel Grid.Row="2"
-               Background="{DynamicResource BackgroundSecondaryBrush}"
-               IsVisible="{Binding IsProductsTabSelected}">
+        <!-- Products Tab Content: the chart card stretches to fill the tab, and the tab scrolls once it can't fit -->
+        <ScrollViewer Grid.Row="2"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled"
+                      IsVisible="{Binding IsProductsTabSelected}"
+                      Background="{DynamicResource BackgroundSecondaryBrush}">
             <Grid Margin="24" RowDefinitions="Auto,Auto,*">
                     <!-- Statistics Cards Row -->
                     <controls:StatCardsRow Grid.Row="0" Margin="0,0,0,24">
@@ -2043,7 +2045,12 @@
                             BorderThickness="1"
                             CornerRadius="12"
                             Padding="20">
-                        <Grid RowDefinitions="Auto,*,Auto">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" MinHeight="220" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
                             <!-- Product name + SKU, on their own line so a narrow card can't run them into the chart -->
                             <StackPanel Grid.Row="0" Spacing="2" Margin="0,0,0,8">
                                 <TextBlock Text="{Binding SelectedProduct.ProductName, FallbackValue=''}"
@@ -2053,10 +2060,11 @@
                                            Foreground="{DynamicResource TextPrimaryBrush}" />
                                 <TextBlock Text="{Binding SelectedProduct.Sku}"
                                            IsVisible="{Binding SelectedProduct.HasSku, FallbackValue=False}"
+                                           TextTrimming="CharacterEllipsis"
                                            FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
                             </StackPanel>
 
-                            <Panel Grid.Row="1" MinHeight="220">
+                            <Panel Grid.Row="1">
                                 <lvc:CartesianChart Tag="{x:Static enums:ChartDataType.ProductRevenueTrend}"
                                                     Title="{Binding ProductRevenueTrendTitle}"
                                                     PointerPressed="OnChartPointerPressed"
@@ -2075,25 +2083,25 @@
                             <!-- Mini KPIs row -->
                             <StackPanel Grid.Row="2" Margin="0,16,0,0">
                                 <Border Height="1" Background="{DynamicResource BorderBrush}" Margin="0,0,0,16" />
-                                <Grid ColumnDefinitions="*,*,*">
+                                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="12">
                                     <StackPanel Grid.Column="0" Spacing="2">
-                                        <TextBlock Text="{loc:Loc 'Units sold'}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                        <TextBlock Text="{Binding SelectedProduct.UnitsDisplay}" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
+                                        <TextBlock Text="{loc:Loc 'Units sold'}" FontSize="12" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        <TextBlock Text="{Binding SelectedProduct.UnitsDisplay}" ToolTip.Tip="{Binding SelectedProduct.UnitsDisplay}" TextTrimming="CharacterEllipsis" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" Spacing="2">
-                                        <TextBlock Text="{loc:Loc Revenue}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                        <TextBlock Text="{Binding SelectedProduct.RevenueDisplay}" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
+                                        <TextBlock Text="{loc:Loc Revenue}" FontSize="12" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        <TextBlock Text="{Binding SelectedProduct.RevenueDisplay}" ToolTip.Tip="{Binding SelectedProduct.RevenueDisplay}" TextTrimming="CharacterEllipsis" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="2" Spacing="2">
-                                        <TextBlock Text="{loc:Loc 'Avg sale price'}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                        <TextBlock Text="{Binding SelectedProduct.AvgSalePriceDisplay}" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
+                                        <TextBlock Text="{loc:Loc 'Avg sale price'}" FontSize="12" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        <TextBlock Text="{Binding SelectedProduct.AvgSalePriceDisplay}" ToolTip.Tip="{Binding SelectedProduct.AvgSalePriceDisplay}" TextTrimming="CharacterEllipsis" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
                                     </StackPanel>
                                 </Grid>
                             </StackPanel>
                         </Grid>
                     </Border>
             </Grid>
-        </Panel>
+        </ScrollViewer>
     </Grid>
 
     <!-- Global Chart Context Menu (rendered on top of everything) -->
