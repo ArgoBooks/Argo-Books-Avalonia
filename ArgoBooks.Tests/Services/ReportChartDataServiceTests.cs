@@ -75,16 +75,6 @@ public class ReportChartDataServiceTests
         Assert.Empty(result);
     }
 
-    [Fact]
-    public void GetTotalRevenue_NullCompanyData_ReturnsZero()
-    {
-        var service = new ReportChartDataService(null, CreateDefaultFilters());
-
-        var result = service.GetTotalRevenue();
-
-        Assert.Equal(0m, result);
-    }
-
     #endregion
 
     #region Expense Chart Tests
@@ -107,16 +97,6 @@ public class ReportChartDataServiceTests
         var result = service.GetExpenseDistribution();
 
         Assert.Empty(result);
-    }
-
-    [Fact]
-    public void GetTotalExpenses_NullCompanyData_ReturnsZero()
-    {
-        var service = new ReportChartDataService(null, CreateDefaultFilters());
-
-        var result = service.GetTotalExpenses();
-
-        Assert.Equal(0m, result);
     }
 
     #endregion
@@ -159,6 +139,35 @@ public class ReportChartDataServiceTests
         var result = service.GetTopCustomersByRevenue();
 
         Assert.Empty(result);
+    }
+
+    // A customer's refunds in range come off their revenue, as on the Revenue card and the
+    // dashboard's Top Customers widget.
+    [Fact]
+    public void GetTopCustomersByRevenue_SubtractsRefundsInRange()
+    {
+        var data = new CompanyData();
+        data.Customers.Add(new Core.Models.Entities.Customer { Id = "C1", Name = "Ann" });
+        data.Revenues.Add(new Revenue { Id = "R1", CustomerId = "C1", Date = new DateTime(2024, 3, 1), OriginalCurrency = "USD", Total = 100m });
+        data.Payments.Add(new Payment { Id = "P1", CustomerId = "C1", IsRefund = true, Amount = -30m, OriginalCurrency = "USD", Date = new DateTime(2024, 3, 5) });
+        data.Payments.Add(new Payment { Id = "P2", CustomerId = "C1", IsRefund = true, Amount = -50m, OriginalCurrency = "USD", Date = new DateTime(2025, 3, 5) });
+
+        var result = new ReportChartDataService(data, CreateDefaultFilters()).GetTopCustomersByRevenue();
+
+        Assert.Equal(70d, result.Single().Value);
+    }
+
+    // Refunds larger than the range's sales would make a negative slice, which the report pie draws
+    // as its absolute value.
+    [Fact]
+    public void GetTopCustomersByRevenue_LeavesOutCustomersRefundedMoreThanTheyBought()
+    {
+        var data = new CompanyData();
+        data.Customers.Add(new Core.Models.Entities.Customer { Id = "C1", Name = "Ann" });
+        data.Revenues.Add(new Revenue { Id = "R1", CustomerId = "C1", Date = new DateTime(2024, 4, 1), OriginalCurrency = "USD", Total = 50m });
+        data.Payments.Add(new Payment { Id = "P1", CustomerId = "C1", IsRefund = true, Amount = -600m, OriginalCurrency = "USD", Date = new DateTime(2024, 4, 5) });
+
+        Assert.Empty(new ReportChartDataService(data, CreateDefaultFilters()).GetTopCustomersByRevenue());
     }
 
     [Fact]
@@ -269,7 +278,7 @@ public class ReportChartDataServiceTests
             ? new ReportFilters { DatePresetName = DatePresetNames.LastYear }
             : new ReportFilters { DatePresetName = DatePresetNames.Custom, StartDate = lastDay.AddMonths(-1), EndDate = lastDay };
 
-        Assert.Equal(100m, new ReportChartDataService(data, filters).GetTotalRevenue());
+        Assert.Equal(100d, new ReportChartDataService(data, filters).GetRevenueOverTime().Sum(p => p.Value));
     }
 
     // A range that starts partway through a month counts only that month's tax from inside the range,
@@ -293,6 +302,66 @@ public class ReportChartDataServiceTests
 
         Assert.Equal(5d, SumOf(service.GetTaxCollectedVsPaid(), "Tax Collected"));
         Assert.Equal(5d, SumOf(service.GetExpenseVsRevenueTax(), "Revenue Tax"));
+    }
+
+    // Tax on a sale not yet paid isn't collected (Rule 2), and a refund hands its tax back on the
+    // refund's own date, as the Tax Summary report counts it.
+    [Fact]
+    public void TaxCharts_CountPaidSalesOnly_AndTakeRefundTaxOff()
+    {
+        var data = new CompanyData();
+        data.Invoices.Add(new Invoice { Id = "INV-1", Total = 110m, TaxAmount = 10m });
+        data.Revenues.Add(new Revenue
+        {
+            Id = "R1", Date = new DateTime(2024, 3, 5), OriginalCurrency = "USD", InvoiceId = "INV-1",
+            Subtotal = 100m, TaxAmount = 10m, TaxAmountUSD = 10m, Total = 110m, TotalUSD = 110m
+        });
+        data.Revenues.Add(new Revenue
+        {
+            Id = "R2", Date = new DateTime(2024, 3, 6), OriginalCurrency = "USD",
+            PaymentStatus = Core.Enums.RevenuePaymentStatus.Unpaid,
+            Subtotal = 200m, TaxAmount = 20m, TaxAmountUSD = 20m, Total = 220m, TotalUSD = 220m
+        });
+        data.Payments.Add(new Payment
+        {
+            Id = "PAY-R", InvoiceId = "INV-1", IsRefund = true, Amount = -55m, AmountUSD = -55m,
+            OriginalCurrency = "USD", Date = new DateTime(2024, 4, 2)
+        });
+        var service = new ReportChartDataService(data, CreateDefaultFilters());
+
+        // $10 collected in March; the half refund in April hands $5 of it back.
+        Assert.Equal(5d, SumOf(service.GetTaxCollectedVsPaid(), "Tax Collected"));
+        Assert.Equal(5d, SumOf(service.GetExpenseVsRevenueTax(), "Revenue Tax"));
+        Assert.Equal(5d, service.GetTaxLiabilityOverTime().Sum(p => p.Value));
+        Assert.Equal(10d, service.GetTaxByProduct().Sum(p => p.Value));
+    }
+
+    // Return and loss amounts are in their sale's or purchase's currency, so the monthly totals convert
+    // each record from that currency before summing rather than treating the sum as USD.
+    [Fact]
+    public void ReturnAndLossImpact_ConvertEachRecordFromItsOwnCurrency()
+    {
+        var data = new CompanyData();
+        data.Revenues.Add(new Revenue { Id = "R-EUR", Date = new DateTime(2024, 5, 1), OriginalCurrency = "EUR", Total = 100m });
+        data.Returns.Add(new Core.Models.Tracking.Return { Id = "RET-1", OriginalTransactionId = "R-EUR", ReturnDate = new DateTime(2024, 5, 3), RefundAmount = 40m });
+        data.Returns.Add(new Core.Models.Tracking.Return { Id = "RET-2", OriginalTransactionId = "R-EUR", ReturnDate = new DateTime(2024, 5, 9), RefundAmount = 10m });
+        data.LostDamaged.Add(new Core.Models.Tracking.LostDamaged { Id = "LOST-1", DateDiscovered = new DateTime(2024, 5, 4), ValueLost = 30m });
+        var filters = new ReportFilters
+        {
+            StartDate = new DateTime(2024, 1, 1), EndDate = new DateTime(2024, 12, 31),
+            IncludeReturns = true, IncludeLosses = true
+        };
+        var service = new ReportChartDataService(data, filters);
+        var seen = new List<string>();
+        decimal? Convert(decimal amount, string currency, DateTime date)
+        {
+            seen.Add(currency);
+            return currency == "EUR" ? amount * 2m : amount;
+        }
+
+        Assert.Equal(100d, service.GetReturnFinancialImpact(Convert).Sum(p => p.Value));
+        Assert.Equal(30d, service.GetLossFinancialImpact(Convert).Sum(p => p.Value));
+        Assert.Equal(["EUR", "EUR"], seen.Take(2));
     }
 
     // The returns and losses comparisons count only what falls inside the range, and a month whose

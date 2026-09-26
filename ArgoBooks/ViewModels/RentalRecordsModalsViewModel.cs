@@ -236,7 +236,7 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
     private DateTimeOffset? _returnDate = DateTimeOffset.Now;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ReturnTotalCostFormatted), nameof(ReturnAmountDueFormatted), nameof(ReturnCostDetail))]
+    [NotifyPropertyChangedFor(nameof(ReturnAmountDueFormatted), nameof(ReturnCostDetail))]
     private decimal _returnTotalCost;
 
     [ObservableProperty]
@@ -265,12 +265,19 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
     [ObservableProperty]
     private bool _returnMarkAsPaid;
 
+    /// <summary>
+    /// Hides the Mark as Paid tick for a rental that has been invoiced. The invoice is what
+    /// collects for it, so ConfirmReturn records no revenue for one, and ticking the box
+    /// would only claim the rental was paid while the invoice still stands unpaid.
+    /// </summary>
+    [ObservableProperty]
+    private bool _returnIsInvoiced;
+
     private RentalRecord? _returningRecord;
 
     public string ReturnRateFormatted => _returnLineCount > 1
         ? "{0} items".TranslateFormat(_returnLineCount)
         : $"{CurrencyService.Format(ReturnRateAmount)}/{ReturnRateType}";
-    public string ReturnTotalCostFormatted => CurrencyService.Format(ReturnTotalCost);
     public string ReturnDepositFormatted => CurrencyService.Format(ReturnDeposit);
     public string ReturnDepositHeldText => "of {0} held".TranslateFormat(ReturnDepositFormatted);
     public bool HasDeposit => ReturnDeposit > 0;
@@ -363,9 +370,19 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
     public string ViewDepositStatusFormatted =>
         ViewSecurityDeposit <= 0 ? "-"
         : ViewStatus != nameof(RentalStatus.Returned) || ViewDepositRefundedAmount is not { } refunded ? "Held".Translate()
+        : ViewDepositRefundPending ? "Refund pending".Translate()
         : refunded >= ViewSecurityDeposit ? "Refunded".Translate()
         : refunded > 0 ? "Refunded {0}, kept {1}".TranslateFormat(CurrencyService.Format(refunded), CurrencyService.Format(ViewSecurityDeposit - refunded))
         : "Not Refunded".Translate();
+
+    /// <summary>
+    /// A deposit recorded as returned whose card refund has not reached the payments ledger.
+    /// The return writes the amount the user chose to give back, which for an online payment
+    /// is a decision rather than a movement: the refund still has to clear, and it can be
+    /// cancelled or refused by the provider.
+    /// </summary>
+    [ObservableProperty]
+    private bool _viewDepositRefundPending;
 
     [ObservableProperty]
     private string _viewExtraChargesText = string.Empty;
@@ -510,7 +527,6 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
         customerModals.OpenAddModal();
     }
 
-    [RelayCommand]
     public void SaveNewRecord()
     {
         if (!ValidateModal())
@@ -535,10 +551,9 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
     internal static RentalRecord CreateRental(CompanyData companyData, string customerId, string? accountantId,
         List<RentalLineItem> lines, DateTime start, DateTime due, string notes, Action changed)
     {
-        companyData.IdCounters.Rental++;
         var rental = new RentalRecord
         {
-            Id = $"RNT-{companyData.IdCounters.Rental:D3}",
+            Id = new IdGenerator(companyData).NextRentalId(),
             Status = start.Date > DateTime.Today ? RentalStatus.Reserved : RentalStatus.Active,
             CreatedAt = DateTime.UtcNow
         };
@@ -555,14 +570,14 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
             $"Create rental '{rental.Id}'",
             () =>
             {
-                companyData.Rentals.Remove(rental);
+                companyData.Rentals.RemoveRecord(rental);
                 ReplayStock(companyData, adjustments, undo: true);
                 companyData.MarkAsModified();
                 changed();
             },
             () =>
             {
-                companyData.Rentals.Add(rental);
+                companyData.Rentals.RestoreRecord(rental);
                 ReplayStock(companyData, adjustments, undo: false);
                 companyData.MarkAsModified();
                 changed();
@@ -617,7 +632,6 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
         IsEditModalOpen = true;
     }
 
-    [RelayCommand]
     public void CloseEditModal()
     {
         IsEditModalOpen = false;
@@ -628,7 +642,6 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
     /// <summary>
     /// Requests to close the Edit modal, showing confirmation if changes were made.
     /// </summary>
-    [RelayCommand]
     public async Task RequestCloseEditModalAsync()
     {
         if (HasEditModalChanges)
@@ -640,7 +653,6 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
         CloseEditModal();
     }
 
-    [RelayCommand]
     public void SaveEditedRecord()
     {
         if (_editingRecord == null || ModalCustomer == null || !ValidateModal())
@@ -806,6 +818,7 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
         ReturnExtraCharges = string.Empty;
         ReturnExtraChargesNote = string.Empty;
         ReturnMarkAsPaid = false;
+        ReturnIsInvoiced = rentalRecord.HasInvoices;
         ReturnNotes = string.Empty;
 
         ReturnTotalCost = RentalBookings.RentalCost(rentalRecord.EffectiveLineItems(), rentalRecord.StartDate,
@@ -857,9 +870,14 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
         var notes = string.IsNullOrWhiteSpace(ReturnNotes) ? rental.Notes
             : string.IsNullOrWhiteSpace(rental.Notes) ? ReturnNotes.Trim()
             : $"{rental.Notes}\n\nReturn notes: {ReturnNotes.Trim()}";
-        var before = ReturnFieldsOf(rental);
+        // A rental already paid stays paid, and keeps the revenue it was paid into. The tick
+        // adds a payment the return is collecting now; it does not restate what came before,
+        // and writing it straight over the flag left a paid rental reading unpaid with its
+        // revenue row orphaned.
+        var paidBefore = rental.Paid;
         var after = new ReturnFields(RentalStatus.Returned, ReturnDate?.DateTime, ReturnTotalCost + extraCharges, refund,
-            ReturnMarkAsPaid, extraCharges, extraCharges > 0 ? ReturnExtraChargesNote.Trim() : string.Empty, notes, null);
+            paidBefore || ReturnMarkAsPaid, extraCharges,
+            extraCharges > 0 ? ReturnExtraChargesNote.Trim() : string.Empty, notes, rental.RevenueId);
         ApplyReturn(rental, after);
 
         var revenueDate = rental.ReturnDate ?? DateTime.Now;
@@ -868,43 +886,18 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
         if (keptDeposit != null)
             AddRentalRevenue(companyData, keptDeposit);
 
-        var paidRevenue = rental.Paid && !rental.HasInvoices
+        // Only when the return is what collected the money. One already paid has its revenue.
+        var paidRevenue = !paidBefore && rental.Paid && !rental.HasInvoices
             ? RentalBookings.PaidRevenue(companyData, rental, revenueDate, CurrencyService.CurrentCurrencyCode)
             : null;
         if (paidRevenue != null)
         {
             AddRentalRevenue(companyData, paidRevenue);
-            after = after with { RevenueId = paidRevenue.Id };
             rental.RevenueId = paidRevenue.Id;
         }
 
-        var adjustments = MoveStock(companyData, Units(rental.EffectiveLineItems(), 1), "Rental return", rental.Id);
+        MoveStock(companyData, Units(rental.EffectiveLineItems(), 1), "Rental return", rental.Id);
         companyData.MarkAsModified();
-
-        App.UndoRedoManager.RecordAction(new DelegateAction(
-            $"Return rental '{rental.Id}'",
-            () =>
-            {
-                ApplyReturn(rental, before);
-                if (keptDeposit != null)
-                    RemoveRentalRevenue(companyData, keptDeposit);
-                if (paidRevenue != null)
-                    RemoveRentalRevenue(companyData, paidRevenue);
-                ReplayStock(companyData, adjustments, undo: true);
-                companyData.MarkAsModified();
-                RecordReturned?.Invoke(this, EventArgs.Empty);
-            },
-            () =>
-            {
-                ApplyReturn(rental, after);
-                if (keptDeposit != null)
-                    AddRentalRevenue(companyData, keptDeposit);
-                if (paidRevenue != null)
-                    AddRentalRevenue(companyData, paidRevenue);
-                ReplayStock(companyData, adjustments, undo: false);
-                companyData.MarkAsModified();
-                RecordReturned?.Invoke(this, EventArgs.Empty);
-            }));
 
         RecordReturned?.Invoke(this, EventArgs.Empty);
         CloseReturnModal();
@@ -914,9 +907,6 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
     private sealed record ReturnFields(
         RentalStatus Status, DateTime? ReturnDate, decimal? TotalCost, decimal? DepositRefunded, bool Paid,
         decimal ExtraCharges, string ExtraChargesNote, string Notes, string? RevenueId);
-
-    private static ReturnFields ReturnFieldsOf(RentalRecord r) => new(
-        r.Status, r.ReturnDate, r.TotalCost, r.DepositRefunded, r.Paid, r.ExtraCharges, r.ExtraChargesNote, r.Notes, r.RevenueId);
 
     private static void ApplyReturn(RentalRecord r, ReturnFields f)
     {
@@ -939,7 +929,7 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
     /// </summary>
     private static Revenue? CreateKeptDepositRevenue(RentalRecord rental, CompanyData companyData, DateTime date, decimal kept)
     {
-        var invoice = DepositInvoice(rental, companyData);
+        var invoice = RentalBookings.DepositInvoice(rental, companyData);
         if (invoice == null)
             return null;
 
@@ -947,7 +937,7 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
         if (amount <= 0)
             return null;
 
-        return new Revenue
+        var revenue = new Revenue
         {
             Id = new Core.Data.IdGenerator(companyData).NextRevenueId(date),
             Date = date,
@@ -964,20 +954,12 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
             ReferenceNumber = invoice.InvoiceNumber,
             IsKeptDeposit = true,
             OriginalCurrency = invoice.OriginalCurrency,
-            TotalUSD = invoice.Total > 0 ? invoice.EffectiveTotalUSD * amount / invoice.Total : 0,
-            IsPendingConversion = invoice.IsPendingConversion,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
+        UsdConversion.Apply(companyData, revenue, UsdConversion.InvoiceRate(invoice), RateDate(companyData, revenue));
+        return revenue;
     }
-
-    private static Invoice? DepositInvoice(RentalRecord rental, CompanyData companyData) =>
-        rental.InvoiceIds
-            .Select(companyData.GetInvoice)
-            .OfType<Invoice>()
-            .Where(i => i.SecurityDeposit > 0)
-            .OrderBy(i => i.IssueDate)
-            .FirstOrDefault();
 
     /// <summary>
     /// A deposit billed on an invoice paid online has to go back through the provider, so its refund
@@ -985,44 +967,69 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
     /// </summary>
     private static void OfferDepositRefund(CompanyData companyData, RentalRecord rental, decimal refund)
     {
-        var invoice = refund > 0 ? DepositInvoice(rental, companyData) : null;
+        var invoice = refund > 0 ? RentalBookings.DepositInvoice(rental, companyData) : null;
         if (invoice == null || App.RefundModalsViewModel is not { } refunds)
             return;
 
         var held = SecurityDeposits.StillHeld(invoice, companyData.Payments, companyData.Revenues);
+        if (held <= 0)
+            return;
+
         var paidOnline = companyData.Payments.Any(p => p.InvoiceId == invoice.Id && !p.IsRefund
             && p.Source == PaymentSource.Online && !string.IsNullOrEmpty(p.ProviderPaymentId));
-        if (held > 0 && paidOnline)
-            _ = refunds.OpenForInvoiceAsync(companyData, invoice, depositOnly: Math.Min(refund, held),
+        if (paidOnline)
+        {
+            // Closing the refund window without finishing left nothing behind: no request, no
+            // money moved, and a rental still recording the deposit as returned.
+            _ = refunds.OpenForInvoiceAsync(companyData, invoice,
+                onClosed: () => WarnIfDepositStillHeld(companyData, invoice, rental),
+                depositOnly: Math.Min(refund, held),
                 reason: $"Security deposit, rental {rental.Id}");
+            return;
+        }
+
+        // There is no card payment to refund against, so the money goes back however it came
+        // in. Said out loud because the rental already records the deposit as returned, and
+        // nothing else would mention that the returning is still the user's to do.
+        _ = App.ShowWarningDialogAsync(
+            "Return the deposit yourself".Translate(),
+            "This invoice was not paid online, so Argo Books cannot send {0} back. Return it the same way you took it."
+                .TranslateFormat(CurrencyService.Format(Math.Min(refund, held))));
     }
+
+
+    /// <summary>
+    /// Said when the refund window closes with the deposit still held. True whether the refund
+    /// was never started or is still clearing, and either way the customer does not have it.
+    /// </summary>
+    private static void WarnIfDepositStillHeld(CompanyData companyData, Invoice invoice, RentalRecord rental)
+    {
+        if (SecurityDeposits.StillHeld(invoice, companyData.Payments, companyData.Revenues) <= 0)
+            return;
+
+        _ = App.ShowWarningDialogAsync(
+            "The deposit has not gone back".Translate(),
+            "Nothing has been refunded to the customer for rental {0}. It stays that way until you issue the refund from the invoice."
+                .TranslateFormat(rental.Id));
+    }
+
+    /// <summary>
+    /// The date a rental's revenue waits for the rate of. A kept deposit is dated on the return, but
+    /// the money came in with the invoice, so it waits for the invoice's rate.
+    /// </summary>
+    private static DateTime RateDate(CompanyData companyData, Revenue revenue) =>
+        companyData.GetInvoice(revenue.InvoiceId ?? "")?.IssueDate ?? revenue.Date;
 
     private static void AddRentalRevenue(CompanyData companyData, Revenue revenue)
     {
-        companyData.Revenues.Add(revenue);
-        if (!revenue.IsPendingConversion)
-            return;
-
-        // A kept deposit is dated on the return, but the money came in with the invoice, so it waits for the invoice's rate.
-        var entry = new PendingConversion
-        {
-            TransactionId = revenue.Id,
-            TransactionType = "Revenue",
-            OriginalCurrency = revenue.OriginalCurrency,
-            TransactionDate = companyData.GetInvoice(revenue.InvoiceId ?? "")?.IssueDate ?? revenue.Date,
-            Total = revenue.Total,
-            UnitPrice = revenue.UnitPrice
-        };
-        companyData.PendingConversions.RemoveAll(p => p.TransactionId == revenue.Id);
-        companyData.PendingConversions.Add(entry);
-        _ = PendingConversionService.Instance?.AddPendingConversionAsync(entry);
+        companyData.Revenues.RestoreRecord(revenue);
+        UsdConversion.Requeue(companyData, revenue, RateDate(companyData, revenue));
     }
 
     private static void RemoveRentalRevenue(CompanyData companyData, Revenue revenue)
     {
-        companyData.Revenues.Remove(revenue);
-        if (companyData.PendingConversions.RemoveAll(p => p.TransactionId == revenue.Id) > 0)
-            _ = PendingConversionService.Instance?.ForgetAsync([revenue.Id]);
+        companyData.Revenues.RemoveRecord(revenue);
+        UsdConversion.Set(companyData, UsdConversion.KeyOf(revenue), null);
     }
 
     #endregion
@@ -1110,6 +1117,21 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
     }
 
     /// <summary>
+    /// Reopens the deposit refund for a rental whose return recorded one that never cleared.
+    /// The same window the return offers, with the deposit already selected, so it does not
+    /// have to be found and ticked among the invoice's other lines.
+    /// </summary>
+    public void RefundDeposit(RentalRecordDisplayItem? record)
+    {
+        var companyData = App.CompanyManager?.CompanyData;
+        var rental = companyData?.Rentals.FirstOrDefault(r => r.Id == record?.Id);
+        if (companyData == null || rental == null)
+            return;
+
+        OfferDepositRefund(companyData, rental, rental.DepositRefunded ?? 0m);
+    }
+
+    /// <summary>
     /// Marks a rental paid. Without an invoice to carry the money, it is recorded as revenue.
     /// </summary>
     public void MarkAsPaid(RentalRecordDisplayItem? record) => ChangePaid(record, paid: true);
@@ -1186,6 +1208,7 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
         ViewStatus = rentalRecord.Status.ToString();
         ViewTotalCost = rentalRecord.TotalCost ?? 0;
         ViewDepositRefundedAmount = rentalRecord.DepositRefunded;
+        ViewDepositRefundPending = RentalBookings.DepositRefundPending(companyData, rentalRecord);
         ViewNotes = rentalRecord.Notes;
         ViewDaysOverdue = rentalRecord.EffectiveDaysOverdue;
 
@@ -1276,9 +1299,13 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
             CloseFilterModal();
     }
 
+    /// <summary>How many filters are applied, for the page's Filter button.</summary>
+    public int ActiveFilterCount { get; private set; }
+
     [RelayCommand]
     public void ApplyFilters()
     {
+        ActiveFilterCount = Filters.ActiveCount;
         FiltersApplied?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
     }
@@ -1287,6 +1314,7 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
     public void ClearFilters()
     {
         Filters.Reset();
+        ActiveFilterCount = 0;
         FiltersCleared?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
     }
@@ -1456,10 +1484,9 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
             stock.LastUpdated = DateTime.UtcNow;
             App.CheckAndNotifyStockStatus(stock, previous);
 
-            companyData.IdCounters.StockAdjustment++;
             var adjustment = new StockAdjustment
             {
-                Id = $"ADJ-{companyData.IdCounters.StockAdjustment:D5}",
+                Id = new IdGenerator(companyData).NextStockAdjustmentId(),
                 InventoryItemId = stock.Id,
                 AdjustmentType = units > 0 ? AdjustmentType.Add : AdjustmentType.Remove,
                 Quantity = Math.Abs(units),
@@ -1494,9 +1521,9 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
             }
 
             if (undo)
-                companyData.StockAdjustments.Remove(adjustment);
+                companyData.StockAdjustments.RemoveRecord(adjustment);
             else
-                companyData.StockAdjustments.Add(adjustment);
+                companyData.StockAdjustments.RestoreRecord(adjustment);
         }
     }
 
@@ -1573,8 +1600,6 @@ public partial class RentalModalLineItem : ObservableObject
     }
 
     public string AmountFormatted => CurrencyService.Format(Amount);
-    public string RateAmountDisplay => decimal.TryParse(RateAmount, out var r) ? CurrencyService.Format(r) : "-";
-    public string SecurityDepositDisplay => decimal.TryParse(SecurityDeposit, out var d) ? CurrencyService.Format(d) : "-";
 
     partial void OnSelectedItemChanged(RentalItemOption? value)
     {
@@ -1595,7 +1620,6 @@ public partial class RentalModalLineItem : ObservableObject
                     _ => item.DailyRate.ToString("0.00")
                 };
                 SecurityDeposit = item.SecurityDeposit.ToString("0.00");
-                OnPropertyChanged(nameof(SecurityDepositDisplay));
             }
         }
 
@@ -1619,7 +1643,6 @@ public partial class RentalModalLineItem : ObservableObject
 
         OnPropertyChanged(nameof(Amount));
         OnPropertyChanged(nameof(AmountFormatted));
-        OnPropertyChanged(nameof(RateAmountDisplay));
         _parent.UpdateLineItemTotals();
     }
 

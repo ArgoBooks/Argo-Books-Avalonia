@@ -87,12 +87,6 @@ public partial class StockLevelsPageViewModel : SortablePageViewModelBase
 
     public bool IsAllItemsTabSelected => SelectedTabIndex == 0;
 
-    public bool IsLowStockTabSelected => SelectedTabIndex == 1;
-
-    public bool IsOutOfStockTabSelected => SelectedTabIndex == 2;
-
-    public bool IsOverstockTabSelected => SelectedTabIndex == 3;
-
     /// <summary>
     /// The empty state's title. Only All Items being empty means nothing has been added; the other tabs
     /// being empty is good news about stock.
@@ -116,9 +110,6 @@ public partial class StockLevelsPageViewModel : SortablePageViewModelBase
     partial void OnSelectedTabIndexChanged(int value)
     {
         OnPropertyChanged(nameof(IsAllItemsTabSelected));
-        OnPropertyChanged(nameof(IsLowStockTabSelected));
-        OnPropertyChanged(nameof(IsOutOfStockTabSelected));
-        OnPropertyChanged(nameof(IsOverstockTabSelected));
         OnPropertyChanged(nameof(EmptyStateTitle));
         OnPropertyChanged(nameof(EmptyStateMessage));
         CurrentPage = 1;
@@ -248,12 +239,16 @@ public partial class StockLevelsPageViewModel : SortablePageViewModelBase
         FilterCategory = e.Category;
         FilterLocation = e.Location;
         FilterStatus = e.Status;
+        ActiveFilterCount = (sender as StockLevelsModalsViewModel)?.ActiveFilterCount ?? 0;
         CurrentPage = 1;
         FilterItems();
     }
 
+    protected override void ClearTableFilters() => App.StockLevelsModalsViewModel?.ClearFiltersCommand.Execute(null);
+
     private void OnFiltersCleared(object? sender, EventArgs e)
     {
+        ActiveFilterCount = 0;
         FilterCategory = "All";
         FilterLocation = "All";
         FilterStatus = "All";
@@ -340,15 +335,6 @@ public partial class StockLevelsPageViewModel : SortablePageViewModelBase
         {
             AvailableLocations.Add(location);
         }
-    }
-
-    /// <summary>
-    /// Refreshes the items from the data source.
-    /// </summary>
-    [RelayCommand]
-    private void RefreshItems()
-    {
-        LoadItems();
     }
 
     /// <summary>

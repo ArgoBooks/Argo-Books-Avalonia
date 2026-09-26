@@ -1,3 +1,4 @@
+using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Enums;
 
 namespace ArgoBooks.Core.Models.Rentals;
@@ -6,7 +7,7 @@ namespace ArgoBooks.Core.Models.Rentals;
 /// Represents an item available for rental, linked to an inventory item.
 /// Stock is tracked via the linked InventoryItem.InStock, no local quantity fields.
 /// </summary>
-public class RentalItem
+public class RentalItem : IRecord
 {
     /// <summary>
     /// Unique identifier (e.g., RNT-ITM-001).

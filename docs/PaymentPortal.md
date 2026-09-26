@@ -1,72 +1,53 @@
 # Payment Portal
 
-Argo Books includes an online payment portal that allows customers to view and pay invoices through Stripe or Square.
+The payment portal lets customers view and pay invoices online through Stripe or Square.
 
-> **PayPal is not currently supported in the payment portal.** PayPal's "Log in with PayPal" OAuth flow refuses to onboard Business merchants, and proper onboarding requires PayPal Partner Referrals API which is gated behind Platforms & Marketplaces partner enrollment. The PayPal Connect option is hidden in Settings until that's in place. SaaS subscription billing (the merchant paying Argo Books for Premium) is unaffected. That's a separate PayPal flow that still works.
-
-## Overview
+**PayPal is not supported in the portal.** PayPal's "Log in with PayPal" sign-in won't connect Business accounts, and connecting them properly needs PayPal's Partner Referrals API, which is only open to enrolled platform partners. The PayPal option is hidden in Settings until then. This doesn't affect Argo Books Premium billing, which uses a separate PayPal setup that works.
 
 ![Payment Portal Overview](diagrams/payment-portal/portal-overview.svg)
 
-## Company Registration
+## Registering the company
 
-Register your company with the portal to enable online invoicing and payments.
+A company registers with the portal before it can send invoices online. Registration:
 
-- Registration key validation
-- API key provisioning
-- Company logo upload (PNG, JPG, GIF, WebP, BMP, SVG)
-- API key stored securely in `.env` file
-
-### Registration Flow
+- Checks the registration key
+- Issues the company an API key, which is saved in the company file (encrypted if the file has a password)
+- Uploads the company logo (PNG, JPG, GIF, WebP, BMP or SVG)
 
 ![Company Registration Flow](diagrams/payment-portal/company-registration-flow.svg)
 
-## Payment Providers
+## Connecting a payment provider
 
-Connect payment providers via OAuth to accept online payments.
-
-- **Stripe** - Credit and debit card payments
-- **Square** - Square account payments
-- **PayPal** - Not currently supported (see note at top of this document)
-
-### Provider Connection Flow
+Stripe (credit and debit cards) and Square are connected by signing in to them from Settings. Either can be connected or disconnected at any time.
 
 ![Provider Connection Flow](diagrams/payment-portal/provider-connect-flow.svg)
 
-Providers can be connected or disconnected at any time through Settings.
+## Publishing an invoice
 
-## Invoice Publishing
+Publishing puts an invoice on the portal so the customer can see it and pay. At least one payment provider has to be connected first. Publishing:
 
-Publish invoices to the portal so customers can view and pay online.
-
-- Custom HTML invoice rendering using the desktop template
-- Automatic email notifications to customers
-- Payment link generation for each published invoice
-- Requires at least one connected payment provider
-
-### Publish Flow
+- Shows the invoice using the same template as the desktop app
+- Emails the customer
+- Creates a payment link for the invoice
 
 ![Invoice Publish Flow](diagrams/payment-portal/invoice-publish-flow.svg)
 
-## Payment Synchronization
+## Bringing payments back into the app
 
-Online payments are automatically synced back to the local company file.
+Online payments are copied into the company file automatically, every 5 minutes unless changed in Settings.
 
-- Configurable auto-sync interval (default: 5 minutes)
-- Duplicate prevention via portal payment IDs
-- Multi-currency support with USD conversion
-- Online payments distinguished from manual entries
-
-### Sync Flow
+- Each payment carries its portal payment ID, so it is never added twice.
+- Payments in other currencies are converted to USD like any other.
+- Online payments are marked as online, so they can be told apart from payments entered by hand.
 
 ![Payment Sync Flow](diagrams/payment-portal/payment-sync-flow.svg)
 
-## Configuration
+## Settings
 
-| Setting | Description |
+| Setting | What it does |
 |---------|-------------|
-| **Auto-Sync Interval** | Frequency of payment sync (default: 5 minutes) |
-| **Payment Notifications** | Toggle notifications for received online payments |
-| **Portal URL** | Customer-facing portal URL |
-| **Connected Accounts** | Manage Stripe and Square connections (PayPal currently unavailable) |
-| **Company Logo** | Upload or remove company logo displayed on portal |
+| **Auto-sync interval** | How often online payments are copied in (default: 5 minutes) |
+| **Payment notifications** | Whether to show a notification when an online payment arrives |
+| **Portal URL** | The address customers use |
+| **Connected accounts** | Connect or disconnect Stripe and Square |
+| **Company logo** | The logo shown on the portal |

@@ -7,6 +7,7 @@ using ArgoBooks.Core.Models.Entities;
 using ArgoBooks.Core.Models.Telemetry;
 using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Models.Transactions;
+using ArgoBooks.Core.Utilities;
 
 namespace ArgoBooks.Core.Services;
 
@@ -179,7 +180,7 @@ public class CompanyManager : IDisposable
         if (!File.Exists(sourceImagePath))
             throw new FileNotFoundException("Avatar source file not found.", sourceImagePath);
 
-        var (destPath, relativePath) = PrepareAvatarDestination(entity.Id, subdirectory);
+        var (destPath, relativePath) = PrepareAvatarDestination(entity, entity.Id, subdirectory);
         var ok = await Task.Run(() => ReceiptImageHelper.ResizeAndSaveAsPng(sourceImagePath, destPath, AvatarMaxDimension));
         if (!ok)
             throw new InvalidOperationException("Selected file could not be loaded as an image.");
@@ -194,7 +195,7 @@ public class CompanyManager : IDisposable
         if (CompanyData == null || _currentTempDirectory == null)
             throw new InvalidOperationException("No company is currently open.");
 
-        var (destPath, relativePath) = PrepareAvatarDestination(entity.Id, subdirectory);
+        var (destPath, relativePath) = PrepareAvatarDestination(entity, entity.Id, subdirectory);
         var ok = await Task.Run(() => ReceiptImageHelper.ResizeBytesAndSaveAsPng(sourceBytes, destPath, AvatarMaxDimension));
         if (!ok)
             throw new InvalidOperationException("Provided bytes could not be decoded as an image.");
@@ -202,15 +203,66 @@ public class CompanyManager : IDisposable
         FinalizeAvatarUpdate(entity, relativePath);
     }
 
-    private (string DestPath, string RelativePath) PrepareAvatarDestination(string entityId, string subdirectory)
+    /// <summary>
+    /// Where to write <paramref name="entity"/>'s avatar. Its current file is reused when no
+    /// other entity points at it; otherwise the name comes from the Id. Ids are free text and
+    /// sanitising can map two of them to one name ("CUS/002" and "CUS-002"), so a name another
+    /// entity references, or a file already on disk, is skipped by adding "-2", "-3", ...
+    /// </summary>
+    private (string DestPath, string RelativePath) PrepareAvatarDestination(IAvatarOwner entity, string entityId, string subdirectory)
+    {
+        var inUse = AvatarPathsReferencedByOthers(entity);
+
+        var avatarsDir = Path.GetFullPath(Path.Combine(_currentTempDirectory!, subdirectory));
+        var ownPath = ResolveAvatarPathSafely(entity.AvatarFileName);
+        if (ownPath != null && !inUse.Contains(ownPath)
+            && string.Equals(Path.GetDirectoryName(ownPath), avatarsDir, StringComparison.OrdinalIgnoreCase))
+        {
+            Directory.CreateDirectory(avatarsDir);
+            return (ownPath, entity.AvatarFileName!);
+        }
+
+        return FreeAvatarDestination(entityId, subdirectory, ".png", inUse, ownPath: null);
+    }
+
+    /// <summary>
+    /// A path in <paramref name="subdirectory"/> named after <paramref name="entityId"/> that no
+    /// other entity references and no file occupies, except <paramref name="ownPath"/>, which is
+    /// the caller's own file and may be kept.
+    /// </summary>
+    private (string DestPath, string RelativePath) FreeAvatarDestination(
+        string entityId, string subdirectory, string extension, HashSet<string> inUse, string? ownPath)
     {
         var avatarsDir = Path.Combine(_currentTempDirectory!, subdirectory);
         Directory.CreateDirectory(avatarsDir);
-        var safeId = SanitizeForFileName(entityId);
-        var fileName = $"{safeId}.png";
-        var destPath = Path.Combine(avatarsDir, fileName);
-        var relativePath = Path.Combine(subdirectory, fileName).Replace('\\', '/');
-        return (destPath, relativePath);
+        var stem = SafeFileName.Create(entityId, "avatar");
+
+        for (var n = 1; ; n++)
+        {
+            var fileName = n == 1 ? stem + extension : $"{stem}-{n}{extension}";
+            var destPath = Path.GetFullPath(Path.Combine(avatarsDir, fileName));
+            var isOwn = string.Equals(destPath, ownPath, StringComparison.OrdinalIgnoreCase);
+            if (inUse.Contains(destPath) || (!isOwn && File.Exists(destPath)))
+                continue;
+            return (destPath, $"{subdirectory}/{fileName}");
+        }
+    }
+
+    // Case-insensitive because the Windows and macOS default file systems are, so "cus-1.png"
+    // and "CUS-1.png" are the same file there.
+    private HashSet<string> AvatarPathsReferencedByOthers(IAvatarOwner entity)
+    {
+        var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (CompanyData == null) return paths;
+
+        IEnumerable<IAvatarOwner> owners = CompanyData.Customers;
+        foreach (var owner in owners.Concat(CompanyData.Suppliers))
+        {
+            if (ReferenceEquals(owner, entity)) continue;
+            var path = ResolveAvatarPathSafely(owner.AvatarFileName);
+            if (path != null) paths.Add(path);
+        }
+        return paths;
     }
 
     private void FinalizeAvatarUpdate(IAvatarOwner entity, string relativePath)
@@ -234,7 +286,7 @@ public class CompanyManager : IDisposable
         // Only delete files that resolve safely under the temp directory, guard against
         // a crafted AvatarFileName escaping into the rest of the filesystem.
         var fullPath = ResolveAvatarPathSafely(existing);
-        if (fullPath != null && File.Exists(fullPath))
+        if (fullPath != null && File.Exists(fullPath) && !AvatarPathsReferencedByOthers(entity).Contains(fullPath))
         {
             await Task.Run(() => File.Delete(fullPath));
         }
@@ -275,7 +327,7 @@ public class CompanyManager : IDisposable
             if (!string.IsNullOrEmpty(existing))
             {
                 var path = ResolveAvatarPathSafely(existing);
-                if (path != null && File.Exists(path))
+                if (path != null && File.Exists(path) && !AvatarPathsReferencedByOthers(entity).Contains(path))
                 {
                     try { File.Delete(path); } catch { /* best effort */ }
                 }
@@ -284,7 +336,7 @@ public class CompanyManager : IDisposable
         }
         else
         {
-            var (destPath, relativePath) = PrepareAvatarDestination(entity.Id, subdirectory);
+            var (destPath, relativePath) = PrepareAvatarDestination(entity, entity.Id, subdirectory);
             try
             {
                 File.WriteAllBytes(destPath, bytes);
@@ -336,17 +388,21 @@ public class CompanyManager : IDisposable
         try
         {
             var oldPath = ResolveAvatarPathSafely(entity.AvatarFileName);
+            var inUse = AvatarPathsReferencedByOthers(entity);
             var ext = Path.GetExtension(entity.AvatarFileName);
-            var safeNewId = SanitizeForFileName(newId);
-            var newRelative = Path.Combine(subdirectory, safeNewId + ext).Replace('\\', '/');
-            var newPath = Path.Combine(_currentTempDirectory, newRelative);
+            var (newPath, newRelative) = FreeAvatarDestination(newId, subdirectory, ext, inUse, oldPath);
 
-            if (oldPath != null && File.Exists(oldPath) && !string.Equals(oldPath, newPath, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(oldPath, newPath, StringComparison.OrdinalIgnoreCase))
+                return;
+
+            if (oldPath != null && File.Exists(oldPath))
             {
-                Directory.CreateDirectory(Path.GetDirectoryName(newPath)!);
-                if (File.Exists(newPath))
-                    File.Delete(newPath);
-                File.Move(oldPath, newPath);
+                // Files written before avatar names were kept unique can be shared by two
+                // entities; the other one still needs its copy.
+                if (inUse.Contains(oldPath))
+                    File.Copy(oldPath, newPath);
+                else
+                    File.Move(oldPath, newPath);
             }
             // Always update AvatarFileName to the new relative path: even if the old
             // file was missing or unsafe, the entity record should now point inside
@@ -823,7 +879,7 @@ public class CompanyManager : IDisposable
     private static bool TakeDepositOutOfRevenue(CompanyData data, Invoice invoice)
     {
         var deposit = invoice.SecurityDeposit;
-        var pendingIds = new List<string>();
+        var pendingKeys = new List<PendingConversionKey>();
         var changed = false;
 
         // Only revenue still carrying the invoice's whole total counted the deposit. Revenue the user
@@ -839,17 +895,17 @@ public class CompanyManager : IDisposable
             revenue.Total = total;
 
             // A revenue still waiting for its rate converts from its queue entry, not the row.
-            foreach (var pending in data.PendingConversions.Where(p => p.TransactionId == revenue.Id))
+            if (UsdConversion.Queued(data, UsdConversion.KeyOf(revenue)) is { } pending)
             {
                 pending.Total = total;
                 pending.Fee = Math.Max(0m, pending.Fee - deposit);
-                pendingIds.Add(revenue.Id);
+                pendingKeys.Add(pending.Key);
             }
             changed = true;
         }
 
-        if (pendingIds.Count > 0)
-            _ = PendingConversionService.Instance?.MirrorAsync(data, pendingIds);
+        if (pendingKeys.Count > 0)
+            UsdConversion.Mirror(data, pendingKeys);
         return changed;
     }
 
@@ -1338,33 +1394,12 @@ public class CompanyManager : IDisposable
     public Task RemoveSupplierAvatarAsync(Supplier supplier)
         => RemoveEntityAvatarAsync(supplier);
 
-    // Path.GetInvalidFileNameChars lists only this platform's, and a file made on a Mac is
-    // often copied to a PC, so Windows' list is always added.
-    private static readonly char[] UnsafeFileNameChars =
-        [.. Path.GetInvalidFileNameChars(), '<', '>', ':', '"', '/', '\\', '|', '?', '*'];
-
     /// <summary>
     /// The file name, without ".argo", for a company called <paramref name="companyName"/>.
     /// Characters no file name can hold, such as "/", become "-". The company keeps the name as
     /// typed; only its file is named this.
     /// </summary>
-    public static string ToCompanyFileName(string companyName)
-    {
-        var fileName = new string(companyName
-            .Select(c => char.IsControl(c) || UnsafeFileNameChars.Contains(c) ? '-' : c)
-            .ToArray());
-        return string.IsNullOrWhiteSpace(fileName) ? "Company" : fileName;
-    }
-
-    private static string SanitizeForFileName(string raw)
-    {
-        if (string.IsNullOrWhiteSpace(raw))
-            return Guid.NewGuid().ToString("N");
-
-        var invalid = Path.GetInvalidFileNameChars();
-        var cleaned = new string(raw.Where(c => !invalid.Contains(c) && c != '.').ToArray()).Trim();
-        return string.IsNullOrEmpty(cleaned) ? Guid.NewGuid().ToString("N") : cleaned;
-    }
+    public static string ToCompanyFileName(string companyName) => SafeFileName.Create(companyName, "Company");
 
     /// <summary>
     /// Renames a customer's Id, cascading to every reference inside the open company
@@ -1566,37 +1601,45 @@ public class CompanyManager : IDisposable
     /// <returns>List of recent company info.</returns>
     public async Task<List<RecentCompanyInfo>> GetRecentCompaniesAsync(CancellationToken cancellationToken = default)
     {
-        var recentPaths = _settingsService.GetValidRecentCompanies();
+        // Copied on the caller's thread, the one that edits the list. The file checks and footer
+        // reads below can stall on a slow or disconnected drive, so they run on the thread pool
+        // instead of holding up the UI thread at launch.
+        var snapshot = _settingsService.GlobalSettings.RecentCompanies.ToList();
 
-        // Footer reads are pure I/O on independent files opened with FileShare.Read, so we can
-        // run them concurrently. Per-task try/catch preserves the previous skip-on-error behavior;
-        // Task.WhenAll returns results in input order, preserving most-recent-first ordering.
-        var tasks = recentPaths.Select(async path =>
+        return await Task.Run(async () =>
         {
-            try
-            {
-                var footer = await GetFileInfoAsync(path, cancellationToken);
-                if (footer == null)
-                    return null;
+            var recentPaths = _settingsService.GetValidRecentCompanies(snapshot);
 
-                return new RecentCompanyInfo
+            // Footer reads are pure I/O on independent files opened with FileShare.Read, so we can
+            // run them concurrently. Per-task try/catch preserves the previous skip-on-error behavior;
+            // Task.WhenAll returns results in input order, preserving most-recent-first ordering.
+            var tasks = recentPaths.Select(async path =>
+            {
+                try
                 {
-                    FilePath = path,
-                    CompanyName = footer.CompanyName,
-                    IsEncrypted = footer.IsEncrypted,
-                    ModifiedAt = footer.ModifiedAt,
-                    LogoThumbnail = footer.LogoThumbnail
-                };
-            }
-            catch
-            {
-                // File may be corrupted or inaccessible, skip it
-                return null;
-            }
-        });
+                    var footer = await GetFileInfoAsync(path, cancellationToken);
+                    if (footer == null)
+                        return null;
 
-        var results = await Task.WhenAll(tasks);
-        return results.Where(r => r != null).Cast<RecentCompanyInfo>().ToList();
+                    return new RecentCompanyInfo
+                    {
+                        FilePath = path,
+                        CompanyName = footer.CompanyName,
+                        IsEncrypted = footer.IsEncrypted,
+                        ModifiedAt = footer.ModifiedAt,
+                        LogoThumbnail = footer.LogoThumbnail
+                    };
+                }
+                catch
+                {
+                    // File may be corrupted or inaccessible, skip it
+                    return null;
+                }
+            });
+
+            var results = await Task.WhenAll(tasks);
+            return results.Where(r => r != null).Cast<RecentCompanyInfo>().ToList();
+        }, cancellationToken);
     }
 
     /// <summary>

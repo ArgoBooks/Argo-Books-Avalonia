@@ -12,9 +12,6 @@ public class BankImportCreation
     public List<Transaction> CreatedTransactions { get; } = [];
     public List<object> CreatedEntities { get; } = [];
 
-    /// <summary>Conversions queued for rows whose date had no exchange rate yet.</summary>
-    public List<PendingConversion> PendingConversions { get; } = [];
-
     private readonly List<ReleasedLine> _releasedLines = [];
 
     public void Undo(CompanyData data)
@@ -23,23 +20,21 @@ public class BankImportCreation
 
         foreach (var tx in CreatedTransactions)
         {
-            if (tx is Expense e) data.Expenses.Remove(e);
-            else if (tx is Revenue r) data.Revenues.Remove(r);
+            if (tx is Expense e) data.Expenses.RemoveRecord(e);
+            else if (tx is Revenue r) data.Revenues.RemoveRecord(r);
         }
 
         foreach (var entity in CreatedEntities)
         {
-            if (entity is Supplier s) data.Suppliers.Remove(s);
-            else if (entity is Customer c) data.Customers.Remove(c);
-            else if (entity is Product p) data.Products.Remove(p);
-            else if (entity is Category cat) data.Categories.Remove(cat);
+            if (entity is Supplier s) data.Suppliers.RemoveRecord(s);
+            else if (entity is Customer c) data.Customers.RemoveRecord(c);
+            else if (entity is Product p) data.Products.RemoveRecord(p);
+            else if (entity is Category cat) data.Categories.RemoveRecord(cat);
         }
 
         // The rows are gone, so their queued conversions have nothing left to convert, and
         // nothing else prunes an entry whose row no longer exists.
-        var ids = PendingConversions.Select(p => p.TransactionId).ToHashSet(StringComparer.Ordinal);
-        data.PendingConversions.RemoveAll(p => ids.Contains(p.TransactionId));
-        MirrorPendingConversions(data);
+        UsdConversion.Restore(data, CreatedTransactions.Select(UsdConversion.KeyOf), []);
 
         data.MarkAsModified();
     }
@@ -48,42 +43,26 @@ public class BankImportCreation
     {
         foreach (var entity in CreatedEntities)
         {
-            if (entity is Supplier s && !data.Suppliers.Contains(s)) data.Suppliers.Add(s);
-            else if (entity is Customer c && !data.Customers.Contains(c)) data.Customers.Add(c);
-            else if (entity is Product p && !data.Products.Contains(p)) data.Products.Add(p);
-            else if (entity is Category cat && !data.Categories.Contains(cat)) data.Categories.Add(cat);
+            if (entity is Supplier s) data.Suppliers.RestoreRecord(s);
+            else if (entity is Customer c) data.Customers.RestoreRecord(c);
+            else if (entity is Product p) data.Products.RestoreRecord(p);
+            else if (entity is Category cat) data.Categories.RestoreRecord(cat);
         }
 
         foreach (var tx in CreatedTransactions)
         {
-            if (tx is Expense e && !data.Expenses.Contains(e)) data.Expenses.Add(e);
-            else if (tx is Revenue r && !data.Revenues.Contains(r)) data.Revenues.Add(r);
+            if (tx is Expense e) data.Expenses.RestoreRecord(e);
+            else if (tx is Revenue r) data.Revenues.RestoreRecord(r);
         }
 
         // A row converted before the undo already has its USD figure, so only still-pending rows requeue.
-        foreach (var entry in PendingConversions)
-        {
-            if (CreatedTransactions.Any(t => t.Id == entry.TransactionId && t.IsPendingConversion) &&
-                !data.PendingConversions.Any(p => p.TransactionId == entry.TransactionId))
-                data.PendingConversions.Add(entry);
-        }
-        MirrorPendingConversions(data);
+        foreach (var tx in CreatedTransactions)
+            UsdConversion.Requeue(data, tx);
 
         RelinkReleasedLines();
         data.MarkAsModified();
     }
 
-    /// <summary>
-    /// Brings the shared conversion queue in line with the company file for this import's rows; the
-    /// retry timer drains that queue, which only takes in the company file's list when it opens.
-    /// Fire and forget: it only writes a cache file, and failing to must never block the import or
-    /// an undo the user has already seen happen.
-    /// </summary>
-    public void MirrorPendingConversions(CompanyData data)
-    {
-        if (PendingConversions.Count > 0 && PendingConversionService.Instance is { } svc)
-            _ = svc.MirrorAsync(data, PendingConversions.Select(p => p.TransactionId));
-    }
 
     /// <summary>
     /// Frees statement lines matched to this import's rows, whether linked at import or matched
@@ -141,14 +120,12 @@ public class BankImportCreation
 /// Turns resolved unmatched bank lines into Expense/Revenue transactions, auto-creating any
 /// new supplier/customer/category, and marks each line matched to its new transaction.
 /// </summary>
-/// <param name="convert">
-/// Converts to the USD base at a date. Injectable so tests needn't install the exchange rate
-/// singleton; defaults to its cache-only exact-date conversion.
+/// <param name="rates">
+/// The USD rate for a currency on a date. Injectable so tests needn't install the exchange rate
+/// singleton; defaults to its cache-only exact-date rate.
 /// </param>
-public class BankLineImportService(UsdConverter? convert = null)
+public class BankLineImportService(UsdRateSource? rates = null)
 {
-    private readonly UsdConverter _convert = convert ?? DefaultConverter;
-
     public BankImportCreation CreateFromLines(CompanyData data, IReadOnlyList<BankLineResolution> resolutions, bool linkToBankLine = true)
     {
         var creation = new BankImportCreation();
@@ -163,6 +140,8 @@ public class BankLineImportService(UsdConverter? convert = null)
         var customerCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var categoryCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var productCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var expenseIds = IdGenerator.TakenSet(data.Expenses.Select(e => e.Id));
+        var revenueIds = IdGenerator.TakenSet(data.Revenues.Select(r => r.Id));
 
         foreach (var r in resolutions)
         {
@@ -206,10 +185,10 @@ public class BankLineImportService(UsdConverter? convert = null)
                 ProductId: productId);
 
             Transaction tx = isExpense
-                ? TransactionFactory.CreateExpense(data, draft)
-                : TransactionFactory.CreateRevenue(data, draft);
+                ? TransactionFactory.CreateExpense(data, draft, expenseIds)
+                : TransactionFactory.CreateRevenue(data, draft, revenueIds);
 
-            ApplyUsdAmounts(data, creation, tx);
+            UsdConversion.Apply(data, tx, UsdConversion.CachedRate(tx.OriginalCurrency, tx.Date, rates));
 
             if (linkToBankLine)
             {
@@ -236,55 +215,6 @@ public class BankLineImportService(UsdConverter? convert = null)
         return creation;
     }
 
-    /// <summary>
-    /// Stores the USD base at the line's own date (Calculations.md Rule 3a). With no rate held for
-    /// that date the row is marked pending and queued, so it converts later instead of carrying
-    /// the company-currency figure as though it were USD.
-    /// </summary>
-    private void ApplyUsdAmounts(CompanyData data, BankImportCreation creation, Transaction tx)
-    {
-        var currency = tx.OriginalCurrency;
-        if (string.Equals(currency, "USD", StringComparison.OrdinalIgnoreCase))
-        {
-            tx.TotalUSD = tx.Total;
-            tx.UnitPriceUSD = tx.UnitPrice;
-            return;
-        }
-
-        if (_convert(tx.Total, currency, tx.Date, out var totalUsd) &&
-            _convert(tx.UnitPrice, currency, tx.Date, out var unitPriceUsd))
-        {
-            tx.TotalUSD = totalUsd;
-            tx.UnitPriceUSD = unitPriceUsd;
-            return;
-        }
-
-        tx.TotalUSD = 0m;
-        tx.UnitPriceUSD = 0m;
-        tx.IsPendingConversion = true;
-
-        var entry = new PendingConversion
-        {
-            TransactionId = tx.Id,
-            TransactionType = tx is Revenue ? "Revenue" : "Expense",
-            OriginalCurrency = currency,
-            TransactionDate = tx.Date,
-            Total = tx.Total,
-            UnitPrice = tx.UnitPrice
-        };
-        data.PendingConversions.RemoveAll(p => p.TransactionId == tx.Id);
-        data.PendingConversions.Add(entry);
-        creation.PendingConversions.Add(entry);
-    }
-
-    private static bool DefaultConverter(decimal amount, string currency, DateTime date, out decimal usd)
-    {
-        if (ExchangeRateService.Instance is { } rates)
-            return rates.TryConvertToUsdBase(amount, currency, date, out usd);
-
-        usd = 0m;
-        return false;
-    }
 
     private static string ResolveSupplier(CompanyData data, BankImportCreation creation,
         Dictionary<string, string> cache, string name)

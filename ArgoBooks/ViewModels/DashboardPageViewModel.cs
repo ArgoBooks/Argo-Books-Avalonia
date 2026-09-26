@@ -264,7 +264,7 @@ public partial class DashboardPageViewModel : ChartContextMenuViewModelBase, ICl
     /// Gets the welcome subtitle text, which changes based on whether this is a sample company.
     /// </summary>
     public string WelcomeSubtitle => _companyManager?.IsSampleCompany == true
-        ? "You're exploring TechFlow Solutions - a sample company. Feel free to experiment!".Translate()
+        ? "You're exploring a sample company. Feel free to experiment!".Translate()
         : "Welcome back! Here is an overview of your business.".Translate();
 
     /// <summary>
@@ -390,13 +390,6 @@ public partial class DashboardPageViewModel : ChartContextMenuViewModelBase, ICl
     private void OpenSourceSurvey()
     {
         TutorialService.Instance.RequestShowSourceSurvey();
-    }
-
-    [RelayCommand]
-    private void DismissSourceSurveyBanner()
-    {
-        TutorialService.Instance.MarkSourceSurveyDismissed();
-        ShowSourceSurveyBanner = false;
     }
 
     #endregion
@@ -761,18 +754,9 @@ public partial class DashboardPageViewModel : ChartContextMenuViewModelBase, ICl
 
                 if (!browserOpened)
                 {
-                    var dialog = App.ConfirmationDialog;
-                    if (dialog != null)
-                    {
-                        await dialog.ShowAsync(new ConfirmationDialogOptions
-                        {
-                            Title = "Browser Error".Translate(),
-                            Message = "The spreadsheet was created but could not open in your browser. You can access it at:\n\n{0}".TranslateFormat(url),
-                            PrimaryButtonText = "OK".Translate(),
-                            SecondaryButtonText = null,
-                            CancelButtonText = null
-                        });
-                    }
+                    await App.ShowWarningDialogAsync(
+                        "Browser Error".Translate(),
+                        "The spreadsheet was created but could not open in your browser. You can access it at:\n\n{0}".TranslateFormat(url));
                 }
             }
             else

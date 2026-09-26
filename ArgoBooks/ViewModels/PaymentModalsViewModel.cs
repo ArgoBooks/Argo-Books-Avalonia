@@ -1,6 +1,7 @@
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
 using System.Collections.ObjectModel;
+using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models;
 using ArgoBooks.Core.Models.Common;
@@ -284,52 +285,16 @@ public partial class PaymentModalsViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// The payment's USD figure at its own date's rate, or pending when there is none: future
-    /// dated, offline, or no rate service (docs/Calculations.md Rule 3a).
-    /// </summary>
-    private static async Task<(decimal AmountUSD, bool IsPending)> ConvertToUsdAsync(decimal amount, string currency, DateTime date)
-    {
-        if (string.Equals(currency, "USD", StringComparison.OrdinalIgnoreCase))
-            return (amount, false);
-
-        var rate = ExchangeRateService.Instance is { } exchangeService
-            ? await exchangeService.GetExchangeRateAsync(currency, "USD", date)
-            : 0m;
-
-        // USD base stored full-precision (no 2dp round); display rounds. See Calculations.md Rule 3.
-        return rate > 0 ? (amount * rate, false) : (0m, true);
-    }
-
-    /// <summary>
     /// Keeps the payment's conversion queue entry in step with it: there while it waits for a
     /// rate, gone once it doesn't. The service drops an entry whose payment is missing, so undo
     /// and redo have to move the entry with the payment or a redone payment waits forever.
     /// </summary>
-    private static void QueueConversion(Core.Data.CompanyData companyData, Payment payment)
-    {
-        companyData.PendingConversions.RemoveAll(p => p.TransactionId == payment.Id);
-        if (payment.IsPendingConversion)
-        {
-            companyData.PendingConversions.Add(new PendingConversion
-            {
-                TransactionId = payment.Id,
-                TransactionType = "Payment",
-                OriginalCurrency = payment.OriginalCurrency,
-                TransactionDate = payment.Date,
-                Total = payment.Amount
-            });
-        }
+    private static void QueueConversion(Core.Data.CompanyData companyData, Payment payment) =>
+        UsdConversion.Requeue(companyData, payment);
 
-        _ = PendingConversionService.Instance?.MirrorAsync(companyData, [payment.Id]);
-    }
+    private static void ForgetConversion(Core.Data.CompanyData companyData, Payment payment) =>
+        UsdConversion.Set(companyData, UsdConversion.KeyOf(payment), null);
 
-    private static void ForgetConversion(Core.Data.CompanyData companyData, Payment payment)
-    {
-        companyData.PendingConversions.RemoveAll(p => p.TransactionId == payment.Id);
-        _ = PendingConversionService.Instance?.MirrorAsync(companyData, [payment.Id]);
-    }
-
-    [RelayCommand]
     public async Task SaveNewPayment()
     {
         if (!ValidateModal())
@@ -339,8 +304,7 @@ public partial class PaymentModalsViewModel : ViewModelBase
         if (companyData == null)
             return;
 
-        companyData.IdCounters.Payment++;
-        var newId = $"PAY-{companyData.IdCounters.Payment:D3}";
+        var newId = new Core.Data.IdGenerator(companyData).NextPaymentId();
 
         var paymentMethod = PaymentMethodExtensions.ParseDisplayName(ModalPaymentMethod);
 
@@ -350,7 +314,8 @@ public partial class PaymentModalsViewModel : ViewModelBase
         var currentCurrency = ResolvePaymentCurrency(companyData);
         var paymentDate = ModalDate?.DateTime ?? DateTime.Today;
 
-        var (amountUSD, isPending) = await ConvertToUsdAsync(parsedAmount, currentCurrency, paymentDate);
+        // At its own date's rate, or pending when there is none (docs/Calculations.md Rule 3a).
+        var rate = await UsdConversion.FetchRateAsync(currentCurrency, paymentDate);
 
         var newPayment = new Payment
         {
@@ -363,13 +328,11 @@ public partial class PaymentModalsViewModel : ViewModelBase
             ReferenceNumber = string.IsNullOrWhiteSpace(ModalReferenceNumber) ? null : ModalReferenceNumber.Trim(),
             Notes = ModalNotes.Trim(),
             CreatedAt = DateTime.UtcNow,
-            OriginalCurrency = currentCurrency,
-            AmountUSD = amountUSD,
-            IsPendingConversion = isPending
+            OriginalCurrency = currentCurrency
         };
 
+        UsdConversion.Apply(companyData, newPayment, rate);
         companyData.Payments.Add(newPayment);
-        QueueConversion(companyData, newPayment);
         _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.PaymentRecorded);
         // Recalc the affected invoice's totals + status. Without this the
         // invoice's AmountPaid / Balance / Status drift out of sync with
@@ -383,7 +346,7 @@ public partial class PaymentModalsViewModel : ViewModelBase
             $"Record payment '{newPayment.Id}'",
             () =>
             {
-                companyData.Payments.Remove(paymentToUndo);
+                companyData.Payments.RemoveRecord(paymentToUndo);
                 ForgetConversion(companyData, paymentToUndo);
                 RecalcInvoiceTotals(companyData, invoiceIdForRecalc);
                 companyData.MarkAsModified();
@@ -391,7 +354,7 @@ public partial class PaymentModalsViewModel : ViewModelBase
             },
             () =>
             {
-                companyData.Payments.Add(paymentToUndo);
+                companyData.Payments.RestoreRecord(paymentToUndo);
                 QueueConversion(companyData, paymentToUndo);
                 RecalcInvoiceTotals(companyData, invoiceIdForRecalc);
                 companyData.MarkAsModified();
@@ -435,7 +398,6 @@ public partial class PaymentModalsViewModel : ViewModelBase
         IsEditModalOpen = true;
     }
 
-    [RelayCommand]
     public void CloseEditModal()
     {
         IsEditModalOpen = false;
@@ -446,7 +408,6 @@ public partial class PaymentModalsViewModel : ViewModelBase
     /// <summary>
     /// Requests to close the Edit modal, showing confirmation if changes were made.
     /// </summary>
-    [RelayCommand]
     public async Task RequestCloseEditModalAsync()
     {
         if (HasEditModalChanges)
@@ -458,7 +419,6 @@ public partial class PaymentModalsViewModel : ViewModelBase
         CloseEditModal();
     }
 
-    [RelayCommand]
     public async Task SaveEditedPayment()
     {
         if (_editingPayment == null)
@@ -529,7 +489,7 @@ public partial class PaymentModalsViewModel : ViewModelBase
         // Convert to USD for consistent reporting. Tag the payment with the linked invoice's/revenue's
         // currency, not the company display currency, so it counts toward that invoice's totals (§5).
         var editCurrentCurrency = ResolvePaymentCurrency(companyData);
-        var (newAmountUSD, newIsPending) = await ConvertToUsdAsync(newAmount, editCurrentCurrency, newDate);
+        var newRate = await UsdConversion.FetchRateAsync(editCurrentCurrency, newDate);
 
         var newPaymentMethod = PaymentMethodExtensions.ParseDisplayName(ModalPaymentMethod);
         var newReferenceNumber = string.IsNullOrWhiteSpace(ModalReferenceNumber) ? null : ModalReferenceNumber.Trim();
@@ -562,6 +522,8 @@ public partial class PaymentModalsViewModel : ViewModelBase
         var oldOriginalCurrency = paymentToEdit2.OriginalCurrency;
         var oldAmountUSD = paymentToEdit2.AmountUSD;
         var oldIsPending = paymentToEdit2.IsPendingConversion;
+        var queueKey = UsdConversion.KeyOf(paymentToEdit2);
+        var originalQueued = UsdConversion.Snapshot(companyData, [queueKey]);
 
         paymentToEdit2.InvoiceId = newInvoiceId;
         paymentToEdit2.CustomerId = newCustomerId;
@@ -571,9 +533,10 @@ public partial class PaymentModalsViewModel : ViewModelBase
         paymentToEdit2.ReferenceNumber = newReferenceNumber;
         paymentToEdit2.Notes = newNotesVal;
         paymentToEdit2.OriginalCurrency = editCurrentCurrency;
-        paymentToEdit2.AmountUSD = newAmountUSD;
-        paymentToEdit2.IsPendingConversion = newIsPending;
-        QueueConversion(companyData, paymentToEdit2);
+        UsdConversion.Apply(companyData, paymentToEdit2, newRate);
+        var newAmountUSD = paymentToEdit2.AmountUSD;
+        var newIsPending = paymentToEdit2.IsPendingConversion;
+        var editedQueued = UsdConversion.Snapshot(companyData, [queueKey]);
 
         // Recalc both invoices when the payment moves between them; recalc
         // just the one when only the amount/details changed. See §5.
@@ -596,7 +559,7 @@ public partial class PaymentModalsViewModel : ViewModelBase
                 paymentToEdit2.OriginalCurrency = oldOriginalCurrency;
                 paymentToEdit2.AmountUSD = oldAmountUSD;
                 paymentToEdit2.IsPendingConversion = oldIsPending;
-                QueueConversion(companyData, paymentToEdit2);
+                UsdConversion.Restore(companyData, [queueKey], originalQueued);
                 RecalcInvoiceTotals(companyData, newInvoiceId);
                 if (newInvoiceId != oldInvoiceId)
                     RecalcInvoiceTotals(companyData, oldInvoiceId);
@@ -615,7 +578,7 @@ public partial class PaymentModalsViewModel : ViewModelBase
                 paymentToEdit2.OriginalCurrency = editCurrentCurrency;
                 paymentToEdit2.AmountUSD = newAmountUSD;
                 paymentToEdit2.IsPendingConversion = newIsPending;
-                QueueConversion(companyData, paymentToEdit2);
+                UsdConversion.Restore(companyData, [queueKey], editedQueued);
                 RecalcInvoiceTotals(companyData, oldInvoiceId);
                 if (newInvoiceId != oldInvoiceId)
                     RecalcInvoiceTotals(companyData, newInvoiceId);
@@ -654,16 +617,22 @@ public partial class PaymentModalsViewModel : ViewModelBase
             }
 
             var invoiceIdForRecalc = payment.InvoiceId;
+            var queueKey = UsdConversion.KeyOf(payment);
+            List<PendingConversion> queued = [];
+
+            // The queued conversion leaves with the payment and comes back as it was, keeping the
+            // date whose rate it waits for: a portal payment waits for its invoice's.
             RemoveWithUndo(companyData, companyData.Payments, payment, $"Delete payment '{payment.Id}'",
                 () => PaymentDeleted?.Invoke(this, EventArgs.Empty),
                 onRemove: () =>
                 {
-                    ForgetConversion(companyData, payment);
+                    queued = UsdConversion.Snapshot(companyData, [queueKey]);
+                    UsdConversion.Set(companyData, queueKey, null);
                     RecalcInvoiceTotals(companyData, invoiceIdForRecalc);
                 },
                 onRestore: () =>
                 {
-                    QueueConversion(companyData, payment);
+                    UsdConversion.Restore(companyData, [queueKey], queued);
                     RecalcInvoiceTotals(companyData, invoiceIdForRecalc);
                 });
         }
@@ -812,9 +781,6 @@ public partial class PaymentDisplayItem : ObservableObject
     [NotifyPropertyChangedFor(nameof(HasInvoiceId))]
     private string _invoiceId = string.Empty;
 
-    [ObservableProperty]
-    private string _invoiceDisplay = string.Empty;
-
     /// <summary>
     /// True when this payment has a linked invoice, drives the Invoice
     /// column's hyperlink visibility. Manual payments without an invoice
@@ -833,9 +799,6 @@ public partial class PaymentDisplayItem : ObservableObject
 
     [ObservableProperty]
     private PaymentMethod _paymentMethod;
-
-    [ObservableProperty]
-    private string _paymentMethodDisplay = string.Empty;
 
     [ObservableProperty]
     private decimal _amount;

@@ -59,8 +59,8 @@ public class PortalPaymentPendingConversionTests : ModalViewModelTestBase
 
         // The rates arrive, and the queue converts the invoice and the payment.
         var rates = new ExchangeRateService(new NoDiskPlatform(), new HttpClient(new EurHandler(0.9m)));
-        var queue = new PendingConversionService(new NoDiskPlatform(), exchangeRateService: rates);
-        await queue.ReconcileWithCompanyDataAsync(data);
+        var queue = new PendingConversionService(exchangeRateService: rates);
+        queue.ReconcileWithCompanyData(data);
         await queue.ProcessPendingConversionsAsync(data);
 
         Assert.False(payment.IsPendingConversion);
@@ -85,8 +85,6 @@ public class PortalPaymentPendingConversionTests : ModalViewModelTestBase
         public PlatformType Platform => PlatformType.Linux;
         public string GetAppDataPath() => Path.GetTempPath();
         public string GetTempPath() => Path.GetTempPath();
-        public string GetDefaultDocumentsPath() => Path.GetTempPath();
-        public string GetLogsPath() => Path.GetTempPath();
         public string GetCachePath() => Path.GetTempPath();
         public void EnsureDirectoryExists(string path) { }
         public bool SupportsFileSystem => false;
@@ -103,7 +101,6 @@ public class PortalPaymentPendingConversionTests : ModalViewModelTestBase
         public string NormalizePath(string path) => path;
         public string CombinePaths(params string[] paths) => Path.Combine(paths);
         public string GetMachineId() => "test-machine-id";
-        public void RegisterFileTypeAssociations(string iconPath) { }
         public StringComparer PathComparer => StringComparer.Ordinal;
     }
 }

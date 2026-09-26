@@ -4,12 +4,12 @@
 
 - **Do NOT build or run tests after every change.** Only build/test when explicitly asked.
 - **Do NOT amend commits or force push** unless explicitly told to. Always create new commits.
-- **Do NOT update the language files** like tools/ArgoBooks.Translations/languages/en.json and similar.
+- **Do NOT update the language files** in `tools/ArgoBooks.Translations/languages/`.
 - **Do NOT commit plan or spec markdown files** (e.g. anything under `docs/superpowers/`). These are local planning artifacts; keep them untracked.
 
 ## Project Overview
 
-Argo Books is a cross-platform desktop accounting application built with C# .NET 10 and Avalonia UI. It provides receipt scanning, invoicing, expense/revenue tracking, predictive analytics, inventory management, rental management, customer management, and more. Data is stored locally in encrypted `.argo` files, no cloud or database required. Available for Windows, macOS, and Linux.
+Argo Books is a cross-platform desktop accounting application built with C# .NET 10 and Avalonia UI. It provides receipt scanning, invoicing, expense/revenue tracking, predictive analytics, inventory management, rental management, customer management, and more. Data is stored locally in encrypted `.argo` files. Available for Windows, macOS, and Linux.
 
 ## Build & Run Commands
 
@@ -56,11 +56,11 @@ Developer tools live in `tools/`, separate from the app. Each has a README expla
 
 ### Data Storage
 
-File-based, not database. Company data lives in encrypted `.argo` files (AES-256). `CompanyManager` orchestrates file lifecycle: load, save, auto-save, encryption, temp directory management. All data is held in memory for performance and security.
+File-based. Company data lives in encrypted `.argo` files (AES-256). `CompanyManager` orchestrates file lifecycle: load, save, encryption. All data is held in memory for performance and security.
 
 ### Key Patterns
 
-- **Singleton services** via `Microsoft.Extensions.DependencyInjection`
+- **Shared services**: one instance each, held as static properties on `App` (e.g. `App.CompanyManager`). There is no DI container.
 - **Compiled bindings** enabled by default (`AvaloniaUseCompiledBindingsByDefault=true`)
 - **Platform abstraction** via `PlatformServiceFactory` with platform-specific implementations (Windows Hello, etc.)
 - **Central package versioning** in `Directory.Packages.props`; app version in `Directory.Build.props`

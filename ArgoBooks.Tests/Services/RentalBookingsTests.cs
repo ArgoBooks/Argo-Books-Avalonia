@@ -3,6 +3,7 @@ using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Entities;
 using ArgoBooks.Core.Models.Inventory;
 using ArgoBooks.Core.Models.Rentals;
+using ArgoBooks.Core.Models.Transactions;
 using ArgoBooks.Core.Services;
 using Xunit;
 
@@ -70,6 +71,76 @@ public class RentalBookingsTests
         };
 
         Assert.Equal(new[] { "RI-10", "RI-11" }, record.EffectiveLineItems().Select(li => li.RentalItemId));
+    }
+
+    /// <summary>
+    /// A rental invoiced rather than paid on the spot records no revenue of its own, so its
+    /// invoice being paid is the only thing that settles it. Nothing wrote that back to the
+    /// rental, which left an invoiced-and-paid rental reading as unpaid.
+    /// </summary>
+    private static CompanyData WithInvoices(RentalRecord rental, params Invoice[] invoices)
+    {
+        var data = new CompanyData();
+        data.Rentals.Add(rental);
+        data.Invoices.AddRange(invoices);
+        return data;
+    }
+
+    private static Invoice Inv(string id, InvoiceStatus status) => new() { Id = id, Status = status };
+
+    [Fact]
+    public void SettledByInvoice_IsFalse_WhenTheRentalWasNeverInvoiced()
+    {
+        var rental = Rental("R-1", RentalStatus.Returned, -5, -1);
+
+        Assert.False(RentalBookings.SettledByInvoice(WithInvoices(rental), rental));
+    }
+
+    [Fact]
+    public void SettledByInvoice_IsTrue_OnceItsOnlyInvoiceIsPaid()
+    {
+        var rental = Rental("R-1", RentalStatus.Returned, -5, -1);
+        rental.InvoiceIds.Add("INV-1");
+        var data = WithInvoices(rental, Inv("INV-1", InvoiceStatus.Paid));
+
+        Assert.True(RentalBookings.SettledByInvoice(data, rental));
+    }
+
+    [Theory]
+    [InlineData(InvoiceStatus.Sent)]
+    [InlineData(InvoiceStatus.Partial)]
+    [InlineData(InvoiceStatus.Overdue)]
+    [InlineData(InvoiceStatus.Cancelled)]
+    public void SettledByInvoice_IsFalse_UntilTheInvoiceIsActuallyPaid(InvoiceStatus status)
+    {
+        var rental = Rental("R-1", RentalStatus.Returned, -5, -1);
+        rental.InvoiceIds.Add("INV-1");
+        var data = WithInvoices(rental, Inv("INV-1", status));
+
+        Assert.False(RentalBookings.SettledByInvoice(data, rental));
+    }
+
+    [Fact]
+    public void SettledByInvoice_IsFalse_WhileAnySecondInvoiceIsOutstanding()
+    {
+        var rental = Rental("R-1", RentalStatus.Returned, -5, -1);
+        rental.InvoiceIds.AddRange(["INV-1", "INV-2"]);
+        var data = WithInvoices(rental, Inv("INV-1", InvoiceStatus.Paid), Inv("INV-2", InvoiceStatus.Sent));
+
+        Assert.False(RentalBookings.SettledByInvoice(data, rental));
+    }
+
+    /// <summary>
+    /// A deleted invoice leaves its id behind on the rental. That must not read as settled,
+    /// which "every linked invoice is paid" would say of an empty set.
+    /// </summary>
+    [Fact]
+    public void SettledByInvoice_IsFalse_WhenTheLinkedInvoiceNoLongerExists()
+    {
+        var rental = Rental("R-1", RentalStatus.Returned, -5, -1);
+        rental.InvoiceIds.Add("INV-GONE");
+
+        Assert.False(RentalBookings.SettledByInvoice(WithInvoices(rental), rental));
     }
 
     private static RentalRecord Rental(string id, RentalStatus status, int startIn, int dueIn, int units = 1) => new()

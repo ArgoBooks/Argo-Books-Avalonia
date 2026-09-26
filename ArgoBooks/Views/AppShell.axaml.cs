@@ -19,6 +19,8 @@ public partial class AppShell : UserControl
 {
     private const double CompactPageThreshold = 1200;
     private const double MinimalPageThreshold = 900;
+    private const double ShortPageThreshold = 620;
+    private const double NarrowWindowThreshold = 1200;
 
     private HeaderViewModel? _previousHeaderVm;
 
@@ -35,6 +37,10 @@ public partial class AppShell : UserControl
         // Responsive page content margin
         AppContent.SizeChanged += OnContentSizeChanged;
 
+        // The sidebar keys off the whole shell, not the content area: the content area widens as
+        // the sidebar collapses, which would undo the collapse.
+        SizeChanged += OnShellSizeChanged;
+
         // Animate toast slide in/out from right
         DataContextChanged += (_, _) =>
         {
@@ -45,6 +51,9 @@ public partial class AppShell : UserControl
             {
                 _previousHeaderVm = vm.HeaderViewModel;
                 vm.HeaderViewModel.PropertyChanged += OnHeaderViewModelPropertyChanged;
+
+                if (Bounds.Width > 0)
+                    vm.SidebarViewModel.SetNarrowWindow(Bounds.Width < NarrowWindowThreshold);
             }
             else
             {
@@ -80,12 +89,22 @@ public partial class AppShell : UserControl
     private void OnContentSizeChanged(object? sender, SizeChangedEventArgs e)
     {
         var width = e.NewSize.Width;
-        if (width < MinimalPageThreshold)
-            PageContentControl.Margin = new Thickness(0);
-        else if (width < CompactPageThreshold)
-            PageContentControl.Margin = new Thickness(12);
-        else
-            PageContentControl.Margin = new Thickness(30);
+        var horizontal = width < MinimalPageThreshold ? 0
+            : width < CompactPageThreshold ? 12
+            : 30;
+
+        // A short window gives the rows to the table instead of to margins and stat card padding.
+        var isShort = e.NewSize.Height < ShortPageThreshold;
+        var vertical = isShort ? Math.Min(horizontal, 12) : horizontal;
+
+        PageContentControl.Margin = new Thickness(horizontal, vertical);
+        Controls.StatCard.SetForceCompact(PageContentControl, isShort);
+    }
+
+    private void OnShellSizeChanged(object? sender, SizeChangedEventArgs e)
+    {
+        if (e.WidthChanged)
+            (DataContext as AppShellViewModel)?.SidebarViewModel.SetNarrowWindow(e.NewSize.Width < NarrowWindowThreshold);
     }
 
     /// <inheritdoc />

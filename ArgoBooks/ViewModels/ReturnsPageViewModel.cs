@@ -159,12 +159,16 @@ public partial class ReturnsPageViewModel : SortablePageViewModelBase
 
     private void OnFiltersApplied(object? sender, EventArgs e)
     {
+        ActiveFilterCount = App.ReturnsModalsViewModel?.ActiveFilterCount ?? 0;
         CurrentPage = 1;
         FilterReturns();
     }
 
+    protected override void ClearTableFilters() => App.ReturnsModalsViewModel?.ClearFiltersCommand.Execute(null);
+
     private void OnFiltersCleared(object? sender, EventArgs e)
     {
+        ActiveFilterCount = 0;
         SearchQuery = null;
         CurrentPage = 1;
         FilterReturns();
@@ -198,14 +202,13 @@ public partial class ReturnsPageViewModel : SortablePageViewModelBase
         TotalReturns = _allReturns.Count;
         ExpenseReturns = _allReturns.Count(r => r.ReturnType == "Expense");
         CustomerReturns = _allReturns.Count(r => r.ReturnType == "Customer");
-        var totalRefundedValue = _allReturns.Sum(r => r.NetRefund);
-        TotalRefunded = CurrencyService.Format(totalRefundedValue);
-    }
-
-    [RelayCommand]
-    private void RefreshReturns()
-    {
-        LoadReturns();
+        // Each refund is in its sale's or purchase's currency (Calculations.md §10).
+        if (App.CompanyManager?.CompanyData is not { } companyData)
+            return;
+        var complete = DisplayCurrency.TrySumFromNative(
+            _allReturns, r => r.NetRefund, r => ReturnLossAmounts.CurrencyOf(companyData, r), r => r.ReturnDate,
+            CurrencyService.GetDisplayAmountFromNative, out var totalRefundedValue);
+        TotalRefunded = complete ? CurrencyService.Format(totalRefundedValue) : CurrencyService.PendingMarker;
     }
 
     private void FilterReturns()
@@ -271,6 +274,11 @@ public partial class ReturnsPageViewModel : SortablePageViewModelBase
         var supplierOrCustomerName = GetSupplierOrCustomerName(returnRecord);
         var processedByName = GetProcessedByName(returnRecord);
         var reason = returnRecord.Items.FirstOrDefault()?.Reason ?? "Not specified";
+        var companyData = App.CompanyManager?.CompanyData;
+        var refund = companyData == null
+            ? returnRecord.NetRefund
+            : CurrencyService.GetDisplayAmountFromNative(
+                returnRecord.NetRefund, ReturnLossAmounts.CurrencyOf(companyData, returnRecord), returnRecord.ReturnDate);
 
         return new ReturnDisplayItem
         {
@@ -282,7 +290,8 @@ public partial class ReturnsPageViewModel : SortablePageViewModelBase
             ReturnDate = returnRecord.ReturnDate,
             Reason = reason,
             ProcessedBy = processedByName,
-            RefundAmount = returnRecord.NetRefund,
+            RefundAmount = refund ?? 0m,
+            RefundAmountFormatted = refund.HasValue ? CurrencyService.Format(refund.Value) : CurrencyService.PendingMarker,
             Notes = returnRecord.Notes,
             ItemCount = returnRecord.Items.Sum(i => i.Quantity)
         };
@@ -421,5 +430,5 @@ public partial class ReturnDisplayItem : ObservableObject
 
     // Computed properties for display
     public string DateFormatted => ReturnDate.ToString("MMM d, yyyy");
-    public string RefundAmountFormatted => CurrencyService.Format(RefundAmount);
+    public string RefundAmountFormatted { get; init; } = string.Empty;
 }

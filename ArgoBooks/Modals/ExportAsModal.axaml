@@ -21,7 +21,7 @@
                 Width="550"
                 MaxHeight="700">
 
-            <Grid RowDefinitions="Auto,Auto,Auto">
+            <Grid RowDefinitions="Auto,*,Auto">
                 <!-- Header -->
                 <controls:ModalHeader Grid.Row="0"
                                       Title="{loc:Loc 'Export As'}"
@@ -213,16 +213,6 @@
             <Setter Property="VerticalAlignment" Value="Bottom" />
             <Setter Property="Margin" Value="0,0,0,0" />
             <Setter Property="CornerRadius" Value="1" />
-        </Style>
-
-        <!-- Form Select (ComboBox) -->
-        <Style Selector="ComboBox.form-select">
-            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="6" />
-            <Setter Property="Padding" Value="12,10" />
-            <Setter Property="FontSize" Value="14" />
         </Style>
 
         <!-- Form DatePicker -->

@@ -6,6 +6,7 @@
              xmlns:controls="using:ArgoBooks.Controls"
              xmlns:table="using:ArgoBooks.Controls.ArgoTable"
              xmlns:loc="using:ArgoBooks.Localization"
+             xmlns:converters="using:ArgoBooks.Converters"
              xmlns:bm="using:ArgoBooks.Core.Models.BankMatching"
              xmlns:icons="using:ArgoBooks"
              mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="800"
@@ -84,6 +85,8 @@
                                  SearchPlaceholder="{loc:Loc 'Search bank lines...'}"
                                  ShowFilterButton="{Binding !LinesShowCalendar}"
                                  FilterCommand="{Binding OpenFilterModalCommand}"
+                                 FilterCount="{Binding ActiveFilterCount}"
+                                 ClearFiltersCommand="{Binding ClearTableFiltersCommand}"
                                  ShowPagination="{Binding !LinesShowCalendar}"
                                  ShowColumnHeaders="{Binding !LinesShowCalendar}"
                                  ColumnWidthsManager="{Binding BankLineColumns}"
@@ -144,7 +147,7 @@
                         <ItemsControl Classes="table-rows" IsVisible="{Binding !LinesShowCalendar}" ItemsSource="{Binding Lines}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate DataType="vm:BankLineRow">
-                                    <Border Padding="24,0" MinHeight="52"
+                                    <Border Padding="24,0,0,0" MinHeight="52"
                                             BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
                                         <StackPanel Orientation="Horizontal">
                                             <table:ArgoTableCell Text="{Binding DateDisplay}"
@@ -243,6 +246,8 @@
                                  SearchPlaceholder="{loc:Loc 'Search records...'}"
                                  ShowFilterButton="{Binding !MissingShowCalendar}"
                                  FilterCommand="{Binding OpenMissingFilterModalCommand}"
+                                 FilterCount="{Binding MissingFilterCount}"
+                                 ClearFiltersCommand="{Binding ClearMissingTableFiltersCommand}"
                                  ShowPagination="{Binding !MissingShowCalendar}"
                                  ShowColumnHeaders="{Binding !MissingShowCalendar}"
                                  ColumnWidthsManager="{Binding MissingColumns}"
@@ -296,7 +301,7 @@
                         <ItemsControl Classes="table-rows" IsVisible="{Binding !MissingShowCalendar}" ItemsSource="{Binding UnmatchedBookRecords}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate DataType="bm:BookRecordRef">
-                                    <Border Padding="24,0" MinHeight="44"
+                                    <Border Padding="24,0,0,0" MinHeight="44"
                                             BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
                                         <StackPanel Orientation="Horizontal">
                                             <table:ArgoTableCell Text="{Binding Date, StringFormat='MMM dd, yyyy'}"
@@ -315,7 +320,7 @@
                                                     </StackPanel>
                                                 </table:ArgoTableCell.CellContent>
                                             </table:ArgoTableCell>
-                                            <table:ArgoTableCell Text="{Binding Amount, StringFormat=C2}" ShowSeparator="False"
+                                            <table:ArgoTableCell Text="{Binding Amount, Converter={x:Static converters:Converters.Money}}" ShowSeparator="False"
                                                                  ColumnWidth="{Binding $parent[ItemsControl].((vm:BankMatchingPageViewModel)DataContext).MissingColumns.AmountColumnWidth}" />
                                         </StackPanel>
                                     </Border>

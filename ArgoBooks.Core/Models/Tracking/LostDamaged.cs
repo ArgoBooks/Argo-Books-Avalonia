@@ -1,3 +1,4 @@
+using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Enums;
 
 namespace ArgoBooks.Core.Models.Tracking;
@@ -5,7 +6,7 @@ namespace ArgoBooks.Core.Models.Tracking;
 /// <summary>
 /// Represents a record of lost or damaged inventory.
 /// </summary>
-public class LostDamaged
+public class LostDamaged : IRecord
 {
     /// <summary>
     /// Unique identifier (e.g., LOST-001).

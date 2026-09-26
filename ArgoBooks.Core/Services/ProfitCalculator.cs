@@ -34,8 +34,8 @@ public static class ProfitCalculator
     /// <summary>
     /// Display-currency variant of <see cref="CalculateNetProfitUSD"/>: each component (revenue,
     /// expenses, refunds) is converted to the display currency at each transaction's OWN date via
-    /// <paramref name="toDisplay"/> before the profit subtraction, per docs/Calculations.md §3a
-    /// Phase 2. Pass <c>CurrencyService.GetDisplayAmount</c>. Equals the USD profit for USD display.
+    /// <paramref name="toDisplay"/> before the profit subtraction, per docs/Calculations.md Rule 3a.
+    /// Pass <c>CurrencyService.GetDisplayAmount</c>. Equals the USD profit for USD display.
     /// </summary>
     public static decimal CalculateNetProfitDisplay(
         CompanyData data, DateTime start, DateTime end, Func<decimal, DateTime, decimal> toDisplay)
@@ -58,18 +58,14 @@ public static class ProfitCalculator
     public static Dictionary<DateTime, decimal> CalculateNetProfitByDayUSD(
         CompanyData data, DateTime start, DateTime end)
     {
-        var revenueByDay = data.Revenues
-            .Where(s => s.Date >= start && s.Date <= end)
-            .Where(RevenueAggregator.IsCollected)
-            .GroupBy(s => s.Date.Date)
-            .ToDictionary(g => g.Key, g => g.Sum(s => s.EffectiveSubtotalUSD));
+        var revenueByDay = RevenueAggregator.GroupCollectedRevenuePreTaxByDayUSD(data.Revenues, start, end);
 
         var expensesByDay = data.Expenses
             .Where(p => p.Date >= start && p.Date <= end)
             .GroupBy(p => p.Date.Date)
             .ToDictionary(g => g.Key, g => g.Sum(CostOfGoodsAggregator.OperatingExpenseUSD));
 
-        var refundsByDay = BuildPreTaxRefundsByDay(data, start, end);
+        var refundsByDay = RefundAggregator.GroupPreTaxRefundsByDayUSD(data.Payments, BuildInvoiceLookup(data.Invoices), start, end);
 
         var costOfGoodsByDay = data.Revenues
             .Where(s => s.Date >= start && s.Date <= end)
@@ -91,7 +87,7 @@ public static class ProfitCalculator
                 - costOfGoodsByDay.GetValueOrDefault(day, 0m));
     }
 
-    internal static Dictionary<string, Invoice> BuildInvoiceLookup(IEnumerable<Invoice> invoices)
+    public static Dictionary<string, Invoice> BuildInvoiceLookup(IEnumerable<Invoice> invoices)
     {
         var dict = new Dictionary<string, Invoice>();
         foreach (var inv in invoices)
@@ -100,17 +96,5 @@ public static class ProfitCalculator
                 dict[inv.Id] = inv;
         }
         return dict;
-    }
-
-    private static Dictionary<DateTime, decimal> BuildPreTaxRefundsByDay(
-        CompanyData data, DateTime start, DateTime end)
-    {
-        if (data.Payments == null) return new Dictionary<DateTime, decimal>();
-
-        var invoicesById = BuildInvoiceLookup(data.Invoices);
-        return data.Payments
-            .Where(p => p.IsRefund && p.Date >= start && p.Date <= end)
-            .GroupBy(p => p.Date.Date)
-            .ToDictionary(g => g.Key, g => g.Sum(p => RefundAggregator.PreTaxPortionUSD(p, invoicesById)));
     }
 }

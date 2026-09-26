@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using ArgoBooks.Core.Models.BankMatching;
+using ArgoBooks.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -73,7 +74,7 @@ public partial class BankMatchingModalsViewModel : ViewModelBase
             var q = ManualSearchQuery.Trim();
             query = query.Where(c =>
                 c.RecordDescription.Contains(q, StringComparison.OrdinalIgnoreCase) ||
-                c.RecordAmount.ToString("C2").Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                CurrencyService.Format(c.RecordAmount).Contains(q, StringComparison.OrdinalIgnoreCase) ||
                 c.RecordType.ToString().Contains(q, StringComparison.OrdinalIgnoreCase));
         }
         foreach (var c in query)
@@ -150,10 +151,14 @@ public partial class BankMatchingModalsViewModel : ViewModelBase
             CloseFilterModal();
     }
 
+    /// <summary>How many filters are applied, for the page's Filter button.</summary>
+    public int ActiveFilterCount { get; private set; }
+
     [RelayCommand]
     private void ApplyFilters()
     {
         CloseFilterModal();
+        ActiveFilterCount = Filters.ActiveCount;
         FiltersApplied?.Invoke(this, new BankFilterAppliedEventArgs(FilterStartDate, FilterEndDate, FilterStatus));
     }
 
@@ -162,6 +167,7 @@ public partial class BankMatchingModalsViewModel : ViewModelBase
     {
         Filters.Reset();
         CloseFilterModal();
+        ActiveFilterCount = 0;
         FiltersCleared?.Invoke(this, EventArgs.Empty);
     }
 
@@ -223,10 +229,14 @@ public partial class BankMatchingModalsViewModel : ViewModelBase
             CloseMissingFilterModal();
     }
 
+    /// <summary>How many missing-records filters are applied, for that table's Filter button.</summary>
+    public int MissingActiveFilterCount { get; private set; }
+
     [RelayCommand]
     private void ApplyMissingFilters()
     {
         CloseMissingFilterModal();
+        MissingActiveFilterCount = MissingFilters.ActiveCount;
         MissingFiltersApplied?.Invoke(this, new MissingFilterAppliedEventArgs(MissingFilterStartDate, MissingFilterEndDate, MissingFilterType));
     }
 
@@ -235,6 +245,7 @@ public partial class BankMatchingModalsViewModel : ViewModelBase
     {
         MissingFilters.Reset();
         CloseMissingFilterModal();
+        MissingActiveFilterCount = 0;
         MissingFiltersCleared?.Invoke(this, EventArgs.Empty);
     }
 

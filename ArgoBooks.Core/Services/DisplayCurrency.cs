@@ -3,7 +3,7 @@ using ArgoBooks.Core.Data;
 namespace ArgoBooks.Core.Services;
 
 /// <summary>
-/// The one currency a report or an Insights run shows its amounts in (docs/Calculations.md §3a): the
+/// The one currency a report or an Insights run shows its amounts in (docs/Calculations.md Rule 3a): the
 /// company currency when an exact-date rate exists for every date the run converts at, otherwise USD
 /// for the whole run, so a document never mixes currencies or shows a wrong-date figure.
 /// </summary>
@@ -43,8 +43,29 @@ public static class DisplayCurrency
     }
 
     /// <summary>
-    /// Every date a report converts at: its revenue, expenses, payments, purchase orders and invoices,
-    /// plus the end date that point-in-time figures such as inventory are valued at.
+    /// An amount recorded in <paramref name="currency"/> rather than USD (a return's refund amount, a
+    /// loss's value) in <paramref name="displayCurrency"/> at the exact <paramref name="date"/>, through
+    /// the USD base. An amount already in the display currency is used as-is. Null when the
+    /// exact-date rate is unavailable.
+    /// </summary>
+    public static decimal? FromNative(decimal amount, string currency, string displayCurrency, DateTime date)
+    {
+        if (string.Equals(currency, displayCurrency, StringComparison.OrdinalIgnoreCase))
+            return amount;
+
+        var svc = ExchangeRateService.Instance;
+        if (svc == null)
+            return amount;
+
+        return svc.TryConvertToUsdBase(amount, currency, date, out var usd)
+               && svc.TryConvertFromUSD(usd, displayCurrency, date, out var converted)
+            ? converted
+            : null;
+    }
+
+    /// <summary>
+    /// Every date a report converts at: its revenue, expenses, payments, purchase orders, invoices,
+    /// returns and losses, plus the end date that point-in-time figures such as inventory are valued at.
     /// </summary>
     public static IEnumerable<DateTime> ReportDates(CompanyData data, DateTime? endDate)
     {
@@ -53,6 +74,31 @@ public static class DisplayCurrency
         foreach (var p in data.Payments) yield return p.Date;
         foreach (var po in data.PurchaseOrders) yield return po.OrderDate;
         foreach (var i in data.Invoices) yield return i.IssueDate;
+        foreach (var r in data.Returns) yield return r.ReturnDate;
+        foreach (var l in data.LostDamaged) yield return l.DateDiscovered;
         yield return endDate ?? DateTime.Today;
+    }
+
+    /// <summary>
+    /// Sums amounts recorded in their own currencies (returns, losses, an integration sync's preview)
+    /// in the display currency. <paramref name="toDisplay"/> converts one amount from its currency at
+    /// its date, or returns null when that date's rate is unavailable. Such an amount counts as 0 and
+    /// the result is false, so a caller can show pending instead of a partial total.
+    /// </summary>
+    public static bool TrySumFromNative<T>(
+        IEnumerable<T> items, Func<T, decimal> amount, Func<T, string> currency, Func<T, DateTime> date,
+        Func<decimal, string, DateTime, decimal?> toDisplay, out decimal total)
+    {
+        total = 0m;
+        var complete = true;
+        foreach (var item in items)
+        {
+            var converted = toDisplay(amount(item), currency(item), date(item));
+            if (converted.HasValue)
+                total += converted.Value;
+            else
+                complete = false;
+        }
+        return complete;
     }
 }

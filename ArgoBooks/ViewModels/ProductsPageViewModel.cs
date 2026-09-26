@@ -220,13 +220,17 @@ public partial class ProductsPageViewModel : SortablePageViewModelBase
             FilterItemType = modals.FilterItemType;
             FilterCategoryId = modals.FilterCategory?.Id;
             FilterSupplierId = modals.FilterSupplier?.Id;
+            ActiveFilterCount = modals.ActiveFilterCount;
         }
         CurrentPage = 1;
         FilterProducts();
     }
 
+    protected override void ClearTableFilters() => App.ProductModalsViewModel?.ClearFiltersCommand.Execute(null);
+
     private void OnFiltersCleared(object? sender, EventArgs e)
     {
+        ActiveFilterCount = 0;
         FilterItemType = "All";
         FilterCategoryId = null;
         FilterSupplierId = null;

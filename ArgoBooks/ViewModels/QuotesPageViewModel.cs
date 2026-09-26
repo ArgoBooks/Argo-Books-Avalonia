@@ -1,3 +1,4 @@
+using ArgoBooks.Core.Data;
 using ArgoBooks.Controls;
 using ArgoBooks.Controls.ColumnWidths;
 using ArgoBooks.Core;
@@ -157,12 +158,16 @@ public partial class QuotesPageViewModel : SortablePageViewModelBase
 
     private void OnFiltersApplied(object? sender, EventArgs e)
     {
+        ActiveFilterCount = App.QuotesModalsViewModel?.ActiveFilterCount ?? 0;
         CurrentPage = 1;
         FilterQuotes();
     }
 
+    protected override void ClearTableFilters() => App.QuotesModalsViewModel?.ClearFiltersCommand.Execute(null);
+
     private void OnFiltersCleared(object? sender, EventArgs e)
     {
+        ActiveFilterCount = 0;
         SearchQuery = null;
         CurrentPage = 1;
         FilterQuotes();
@@ -493,7 +498,7 @@ public partial class QuotesPageViewModel : SortablePageViewModelBase
                 : "This replaces the declined answer already on the quote.").Translate();
         }
 
-        return App.ConfirmMessageBoxAsync(
+        return App.ConfirmDialogAsync(
             (accepting ? "Mark as accepted?" : "Mark as declined?").Translate(),
             message,
             (accepting ? "Mark accepted" : "Mark declined").Translate(),
@@ -522,7 +527,7 @@ public partial class QuotesPageViewModel : SortablePageViewModelBase
 
         if (quote.Status == QuoteStatus.Converted && convertedInvoice != null)
         {
-            await App.ShowInfoMessageBoxAsync(
+            await App.ShowInfoDialogAsync(
                 "Already converted".Translate(),
                 "This quote is already invoice {0}.".TranslateFormat(quote.ConvertedInvoiceId ?? string.Empty));
             return;
@@ -535,7 +540,7 @@ public partial class QuotesPageViewModel : SortablePageViewModelBase
             var warning = quote.Status == QuoteStatus.Declined
                 ? "{0} declined this quote."
                 : "This quote expired on {1}.";
-            var confirmed = await App.ConfirmMessageBoxAsync(
+            var confirmed = await App.ConfirmDialogAsync(
                 "Convert to invoice?".Translate(),
                 warning.TranslateFormat(item.CustomerName, quote.ValidUntil.ToString("MMM dd, yyyy"))
                 + "\n\n" + "A draft invoice will still be created, for you to check before sending.".Translate(),
@@ -566,7 +571,8 @@ public partial class QuotesPageViewModel : SortablePageViewModelBase
             $"Convert quote '{item.QuoteNumber}' to invoice",
             () =>
             {
-                companyData.Invoices.Remove(invoice);
+                companyData.Invoices.RemoveRecord(invoice);
+                UsdConversion.Set(companyData, UsdConversion.KeyOf(invoice), null);
                 quote.Status = oldStatus;
                 quote.ConvertedInvoiceId = oldConvertedId;
                 companyData.MarkAsModified();
@@ -574,7 +580,8 @@ public partial class QuotesPageViewModel : SortablePageViewModelBase
             },
             () =>
             {
-                companyData.Invoices.Add(invoice);
+                companyData.Invoices.RestoreRecord(invoice);
+                UsdConversion.Requeue(companyData, invoice);
                 quote.Status = QuoteStatus.Converted;
                 quote.ConvertedInvoiceId = invoice.Id;
                 companyData.MarkAsModified();

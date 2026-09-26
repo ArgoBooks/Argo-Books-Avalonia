@@ -21,18 +21,6 @@ public interface IEncryptionService
 
     #endregion
 
-    #region Password Hashing
-
-    /// <summary>
-    /// Hashes a password using PBKDF2 for storage.
-    /// </summary>
-    /// <param name="password">Password to hash.</param>
-    /// <param name="salt">Base64-encoded salt.</param>
-    /// <returns>Base64-encoded password hash.</returns>
-    string HashPassword(string password, string salt);
-
-    #endregion
-
     #region Encryption (Byte Arrays)
 
     /// <summary>
@@ -85,16 +73,6 @@ public interface IEncryptionService
     #region Encryption (Streams)
 
     /// <summary>
-    /// Encrypts a stream using AES-256-GCM.
-    /// </summary>
-    /// <param name="inputStream">Stream to encrypt.</param>
-    /// <param name="password">Password for encryption.</param>
-    /// <param name="salt">Base64-encoded salt for key derivation.</param>
-    /// <param name="iv">Base64-encoded IV/nonce.</param>
-    /// <returns>Memory stream containing encrypted data.</returns>
-    Task<MemoryStream> EncryptAsync(Stream inputStream, string password, string salt, string iv);
-
-    /// <summary>
     /// Verifies the password against <paramref name="expectedPasswordHash"/> and
     /// decrypts the data in a single PBKDF2 pass. Verifies the stored hash and then
     /// decrypts (as <see cref="Decrypt"/> does), but derives the key material only once.
@@ -114,24 +92,6 @@ public interface IEncryptionService
     /// </summary>
     Task<MemoryStream> DecryptWithVerificationAsync(
         Stream encryptedStream, string password, string salt, string iv, string expectedPasswordHash);
-
-    #endregion
-
-    #region Password Validation
-
-    /// <summary>
-    /// Validates that a password meets the minimum requirements.
-    /// </summary>
-    /// <param name="password">Password to validate.</param>
-    /// <returns>True if password meets requirements.</returns>
-    bool IsPasswordValid(string password);
-
-    /// <summary>
-    /// Gets the password validation error message if the password is invalid.
-    /// </summary>
-    /// <param name="password">Password to validate.</param>
-    /// <returns>Error message or null if valid.</returns>
-    string? GetPasswordValidationError(string password);
 
     #endregion
 }

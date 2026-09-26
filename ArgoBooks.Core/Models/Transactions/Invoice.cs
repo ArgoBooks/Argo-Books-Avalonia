@@ -14,7 +14,7 @@ namespace ArgoBooks.Core.Models.Transactions;
 /// PropertyChanged and refresh any bound UI immediately. The remaining
 /// properties are static after creation and remain plain auto-properties.
 /// </remarks>
-public partial class Invoice : ObservableObject
+public partial class Invoice : ObservableObject, IRecord
 {
     /// <summary>
     /// Unique identifier (e.g., INV-2024-00001).
@@ -241,14 +241,14 @@ public partial class Invoice : ObservableObject
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     /// <summary>
-    /// Whether the invoice is past due with something still owed. One paid in full and then
-    /// refunded, wholly or in part, owes nothing.
+    /// Whether the invoice is past due with something still owed (docs/Calculations.md §6). A draft
+    /// was never sent, so nothing is owed on it yet; one paid in full and then refunded owes nothing.
+    /// Always worked out: a stored Overdue status, from an old file, means nothing here.
     /// </summary>
     [JsonIgnore]
-    public bool IsOverdue => Status != InvoiceStatus.Paid &&
-                             Status != InvoiceStatus.Cancelled &&
-                             Status != InvoiceStatus.Refunded &&
-                             !(AmountPaid > 0 && Balance <= 0) &&
+    public bool IsOverdue => Status is not (InvoiceStatus.Draft or InvoiceStatus.Paid
+                                 or InvoiceStatus.Cancelled or InvoiceStatus.Refunded) &&
+                             Balance > 0 &&
                              DateTime.Today > DueDate.Date;
 
     #region Currency Support

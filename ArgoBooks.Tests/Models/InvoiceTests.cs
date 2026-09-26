@@ -12,7 +12,6 @@ public class InvoiceTests
     #region IsOverdue Tests
 
     [Theory]
-    [InlineData(InvoiceStatus.Draft)]
     [InlineData(InvoiceStatus.Pending)]
     [InlineData(InvoiceStatus.Sent)]
     [InlineData(InvoiceStatus.Viewed)]
@@ -23,21 +22,61 @@ public class InvoiceTests
         var invoice = new Invoice
         {
             Status = status,
+            Total = 100m,
+            Balance = 100m,
             DueDate = DateTime.Today.AddDays(-10)
         };
 
         Assert.True(invoice.IsOverdue);
     }
 
+    /// <summary>
+    /// A draft was never sent, so however late its due date nobody owes it yet.
+    /// </summary>
     [Theory]
+    [InlineData(InvoiceStatus.Draft)]
     [InlineData(InvoiceStatus.Paid)]
     [InlineData(InvoiceStatus.Cancelled)]
-    public void IsOverdue_ClosedStatuses_WhenPastDue_ReturnsFalse(InvoiceStatus status)
+    public void IsOverdue_DraftOrClosedStatuses_WhenPastDue_ReturnsFalse(InvoiceStatus status)
     {
         var invoice = new Invoice
         {
             Status = status,
+            Total = 100m,
+            Balance = 100m,
             DueDate = DateTime.Today.AddDays(-10)
+        };
+
+        Assert.False(invoice.IsOverdue);
+    }
+
+    [Fact]
+    public void IsOverdue_NothingOwed_WhenPastDue_ReturnsFalse()
+    {
+        var invoice = new Invoice
+        {
+            Status = InvoiceStatus.Sent,
+            Total = 0m,
+            Balance = 0m,
+            DueDate = DateTime.Today.AddDays(-10)
+        };
+
+        Assert.False(invoice.IsOverdue);
+    }
+
+    /// <summary>
+    /// An old file can hold a saved Overdue status. Overdue is always worked out from the due date,
+    /// so the saved value alone doesn't make an invoice overdue.
+    /// </summary>
+    [Fact]
+    public void IsOverdue_StoredOverdueStatus_BeforeDueDate_ReturnsFalse()
+    {
+        var invoice = new Invoice
+        {
+            Status = InvoiceStatus.Overdue,
+            Total = 100m,
+            Balance = 100m,
+            DueDate = DateTime.Today.AddDays(10)
         };
 
         Assert.False(invoice.IsOverdue);
@@ -86,6 +125,7 @@ public class InvoiceTests
         var invoice = new Invoice
         {
             Status = InvoiceStatus.Pending,
+            Balance = 100m,
             DueDate = DateTime.Today
         };
 
@@ -98,6 +138,7 @@ public class InvoiceTests
         var invoice = new Invoice
         {
             Status = InvoiceStatus.Pending,
+            Balance = 100m,
             DueDate = DateTime.Today.AddDays(30)
         };
 

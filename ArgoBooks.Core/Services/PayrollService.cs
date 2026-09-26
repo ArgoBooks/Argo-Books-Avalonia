@@ -33,7 +33,7 @@ public class PayrollService(PayrollRateService? rateService = null)
 
         var run = new PayRun
         {
-            Id = NextRunId(data),
+            Id = new IdGenerator(data).NextPayRunId(),
             PayDate = payDate,
             PeriodStart = periodStart,
             PeriodEnd = periodEnd,
@@ -480,14 +480,10 @@ public class PayrollService(PayrollRateService? rateService = null)
                 Notes: $"Net pay for {run.PeriodStart:yyyy-MM-dd} to {run.PeriodEnd:yyyy-MM-dd} ({run.Id}).",
                 OriginalCurrency: companyCurrency));
 
-            // Pass the amount straight through to the USD base, exactly as the bank import does.
-            // Payroll is computed in the company's own currency by CRA rules, so there is no
-            // exchange rate involved and none to look up. Left unset, the display path treats the
-            // figure as USD needing conversion at the pay date, finds no rate, and shows Pending
-            // instead of the amount. Worse, once a rate did arrive it would show a converted
-            // number that was never what anyone was paid.
-            expense.TotalUSD = expense.Total;
-            expense.UnitPriceUSD = expense.UnitPrice;
+            // Pay is worked out in the company's currency. Its USD base is that amount at the pay
+            // date's rate like any other expense, so totals across currencies add up; screens in
+            // the company's currency still show the amount paid (docs/Calculations.md Rule 3a).
+            UsdConversion.Apply(data, expense, UsdConversion.CachedRate(companyCurrency, run.PayDate));
 
             data.Expenses.Add(expense);
             line.ExpenseId = expense.Id;
@@ -510,7 +506,7 @@ public class PayrollService(PayrollRateService? rateService = null)
 
         var reversal = new PayRun
         {
-            Id = NextRunId(data),
+            Id = new IdGenerator(data).NextPayRunId(),
             PayDate = run.PayDate,
             PeriodStart = run.PeriodStart,
             PeriodEnd = run.PeriodEnd,
@@ -551,14 +547,13 @@ public class PayrollService(PayrollRateService? rateService = null)
         // not observed in the world, and a voided run is one whose money never left. Leaving
         // a matching pair of plus and minus expenses would double the transaction count on
         // every report for no gain.
+        List<Expense> wages = run.Lines
+            .Where(l => l.ExpenseId is { Length: > 0 })
+            .SelectMany(l => data.Expenses.Where(e => e.Id == l.ExpenseId))
+            .ToList();
+        RemoveWageExpenses(data, wages);
         foreach (PayRunLine line in run.Lines)
         {
-            if (line.ExpenseId is not { Length: > 0 } expenseId)
-            {
-                continue;
-            }
-
-            data.Expenses.RemoveAll(e => e.Id == expenseId);
             line.ExpenseId = null;
         }
 
@@ -567,18 +562,29 @@ public class PayrollService(PayrollRateService? rateService = null)
         return reversal;
     }
 
-    private static string NextRunId(CompanyData data)
+    /// <summary>
+    /// Takes a run's wage expenses out of the books, with any conversion still queued for them,
+    /// for a void and for undoing an approval.
+    /// </summary>
+    public static void RemoveWageExpenses(CompanyData data, IReadOnlyCollection<Expense> expenses)
     {
-        int highest = 0;
-        foreach (PayRun run in data.PayRuns)
+        foreach (Expense expense in expenses)
         {
-            if (run.Id.StartsWith("PR-", StringComparison.OrdinalIgnoreCase)
-                && int.TryParse(run.Id[3..], out int n) && n > highest)
-            {
-                highest = n;
-            }
+            data.Expenses.RemoveRecord(expense);
+            UsdConversion.Set(data, UsdConversion.KeyOf(expense), null);
         }
+    }
 
-        return $"PR-{highest + 1:D4}";
+    /// <summary>
+    /// Puts wage expenses back into the books, queued again while one still waits for its rate,
+    /// for undoing a void and redoing an approval.
+    /// </summary>
+    public static void RestoreWageExpenses(CompanyData data, IReadOnlyCollection<Expense> expenses)
+    {
+        foreach (Expense expense in expenses)
+        {
+            data.Expenses.RestoreRecord(expense);
+            UsdConversion.Requeue(data, expense);
+        }
     }
 }

@@ -2,6 +2,7 @@ using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Models.Inventory;
+using ArgoBooks.Core.Models.Reports;
 using ArgoBooks.Core.Models.Transactions;
 using ArgoBooks.Core.Services;
 using Xunit;
@@ -91,6 +92,57 @@ public class CostOfGoodsProfitTests
         var byDay = ProfitCalculator.CalculateNetProfitByDayUSD(data, Start, End);
 
         Assert.Equal(20m, byDay[new DateTime(2026, 1, 10)]);
+    }
+
+    // A sale waiting for its stock's cost counts that cost as 0, so profit read high with nothing to
+    // say so. It shows Pending instead, as a figure waiting for an exchange rate does.
+    [Fact]
+    public void SaleWaitingForItsStockCost_LeavesTheProfitCardsPending()
+    {
+        var data = new CompanyData();
+        var sale = SaleCosting(0m);
+        sale.LineItems[0].IsCostOfGoodsPending = true;
+        data.Revenues.Add(sale);
+
+        Assert.True(CostOfGoodsAggregator.IsCostOfGoodsPending(data.Revenues, Start, End, collectedOnly: true));
+        Assert.Equal(ArgoBooks.Services.CurrencyService.PendingMarker,
+            ArgoBooks.Services.CurrencyService.FormatNetProfitOrPending(data, Start, End));
+    }
+
+    // Only the current period was checked, so a sale still waiting in the previous period made the
+    // change against it look better than it was.
+    [Fact]
+    public void SaleWaitingForItsStockCost_InThePreviousPeriod_LeavesTheProfitChangeUnknown()
+    {
+        var data = new CompanyData();
+        var earlier = SaleCosting(0m);
+        earlier.Date = new DateTime(2025, 12, 10);
+        earlier.LineItems[0].IsCostOfGoodsPending = true;
+        data.Revenues.Add(earlier);
+        data.Revenues.Add(SaleCosting(30m));
+        var (previousStart, previousEnd) = (new DateTime(2025, 12, 1), new DateTime(2025, 12, 31));
+
+        Assert.False(CostOfGoodsAggregator.IsCostOfGoodsPending(data.Revenues, Start, End, collectedOnly: true));
+        Assert.True(CostOfGoodsAggregator.IsProfitChangePending(data.Revenues, Start, End, previousStart, previousEnd));
+
+        earlier.LineItems[0].IsCostOfGoodsPending = false;
+        Assert.False(CostOfGoodsAggregator.IsProfitChangePending(data.Revenues, Start, End, previousStart, previousEnd));
+    }
+
+    [Fact]
+    public void SaleWaitingForItsStockCost_LeavesGrossProfitAndNetIncomePending_OnTheIncomeStatement()
+    {
+        var data = new CompanyData();
+        var sale = SaleCosting(0m);
+        sale.LineItems[0].IsCostOfGoodsPending = true;
+        data.Revenues.Add(sale);
+
+        var statement = new AccountingReportDataService(data, new ReportFilters { StartDate = Start, EndDate = End })
+            .GetReportData(AccountingReportType.IncomeStatement);
+
+        Assert.Equal("Pending", statement.Rows.Single(r => r.Label == "Gross Profit").Values[0]);
+        Assert.Equal("Pending", statement.Rows.Single(r => r.RowType == AccountingRowType.GrandTotalRow).Values[0]);
+        Assert.DoesNotContain("Pending", statement.Rows.First(r => r.RowType == AccountingRowType.SubtotalRow).Values[0]);
     }
 
     [Fact]

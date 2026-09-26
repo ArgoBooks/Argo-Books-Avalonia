@@ -139,7 +139,7 @@ public partial class UnifiedChartWidgetViewModel : WidgetViewModelBase
         }
 
         // Revenue vs Expenses uses the same analytics-page loader, which converts each day's value at
-        // that day's OWN rate before bucketing (Calculations.md §3a Phase 2). The generic multi-series
+        // that day's OWN rate before bucketing (Calculations.md Rule 3a). The generic multi-series
         // path below converts pre-bucketed monthly totals at the month-start date, whose rate is usually
         // uncached, so it fell back to showing the raw USD amount instead of the display currency.
         if (ChartDataType == ChartDataType.RevenueVsExpenses)
@@ -161,7 +161,7 @@ public partial class UnifiedChartWidgetViewModel : WidgetViewModelBase
         if (IsDistribution)
         {
             // Currency distribution pies must convert each transaction at its OWN date before
-            // grouping into a slice (Calculations.md §3a Phase 2). Count-based distributions are
+            // grouping into a slice (Calculations.md Rule 3a). Count-based distributions are
             // unaffected because GetDisplayAmount only scales monetary aggregates. The time-series
             // paths below intentionally stay in USD: CreateDateTimeSeries already converts per
             // bucket date, so passing a converter there would double-convert.
@@ -170,8 +170,13 @@ public partial class UnifiedChartWidgetViewModel : WidgetViewModelBase
         }
         else if (ChartDataType.IsMultiSeries())
         {
-            var result = service.GetChartData(ChartDataType);
-            LoadMultiSeriesChart(result);
+            // The tax charts bucket by month, so their rows convert at their own dates in the data
+            // service; converting a month's point at the 1st would use the wrong rate.
+            var convertedPerRow = ChartDataType is ChartDataType.TaxCollectedVsPaid or ChartDataType.ExpenseVsRevenueTax;
+            var result = convertedPerRow
+                ? service.GetChartData(ChartDataType, CurrencyService.GetDisplayAmount)
+                : service.GetChartData(ChartDataType);
+            LoadMultiSeriesChart(result, convertedPerRow);
         }
         else
         {
@@ -186,7 +191,7 @@ public partial class UnifiedChartWidgetViewModel : WidgetViewModelBase
 
         var localizedName = ChartDataType.TotalProfits.GetDisplayName().Translate();
         // totalProfit is already in the display currency, converted per-day at each day's OWN date
-        // (Calculations.md §3a Phase 2), so the title matches the bars and needs no today's-rate step.
+        // (Calculations.md Rule 3a), so the title matches the bars and needs no today's-rate step.
         ChartTitle = $"{localizedName}: {CurrencyService.Format(totalProfit)}";
 
         XAxes = ChartLoaderService.CreateDateXAxes(dates);
@@ -235,7 +240,7 @@ public partial class UnifiedChartWidgetViewModel : WidgetViewModelBase
 
         // Distribution points already arrive in the display currency: currency distributions are
         // converted per transaction at each transaction's OWN date inside the data service
-        // (Calculations.md §3a Phase 2), and count-based distributions are raw counts that must NOT
+        // (Calculations.md Rule 3a), and count-based distributions are raw counts that must NOT
         // be FX-converted. So use the point values directly here, no further conversion.
         var top = points.OrderByDescending(p => p.Value).Take(8).ToList();
         var displayValues = top.Select(p => p.Value).ToArray();
@@ -270,7 +275,7 @@ public partial class UnifiedChartWidgetViewModel : WidgetViewModelBase
         });
     }
 
-    private void LoadMultiSeriesChart(object result)
+    private void LoadMultiSeriesChart(object result, bool alreadyConverted)
     {
         if (result is not List<ChartSeriesData> seriesData || seriesData.Count == 0)
         {
@@ -284,9 +289,9 @@ public partial class UnifiedChartWidgetViewModel : WidgetViewModelBase
             .Distinct().OrderBy(d => d).ToArray();
 
         // Convert each DAILY point to display currency at its OWN date BEFORE pivoting onto the
-        // aligned date axis (Calculations.md §3a Phase 2). The pivoted values are then already
+        // aligned date axis (Calculations.md Rule 3a). The pivoted values are then already
         // display currency, so CreateDateTimeSeries must not convert again. Counts stay as they are.
-        if (!ChartDataType.IsCount())
+        if (!ChartDataType.IsCount() && !alreadyConverted)
         {
             foreach (var sd in seriesData)
                 foreach (var p in sd.DataPoints)
@@ -343,7 +348,7 @@ public partial class UnifiedChartWidgetViewModel : WidgetViewModelBase
         var dated = points.Where(p => p.Date.HasValue).ToList();
 
         // Convert each DAILY point to display currency at its OWN date BEFORE re-bucketing, so the
-        // bucket sum is a sum of per-day-correct display values (Calculations.md §3a Phase 2).
+        // bucket sum is a sum of per-day-correct display values (Calculations.md Rule 3a).
         // Counts stay as they are.
         if (!ChartDataType.IsCount())
         {

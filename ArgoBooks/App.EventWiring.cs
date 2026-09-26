@@ -137,25 +137,9 @@ public partial class App
             // before navigating so the dashboard renders with the right range.
             ChartSettingsService.Instance.LoadForCompany(args.FilePath);
 
-            // Migrate: if a legacy .env API key exists but the company has no persisted key,
-            // adopt the .env key, but only if this company actually has portal activity
-            // (connected providers or a portal URL), so we don't assign the key to the wrong company.
-            // Best-effort: persists to .argo on next save; re-runs harmlessly if the save doesn't happen.
-            var portalSettings = CompanyManager.CompanyData?.Settings.PaymentPortal;
-            if (portalSettings != null
-                && string.IsNullOrEmpty(portalSettings.PersistedApiKey)
-                && DotEnv.HasValue(PortalSettings.ApiKeyEnvVar)
-                && (portalSettings.ConnectedAccounts.StripeConnected
-                    || portalSettings.ConnectedAccounts.PaypalConnected
-                    || portalSettings.ConnectedAccounts.SquareConnected
-                    || !string.IsNullOrEmpty(portalSettings.PortalUrl)))
-            {
-                portalSettings.PersistedApiKey = DotEnv.Get(PortalSettings.ApiKeyEnvVar);
-            }
-
             // Load this company's portal API key into the process-level cache (cheap, so any
             // portal-dependent UI has it on first paint; the actual sync is deferred below).
-            PortalSettings.ActivateApiKey(portalSettings);
+            PortalSettings.ActivateApiKey(CompanyManager.CompanyData?.Settings.PaymentPortal);
 
             // Navigate to Dashboard when company is opened
             NavigationService?.NavigateTo("Dashboard");
@@ -242,9 +226,12 @@ public partial class App
                     // Reconcile and process any pending currency conversions
                     if (PendingConversionService != null && CompanyManager.CompanyData != null)
                     {
-                        await PendingConversionService.ReconcileWithCompanyDataAsync(CompanyManager.CompanyData);
+                        PendingConversionService.ReconcileWithCompanyData(CompanyManager.CompanyData);
                         await PendingConversionService.ProcessPendingConversionsAsync(CompanyManager.CompanyData);
                     }
+
+                    if (CompanyManager.CompanyData != null)
+                        await CurrencyService.WarmCompanyRatesAsync(CompanyManager.CompanyData);
 
                     // Start periodic timer to process pending conversions when connectivity returns
                     StartPendingConversionTimer();
@@ -282,7 +269,6 @@ public partial class App
 
             UndoRedoManager.Clear();
             EventLogService?.Clear();
-            ChangeTrackingService?.ClearAllChanges();
             _appShellViewModel.HeaderViewModel.ClearNotifications();
 
             // Stop pending conversion timer when company is closed
@@ -319,9 +305,6 @@ public partial class App
 
             // Mark undo/redo state as saved so IsAtSavedState returns true
             UndoRedoManager.MarkSaved(_saveUndoPoint);
-
-            // Clear tracked changes after saving
-            ChangeTrackingService?.ClearAllChanges();
         };
 
         CompanyManager.CompanyDataChanged += (_, _) =>
@@ -456,7 +439,7 @@ public partial class App
                 var prepared = await Task.Run(() => ImageFileLoader.TryPrepare(picked));
                 if (prepared == null)
                 {
-                    await ShowErrorMessageBoxAsync(
+                    await ShowErrorDialogAsync(
                         "Logo Not Supported".Translate(),
                         "That image could not be read. Try a PNG or JPEG.".Translate());
                     return;
@@ -523,7 +506,7 @@ public partial class App
                 {
                     _appShellViewModel.HeaderViewModel.ShowSavingIndicator = false;
                     ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to save company");
-                    await ShowErrorMessageBoxAsync("Error".Translate(), GetFriendlySaveErrorMessage(ex));
+                    await ShowErrorDialogAsync("Error".Translate(), GetFriendlySaveErrorMessage(ex));
                 }
             }
         };
@@ -643,7 +626,7 @@ public partial class App
                 {
                     _mainWindowViewModel?.HideLoading();
                     ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to create company");
-                    await ShowErrorMessageBoxAsync("Error".Translate(), "Failed to create company: {0}".TranslateFormat(ex.Message));
+                    await ShowErrorDialogAsync("Error".Translate(), "Failed to create company: {0}".TranslateFormat(ex.Message));
                     return;
                 }
             }
@@ -669,7 +652,7 @@ public partial class App
                 var prepared = await Task.Run(() => ImageFileLoader.TryPrepare(path));
                 if (prepared == null)
                 {
-                    await ShowErrorMessageBoxAsync(
+                    await ShowErrorDialogAsync(
                         "Logo Not Supported".Translate(),
                         "That image could not be read. Try a PNG or JPEG.".Translate());
                     return;
@@ -998,7 +981,7 @@ public partial class App
             catch (Exception ex)
             {
                 ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to update company");
-                await ShowErrorMessageBoxAsync("Error".Translate(), "Failed to update company: {0}".TranslateFormat(ex.Message));
+                await ShowErrorDialogAsync("Error".Translate(), "Failed to update company: {0}".TranslateFormat(ex.Message));
             }
         };
 
@@ -1017,7 +1000,7 @@ public partial class App
                 var prepared = await Task.Run(() => ImageFileLoader.TryPrepare(path));
                 if (prepared == null)
                 {
-                    await ShowErrorMessageBoxAsync(
+                    await ShowErrorDialogAsync(
                         "Logo Not Supported".Translate(),
                         "That image could not be read. Try a PNG or JPEG.".Translate());
                     return;
@@ -1105,7 +1088,7 @@ public partial class App
             {
                 settings.HasPassword = false;
                 ErrorLogger?.LogError(ex, ErrorCategory.Authentication, "Failed to set password");
-                await ShowErrorMessageBoxAsync("Error".Translate(), "Failed to set password: {0}".TranslateFormat(ex.Message));
+                await ShowErrorDialogAsync("Error".Translate(), "Failed to set password: {0}".TranslateFormat(ex.Message));
             }
         };
 
@@ -1136,7 +1119,7 @@ public partial class App
             {
                 settings.OnPasswordVerificationFailed();
                 ErrorLogger?.LogError(ex, ErrorCategory.Authentication, "Failed to change password");
-                await ShowErrorMessageBoxAsync("Error".Translate(), "Failed to change password: {0}".TranslateFormat(ex.Message));
+                await ShowErrorDialogAsync("Error".Translate(), "Failed to change password: {0}".TranslateFormat(ex.Message));
             }
         };
 
@@ -1168,7 +1151,7 @@ public partial class App
             {
                 settings.OnPasswordVerificationFailed();
                 ErrorLogger?.LogError(ex, ErrorCategory.Authentication, "Failed to remove password");
-                await ShowErrorMessageBoxAsync("Error".Translate(), "Failed to remove password: {0}".TranslateFormat(ex.Message));
+                await ShowErrorDialogAsync("Error".Translate(), "Failed to remove password: {0}".TranslateFormat(ex.Message));
             }
         };
 
@@ -1202,17 +1185,9 @@ public partial class App
                     // Get detailed reason why biometric login is not available
                     var details = await platformService.GetBiometricAvailabilityDetailsAsync();
 
-                    var dialog = ConfirmationDialog;
-                    if (dialog != null)
-                    {
-                        await dialog.ShowAsync(new ConfirmationDialogOptions
-                        {
-                            Title = "Biometric Login Not Available".Translate(),
-                            Message = "Biometric login cannot be enabled on this device.\n\nReason: {0}".TranslateFormat(details),
-                            PrimaryButtonText = "OK".Translate(),
-                            CancelButtonText = ""
-                        });
-                    }
+                    await ShowWarningDialogAsync(
+                        "Biometric Login Not Available".Translate(),
+                        "Biometric login cannot be enabled on this device.\n\nReason: {0}".TranslateFormat(details));
                     settings.OnBiometricAuthResult(false);
                     return;
                 }
@@ -1223,33 +1198,17 @@ public partial class App
 
                 if (!success)
                 {
-                    var dialog = ConfirmationDialog;
-                    if (dialog != null)
-                    {
-                        await dialog.ShowAsync(new ConfirmationDialogOptions
-                        {
-                            Title = "Biometric Login".Translate(),
-                            Message = "Authentication was cancelled or failed. Biometric login has not been enabled.".Translate(),
-                            PrimaryButtonText = "OK".Translate(),
-                            CancelButtonText = ""
-                        });
-                    }
+                    await ShowWarningDialogAsync(
+                        "Biometric Login".Translate(),
+                        "Authentication was cancelled or failed. Biometric login has not been enabled.".Translate());
                 }
             }
             catch (Exception ex)
             {
                 ErrorLogger?.LogError(ex, ErrorCategory.Authentication, "Biometric authentication failed");
-                var dialog = ConfirmationDialog;
-                if (dialog != null)
-                {
-                    await dialog.ShowAsync(new ConfirmationDialogOptions
-                    {
-                        Title = "Biometric Login Error".Translate(),
-                        Message = "Failed to authenticate:\n\n{0}".TranslateFormat(ex.Message),
-                        PrimaryButtonText = "OK".Translate(),
-                        CancelButtonText = ""
-                    });
-                }
+                await ShowErrorDialogAsync(
+                    "Biometric Login Error".Translate(),
+                    "Failed to authenticate:\n\n{0}".TranslateFormat(ex.Message));
                 settings.OnBiometricAuthResult(false);
             }
         };
@@ -1271,7 +1230,6 @@ public partial class App
                     if (args.Enabled && CompanyManager.IsEncrypted)
                     {
                         // Store the current password for biometric unlock
-                        // Note: We need to get the password from CompanyManager
                         var password = CompanyManager.GetCurrentPassword();
                         if (!string.IsNullOrEmpty(password))
                         {
@@ -1422,7 +1380,7 @@ public partial class App
             {
                 if (CompanyManager?.IsCompanyOpen != true)
                 {
-                    await ShowErrorMessageBoxAsync("Error".Translate(), "No company is currently open.".Translate());
+                    await ShowErrorDialogAsync("Error".Translate(), "No company is currently open.".Translate());
                     return;
                 }
 
@@ -1491,7 +1449,7 @@ public partial class App
                     backupStopwatch.Stop();
                     _mainWindowViewModel?.HideLoading();
                     ErrorLogger?.LogError(ex, ErrorCategory.Export, "Failed to export backup");
-                    await ShowErrorMessageBoxAsync("Export Failed".Translate(), "Failed to export backup: {0}".TranslateFormat(ex.Message));
+                    await ShowErrorDialogAsync("Export Failed".Translate(), "Failed to export backup: {0}".TranslateFormat(ex.Message));
                 }
 
                 return;
@@ -1506,7 +1464,7 @@ public partial class App
 
             if (CompanyManager?.CompanyData == null)
             {
-                await ShowErrorMessageBoxAsync("Error".Translate(), "No company is currently open.".Translate());
+                await ShowErrorDialogAsync("Error".Translate(), "No company is currently open.".Translate());
                 return;
             }
 
@@ -1619,7 +1577,7 @@ public partial class App
                 stopwatch.Stop();
                 _mainWindowViewModel?.HideLoading();
                 ErrorLogger?.LogError(ex, ErrorCategory.Export, $"Failed to export {args.Format}");
-                await ShowErrorMessageBoxAsync("Export Failed".Translate(), "Failed to export data: {0}".TranslateFormat(ex.Message));
+                await ShowErrorDialogAsync("Export Failed".Translate(), "Failed to export data: {0}".TranslateFormat(ex.Message));
             }
         };
     }
@@ -1639,7 +1597,7 @@ public partial class App
         {
             if (CompanyManager?.CompanyData == null)
             {
-                await ShowErrorMessageBoxAsync("Error".Translate(), "No company is currently open.".Translate());
+                await ShowErrorDialogAsync("Error".Translate(), "No company is currently open.".Translate());
                 return;
             }
 
@@ -1659,7 +1617,7 @@ public partial class App
             if (format.ToUpperInvariant() != "EXCEL")
             {
                 _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, $"format-unavailable:{format}");
-                await ShowInfoMessageBoxAsync("Info".Translate(), "{0} import will be available in a future update.".TranslateFormat(format));
+                await ShowInfoDialogAsync("Info".Translate(), "{0} import will be available in a future update.".TranslateFormat(format));
                 return;
             }
 

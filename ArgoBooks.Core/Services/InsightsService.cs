@@ -45,17 +45,18 @@ public class InsightsService(
     /// for the whole run, so a sentence never mixes currencies or shows a partial value.
     /// </summary>
     private void ResolveDisplayCode(CompanyData companyData) =>
-        // Revenue and expense dates only: the set changing the company currency preloads, so a switch that
-        // succeeded resolves to that currency.
+        // The same dates reports check, and that opening a company and changing its currency preload.
+        // Insights converts nothing dated after today, and a future date never has a rate, so one
+        // future-dated invoice or purchase order would otherwise switch the whole run to USD.
         _displayCode = DisplayCurrency.Resolve(
             companyData.Settings.Localization.Currency,
-            companyData.Revenues.Select(r => r.Date).Concat(companyData.Expenses.Select(e => e.Date)));
+            DisplayCurrency.ReportDates(companyData, null).Where(d => d.Date <= DateTime.Today));
 
     private decimal ToDisplay(decimal amountUSD, DateTime date) => DisplayCurrency.FromUSD(amountUSD, _displayCode, date);
 
     /// <summary>
-    /// Sums per-item USD amounts after converting EACH at that item's OWN date, per the Phase 2
-    /// aggregate rule in docs/Calculations.md §3a (never convert a pre-summed total at one date).
+    /// Sums per-item USD amounts after converting EACH at that item's OWN date, per the totals
+    /// rule in docs/Calculations.md Rule 3a (never convert a pre-summed total at one date).
     /// Identical to summing the USD amounts directly for a USD run.
     /// </summary>
     private decimal SumDisplay<T>(IEnumerable<T> items, Func<T, decimal> amountUSD, Func<T, DateTime> date)
@@ -120,24 +121,6 @@ public class InsightsService(
         return await Task.Run(() => GenerateForecast(companyData, dateRange));
     }
 
-    /// <inheritdoc />
-    public async Task<List<InsightItem>> DetectAnomaliesAsync(CompanyData companyData, AnalysisDateRange dateRange)
-    {
-        return await Task.Run(() => DetectAnomalies(companyData, dateRange));
-    }
-
-    /// <inheritdoc />
-    public async Task<List<InsightItem>> AnalyzeTrendsAsync(CompanyData companyData, AnalysisDateRange dateRange)
-    {
-        return await Task.Run(() => AnalyzeTrends(companyData, dateRange));
-    }
-
-    /// <inheritdoc />
-    public async Task<List<InsightItem>> GenerateRecommendationsAsync(CompanyData companyData, AnalysisDateRange dateRange)
-    {
-        return await Task.Run(() => GenerateRecommendations(companyData, dateRange));
-    }
-
     #region Data Sufficiency Check
 
     private (bool HasSufficientData, string? Message, int MonthsOfData) CheckDataSufficiency(
@@ -177,7 +160,7 @@ public class InsightsService(
 
     #region Trend Analysis
 
-    private List<InsightItem> AnalyzeTrends(CompanyData companyData, AnalysisDateRange dateRange)
+    internal List<InsightItem> AnalyzeTrends(CompanyData companyData, AnalysisDateRange dateRange)
     {
         var insights = new List<InsightItem>();
         ResolveDisplayCode(companyData);
@@ -198,18 +181,10 @@ public class InsightsService(
             .Where(RevenueAggregator.IsCollected)
             .ToList();
 
-        var currentPurchases = companyData.Expenses
-            .Where(p => p.Date >= currentPeriod.StartDate && p.Date <= currentPeriod.EndDate)
-            .ToList();
-
-        var previousPurchases = companyData.Expenses
-            .Where(p => p.Date >= previousPeriod.StartDate && p.Date <= previousPeriod.EndDate)
-            .ToList();
-
         // Revenue trend: display the gross figure the user recognises from
         // the Revenue stat card (Total, not pre-tax).
-        var currentRevenue = currentSales.Sum(s => s.EffectiveTotalUSD);
-        var previousRevenue = previousSales.Sum(s => s.EffectiveTotalUSD);
+        var currentRevenue = RevenueAggregator.SumCollectedRevenueUSD(companyData.Revenues, currentPeriod.StartDate, currentPeriod.EndDate);
+        var previousRevenue = RevenueAggregator.SumCollectedRevenueUSD(companyData.Revenues, previousPeriod.StartDate, previousPeriod.EndDate);
 
         if (previousRevenue > 0)
         {
@@ -220,8 +195,10 @@ public class InsightsService(
                 var isGrowth = revenueChange > 0;
                 // Convert each sale at its own date for the displayed figures; the percentage above
                 // stays USD-based (currency-invariant).
-                var previousRevenueDisplay = SumDisplay(previousSales, s => s.EffectiveTotalUSD, s => s.Date);
-                var currentRevenueDisplay = SumDisplay(currentSales, s => s.EffectiveTotalUSD, s => s.Date);
+                var previousRevenueDisplay = RevenueAggregator.SumCollectedRevenueDisplay(
+                    companyData.Revenues, previousPeriod.StartDate, previousPeriod.EndDate, ToDisplay);
+                var currentRevenueDisplay = RevenueAggregator.SumCollectedRevenueDisplay(
+                    companyData.Revenues, currentPeriod.StartDate, currentPeriod.EndDate, ToDisplay);
                 insights.Add(new InsightItem
                 {
                     Title = isGrowth ? "Revenue Growth Detected" : "Revenue Decline Detected",
@@ -238,8 +215,8 @@ public class InsightsService(
         }
 
         // Expense trend: display gross (Total), matching the Expenses stat card.
-        var currentExpenses = currentPurchases.Sum(p => p.EffectiveTotalUSD);
-        var previousExpenses = previousPurchases.Sum(p => p.EffectiveTotalUSD);
+        var currentExpenses = ExpenseAggregator.SumExpensesUSD(companyData.Expenses, currentPeriod.StartDate, currentPeriod.EndDate);
+        var previousExpenses = ExpenseAggregator.SumExpensesUSD(companyData.Expenses, previousPeriod.StartDate, previousPeriod.EndDate);
 
         if (previousExpenses > 0)
         {
@@ -248,8 +225,10 @@ public class InsightsService(
             if (Math.Abs(expenseChange) >= SignificantChangePercent)
             {
                 var isIncrease = expenseChange > 0;
-                var previousExpensesDisplay = SumDisplay(previousPurchases, p => p.EffectiveTotalUSD, p => p.Date);
-                var currentExpensesDisplay = SumDisplay(currentPurchases, p => p.EffectiveTotalUSD, p => p.Date);
+                var previousExpensesDisplay = ExpenseAggregator.SumExpensesDisplay(
+                    companyData.Expenses, previousPeriod.StartDate, previousPeriod.EndDate, ToDisplay);
+                var currentExpensesDisplay = ExpenseAggregator.SumExpensesDisplay(
+                    companyData.Expenses, currentPeriod.StartDate, currentPeriod.EndDate, ToDisplay);
                 insights.Add(new InsightItem
                 {
                     Title = isIncrease ? "Expense Increase Detected" : "Expense Reduction Achieved",
@@ -485,10 +464,8 @@ public class InsightsService(
 
         if (weeklyExpenses.Count < 4) return null;
 
-        var currentWeekList = companyData.Expenses
-            .Where(p => p.Date >= dateRange.EndDate.AddDays(-7) && p.Date <= dateRange.EndDate)
-            .ToList();
-        var currentWeekExpenses = currentWeekList.Sum(p => p.EffectiveTotalUSD);
+        var weekStart = dateRange.EndDate.AddDays(-7);
+        var currentWeekExpenses = ExpenseAggregator.SumExpensesUSD(companyData.Expenses, weekStart, dateRange.EndDate);
 
         var stats = CalculateStatistics(weeklyExpenses.Select(x => (double)x).ToList());
 
@@ -501,7 +478,7 @@ public class InsightsService(
                 var percentAbove = ((currentWeekExpenses / (decimal)stats.Mean) - 1) * 100;
                 // Both figures convert each expense at its own (cached) date: this week's total, and
                 // the typical-week average taken over the same weekly buckets in display currency.
-                var currentWeekDisplay = SumDisplay(currentWeekList, p => p.EffectiveTotalUSD, p => p.Date);
+                var currentWeekDisplay = ExpenseAggregator.SumExpensesDisplay(companyData.Expenses, weekStart, dateRange.EndDate, ToDisplay);
                 var meanDisplay = weeklyGroups.Average(g => SumDisplay(g, p => p.EffectiveTotalUSD, p => p.Date));
                 return new InsightItem
                 {
@@ -967,7 +944,7 @@ public class InsightsService(
 
     #region Recommendations
 
-    private List<InsightItem> GenerateRecommendations(CompanyData companyData, AnalysisDateRange dateRange)
+    internal List<InsightItem> GenerateRecommendations(CompanyData companyData, AnalysisDateRange dateRange)
     {
         var recommendations = new List<InsightItem>();
         ResolveDisplayCode(companyData);
@@ -1019,25 +996,22 @@ public class InsightsService(
         var productSalesData = new Dictionary<string, (decimal Revenue, decimal RevenueDisplay, decimal Cost, decimal Quantity)>();
 
         // Cash-basis: only collected revenue contributes to top-product analysis.
+        // A margin needs both amounts, so a sale still waiting for its revenue's rate, or a line whose
+        // cost price can't be converted yet, is left out rather than counted at no revenue or no cost.
         foreach (var s in companyData.Revenues
                      .Where(s => s.Date >= dateRange.StartDate && s.Date <= dateRange.EndDate)
-                     .Where(RevenueAggregator.IsCollected))
+                     .Where(RevenueAggregator.IsCollected)
+                     .Where(s => !s.IsPendingConversion))
         {
-            if (s.LineItems.Count == 0) continue;
-            var lineItemsTotal = s.LineItems.Sum(li => li.Subtotal);
-            // Weight by each line's pre-tax subtotal, but distribute the GROSS (tax-inclusive) USD
-            // total, matching docs/Calculations.md §13 and ProductSalesService so per-product revenue
-            // agrees across the Insights, Analytics, and Report surfaces.
-            var grossUSD = s.EffectiveTotalUSD;
-
-            foreach (var li in s.LineItems)
+            // Gross, shared out the same way as ProductSalesService (Calculations.md §13).
+            foreach (var (li, revenueUSD) in LineAllocation.Allocate(s, LineAllocationBasis.Gross).Shares)
             {
-                var revenueUSD = lineItemsTotal != 0
-                    ? Math.Round(li.Subtotal / lineItemsTotal * grossUSD, 2)
-                    : 0;
+                var costProduct = companyData.GetProduct(li.ProductId ?? "");
+                var unitCostUSD = 0m;
+                if (costProduct != null && !InventoryStockService.TryCostPriceUSD(companyData, costProduct, s.Date, out unitCostUSD))
+                    continue;
+                var costUSD = li.Quantity * unitCostUSD;
                 var revenueDisplay = ToDisplay(revenueUSD, s.Date);
-                // CostPrice is already in the company's base currency (USD), no conversion needed
-                var costUSD = li.Quantity * (companyData.GetProduct(li.ProductId ?? "")?.CostPrice ?? 0);
 
                 var pid = li.ProductId ?? "";
                 if (!productSalesData.ContainsKey(pid))
@@ -1054,8 +1028,9 @@ public class InsightsService(
 
         if (!productSales.Any()) return null;
 
+        // Under a cent of revenue, a margin is meaningless and can overflow.
         var topProduct = productSales
-            .Where(p => p.Cost > 0 && p.Revenue > 0)
+            .Where(p => p.Cost > 0 && p.Revenue >= 0.01m)
             .Select(p => new { p.ProductId, p.Revenue, p.RevenueDisplay, Margin = (p.Revenue - p.Cost) / p.Revenue * 100 })
             .OrderByDescending(p => p.Margin)
             .FirstOrDefault();
@@ -1110,19 +1085,18 @@ public class InsightsService(
     private InsightItem? AnalyzeOverdueInvoices(CompanyData companyData)
     {
         var overdueInvoices = companyData.Invoices
-            .Where(i => i.IsOverdue && i.Balance > 0)
+            .Where(i => i.IsOverdue)
             .OrderByDescending(i => (DateTime.Today - i.DueDate).TotalDays)
             .ToList();
 
         if (!overdueInvoices.Any()) return null;
 
         var totalOverdue = overdueInvoices.Sum(i => i.EffectiveBalanceUSD);
-        var oldestDaysOverdue = (int)(DateTime.Today - overdueInvoices.First().DueDate).TotalDays;
+        // At least 1: IsOverdue means the due date is before today.
+        var oldestDaysOverdue = (DateTime.Today - overdueInvoices.First().DueDate.Date).Days;
 
-        // Outstanding balance is an "as of now" figure, so convert the total at today's rate (warmed
-        // before generation). Invoice issue dates aren't in the preloaded rate set, so converting
-        // per-issue-date could silently fall back to USD; today's rate is reliably cached.
-        var totalOverdueDisplay = ToDisplay(totalOverdue, DateTime.Today);
+        // Each balance at its invoice's issue date, as the Overdue Invoices card converts it.
+        var totalOverdueDisplay = SumDisplay(overdueInvoices, i => i.EffectiveBalanceUSD, i => i.IssueDate);
 
         return new InsightItem
         {

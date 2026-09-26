@@ -187,15 +187,19 @@ public partial class PurchaseOrdersPageViewModel : SortablePageViewModelBase
     /// </summary>
     private void OnFiltersApplied(object? sender, EventArgs e)
     {
+        ActiveFilterCount = App.PurchaseOrdersModalsViewModel?.ActiveFilterCount ?? 0;
         CurrentPage = 1;
         FilterOrders();
     }
+
+    protected override void ClearTableFilters() => App.PurchaseOrdersModalsViewModel?.ClearFiltersCommand.Execute(null);
 
     /// <summary>
     /// Handles filters cleared event from modals.
     /// </summary>
     private void OnFiltersCleared(object? sender, EventArgs e)
     {
+        ActiveFilterCount = 0;
         SearchQuery = null;
         CurrentPage = 1;
         FilterOrders();
@@ -277,20 +281,11 @@ public partial class PurchaseOrdersPageViewModel : SortablePageViewModelBase
         // Sum in USD (the normalized base) so mixed-currency POs aren't added as if same-currency,
         // then render in the display currency at today's rate. Pending POs contribute 0 until they
         // heal (Calculations.md §3).
-        // Convert each PO at its OWN order date before summing (Calculations.md §3a Phase 2).
+        // Convert each PO at its OWN order date before summing (Calculations.md Rule 3a).
         TotalValue = CurrencyService.TrySumDisplayFromUSD(
             _allOrders, o => o.Total, o => o.OriginalCurrency, o => o.TotalUSD, o => o.OrderDate, out var poTotalDisplay)
             ? CurrencyService.Format(poTotalDisplay)
             : CurrencyService.PendingMarker;
-    }
-
-    /// <summary>
-    /// Refreshes the orders from the data source.
-    /// </summary>
-    [RelayCommand]
-    private void RefreshOrders()
-    {
-        LoadOrders();
     }
 
     /// <summary>
@@ -550,19 +545,6 @@ public partial class PurchaseOrdersPageViewModel : SortablePageViewModelBase
     private void OpenFilterModal()
     {
         App.PurchaseOrdersModalsViewModel?.OpenFilterModal();
-    }
-
-    #endregion
-
-    #region Tab Commands
-
-    /// <summary>
-    /// Switches to the specified tab.
-    /// </summary>
-    [RelayCommand]
-    private void SwitchTab(string tab)
-    {
-        ActiveTab = tab;
     }
 
     #endregion

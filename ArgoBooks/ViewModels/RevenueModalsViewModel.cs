@@ -80,9 +80,6 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
         set => FilterCounterpartyId = value;
     }
 
-    // Command aliases for AXAML bindings
-    public IAsyncRelayCommand SaveRevenueCommand => SaveTransactionCommand;
-
     #endregion
 
     #region Reason Options
@@ -146,7 +143,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
         SaveButtonText = "Save Changes";
 
         SelectedCustomer = CustomerOptions.FirstOrDefault(c => c.Id == revenue.CustomerId);
-        ModalPaid = revenue.PaymentStatus == RevenuePaymentStatus.Paid;
+        ModalPaid = RevenueAggregator.IsCollected(revenue);
         PopulateFormFromTransaction(revenue);
 
         IsAddEditModalOpen = true;
@@ -162,9 +159,6 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
         {
             if (item == null) return;
 
-            var dialog = App.ConfirmationDialog;
-            if (dialog == null) return;
-
             // Block deletion if revenue is linked to a portal-published invoice
             var companyData = App.CompanyManager?.CompanyData;
             if (!string.IsNullOrEmpty(item.InvoiceId))
@@ -172,14 +166,9 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
                 var linkedInvoice = companyData?.Invoices.FirstOrDefault(i => i.Id == item.InvoiceId);
                 if (linkedInvoice?.History.Any(h => h.Action == "Published to Portal") == true)
                 {
-                    await dialog.ShowAsync(new ConfirmationDialogOptions
-                    {
-                        Title = "Cannot Delete Revenue".Translate(),
-                        Message = "This revenue is linked to an invoice that has been published to the payment portal and cannot be deleted.".Translate(),
-                        PrimaryButtonText = "OK".Translate(),
-                        CancelButtonText = null,
-                        IsPrimaryDestructive = false
-                    });
+                    await App.ShowWarningDialogAsync(
+                        "Cannot Delete Revenue".Translate(),
+                        "This revenue is linked to an invoice that has been published to the payment portal and cannot be deleted.".Translate());
                     return;
                 }
             }
@@ -188,14 +177,9 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
             var rental = companyData?.Rentals.FirstOrDefault(r => r.RevenueId == item.Id);
             if (rental != null)
             {
-                await dialog.ShowAsync(new ConfirmationDialogOptions
-                {
-                    Title = "Cannot Delete Revenue".Translate(),
-                    Message = "This revenue was recorded when rental {0} was marked paid. To remove it, mark the rental unpaid on the Rental Records page.".TranslateFormat(rental.Id),
-                    PrimaryButtonText = "OK".Translate(),
-                    CancelButtonText = null,
-                    IsPrimaryDestructive = false
-                });
+                await App.ShowWarningDialogAsync(
+                    "Cannot Delete Revenue".Translate(),
+                    "This revenue was recorded when rental {0} was marked paid. To remove it, mark the rental unpaid on the Rental Records page.".TranslateFormat(rental.Id));
                 return;
             }
 
@@ -297,13 +281,13 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
                     $"Mark revenue '{revenue.Id}' as lost/damaged",
                     () =>
                     {
-                        companyData.LostDamaged.Remove(record);
+                        companyData.LostDamaged.RemoveRecord(record);
                         companyData.MarkAsModified();
                         RaiseTransactionSaved();
                     },
                     () =>
                     {
-                        companyData.LostDamaged.Add(record);
+                        companyData.LostDamaged.RestoreRecord(record);
                         companyData.MarkAsModified();
                         RaiseTransactionSaved();
                     }));
@@ -316,13 +300,13 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
                     $"Mark revenue '{revenue.Id}' as returned",
                     () =>
                     {
-                        companyData.Returns.Remove(record);
+                        companyData.Returns.RemoveRecord(record);
                         companyData.MarkAsModified();
                         RaiseTransactionSaved();
                     },
                     () =>
                     {
-                        companyData.Returns.Add(record);
+                        companyData.Returns.RestoreRecord(record);
                         companyData.MarkAsModified();
                         RaiseTransactionSaved();
                     }));
@@ -333,18 +317,18 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
                 var record = companyData.LostDamaged.FirstOrDefault(ld => ld.InventoryItemId == revenue.Id);
                 if (record != null)
                 {
-                    companyData.LostDamaged.Remove(record);
+                    companyData.LostDamaged.RemoveRecord(record);
                     App.UndoRedoManager.RecordAction(new DelegateAction(
                         $"Undo lost/damaged status for revenue '{revenue.Id}'",
                         () =>
                         {
-                            companyData.LostDamaged.Add(record);
+                            companyData.LostDamaged.RestoreRecord(record);
                             companyData.MarkAsModified();
                             RaiseTransactionSaved();
                         },
                         () =>
                         {
-                            companyData.LostDamaged.Remove(record);
+                            companyData.LostDamaged.RemoveRecord(record);
                             companyData.MarkAsModified();
                             RaiseTransactionSaved();
                         }));
@@ -356,18 +340,18 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
                 var record = companyData.Returns.FirstOrDefault(r => r.OriginalTransactionId == revenue.Id);
                 if (record != null)
                 {
-                    companyData.Returns.Remove(record);
+                    companyData.Returns.RemoveRecord(record);
                     App.UndoRedoManager.RecordAction(new DelegateAction(
                         $"Undo returned status for revenue '{revenue.Id}'",
                         () =>
                         {
-                            companyData.Returns.Add(record);
+                            companyData.Returns.RestoreRecord(record);
                             companyData.MarkAsModified();
                             RaiseTransactionSaved();
                         },
                         () =>
                         {
-                            companyData.Returns.Remove(record);
+                            companyData.Returns.RemoveRecord(record);
                             companyData.MarkAsModified();
                             RaiseTransactionSaved();
                         }));
@@ -390,7 +374,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
 
         var lostDamaged = new LostDamaged
         {
-            Id = $"LOST-{++companyData.IdCounters.LostDamaged:D3}",
+            Id = new IdGenerator(companyData).NextLostDamagedId(),
             ProductId = productId,
             InventoryItemId = revenue.Id,
             Quantity = (int)revenue.Quantity,
@@ -413,7 +397,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
 
         var returnRecord = new Return
         {
-            Id = $"RET-{++companyData.IdCounters.Return:D3}",
+            Id = new IdGenerator(companyData).NextReturnId(),
             OriginalTransactionId = revenue.Id,
             ReturnType = "Customer",
             SupplierId = "",
@@ -476,38 +460,9 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
             ReferenceNumber = string.Empty,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
-            // USD conversion fields
-            OriginalCurrency = ConvertedTotal?.OriginalCurrency ?? "USD",
-            TotalUSD = ConvertedTotal?.AmountUSD ?? Total,
-            TaxAmountUSD = ConvertedTaxAmount?.AmountUSD ?? TaxAmount,
-            ShippingCostUSD = ConvertedShippingCost?.AmountUSD ?? ModalShipping,
-            DiscountUSD = ConvertedDiscount?.AmountUSD ?? ModalDiscount,
-            FeeUSD = ConvertedFee?.AmountUSD ?? ModalFee,
-            UnitPriceUSD = ConvertedTotal != null && ConvertedTotal.OriginalCurrency != "USD" && Subtotal > 0 && Total != 0
-                ? ConvertedTotal.AmountUSD / Total * averageUnitPrice
-                : averageUnitPrice,
-            IsPendingConversion = IsPendingConversion
+            OriginalCurrency = SaveCurrency
         };
-
-        // Queue for offline conversion if pending
-        if (IsPendingConversion)
-        {
-            var pendingEntry = new PendingConversion
-            {
-                TransactionId = revenueId,
-                TransactionType = "Revenue",
-                OriginalCurrency = ConvertedTotal?.OriginalCurrency ?? "USD",
-                TransactionDate = revenue.Date,
-                Total = Total,
-                TaxAmount = TaxAmount,
-                ShippingCost = ModalShipping,
-                Discount = ModalDiscount,
-                Fee = ModalFee,
-                UnitPrice = averageUnitPrice
-            };
-            companyData.PendingConversions.Add(pendingEntry);
-            _ = PendingConversionService.Instance?.AddPendingConversionAsync(pendingEntry);
-        }
+        UsdConversion.Apply(companyData, revenue, SaveRate);
 
         // Create Receipt if file was attached
         Receipt? receipt = null;
@@ -532,17 +487,19 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
             $"Add revenue {revenueId}",
             () =>
             {
-                companyData.Revenues.Remove(revenue);
+                companyData.Revenues.RemoveRecord(revenue);
+                UsdConversion.Set(companyData, UsdConversion.KeyOf(revenue), null);
                 if (capturedReceipt != null)
-                    companyData.Receipts.Remove(capturedReceipt);
+                    companyData.Receipts.RemoveRecord(capturedReceipt);
                 RevertInventoryAdjustments(companyData, inventoryResults);
                 RaiseTransactionSaved();
             },
             () =>
             {
-                companyData.Revenues.Add(revenue);
+                companyData.Revenues.RestoreRecord(revenue);
+                UsdConversion.Requeue(companyData, revenue);
                 if (capturedReceipt != null)
-                    companyData.Receipts.Add(capturedReceipt);
+                    companyData.Receipts.RestoreRecord(capturedReceipt);
                 inventoryResults = AdjustInventoryForLineItems(companyData, revenue, modelLineItems, isExpense: false);
                 RaiseTransactionSaved();
             });
@@ -564,7 +521,8 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
 
         // Store original values for undo
         var original = CaptureTransactionState(revenue);
-        var originalQueued = companyData.PendingConversions.Where(p => p.TransactionId == revenue.Id).ToList();
+        var queueKey = UsdConversion.KeyOf(revenue);
+        var originalQueued = UsdConversion.Snapshot(companyData, [queueKey]);
 
         var (description, totalQuantity, averageUnitPrice) = GetLineItemSummary();
         var modelLineItems = CreateModelLineItems();
@@ -584,42 +542,20 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
         revenue.Fee = ModalFee;
         revenue.Total = Total;
         revenue.PaymentMethod = Enum.TryParse<PaymentMethod>(SelectedPaymentMethod.Replace(" ", ""), out var pm) ? pm : PaymentMethod.Cash;
-        revenue.PaymentStatus = ModalPaid ? RevenuePaymentStatus.Paid : RevenuePaymentStatus.Unpaid;
+        // Only a change to the Paid box changes the status, so an edit keeps Complete, Partial,
+        // Pending or Overdue as they were.
+        if (ModalPaid != RevenueAggregator.IsCollected(revenue))
+            revenue.PaymentStatus = ModalPaid ? RevenuePaymentStatus.Paid : RevenuePaymentStatus.Unpaid;
         revenue.Notes = ModalNotes;
         revenue.UpdatedAt = DateTime.UtcNow;
-        // USD conversion fields
-        revenue.OriginalCurrency = ConvertedTotal?.OriginalCurrency ?? "USD";
-        revenue.TotalUSD = ConvertedTotal?.AmountUSD ?? Total;
-        revenue.TaxAmountUSD = ConvertedTaxAmount?.AmountUSD ?? TaxAmount;
-        revenue.ShippingCostUSD = ConvertedShippingCost?.AmountUSD ?? ModalShipping;
-        revenue.DiscountUSD = ConvertedDiscount?.AmountUSD ?? ModalDiscount;
-        revenue.FeeUSD = ConvertedFee?.AmountUSD ?? ModalFee;
-        revenue.UnitPriceUSD = ConvertedTotal != null && ConvertedTotal.OriginalCurrency != "USD" && Subtotal > 0 && Total != 0
-            ? ConvertedTotal.AmountUSD / Total * averageUnitPrice
-            : averageUnitPrice;
-        revenue.IsPendingConversion = IsPendingConversion;
-
-        // Queue for offline conversion if pending; a row that converted leaves the queue
-        List<PendingConversion> editedQueued = [];
-        if (IsPendingConversion)
-        {
-            editedQueued.Add(new PendingConversion
-            {
-                TransactionId = revenue.Id,
-                TransactionType = "Revenue",
-                OriginalCurrency = ConvertedTotal?.OriginalCurrency ?? "USD",
-                TransactionDate = revenue.Date,
-                Total = Total,
-                TaxAmount = TaxAmount,
-                ShippingCost = ModalShipping,
-                Discount = ModalDiscount,
-                Fee = ModalFee,
-                UnitPrice = averageUnitPrice
-            });
-        }
-        var queueTouched = originalQueued.Count > 0 || editedQueued.Count > 0;
-        if (queueTouched)
-            SetQueuedConversions(companyData, revenue.Id, editedQueued);
+        revenue.OriginalCurrency = SaveCurrency;
+        // A kept deposit converts at its invoice's rate, as when it was created (Rule 3a).
+        if (revenue.IsKeptDeposit && companyData.GetInvoice(revenue.InvoiceId ?? "") is { } depositInvoice
+            && string.Equals(depositInvoice.OriginalCurrency, SaveCurrency, StringComparison.OrdinalIgnoreCase))
+            UsdConversion.Apply(companyData, revenue, UsdConversion.InvoiceRate(depositInvoice), depositInvoice.IssueDate);
+        else
+            UsdConversion.Apply(companyData, revenue, SaveRate);
+        var editedQueued = UsdConversion.Snapshot(companyData, [queueKey]);
 
         // Handle receipt. The form loads an existing receipt's OriginalFilePath, so only a different
         // path means Change picked a new file.
@@ -633,7 +569,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
             newReceipt = CreateReceipt(companyData, revenue.Id, "Revenue", SelectedCustomer?.Name ?? "");
             if (newReceipt != null)
             {
-                if (currentReceipt != null && companyData.Receipts.Remove(currentReceipt))
+                if (currentReceipt != null && companyData.Receipts.RemoveRecord(currentReceipt))
                     replacedReceipt = currentReceipt;
                 revenue.ReceiptId = newReceipt.Id;
                 companyData.Receipts.Add(newReceipt);
@@ -651,24 +587,22 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
             () =>
             {
                 RestoreTransactionState(revenue, original);
-                if (queueTouched)
-                    SetQueuedConversions(companyData, revenue.Id, originalQueued);
+                UsdConversion.Restore(companyData, [queueKey], originalQueued);
                 if (capturedNewReceipt != null)
-                    companyData.Receipts.Remove(capturedNewReceipt);
-                if (replacedReceipt != null && !companyData.Receipts.Contains(replacedReceipt))
-                    companyData.Receipts.Add(replacedReceipt);
+                    companyData.Receipts.RemoveRecord(capturedNewReceipt);
+                if (replacedReceipt != null)
+                    companyData.Receipts.RestoreRecord(replacedReceipt);
                 RevertInventoryAdjustments(companyData, editResults);
                 RaiseTransactionSaved();
             },
             () =>
             {
                 RestoreTransactionState(revenue, edited);
-                if (queueTouched)
-                    SetQueuedConversions(companyData, revenue.Id, editedQueued);
+                UsdConversion.Restore(companyData, [queueKey], editedQueued);
                 if (replacedReceipt != null)
-                    companyData.Receipts.Remove(replacedReceipt);
-                if (capturedNewReceipt != null && !companyData.Receipts.Contains(capturedNewReceipt))
-                    companyData.Receipts.Add(capturedNewReceipt);
+                    companyData.Receipts.RemoveRecord(replacedReceipt);
+                if (capturedNewReceipt != null)
+                    companyData.Receipts.RestoreRecord(capturedNewReceipt);
                 editResults = AdjustInventoryForEdit(companyData, revenue, original.LineItems, modelLineItems, isExpense: false);
                 RaiseTransactionSaved();
             });
@@ -684,8 +618,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
     {
         if (string.IsNullOrEmpty(ReceiptFilePath)) return null;
 
-        companyData.IdCounters.Receipt++;
-        var receiptId = $"RCP-{DateTime.Now:yyyy}-{companyData.IdCounters.Receipt:D5}";
+        var receiptId = new IdGenerator(companyData).NextReceiptId();
         var fileInfo = new FileInfo(ReceiptFilePath);
         var fileType = GetFileType(ReceiptFilePath);
 

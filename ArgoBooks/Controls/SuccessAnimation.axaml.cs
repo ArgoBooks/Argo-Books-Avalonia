@@ -81,8 +81,6 @@ public partial class SuccessAnimation : UserControl
 
     #endregion
 
-    public event EventHandler? AnimationCompleted;
-
     public SuccessAnimation()
     {
         InitializeComponent();
@@ -157,8 +155,6 @@ public partial class SuccessAnimation : UserControl
                 if (ContinueButtonPanel != null)
                     ContinueButtonPanel.Opacity = 1;
             }
-
-            AnimationCompleted?.Invoke(this, EventArgs.Empty);
         });
     }
 }

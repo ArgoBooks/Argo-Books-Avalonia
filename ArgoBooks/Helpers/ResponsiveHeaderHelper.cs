@@ -82,7 +82,7 @@ public partial class ResponsiveHeaderHelper : ObservableObject
             ShowButtonText = false;
             SearchBoxWidth = 200;
             HeaderSpacing = 6;
-            SearchIconMargin = new Thickness(12, 0, 8, 0);
+            SearchIconMargin = new Thickness(12, 0, 20, 0);
             HeaderPadding = new Thickness(24, 12);
             SearchBoxMinHeight = 30;
         }

@@ -27,8 +27,3 @@ public readonly struct EquatableArray<T> : IEquatable<EquatableArray<T>>
 
     public static bool operator !=(EquatableArray<T> left, EquatableArray<T> right) => !left.Equals(right);
 }
-
-public static class EquatableArrayExtensions
-{
-    public static EquatableArray<T> ToEquatableArray<T>(this IEnumerable<T> items) => new(items);
-}

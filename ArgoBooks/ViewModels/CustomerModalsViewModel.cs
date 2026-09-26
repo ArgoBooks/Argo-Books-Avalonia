@@ -1,4 +1,5 @@
-﻿using ArgoBooks.Controls;
+﻿using ArgoBooks.Core.Data;
+using ArgoBooks.Controls;
 using ArgoBooks.Services;
 using ArgoBooks.Localization;
 using System.Collections.ObjectModel;
@@ -12,6 +13,7 @@ using CommunityToolkit.Mvvm.Input;
 
 using ArgoBooks.Core.Models.Telemetry;
 using ArgoBooks.Core.Services;
+using ArgoBooks.Core.Validation;
 using ArgoBooks.Shared.Telemetry;
 
 namespace ArgoBooks.ViewModels;
@@ -438,7 +440,6 @@ public partial class CustomerModalsViewModel : ViewModelBase
         CloseAddModal();
     }
 
-    [RelayCommand]
     public async Task SaveNewCustomerAsync()
     {
         if (!ValidateModal())
@@ -497,13 +498,13 @@ public partial class CustomerModalsViewModel : ViewModelBase
             {
                 if (newAvatarBytes != null)
                     App.CompanyManager?.RestoreCustomerAvatar(customerToUndo, null);
-                companyData.Customers.Remove(customerToUndo);
+                companyData.Customers.RemoveRecord(customerToUndo);
                 companyData.MarkAsModified();
                 CustomerSaved?.Invoke(this, EventArgs.Empty);
             },
             () =>
             {
-                companyData.Customers.Add(customerToUndo);
+                companyData.Customers.RestoreRecord(customerToUndo);
                 if (newAvatarBytes != null)
                     App.CompanyManager?.RestoreCustomerAvatar(customerToUndo, newAvatarBytes);
                 companyData.MarkAsModified();
@@ -611,7 +612,6 @@ public partial class CustomerModalsViewModel : ViewModelBase
         IsEditModalOpen = true;
     }
 
-    [RelayCommand]
     public void CloseEditModal()
     {
         IsEditModalOpen = false;
@@ -622,7 +622,6 @@ public partial class CustomerModalsViewModel : ViewModelBase
     /// <summary>
     /// Requests to close the Edit modal, showing confirmation if changes were made.
     /// </summary>
-    [RelayCommand]
     public async Task RequestCloseEditModalAsync()
     {
         if (HasEditModalChanges)
@@ -634,7 +633,6 @@ public partial class CustomerModalsViewModel : ViewModelBase
         CloseEditModal();
     }
 
-    [RelayCommand]
     public async Task SaveEditedCustomerAsync()
     {
         if (!ValidateModal() || _editingCustomer == null)
@@ -927,9 +925,13 @@ public partial class CustomerModalsViewModel : ViewModelBase
             CloseFilterModal();
     }
 
+    /// <summary>How many filters are applied, for the page's Filter button.</summary>
+    public int ActiveFilterCount { get; private set; }
+
     [RelayCommand]
     public void ApplyFilters()
     {
+        ActiveFilterCount = Filters.ActiveCount;
         FiltersApplied?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
     }
@@ -938,6 +940,7 @@ public partial class CustomerModalsViewModel : ViewModelBase
     public void ClearFilters()
     {
         Filters.Reset();
+        ActiveFilterCount = 0;
         FiltersCleared?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
     }
@@ -980,7 +983,7 @@ public partial class CustomerModalsViewModel : ViewModelBase
                 Type = "Invoice",
                 Description = $"Invoice #{invoice.InvoiceNumber}",
                 Amount = invoice.Total,
-                Status = invoice.Status.ToString()
+                Status = Core.Services.InvoiceTotalsService.DisplayStatus(invoice).ToString()
             });
         }
 
@@ -1193,13 +1196,10 @@ public partial class CustomerModalsViewModel : ViewModelBase
             isValid = false;
         }
 
-        if (!string.IsNullOrWhiteSpace(ModalEmail))
+        if (!string.IsNullOrWhiteSpace(ModalEmail) && !DataValidator.IsValidOrUnchangedEmail(ModalEmail, _editingCustomer?.Email))
         {
-            if (!ModalEmail.Contains('@') || !ModalEmail.Contains('.'))
-            {
-                ModalEmailError = "Please enter a valid email address.".Translate();
-                isValid = false;
-            }
+            ModalEmailError = "Please enter a valid email address.".Translate();
+            isValid = false;
         }
 
         // Duplicate detection

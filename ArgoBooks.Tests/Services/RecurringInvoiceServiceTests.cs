@@ -31,6 +31,32 @@ public class RecurringInvoiceServiceTests
             Template = withTemplate ? new Invoice { CustomerId = "CUST-1", Total = 100m } : null
         };
 
+    // The copy took the template's USD amounts, converted at another day's rate, and its waiting
+    // flag with no queue entry behind it. It converts at its own issue date instead (Rule 3a).
+    [Fact]
+    public void CloneInvoiceFrom_ConvertsAtItsOwnIssueDate_OrQueuesItself()
+    {
+        var data = new CompanyData();
+        var usd = MakeSchedule(new DateTime(2026, 3, 1));
+        usd.Template!.OriginalCurrency = "USD";
+        usd.Template.TotalUSD = 80m;
+        usd.Template.IsPendingConversion = true;
+        var foreign = MakeSchedule(new DateTime(2026, 3, 1));
+        foreign.Template!.OriginalCurrency = "XAF";
+        foreign.Template.TotalUSD = 0.17m;
+
+        var usdInvoice = RecurringInvoiceService.CloneInvoiceFrom(usd, new DateTime(2026, 3, 1), data, new IdGenerator(data));
+        var foreignInvoice = RecurringInvoiceService.CloneInvoiceFrom(foreign, new DateTime(2026, 3, 1), data, new IdGenerator(data));
+
+        Assert.False(usdInvoice.IsPendingConversion);
+        Assert.Equal((100m, 100m), (usdInvoice.TotalUSD, usdInvoice.BalanceUSD));
+        Assert.True(foreignInvoice.IsPendingConversion);
+        Assert.Equal(0m, foreignInvoice.TotalUSD);
+        var queued = Assert.Single(data.PendingConversions);
+        Assert.Equal(UsdConversion.KeyOf(foreignInvoice), queued.Key);
+        Assert.Equal(new DateTime(2026, 3, 1), queued.TransactionDate);
+    }
+
     [Theory]
     [InlineData(Frequency.Weekly, 7)]
     [InlineData(Frequency.BiWeekly, 14)]

@@ -1,3 +1,4 @@
+using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Enums;
 
 namespace ArgoBooks.Core.Models.Inventory;
@@ -5,7 +6,7 @@ namespace ArgoBooks.Core.Models.Inventory;
 /// <summary>
 /// Represents stock levels for a product at a location.
 /// </summary>
-public class InventoryItem
+public class InventoryItem : IRecord
 {
     /// <summary>
     /// Unique identifier (e.g., INV-ITM-001).
@@ -66,6 +67,14 @@ public class InventoryItem
     /// </summary>
     [JsonPropertyName("unitCost")]
     public decimal UnitCost { get; set; }
+
+    /// <summary>
+    /// True while <see cref="UnitCost"/> waits for the exchange rate it is converted at. The native
+    /// cost waits in the conversion queue and is converted once that rate can be had
+    /// (docs/Calculations.md §14). Until then the cost counts as 0.
+    /// </summary>
+    [JsonPropertyName("isPendingConversion")]
+    public bool IsPendingConversion { get; set; }
 
     /// <summary>
     /// Unit of measure (e.g., Each, Box, Case).

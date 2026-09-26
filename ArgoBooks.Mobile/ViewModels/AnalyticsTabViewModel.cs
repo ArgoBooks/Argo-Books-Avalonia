@@ -49,9 +49,9 @@ public partial class AnalyticsTabViewModel : ObservableObject
         {
             case "Dashboard":
                 var d = snapshot.Dashboard;
-                Kpis.Add(new AnalyticsKpiViewModel("Money in", d.MoneyIn.ToString("C2", CultureInfo.InvariantCulture)));
-                Kpis.Add(new AnalyticsKpiViewModel("Money out", d.MoneyOut.ToString("C2", CultureInfo.InvariantCulture)));
-                Kpis.Add(new AnalyticsKpiViewModel("Profit", d.Profit.ToString("C2", CultureInfo.InvariantCulture)));
+                Kpis.Add(new AnalyticsKpiViewModel("Money in", snapshot.Currency.Format(d.MoneyIn)));
+                Kpis.Add(new AnalyticsKpiViewModel("Money out", snapshot.Currency.Format(d.MoneyOut)));
+                Kpis.Add(new AnalyticsKpiViewModel("Profit", snapshot.Currency.Format(d.Profit)));
                 Kpis.Add(new AnalyticsKpiViewModel("Profit margin", d.ProfitMargin.ToString("P0", CultureInfo.InvariantCulture)));
                 RowsTitle = "Recent revenue";
                 foreach (var row in snapshot.Revenue.Take(5))

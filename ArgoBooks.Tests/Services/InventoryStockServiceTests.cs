@@ -149,6 +149,22 @@ public class InventoryStockServiceTests
         Assert.Equal(2m, edited[0].CostOfGoodsUSD);
     }
 
+    // A later purchase at a new price must not re-price a sale that is only being edited.
+    [Fact]
+    public void Edit_KeepsTheSalesUnitCost_WhenTheStockCostChangedSince()
+    {
+        var data = Company(Shop);
+        var item = Stock(data, inStock: 10, unitCost: 2m);
+        var sale = Sale(Line("PRD-1", 4, 10m));
+        InventoryStockService.Apply(data, sale.LineItems, sale, isPurchase: false);
+        item.UnitCost = 5m;
+
+        var edited = new List<LineItem> { Line("PRD-1", 5, 10m) };
+        InventoryStockService.ApplyEdit(data, sale.LineItems, edited, sale, isPurchase: false, "Revenue edited");
+
+        Assert.Equal(10m, edited[0].CostOfGoodsUSD);
+    }
+
     [Fact]
     public void Delete_GivesBackStockAndTheOpeningUnitsItUsed()
     {
@@ -289,21 +305,6 @@ public class InventoryStockServiceTests
 
         Assert.Equal(7.5m, Assert.Single(data.Inventory).UnitCost);
         Assert.Equal(2m, data.GetProduct("PRD-1")!.CostPrice);
-    }
-
-    [Fact]
-    public void PendingConversionPurchase_LeavesTheUnitCostAsItWas()
-    {
-        var data = Company(Shop);
-        var item = Stock(data, inStock: 0, unitCost: 2m);
-        var purchase = Purchase(Line("PRD-1", 10, 10m));
-        purchase.OriginalCurrency = "CAD";
-        purchase.IsPendingConversion = true;
-
-        InventoryStockService.Apply(data, purchase.LineItems, purchase, isPurchase: true);
-
-        Assert.Equal(10m, item.InStock);
-        Assert.Equal(2m, item.UnitCost);
     }
 
     [Fact]

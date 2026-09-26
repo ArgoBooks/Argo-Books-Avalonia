@@ -61,6 +61,8 @@
                                 SearchQuery="{Binding SearchQuery, Mode=TwoWay}"
                                 SearchPlaceholder="{loc:Loc 'Search adjustments...'}"
                                 FilterCommand="{Binding OpenFilterModalCommand}"
+                                FilterCount="{Binding ActiveFilterCount}"
+                                ClearFiltersCommand="{Binding ClearTableFiltersCommand}"
                                 AddCommand="{Binding OpenAddModalCommand}"
                                 AddButtonText="{loc:Loc 'New Adjustment'}"
                                 AddButtonTooltip="{loc:Loc 'New Adjustment'}"
@@ -139,7 +141,7 @@
                     <ItemsControl Classes="table-rows" ItemsSource="{Binding Adjustments}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="vm:StockAdjustmentDisplayItem">
-                                <Border Padding="24,0"
+                                <Border Padding="24,0,0,0"
                                         BorderBrush="{DynamicResource BorderBrush}"
                                         BorderThickness="0,0,0,1"
                                         MinHeight="52">

@@ -1,3 +1,4 @@
+using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Enums;
 
 namespace ArgoBooks.Core.Models.Entities;
@@ -5,7 +6,7 @@ namespace ArgoBooks.Core.Models.Entities;
 /// <summary>
 /// Represents a product or service.
 /// </summary>
-public class Product
+public class Product : IRecord
 {
     /// <summary>
     /// Unique identifier (e.g., PRD-001).

@@ -36,7 +36,7 @@ public partial class SettingsModalViewModel : ViewModelBase
     private string _originalAccentColor;
     private string _originalLanguage = "English";
     private string _originalDateFormat = "MM/DD/YYYY";
-    private TimeZoneItem _originalTimeZone = TimeZones.FindById("UTC");
+    private TimeZoneItem _originalTimeZone = TimeZones.Utc;
     private string _originalTimeFormat = "12h";
     private int _originalMaxPieSlices = 6;
     private bool _originalLowStockAlert = true;
@@ -100,7 +100,7 @@ public partial class SettingsModalViewModel : ViewModelBase
     private string _selectedDateFormat = "MM/DD/YYYY";
 
     [ObservableProperty]
-    private TimeZoneItem _selectedTimeZone = TimeZones.FindById("UTC");
+    private TimeZoneItem _selectedTimeZone = TimeZones.Utc;
 
     [ObservableProperty]
     private string _selectedTimeFormat = "12h";
@@ -138,9 +138,6 @@ public partial class SettingsModalViewModel : ViewModelBase
 
     [ObservableProperty]
     private int _telemetryPendingCount;
-
-    [ObservableProperty]
-    private bool _isExportingTelemetry;
 
     [ObservableProperty]
     private bool _isDeletingTelemetry;
@@ -261,17 +258,6 @@ public partial class SettingsModalViewModel : ViewModelBase
     private string _selectedAccentColor;
 
     public ObservableCollection<string> Themes { get; } = new(ThemeModeExtensions.GetAllDisplayNames());
-
-    public ObservableCollection<AccentColorItem> AccentColors { get; } =
-    [
-        new("Blue", AppColors.Primary),
-        new("Green", AppColors.Emerald),
-        new("Purple", AppColors.Violet),
-        new("Pink", AppColors.Pink),
-        new("Orange", AppColors.Orange),
-        new("Teal", AppColors.Teal)
-    ];
-
     #endregion
 
     #region Security Settings
@@ -1025,13 +1011,6 @@ public partial class SettingsModalViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private async Task ConnectPaypalAsync()
-    {
-        if (!await EnsurePortalAuthenticatedAsync()) return;
-        await ConnectProviderAsync("paypal");
-    }
-
-    [RelayCommand]
     private async Task ConnectSquareAsync()
     {
         if (!CanConnectProvider) return;
@@ -1044,13 +1023,6 @@ public partial class SettingsModalViewModel : ViewModelBase
     {
         if (!await EnsurePortalAuthenticatedAsync()) return;
         await DisconnectProviderAsync("stripe");
-    }
-
-    [RelayCommand]
-    private async Task DisconnectPaypalAsync()
-    {
-        if (!await EnsurePortalAuthenticatedAsync()) return;
-        await DisconnectProviderAsync("paypal");
     }
 
     [RelayCommand]
@@ -1108,13 +1080,13 @@ public partial class SettingsModalViewModel : ViewModelBase
             }
             else
             {
-                await ShowErrorDialogAsync("Upload Failed".Translate(),
+                await App.ShowErrorDialogAsync("Upload Failed".Translate(),
                     (result.Message ?? "Failed to upload logo.").Translate());
             }
         }
         catch
         {
-            await ShowErrorDialogAsync("Error".Translate(),
+            await App.ShowErrorDialogAsync("Error".Translate(),
                 "Failed to upload logo. Please check your internet connection.".Translate());
         }
         finally
@@ -1153,7 +1125,7 @@ public partial class SettingsModalViewModel : ViewModelBase
             }
             else
             {
-                await ShowErrorDialogAsync("Couldn't Remove Logo".Translate(),
+                await App.ShowErrorDialogAsync("Couldn't Remove Logo".Translate(),
                     (result.Message ?? "Failed to remove logo.").Translate());
             }
         }
@@ -1164,7 +1136,7 @@ public partial class SettingsModalViewModel : ViewModelBase
         catch
         {
             // A non-network failure shouldn't be reported as a connection problem.
-            await ShowErrorDialogAsync("Couldn't Remove Logo".Translate(), "Failed to remove logo.".Translate());
+            await App.ShowErrorDialogAsync("Couldn't Remove Logo".Translate(), "Failed to remove logo.".Translate());
         }
         finally
         {
@@ -1191,9 +1163,15 @@ public partial class SettingsModalViewModel : ViewModelBase
             return;
         }
 
+        if (App.SharedHttpClient is not { } httpClient)
+        {
+            PortalLogoSource = null;
+            HasPortalLogo = false;
+            return;
+        }
+
         try
         {
-            using var httpClient = new HttpClient();
             var imageBytes = await httpClient.GetByteArrayAsync(logoUrl);
             using var stream = new MemoryStream(imageBytes);
             PortalLogoSource = new Avalonia.Media.Imaging.Bitmap(stream);
@@ -1242,12 +1220,12 @@ public partial class SettingsModalViewModel : ViewModelBase
                 var message = !string.IsNullOrEmpty(response.Message)
                     ? response.Message
                     : $"Could not connect to {provider}. The payment portal server may be unavailable.";
-                await ShowErrorDialogAsync("Connection Failed".Translate(), message.Translate());
+                await App.ShowErrorDialogAsync("Connection Failed".Translate(), message.Translate());
             }
         }
         catch
         {
-            await ShowErrorDialogAsync("Error".Translate(),
+            await App.ShowErrorDialogAsync("Error".Translate(),
                 "Failed to connect payment provider. Please check your internet connection.".Translate());
         }
         finally
@@ -1269,7 +1247,7 @@ public partial class SettingsModalViewModel : ViewModelBase
 
         if (string.IsNullOrEmpty(deviceId))
         {
-            await ShowErrorDialogAsync(
+            await App.ShowErrorDialogAsync(
                 "Registration Failed".Translate(),
                 "Could not identify this device. Please try again.".Translate());
             return false;
@@ -1305,12 +1283,12 @@ public partial class SettingsModalViewModel : ViewModelBase
             }
 
             var message = result.Message ?? "Registration failed. Please check your license key.";
-            await ShowErrorDialogAsync("Registration Failed".Translate(), message.Translate());
+            await App.ShowErrorDialogAsync("Registration Failed".Translate(), message.Translate());
             return false;
         }
         catch
         {
-            await ShowErrorDialogAsync("Error".Translate(),
+            await App.ShowErrorDialogAsync("Error".Translate(),
                 "Failed to register with the payment portal. Please check your internet connection.".Translate());
             return false;
         }
@@ -1387,7 +1365,7 @@ public partial class SettingsModalViewModel : ViewModelBase
             }
             else
             {
-                await ShowErrorDialogAsync("Couldn't Disconnect".Translate(),
+                await App.ShowErrorDialogAsync("Couldn't Disconnect".Translate(),
                     (response.Message ?? "Failed to disconnect provider. Please try again.").Translate());
             }
         }
@@ -1398,24 +1376,10 @@ public partial class SettingsModalViewModel : ViewModelBase
         catch
         {
             // A non-network failure shouldn't be reported as a connection problem.
-            await ShowErrorDialogAsync("Couldn't Disconnect".Translate(), "Failed to disconnect provider. Please try again.".Translate());
+            await App.ShowErrorDialogAsync("Couldn't Disconnect".Translate(), "Failed to disconnect provider. Please try again.".Translate());
         }
     }
 
-    private static async Task ShowErrorDialogAsync(string title, string message)
-    {
-        var dialog = App.ConfirmationDialog;
-        if (dialog != null)
-        {
-            await dialog.ShowAsync(new ConfirmationDialogOptions
-            {
-                Title = title,
-                Message = message,
-                PrimaryButtonText = "OK".Translate(),
-                CancelButtonText = null
-            });
-        }
-    }
 
     private void LoadPortalSettings()
     {
@@ -1807,48 +1771,15 @@ public partial class SettingsModalViewModel : ViewModelBase
         if (data == null || stripe == null || !stripe.Connected || App.SharedHttpClient == null) return;
 
         IsSyncingStripe = true;
-        StripeSyncStatus = "Checking Stripe for new activity...".Translate();
         try
         {
-            var svc = new StripeSyncService(new StripeApiClient(App.SharedHttpClient));
-            var preview = await svc.PreviewAsync(data);
-            if (!preview.HasActivity)
+            await IntegrationImportFlow.RunStripeAsync(data, App.SharedHttpClient, new IntegrationImportFlow.Host
             {
-                // A message box rather than a notification: this runs from the
-                // settings modal, which sits on top of where notifications
-                // appear, so the user would never see it.
-                await App.ShowInfoMessageBoxAsync("Stripe".Translate(), "You're already up to date.".Translate());
-                return;
-            }
-
-            if (App.ConfirmationDialog == null) return; // never import without a review step
-            var confirmed = await App.ConfirmationDialog.ShowAsync(new ConfirmationDialogOptions
-            {
-                Title = "Import from Stripe".Translate(),
-                Message = "Import your Stripe activity: {0} in sales and {1} in fees?"
-                    .TranslateFormat(preview.TotalRevenue.ToString("C2"), preview.TotalFees.ToString("C2")),
-                PrimaryButtonText = "Import".Translate(),
-                CancelButtonText = "Cancel".Translate()
-            }) == ConfirmationResult.Primary;
-            if (!confirmed) return;
-
-            var creation = await svc.ImportPreviewAsync(data, preview, SyncProgress(v => StripeSyncStatus = v));
-            if (creation.AnyCreated)
-                App.UndoRedoManager.RecordAction(new DelegateAction(
-                    "Import from Stripe".Translate(),
-                    () => { creation.Undo(data); App.CompanyManager?.MarkAsChanged(); },
-                    () => { creation.Redo(data); App.CompanyManager?.MarkAsChanged(); }));
-            App.CompanyManager?.MarkAsChanged();
-            RefreshStripeLastSynced(stripe);
-            await App.ShowInfoMessageBoxAsync("Stripe".Translate(),
-                "Imported {0} sales and {1} expense entries from Stripe.".TranslateFormat(creation.RevenuesCreated, creation.ExpensesCreated));
-        }
-        catch (Exception ex)
-        {
-            // Never let a Stripe/network error crash the app; surface it instead.
-            App.ErrorLogger?.LogError(ex, ErrorCategory.Api, "Stripe sync failed");
-            await App.ShowWarningMessageBoxAsync("Stripe".Translate(),
-                "Sync failed: {0}".TranslateFormat(ex.Message));
+                SetStatus = v => StripeSyncStatus = v,
+                // A message box, not a notification: this modal sits over where notifications appear.
+                Inform = App.ShowInfoDialogAsync,
+                AfterChange = () => RefreshStripeLastSynced(stripe)
+            });
         }
         finally
         {
@@ -2151,7 +2082,7 @@ public partial class SettingsModalViewModel : ViewModelBase
 
         if (ArgoApiKeyNameTaken(label))
         {
-            await App.ShowWarningMessageBoxAsync("Argo Books API".Translate(),
+            await App.ShowWarningDialogAsync("Argo Books API".Translate(),
                 "There is already a key called \"{0}\". Give this one a different name.".TranslateFormat(label));
             return;
         }
@@ -2178,7 +2109,7 @@ public partial class SettingsModalViewModel : ViewModelBase
                 ? "Copied to your clipboard. This is the only time it can be shown, so paste it somewhere safe before closing this.".Translate()
                 : "This is the only time it can be shown, so copy it somewhere safe before closing this.".Translate();
 
-            await App.ShowInfoMessageBoxAsync(
+            await App.ShowInfoDialogAsync(
                 "Your new API key".Translate(),
                 secret + Environment.NewLine + Environment.NewLine + advice);
         }
@@ -2276,7 +2207,7 @@ public partial class SettingsModalViewModel : ViewModelBase
 
         if (ArgoApiKeyNameTaken(label, row.Id))
         {
-            await App.ShowWarningMessageBoxAsync("Argo Books API".Translate(),
+            await App.ShowWarningDialogAsync("Argo Books API".Translate(),
                 "There is already a key called \"{0}\". Give this one a different name.".TranslateFormat(label));
             return; // editor stays open, with what they typed still in it
         }
@@ -2302,14 +2233,6 @@ public partial class SettingsModalViewModel : ViewModelBase
         }
     }
 
-    /// <summary>
-    /// Turns the rate fetch's 0-100 into the line shown beside the button. Only the
-    /// fetch reports a percentage, so the wording names that phase rather than the
-    /// import as a whole, which would sit at 100% while it writes the rows.
-    /// </summary>
-    private static IProgress<int> SyncProgress(Action<string> set)
-        => new Progress<int>(pct => set("Fetching exchange rates... {0}%".TranslateFormat(pct)));
-
     [RelayCommand]
     private void OpenArgoApiDocs()
     {
@@ -2333,11 +2256,8 @@ public partial class SettingsModalViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Pull what developers have pushed, show the merchant what it adds up to, and
-    /// import on approval as one undoable action.
-    ///
-    /// The undo also tells the server to release the batch, otherwise the queue
-    /// would keep reporting data as imported that is no longer in anyone's books.
+    /// Pull what developers have pushed, show the merchant what it adds up to, and import on
+    /// approval as one undoable action (<see cref="IntegrationImportFlow"/>).
     /// </summary>
     [RelayCommand]
     private async Task SyncArgoApiAsync()
@@ -2351,114 +2271,22 @@ public partial class SettingsModalViewModel : ViewModelBase
         ArgoApiError = null;
         try
         {
-            var svc = new ArgoApiSyncService(new ArgoApiClient(App.SharedHttpClient));
-            var preview = await svc.PreviewAsync(data);
-
-            if (!preview.HasActivity)
+            var result = await IntegrationImportFlow.RunArgoApiAsync(data, App.SharedHttpClient, new IntegrationImportFlow.Host
             {
-                ArgoApiPendingSummary = null;
-                await App.ShowInfoMessageBoxAsync("Argo Books API".Translate(),
-                    "Nothing is waiting to be imported.".Translate());
-                return;
-            }
-
-            ArgoApiPendingSummary = "{0} items waiting".TranslateFormat(preview.TotalObjects);
-
-            if (App.ConfirmationDialog == null) return; // never import without a review step
-
-            // Three answers, not two. Cancel leaves everything queued for next time, which
-            // is the right response to "not now" but a poor one to "never": without Discard
-            // an unwanted object is re-offered on every sync forever, and the app that sent
-            // it cannot tell refusal from inattention.
-            var choice = await App.ConfirmationDialog.ShowAsync(new ConfirmationDialogOptions
-            {
-                Title = "Import from the Argo Books API".Translate(),
-                Message = "Import {0} items sent by your connected apps: {1} in revenue and {2} in expenses?\n\nDiscard removes them for good and tells the apps that sent them. Cancel leaves them waiting."
-                    .TranslateFormat(
-                        preview.TotalObjects,
-                        preview.TotalRevenue.ToString("C2"),
-                        preview.TotalExpenses.ToString("C2")),
-                PrimaryButtonText = "Import".Translate(),
-                SecondaryButtonText = "Discard".Translate(),
-                IsSecondaryDestructive = true,
-                CancelButtonText = "Cancel".Translate()
+                SetStatus = v => ArgoApiSyncStatus = v,
+                Inform = App.ShowInfoDialogAsync,
+                AfterChange = () => RefreshArgoApiLastSynced(api)
             });
-
-            if (choice == ConfirmationResult.Secondary)
-            {
-                ArgoApiSyncStatus = "Discarding...".Translate();
-                var discarded = await svc.RejectPreviewAsync(data, preview);
-                ArgoApiPendingSummary = null;
-                await App.ShowInfoMessageBoxAsync(
-                    "Argo Books API".Translate(),
-                    "Discarded {0} items. They will not be offered again."
-                        .TranslateFormat(discarded));
-                return;
-            }
-
-            if (choice != ConfirmationResult.Primary) return;
-
-            var creation = await svc.ImportPreviewAsync(data, preview, SyncProgress(v => ArgoApiSyncStatus = v));
-
-            if (creation.AnyCreated)
-            {
-                App.UndoRedoManager.RecordAction(new DelegateAction(
-                    "Import from the Argo Books API".Translate(),
-                    () =>
-                    {
-                        creation.Undo(data);
-                        if (creation.BatchId != null)
-                            _ = svc.TryReleaseBatchAsync(data, creation.BatchId);
-                        App.CompanyManager?.MarkAsChanged();
-                    },
-                    () =>
-                    {
-                        creation.Redo(data);
-                        App.CompanyManager?.MarkAsChanged();
-                        _ = ReclaimAfterRedoAsync(svc, data, creation);
-                    }));
-            }
-
-            App.CompanyManager?.MarkAsChanged();
-            ArgoApiPendingSummary = null;
-            RefreshArgoApiLastSynced(api);
-
-            await App.ShowInfoMessageBoxAsync("Argo Books API".Translate(),
-                "Imported {0} sales and {1} expense entries.".TranslateFormat(creation.RevenuesCreated, creation.ExpensesCreated));
-        }
-        catch (Exception ex)
-        {
-            App.ErrorLogger?.LogError(ex, ErrorCategory.Api, "Argo Books API sync failed");
-            ArgoApiError = ex.Message;
-            await App.ShowWarningMessageBoxAsync("Argo Books API".Translate(),
-                "Import failed: {0}".TranslateFormat(ex.Message));
+            ArgoApiPendingSummary = result.Outcome == IntegrationImportOutcome.Cancelled
+                ? "{0} items waiting".TranslateFormat(result.Waiting)
+                : null;
+            ArgoApiError = result.Error;
         }
         finally
         {
             IsSyncingArgoApi = false;
             ArgoApiSyncStatus = string.Empty;
         }
-    }
-
-    /// <summary>
-    /// Claim a redone import's objects again. Undo handed them back to the queue, so without this
-    /// the next sync imports every one of them a second time. Same as the Revenue page's redo.
-    /// </summary>
-    private static async Task ReclaimAfterRedoAsync(ArgoApiSyncService svc, CompanyData data, ArgoApiImportCreation creation)
-    {
-        if (await svc.TryReclaimBatchAsync(data, creation) || creation.BatchId == null)
-            return;
-
-        // Redo re-recorded the old batch id, which names a batch the server has reverted.
-        data.Settings.Integrations.ArgoApi.ImportedBatches.Remove(creation.BatchId);
-        creation.BatchId = null;
-        App.CompanyManager?.MarkAsChanged();
-
-        await App.ShowWarningMessageBoxAsync(
-            "Argo Books API".Translate(),
-            ("The restored items are back in your books, but the server could not be told they were taken. " +
-             "They may still show as waiting on your next sync. Importing them again would create duplicates, " +
-             "so check before you do.").Translate());
     }
 
     private void RefreshArgoApiLastSynced(ArgoApiIntegrationSettings? api)
@@ -2747,7 +2575,7 @@ public partial class SettingsModalViewModel : ViewModelBase
                 new InvalidOperationException("Mobile sync is not initialized (CompanyManager, CompanyData, or SyncService is null)."),
                 ErrorCategory.Api,
                 "Sync.ConnectPhone.NotReady");
-            await ShowErrorDialogAsync(
+            await App.ShowErrorDialogAsync(
                 "Couldn't Connect a Phone".Translate(),
                 "Mobile sync isn't ready yet. Please reopen the app and try again.".Translate());
             return;
@@ -2789,7 +2617,7 @@ public partial class SettingsModalViewModel : ViewModelBase
                     "Sync.ConnectPhone.NoToken");
                 QrImage = null;
                 ShortCodeDisplay = string.Empty;
-                await ShowErrorDialogAsync(
+                await App.ShowErrorDialogAsync(
                     "Couldn't Connect a Phone".Translate(),
                     "The sync server didn't return a pairing code. Please try again.".Translate());
                 return;
@@ -2833,7 +2661,7 @@ public partial class SettingsModalViewModel : ViewModelBase
             var message = ex is HttpRequestException
                 ? "We couldn't reach the sync server. Check your internet connection and try again.".Translate()
                 : "Something went wrong while connecting a phone. Please try again.".Translate();
-            await ShowErrorDialogAsync("Couldn't Connect a Phone".Translate(), message);
+            await App.ShowErrorDialogAsync("Couldn't Connect a Phone".Translate(), message);
         }
         finally
         {
@@ -3500,22 +3328,13 @@ public partial class SettingsModalViewModel : ViewModelBase
                     // translation files; say so there, since "check your connection" sends a developer
                     // looking in the wrong place. Never shown in a release build, so not translated.
                     var missingOnDev = ApiConfig.IsSandbox && LanguageService.Instance.LastDownloadNotPublished;
-                    var dialog = App.ConfirmationDialog;
-                    if (dialog != null)
-                    {
-                        await dialog.ShowAsync(new ConfirmationDialogOptions
-                        {
-                            Title = missingOnDev
-                                ? "No Translation Files on the Dev Server"
-                                : "Language Download Failed".Translate(),
-                            Message = missingOnDev
-                                ? $"The dev server has no {requestedLanguage} translation file for version {AppInfo.VersionNumber}. Use a production build, or upload the language files to the dev server."
-                                : "Could not download the language file from the server. Please check your internet connection and try again.".Translate(),
-                            PrimaryButtonText = "OK".Translate(),
-                            SecondaryButtonText = null,
-                            CancelButtonText = null
-                        });
-                    }
+                    await App.ShowWarningDialogAsync(
+                        missingOnDev
+                            ? "No Translation Files on the Dev Server"
+                            : "Language Download Failed".Translate(),
+                        missingOnDev
+                            ? $"The dev server has no {requestedLanguage} translation file for version {AppInfo.VersionNumber}. Use a production build, or upload the language files to the dev server."
+                            : "Could not download the language file from the server. Please check your internet connection and try again.".Translate());
 
                     // Everything else is saved; stay open so the language can be retried or changed.
                     // Bank rules are the one baseline Save doesn't refresh, since it normally closes.
@@ -3762,7 +3581,7 @@ public partial class SettingsModalViewModel : ViewModelBase
         catch (Exception ex)
         {
             App.ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to open telemetry folder");
-            await ShowErrorDialogAsync("Error".Translate(), "Failed to open folder: {0}".TranslateFormat(ex.Message));
+            await App.ShowErrorDialogAsync("Error".Translate(), "Failed to open folder: {0}".TranslateFormat(ex.Message));
         }
     }
 
@@ -3801,7 +3620,7 @@ public partial class SettingsModalViewModel : ViewModelBase
         catch (Exception ex)
         {
             App.ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to delete telemetry data");
-            await ShowErrorDialogAsync("Error".Translate(), "Failed to delete telemetry data: {0}".TranslateFormat(ex.Message));
+            await App.ShowErrorDialogAsync("Error".Translate(), "Failed to delete telemetry data: {0}".TranslateFormat(ex.Message));
         }
         finally
         {
@@ -3984,7 +3803,7 @@ public partial class SettingsModalViewModel : ViewModelBase
                 return;
             }
 
-            await ShowErrorDialogAsync(
+            await App.ShowErrorDialogAsync(
                 "Owner email already set".Translate(),
                 string.IsNullOrEmpty(existing)
                     ? "An owner email is already on file. Use the Change flow to update it.".Translate()
@@ -4005,7 +3824,7 @@ public partial class SettingsModalViewModel : ViewModelBase
             var detail = result.Message
                 ?? result.ErrorCode
                 ?? $"The server rejected the request (HTTP {result.HttpStatus}).";
-            await ShowErrorDialogAsync("Could not set owner email".Translate(), detail.Translate());
+            await App.ShowErrorDialogAsync("Could not set owner email".Translate(), detail.Translate());
             return;
         }
 
@@ -4127,7 +3946,7 @@ public partial class SettingsModalViewModel : ViewModelBase
         var currentEmail = companyData.Settings.Company.Email ?? string.Empty;
         if (string.IsNullOrWhiteSpace(currentEmail))
         {
-            await ShowErrorDialogAsync("No email on file".Translate(),
+            await App.ShowErrorDialogAsync("No email on file".Translate(),
                 "This company has no owner email yet. Set one in the company details first.".Translate());
             return;
         }
@@ -4149,15 +3968,6 @@ public partial class SettingsModalViewModel : ViewModelBase
     }
 
     #endregion
-}
-
-/// <summary>
-/// Represents an accent color option.
-/// </summary>
-public class AccentColorItem(string name, string colorHex)
-{
-    public string Name { get; } = name;
-    public string ColorHex { get; } = colorHex;
 }
 
 /// <summary>

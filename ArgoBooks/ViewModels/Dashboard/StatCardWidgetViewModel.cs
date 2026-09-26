@@ -171,12 +171,7 @@ public partial class StatCardWidgetViewModel : WidgetViewModelBase
         var grossUSD = RevenueAggregator.SumCollectedRevenueUSD(data.Revenues, startDate, endDate);
         var refundsUSD = RefundAggregator.GetRefundedInDateRangeUSD(data.Payments, startDate, endDate);
         var currentUSD = grossUSD - refundsUSD;
-        // Convert each revenue/refund at its OWN date before summing (Calculations.md §3a Phase 2),
-        // so a non-USD display total isn't re-priced at today's rate. currentUSD is kept for the
-        // currency-agnostic period-over-period change below.
-        Value = CurrencyService.FormatTotalOrPending(convert =>
-            RevenueAggregator.SumCollectedRevenueDisplay(data.Revenues, startDate, endDate, convert)
-            - RefundAggregator.GetRefundedInDateRangeDisplay(data.Payments, startDate, endDate, convert));
+        Value = DashboardCalculations.FormatRevenue(data, startDate, endDate);
 
         var (prevStart, prevEnd) = DashboardCalculations.GetComparisonPeriod();
         if (prevStart != DateTime.MinValue && DashboardCalculations.HasSufficientPriorData(data, prevStart))
@@ -197,12 +192,7 @@ public partial class StatCardWidgetViewModel : WidgetViewModelBase
     private void LoadExpenses(CompanyData data, DateTime startDate, DateTime endDate)
     {
         var currentUSD = ExpenseAggregator.SumExpensesUSD(data.Expenses, startDate, endDate);
-        // Convert each expense at its OWN date before summing (Calculations.md §3a Phase 2), so a
-        // non-USD display total isn't re-priced at today's rate. The USD value above is kept for the
-        // currency-agnostic period-over-period change below.
-        Value = CurrencyService.FormatSumDisplayFromUSD(
-            data.Expenses.Where(e => e.Date >= startDate && e.Date <= endDate),
-            e => e.Total, e => e.OriginalCurrency, e => e.TotalUSD, e => e.Date);
+        Value = DashboardCalculations.FormatExpenses(data, startDate, endDate);
 
         var (prevStart, prevEnd) = DashboardCalculations.GetComparisonPeriod();
         if (prevStart != DateTime.MinValue && DashboardCalculations.HasSufficientPriorData(data, prevStart))
@@ -225,7 +215,7 @@ public partial class StatCardWidgetViewModel : WidgetViewModelBase
                      && i.Status != InvoiceStatus.Cancelled
                      && i.Status != InvoiceStatus.Draft)
             .ToList();
-        // Convert each invoice balance at its OWN issue date before summing (Calculations.md §3a Phase 2).
+        // Convert each invoice balance at its OWN issue date before summing (Calculations.md Rule 3a).
         Value = CurrencyService.FormatSumDisplayFromUSD(
             unpaid, i => i.Balance, i => i.OriginalCurrency, i => i.BalanceUSD, i => i.IssueDate);
         SecondaryText = $"{unpaid.Count} invoices pending";
@@ -246,13 +236,14 @@ public partial class StatCardWidgetViewModel : WidgetViewModelBase
         // ProfitCalculator owns the formula (pre-tax revenue − expenses −
         // pre-tax refunds); see docs/Calculations.md §2 and §8.
         var profitUSD = ProfitCalculator.CalculateNetProfitUSD(data, startDate, endDate);
-        // Convert each contributing transaction at its OWN date before summing (Calculations.md §3a
-        // Phase 2). profitUSD is kept for the currency-agnostic period-over-period change below.
-        Value = CurrencyService.FormatTotalOrPending(convert =>
-            ProfitCalculator.CalculateNetProfitDisplay(data, startDate, endDate, convert));
+        // Convert each contributing transaction at its OWN date before summing (Calculations.md Rule 3a).
+        // profitUSD is kept for the currency-agnostic period-over-period change below.
+        Value = CurrencyService.FormatNetProfitOrPending(data, startDate, endDate);
 
+        // A profit still waiting for its stock's cost is overstated, so there is no change to show.
         var (prevStart, prevEnd) = DashboardCalculations.GetComparisonPeriod();
-        if (prevStart != DateTime.MinValue && DashboardCalculations.HasSufficientPriorData(data, prevStart))
+        if (prevStart != DateTime.MinValue && DashboardCalculations.HasSufficientPriorData(data, prevStart)
+            && !CostOfGoodsAggregator.IsProfitChangePending(data.Revenues, startDate, endDate, prevStart, prevEnd))
         {
             var prevProfit = ProfitCalculator.CalculateNetProfitUSD(data, prevStart, prevEnd);
             ChangeValue = DashboardCalculations.CalculatePercentageChange(prevProfit, profitUSD);
@@ -272,8 +263,7 @@ public partial class StatCardWidgetViewModel : WidgetViewModelBase
 
     private void LoadInventoryValue(CompanyData data)
     {
-        var totalValue = data.Inventory.Sum(i => i.TotalValue);
-        Value = CurrencyService.Format(totalValue);
+        Value = CurrencyService.FormatStockValue(data.Inventory);
         var lowStock = data.Inventory.Count(i => i.InStock <= i.ReorderPoint && i.InStock > 0);
         SecondaryText = lowStock > 0 ? $"{lowStock} low stock" : $"{data.Inventory.Count} items";
     }
@@ -306,11 +296,8 @@ public partial class StatCardWidgetViewModel : WidgetViewModelBase
 
     private void LoadOverdueInvoices(CompanyData data)
     {
-        // Overdue is worked out from the due date, and nothing stores the Overdue status.
-        var overdue = data.Invoices
-            .Where(i => (i.IsOverdue || i.Status == InvoiceStatus.Overdue) && i.Status != InvoiceStatus.Draft && i.Balance > 0)
-            .ToList();
-        // Convert each invoice balance at its OWN issue date before summing (Calculations.md §3a Phase 2).
+        var overdue = data.Invoices.Where(i => i.IsOverdue).ToList();
+        // Convert each invoice balance at its OWN issue date before summing (Calculations.md Rule 3a).
         Value = CurrencyService.FormatSumDisplayFromUSD(
             overdue, i => i.Balance, i => i.OriginalCurrency, i => i.BalanceUSD, i => i.IssueDate);
         SecondaryText = $"{overdue.Count} overdue";

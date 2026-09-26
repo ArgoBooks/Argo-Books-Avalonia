@@ -167,12 +167,16 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             CloseFilterModal();
     }
 
+    /// <summary>How many filters are applied, for the page's Filter button.</summary>
+    public int ActiveFilterCount { get; private set; }
+
     /// <summary>
     /// Applies the current filters.
     /// </summary>
     [RelayCommand]
     private void ApplyFilters()
     {
+        ActiveFilterCount = Filters.ActiveCount;
         FiltersApplied?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
     }
@@ -184,6 +188,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
     private void ClearFilters()
     {
         Filters.Reset();
+        ActiveFilterCount = 0;
         FiltersCleared?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
     }
@@ -193,7 +198,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
     #region AI Scan Review Modal State
 
     private IReceiptScannerService? _scannerService;
-    private IReceiptUsageService? _usageService;
+    private IUsageLimitService? _usageService;
 
     /// <summary>
     /// Invalidates cached scan services so the next scan attempt picks up
@@ -202,8 +207,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
     public void InvalidateScanServices()
     {
         _usageService?.InvalidateCache();
-        // Dispose before dropping the reference, IReceiptUsageService now owns
-        // an HttpClient when constructed via the parameterless overload.
+        // Dispose before dropping the reference: the service owns an HttpClient.
         _usageService?.Dispose();
         _usageService = null;
         _scannerService = null;
@@ -264,11 +268,6 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
     public double ModalHeight => IsFullscreen ? double.NaN : (HasScanResult || IsBulkReviewOpen ? 850 : 400);
 
     /// <summary>
-    /// Gets the modal margin. Zero when fullscreen, auto-centered otherwise.
-    /// </summary>
-    public Avalonia.Thickness ModalMargin => IsFullscreen ? new Avalonia.Thickness(8) : new Avalonia.Thickness(0);
-
-    /// <summary>
     /// Gets modal horizontal alignment. Stretch when fullscreen.
     /// </summary>
     public Avalonia.Layout.HorizontalAlignment ModalHorizontalAlignment =>
@@ -302,7 +301,6 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
     {
         OnPropertyChanged(nameof(ModalWidth));
         OnPropertyChanged(nameof(ModalHeight));
-        OnPropertyChanged(nameof(ModalMargin));
         OnPropertyChanged(nameof(ModalHorizontalAlignment));
         OnPropertyChanged(nameof(ModalVerticalAlignment));
     }
@@ -451,14 +449,8 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isRevenue;
 
-    /// <summary>
-    /// The detected transaction type label for UI display.
-    /// </summary>
-    public string TransactionTypeLabel => IsRevenue ? "Revenue".Translate() : "Expense".Translate();
-
     partial void OnIsRevenueChanged(bool value)
     {
-        OnPropertyChanged(nameof(TransactionTypeLabel));
         ValidateCurrentBulkItem();
     }
 
@@ -947,7 +939,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             var usageCheck = await _usageService.CheckUsageAsync();
             UpdateUsageDisplay(usageCheck);
 
-            if (!usageCheck.CanScan)
+            if (!usageCheck.Allowed)
             {
                 IsBulkScanning = false;
                 if (!string.IsNullOrEmpty(usageCheck.ErrorMessage))
@@ -957,13 +949,13 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
                 else
                 {
                     await UpgradePromptHelper.ShowReceiptScanLimitPromptAsync(
-                        usageCheck.ScanCount, usageCheck.MonthlyLimit, usageCheck.ResetsAt);
+                        usageCheck.Used, usageCheck.MonthlyLimit, usageCheck.ResetsAt);
                 }
                 return;
             }
 
             // Ask, then scan only what the allowance covers.
-            if (usageCheck.Remaining < BulkItems.Count)
+            if (!usageCheck.IsOffline && usageCheck.Remaining < BulkItems.Count)
             {
                 ScansRemaining = usageCheck.Remaining;
 
@@ -1107,12 +1099,12 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             if (_usageService != null)
             {
                 var usageCheck = await _usageService.CheckUsageAsync();
-                if (!usageCheck.CanScan)
+                if (!usageCheck.Allowed)
                 {
                     await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
                     {
                         item.Status = BulkScanStatus.Failed;
-                        item.ErrorMessage = "Monthly scan limit reached".Translate();
+                        item.ErrorMessage = usageCheck.ErrorMessage?.Translate() ?? "Monthly scan limit reached".Translate();
                         BulkScansCompleted++;
                         BulkScansFailed++;
                     });
@@ -1510,8 +1502,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
                 };
             }).Where(li => !string.IsNullOrWhiteSpace(li.Description) || li.ProductId != null).ToList();
 
-            companyData.IdCounters.Receipt++;
-            var receiptId = $"RCP-{DateTime.Now:yyyy}-{companyData.IdCounters.Receipt:D5}";
+            var receiptId = new IdGenerator(companyData).NextReceiptId();
 
             var fileData = encodedImages.GetValueOrDefault(item);
 
@@ -1558,7 +1549,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
-                ApplyDisplayCurrency(companyData, revenue, "Revenue", currency);
+                ApplyDisplayCurrency(companyData, revenue, currency);
 
                 receipt.TransactionId = revenueId;
                 companyData.Revenues.Add(revenue);
@@ -1589,7 +1580,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
-                ApplyDisplayCurrency(companyData, expense, "Expense", currency);
+                ApplyDisplayCurrency(companyData, expense, currency);
 
                 receipt.TransactionId = expenseId;
                 companyData.Expenses.Add(expense);
@@ -1602,26 +1593,25 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
 
         RemoveCreatedEntitiesNotUsedBy(companyData, createdExpenses, createdRevenues);
         var createdEntities = CaptureCreatedEntities();
-        var transactionIds = createdExpenses.Select(e => e.Id).Concat(createdRevenues.Select(r => r.Id)).ToHashSet();
-        List<PendingConversion> withdrawn = [];
+        var createdTransactions = createdExpenses.Cast<Transaction>().Concat(createdRevenues).ToList();
 
         var action = new DelegateAction(
             $"Bulk scan {approvedItems.Count} receipts",
             () =>
             {
-                foreach (var e in createdExpenses) companyData.Expenses.Remove(e);
-                foreach (var r in createdRevenues) companyData.Revenues.Remove(r);
-                foreach (var r in createdReceipts) companyData.Receipts.Remove(r);
-                withdrawn = WithdrawPendingConversions(companyData, transactionIds);
+                foreach (var e in createdExpenses) companyData.Expenses.RemoveRecord(e);
+                foreach (var r in createdRevenues) companyData.Revenues.RemoveRecord(r);
+                foreach (var r in createdReceipts) companyData.Receipts.RemoveRecord(r);
+                WithdrawPendingConversions(companyData, createdTransactions);
                 createdEntities.Remove(companyData);
             },
             () =>
             {
                 createdEntities.Restore(companyData);
-                foreach (var e in createdExpenses) companyData.Expenses.Add(e);
-                foreach (var r in createdRevenues) companyData.Revenues.Add(r);
-                foreach (var r in createdReceipts) companyData.Receipts.Add(r);
-                RequeuePendingConversions(companyData, withdrawn);
+                foreach (var e in createdExpenses) companyData.Expenses.RestoreRecord(e);
+                foreach (var r in createdRevenues) companyData.Revenues.RestoreRecord(r);
+                foreach (var r in createdReceipts) companyData.Receipts.RestoreRecord(r);
+                RequeuePendingConversions(companyData, createdTransactions);
             });
 
         // The auto-created entities now belong to the undo action, so closing must not roll them back.
@@ -1674,7 +1664,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
     {
         _usageService ??= CreateUsageService();
         var usageCheck = await _usageService.CheckUsageAsync();
-        if (!usageCheck.CanScan)
+        if (!usageCheck.Allowed)
         {
             if (!string.IsNullOrEmpty(usageCheck.ErrorMessage))
             {
@@ -1683,7 +1673,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             else
             {
                 await UpgradePromptHelper.ShowReceiptScanLimitPromptAsync(
-                    usageCheck.ScanCount,
+                    usageCheck.Used,
                     usageCheck.MonthlyLimit,
                     usageCheck.ResetsAt);
             }
@@ -1702,13 +1692,9 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
 
         if (!File.Exists(filePath))
         {
-            await (App.ConfirmationDialog?.ShowAsync(new ConfirmationDialogOptions
-            {
-                Title = "Error".Translate(),
-                Message = "File not found.".Translate(),
-                PrimaryButtonText = "OK".Translate(),
-                CancelButtonText = null
-            }) ?? Task.CompletedTask);
+            await App.ShowErrorDialogAsync(
+                "Error".Translate(),
+                "File not found.".Translate());
             return;
         }
 
@@ -1973,10 +1959,37 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ReceiptScanned, "sample");
         App.MainWindowViewModel?.NoteSampleReceiptScan();
 
+        // The receipt is canned, so the supplier and category it resolves to are known before the
+        // call is made. Suppressed rather than sent, then matched locally against whatever the
+        // company already has.
+        _suppressAiSuggestions = true;
         PopulateScanResults(BuildSampleScanResult());
+        _suppressAiSuggestions = false;
+        ApplySampleSuggestion();
 
         HasScanResult = true;
         IsScanning = false;
+    }
+
+    /// <summary>
+    /// Stands in for <see cref="GetAiSuggestionsAsync"/> on the sample receipt: matches the sample
+    /// supplier against the company's own list, offering to create it when it isn't there, and
+    /// names the category the sample's line items belong to.
+    /// </summary>
+    private void ApplySampleSuggestion()
+    {
+        var data = BuildSampleReceiptData();
+
+        _aiSuggestion = new SupplierCategorySuggestion
+        {
+            NewCategory = new NewCategorySuggestion
+            {
+                Name = "Office Supplies",
+                Description = "Stationery, printer supplies and other consumables."
+            }
+        };
+
+        TryBasicSupplierMatch(data.SupplierName);
     }
 
     /// <summary>
@@ -2049,7 +2062,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
                 var usageCheck = await _usageService.CheckUsageAsync();
                 UpdateUsageDisplay(usageCheck);
 
-                if (!usageCheck.CanScan)
+                if (!usageCheck.Allowed)
                 {
                     IsScanning = false;
 
@@ -2059,12 +2072,12 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
                     if (!string.IsNullOrEmpty(usageCheck.ErrorMessage))
                     {
                         HasScanError = true;
-                        ScanErrorMessage = usageCheck.ErrorMessage;
+                        ScanErrorMessage = usageCheck.ErrorMessage.Translate();
                     }
                     else
                     {
                         await UpgradePromptHelper.ShowReceiptScanLimitPromptAsync(
-                            usageCheck.ScanCount,
+                            usageCheck.Used,
                             usageCheck.MonthlyLimit,
                             usageCheck.ResetsAt);
                     }
@@ -2106,9 +2119,9 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             if (_usageService != null)
             {
                 var incrementResult = await _usageService.IncrementUsageAsync();
-                if (incrementResult.Success)
+                if (incrementResult.Success && !incrementResult.IsOffline)
                 {
-                    ScansUsed = incrementResult.ScanCount;
+                    ScansUsed = incrementResult.Used;
                     ScansRemaining = incrementResult.Remaining;
                     IsNearLimit = incrementResult.MonthlyLimit > 0 && incrementResult.Remaining > 0 && incrementResult.Remaining <= incrementResult.MonthlyLimit / 10;
                 }
@@ -2139,8 +2152,9 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
 
     private void UpdateUsageDisplay(UsageCheckResult usageCheck)
     {
+        if (usageCheck.IsOffline) return;
         HasUsageInfo = true;
-        ScansUsed = usageCheck.ScanCount;
+        ScansUsed = usageCheck.Used;
         ScansLimit = usageCheck.MonthlyLimit;
         ScansRemaining = usageCheck.Remaining;
         UsageTier = usageCheck.Tier;
@@ -2295,22 +2309,22 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         {
             var removedAny = false;
             foreach (var product in Products)
-                removedAny |= companyData.Products?.Remove(product) == true;
+                removedAny |= companyData.Products?.RemoveRecord(product) == true;
             if (Category != null)
-                removedAny |= companyData.Categories.Remove(Category);
+                removedAny |= companyData.Categories.RemoveRecord(Category);
             foreach (var supplier in Suppliers)
-                removedAny |= companyData.Suppliers.Remove(supplier);
+                removedAny |= companyData.Suppliers.RemoveRecord(supplier);
             return removedAny;
         }
 
         public void Restore(CompanyData companyData)
         {
             foreach (var supplier in Suppliers)
-                companyData.Suppliers.Add(supplier);
+                companyData.Suppliers.RestoreRecord(supplier);
             if (Category != null)
-                companyData.Categories.Add(Category);
+                companyData.Categories.RestoreRecord(Category);
             foreach (var product in Products)
-                companyData.Products?.Add(product);
+                companyData.Products?.RestoreRecord(product);
         }
     }
 
@@ -2449,13 +2463,9 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         var companyData = App.CompanyManager?.CompanyData;
         if (companyData == null)
         {
-            await (App.ConfirmationDialog?.ShowAsync(new ConfirmationDialogOptions
-            {
-                Title = "Error".Translate(),
-                Message = "No company is open.".Translate(),
-                PrimaryButtonText = "OK".Translate(),
-                CancelButtonText = null
-            }) ?? Task.CompletedTask);
+            await App.ShowErrorDialogAsync(
+                "Error".Translate(),
+                "No company is open.".Translate());
             return;
         }
 
@@ -2479,8 +2489,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         }).Where(li => !string.IsNullOrWhiteSpace(li.Description) || li.ProductId != null).ToList();
 
         // Create receipt first (common for both transaction types)
-        companyData.IdCounters.Receipt++;
-        var receiptId = $"RCP-{DateTime.Now:yyyy}-{companyData.IdCounters.Receipt:D5}";
+        var receiptId = new IdGenerator(companyData).NextReceiptId();
 
         string? fileData = null;
         if (_currentImageData != null)
@@ -2537,114 +2546,27 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
 
     /// <summary>
     /// Tags a receipt-created transaction with the receipt's currency and its USD amounts, like the
-    /// normal expense/revenue save. The USD amounts are converted at the transaction's own date when
-    /// the exact-date rate is cached; otherwise the row is marked pending and queued for the
-    /// self-heal, which fills them once the rate is available (Calculations.md Rule 3a).
+    /// normal expense/revenue save: converted at its own date when that rate is held, otherwise
+    /// pending and queued until it is (Calculations.md Rule 3a).
     /// </summary>
-    private static void ApplyDisplayCurrency(
-        CompanyData companyData, Transaction txn, string transactionType, string currency)
+    private static void ApplyDisplayCurrency(CompanyData companyData, Transaction txn, string currency)
     {
         txn.OriginalCurrency = currency;
-
-        if (string.Equals(currency, "USD", StringComparison.OrdinalIgnoreCase))
-        {
-            txn.TotalUSD = txn.Total;
-            txn.TaxAmountUSD = txn.TaxAmount;
-            txn.ShippingCostUSD = txn.ShippingCost;
-            txn.DiscountUSD = txn.Discount;
-            txn.FeeUSD = txn.Fee;
-            txn.UnitPriceUSD = txn.UnitPrice;
-            txn.IsPendingConversion = false;
-            return;
-        }
-
-        var rates = ExchangeRateService.Instance;
-        if (rates != null && rates.TryConvertToUsdBase(txn.Total, currency, txn.Date, out var totalUsd))
-        {
-            // Convert every amount, not just the total: UnitPriceUSD/DiscountUSD/etc. feed USD-based
-            // reports, COGS, and cross-currency edits, so leaving them at 0 would undercount. The USD
-            // base is stored full-precision (no 2dp round); display rounds. See Calculations.md Rule 3.
-            txn.TotalUSD = totalUsd;
-            rates.TryConvertToUsdBase(txn.TaxAmount, currency, txn.Date, out var taxUsd);
-            txn.TaxAmountUSD = taxUsd;
-            rates.TryConvertToUsdBase(txn.ShippingCost, currency, txn.Date, out var shipUsd);
-            txn.ShippingCostUSD = shipUsd;
-            rates.TryConvertToUsdBase(txn.Discount, currency, txn.Date, out var discUsd);
-            txn.DiscountUSD = discUsd;
-            rates.TryConvertToUsdBase(txn.Fee, currency, txn.Date, out var feeUsd);
-            txn.FeeUSD = feeUsd;
-            rates.TryConvertToUsdBase(txn.UnitPrice, currency, txn.Date, out var unitUsd);
-            txn.UnitPriceUSD = unitUsd;
-            txn.IsPendingConversion = false;
-            return;
-        }
-
-        // Exact-date rate not cached: defer all the USD amounts to the self-heal queue, exactly like
-        // the normal save.
-        txn.IsPendingConversion = true;
-        var entry = new PendingConversion
-        {
-            TransactionId = txn.Id,
-            TransactionType = transactionType,
-            OriginalCurrency = currency,
-            TransactionDate = txn.Date,
-            Total = txn.Total,
-            TaxAmount = txn.TaxAmount,
-            ShippingCost = txn.ShippingCost,
-            Discount = txn.Discount,
-            Fee = txn.Fee,
-            UnitPrice = txn.UnitPrice
-        };
-        companyData.PendingConversions.Add(entry);
-        _ = PendingConversionService.Instance?.AddPendingConversionAsync(entry);
+        UsdConversion.Apply(companyData, txn, UsdConversion.CachedRate(currency, txn.Date));
     }
 
     /// <summary>
-    /// Takes an undone row's conversion out of the company's queue and the conversion service's copy.
-    /// Processing an entry whose row is gone drops it for good, so if it stayed queued while the row
-    /// was undone, redo would bring the row back pending with nothing left to convert it.
+    /// Takes undone rows' conversions out of the company's queue and the conversion service's copy.
+    /// Processing an entry whose row is gone drops it for good.
     /// </summary>
-    private static List<PendingConversion> WithdrawPendingConversions(
-        CompanyData companyData, IReadOnlyCollection<string> transactionIds)
+    private static void WithdrawPendingConversions(CompanyData companyData, IEnumerable<Transaction> transactions) =>
+        UsdConversion.Restore(companyData, transactions.Select(UsdConversion.KeyOf), []);
+
+    /// <summary>Queues redone rows again, those still waiting for their rate.</summary>
+    private static void RequeuePendingConversions(CompanyData companyData, IEnumerable<Transaction> transactions)
     {
-        var withdrawn = companyData.PendingConversions.Where(p => transactionIds.Contains(p.TransactionId)).ToList();
-        if (withdrawn.Count == 0) return withdrawn;
-
-        companyData.PendingConversions.RemoveAll(withdrawn.Contains);
-        MirrorPendingQueue(companyData, transactionIds);
-        return withdrawn;
-    }
-
-    private static void RequeuePendingConversions(CompanyData companyData, List<PendingConversion> entries)
-    {
-        if (entries.Count == 0) return;
-
-        companyData.PendingConversions.AddRange(entries);
-        MirrorPendingQueue(companyData, entries.Select(p => p.TransactionId).ToList());
-    }
-
-    /// <summary>
-    /// Called on the UI thread: MirrorAsync reads the company file's rows before it first awaits.
-    /// </summary>
-    private static void MirrorPendingQueue(CompanyData companyData, IReadOnlyCollection<string> transactionIds)
-    {
-        var service = PendingConversionService.Instance;
-        if (service == null) return;
-
-        _ = MirrorPendingQueueAsync(service, companyData, transactionIds);
-    }
-
-    private static async Task MirrorPendingQueueAsync(
-        PendingConversionService service, CompanyData companyData, IReadOnlyCollection<string> transactionIds)
-    {
-        try
-        {
-            await service.MirrorAsync(companyData, transactionIds);
-        }
-        catch (Exception ex)
-        {
-            App.ErrorLogger?.LogWarning($"Failed to update queued conversions: {ex.Message}", "ReceiptScan");
-        }
+        foreach (var txn in transactions)
+            UsdConversion.Requeue(companyData, txn);
     }
 
     private void CreateExpenseTransaction(CompanyData companyData, string receiptId, string? fileData,
@@ -2675,7 +2597,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
-        ApplyDisplayCurrency(companyData, expense, "Expense", currency);
+        ApplyDisplayCurrency(companyData, expense, currency);
 
         var receipt = new Receipt
         {
@@ -2698,23 +2620,22 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         var capturedReceipt = receipt;
         var capturedExpense = expense;
         var createdEntities = CaptureCreatedEntities();
-        List<PendingConversion> withdrawn = [];
 
         var action = new DelegateAction(
             $"AI scan expense {expenseId}",
             () =>
             {
-                companyData.Expenses.Remove(capturedExpense);
-                companyData.Receipts.Remove(capturedReceipt);
-                withdrawn = WithdrawPendingConversions(companyData, [expenseId]);
+                companyData.Expenses.RemoveRecord(capturedExpense);
+                companyData.Receipts.RemoveRecord(capturedReceipt);
+                WithdrawPendingConversions(companyData, [capturedExpense]);
                 createdEntities.Remove(companyData);
             },
             () =>
             {
                 createdEntities.Restore(companyData);
-                companyData.Expenses.Add(capturedExpense);
-                companyData.Receipts.Add(capturedReceipt);
-                RequeuePendingConversions(companyData, withdrawn);
+                companyData.Expenses.RestoreRecord(capturedExpense);
+                companyData.Receipts.RestoreRecord(capturedReceipt);
+                RequeuePendingConversions(companyData, [capturedExpense]);
             });
 
         companyData.Expenses.Add(expense);
@@ -2752,7 +2673,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
-        ApplyDisplayCurrency(companyData, revenue, "Revenue", currency);
+        ApplyDisplayCurrency(companyData, revenue, currency);
 
         var receipt = new Receipt
         {
@@ -2775,23 +2696,22 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         var capturedReceipt = receipt;
         var capturedRevenue = revenue;
         var createdEntities = CaptureCreatedEntities();
-        List<PendingConversion> withdrawn = [];
 
         var action = new DelegateAction(
             $"AI scan revenue {revenueId}",
             () =>
             {
-                companyData.Revenues.Remove(capturedRevenue);
-                companyData.Receipts.Remove(capturedReceipt);
-                withdrawn = WithdrawPendingConversions(companyData, [revenueId]);
+                companyData.Revenues.RemoveRecord(capturedRevenue);
+                companyData.Receipts.RemoveRecord(capturedReceipt);
+                WithdrawPendingConversions(companyData, [capturedRevenue]);
                 createdEntities.Remove(companyData);
             },
             () =>
             {
                 createdEntities.Restore(companyData);
-                companyData.Revenues.Add(capturedRevenue);
-                companyData.Receipts.Add(capturedReceipt);
-                RequeuePendingConversions(companyData, withdrawn);
+                companyData.Revenues.RestoreRecord(capturedRevenue);
+                companyData.Receipts.RestoreRecord(capturedReceipt);
+                RequeuePendingConversions(companyData, [capturedRevenue]);
             });
 
         companyData.Revenues.Add(revenue);
@@ -2954,14 +2874,6 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         ValidateCurrentBulkItem();
     }
 
-    [RelayCommand]
-    private void NavigateToSettings()
-    {
-        // Close modal and open settings
-        CloseScanReviewModal();
-        // The settings modal should be opened from the header
-    }
-
     /// <summary>
     /// Gets AI suggestions for supplier and category based on receipt data.
     /// </summary>
@@ -3090,9 +3002,10 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         if (diff > 0.02m)
         {
             HasTotalMismatchWarning = true;
+            string Money(decimal amount) => CurrencyInfo.FormatAmount(amount, ScanCurrencyCode);
             TotalMismatchWarningMessage = string.Format(
-                "Line items ({0:C}) + tax ({1:C}) + shipping ({2:C}) - discount ({3:C}) = {4:C}, but total is {5:C}. Some items may be incorrect.".Translate(),
-                lineItemSum, tax, shipping, discount, expectedTotal, total);
+                "Line items ({0}) + tax ({1}) + shipping ({2}) - discount ({3}) = {4}, but total is {5}. Some items may be incorrect.".Translate(),
+                Money(lineItemSum), Money(tax), Money(shipping), Money(discount), Money(expectedTotal), Money(total));
         }
     }
 
@@ -3507,10 +3420,8 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
                 OperationTimingService.Instance?.RecordResult(OperationKind.ReceiptScan, serverMs, wallClockMs, uploadBytes, loadFactor));
     }
 
-    private IReceiptUsageService CreateUsageService()
-    {
-        return new ReceiptUsageService(App.LicenseService);
-    }
+    private IUsageLimitService CreateUsageService() =>
+        new UsageLimitService(UsageLimit.ReceiptScans, App.LicenseService, App.ErrorLogger);
 
     private OcrData CreateOcrData()
     {

@@ -242,65 +242,6 @@ public class InvoiceTemplateFactoryTests
 
     #endregion
 
-    #region CreateCustomTemplate Tests
-
-    [Theory]
-    [InlineData(InvoiceTemplateType.Professional)]
-    [InlineData(InvoiceTemplateType.Modern)]
-    [InlineData(InvoiceTemplateType.Classic)]
-    [InlineData(InvoiceTemplateType.Elegant)]
-    [InlineData(InvoiceTemplateType.Ribbon)]
-    public void CreateCustomTemplate_WithBaseType_SetsIdAndName(InvoiceTemplateType baseType)
-    {
-        var template = InvoiceTemplateFactory.CreateCustomTemplate("custom-id", "Custom Name", baseType);
-
-        Assert.Equal("custom-id", template.Id);
-        Assert.Equal("Custom Name", template.Name);
-        Assert.False(template.IsDefault);
-    }
-
-    [Fact]
-    public void CreateCustomTemplate_InheritsColorsFromBaseTemplate()
-    {
-        var professional = InvoiceTemplateFactory.CreateProfessionalTemplate();
-        var custom = InvoiceTemplateFactory.CreateCustomTemplate("my-custom", "My Custom", InvoiceTemplateType.Professional);
-
-        Assert.Equal(professional.PrimaryColor, custom.PrimaryColor);
-        Assert.Equal(professional.SecondaryColor, custom.SecondaryColor);
-        Assert.Equal(professional.AccentColor, custom.AccentColor);
-        Assert.Equal(professional.FontFamily, custom.FontFamily);
-    }
-
-    [Fact]
-    public void CreateCustomTemplate_InheritsFontSettingsFromBaseTemplate()
-    {
-        var modern = InvoiceTemplateFactory.CreateModernTemplate();
-        var custom = InvoiceTemplateFactory.CreateCustomTemplate("my-modern", "My Modern", InvoiceTemplateType.Modern);
-
-        Assert.Equal(modern.FontFamily, custom.FontFamily);
-        Assert.Equal(modern.HeaderText, custom.HeaderText);
-        Assert.Equal(modern.FooterText, custom.FooterText);
-    }
-
-    [Fact]
-    public void CreateCustomTemplate_IsNotDefault()
-    {
-        var template = InvoiceTemplateFactory.CreateCustomTemplate("custom", "Custom", InvoiceTemplateType.Professional);
-
-        Assert.False(template.IsDefault);
-    }
-
-    [Fact]
-    public void CreateCustomTemplate_WithModernBase_InheritsShowDueDateProminentSetting()
-    {
-        var modern = InvoiceTemplateFactory.CreateModernTemplate();
-        var custom = InvoiceTemplateFactory.CreateCustomTemplate("custom-modern", "Custom Modern", InvoiceTemplateType.Modern);
-
-        Assert.Equal(modern.ShowDueDateProminent, custom.ShowDueDateProminent);
-    }
-
-    #endregion
-
     #region Helper Methods
 
     private static void AssertIsHexColor(string color, string propertyName)

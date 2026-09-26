@@ -188,38 +188,6 @@
         <Setter Property="Opacity" Value="0.5" />
     </Style>
 
-    <!-- Warning Button (for cautionary actions) -->
-    <Style Selector="Button.warning-button">
-        <Setter Property="Background" Value="{DynamicResource WarningBrush}" />
-        <Setter Property="Foreground" Value="White" />
-        <Setter Property="BorderThickness" Value="0" />
-        <Setter Property="CornerRadius" Value="{StaticResource FormControlCornerRadius}" />
-        <Setter Property="Padding" Value="16,10" />
-        <Setter Property="MinHeight" Value="{StaticResource FormControlHeight}" />
-        <Setter Property="FontSize" Value="14" />
-        <Setter Property="FontWeight" Value="Medium" />
-        <Setter Property="Cursor" Value="Hand" />
-        <Setter Property="VerticalContentAlignment" Value="Center" />
-        <Setter Property="HorizontalContentAlignment" Value="Center" />
-    </Style>
-    <Style Selector="Button.warning-button /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="{DynamicResource WarningBrush}" />
-        <Setter Property="TextBlock.Foreground" Value="White" />
-    </Style>
-    <Style Selector="Button.warning-button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="{DynamicResource WarningDarkBrush}" />
-        <Setter Property="TextBlock.Foreground" Value="White" />
-    </Style>
-    <Style Selector="Button.warning-button:pointerover">
-        <Setter Property="Foreground" Value="White" />
-    </Style>
-    <Style Selector="Button.warning-button PathIcon">
-        <Setter Property="Foreground" Value="White" />
-    </Style>
-    <Style Selector="Button.warning-button:pointerover PathIcon">
-        <Setter Property="Foreground" Value="White" />
-    </Style>
-
     <!-- Filled variant buttons used by ArgoButton's Variant property (Warning/Success/Danger).
          These mirror Button.primary so a colored variant doesn't fall through to the default
          gray button theme (which previously made message-box primary buttons render unstyled). -->
@@ -317,6 +285,11 @@
     </Style>
     <Style Selector="Button.text-button:pointerover">
         <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    </Style>
+    <!-- Larger text button, for the tutorial and tour overlays' Skip buttons. -->
+    <Style Selector="Button.text-button.lg">
+        <Setter Property="Padding" Value="12,8" />
+        <Setter Property="FontSize" Value="14" />
     </Style>
 
     <!-- Ghost Button (no border, subtle) -->

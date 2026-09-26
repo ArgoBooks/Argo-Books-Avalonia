@@ -1,5 +1,6 @@
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
+using ArgoBooks.Core.Models.Reports;
 using ArgoBooks.Core.Services;
 using ArgoBooks.Services;
 
@@ -17,6 +18,26 @@ public static class DashboardCalculations
             DateRangePresetExtensions.ParseDateRange(chartSettings.SelectedDateRange),
             chartSettings.StartDate, chartSettings.EndDate);
     }
+
+    /// <summary>
+    /// The Total Revenue figure (Rule 1, Rule 2, §8): collected revenue less refunds, each converted at
+    /// its own date, or Pending. The dashboard card and the Revenue page card both show this.
+    /// </summary>
+    public static string FormatRevenue(CompanyData data, DateTime start, DateTime end) =>
+        CurrencyService.FormatTotalOrPending(convert =>
+            RevenueAggregator.SumCollectedRevenueDisplay(data.Revenues, start, end, convert)
+            - RefundAggregator.GetRefundedInDateRangeDisplay(data.Payments, start, end, convert));
+
+    /// <summary>
+    /// The Total Expenses figure (§9): every expense, tax included, each converted at its own date, or
+    /// Pending. The dashboard card and the Expenses page card both show this.
+    /// </summary>
+    public static string FormatExpenses(CompanyData data, DateTime start, DateTime end) =>
+        CurrencyService.FormatTotalOrPending(convert =>
+            ExpenseAggregator.SumExpensesDisplay(data.Expenses, start, end, convert));
+
+    /// <summary>This month so far, as the dashboard's This Month preset has it.</summary>
+    public static (DateTime Start, DateTime End) ThisMonth() => DatePresetNames.GetDateRange(DatePresetNames.ThisMonth);
 
     public static bool HasSufficientPriorData(CompanyData data, DateTime prevStartDate)
     {

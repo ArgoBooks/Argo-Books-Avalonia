@@ -111,7 +111,7 @@
                     <Grid Grid.Row="4" ColumnDefinitions="Auto,*,Auto">
                         <!-- Skip button -->
                         <Button Grid.Column="0"
-                                Classes="text-button"
+                                Classes="text-button lg"
                                 Content="Skip"
                                 Command="{Binding SkipCommand}"
                                 IsVisible="{Binding !IsLastStep}" />
@@ -140,21 +140,4 @@
             </Border>
         </Border>
     </Panel>
-
-    <UserControl.Styles>
-        <Style Selector="Button.text-button">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
-            <Setter Property="Padding" Value="12,8" />
-            <Setter Property="FontSize" Value="14" />
-            <Setter Property="Cursor" Value="Hand" />
-        </Style>
-        <Style Selector="Button.text-button /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="Transparent" />
-        </Style>
-        <Style Selector="Button.text-button:pointerover">
-            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-        </Style>
-    </UserControl.Styles>
 </UserControl>

@@ -1,32 +1,30 @@
-using System.Security.Cryptography;
-using System.Text;
+using System.Runtime.CompilerServices;
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Models.Transactions;
-using ArgoBooks.Core.Platform;
 
 namespace ArgoBooks.Core.Services;
 
 /// <summary>
-/// Manages a persistent queue of transactions saved offline that need USD conversion.
-/// Uses two-layer persistence: an app-data file per company (immediate) + CompanyData (on save).
+/// Converts the records waiting for their exchange rate (docs/Calculations.md Rule 3a). The queue is
+/// the open company's own list (<see cref="CompanyData.PendingConversions"/>), saved in the company
+/// file together with the records it converts, so the file is its only source: this service holds a
+/// copy of it to work from, kept in step by <see cref="Mirror"/>.
 /// </summary>
 public class PendingConversionService
 {
-    // One file per company in this folder. Earlier versions kept every company's entries in a
-    // single pending_conversions.json, which is no longer read: its entries can't be told apart by
-    // company, and each company file carries its own list.
-    private const string QueueFolderName = "pending_conversions";
-
-    private readonly IPlatformService _platformService;
     private readonly IErrorLogger? _errorLogger;
     private readonly ExchangeRateService? _exchangeRateService;
     private readonly List<PendingConversion> _queue = [];
     private readonly Lock _lock = new();
 
-    // The company the queue holds entries for, and the path of its file. See CurrentCompany.
+    // When each entry was last added to the queue, so a pass removes only the entries it converted
+    // and not one put back meanwhile, by an undo or redo, that still waits for its rate.
+    private readonly ConditionalWeakTable<PendingConversion, StrongBox<long>> _queuedAt = new();
+    private long _queueSequence;
+
+    // The company the queue holds entries for. See CurrentCompany.
     private CompanyData? _scopeCompany;
-    private string? _scopeFilePath;
 
     // Currency and date pairs whose rate could not be had, and when to ask again. The app
     // retries every 15 seconds, so without this one row that could not be priced asked the
@@ -35,12 +33,6 @@ public class PendingConversionService
     private readonly Dictionary<string, (int Misses, DateTime RetryAtUtc)> _rateBackoff = [];
     private static readonly TimeSpan RateBackoffBase = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan RateBackoffCap = TimeSpan.FromMinutes(10);
-
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        WriteIndented = true,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    };
 
     /// <summary>
     /// Singleton instance.
@@ -53,27 +45,20 @@ public class PendingConversionService
     /// </summary>
     public event EventHandler<PendingConversionsProcessedEventArgs>? PendingConversionsProcessed;
 
-    public PendingConversionService(IErrorLogger? errorLogger = null)
-        : this(PlatformServiceFactory.GetPlatformService(), errorLogger)
+    public PendingConversionService(IErrorLogger? errorLogger = null, ExchangeRateService? exchangeRateService = null)
     {
-    }
-
-    public PendingConversionService(IPlatformService platformService, IErrorLogger? errorLogger = null, ExchangeRateService? exchangeRateService = null)
-    {
-        _platformService = platformService;
         _errorLogger = errorLogger;
         _exchangeRateService = exchangeRateService;
         Instance ??= this;
     }
 
     /// <summary>
-    /// Returns the open company and the path of its file. Every company file numbers its records
-    /// the same way (each has a PUR-2026-00005), so the queue holds only the open company's
-    /// entries and keeps each company's in a file of its own. One queue matched on id let one
-    /// company's entry replace another's and convert onto its record. Left unset, as in tests, the
-    /// queue is a single list kept in memory.
+    /// Returns the open company. Every company file numbers its records the same way (each has a
+    /// PUR-2026-00005), so the queue holds only the open company's entries, and opening another
+    /// company swaps them for that company's. Left unset, as in tests, the queue is whatever the
+    /// last <see cref="ReconcileWithCompanyData"/> or <see cref="Mirror"/> gave it.
     /// </summary>
-    public Func<(CompanyData? Company, string? FilePath)>? CurrentCompany { get; set; }
+    public Func<CompanyData?>? CurrentCompany { get; set; }
 
     /// <summary>
     /// Number of pending conversions in the queue.
@@ -95,122 +80,59 @@ public class PendingConversionService
     /// </summary>
     public bool HasPendingConversions => PendingCount > 0;
 
-    /// <summary>
-    /// Adds a pending conversion entry and immediately persists to disk.
-    /// </summary>
-    public async Task AddPendingConversionAsync(PendingConversion entry)
+    /// <summary>The entries waiting, as the next pass will convert them.</summary>
+    public List<PendingConversion> Entries
     {
-        lock (_lock)
+        get
         {
-            EnsureScope();
-
-            // Replace any existing entry for this record so a later edit's amounts win. ApplyConversion
-            // converts from this snapshot, not the live row, and the self-heal is the guarantee that an
-            // offline row eventually gets its correct exact-date USD (Calculations.md Rule 3a) - so the
-            // snapshot must reflect the row's CURRENT amounts, not the ones from its first save.
-            _queue.RemoveAll(p => p.TransactionId == entry.TransactionId);
-            _queue.Add(entry);
+            lock (_lock)
+            {
+                EnsureScope();
+                return [.. _queue];
+            }
         }
-
-        await SaveToDiskAsync();
     }
 
     /// <summary>
-    /// Drops queued entries for records that no longer exist, and persists.
-    ///
-    /// Needed because undoing an import removes the rows it created while their queue
-    /// entries stay behind, and nothing else prunes them: the reconcile pass only drops
-    /// entries whose record exists AND is already converted, so one whose record is gone
-    /// is kept forever and retried on every pass.
-    ///
-    /// Takes the ids to forget rather than scanning a CompanyData for orphans, because an
-    /// entry can be queued a moment before its record is added to the company.
-    /// </summary>
-    public async Task ForgetAsync(IEnumerable<string> transactionIds)
-    {
-        var ids = new HashSet<string>(transactionIds, StringComparer.Ordinal);
-        if (ids.Count == 0) return;
-
-        lock (_lock)
-        {
-            EnsureScope();
-            _queue.RemoveAll(p => ids.Contains(p.TransactionId));
-        }
-
-        await SaveToDiskAsync();
-    }
-
-    /// <summary>
-    /// Makes the queue agree with the company file for the given transactions. Processing converts
+    /// Makes the queue agree with the company file for the given records. Processing converts
     /// whatever amount the queue holds and does not check the row is still wanted, so a row changed
     /// or dropped in the company file has to change or leave here too, or the stale one converts.
-    /// The queue is updated before the first await, so a caller on the UI thread reads the company
-    /// file's rows on that thread.
+    /// Call on the thread that owns the company data.
     /// </summary>
-    public async Task MirrorAsync(CompanyData companyData, IEnumerable<string> transactionIds)
+    public void Mirror(CompanyData companyData, IEnumerable<PendingConversionKey> keys)
     {
-        var ids = new HashSet<string>(transactionIds);
-        if (ids.Count == 0) return;
+        var mirrored = keys.ToHashSet();
+        if (mirrored.Count == 0) return;
 
         lock (_lock)
         {
             EnsureScope();
             if (!IsOpen(companyData)) return;
 
-            _queue.RemoveAll(p => ids.Contains(p.TransactionId));
-            _queue.AddRange(companyData.PendingConversions.Where(p => ids.Contains(p.TransactionId)));
+            _queue.RemoveAll(p => mirrored.Contains(p.Key));
+            companyData.PendingConversions.Where(p => mirrored.Contains(p.Key)).ToList().ForEach(Enqueue);
         }
-
-        await SaveToDiskAsync();
     }
 
     /// <summary>
-    /// Loads the open company's queue from its app-data file. Opening a company does this too,
-    /// so there is nothing to load before one is open.
+    /// Makes the queue the company file's list, first dropping entries whose records have already
+    /// converted. Opening a company does this before its first conversion pass.
     /// </summary>
-    public Task LoadAsync()
-    {
-        lock (_lock)
-        {
-            EnsureScope();
-        }
-
-        return Task.CompletedTask;
-    }
-
-    /// <summary>
-    /// Reconciles the in-memory queue with the CompanyData's PendingConversions list.
-    /// Merges entries from both sources (app-data file may have entries not yet in .argo file and vice versa).
-    /// Also removes entries for transactions that have already been converted (IsPendingConversion = false).
-    /// </summary>
-    public async Task ReconcileWithCompanyDataAsync(CompanyData companyData)
+    public void ReconcileWithCompanyData(CompanyData companyData)
     {
         lock (_lock)
         {
             EnsureScope();
             if (!IsOpen(companyData)) return;
 
-            // Build a set of all known transaction IDs
-            var existingIds = new HashSet<string>(_queue.Select(p => p.TransactionId));
+            companyData.PendingConversions.RemoveAll(p => IsConverted(companyData, p));
 
-            // Add any entries from CompanyData that we don't already have
-            foreach (var entry in companyData.PendingConversions)
-            {
-                if (existingIds.Add(entry.TransactionId))
-                {
-                    _queue.Add(entry);
-                }
-            }
-
-            // Remove entries for records that have already been converted
-            _queue.RemoveAll(p => IsConverted(companyData, p));
-
-            // Sync back to CompanyData
-            companyData.PendingConversions.Clear();
-            companyData.PendingConversions.AddRange(_queue);
+            // An entry already queued keeps its place, so a pass under way still takes it off.
+            var entries = companyData.PendingConversions.ToHashSet(ReferenceEqualityComparer.Instance);
+            _queue.RemoveAll(p => !entries.Contains(p));
+            foreach (var entry in companyData.PendingConversions.Where(e => !_queue.Contains(e)).ToList())
+                Enqueue(entry);
         }
-
-        await SaveToDiskAsync();
     }
 
     private static string RateKey(PendingConversion entry) =>
@@ -245,11 +167,81 @@ public class PendingConversionService
         }
     }
 
+    // While above 0, no pass starts, and one under way stops before its next rate. See SuspendAsync.
+    private int _suspended;
+    private readonly List<Task> _passes = [];
+
+    private bool IsSuspended
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _suspended > 0;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Holds off conversion passes until the returned handle is disposed, once any pass under way has
+    /// finished. A spreadsheet import changes the company's records and queue off the UI thread, where
+    /// a pass also changes them, so it runs inside one of these.
+    /// </summary>
+    public async Task<IDisposable> SuspendAsync()
+    {
+        Task[] running;
+        lock (_lock)
+        {
+            _suspended++;
+            running = [.. _passes];
+        }
+
+        await Task.WhenAll(running);
+        return new Resumer(this);
+    }
+
+    private sealed class Resumer(PendingConversionService service) : IDisposable
+    {
+        private int _disposed;
+
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+            lock (service._lock)
+            {
+                service._suspended--;
+            }
+        }
+    }
+
     /// <summary>
     /// Attempts to process all pending conversions by fetching exchange rates.
-    /// Only processes entries where rates are available (online).
+    /// Only processes entries where rates are available (online). Does nothing while suspended.
     /// </summary>
     public async Task ProcessPendingConversionsAsync(CompanyData companyData)
+    {
+        var pass = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        lock (_lock)
+        {
+            if (_suspended > 0) return;
+            _passes.Add(pass.Task);
+        }
+
+        try
+        {
+            await RunPassAsync(companyData);
+        }
+        finally
+        {
+            lock (_lock)
+            {
+                _passes.Remove(pass.Task);
+            }
+            pass.SetResult();
+        }
+    }
+
+    private async Task RunPassAsync(CompanyData companyData)
     {
         var exchangeService = _exchangeRateService ?? ExchangeRateService.Instance;
         if (exchangeService == null)
@@ -301,9 +293,13 @@ public class PendingConversionService
         }
 
         var processed = new List<PendingConversion>();
+        var processedAt = new Dictionary<PendingConversion, long>(ReferenceEqualityComparer.Instance);
 
         foreach (var entry in toProcess)
         {
+            if (IsSuspended)
+                break;
+
             // No rate exists yet for a date that has not happened, so a row dated ahead stays queued
             // until its own date arrives rather than asking every pass for something that cannot
             // come back. Compared against the local date, which is what the row was entered in.
@@ -330,10 +326,22 @@ public class PendingConversionService
 
                 ClearRateMiss(rateKey);
 
+                // The record may have been saved again while the rate was fetched, replacing this
+                // entry with newer amounts. Those convert on the next pass; these must not overwrite them.
+                long queuedAt;
+                lock (_lock)
+                {
+                    if (!_queue.Contains(entry))
+                        continue;
+                    queuedAt = QueuedAt(entry);
+                }
+
                 // Apply the conversion to the matching record (a no-op if it was deleted since it
                 // was enqueued); either way the entry is done and leaves the queue.
                 ApplyConversion(companyData, entry, rate);
+                entry.ConvertedRate = rate;
                 processed.Add(entry);
+                processedAt[entry] = queuedAt;
             }
             catch (Exception ex)
             {
@@ -350,21 +358,19 @@ public class PendingConversionService
                 EnsureScope();
                 if (!IsOpen(companyData)) return;
 
-                foreach (var entry in processed)
-                {
-                    _queue.RemoveAll(p => p.TransactionId == entry.TransactionId);
-                }
-
-                // Sync back to CompanyData
-                companyData.PendingConversions.Clear();
-                companyData.PendingConversions.AddRange(_queue);
+                // Only the entries converted, as they were then: one queued for the same record
+                // since is newer, and one put back since, even the same entry, waits again.
+                var done = _queue.Where(p => processedAt.TryGetValue(p, out var at) && QueuedAt(p) == at)
+                    .ToHashSet(ReferenceEqualityComparer.Instance);
+                _queue.RemoveAll(done.Contains);
+                companyData.PendingConversions.RemoveAll(done.Contains);
             }
 
             // A healed Payment's EffectiveAmountUSD changes from 0 to a real value, which shifts the
             // owning invoice's USD balance. Recalculate those invoices so cross-currency outstanding
             // aggregates aren't left stale until the next company open.
             var healedInvoiceIds = processed
-                .Where(e => e.TransactionType == "Payment")
+                .Where(e => e.TransactionType == PendingConversionType.Payment)
                 .Select(e => companyData.Payments.FirstOrDefault(p => p.Id == e.TransactionId)?.InvoiceId)
                 .Where(id => !string.IsNullOrEmpty(id))
                 .Distinct()
@@ -376,77 +382,61 @@ public class PendingConversionService
                     InvoiceTotalsService.Recalculate(invoice, companyData.Payments);
             }
 
-            await SaveToDiskAsync();
-
             // Mark company data as changed so the next save includes the updated USD values
             companyData.MarkAsModified();
 
-            PendingConversionsProcessed?.Invoke(this, new PendingConversionsProcessedEventArgs(processed.Count));
+            // A stock cost converts alongside the purchase that set it, so it isn't counted as a transaction of its own.
+            PendingConversionsProcessed?.Invoke(this, new PendingConversionsProcessedEventArgs(
+                processed.Count(e => e.TransactionType != PendingConversionType.InventoryItem)));
         }
     }
 
-    private static Transaction? FindTransaction(CompanyData companyData, string id, string type)
-    {
-        return type switch
-        {
-            "Expense" => companyData.Expenses.FirstOrDefault(e => e.Id == id),
-            "Revenue" => companyData.Revenues.FirstOrDefault(r => r.Id == id),
-            _ => null
-        };
-    }
 
     /// <summary>
     /// Applies the exact-date conversion to the record named by <paramref name="entry"/>, at the
     /// supplied <paramref name="rate"/> (original currency -> USD). Handles Revenue/Expense (every
-    /// money field) and Payment/PurchaseOrder (the single amount). No-ops when the record was deleted
-    /// since it was enqueued. The USD base is stored full-precision (no 2dp round) and matches the
-    /// import-time conversion, so an immediately-converted row and a later-healed row are identical;
-    /// display rounds at the boundary. See docs/Calculations.md Rule 3.
+    /// money field), Payment/PurchaseOrder (the single amount) and a stock record's unit cost
+    /// (<see cref="InventoryStockService.ApplyConvertedCost"/>). No-ops when the record was deleted
+    /// since it was enqueued. The fields are written by <see cref="UsdConversion"/>, as when a record
+    /// converts on save, so a record converted straight away and one converted later are identical.
     /// </summary>
     private static void ApplyConversion(CompanyData companyData, PendingConversion entry, decimal rate)
     {
         switch (entry.TransactionType)
         {
-            case "Revenue":
-            case "Expense":
-                var txn = FindTransaction(companyData, entry.TransactionId, entry.TransactionType);
-                if (txn == null) return;
-                txn.TotalUSD = entry.Total * rate;
-                txn.TaxAmountUSD = entry.TaxAmount * rate;
-                txn.ShippingCostUSD = entry.ShippingCost * rate;
-                txn.DiscountUSD = entry.Discount * rate;
-                txn.FeeUSD = entry.Fee * rate;
-                txn.UnitPriceUSD = entry.UnitPrice * rate;
-                txn.IsPendingConversion = false;
+            case PendingConversionType.Revenue:
+                if (companyData.Revenues.FirstOrDefault(r => r.Id == entry.TransactionId) is { } revenue)
+                    UsdConversion.Write(revenue, entry, rate);
                 return;
 
-            case "Payment":
-                var payment = companyData.Payments.FirstOrDefault(p => p.Id == entry.TransactionId);
-                if (payment == null) return;
-                payment.AmountUSD = entry.Total * rate;
-                payment.IsPendingConversion = false;
+            case PendingConversionType.Expense:
+                if (companyData.Expenses.FirstOrDefault(e => e.Id == entry.TransactionId) is { } expense)
+                    UsdConversion.Write(expense, entry, rate);
                 return;
 
-            case "PurchaseOrder":
-                var po = companyData.PurchaseOrders.FirstOrDefault(p => p.Id == entry.TransactionId);
-                if (po == null) return;
-                po.TotalUSD = entry.Total * rate;
-                po.IsPendingConversion = false;
+            case PendingConversionType.Payment:
+                if (companyData.Payments.FirstOrDefault(p => p.Id == entry.TransactionId) is { } payment)
+                    UsdConversion.Write(payment, entry, rate);
                 return;
 
-            case "Invoice":
+            case PendingConversionType.PurchaseOrder:
+                if (companyData.PurchaseOrders.FirstOrDefault(p => p.Id == entry.TransactionId) is { } po)
+                    UsdConversion.Write(po, entry, rate);
+                return;
+
+            case PendingConversionType.Invoice:
                 var invoice = companyData.Invoices.FirstOrDefault(i => i.Id == entry.TransactionId);
                 if (invoice == null) return;
-                invoice.TotalUSD = entry.Total * rate;
-                invoice.IsPendingConversion = false;
-                // If payments were recorded against this invoice, recompute BalanceUSD from them: the
-                // import-time snapshot (entry.Balance) is stale once a payment lands after import. With
-                // no payment rows (e.g. an imported invoice whose paid amount is baked into Balance),
-                // keep the snapshot so imported partial payments aren't lost.
+                UsdConversion.Write(invoice, entry, rate);
+                // A payment recorded since the entry was queued makes its balance stale, so the
+                // balance comes from the payments. With none (an imported invoice whose paid amount
+                // is baked into its balance) the queued balance stands.
                 if (companyData.Payments.Any(p => p.InvoiceId == invoice.Id))
                     InvoiceTotalsService.Recalculate(invoice, companyData.Payments);
-                else
-                    invoice.BalanceUSD = entry.Balance * rate;
+                return;
+
+            case PendingConversionType.InventoryItem:
+                InventoryStockService.ApplyConvertedCost(companyData, entry, rate);
                 return;
         }
     }
@@ -458,11 +448,12 @@ public class PendingConversionService
     /// </summary>
     private static bool IsConverted(CompanyData companyData, PendingConversion entry) => entry.TransactionType switch
     {
-        "Revenue" => companyData.Revenues.FirstOrDefault(r => r.Id == entry.TransactionId) is { IsPendingConversion: false },
-        "Expense" => companyData.Expenses.FirstOrDefault(e => e.Id == entry.TransactionId) is { IsPendingConversion: false },
-        "Payment" => companyData.Payments.FirstOrDefault(p => p.Id == entry.TransactionId) is { IsPendingConversion: false },
-        "PurchaseOrder" => companyData.PurchaseOrders.FirstOrDefault(p => p.Id == entry.TransactionId) is { IsPendingConversion: false },
-        "Invoice" => companyData.Invoices.FirstOrDefault(i => i.Id == entry.TransactionId) is { IsPendingConversion: false },
+        PendingConversionType.Revenue => companyData.Revenues.FirstOrDefault(r => r.Id == entry.TransactionId) is { IsPendingConversion: false },
+        PendingConversionType.Expense => companyData.Expenses.FirstOrDefault(e => e.Id == entry.TransactionId) is { IsPendingConversion: false },
+        PendingConversionType.Payment => companyData.Payments.FirstOrDefault(p => p.Id == entry.TransactionId) is { IsPendingConversion: false },
+        PendingConversionType.PurchaseOrder => companyData.PurchaseOrders.FirstOrDefault(p => p.Id == entry.TransactionId) is { IsPendingConversion: false },
+        PendingConversionType.Invoice => companyData.Invoices.FirstOrDefault(i => i.Id == entry.TransactionId) is { IsPendingConversion: false },
+        PendingConversionType.InventoryItem => InventoryStockService.IsCostSettled(companyData, entry.TransactionId),
         _ => false
     };
 
@@ -471,124 +462,32 @@ public class PendingConversionService
         CurrentCompany == null || ReferenceEquals(companyData, _scopeCompany);
 
     /// <summary>
-    /// Makes the queue the open company's: loads that company's entries when another one opens.
-    /// When the open company's path changes (set once it has loaded, then by Save As or a rename)
-    /// its entries stay, and its file goes with it. Call under <see cref="_lock"/>.
+    /// Makes the queue the open company's: takes that company's list when another one opens.
+    /// Call under <see cref="_lock"/>.
     /// </summary>
     private void EnsureScope()
     {
         if (CurrentCompany == null)
             return;
 
-        var (company, filePath) = CurrentCompany();
-        if (!ReferenceEquals(company, _scopeCompany))
-        {
-            _scopeCompany = company;
-            _scopeFilePath = filePath;
-            _queue.Clear();
-            _queue.AddRange(ReadQueueFile(filePath));
-            return;
-        }
-
-        if (_platformService.PathComparer.Equals(filePath, _scopeFilePath))
+        var company = CurrentCompany();
+        if (ReferenceEquals(company, _scopeCompany))
             return;
 
-        if (_scopeFilePath == null)
-            _queue.AddRange(ReadQueueFile(filePath).Where(saved => _queue.All(p => p.TransactionId != saved.TransactionId)));
-        else
-            MoveQueueFile(_scopeFilePath, filePath);
-        _scopeFilePath = filePath;
+        _scopeCompany = company;
+        _queue.Clear();
+        company?.PendingConversions.ForEach(Enqueue);
     }
 
-    private List<PendingConversion> ReadQueueFile(string? companyFilePath)
+    /// <summary>Adds an entry to the queue and notes when. Call under <see cref="_lock"/>.</summary>
+    private void Enqueue(PendingConversion entry)
     {
-        var filePath = GetQueueFilePath(companyFilePath);
-        if (!_platformService.SupportsFileSystem || filePath == null || !File.Exists(filePath))
-            return [];
-
-        try
-        {
-            return JsonSerializer.Deserialize<List<PendingConversion>>(File.ReadAllText(filePath), JsonOptions) ?? [];
-        }
-        catch (Exception ex)
-        {
-            _errorLogger?.LogWarning($"Failed to load pending conversions: {ex.Message}", "PendingConversionService");
-            return [];
-        }
+        _queuedAt.AddOrUpdate(entry, new StrongBox<long>(++_queueSequence));
+        _queue.Add(entry);
     }
 
-    private void MoveQueueFile(string fromCompanyPath, string? toCompanyPath)
-    {
-        var from = GetQueueFilePath(fromCompanyPath);
-        var to = GetQueueFilePath(toCompanyPath);
-        if (!_platformService.SupportsFileSystem || from == null || to == null || !File.Exists(from))
-            return;
-
-        try
-        {
-            File.Move(from, to, overwrite: true);
-        }
-        catch (Exception ex)
-        {
-            _errorLogger?.LogWarning($"Failed to move pending conversions: {ex.Message}", "PendingConversionService");
-        }
-    }
-
-    private async Task SaveToDiskAsync()
-    {
-        if (!_platformService.SupportsFileSystem)
-            return;
-
-        try
-        {
-            List<PendingConversion> snapshot;
-            string? filePath;
-            lock (_lock)
-            {
-                snapshot = [.. _queue];
-                filePath = GetQueueFilePath(_scopeFilePath);
-            }
-
-            if (filePath == null)
-                return;
-
-            if (snapshot.Count == 0)
-            {
-                if (File.Exists(filePath))
-                    File.Delete(filePath);
-                return;
-            }
-
-            var directory = Path.GetDirectoryName(filePath);
-            if (!string.IsNullOrEmpty(directory))
-            {
-                _platformService.EnsureDirectoryExists(directory);
-            }
-
-            var json = JsonSerializer.Serialize(snapshot, JsonOptions);
-            await File.WriteAllTextAsync(filePath, json);
-        }
-        catch (Exception ex)
-        {
-            _errorLogger?.LogWarning($"Failed to save pending conversions: {ex.Message}", "PendingConversionService");
-        }
-    }
-
-    /// <summary>
-    /// The company's queue file, named by a hash of the company's path so any path gives a valid
-    /// file name. Null when the company has no file yet.
-    /// </summary>
-    private string? GetQueueFilePath(string? companyFilePath)
-    {
-        if (string.IsNullOrEmpty(companyFilePath))
-            return null;
-
-        var key = _platformService.NormalizePath(companyFilePath);
-        if (_platformService.PathComparer.Equals("a", "A"))
-            key = key.ToUpperInvariant();
-        var name = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(key)))[..32];
-        return _platformService.CombinePaths(_platformService.GetAppDataPath(), QueueFolderName, name + ".json");
-    }
+    private long QueuedAt(PendingConversion entry) =>
+        _queuedAt.TryGetValue(entry, out var at) ? at.Value : 0;
 }
 
 /// <summary>

@@ -34,21 +34,6 @@ public static class QuoteStatusExtensions
     public const string Expired = "Expired";
 
     /// <summary>
-    /// Gets the modal status options (statuses selectable when creating/editing).
-    /// Converted is absent: only "Convert to invoice" may set it.
-    /// </summary>
-    public static string[] GetModalOptions()
-    {
-        return
-        [
-            nameof(QuoteStatus.Draft),
-            nameof(QuoteStatus.Sent),
-            nameof(QuoteStatus.Accepted),
-            nameof(QuoteStatus.Declined)
-        ];
-    }
-
-    /// <summary>
     /// Gets filter options including "All" as the first entry.
     /// </summary>
     public static string[] GetFilterOptions()

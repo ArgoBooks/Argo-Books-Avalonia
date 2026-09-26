@@ -188,8 +188,6 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
         {
             chart.IsSelected = chartTypes.Contains(chart.ChartType);
         }
-
-        OnPropertyChanged(nameof(HasSelectedCharts));
     }
 
     private void NotifyStepChanged()
@@ -263,15 +261,6 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
     }
 
     [RelayCommand]
-    private void SetStep1Tab(string tabIndex)
-    {
-        if (int.TryParse(tabIndex, out var index))
-        {
-            Step1TabIndex = index;
-        }
-    }
-
-    [RelayCommand]
     private void SetTablePropertiesTab(string tabIndex)
     {
         if (int.TryParse(tabIndex, out var index))
@@ -341,8 +330,6 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
     // Chart categories for grouped display
     public ObservableCollection<ChartCategoryGroup> ChartCategories { get; } = [];
 
-    public bool HasSelectedCharts => AvailableCharts.Any(c => c.IsSelected);
-
     partial void OnSelectedTemplateNameChanged(string value)
     {
         IsDateRangeEnabled = value != ReportTemplateFactory.TemplateNames.BalanceSheet;
@@ -400,14 +387,12 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
     private void ToggleChart(ChartOption chart)
     {
         chart.IsSelected = !chart.IsSelected;
-        OnPropertyChanged(nameof(HasSelectedCharts));
     }
 
     [RelayCommand]
     private void ToggleSelectAllInCategory(ChartCategoryGroup category)
     {
         category.ToggleSelectAll();
-        OnPropertyChanged(nameof(HasSelectedCharts));
     }
 
     [RelayCommand]
@@ -435,51 +420,6 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
                 customTemplate.IsSelected = customTemplate.Name == templateName;
             }
         }
-    }
-
-    [RelayCommand]
-    private async Task OpenCustomTemplateAsync(string? templateName)
-    {
-        if (string.IsNullOrEmpty(templateName)) return;
-
-        // Load the custom template
-        SelectedTemplateName = templateName;
-
-        // Update IsSelected on all built-in template options
-        foreach (var template in ReportTemplateOptions)
-        {
-            template.IsSelected = template.TemplateName == templateName;
-        }
-
-        // Update IsSelected on all accounting template options
-        foreach (var template in AccountingTemplateOptions)
-        {
-            template.IsSelected = template.TemplateName == templateName;
-        }
-
-        // Update IsSelected on all custom template options
-        foreach (var customTemplate in CustomTemplateNames)
-        {
-            customTemplate.IsSelected = customTemplate.Name == templateName;
-        }
-
-        // Wait for template to load
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Loaded);
-
-        ReportName = templateName;
-        Configuration.Title = templateName;
-
-        // Notify UI of configuration change (needed because ReportConfiguration doesn't implement INPC)
-        OnPropertyChanged(nameof(Configuration));
-
-        // Clear any unsaved changes indicator
-        UndoRedoManager.Clear();
-
-        // Go directly to step 2 (Layout Designer)
-        Step1Completed = true;
-        ApplyFiltersToConfiguration();
-        CurrentStep = 2;
-        NotifyStepChanged();
     }
 
     [RelayCommand]
@@ -736,6 +676,25 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
     [ObservableProperty]
     private bool _isElementPanelExpanded = true;
 
+    private bool _isApplyingPageWidth;
+
+    /// <summary>
+    /// Opens or closes the element panel because the page changed width. Not saved, since it is
+    /// not the user's choice.
+    /// </summary>
+    public void SetElementPanelExpandedForWidth(bool expanded)
+    {
+        _isApplyingPageWidth = true;
+        try
+        {
+            IsElementPanelExpanded = expanded;
+        }
+        finally
+        {
+            _isApplyingPageWidth = false;
+        }
+    }
+
     #region Page Management
 
     [ObservableProperty]
@@ -747,40 +706,7 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
     /// </summary>
     public Func<(int PageNumber, double LocalX, double LocalY)>? GetViewportCenter { get; set; }
 
-    public string CurrentDesignerPageDisplay =>
-        $"Page {CurrentDesignerPage} of {Configuration.PageCount}";
-
     public bool CanDeletePage => Configuration.PageCount > 1;
-
-    public bool CanGoToPreviousPage => CurrentDesignerPage > 1;
-
-    public bool CanGoToNextPage => CurrentDesignerPage < Configuration.PageCount;
-
-    partial void OnCurrentDesignerPageChanged(int value)
-    {
-        _ = value;
-        OnPropertyChanged(nameof(CurrentDesignerPageDisplay));
-        OnPropertyChanged(nameof(CanGoToPreviousPage));
-        OnPropertyChanged(nameof(CanGoToNextPage));
-    }
-
-    [RelayCommand]
-    private void NextDesignerPage()
-    {
-        if (CurrentDesignerPage < Configuration.PageCount)
-        {
-            CurrentDesignerPage++;
-        }
-    }
-
-    [RelayCommand]
-    private void PreviousDesignerPage()
-    {
-        if (CurrentDesignerPage > 1)
-        {
-            CurrentDesignerPage--;
-        }
-    }
 
     [RelayCommand]
     private void AddPage()
@@ -788,10 +714,7 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
         UndoRedoManager.RecordAction(new AddPageAction(Configuration));
         Configuration.PageCount++;
         CurrentDesignerPage = Configuration.PageCount;
-        OnPropertyChanged(nameof(CurrentDesignerPageDisplay));
         OnPropertyChanged(nameof(CanDeletePage));
-        OnPropertyChanged(nameof(CanGoToNextPage));
-        OnPropertyChanged(nameof(CanGoToPreviousPage));
         CanvasRefreshRequested?.Invoke(this, EventArgs.Empty);
     }
 
@@ -825,16 +748,9 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
         {
             CurrentDesignerPage = Configuration.PageCount;
         }
-        else
-        {
-            // Force refresh even if page number didn't change
-            OnPropertyChanged(nameof(CurrentDesignerPageDisplay));
-        }
 
         SelectedElement = null;
         OnPropertyChanged(nameof(CanDeletePage));
-        OnPropertyChanged(nameof(CanGoToNextPage));
-        OnPropertyChanged(nameof(CanGoToPreviousPage));
         CanvasRefreshRequested?.Invoke(this, EventArgs.Empty);
     }
 
@@ -906,7 +822,7 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
     [ObservableProperty]
     private bool _showNoChangesMessage;
 
-    public ReportUndoRedoManager UndoRedoManager { get; } = new();
+    public UndoRedoManager UndoRedoManager { get; } = new();
 
     /// <summary>
     /// Gets whether the report has unsaved changes (changes since last save).
@@ -917,34 +833,6 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
     /// ViewModel for the undo/redo button group control.
     /// </summary>
     public UndoRedoButtonGroupViewModel UndoRedoViewModel { get; }
-
-    [ObservableProperty]
-    private bool _isUndoDropdownOpen;
-
-    [ObservableProperty]
-    private bool _isRedoDropdownOpen;
-
-    [RelayCommand]
-    private void UndoToIndex(int index)
-    {
-        for (int i = 0; i <= index; i++)
-        {
-            UndoRedoManager.Undo();
-        }
-        IsUndoDropdownOpen = false;
-        OnPropertyChanged(nameof(Configuration));
-    }
-
-    [RelayCommand]
-    private void RedoToIndex(int index)
-    {
-        for (int i = 0; i <= index; i++)
-        {
-            UndoRedoManager.Redo();
-        }
-        IsRedoDropdownOpen = false;
-        OnPropertyChanged(nameof(Configuration));
-    }
 
     public ObservableCollection<ReportElementBase> SelectedElements { get; } = [];
 
@@ -1369,12 +1257,6 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
     }
 
     [RelayCommand]
-    private void ZoomFit()
-    {
-        ZoomLevel = 1.0;
-    }
-
-    [RelayCommand]
     private async Task BrowseImagePathAsync()
     {
         if (SelectedElement is not ImageReportElement) return;
@@ -1434,12 +1316,12 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
     /// </summary>
     private async Task<bool> SaveToCurrentTemplateAsync()
     {
+        var savePoint = UndoRedoManager.SavePoint;
         var success = await _templateStorage.SaveTemplateAsync(Configuration, SelectedTemplateName);
         if (success)
         {
             LoadCustomTemplates();
-            // Mark save point so asterisk disappears
-            UndoRedoManager.MarkSaved();
+            UndoRedoManager.MarkSaved(savePoint);
             // Show save confirmation message
             ShowSaveConfirmation = true;
             await Task.Delay(2000);
@@ -1447,18 +1329,9 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
         }
         else
         {
-            var dialog = App.ConfirmationDialog;
-            if (dialog != null)
-            {
-                await dialog.ShowAsync(new ConfirmationDialogOptions
-                {
-                    Title = "Save Failed".Translate(),
-                    Message = "Failed to save the template. Please check that you have write permissions to the templates folder.".Translate(),
-                    PrimaryButtonText = "OK".Translate(),
-                    SecondaryButtonText = null,
-                    CancelButtonText = null
-                });
-            }
+            await App.ShowErrorDialogAsync(
+                "Save Failed".Translate(),
+                "Failed to save the template. Please check that you have write permissions to the templates folder.".Translate());
         }
         return success;
     }
@@ -1633,24 +1506,6 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
                 bmp.Dispose();
             PreviewPageImages.Clear();
         }
-    }
-
-    [RelayCommand]
-    private void PreviewZoomIn()
-    {
-        PreviewZoom = Math.Min(Controls.Reports.SkiaReportDesignCanvas.MaxZoom, PreviewZoom + Controls.Reports.SkiaReportDesignCanvas.ZoomStep);
-    }
-
-    [RelayCommand]
-    private void PreviewZoomOut()
-    {
-        PreviewZoom = Math.Max(Controls.Reports.SkiaReportDesignCanvas.MinZoom, PreviewZoom - Controls.Reports.SkiaReportDesignCanvas.ZoomStep);
-    }
-
-    [RelayCommand]
-    private void PreviewZoomFit()
-    {
-        PreviewZoom = 1.0;
     }
 
     [RelayCommand]
@@ -2148,6 +2003,7 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
             return;
         }
 
+        var savePoint = UndoRedoManager.SavePoint;
         var success = await storage.SaveTemplateAsync(Configuration, SaveTemplateName);
 
         if (success)
@@ -2163,8 +2019,7 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
             // Refresh custom templates list
             LoadCustomTemplates();
 
-            // Mark save point so asterisk disappears
-            UndoRedoManager.MarkSaved();
+            UndoRedoManager.MarkSaved(savePoint);
 
             // Show the "Saved" overlay notification
             ShowSaveConfirmation = true;
@@ -2383,6 +2238,9 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
     /// </summary>
     partial void OnIsElementPanelExpandedChanged(bool value)
     {
+        if (_isApplyingPageWidth)
+            return;
+
         var settings = App.SettingsService?.GlobalSettings;
         if (settings != null)
         {
@@ -2581,15 +2439,15 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
         foreach (var chart in lossCharts) AvailableCharts.Add(chart);
 
         // Create category groups for grouped display
-        ChartCategories.Add(new ChartCategoryGroup("Revenue", revenueCharts, () => OnPropertyChanged(nameof(HasSelectedCharts))));
-        ChartCategories.Add(new ChartCategoryGroup("Expenses", expenseCharts, () => OnPropertyChanged(nameof(HasSelectedCharts))));
-        ChartCategories.Add(new ChartCategoryGroup("Financial", financialCharts, () => OnPropertyChanged(nameof(HasSelectedCharts))));
-        ChartCategories.Add(new ChartCategoryGroup("Transactions", transactionCharts, () => OnPropertyChanged(nameof(HasSelectedCharts))));
-        ChartCategories.Add(new ChartCategoryGroup("Geographic", geographicCharts, () => OnPropertyChanged(nameof(HasSelectedCharts))));
-        ChartCategories.Add(new ChartCategoryGroup("Personnel", accountantCharts, () => OnPropertyChanged(nameof(HasSelectedCharts))));
-        ChartCategories.Add(new ChartCategoryGroup("Customers", customerCharts, () => OnPropertyChanged(nameof(HasSelectedCharts))));
-        ChartCategories.Add(new ChartCategoryGroup("Returns", returnCharts, () => OnPropertyChanged(nameof(HasSelectedCharts))));
-        ChartCategories.Add(new ChartCategoryGroup("Losses", lossCharts, () => OnPropertyChanged(nameof(HasSelectedCharts))));
+        ChartCategories.Add(new ChartCategoryGroup("Revenue", revenueCharts));
+        ChartCategories.Add(new ChartCategoryGroup("Expenses", expenseCharts));
+        ChartCategories.Add(new ChartCategoryGroup("Financial", financialCharts));
+        ChartCategories.Add(new ChartCategoryGroup("Transactions", transactionCharts));
+        ChartCategories.Add(new ChartCategoryGroup("Geographic", geographicCharts));
+        ChartCategories.Add(new ChartCategoryGroup("Personnel", accountantCharts));
+        ChartCategories.Add(new ChartCategoryGroup("Customers", customerCharts));
+        ChartCategories.Add(new ChartCategoryGroup("Returns", returnCharts));
+        ChartCategories.Add(new ChartCategoryGroup("Losses", lossCharts));
     }
 
     private void LoadTemplate(string templateName)
@@ -2613,18 +2471,9 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
                     if (config == null)
                     {
                         // Show error message if template couldn't be loaded
-                        var dialog = App.ConfirmationDialog;
-                        if (dialog != null)
-                        {
-                            await dialog.ShowAsync(new ConfirmationDialogOptions
-                            {
-                                Title = "Load Failed".Translate(),
-                                Message = "Failed to load the template '{0}'. The file may be corrupted or missing.".TranslateFormat(templateName),
-                                PrimaryButtonText = "OK".Translate(),
-                                SecondaryButtonText = null,
-                                CancelButtonText = null
-                            });
-                        }
+                        await App.ShowErrorDialogAsync(
+                            "Load Failed".Translate(),
+                            "Failed to load the template '{0}'. The file may be corrupted or missing.".TranslateFormat(templateName));
                     }
                     Configuration = config ?? new ReportConfiguration();
                     UndoRedoManager.SuppressRecording = true;
@@ -2928,11 +2777,10 @@ public partial class ChartOption(
 /// </summary>
 public class ChartCategoryGroup : ObservableObject
 {
-    public ChartCategoryGroup(string name, ObservableCollection<ChartOption> charts, Action onSelectionChanged)
+    public ChartCategoryGroup(string name, ObservableCollection<ChartOption> charts)
     {
         Name = name;
         Charts = charts;
-        var onSelectionChanged1 = onSelectionChanged;
 
         // Subscribe to each chart's selection changes
         foreach (var chart in Charts)
@@ -2942,8 +2790,6 @@ public class ChartCategoryGroup : ObservableObject
                 if (e.PropertyName == nameof(ChartOption.IsSelected))
                 {
                     OnPropertyChanged(nameof(IsAllSelected));
-                    OnPropertyChanged(nameof(IsSomeSelected));
-                    onSelectionChanged1.Invoke();
                 }
             };
         }
@@ -2958,11 +2804,6 @@ public class ChartCategoryGroup : ObservableObject
     public bool IsAllSelected => Charts.All(c => c.IsSelected);
 
     /// <summary>
-    /// Gets whether some (but not all) charts in this category are selected.
-    /// </summary>
-    public bool IsSomeSelected => Charts.Any(c => c.IsSelected) && !IsAllSelected;
-
-    /// <summary>
     /// Toggles selection of all charts in this category.
     /// </summary>
     public void ToggleSelectAll()
@@ -2973,7 +2814,6 @@ public class ChartCategoryGroup : ObservableObject
             chart.IsSelected = newState;
         }
         OnPropertyChanged(nameof(IsAllSelected));
-        OnPropertyChanged(nameof(IsSomeSelected));
     }
 }
 

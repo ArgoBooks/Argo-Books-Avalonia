@@ -59,14 +59,14 @@ public class AppShellViewModelTests : ModalViewModelTestBase
         var receiptModals = _viewModel.ReceiptsModalsViewModel;
         var usageField = typeof(ReceiptsModalsViewModel)
             .GetField("_usageService", BindingFlags.Instance | BindingFlags.NonPublic)!;
-        usageField.SetValue(receiptModals, new StubReceiptUsageService());
+        usageField.SetValue(receiptModals, new StubUsageLimitService());
 
         _viewModel.SetPlanStatus(true);
 
         Assert.Null(usageField.GetValue(receiptModals));
     }
 
-    private sealed class StubReceiptUsageService : IReceiptUsageService
+    private sealed class StubUsageLimitService : IUsageLimitService
     {
         public Task<UsageCheckResult> CheckUsageAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(new UsageCheckResult());
@@ -75,8 +75,6 @@ public class AppShellViewModelTests : ModalViewModelTestBase
             Task.FromResult(new UsageIncrementResult());
 
         public void InvalidateCache() { }
-
-        public UsageStatus? GetCachedUsage() => null;
 
         public void Dispose() { }
     }

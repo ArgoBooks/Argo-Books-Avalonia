@@ -16,11 +16,9 @@ public partial class DashboardLayoutViewModel : ObservableObject
     [ObservableProperty] private bool _isEditMode;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasWidgets))]
-    [NotifyPropertyChangedFor(nameof(HasNoWidgets))]
     private ObservableCollection<DashboardRowViewModel> _rows = [];
 
     public bool HasWidgets => Rows.Any(r => r.Widgets.Any(w => w.WidgetViewModel.IsWidgetVisible));
-    public bool HasNoWidgets => !HasWidgets;
     public WidgetCatalogViewModel Catalog { get; } = new();
 
     private DashboardRowViewModel? _targetRowForAdd;
@@ -36,18 +34,9 @@ public partial class DashboardLayoutViewModel : ObservableObject
 
         // Sample company always gets the default layout
         DashboardLayout? layout = null;
-        if (companyManager.IsSampleCompany)
-        {
-            layout = DashboardLayout.CreateDefault();
-        }
-        else
-        {
-            // Load per-company layout, fall back to legacy global layout, then default
-            if (!string.IsNullOrEmpty(companyPath) && settings?.Ui.CompanyDashboardLayouts.TryGetValue(companyPath, out var companyLayout) == true)
-                layout = companyLayout;
-            layout ??= settings?.Ui.DashboardLayout ?? DashboardLayout.CreateDefault();
-        }
-        layout.MigrateIfNeeded();
+        if (!companyManager.IsSampleCompany && !string.IsNullOrEmpty(companyPath))
+            settings?.Ui.CompanyDashboardLayouts.TryGetValue(companyPath, out layout);
+        layout ??= DashboardLayout.CreateDefault();
 
         _savedLayout = layout.Clone();
         LoadFromLayout(layout);
@@ -76,7 +65,6 @@ public partial class DashboardLayoutViewModel : ObservableObject
             Rows.Add(rowVm);
         }
         OnPropertyChanged(nameof(HasWidgets));
-        OnPropertyChanged(nameof(HasNoWidgets));
     }
 
     private void WireUpWidgetEvents(WidgetHostViewModel host)
@@ -158,7 +146,6 @@ public partial class DashboardLayoutViewModel : ObservableObject
                 Rows.RemoveAt(i);
         }
         OnPropertyChanged(nameof(HasWidgets));
-        OnPropertyChanged(nameof(HasNoWidgets));
 
         foreach (var row in Rows)
         {
@@ -173,13 +160,10 @@ public partial class DashboardLayoutViewModel : ObservableObject
         _savedLayout = layout.Clone();
 
         var settings = App.SettingsService?.GlobalSettings;
-        if (settings != null)
+        var companyPath = _companyManager?.CurrentFilePath;
+        if (settings != null && !string.IsNullOrEmpty(companyPath))
         {
-            var companyPath = _companyManager?.CurrentFilePath;
-            if (!string.IsNullOrEmpty(companyPath))
-                settings.Ui.CompanyDashboardLayouts[companyPath] = layout;
-            else
-                settings.Ui.DashboardLayout = layout;
+            settings.Ui.CompanyDashboardLayouts[companyPath] = layout;
             await App.SettingsService!.SaveGlobalSettingsAsync();
         }
     }
@@ -209,13 +193,10 @@ public partial class DashboardLayoutViewModel : ObservableObject
         // Persist the reset so it survives close/reopen
         _savedLayout = layout.Clone();
         var settings = App.SettingsService?.GlobalSettings;
-        if (settings != null)
+        var companyPath = _companyManager?.CurrentFilePath;
+        if (settings != null && !string.IsNullOrEmpty(companyPath))
         {
-            var companyPath = _companyManager?.CurrentFilePath;
-            if (!string.IsNullOrEmpty(companyPath))
-                settings.Ui.CompanyDashboardLayouts[companyPath] = layout;
-            else
-                settings.Ui.DashboardLayout = layout;
+            settings.Ui.CompanyDashboardLayouts[companyPath] = layout;
             await App.SettingsService!.SaveGlobalSettingsAsync();
         }
     }
@@ -226,7 +207,6 @@ public partial class DashboardLayoutViewModel : ObservableObject
         var row = new DashboardRowViewModel { IsEditMode = true };
         Rows.Add(row);
         OnPropertyChanged(nameof(HasWidgets));
-        OnPropertyChanged(nameof(HasNoWidgets));
     }
 
     public void RemoveRow(DashboardRowViewModel row)
@@ -239,7 +219,6 @@ public partial class DashboardLayoutViewModel : ObservableObject
         Rows.Remove(row);
         Catalog.Refresh(Rows.SelectMany(r => r.Widgets));
         OnPropertyChanged(nameof(HasWidgets));
-        OnPropertyChanged(nameof(HasNoWidgets));
     }
 
     public void OpenCatalogForRow(DashboardRowViewModel row)
@@ -302,7 +281,6 @@ public partial class DashboardLayoutViewModel : ObservableObject
         Catalog.Refresh(Rows.SelectMany(r => r.Widgets));
         _targetRowForAdd = null;
         OnPropertyChanged(nameof(HasWidgets));
-        OnPropertyChanged(nameof(HasNoWidgets));
     }
 
     [RelayCommand]
@@ -319,7 +297,6 @@ public partial class DashboardLayoutViewModel : ObservableObject
         }
         Catalog.Refresh(Rows.SelectMany(r => r.Widgets));
         OnPropertyChanged(nameof(HasWidgets));
-        OnPropertyChanged(nameof(HasNoWidgets));
     }
 
     public bool MoveWidgetToRow(DashboardRowViewModel sourceRow, int widgetIndex,
@@ -341,7 +318,6 @@ public partial class DashboardLayoutViewModel : ObservableObject
             Rows.Remove(sourceRow);
 
         OnPropertyChanged(nameof(HasWidgets));
-        OnPropertyChanged(nameof(HasNoWidgets));
         return true;
     }
 

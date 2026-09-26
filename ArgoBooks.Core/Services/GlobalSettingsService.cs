@@ -5,12 +5,11 @@ using ArgoBooks.Core.Platform;
 namespace ArgoBooks.Core.Services;
 
 /// <summary>
-/// Service for managing global and company settings.
+/// Service for managing global settings.
 /// </summary>
 public class GlobalSettingsService : IGlobalSettingsService
 {
     private const string GlobalSettingsFileName = "settings.json";
-    private const string CompanySettingsFileName = "settings.json";
 
     private readonly IPlatformService _platformService;
     private readonly IErrorLogger? _errorLogger;
@@ -51,8 +50,6 @@ public class GlobalSettingsService : IGlobalSettingsService
     /// A file that fails to parse does not count: those settings are someone's, just unreadable.
     /// </summary>
     public bool IsFirstRun { get; private set; }
-
-    public CompanySettings? CompanySettings { get; private set; }
 
     public async Task LoadGlobalSettingsAsync(CancellationToken cancellationToken = default)
     {
@@ -167,58 +164,6 @@ public class GlobalSettingsService : IGlobalSettingsService
         }
     }
 
-    public async Task LoadCompanySettingsAsync(string tempDirectory, CancellationToken cancellationToken = default)
-    {
-        ArgumentException.ThrowIfNullOrEmpty(tempDirectory);
-
-        var settingsPath = Path.Combine(tempDirectory, CompanySettingsFileName);
-
-        if (!File.Exists(settingsPath))
-        {
-            CompanySettings = new CompanySettings();
-            return;
-        }
-
-        try
-        {
-            await using var fileStream = File.OpenRead(settingsPath);
-            var settings = await JsonSerializer.DeserializeAsync<CompanySettings>(
-                fileStream,
-                _jsonOptions,
-                cancellationToken);
-
-            CompanySettings = settings ?? new CompanySettings();
-        }
-        catch (JsonException)
-        {
-            // Corrupted settings file, use defaults
-            CompanySettings = new CompanySettings();
-        }
-    }
-
-    public async Task SaveCompanySettingsAsync(string tempDirectory, CancellationToken cancellationToken = default)
-    {
-        ArgumentException.ThrowIfNullOrEmpty(tempDirectory);
-
-        if (CompanySettings == null)
-            return;
-
-        var settingsPath = Path.Combine(tempDirectory, CompanySettingsFileName);
-        _platformService.EnsureDirectoryExists(tempDirectory);
-
-        await using var fileStream = File.Create(settingsPath);
-        await JsonSerializer.SerializeAsync(
-            fileStream,
-            CompanySettings,
-            _jsonOptions,
-            cancellationToken);
-    }
-
-    public void ClearCompanySettings()
-    {
-        CompanySettings = null;
-    }
-
     /// <inheritdoc cref="IGlobalSettingsService.AddRecentCompany"/>
     public void AddRecentCompany(string filePath)
     {
@@ -277,7 +222,13 @@ public class GlobalSettingsService : IGlobalSettingsService
     /// Gets all recent company paths that still exist.
     /// </summary>
     /// <returns>List of valid recent company paths.</returns>
-    public IReadOnlyList<string> GetValidRecentCompanies()
+    public IReadOnlyList<string> GetValidRecentCompanies() => GetValidRecentCompanies(GlobalSettings.RecentCompanies);
+
+    /// <summary>
+    /// The same filtering over a list the caller passes in: a copy taken on the UI thread, which
+    /// edits the real list, lets the file checks run on another thread.
+    /// </summary>
+    public IReadOnlyList<string> GetValidRecentCompanies(IReadOnlyList<string> recentCompanies)
     {
         // Get sample company path to filter it out
         var samplePath = SampleCompanyService.GetSampleCompanyPath();
@@ -285,7 +236,7 @@ public class GlobalSettingsService : IGlobalSettingsService
         if (!_platformService.SupportsFileSystem)
         {
             // Browser platform - return all without file existence check, but exclude sample company
-            return GlobalSettings.RecentCompanies
+            return recentCompanies
                 .Where(p => !string.Equals(p, samplePath, StringComparison.OrdinalIgnoreCase))
                 .ToList()
                 .AsReadOnly();
@@ -293,28 +244,11 @@ public class GlobalSettingsService : IGlobalSettingsService
 
         // Filter to existing files, exclude sample company, and deduplicate using platform-appropriate comparison
         // (handles case-insensitive duplicates on Windows)
-        return GlobalSettings.RecentCompanies
+        return recentCompanies
             .Where(p => File.Exists(p) && !string.Equals(p, samplePath, StringComparison.OrdinalIgnoreCase))
             .Distinct(_platformService.PathComparer)
             .ToList()
             .AsReadOnly();
-    }
-
-    /// <summary>
-    /// Creates a new company settings instance for a new company.
-    /// </summary>
-    /// <param name="companyName">Name of the company.</param>
-    /// <returns>The created company settings.</returns>
-    public CompanySettings CreateCompanySettings(string companyName)
-    {
-        CompanySettings = new CompanySettings
-        {
-            Company = new CompanyInfo
-            {
-                Name = companyName
-            }
-        };
-        return CompanySettings;
     }
 
     private string GetGlobalSettingsPath()

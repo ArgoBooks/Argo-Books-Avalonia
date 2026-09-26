@@ -8,7 +8,6 @@ namespace ArgoBooks.Core.Models;
 /// </summary>
 public class GlobalSettings
 {
-    public WelcomeSettings Welcome { get; set; } = new();
     public List<string> RecentCompanies { get; set; } = [];
     public UpdateSettings Updates { get; set; } = new();
     public UiSettings Ui { get; set; } = new();
@@ -23,11 +22,6 @@ public class GlobalSettings
     /// removed, so the one-time cleanup does not run again.
     /// </summary>
     public bool LegacyFileAssociationsCleared { get; set; }
-}
-
-public class WelcomeSettings
-{
-    public bool EulaAccepted { get; set; } = false;
 }
 
 public class UpdateSettings
@@ -70,7 +64,7 @@ public class UiSettings
     /// <summary>
     /// Per-company chart settings, keyed by company file path.
     /// </summary>
-    public Dictionary<string, ChartSettings> CompanyChartSettings { get; set; } = new();
+    public Dictionary<string, CompanyChartPreferences> CompanyChartSettings { get; set; } = new();
 
     public QuickActionsSettings QuickActions { get; set; } = new();
     public EmojiPickerSettings EmojiPicker { get; set; } = new();
@@ -91,8 +85,6 @@ public class UiSettings
     /// Whether the grid is shown on the report designer canvas.
     /// </summary>
     public bool ReportsShowGrid { get; set; } = true;
-
-    public DashboardLayout? DashboardLayout { get; set; }
 
     /// <summary>
     /// Per-company dashboard layouts, keyed by company file path.
@@ -149,15 +141,21 @@ public class QuickActionsSettings
 
 public class ChartSettings
 {
-    public string ChartType { get; set; } = "Line";
-    public string DateRange { get; set; } = "This Month";
-    public DateTime? CustomStartDate { get; set; }
-    public DateTime? CustomEndDate { get; set; }
-
     /// <summary>
     /// Maximum number of slices to show in pie charts before grouping into "Other".
     /// </summary>
     public int MaxPieSlices { get; set; } = 6;
+}
+
+/// <summary>
+/// The chart type and date range last chosen for one company.
+/// </summary>
+public class CompanyChartPreferences
+{
+    public string ChartType { get; set; } = "Line";
+    public string DateRange { get; set; } = "This Month";
+    public DateTime? CustomStartDate { get; set; }
+    public DateTime? CustomEndDate { get; set; }
 }
 
 public class LicenseSettings
@@ -176,11 +174,6 @@ public class LicenseSettings
     /// IV used for obfuscation.
     /// </summary>
     public string? Iv { get; set; }
-
-    /// <summary>
-    /// Last license validation date.
-    /// </summary>
-    public DateTime? LastValidationDate { get; set; }
 }
 
 /// <summary>

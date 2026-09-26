@@ -476,7 +476,7 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
         if (usageService == null || HasPremium) return;
 
         var result = await usageService.CheckUsageAsync();
-        if (!result.Success) return;
+        if (result.IsOffline) return;
 
         // Server returns monthly_limit = -1 as a sentinel for Premium /
         // unlimited. If we update SendCount but not the limit, the UI ends
@@ -492,7 +492,7 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
 
         if (result.MonthlyLimit > 0)
             InvoiceMonthlyLimit = result.MonthlyLimit;
-        SentInvoicesThisMonthCount = result.SendCount;
+        SentInvoicesThisMonthCount = result.Used;
     }
 
     private void OnCurrencyChanged(object? sender, EventArgs e)
@@ -569,13 +569,17 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
             FilterIssueDateTo = modals.FilterIssueDateTo;
             FilterDueDateFrom = modals.FilterDueDateFrom;
             FilterDueDateTo = modals.FilterDueDateTo;
+            ActiveFilterCount = modals.ActiveFilterCount;
         }
         CurrentPage = 1;
         FilterInvoices();
     }
 
+    protected override void ClearTableFilters() => App.InvoiceModalsViewModel?.ClearFiltersCommand.Execute(null);
+
     private void OnFiltersCleared(object? sender, EventArgs e)
     {
+        ActiveFilterCount = 0;
         FilterStatus = "All";
         FilterCustomerId = null;
         FilterAmountMin = null;
@@ -662,7 +666,7 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
         var startOfMonth = new DateTime(now.Year, now.Month, 1);
 
         // Total outstanding (unpaid invoices) - calculate in USD, convert for display. Drafts are excluded:
-        // a never-sent draft isn't money a customer owes. Convert each at its OWN issue date (Calculations.md §3a).
+        // a never-sent draft isn't money a customer owes. Convert each at its OWN issue date (Calculations.md Rule 3a).
         TotalOutstanding = CurrencyService.FormatSumDisplayFromUSD(
             _allInvoices.Where(i => i.Status != InvoiceStatus.Paid && i.Status != InvoiceStatus.Cancelled
                 && i.Status != InvoiceStatus.Draft),
@@ -672,9 +676,8 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
             _allInvoices.Where(i => i.Status == InvoiceStatus.Paid && i.UpdatedAt >= startOfMonth),
             i => i.Total, i => i.OriginalCurrency, i => i.TotalUSD, i => i.IssueDate);
 
-        // Overdue amount - drafts excluded (a never-sent draft past its due date isn't overdue money owed).
         OverdueAmount = CurrencyService.FormatSumDisplayFromUSD(
-            _allInvoices.Where(i => (i.IsOverdue || i.Status == InvoiceStatus.Overdue) && i.Status != InvoiceStatus.Draft),
+            _allInvoices.Where(i => i.IsOverdue),
             i => i.Balance, i => i.OriginalCurrency, i => i.BalanceUSD, i => i.IssueDate);
 
         // Due this week - drafts excluded (not yet billed).
@@ -725,11 +728,9 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
 
         if (FilterStatus != "All")
         {
+            // Matches the status each row shows, so Overdue means IsOverdue (docs/Calculations.md §6).
             if (Enum.TryParse<InvoiceStatus>(FilterStatus, out var status))
-            {
-                filtered = filtered.Where(i => i.Status == status ||
-                    (FilterStatus == "Overdue" && i.IsOverdue));
-            }
+                filtered = filtered.Where(i => InvoiceTotalsService.DisplayStatus(i) == status);
         }
 
         if (!string.IsNullOrEmpty(FilterCustomerId))
@@ -856,37 +857,8 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
         Invoices.ReplaceAll(pagedInvoices);
     }
 
-    private static string GetStatusDisplay(Invoice invoice)
-    {
-        if (invoice.IsOverdue && invoice.Status != InvoiceStatus.Paid && invoice.Status != InvoiceStatus.Cancelled)
-            return "Overdue";
-
-        // Self-heal: even if invoice.Status is stale (PartiallyRefunded
-        // persisted from before the comparison-against-Total fix), derive
-        // the correct refund status fresh at display time, by the rule the
-        // sync recompute uses.
-        if (invoice.AmountRefunded > 0 && invoice.Total > 0)
-        {
-            return InvoiceTotalsService.RefundedStatus(invoice) == InvoiceStatus.Refunded
-                ? "Refunded"
-                : "Partially Refunded";
-        }
-
-        return invoice.Status switch
-        {
-            InvoiceStatus.Draft => "Draft",
-            InvoiceStatus.Pending => "Pending",
-            InvoiceStatus.Sent => "Sent",
-            InvoiceStatus.Viewed => "Viewed",
-            InvoiceStatus.Partial => "Partial",
-            InvoiceStatus.Paid => "Paid",
-            InvoiceStatus.Overdue => "Overdue",
-            InvoiceStatus.Cancelled => "Cancelled",
-            InvoiceStatus.PartiallyRefunded => "Partially Refunded",
-            InvoiceStatus.Refunded => "Refunded",
-            _ => "Unknown"
-        };
-    }
+    private static string GetStatusDisplay(Invoice invoice) =>
+        InvoiceTotalsService.DisplayStatus(invoice).ToDisplayText();
 
     /// <summary>
     /// True when the row's Refund icon button should be visible.
@@ -1095,11 +1067,10 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
         if (!confirmed) return;
 
         var deleted = schedule;
-        var index = companyData.RecurringInvoices.IndexOf(schedule);
 
         void ApplyDelete()
         {
-            companyData.RecurringInvoices.Remove(deleted);
+            companyData.RecurringInvoices.RemoveRecord(deleted);
             foreach (var d in orphanedDrafts) d.RecurringInvoiceId = string.Empty;
             companyData.MarkAsModified();
             LoadInvoices();
@@ -1107,13 +1078,7 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
         }
         void UndoDelete()
         {
-            if (!companyData.RecurringInvoices.Contains(deleted))
-            {
-                if (index >= 0 && index <= companyData.RecurringInvoices.Count)
-                    companyData.RecurringInvoices.Insert(index, deleted);
-                else
-                    companyData.RecurringInvoices.Add(deleted);
-            }
+            companyData.RecurringInvoices.RestoreRecord(deleted);
             foreach (var d in orphanedDrafts) d.RecurringInvoiceId = deleted.Id;
             companyData.MarkAsModified();
             LoadInvoices();
@@ -1345,7 +1310,7 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
         var startOfMonth = new DateTime(now.Year, now.Month, 1);
         var payments = App.CompanyManager?.CompanyData?.Payments ?? [];
 
-        // Convert each payment at its OWN date before summing (Calculations.md §3a Phase 2).
+        // Convert each payment at its OWN date before summing (Calculations.md Rule 3a).
         OnlineReceivedThisMonth = CurrencyService.FormatSumDisplayFromUSD(
             payments.Where(p => p.Date >= startOfMonth && p.Source == PaymentSource.Online && p.Amount > 0),
             p => p.Amount, p => p.OriginalCurrency, p => p.AmountUSD, p => p.Date);
@@ -1425,21 +1390,13 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
         string? customerEmail = customer?.Email;
         if (string.IsNullOrWhiteSpace(customerEmail))
         {
-            await ShowResendMessageAsync(
-                "No email address",
-                "This invoice's customer has no email address, so there is nowhere to send it.",
-                isError: true);
+            await App.ShowErrorDialogAsync(
+                "No email address".Translate(),
+                "This invoice's customer has no email address, so there is nowhere to send it.".Translate());
             return;
         }
 
-        if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop
-            || desktop.MainWindow is not MainWindow mainWindow
-            || mainWindow.MessageBoxService is not { } mbox)
-        {
-            return;
-        }
-
-        bool confirmed = await mbox.ConfirmAsync(
+        bool confirmed = await App.ConfirmDialogAsync(
             "Resend invoice".Translate(),
             "Send invoice {0} to {1} again?".TranslateFormat(invoice.InvoiceNumber, customerEmail),
             "Send".Translate(),
@@ -1495,7 +1452,7 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
 
         if (!string.IsNullOrEmpty(failure))
         {
-            await ShowResendMessageAsync("Failed to resend invoice", failure, isError: true);
+            await App.ShowErrorDialogAsync("Failed to resend invoice".Translate(), failure.Translate());
             return;
         }
 
@@ -1513,20 +1470,6 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
         App.InvoiceModalsViewModel?.ShowSentSuccess(customer?.Name ?? item.CustomerName, customerEmail);
     }
 
-    private static async Task ShowResendMessageAsync(string title, string message, bool isError)
-    {
-        if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop
-            || desktop.MainWindow is not MainWindow mainWindow
-            || mainWindow.MessageBoxService is not { } mbox)
-        {
-            return;
-        }
-
-        if (isError)
-        {
-            await mbox.ShowErrorAsync(title.Translate(), message.Translate());
-        }
-    }
 
     #endregion
 }
@@ -1656,10 +1599,8 @@ public partial class RecurringScheduleDisplayItem : ObservableObject
     [ObservableProperty] private string _frequencyDisplay = string.Empty;
     [ObservableProperty] private string _nextInvoiceFormatted = string.Empty;
 
-    [NotifyPropertyChangedFor(nameof(PauseResumeLabel))]
     [ObservableProperty] private string _statusDisplay = string.Empty;
 
-    [NotifyPropertyChangedFor(nameof(PauseResumeLabel))]
     [ObservableProperty] private bool _isPaused;
 
     // Id of the invoice this schedule most recently produced, used by the "View invoice" action.
@@ -1668,8 +1609,6 @@ public partial class RecurringScheduleDisplayItem : ObservableObject
     [ObservableProperty] private string _invoiceId = string.Empty;
 
     public bool HasInvoice => !string.IsNullOrEmpty(InvoiceId);
-
-    public string PauseResumeLabel => IsPaused ? "Resume" : "Pause";
 }
 
 /// <summary>

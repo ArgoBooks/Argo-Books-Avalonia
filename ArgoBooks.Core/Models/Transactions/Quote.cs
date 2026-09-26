@@ -13,7 +13,7 @@ namespace ArgoBooks.Core.Models.Transactions;
 /// invoice templates and <see cref="Services.InvoiceMath"/> need, plus its own answer tracking:
 /// no payments, balance, recurring schedule, bank matching or USD conversion.
 /// </remarks>
-public partial class Quote : ObservableObject
+public partial class Quote : ObservableObject, IRecord
 {
     /// <summary>
     /// Unique identifier (e.g., QUO-2026-00001).
@@ -208,9 +208,11 @@ public partial class Quote : ObservableObject
     /// The quote as an <see cref="Invoice"/> for the shared template renderer, which takes one.
     /// Throwaway and never stored: it carries no id the books could link to, and the payment
     /// fields stay at zero so the amount-to-pay block has nothing to print even if it were shown.
+    /// A draft, so a quote past its valid-until date never prints as overdue.
     /// </summary>
     public Invoice ToRenderableInvoice() => new()
     {
+        Status = InvoiceStatus.Draft,
         Id = Id,
         InvoiceNumber = QuoteNumber,
         CustomerId = CustomerId,

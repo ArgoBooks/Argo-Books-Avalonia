@@ -136,8 +136,47 @@ public partial class PieChartLegend : UserControl
 
     #endregion
 
+    /// <summary>
+    /// The legend never takes more than this share of the row it shares with its pie, so a narrow
+    /// card shrinks the legend (labels trim) instead of squeezing the pie down to a dot.
+    /// </summary>
+    private const double MaxShareOfRow = 0.4;
+
+    private Control? _row;
+
     public PieChartLegend()
     {
         InitializeComponent();
+    }
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        _row = Parent as Control;
+        if (_row != null)
+            _row.SizeChanged += OnRowSizeChanged;
+        UpdateMaxWidth();
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        if (_row != null)
+            _row.SizeChanged -= OnRowSizeChanged;
+        _row = null;
+        base.OnDetachedFromVisualTree(e);
+    }
+
+    private void OnRowSizeChanged(object? sender, SizeChangedEventArgs e)
+    {
+        if (e.WidthChanged)
+            UpdateMaxWidth();
+    }
+
+    // MaxWidth rather than Width, so the Width a page or the expanded chart view asks for still
+    // applies whenever the row has room for it.
+    private void UpdateMaxWidth()
+    {
+        var rowWidth = _row?.Bounds.Width ?? 0;
+        MaxWidth = rowWidth > 0 ? Math.Floor(rowWidth * MaxShareOfRow) : double.PositiveInfinity;
     }
 }

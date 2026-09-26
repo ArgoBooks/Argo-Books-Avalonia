@@ -175,11 +175,7 @@ public class BankLineImportServiceTests
         Type = BookRecordType.Expense
     };
 
-    private static bool NoRate(decimal amount, string currency, DateTime date, out decimal usd)
-    {
-        usd = 0m;
-        return false;
-    }
+    private static decimal? NoRate(string currency, DateTime date) => null;
 
     // Calculations.md Rule 3a: a CAD company's -100.00 line is CAD 100 converted at the line's own
     // date, not filed as 100 USD.
@@ -189,11 +185,10 @@ public class BankLineImportServiceTests
         var data = CadCompany();
         var date = new DateTime(2026, 3, 10);
         DateTime? rateDate = null;
-        bool CadAt75Cents(decimal amount, string currency, DateTime d, out decimal usd)
+        decimal? CadAt75Cents(string currency, DateTime d)
         {
             rateDate = d;
-            usd = amount * 0.75m;
-            return currency == "CAD";
+            return currency == "CAD" ? 0.75m : null;
         }
 
         new BankLineImportService(CadAt75Cents).CreateFromLines(data, [Outflow(date)], linkToBankLine: false);
@@ -232,7 +227,7 @@ public class BankLineImportServiceTests
     public void CreateFromLines_UsdCompany_IsItsOwnUsdBase_WithoutAskingForARate()
     {
         var data = new CompanyData(); // USD by default
-        static bool NoCallExpected(decimal amount, string currency, DateTime date, out decimal usd) =>
+        static decimal? NoCallExpected(string currency, DateTime date) =>
             throw new InvalidOperationException("A USD company needs no exchange rate.");
 
         new BankLineImportService(NoCallExpected).CreateFromLines(data, [Outflow(new DateTime(2026, 3, 10))], linkToBankLine: false);

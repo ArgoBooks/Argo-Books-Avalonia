@@ -27,34 +27,22 @@ internal class StubGlobalSettingsService : IGlobalSettingsService
 public class TutorialServiceTests
 {
     private readonly TutorialService _service;
+    private readonly StubGlobalSettingsService _settingsService = new();
 
     public TutorialServiceTests()
     {
         _service = new TutorialService();
-        var settingsService = new StubGlobalSettingsService();
         // Set FirstLaunchDate so the user is not considered a first-time user by default
-        settingsService.GetSettings().Tutorial.FirstLaunchDate = DateTime.UtcNow;
-        _service.SetGlobalSettingsService(settingsService);
+        _settingsService.GetSettings().Tutorial.FirstLaunchDate = DateTime.UtcNow;
+        _service.SetGlobalSettingsService(_settingsService);
     }
 
     #region Checklist Tests
 
     [Fact]
-    public void GetTotalChecklistCount_ReturnsPositive()
-    {
-        Assert.True(_service.GetTotalChecklistCount() > 0);
-    }
-
-    [Fact]
     public void AreAllChecklistItemsCompleted_DefaultIsFalse()
     {
         Assert.False(_service.AreAllChecklistItemsCompleted());
-    }
-
-    [Fact]
-    public void IsChecklistItemCompleted_UnknownItem_ReturnsFalse()
-    {
-        Assert.False(_service.IsChecklistItemCompleted("unknown_item"));
     }
 
     [Fact]
@@ -67,7 +55,7 @@ public class TutorialServiceTests
 
         _service.MigrateLegacyChecklist();
 
-        Assert.True(_service.IsChecklistItemCompleted(TutorialService.ChecklistItems.ImportData));
+        Assert.True(IsChecklistItemCompleted(TutorialService.ChecklistItems.ImportData));
         Assert.True(_service.AreAllChecklistItemsCompleted());
     }
 
@@ -80,7 +68,7 @@ public class TutorialServiceTests
 
         _service.MigrateLegacyChecklist();
 
-        Assert.False(_service.IsChecklistItemCompleted(TutorialService.ChecklistItems.ImportData));
+        Assert.False(IsChecklistItemCompleted(TutorialService.ChecklistItems.ImportData));
     }
 
     [Fact]
@@ -92,8 +80,11 @@ public class TutorialServiceTests
 
         _service.MigrateLegacyChecklist();
 
-        Assert.False(_service.IsChecklistItemCompleted(TutorialService.ChecklistItems.ImportData));
+        Assert.False(IsChecklistItemCompleted(TutorialService.ChecklistItems.ImportData));
     }
+
+    private bool IsChecklistItemCompleted(string itemId) =>
+        _settingsService.GetSettings().Tutorial.CompletedChecklistItems.Contains(itemId);
 
     private void CompleteItems(params string[] itemIds)
     {
@@ -166,27 +157,6 @@ public class TutorialServiceTests
 
     #endregion
 
-    #region GetFirstVisitHint Tests
-
-    [Fact]
-    public void GetFirstVisitHint_KnownPage_ReturnsHint()
-    {
-        var hint = TutorialService.GetFirstVisitHint("Categories");
-
-        // Should return a hint object or null depending on implementation
-        Assert.NotNull(hint);
-    }
-
-    [Fact]
-    public void GetFirstVisitHint_UnknownPage_ReturnsNull()
-    {
-        var hint = TutorialService.GetFirstVisitHint("NonExistentPage123");
-
-        Assert.Null(hint);
-    }
-
-    #endregion
-
     #region Event Tests
 
     [Fact]
@@ -196,17 +166,6 @@ public class TutorialServiceTests
         _service.ChecklistItemCompleted += (_, _) => eventRaised = true;
 
         _service.CompleteChecklistItem(TutorialService.ChecklistItems.ScanReceipt);
-
-        Assert.True(eventRaised);
-    }
-
-    [Fact]
-    public void MarkPageVisited_RaisesEvent()
-    {
-        var eventRaised = false;
-        _service.PageFirstVisited += (_, _) => eventRaised = true;
-
-        _service.MarkPageVisited("NewTestPage");
 
         Assert.True(eventRaised);
     }

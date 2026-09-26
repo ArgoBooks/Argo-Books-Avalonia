@@ -794,116 +794,6 @@ public class ReportTableDataService(CompanyData? companyData, ReportFilters filt
     }
 
     #endregion
-
-    #region Top/Bottom Analysis
-
-    public List<ProductAnalysisRow> GetTopProductsByRevenue(int count = 10)
-    {
-        if (companyData?.Revenues == null)
-            return [];
-
-        var (startDate, endDate) = GetDateRange();
-
-        var productSales = companyData.Revenues
-            .Where(s => s.Date >= startDate && s.Date <= endDate)
-            .SelectMany(s => s.LineItems)
-            .GroupBy(i => i.ProductId)
-            .Select(g =>
-            {
-                var product = companyData.GetProduct(g.Key ?? "");
-                var category = product != null ? companyData.GetCategory(product.CategoryId ?? "") : null;
-
-                // Note: Line item amounts are in original currency; for multi-currency
-                // accuracy we'd need the parent transaction's USD ratio. Using line item
-                // subtotals as a reasonable approximation for product-level analysis.
-                return new ProductAnalysisRow
-                {
-                    ProductId = g.Key ?? "",
-                    ProductName = product?.Name ?? "Unknown",
-                    CategoryName = category?.Name ?? "Unknown",
-                    TotalQuantity = (int)g.Sum(i => i.Quantity),
-                    TotalRevenue = g.Sum(i => i.Subtotal),
-                    TransactionCount = g.Count(),
-                    AveragePrice = g.Average(i => i.UnitPrice)
-                };
-            })
-            .OrderByDescending(p => p.TotalRevenue)
-            .Take(count)
-            .ToList();
-
-        return productSales;
-    }
-
-    public List<CustomerAnalysisRow> GetTopCustomersByRevenue(int count = 10)
-    {
-        if (companyData?.Revenues == null)
-            return [];
-
-        var (startDate, endDate) = GetDateRange();
-
-        var customerSales = companyData.Revenues
-            .Where(s => s.Date >= startDate && s.Date <= endDate)
-            .GroupBy(s => s.CustomerId)
-            .Select(g =>
-            {
-                var customer = companyData.GetCustomer(g.Key ?? "");
-
-                return new CustomerAnalysisRow
-                {
-                    CustomerId = g.Key ?? "",
-                    CustomerName = customer?.Name ?? "Unknown",
-                    Country = customer?.Address.Country ?? "",
-                    TotalRevenue = g.Sum(s => s.EffectiveSubtotalUSD),
-                    TransactionCount = g.Count(),
-                    AverageTransaction = g.Average(s => s.EffectiveSubtotalUSD),
-                    FirstPurchase = g.Min(s => s.Date),
-                    LastPurchase = g.Max(s => s.Date)
-                };
-            })
-            .OrderByDescending(c => c.TotalRevenue)
-            .Take(count)
-            .ToList();
-
-        return customerSales;
-    }
-
-    /// <summary>
-    /// Gets top suppliers by purchase volume.
-    /// </summary>
-    public List<SupplierAnalysisRow> GetTopSuppliersByVolume(int count = 10)
-    {
-        if (companyData?.Expenses == null)
-            return [];
-
-        var (startDate, endDate) = GetDateRange();
-
-        var supplierPurchases = companyData.Expenses
-            .Where(p => p.Date >= startDate && p.Date <= endDate)
-            .GroupBy(p => p.SupplierId)
-            .Select(g =>
-            {
-                var supplier = companyData.GetSupplier(g.Key ?? "");
-
-                return new SupplierAnalysisRow
-                {
-                    SupplierId = g.Key ?? "",
-                    SupplierName = supplier?.Name ?? "Unknown",
-                    Country = supplier?.Address.Country ?? "",
-                    TotalPurchases = g.Sum(p => p.EffectiveSubtotalUSD),
-                    TransactionCount = g.Count(),
-                    AverageTransaction = g.Average(p => p.EffectiveSubtotalUSD),
-                    FirstPurchase = g.Min(p => p.Date),
-                    LastPurchase = g.Max(p => p.Date)
-                };
-            })
-            .OrderByDescending(s => s.TotalPurchases)
-            .Take(count)
-            .ToList();
-
-        return supplierPurchases;
-    }
-
-    #endregion
 }
 
 #region Table Row Models
@@ -1041,6 +931,7 @@ public class InventoryTableRow
     public decimal InStock { get; set; }
     public decimal Reserved { get; set; }
     public decimal Available { get; set; }
+    /// <summary>In USD, like <see cref="TotalValue"/>; the renderer converts both.</summary>
     public decimal UnitCost { get; set; }
     public decimal TotalValue { get; set; }
     public string Status { get; set; } = string.Empty;
@@ -1174,62 +1065,6 @@ public class AccountantTableRow
     public string Email { get; set; } = string.Empty;
     public string Phone { get; set; } = string.Empty;
     public int AssignedTransactions { get; set; }
-}
-
-/// <summary>
-/// Represents a product analysis row.
-/// </summary>
-public class ProductAnalysisRow
-{
-    public string ProductId { get; set; } = string.Empty;
-    public string ProductName { get; set; } = string.Empty;
-    public string CategoryName { get; set; } = string.Empty;
-    public int TotalQuantity { get; set; }
-    public decimal TotalRevenue { get; set; }
-    public int TransactionCount { get; set; }
-    public decimal AveragePrice { get; set; }
-}
-
-/// <summary>
-/// Represents a customer analysis row.
-/// </summary>
-public class CustomerAnalysisRow
-{
-    public string CustomerId { get; set; } = string.Empty;
-    public string CustomerName { get; set; } = string.Empty;
-    public string Country { get; set; } = string.Empty;
-    public decimal TotalRevenue { get; set; }
-    public int TransactionCount { get; set; }
-    public decimal AverageTransaction { get; set; }
-    public DateTime FirstPurchase { get; set; }
-    public DateTime LastPurchase { get; set; }
-}
-
-/// <summary>
-/// Represents a supplier analysis row.
-/// </summary>
-public class SupplierAnalysisRow
-{
-    public string SupplierId { get; set; } = string.Empty;
-    public string SupplierName { get; set; } = string.Empty;
-    public string Country { get; set; } = string.Empty;
-    public decimal TotalPurchases { get; set; }
-    public int TransactionCount { get; set; }
-    public decimal AverageTransaction { get; set; }
-    public DateTime FirstPurchase { get; set; }
-    public DateTime LastPurchase { get; set; }
-}
-
-/// <summary>
-/// Represents an accountant analysis row.
-/// </summary>
-public class AccountantAnalysisRow
-{
-    public string AccountantId { get; set; } = string.Empty;
-    public string AccountantName { get; set; } = string.Empty;
-    public decimal TotalRevenue { get; set; }
-    public decimal TotalPurchases { get; set; }
-    public int TransactionCount { get; set; }
 }
 
 #endregion

@@ -1,4 +1,5 @@
 using ArgoBooks.Core.Data;
+using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
@@ -159,7 +160,7 @@ public abstract partial class ViewModelBase : ObservableObject
         var usages = checks.Where(c => c.Used).Select(c => c.Label).ToList();
         if (usages.Count == 0) return false;
 
-        await App.ShowWarningMessageBoxAsync("Cannot Delete".Translate(), message(string.Join(", ", usages)));
+        await App.ShowWarningDialogAsync("Cannot Delete".Translate(), message(string.Join(", ", usages)));
         return true;
     }
 
@@ -175,9 +176,9 @@ public abstract partial class ViewModelBase : ObservableObject
         string description,
         Action? notify,
         Action? onRemove = null,
-        Action? onRestore = null)
+        Action? onRestore = null) where T : class, IRecord
     {
-        list.Remove(item);
+        list.RemoveRecord(item);
         onRemove?.Invoke();
         companyData.MarkAsModified();
 
@@ -185,14 +186,14 @@ public abstract partial class ViewModelBase : ObservableObject
             description,
             () =>
             {
-                list.Add(item);
+                list.RestoreRecord(item);
                 onRestore?.Invoke();
                 companyData.MarkAsModified();
                 notify?.Invoke();
             },
             () =>
             {
-                list.Remove(item);
+                list.RemoveRecord(item);
                 onRemove?.Invoke();
                 companyData.MarkAsModified();
                 notify?.Invoke();

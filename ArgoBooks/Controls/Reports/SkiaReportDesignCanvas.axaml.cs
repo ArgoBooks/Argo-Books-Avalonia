@@ -121,8 +121,8 @@ public partial class SkiaReportDesignCanvas : UserControl
     public static readonly StyledProperty<int> CurrentDesignerPageProperty =
         AvaloniaProperty.Register<SkiaReportDesignCanvas, int>(nameof(CurrentDesignerPage), 1);
 
-    public static readonly StyledProperty<ReportUndoRedoManager?> UndoRedoManagerProperty =
-        AvaloniaProperty.Register<SkiaReportDesignCanvas, ReportUndoRedoManager?>(nameof(UndoRedoManager));
+    public static readonly StyledProperty<UndoRedoManager?> UndoRedoManagerProperty =
+        AvaloniaProperty.Register<SkiaReportDesignCanvas, UndoRedoManager?>(nameof(UndoRedoManager));
 
     #endregion
 
@@ -173,7 +173,7 @@ public partial class SkiaReportDesignCanvas : UserControl
         set => SetValue(CurrentDesignerPageProperty, Math.Max(1, value));
     }
 
-    public ReportUndoRedoManager? UndoRedoManager
+    public UndoRedoManager? UndoRedoManager
     {
         get => GetValue(UndoRedoManagerProperty);
         set => SetValue(UndoRedoManagerProperty, value);
@@ -246,10 +246,6 @@ public partial class SkiaReportDesignCanvas : UserControl
 
     #region Events
 
-    public event EventHandler<ReportElementBase>? ElementSelected;
-    public event EventHandler? SelectionCleared;
-    public event EventHandler<ElementAddedEventArgs>? ElementAdded;
-    public event EventHandler<ReportElementBase>? ElementRemoved;
     public event EventHandler<SelectionChangedEventArgs>? SelectionChanged;
     public event EventHandler<ContextMenuRequestedEventArgs>? ContextMenuRequested;
 
@@ -263,11 +259,6 @@ public partial class SkiaReportDesignCanvas : UserControl
             _selectedElements.ToList().AsReadOnly()
         );
         SelectionChanged?.Invoke(this, args);
-
-        if (_selectedElements.Count > 0)
-            ElementSelected?.Invoke(this, _selectedElements[0]);
-        else
-            SelectionCleared?.Invoke(this, EventArgs.Empty);
     }
 
     #endregion
@@ -2109,11 +2100,6 @@ public partial class SkiaReportDesignCanvas : UserControl
         _selectedElements.Clear();
         _selectedElements.AddRange(Configuration.Elements.Where(e => e.PageNumber == CurrentDesignerPage));
         InvalidateCanvas();
-
-        if (_selectedElements.Count > 0)
-        {
-            ElementSelected?.Invoke(this, _selectedElements[0]);
-        }
     }
 
     public void ClearSelection()
@@ -2130,9 +2116,6 @@ public partial class SkiaReportDesignCanvas : UserControl
 
         var removed = _selectedElements.ToList();
         RemoveElementsAction.RemoveAndRecord(Configuration, removed, UndoRedoManager);
-
-        foreach (var element in removed)
-            ElementRemoved?.Invoke(this, element);
 
         _selectedElements.Clear();
         _hoveredElement = null;
@@ -2177,7 +2160,6 @@ public partial class SkiaReportDesignCanvas : UserControl
         _selectedElements.Clear();
         _selectedElements.Add(element);
 
-        ElementAdded?.Invoke(this, new ElementAddedEventArgs(element));
         InvalidateCanvas();
     }
 
@@ -2198,7 +2180,6 @@ public partial class SkiaReportDesignCanvas : UserControl
             _selectedElements.Add(element);
         }
 
-        ElementSelected?.Invoke(this, element);
         InvalidateCanvas();
     }
 
@@ -2401,14 +2382,6 @@ public class SelectionChangedEventArgs(
 {
     public ReportElementBase? SelectedElement { get; } = selectedElement;
     public IReadOnlyList<ReportElementBase> SelectedElements { get; } = selectedElements;
-}
-
-/// <summary>
-/// Event args for when an element is added.
-/// </summary>
-public class ElementAddedEventArgs(ReportElementBase element) : EventArgs
-{
-    public ReportElementBase Element { get; } = element;
 }
 
 /// <summary>

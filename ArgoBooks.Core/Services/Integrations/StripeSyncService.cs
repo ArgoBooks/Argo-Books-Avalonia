@@ -5,13 +5,33 @@ namespace ArgoBooks.Core.Services.Integrations;
 
 public record StripeSyncPreview(
     IReadOnlyList<StripeChargeDetail> Charges,
-    decimal TotalRevenue,
-    decimal TotalFees,
     string? NewCursor,
     IReadOnlyList<StripePayoutSummary> NewPayouts)
 {
     /// <summary>True when there's anything to import: new revenue/fees, or new payouts to remember.</summary>
     public bool HasActivity => Charges.Count > 0 || NewPayouts.Count > 0;
+
+    /// <summary>Each charge's gross, in its own currency, as the import records it.</summary>
+    public IReadOnlyList<IncomingAmount> Sales => Charges
+        .Select(c =>
+        {
+            var currency = ImportLookup.NormalizeCurrency(c.Currency);
+            return new IncomingAmount(ArgoMoney.ToDecimal(c.GrossCents, currency), currency, DateOf(c));
+        })
+        .ToList();
+
+    /// <summary>Each charge's processing fee, in the fee's own currency, as the import records it.</summary>
+    public IReadOnlyList<IncomingAmount> Fees => Charges
+        .Where(c => c.FeeCents > 0)
+        .Select(c =>
+        {
+            var currency = ImportLookup.NormalizeCurrency(c.FeeCurrency, fallback: ImportLookup.NormalizeCurrency(c.Currency));
+            return new IncomingAmount(ArgoMoney.ToDecimal(c.FeeCents, currency), currency, DateOf(c));
+        })
+        .ToList();
+
+    private static DateTime DateOf(StripeChargeDetail charge) =>
+        DateTimeOffset.FromUnixTimeSeconds(charge.CreatedUnix).LocalDateTime;
 }
 
 /// <summary>
@@ -51,10 +71,7 @@ public class StripeSyncService(StripeApiClient client)
             .Where(p => !known.Contains(p.Id) && p.Status is not ("canceled" or "failed"))
             .ToList();
 
-        var totalRevenue = charges.Sum(c => ArgoMoney.ToDecimal(c.GrossCents, c.Currency));
-        var totalFees = charges.Sum(c => ArgoMoney.ToDecimal(c.FeeCents, c.FeeCurrency ?? c.Currency));
-
-        return new StripeSyncPreview(charges, totalRevenue, totalFees, newCursor, newPayouts);
+        return new StripeSyncPreview(charges, newCursor, newPayouts);
     }
 
     /// <summary>
@@ -69,8 +86,7 @@ public class StripeSyncService(StripeApiClient client)
         IProgress<int>? rateProgress = null, CancellationToken ct = default)
     {
         await IntegrationRates.EnsureAsync(
-            preview.Charges.SelectMany(c => new[] { c.Currency, c.FeeCurrency ?? c.Currency }.Select(currency =>
-                (DateTimeOffset.FromUnixTimeSeconds(c.CreatedUnix).LocalDateTime, currency))),
+            preview.Sales.Concat(preview.Fees),
             data.Settings.Localization.Currency,
             rateProgress,
             ct: ct);
@@ -93,7 +109,7 @@ public class StripeSyncService(StripeApiClient client)
         {
             PreviousCursor = stripe.LastSyncCursor,
             PreviousSyncTime = stripe.LastSyncTime,
-            Pre = IntegrationImportCreation.CounterSnapshot.From(data.IdCounters)
+            Pre = data.IdCounters.Clone()
         };
 
         int revBefore = data.Revenues.Count, expBefore = data.Expenses.Count,
@@ -137,10 +153,10 @@ public class StripeSyncService(StripeApiClient client)
         creation.Payouts.AddRange(stripe.ImportedPayouts.Skip(payBefore));
         creation.NewCursor = stripe.LastSyncCursor;
         creation.NewSyncTime = stripe.LastSyncTime;
-        creation.Post = IntegrationImportCreation.CounterSnapshot.From(data.IdCounters);
+        creation.Post = data.IdCounters.Clone();
         return creation;
     }
 
     private static StripeSyncPreview Empty()
-        => new(Array.Empty<StripeChargeDetail>(), 0m, 0m, null, Array.Empty<StripePayoutSummary>());
+        => new(Array.Empty<StripeChargeDetail>(), null, Array.Empty<StripePayoutSummary>());
 }

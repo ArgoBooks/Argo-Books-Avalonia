@@ -1,4 +1,5 @@
-﻿using ArgoBooks.Localization;
+﻿using ArgoBooks.Core.Data;
+using ArgoBooks.Localization;
 using ArgoBooks.Core.Models.Inventory;
 using ArgoBooks.Services;
 using System.Collections.ObjectModel;
@@ -402,7 +403,6 @@ public partial class ProductModalsViewModel : ViewModelBase
         supplierModals.OpenAddModal();
     }
 
-    [RelayCommand]
     public void SaveNewProduct()
     {
         if (!ValidateModal())
@@ -454,13 +454,13 @@ public partial class ProductModalsViewModel : ViewModelBase
             $"Add product '{newProduct.Name}'",
             () =>
             {
-                companyData.Products.Remove(productToUndo);
+                companyData.Products.RemoveRecord(productToUndo);
                 companyData.MarkAsModified();
                 ProductSaved?.Invoke(this, EventArgs.Empty);
             },
             () =>
             {
-                companyData.Products.Add(productToUndo);
+                companyData.Products.RestoreRecord(productToUndo);
                 companyData.MarkAsModified();
                 ProductSaved?.Invoke(this, EventArgs.Empty);
             }));
@@ -528,7 +528,6 @@ public partial class ProductModalsViewModel : ViewModelBase
         OpenEditModal(item);
     }
 
-    [RelayCommand]
     public void CloseEditModal()
     {
         IsEditModalOpen = false;
@@ -539,7 +538,6 @@ public partial class ProductModalsViewModel : ViewModelBase
     /// <summary>
     /// Requests to close the Edit modal, showing confirmation if changes were made.
     /// </summary>
-    [RelayCommand]
     public async Task RequestCloseEditModalAsync()
     {
         if (HasEditModalChanges)
@@ -551,7 +549,6 @@ public partial class ProductModalsViewModel : ViewModelBase
         CloseEditModal();
     }
 
-    [RelayCommand]
     public void SaveEditedProduct()
     {
         if (!ValidateModal() || _editingProduct == null)
@@ -788,9 +785,13 @@ public partial class ProductModalsViewModel : ViewModelBase
             CloseFilterModal();
     }
 
+    /// <summary>How many filters are applied, for the page's Filter button.</summary>
+    public int ActiveFilterCount { get; private set; }
+
     [RelayCommand]
     public void ApplyFilters()
     {
+        ActiveFilterCount = Filters.ActiveCount;
         FiltersApplied?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
     }
@@ -799,6 +800,7 @@ public partial class ProductModalsViewModel : ViewModelBase
     public void ClearFilters()
     {
         Filters.Reset();
+        ActiveFilterCount = 0;
         FiltersCleared?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
     }

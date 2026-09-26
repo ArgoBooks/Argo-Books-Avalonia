@@ -13,8 +13,15 @@
         <vm:ConfirmationDialogViewModel />
     </Design.DataContext>
 
+    <UserControl.Resources>
+        <StreamGeometry x:Key="DialogInfoGeometry">M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z</StreamGeometry>
+        <StreamGeometry x:Key="DialogWarningGeometry">M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z</StreamGeometry>
+        <StreamGeometry x:Key="DialogErrorGeometry">M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z</StreamGeometry>
+    </UserControl.Resources>
+
     <Panel>
         <controls:ModalOverlay IsOpen="{Binding IsOpen}"
+                               CloseOnBackdropClick="{Binding CloseOnBackdropClick}"
                                ClosingCommand="{Binding CancelActionCommand}">
             <controls:ModalOverlay.ModalContent>
                 <!-- Modal Content -->
@@ -27,10 +34,57 @@
 
                 <!-- Body -->
                 <Border Grid.Row="1" Padding="24,20">
-                    <TextBlock Text="{Binding Message}"
-                               FontSize="14"
-                               Foreground="{DynamicResource TextSecondaryBrush}"
-                               TextWrapping="Wrap" />
+                    <Grid ColumnDefinitions="Auto,*">
+                        <Border Grid.Column="0"
+                                Width="40" Height="40"
+                                Margin="0,0,16,0"
+                                CornerRadius="{StaticResource RadiusMd}"
+                                VerticalAlignment="Top"
+                                IsVisible="{Binding HasIcon}"
+                                Classes.info="{Binding IsInfoIcon}"
+                                Classes.warning="{Binding IsWarningIcon}"
+                                Classes.error="{Binding IsErrorIcon}">
+                            <Border.Styles>
+                                <Style Selector="Border.info">
+                                    <Setter Property="Background" Value="{DynamicResource PrimaryIconBgBrush}" />
+                                </Style>
+                                <Style Selector="Border.warning">
+                                    <Setter Property="Background" Value="{DynamicResource WarningIconBgBrush}" />
+                                </Style>
+                                <Style Selector="Border.error">
+                                    <Setter Property="Background" Value="{DynamicResource DangerIconBgBrush}" />
+                                </Style>
+                            </Border.Styles>
+                            <PathIcon Width="22" Height="22"
+                                      Classes.info="{Binding IsInfoIcon}"
+                                      Classes.warning="{Binding IsWarningIcon}"
+                                      Classes.error="{Binding IsErrorIcon}">
+                                <PathIcon.Styles>
+                                    <Style Selector="PathIcon.info">
+                                        <Setter Property="Data" Value="{StaticResource DialogInfoGeometry}" />
+                                        <Setter Property="Foreground" Value="{DynamicResource PrimaryBrush}" />
+                                    </Style>
+                                    <Style Selector="PathIcon.warning">
+                                        <Setter Property="Data" Value="{StaticResource DialogWarningGeometry}" />
+                                        <Setter Property="Foreground" Value="{DynamicResource WarningBrush}" />
+                                    </Style>
+                                    <Style Selector="PathIcon.error">
+                                        <Setter Property="Data" Value="{StaticResource DialogErrorGeometry}" />
+                                        <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
+                                    </Style>
+                                </PathIcon.Styles>
+                            </PathIcon>
+                        </Border>
+                        <ScrollViewer Grid.Column="1"
+                                      MaxHeight="360"
+                                      HorizontalScrollBarVisibility="Disabled"
+                                      VerticalScrollBarVisibility="Auto">
+                            <TextBlock Text="{Binding Message}"
+                                       FontSize="14"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       TextWrapping="Wrap" />
+                        </ScrollViewer>
+                    </Grid>
                 </Border>
 
                 <!-- Footer -->

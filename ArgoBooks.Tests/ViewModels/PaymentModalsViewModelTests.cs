@@ -256,6 +256,51 @@ public class PaymentModalsViewModelTests : ModalViewModelTestBase
         Assert.Equal(draft.Id, vm.SelectedInvoice?.Id);
     }
 
+    // Undoing a payment's delete queued its conversion again at the payment's own date, but a
+    // portal payment waits for its invoice's rate, so it would have converted at the wrong day's.
+    [Fact]
+    public void DeletePayment_ThenUndo_PutsBackTheQueuedConversionWithItsRateDate()
+    {
+        var invoice = AddInvoice("EUR", 100m);
+        var payment = new Payment
+        {
+            Id = "PAY-001", InvoiceId = invoice.Id, CustomerId = "CUST-1", Amount = 100m, OriginalCurrency = "EUR",
+            Date = new DateTime(2026, 1, 20), Source = PaymentSource.Online
+        };
+        Company.Payments.Add(payment);
+        UsdConversion.Apply(Company, payment, rate: null, rateDate: invoice.IssueDate);
+
+        DeleteAnsweringPrimary(payment.Id);
+        Assert.Empty(Company.Payments);
+        Assert.Empty(Company.PendingConversions);
+
+        Undo();
+
+        Assert.Same(payment, Assert.Single(Company.Payments));
+        Assert.Equal(invoice.IssueDate, Assert.Single(Company.PendingConversions).TransactionDate);
+    }
+
+    private static void DeleteAnsweringPrimary(string paymentId)
+    {
+        var confirmation = typeof(App).GetProperty(nameof(App.ConfirmationDialog))!;
+        var dialog = new ConfirmationDialogViewModel();
+        var priorDialog = confirmation.GetValue(null);
+        var priorContext = SynchronizationContext.Current;
+        SynchronizationContext.SetSynchronizationContext(null);
+        confirmation.SetValue(null, dialog);
+        try
+        {
+            new PaymentModalsViewModel().OpenDeleteConfirm(new PaymentDisplayItem { Id = paymentId });
+            if (dialog.IsOpen)
+                dialog.PrimaryActionCommand.Execute(null);
+        }
+        finally
+        {
+            confirmation.SetValue(null, priorDialog);
+            SynchronizationContext.SetSynchronizationContext(priorContext);
+        }
+    }
+
     private sealed class Restore(Action restore) : IDisposable
     {
         public void Dispose() => restore();

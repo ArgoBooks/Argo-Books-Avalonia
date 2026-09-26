@@ -212,40 +212,6 @@ public class ReportTableDataServiceTests
 
     #endregion
 
-    #region Analysis Table Tests
-
-    [Fact]
-    public void GetTopProductsByRevenue_NullCompanyData_ReturnsEmptyList()
-    {
-        var service = new ReportTableDataService(null, CreateDefaultFilters());
-
-        var result = service.GetTopProductsByRevenue();
-
-        Assert.Empty(result);
-    }
-
-    [Fact]
-    public void GetTopCustomersByRevenue_NullCompanyData_ReturnsEmptyList()
-    {
-        var service = new ReportTableDataService(null, CreateDefaultFilters());
-
-        var result = service.GetTopCustomersByRevenue();
-
-        Assert.Empty(result);
-    }
-
-    [Fact]
-    public void GetTopSuppliersByVolume_NullCompanyData_ReturnsEmptyList()
-    {
-        var service = new ReportTableDataService(null, CreateDefaultFilters());
-
-        var result = service.GetTopSuppliersByVolume();
-
-        Assert.Empty(result);
-    }
-
-    #endregion
-
     #region Returns/Losses Table Tests
 
     [Fact]

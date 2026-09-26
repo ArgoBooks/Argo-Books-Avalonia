@@ -285,6 +285,31 @@ public class QuoteTests
         Assert.Single(data.Invoices);
     }
 
+    // The draft was added with no USD amount and not waiting for one, so it counted as 0 USD for
+    // good and never converted (Rule 3a).
+    [Fact]
+    public void Convert_StoresTheInvoicesUsdAmounts_OrQueuesThemWhileTheRateIsMissing()
+    {
+        var data = new CompanyData();
+        var usdQuote = SampleQuote();
+        usdQuote.OriginalCurrency = "USD";
+        var foreignQuote = SampleQuote();
+        foreignQuote.Id = "QUO-2026-00002";
+        foreignQuote.OriginalCurrency = "XAF";
+        data.Quotes.Add(usdQuote);
+        data.Quotes.Add(foreignQuote);
+
+        var usd = QuoteConversionService.Convert(usdQuote, data)!;
+        var foreign = QuoteConversionService.Convert(foreignQuote, data)!;
+
+        Assert.False(usd.IsPendingConversion);
+        Assert.Equal(usd.Total, usd.TotalUSD);
+        Assert.True(foreign.IsPendingConversion);
+        var queued = Assert.Single(data.PendingConversions);
+        Assert.Equal(UsdConversion.KeyOf(foreign), queued.Key);
+        Assert.Equal(foreign.Total, queued.Total);
+    }
+
     [Fact]
     public void Convert_CreatesNoRevenue()
     {

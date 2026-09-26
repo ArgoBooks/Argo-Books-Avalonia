@@ -265,6 +265,7 @@ public class ReceiptTypeConverterTests
     public void Switch_MovesAQueuedConversionOntoTheNewTransaction()
     {
         var (data, receipt) = WithExpenseReceipt();
+        data.Expenses[0].IsPendingConversion = true;
         data.PendingConversions.Add(new PendingConversion
         {
             TransactionId = "PUR-2026-00007", TransactionType = "Expense", OriginalCurrency = "CAD"
@@ -281,6 +282,7 @@ public class ReceiptTypeConverterTests
     public void Revert_PutsAQueuedConversionBackOnTheOriginal()
     {
         var (data, receipt) = WithExpenseReceipt();
+        data.Expenses[0].IsPendingConversion = true;
         data.PendingConversions.Add(new PendingConversion
         {
             TransactionId = "PUR-2026-00007", TransactionType = "Expense", OriginalCurrency = "CAD"
@@ -298,6 +300,7 @@ public class ReceiptTypeConverterTests
     public void Reapply_MovesAQueuedConversionForwardAgain()
     {
         var (data, receipt) = WithExpenseReceipt();
+        data.Expenses[0].IsPendingConversion = true;
         data.PendingConversions.Add(new PendingConversion
         {
             TransactionId = "PUR-2026-00007", TransactionType = "Expense", OriginalCurrency = "CAD"
@@ -310,6 +313,34 @@ public class ReceiptTypeConverterTests
         var entry = Assert.Single(data.PendingConversions);
         Assert.Equal(result.Created.Id, entry.TransactionId);
         Assert.Equal("Revenue", entry.TransactionType);
+    }
+
+    // Once a conversion pass had converted the new transaction and taken its entry off the queue,
+    // undo pointed the entry back at the original without queuing it, and the original, which was
+    // never converted, stayed pending for good.
+    [Fact]
+    public void Revert_AfterTheNewTransactionConverted_QueuesTheOriginalAgain()
+    {
+        var (data, receipt) = WithExpenseReceipt();
+        var original = data.Expenses[0];
+        original.IsPendingConversion = true;
+        data.PendingConversions.Add(new PendingConversion
+        {
+            TransactionId = original.Id, TransactionType = "Expense", OriginalCurrency = "CAD", Total = 90m
+        });
+
+        var result = ReceiptTypeConverter.Switch(data, receipt);
+        result.Created.IsPendingConversion = false;
+        data.PendingConversions.Clear();
+
+        ReceiptTypeConverter.Revert(data, receipt, result);
+
+        var entry = Assert.Single(data.PendingConversions);
+        Assert.Equal((original.Id, "Expense"), (entry.TransactionId, entry.TransactionType));
+
+        ReceiptTypeConverter.Reapply(data, receipt, result);
+
+        Assert.Empty(data.PendingConversions);
     }
 
     /// <summary>A switch with nothing queued must not invent an entry.</summary>

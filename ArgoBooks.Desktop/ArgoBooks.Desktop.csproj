@@ -34,10 +34,7 @@
 
     <ItemGroup>
         <PackageReference Include="Avalonia.Desktop" />
-        <PackageReference Include="AvaloniaUI.DiagnosticsSupport">
-            <IncludeAssets Condition="'$(Configuration)' != 'Debug'">none</IncludeAssets>
-            <PrivateAssets Condition="'$(Configuration)' != 'Debug'">all</PrivateAssets>
-        </PackageReference>
+        <PackageReference Include="Avalonia.Fonts.Inter" />
 
         <!-- Auto-Update -->
         <PackageReference Include="NetSparkleUpdater.UI.Avalonia" />

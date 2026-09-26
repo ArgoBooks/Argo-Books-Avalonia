@@ -15,7 +15,7 @@ public class ChartImageExportServiceTests
     {
         var result = ChartImageExportService.CreateSafeFileName("Revenue Chart");
 
-        var expected = $"Revenue_Chart_{DateTime.Now:yyyy-MM-dd}";
+        var expected = $"Revenue-Chart-{DateTime.Now:yyyy-MM-dd}";
         Assert.Equal(expected, result);
     }
 
@@ -36,18 +36,12 @@ public class ChartImageExportServiceTests
     }
 
     [Fact]
-    public void CreateSafeFileName_EmptyString_ReturnsDateSuffix()
+    public void CreateSafeFileName_EmptyString_FallsBackToChart()
     {
         var result = ChartImageExportService.CreateSafeFileName("");
 
-        var expected = $"_{DateTime.Now:yyyy-MM-dd}";
+        var expected = $"Chart-{DateTime.Now:yyyy-MM-dd}";
         Assert.Equal(expected, result);
-    }
-
-    [Fact]
-    public void CreateSafeFileName_NullString_ThrowsNullReferenceException()
-    {
-        Assert.Throws<NullReferenceException>(() => ChartImageExportService.CreateSafeFileName(null!));
     }
 
     #endregion

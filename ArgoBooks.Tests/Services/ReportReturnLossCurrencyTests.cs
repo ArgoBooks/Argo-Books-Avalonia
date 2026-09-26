@@ -51,7 +51,7 @@ public class ReportReturnLossCurrencyTests
     public async Task LossesTable_ValueFromAForeignPurchase_IsConvertedToTheDisplayCurrency()
     {
         // A report shows the company currency only when every date it converts at has a rate, its end
-        // date included; otherwise the whole report prints in USD (Calculations.md §3a).
+        // date included; otherwise the whole report prints in USD (Calculations.md Rule 3a).
         var prior = SetInstance(await SeededServiceAsync(RecordDate, new DateTime(2024, 12, 31)));
         try
         {
@@ -151,8 +151,6 @@ public class ReportReturnLossCurrencyTests
         public PlatformType Platform => PlatformType.Linux;
         public string GetAppDataPath() => Path.GetTempPath();
         public string GetTempPath() => Path.GetTempPath();
-        public string GetDefaultDocumentsPath() => Path.GetTempPath();
-        public string GetLogsPath() => Path.GetTempPath();
         public string GetCachePath() => Path.GetTempPath();
         public void EnsureDirectoryExists(string path) { }
         public bool SupportsFileSystem => false;
@@ -169,7 +167,6 @@ public class ReportReturnLossCurrencyTests
         public string NormalizePath(string path) => path;
         public string CombinePaths(params string[] paths) => Path.Combine(paths);
         public string GetMachineId() => "test-machine-id";
-        public void RegisterFileTypeAssociations(string iconPath) { }
         public StringComparer PathComparer => StringComparer.Ordinal;
     }
 }

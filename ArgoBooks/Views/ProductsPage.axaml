@@ -28,6 +28,8 @@
                                 SearchQuery="{Binding SearchQuery, Mode=TwoWay}"
                                 SearchPlaceholder="{loc:Loc 'Search products...'}"
                                 FilterCommand="{Binding OpenFilterModalCommand}"
+                                FilterCount="{Binding ActiveFilterCount}"
+                                ClearFiltersCommand="{Binding ClearTableFiltersCommand}"
                                 AddCommand="{Binding OpenAddModalCommand}"
                                 AddButtonText="{loc:Loc 'Add Product'}"
                                 AddButtonTooltip="{loc:Loc 'Add Product'}"
@@ -142,7 +144,7 @@
                                       IsVisible="{Binding IsExpensesTabSelected}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate DataType="vm:ProductDisplayItem">
-                                    <Border Padding="24,0"
+                                    <Border Padding="24,0,0,0"
                                             BorderBrush="{DynamicResource BorderBrush}"
                                             BorderThickness="0,0,0,1"
                                             Classes.highlighted-row="{Binding IsHighlighted}"
@@ -235,7 +237,7 @@
                                       IsVisible="{Binding IsRevenueTabSelected}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate DataType="vm:ProductDisplayItem">
-                                    <Border Padding="24,0"
+                                    <Border Padding="24,0,0,0"
                                             BorderBrush="{DynamicResource BorderBrush}"
                                             BorderThickness="0,0,0,1"
                                             Classes.highlighted-row="{Binding IsHighlighted}"

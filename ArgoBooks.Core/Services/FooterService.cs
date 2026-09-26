@@ -163,26 +163,4 @@ public class FooterService
         contentStream.Position = 0;
         return contentStream;
     }
-
-    /// <summary>
-    /// Validates that a file is a valid .argo file.
-    /// </summary>
-    /// <param name="filePath">Path to check.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>True if valid .argo file.</returns>
-    public async Task<bool> IsValidArgoFileAsync(string filePath, CancellationToken cancellationToken = default)
-    {
-        if (!File.Exists(filePath))
-            return false;
-
-        try
-        {
-            var footer = await ReadFooterAsync(filePath, cancellationToken);
-            return footer != null;
-        }
-        catch
-        {
-            return false;
-        }
-    }
 }

@@ -29,11 +29,21 @@ public record ArgoApiSyncPreview(
 
     public bool HasActivity => TotalObjects > 0;
 
-    /// <summary>Gross revenue waiting, for the "you are about to import" summary.</summary>
-    public decimal TotalRevenue => Revenue.Sum(r => ArgoMoney.ToDecimal(r.Amount, r.Currency));
+    /// <summary>Each sale waiting, in its own currency, as the import records it.</summary>
+    public IReadOnlyList<IncomingAmount> Sales => Revenue.Select(r => Incoming(r.Amount, r.Currency, r.OccurredOn)).ToList();
 
-    /// <summary>Total expenses waiting, likewise.</summary>
-    public decimal TotalExpenses => Expenses.Sum(e => ArgoMoney.ToDecimal(e.Amount, e.Currency));
+    /// <summary>Each expense waiting, likewise.</summary>
+    public IReadOnlyList<IncomingAmount> ExpenseAmounts => Expenses.Select(e => Incoming(e.Amount, e.Currency, e.OccurredOn)).ToList();
+
+    /// <summary>Every dated amount the import converts: sales, expenses and refunds.</summary>
+    public IEnumerable<IncomingAmount> RateAmounts =>
+        Sales.Concat(ExpenseAmounts).Concat(Refunds.Select(r => Incoming(r.Amount, r.Currency, r.OccurredOn)));
+
+    private static IncomingAmount Incoming(long minorUnits, string? currency, string occurredOn)
+    {
+        var code = ImportLookup.NormalizeCurrency(currency);
+        return new IncomingAmount(ArgoMoney.ToDecimal(minorUnits, code), code, ArgoApiImporter.ParseDate(occurredOn));
+    }
 
     public static ArgoApiSyncPreview Empty() =>
         new([], [], [], [], [], [], [], new Dictionary<string, ArgoExternalRef>());
@@ -249,7 +259,7 @@ public class ArgoApiSyncService
         var creation = new ArgoApiImportCreation
         {
             PreviousSyncTime = api.LastSyncTime,
-            Pre = IntegrationImportCreation.CounterSnapshot.From(data.IdCounters)
+            Pre = data.IdCounters.Clone()
         };
 
         if (!preview.HasActivity || string.IsNullOrWhiteSpace(api.DesktopKey))
@@ -262,9 +272,7 @@ public class ArgoApiSyncService
         // cache does not already hold shows "Pending" in place of its amount and
         // never recovers, because nothing refetches rates for rows already saved.
         await IntegrationRates.EnsureAsync(
-            preview.Expenses.Select(e => (ArgoApiImporter.ParseDate(e.OccurredOn), e.Currency))
-                .Concat(preview.Revenue.Select(r => (ArgoApiImporter.ParseDate(r.OccurredOn), r.Currency)))
-                .Concat(preview.Refunds.Select(r => (ArgoApiImporter.ParseDate(r.OccurredOn), r.Currency))),
+            preview.RateAmounts,
             data.Settings.Localization.Currency,
             rateProgress,
             ct: ct);
@@ -278,14 +286,14 @@ public class ArgoApiSyncService
         {
             // Nothing is claimed yet, so any rows left behind would be offered again on the next
             // sync and imported a second time.
-            creation.Post = IntegrationImportCreation.CounterSnapshot.From(data.IdCounters);
+            creation.Post = data.IdCounters.Clone();
             creation.Undo(data);
             throw;
         }
 
         // Taken before the claim is awaited, so a record something else creates meanwhile is not
         // counted as the import's and its id is not handed back by an undo.
-        creation.Post = IntegrationImportCreation.CounterSnapshot.From(data.IdCounters);
+        creation.Post = data.IdCounters.Clone();
 
         try
         {

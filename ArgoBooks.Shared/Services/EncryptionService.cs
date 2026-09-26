@@ -24,16 +24,6 @@ public class EncryptionService : IEncryptionService
 
     #endregion
 
-    #region Password Hashing
-
-    /// <inheritdoc />
-    public string HashPassword(string password, string salt)
-    {
-        return KeyDerivation.ComputePasswordHashBase64(password, salt);
-    }
-
-    #endregion
-
     #region Encryption (Byte Arrays)
 
     /// <inheritdoc />
@@ -133,33 +123,6 @@ public class EncryptionService : IEncryptionService
     #region Encryption (Streams)
 
     /// <inheritdoc />
-    public async Task<MemoryStream> EncryptAsync(Stream inputStream, string password, string salt, string iv)
-    {
-        ArgumentNullException.ThrowIfNull(inputStream);
-
-        // Read all data from input stream
-        byte[] data;
-        if (inputStream is MemoryStream ms)
-        {
-            data = ms.ToArray();
-        }
-        else
-        {
-            using var memStream = new MemoryStream();
-            await inputStream.CopyToAsync(memStream);
-            data = memStream.ToArray();
-        }
-
-        // Encrypt
-        var encryptedData = Encrypt(data, password, salt, iv);
-
-        // Return as memory stream
-        var result = new MemoryStream(encryptedData);
-        result.Position = 0;
-        return result;
-    }
-
-    /// <inheritdoc />
     public byte[] DecryptWithVerification(
         byte[] encryptedData, string password, string salt, string iv, string expectedPasswordHash)
     {
@@ -231,22 +194,6 @@ public class EncryptionService : IEncryptionService
         var result = new MemoryStream(decryptedData);
         result.Position = 0;
         return result;
-    }
-
-    #endregion
-
-    #region Password Validation
-
-    /// <inheritdoc />
-    public bool IsPasswordValid(string password)
-    {
-        return PasswordValidator.IsValid(password);
-    }
-
-    /// <inheritdoc />
-    public string? GetPasswordValidationError(string password)
-    {
-        return PasswordValidator.GetValidationError(password);
     }
 
     #endregion

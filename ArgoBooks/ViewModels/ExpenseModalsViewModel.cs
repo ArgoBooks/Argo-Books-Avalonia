@@ -74,9 +74,6 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
         set => FilterCounterpartyId = value;
     }
 
-    // Command aliases for AXAML bindings
-    public IAsyncRelayCommand SaveExpenseCommand => SaveTransactionCommand;
-
     #endregion
 
     #region Reason Options
@@ -252,13 +249,13 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
                     $"Mark expense '{purchase.Id}' as lost/damaged",
                     () =>
                     {
-                        companyData.LostDamaged.Remove(record);
+                        companyData.LostDamaged.RemoveRecord(record);
                         companyData.MarkAsModified();
                         RaiseTransactionSaved();
                     },
                     () =>
                     {
-                        companyData.LostDamaged.Add(record);
+                        companyData.LostDamaged.RestoreRecord(record);
                         companyData.MarkAsModified();
                         RaiseTransactionSaved();
                     }));
@@ -271,13 +268,13 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
                     $"Mark expense '{purchase.Id}' as returned",
                     () =>
                     {
-                        companyData.Returns.Remove(record);
+                        companyData.Returns.RemoveRecord(record);
                         companyData.MarkAsModified();
                         RaiseTransactionSaved();
                     },
                     () =>
                     {
-                        companyData.Returns.Add(record);
+                        companyData.Returns.RestoreRecord(record);
                         companyData.MarkAsModified();
                         RaiseTransactionSaved();
                     }));
@@ -288,18 +285,18 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
                 var record = companyData.LostDamaged.FirstOrDefault(ld => ld.InventoryItemId == purchase.Id);
                 if (record != null)
                 {
-                    companyData.LostDamaged.Remove(record);
+                    companyData.LostDamaged.RemoveRecord(record);
                     App.UndoRedoManager.RecordAction(new DelegateAction(
                         $"Undo lost/damaged status for expense '{purchase.Id}'",
                         () =>
                         {
-                            companyData.LostDamaged.Add(record);
+                            companyData.LostDamaged.RestoreRecord(record);
                             companyData.MarkAsModified();
                             RaiseTransactionSaved();
                         },
                         () =>
                         {
-                            companyData.LostDamaged.Remove(record);
+                            companyData.LostDamaged.RemoveRecord(record);
                             companyData.MarkAsModified();
                             RaiseTransactionSaved();
                         }));
@@ -311,18 +308,18 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
                 var record = companyData.Returns.FirstOrDefault(r => r.OriginalTransactionId == purchase.Id);
                 if (record != null)
                 {
-                    companyData.Returns.Remove(record);
+                    companyData.Returns.RemoveRecord(record);
                     App.UndoRedoManager.RecordAction(new DelegateAction(
                         $"Undo returned status for expense '{purchase.Id}'",
                         () =>
                         {
-                            companyData.Returns.Add(record);
+                            companyData.Returns.RestoreRecord(record);
                             companyData.MarkAsModified();
                             RaiseTransactionSaved();
                         },
                         () =>
                         {
-                            companyData.Returns.Remove(record);
+                            companyData.Returns.RemoveRecord(record);
                             companyData.MarkAsModified();
                             RaiseTransactionSaved();
                         }));
@@ -344,7 +341,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
 
         var lostDamaged = new LostDamaged
         {
-            Id = $"LOST-{++companyData.IdCounters.LostDamaged:D3}",
+            Id = new IdGenerator(companyData).NextLostDamagedId(),
             ProductId = productId,
             InventoryItemId = purchase.Id,
             Quantity = (int)purchase.Quantity,
@@ -367,7 +364,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
 
         var returnRecord = new Return
         {
-            Id = $"RET-{++companyData.IdCounters.Return:D3}",
+            Id = new IdGenerator(companyData).NextReturnId(),
             OriginalTransactionId = purchase.Id,
             ReturnType = "Expense",
             SupplierId = purchase.SupplierId ?? "",
@@ -428,38 +425,9 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
             ReferenceNumber = string.Empty,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
-            // USD conversion fields
-            OriginalCurrency = ConvertedTotal?.OriginalCurrency ?? "USD",
-            TotalUSD = ConvertedTotal?.AmountUSD ?? Total,
-            TaxAmountUSD = ConvertedTaxAmount?.AmountUSD ?? TaxAmount,
-            ShippingCostUSD = ConvertedShippingCost?.AmountUSD ?? ModalShipping,
-            DiscountUSD = ConvertedDiscount?.AmountUSD ?? ModalDiscount,
-            FeeUSD = ConvertedFee?.AmountUSD ?? ModalFee,
-            UnitPriceUSD = ConvertedTotal != null && ConvertedTotal.OriginalCurrency != "USD" && Subtotal > 0 && Total != 0
-                ? ConvertedTotal.AmountUSD / Total * averageUnitPrice
-                : averageUnitPrice,
-            IsPendingConversion = IsPendingConversion
+            OriginalCurrency = SaveCurrency
         };
-
-        // Queue for offline conversion if pending
-        if (IsPendingConversion)
-        {
-            var pendingEntry = new PendingConversion
-            {
-                TransactionId = expenseId,
-                TransactionType = "Expense",
-                OriginalCurrency = ConvertedTotal?.OriginalCurrency ?? "USD",
-                TransactionDate = expense.Date,
-                Total = Total,
-                TaxAmount = TaxAmount,
-                ShippingCost = ModalShipping,
-                Discount = ModalDiscount,
-                Fee = ModalFee,
-                UnitPrice = averageUnitPrice
-            };
-            companyData.PendingConversions.Add(pendingEntry);
-            _ = PendingConversionService.Instance?.AddPendingConversionAsync(pendingEntry);
-        }
+        UsdConversion.Apply(companyData, expense, SaveRate);
 
         // Create Receipt if file was attached
         Receipt? receipt = null;
@@ -484,17 +452,19 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
             $"Add expense {expenseId}",
             () =>
             {
-                companyData.Expenses.Remove(expense);
+                companyData.Expenses.RemoveRecord(expense);
+                UsdConversion.Set(companyData, UsdConversion.KeyOf(expense), null);
                 if (capturedReceipt != null)
-                    companyData.Receipts.Remove(capturedReceipt);
+                    companyData.Receipts.RemoveRecord(capturedReceipt);
                 RevertInventoryAdjustments(companyData, inventoryResults);
                 RaiseTransactionSaved();
             },
             () =>
             {
-                companyData.Expenses.Add(expense);
+                companyData.Expenses.RestoreRecord(expense);
+                UsdConversion.Requeue(companyData, expense);
                 if (capturedReceipt != null)
-                    companyData.Receipts.Add(capturedReceipt);
+                    companyData.Receipts.RestoreRecord(capturedReceipt);
                 inventoryResults = AdjustInventoryForLineItems(companyData, expense, modelLineItems, isExpense: true);
                 RaiseTransactionSaved();
             });
@@ -516,7 +486,8 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
 
         // Store original values for undo
         var original = CaptureTransactionState(expense);
-        var originalQueued = companyData.PendingConversions.Where(p => p.TransactionId == expense.Id).ToList();
+        var queueKey = UsdConversion.KeyOf(expense);
+        var originalQueued = UsdConversion.Snapshot(companyData, [queueKey]);
 
         var (description, totalQuantity, averageUnitPrice) = GetLineItemSummary();
         var modelLineItems = CreateModelLineItems();
@@ -538,39 +509,9 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
         expense.PaymentMethod = Enum.TryParse<PaymentMethod>(SelectedPaymentMethod.Replace(" ", ""), out var pm) ? pm : PaymentMethod.Cash;
         expense.Notes = ModalNotes;
         expense.UpdatedAt = DateTime.UtcNow;
-        // USD conversion fields
-        expense.OriginalCurrency = ConvertedTotal?.OriginalCurrency ?? "USD";
-        expense.TotalUSD = ConvertedTotal?.AmountUSD ?? Total;
-        expense.TaxAmountUSD = ConvertedTaxAmount?.AmountUSD ?? TaxAmount;
-        expense.ShippingCostUSD = ConvertedShippingCost?.AmountUSD ?? ModalShipping;
-        expense.DiscountUSD = ConvertedDiscount?.AmountUSD ?? ModalDiscount;
-        expense.FeeUSD = ConvertedFee?.AmountUSD ?? ModalFee;
-        expense.UnitPriceUSD = ConvertedTotal != null && ConvertedTotal.OriginalCurrency != "USD" && Subtotal > 0 && Total != 0
-            ? ConvertedTotal.AmountUSD / Total * averageUnitPrice
-            : averageUnitPrice;
-        expense.IsPendingConversion = IsPendingConversion;
-
-        // Queue for offline conversion if pending; a row that converted leaves the queue
-        List<PendingConversion> editedQueued = [];
-        if (IsPendingConversion)
-        {
-            editedQueued.Add(new PendingConversion
-            {
-                TransactionId = expense.Id,
-                TransactionType = "Expense",
-                OriginalCurrency = ConvertedTotal?.OriginalCurrency ?? "USD",
-                TransactionDate = expense.Date,
-                Total = Total,
-                TaxAmount = TaxAmount,
-                ShippingCost = ModalShipping,
-                Discount = ModalDiscount,
-                Fee = ModalFee,
-                UnitPrice = averageUnitPrice
-            });
-        }
-        var queueTouched = originalQueued.Count > 0 || editedQueued.Count > 0;
-        if (queueTouched)
-            SetQueuedConversions(companyData, expense.Id, editedQueued);
+        expense.OriginalCurrency = SaveCurrency;
+        UsdConversion.Apply(companyData, expense, SaveRate);
+        var editedQueued = UsdConversion.Snapshot(companyData, [queueKey]);
 
         // Handle receipt. The form loads an existing receipt's OriginalFilePath, so only a different
         // path means Change picked a new file.
@@ -584,7 +525,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
             newReceipt = CreateReceipt(companyData, expense.Id, "Expense", SelectedSupplier?.Name ?? "");
             if (newReceipt != null)
             {
-                if (currentReceipt != null && companyData.Receipts.Remove(currentReceipt))
+                if (currentReceipt != null && companyData.Receipts.RemoveRecord(currentReceipt))
                     replacedReceipt = currentReceipt;
                 expense.ReceiptId = newReceipt.Id;
                 companyData.Receipts.Add(newReceipt);
@@ -602,24 +543,22 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
             () =>
             {
                 RestoreTransactionState(expense, original);
-                if (queueTouched)
-                    SetQueuedConversions(companyData, expense.Id, originalQueued);
+                UsdConversion.Restore(companyData, [queueKey], originalQueued);
                 if (capturedNewReceipt != null)
-                    companyData.Receipts.Remove(capturedNewReceipt);
-                if (replacedReceipt != null && !companyData.Receipts.Contains(replacedReceipt))
-                    companyData.Receipts.Add(replacedReceipt);
+                    companyData.Receipts.RemoveRecord(capturedNewReceipt);
+                if (replacedReceipt != null)
+                    companyData.Receipts.RestoreRecord(replacedReceipt);
                 RevertInventoryAdjustments(companyData, editResults);
                 RaiseTransactionSaved();
             },
             () =>
             {
                 RestoreTransactionState(expense, edited);
-                if (queueTouched)
-                    SetQueuedConversions(companyData, expense.Id, editedQueued);
+                UsdConversion.Restore(companyData, [queueKey], editedQueued);
                 if (replacedReceipt != null)
-                    companyData.Receipts.Remove(replacedReceipt);
-                if (capturedNewReceipt != null && !companyData.Receipts.Contains(capturedNewReceipt))
-                    companyData.Receipts.Add(capturedNewReceipt);
+                    companyData.Receipts.RemoveRecord(replacedReceipt);
+                if (capturedNewReceipt != null)
+                    companyData.Receipts.RestoreRecord(capturedNewReceipt);
                 editResults = AdjustInventoryForEdit(companyData, expense, original.LineItems, modelLineItems, isExpense: true);
                 RaiseTransactionSaved();
             });
@@ -635,8 +574,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
     {
         if (string.IsNullOrEmpty(ReceiptFilePath)) return null;
 
-        companyData.IdCounters.Receipt++;
-        var receiptId = $"RCP-{DateTime.Now:yyyy}-{companyData.IdCounters.Receipt:D5}";
+        var receiptId = new IdGenerator(companyData).NextReceiptId();
         var fileInfo = new FileInfo(ReceiptFilePath);
         var fileType = GetFileType(ReceiptFilePath);
 

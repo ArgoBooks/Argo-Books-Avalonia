@@ -77,11 +77,17 @@ public class ReportRenderer : IDisposable
         (double)DisplayCurrency.FromUSD((decimal)amountUSD, _currencyCode, date ?? DateTime.Today);
 
     /// <summary>
-    /// A single USD amount in the report's display currency at its own date (docs/Calculations.md §3a).
+    /// A single USD amount in the report's display currency at its own date (docs/Calculations.md Rule 3a).
     /// Aggregate <c>Effective*USD</c> through this; never sum the native <c>Total</c> field.
     /// </summary>
     private decimal ToDisplayCurrency(decimal amountUSD, DateTime date) =>
         DisplayCurrency.FromUSD(amountUSD, _currencyCode, date);
+
+    /// <summary>
+    /// The date stock is valued at in a report: its end date, as on the Balance Sheet, which
+    /// <see cref="DisplayCurrency.ReportDates"/> makes sure has a rate. See docs/Calculations.md §14.
+    /// </summary>
+    private DateTime InventoryValuationDate => (_config.Filters.EndDate ?? DateTime.Today).Date;
 
     private string PendingText => Tr("Pending");
 
@@ -90,20 +96,10 @@ public class ReportRenderer : IDisposable
     /// value), formatted in the display currency at its own date, or pending when that date's rate is
     /// unavailable. See docs/Calculations.md §10, Returns and Losses.
     /// </summary>
-    private string FormatRecordedAmount(decimal amount, string currency, DateTime date)
-    {
-        if (string.Equals(currency, _currencyCode, StringComparison.OrdinalIgnoreCase))
-            return FormatCurrency(amount);
-
-        var rates = ExchangeRateService.Instance;
-        if (rates == null)
-            return FormatCurrency(amount);
-
-        return rates.TryConvertToUsdBase(amount, currency, date, out var usd)
-               && rates.TryConvertFromUSD(usd, _currencyCode, date, out var converted)
+    private string FormatRecordedAmount(decimal amount, string currency, DateTime date) =>
+        DisplayCurrency.FromNative(amount, currency, _currencyCode, date) is { } converted
             ? FormatCurrency(converted)
             : PendingText;
-    }
 
     public ReportRenderer(ReportConfiguration config, CompanyData? companyData, float renderScale = 1f, ITranslationProvider? translationProvider = null, IErrorLogger? errorLogger = null)
     {
@@ -1172,7 +1168,7 @@ public class ReportRenderer : IDisposable
     /// Chart types whose data method converts each transaction at its OWN date when handed a converter.
     /// For these, a non-USD report passes the converter and does NOT re-convert the bucket afterwards,
     /// so a month bucket is never converted at the month-start date (whose rate is usually uncached,
-    /// which falls back to the raw USD figure). Calculations.md Rule 3a Phase 2.
+    /// which falls back to the raw USD figure). Calculations.md Rule 3a.
     /// </summary>
     private static bool ConvertsPerTransaction(ChartDataType chartType) => chartType is
         ChartDataType.AverageTransactionValue
@@ -1191,6 +1187,15 @@ public class ReportRenderer : IDisposable
             return _chartDataService.GetChartData(
                 chartType, (usd, date) => (decimal)ConvertFromUSD((double)usd, date)) as List<ChartDataPoint>;
         }
+
+        // Return and loss amounts are in their sale's or purchase's currency, not USD, so each one
+        // converts from that currency at its own date (Calculations.md §10).
+        decimal? FromNative(decimal amount, string currency, DateTime date) =>
+            DisplayCurrency.FromNative(amount, currency, _currencyCode, date);
+        if (chartType == ChartDataType.ReturnFinancialImpact)
+            return _chartDataService.GetReturnFinancialImpact(FromNative);
+        if (chartType == ChartDataType.LossFinancialImpact)
+            return _chartDataService.GetLossFinancialImpact(FromNative);
 
         var data = _chartDataService.GetChartData(chartType);
 
@@ -1219,7 +1224,7 @@ public class ReportRenderer : IDisposable
         // Revenue vs Expenses for a non-USD display currency: convert each day's value at that day's
         // OWN rate before bucketing, so a wide range doesn't convert a month total at the month-start
         // date (whose rate is usually uncached) and fall back to showing the raw USD figure. Matches
-        // the dashboard / analytics path (Calculations.md Rule 3a Phase 2).
+        // the dashboard / analytics path (Calculations.md Rule 3a).
         if (chartType == ChartDataType.RevenueVsExpenses
             && !string.Equals(_currencyCode, "USD", StringComparison.OrdinalIgnoreCase))
         {
@@ -1262,7 +1267,7 @@ public class ReportRenderer : IDisposable
             return null;
 
         // Convert each country's revenue at each transaction's OWN date during aggregation
-        // (docs/Calculations.md §3a Phase 2) instead of converting the country total at today's
+        // (docs/Calculations.md Rule 3a) instead of converting the country total at today's
         // rate. Null for a USD report (identity).
         var converter = string.Equals(_currencyCode, "USD", StringComparison.OrdinalIgnoreCase)
             ? (Func<decimal, DateTime, decimal>?)null
@@ -2854,8 +2859,8 @@ public class ReportRenderer : IDisposable
                         "In Stock" => StockUnits.Format(r.InStock),
                         "Reserved" => StockUnits.Format(r.Reserved),
                         "Available" => StockUnits.Format(r.Available),
-                        "Unit Cost" => FormatCurrency(r.UnitCost),
-                        "Total" => FormatCurrency(r.TotalValue),
+                        "Unit Cost" => FormatCurrency(ToDisplayCurrency(r.UnitCost, InventoryValuationDate)),
+                        "Total" => FormatCurrency(ToDisplayCurrency(r.TotalValue, InventoryValuationDate)),
                         "Status" => r.Status,
                         _ => ""
                     }).ToList());
@@ -3335,7 +3340,7 @@ public class ReportRenderer : IDisposable
                 TransactionType.Expenses => Tr("Total Expenses"),
                 _ => Tr("Net Profit")
             };
-            lines.Add($"{label}: {FormatCurrency(total)}");
+            lines.Add($"{label}: {(IsSummaryCostPending(summary) ? PendingText : FormatCurrency(total))}");
         }
 
         if (summary.ShowTotalTransactions)
@@ -3352,9 +3357,16 @@ public class ReportRenderer : IDisposable
 
         if (summary.ShowGrowthRate)
         {
-            var growth = CalculateGrowthRate(summary);
-            var sign = growth >= 0 ? "+" : "";
-            lines.Add($"{Tr("Growth Rate")}: {sign}{growth:N1}%");
+            if (IsSummaryGrowthPending(summary))
+            {
+                lines.Add($"{Tr("Growth Rate")}: {PendingText}");
+            }
+            else
+            {
+                var growth = CalculateGrowthRate(summary);
+                var sign = growth >= 0 ? "+" : "";
+                lines.Add($"{Tr("Growth Rate")}: {sign}{growth:N1}%");
+            }
         }
 
         var lineHeight = (float)summary.FontSize * _renderScale * 1.5f;
@@ -4173,6 +4185,30 @@ public class ReportRenderer : IDisposable
         return SummaryAmount(summary.TransactionType, startDate, endDate, ToDisplayCurrency);
     }
 
+    /// <summary>
+    /// Whether the Summary box's net profit is still waiting for a sale's stock cost, as the Net
+    /// Profit card is (Calculations.md §14).
+    /// </summary>
+    private bool IsSummaryCostPending(SummaryReportElement summary)
+    {
+        if (_companyData == null || summary.TransactionType is TransactionType.Revenue or TransactionType.Expenses)
+            return false;
+
+        var (startDate, endDate) = SummaryDateRange();
+        return CostOfGoodsAggregator.IsCostOfGoodsPending(_companyData.Revenues, startDate, endDate, collectedOnly: true);
+    }
+
+    /// <summary>The net profit growth rate compares two periods, so either one waiting for a stock cost leaves it pending.</summary>
+    private bool IsSummaryGrowthPending(SummaryReportElement summary)
+    {
+        if (_companyData == null || summary.TransactionType is TransactionType.Revenue or TransactionType.Expenses)
+            return false;
+
+        var (startDate, endDate) = SummaryDateRange();
+        var (previousStart, previousEnd) = SummaryComparisonRange(startDate, endDate);
+        return CostOfGoodsAggregator.IsProfitChangePending(_companyData.Revenues, startDate, endDate, previousStart, previousEnd);
+    }
+
     private int CalculateTransactionCount(SummaryReportElement summary)
     {
         if (_companyData == null) return 0;
@@ -4214,8 +4250,7 @@ public class ReportRenderer : IDisposable
         if (_companyData == null) return 0;
 
         var (startDate, endDate) = SummaryDateRange();
-        var (previousStart, previousEnd) = ComparisonPeriod.For(
-            DateRangePresetExtensions.ParseDateRange(_config.Filters.DatePresetName), startDate, endDate);
+        var (previousStart, previousEnd) = SummaryComparisonRange(startDate, endDate);
 
         // A ratio, so it compares USD totals (Calculations.md §3).
         var current = SummaryAmount(summary.TransactionType, startDate, endDate, (usd, _) => usd);
@@ -4246,6 +4281,9 @@ public class ReportRenderer : IDisposable
 
     private (DateTime Start, DateTime End) SummaryDateRange() =>
         _config.Filters.GetDateRange(_companyData?.GetEarliestDate());
+
+    private (DateTime Start, DateTime End) SummaryComparisonRange(DateTime start, DateTime end) =>
+        ComparisonPeriod.For(DateRangePresetExtensions.ParseDateRange(_config.Filters.DatePresetName), start, end);
 
     /// <summary>
     /// Formats an amount in the report's display currency.

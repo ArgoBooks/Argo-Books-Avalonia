@@ -3,6 +3,7 @@ using System.Text;
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Models.Payroll;
 using ArgoBooks.Core.Services.Payroll;
+using ArgoBooks.Core.Utilities;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
 using ArgoBooks.Shared.Telemetry;
@@ -468,7 +469,6 @@ public partial class YearEndModalViewModel : ViewModelBase
             _quebecReturn = null;
             QuebecTotalRemitted = CurrencyService.Format(0m);
             OnPropertyChanged(nameof(HasQuebecProblems));
-            OnPropertyChanged(nameof(CanFileQuebec));
             return;
         }
 
@@ -482,11 +482,7 @@ public partial class YearEndModalViewModel : ViewModelBase
         QuebecTotalRemitted = CurrencyService.Format(_quebecReturn.TotalRemittable);
 
         OnPropertyChanged(nameof(HasQuebecProblems));
-        OnPropertyChanged(nameof(CanFileQuebec));
     }
-
-    /// <summary>Mirrors <see cref="CanFile"/>: the slips print regardless, filing is what blocks.</summary>
-    public bool CanFileQuebec => HasQuebec && QuebecProblems.Count == 0 && _quebecReturn?.Slips.Count > 0;
 
     /// <summary>An employee who changed province during the year has a T4 for each.</summary>
     private static bool HasSeveralSlips(T4Return t4, T4Slip slip) =>
@@ -523,7 +519,7 @@ public partial class YearEndModalViewModel : ViewModelBase
                 string who = HasSeveralSlips(t4, slip)
                     ? $"{slip.GivenName} {slip.Surname} {slip.ProvinceOfEmployment}"
                     : $"{slip.GivenName} {slip.Surname}";
-                string name = $"T4-{t4.TaxYear}-{ExportFolderHelper.Sanitize(who)}.pdf";
+                string name = $"T4-{t4.TaxYear}-{SafeFileName.Create(who, "export", replaceSpaces: true)}.pdf";
                 await File.WriteAllBytesAsync(Path.Combine(directory, name), bytes);
             }
 
@@ -583,7 +579,7 @@ public partial class YearEndModalViewModel : ViewModelBase
             foreach (Rl1Slip slip in rl1.Slips)
             {
                 byte[] bytes = await Task.Run(() => Rl1PdfRenderer.RenderSlip(rl1, slip));
-                string name = $"RL1-{rl1.TaxYear}-{ExportFolderHelper.Sanitize($"{slip.GivenName} {slip.Surname}")}.pdf";
+                string name = $"RL1-{rl1.TaxYear}-{SafeFileName.Create($"{slip.GivenName} {slip.Surname}", "export", replaceSpaces: true)}.pdf";
                 await File.WriteAllBytesAsync(Path.Combine(directory, name), bytes);
             }
 

@@ -25,6 +25,16 @@ public class ColumnDef
 /// </summary>
 public abstract partial class TableColumnWidthsBase : ObservableObject, ITableColumnWidths
 {
+    // The table has a 24px inset on its left. On the right a matching 24px gap is left while the
+    // columns fit; once they don't and the table scrolls, the columns run to its right edge.
+    private const double LeftInset = 24;
+    private const double RightGap = 24;
+    private const double Insets = LeftInset + RightGap;
+
+    // Every column's registered MinWidth is raised by this much, so a narrow window scrolls
+    // before the columns get cramped.
+    private const double MinWidthScale = 1.25;
+
     private double _availableWidth = 1200;
     private bool _isUpdating;
     private bool _hasManualOverflow;
@@ -75,6 +85,7 @@ public abstract partial class TableColumnWidthsBase : ObservableObject, ITableCo
     protected void RegisterColumn(string name, ColumnDef def, Action<double> setter)
     {
         def.Name = name;
+        if (!def.IsFixed) def.MinWidth *= MinWidthScale;
         Columns[name] = def;
         ColumnSetters[name] = setter;
     }
@@ -134,19 +145,18 @@ public abstract partial class TableColumnWidthsBase : ObservableObject, ITableCo
             return;
         }
 
-        var totalCurrentWidth = Columns.Values
+        var currentColumnsWidth = Columns.Values
             .Where(IsColumnVisible)
-            .Sum(c => c.CurrentWidth) + 48;
+            .Sum(c => c.CurrentWidth);
 
         if (_hasManualOverflow)
         {
             // Already in overflow state - check if we still need it
-            if (width < totalCurrentWidth + 50)
+            if (width < currentColumnsWidth + Insets + 50)
             {
                 // Still overflowing or close to it, maintain scroll state
                 _availableWidth = width;
-                MinimumTotalWidth = totalCurrentWidth;
-                NeedsHorizontalScroll = true;
+                SetScrollState(true, currentColumnsWidth);
                 return;
             }
             // Enough space now (with buffer), can reset overflow state
@@ -176,7 +186,7 @@ public abstract partial class TableColumnWidthsBase : ObservableObject, ITableCo
 
         var columnsToRight = visibleColumns.Skip(columnIndex + 1).ToList();
 
-        double maxTotalWidth = _availableWidth - 48;
+        double maxTotalWidth = _availableWidth - Insets;
 
         var newColWidth = col.CurrentWidth + delta;
         newColWidth = Math.Max(col.MinWidth, Math.Min(col.MaxWidth, newColWidth));
@@ -223,21 +233,29 @@ public abstract partial class TableColumnWidthsBase : ObservableObject, ITableCo
     /// </summary>
     protected void UpdateScrollState(List<string> visibleColumns)
     {
-        double totalWidth = visibleColumns.Sum(name => Columns[name].CurrentWidth) + 48;
+        double columnsWidth = visibleColumns.Sum(name => Columns[name].CurrentWidth);
 
-        if (totalWidth > _availableWidth + 1)
+        if (columnsWidth + Insets > _availableWidth + 1)
         {
             _hasManualOverflow = true;
-            NeedsHorizontalScroll = true;
-            MinimumTotalWidth = totalWidth;
+            SetScrollState(true, columnsWidth);
         }
         else
         {
-            NeedsHorizontalScroll = false;
-            MinimumTotalWidth = Columns.Values
+            SetScrollState(false, Columns.Values
                 .Where(IsColumnVisible)
-                .Sum(c => c.IsFixed ? c.FixedWidth : c.MinWidth) + 48;
+                .Sum(c => c.IsFixed ? c.FixedWidth : c.MinWidth));
         }
+    }
+
+    /// <summary>
+    /// Sets whether the table scrolls sideways, and the width its content is held to: the columns
+    /// plus the left inset, plus the right gap only while nothing scrolls.
+    /// </summary>
+    private void SetScrollState(bool scroll, double columnsWidth)
+    {
+        NeedsHorizontalScroll = scroll;
+        MinimumTotalWidth = columnsWidth + (scroll ? LeftInset : Insets);
     }
 
     /// <summary>
@@ -283,25 +301,23 @@ public abstract partial class TableColumnWidthsBase : ObservableObject, ITableCo
             var visibleColumns = Columns.Values.Where(IsColumnVisible).ToList();
             if (visibleColumns.Count == 0) return;
 
-            double minTotalWidth = visibleColumns.Sum(c => c.IsFixed ? c.FixedWidth : c.MinWidth) + 48;
+            double minColumnsWidth = visibleColumns.Sum(c => c.IsFixed ? c.FixedWidth : c.MinWidth);
 
             if (_hasManualOverflow)
             {
-                double totalWidth = visibleColumns.Sum(c => c.CurrentWidth) + 48;
-                if (totalWidth + 50 > _availableWidth)
+                double columnsWidth = visibleColumns.Sum(c => c.CurrentWidth);
+                if (columnsWidth + Insets + 50 > _availableWidth)
                 {
-                    MinimumTotalWidth = totalWidth;
-                    NeedsHorizontalScroll = true;
+                    SetScrollState(true, columnsWidth);
                     return;
                 }
                 _hasManualOverflow = false;
             }
 
-            MinimumTotalWidth = minTotalWidth;
-            NeedsHorizontalScroll = _availableWidth < minTotalWidth;
+            SetScrollState(_availableWidth < minColumnsWidth + Insets, minColumnsWidth);
 
             double fixedTotal = visibleColumns.Where(c => c.IsFixed).Sum(c => c.FixedWidth);
-            double availableForProportional = Math.Max(100, _availableWidth - fixedTotal - 48);
+            double availableForProportional = Math.Max(100, _availableWidth - fixedTotal - Insets);
 
             if (NeedsHorizontalScroll)
             {

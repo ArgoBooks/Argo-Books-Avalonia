@@ -1,3 +1,4 @@
+using ArgoBooks.Core.Data;
 using System.Collections.ObjectModel;
 using ArgoBooks.Core;
 using ArgoBooks.Core.Models.Invoices;
@@ -20,7 +21,6 @@ public partial class InvoiceTemplateDesignerViewModel : ViewModelBase
     #region Events
 
     public event EventHandler? TemplateSaved;
-    public event EventHandler? ModalClosed;
     public event EventHandler? BrowseLogoRequested;
 
     /// <summary>
@@ -401,21 +401,21 @@ public partial class InvoiceTemplateDesignerViewModel : ViewModelBase
             // render with its logo, which is the redraw RetireLogo exists to prevent.
             LogoHistory.RetireLogo(companyData!, template, null);
 
-            companyData!.InvoiceTemplates.Remove(template);
+            companyData!.InvoiceTemplates.RemoveRecord(template);
             App.CompanyManager?.MarkAsChanged();
 
             App.UndoRedoManager.RecordAction(new DelegateAction(
                 $"Delete invoice template '{deletedTemplate.Name}'",
                 () =>
                 {
-                    companyData.InvoiceTemplates.Add(deletedTemplate);
+                    companyData.InvoiceTemplates.RestoreRecord(deletedTemplate);
                     App.CompanyManager?.MarkAsChanged();
                     LoadSavedTemplates();
                     TemplateSaved?.Invoke(this, EventArgs.Empty);
                 },
                 () =>
                 {
-                    companyData.InvoiceTemplates.Remove(deletedTemplate);
+                    companyData.InvoiceTemplates.RemoveRecord(deletedTemplate);
                     App.CompanyManager?.MarkAsChanged();
                     LoadSavedTemplates();
                     TemplateSaved?.Invoke(this, EventArgs.Empty);
@@ -512,7 +512,6 @@ public partial class InvoiceTemplateDesignerViewModel : ViewModelBase
         IsDeleteConfirmOpen = false;
         IsOpen = false;
         IsFullscreen = false;
-        ModalClosed?.Invoke(this, EventArgs.Empty);
     }
 
     [RelayCommand]
@@ -611,7 +610,7 @@ public partial class InvoiceTemplateDesignerViewModel : ViewModelBase
         else
         {
             // Create new template
-            var id = $"template-{++companyData.IdCounters.InvoiceTemplate}";
+            var id = new Core.Data.IdGenerator(companyData).NextInvoiceTemplateId();
             var template = new InvoiceTemplate { Id = id };
             UpdateTemplateFromForm(template);
             template.CreatedAt = DateTime.UtcNow;
@@ -634,13 +633,13 @@ public partial class InvoiceTemplateDesignerViewModel : ViewModelBase
                 $"Add invoice template '{template.Name}'",
                 () =>
                 {
-                    companyData.InvoiceTemplates.Remove(templateToUndo);
+                    companyData.InvoiceTemplates.RemoveRecord(templateToUndo);
                     companyData.MarkAsModified();
                     TemplateSaved?.Invoke(this, EventArgs.Empty);
                 },
                 () =>
                 {
-                    companyData.InvoiceTemplates.Add(templateToUndo);
+                    companyData.InvoiceTemplates.RestoreRecord(templateToUndo);
                     companyData.MarkAsModified();
                     TemplateSaved?.Invoke(this, EventArgs.Empty);
                 }));

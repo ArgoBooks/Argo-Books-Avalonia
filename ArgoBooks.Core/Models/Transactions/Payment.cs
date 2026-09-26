@@ -1,3 +1,4 @@
+using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Enums;
 
 namespace ArgoBooks.Core.Models.Transactions;
@@ -5,7 +6,7 @@ namespace ArgoBooks.Core.Models.Transactions;
 /// <summary>
 /// Represents a payment received for an invoice.
 /// </summary>
-public class Payment
+public class Payment : IRecord
 {
     /// <summary>
     /// Unique identifier (e.g., PAY-2024-00001).

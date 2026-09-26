@@ -52,7 +52,7 @@ public partial class PastPredictionsModal : UserControl
         // Attach handler at control level to intercept scroll events
         AddHandler(
             PointerWheelChangedEvent,
-            OnChartPointerWheelChanged,
+            PageChartInteractions.OnChartPointerWheelChanged,
             RoutingStrategies.Tunnel,
             handledEventsToo: true);
 
@@ -143,44 +143,6 @@ public partial class PastPredictionsModal : UserControl
     }
 
     /// <summary>
-    /// Intercepts scroll wheel events on charts and redirects them to the parent ScrollViewer.
-    /// When CTRL or Shift is held, allow LiveCharts to handle zooming instead.
-    /// </summary>
-    private void OnChartPointerWheelChanged(object? sender, PointerWheelEventArgs e)
-    {
-        // Check if the event originated from a CartesianChart
-        var source = e.Source as Control;
-        var chart = source?.FindAncestorOfType<CartesianChart>() ?? source as CartesianChart;
-
-        if (chart == null)
-            return;
-
-        // If CTRL or Shift is held, allow LiveCharts to handle zooming
-        if (e.KeyModifiers.HasZoomModifier() || e.KeyModifiers.HasFlag(KeyModifiers.Shift))
-        {
-            return; // Don't intercept - let LiveCharts zoom
-        }
-
-        // Mark as handled to prevent LiveCharts from zooming when no modifier is held
-        e.Handled = true;
-
-        // Find the ScrollViewer and manually scroll it
-        var scrollViewer = chart.FindAncestorOfType<ScrollViewer>();
-        if (scrollViewer != null)
-        {
-            // Use ScrollViewer's built-in line scroll methods
-            var linesToScroll = (int)Math.Round(e.Delta.Y * 3);
-            for (int i = 0; i < Math.Abs(linesToScroll); i++)
-            {
-                if (linesToScroll > 0)
-                    scrollViewer.LineUp();
-                else
-                    scrollViewer.LineDown();
-            }
-        }
-    }
-
-    /// <summary>
     /// Handles the save chart image request using the shared service.
     /// </summary>
     private async void OnSaveChartImageRequested(object? sender, EventArgs e)
@@ -204,7 +166,7 @@ public partial class PastPredictionsModal : UserControl
             await ChartImageExportService.SaveChartAsImageAsync(
                 topLevel,
                 _accuracyChart,
-                ChartImageExportService.CreateSafeFileName("Prediction_Accuracy"));
+                ChartImageExportService.CreateSafeFileName("Prediction Accuracy"));
         }
         catch (Exception ex)
         {
@@ -228,18 +190,9 @@ public partial class PastPredictionsModal : UserControl
             var isAuthenticated = await GoogleCredentialsManager.EnsureAuthenticatedAsync();
             if (!isAuthenticated)
             {
-                var dialog = App.ConfirmationDialog;
-                if (dialog != null)
-                {
-                    await dialog.ShowAsync(new ConfirmationDialogOptions
-                    {
-                        Title = "Export Failed",
-                        Message = "Google Sheets authorization was not completed. Please try again.",
-                        PrimaryButtonText = "OK",
-                        SecondaryButtonText = null,
-                        CancelButtonText = null
-                    });
-                }
+                await App.ShowWarningDialogAsync(
+                    "Export Failed",
+                    "Google Sheets authorization was not completed. Please try again.");
                 return;
             }
 
@@ -284,34 +237,16 @@ public partial class PastPredictionsModal : UserControl
         catch (InvalidOperationException ex)
         {
             // Non-connectivity service error (e.g. the server rejected the request).
-            var dialog = App.ConfirmationDialog;
-            if (dialog != null)
-            {
-                await dialog.ShowAsync(new ConfirmationDialogOptions
-                {
-                    Title = "Export Failed",
-                    Message = ex.Message,
-                    PrimaryButtonText = "OK",
-                    SecondaryButtonText = null,
-                    CancelButtonText = null
-                });
-            }
+            await App.ShowErrorDialogAsync(
+                "Export Failed",
+                ex.Message);
         }
         catch (Exception ex)
         {
             App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.Export, "Failed to export to Google Sheets");
-            var dialog = App.ConfirmationDialog;
-            if (dialog != null)
-            {
-                await dialog.ShowAsync(new ConfirmationDialogOptions
-                {
-                    Title = "Export Failed",
-                    Message = $"Failed to export to Google Sheets: {ex.Message}",
-                    PrimaryButtonText = "OK",
-                    SecondaryButtonText = null,
-                    CancelButtonText = null
-                });
-            }
+            await App.ShowErrorDialogAsync(
+                "Export Failed",
+                $"Failed to export to Google Sheets: {ex.Message}");
         }
     }
 
@@ -366,18 +301,9 @@ public partial class PastPredictionsModal : UserControl
         catch (Exception ex)
         {
             App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.Export, "Failed to export to Excel");
-            var dialog = App.ConfirmationDialog;
-            if (dialog != null)
-            {
-                await dialog.ShowAsync(new ConfirmationDialogOptions
-                {
-                    Title = "Export Failed",
-                    Message = $"Failed to export to Excel: {ex.Message}",
-                    PrimaryButtonText = "OK",
-                    SecondaryButtonText = null,
-                    CancelButtonText = null
-                });
-            }
+            await App.ShowErrorDialogAsync(
+                "Export Failed",
+                $"Failed to export to Excel: {ex.Message}");
         }
     }
 }

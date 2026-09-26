@@ -25,7 +25,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
     private string? _displayCode;
 
     /// <summary>
-    /// The single currency the whole report is rendered in (docs/Calculations.md §3a Phase 2).
+    /// The single currency the whole report is rendered in (docs/Calculations.md Rule 3a).
     ///
     /// Chosen ONCE per report so a printed document is never a mix of currencies:
     /// <list type="bullet">
@@ -48,7 +48,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         : DisplayCurrency.Resolve(GetCurrencyCode(), DisplayCurrency.ReportDates(companyData, filters.EndDate));
 
     /// <summary>
-    /// A USD amount in <see cref="DisplayCode"/> at its transaction's date (docs/Calculations.md §3a), so a
+    /// A USD amount in <see cref="DisplayCode"/> at its transaction's date (docs/Calculations.md Rule 3a), so a
     /// total equals the sum of its rows converted at each row's own date.
     /// </summary>
     private decimal ToDisplay(decimal amountUSD, DateTime date) => DisplayCurrency.FromUSD(amountUSD, DisplayCode, date);
@@ -66,6 +66,8 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
     {
         return $"Amounts in {DisplayCode}";
     }
+
+    private const string PendingText = "Pending";
 
     /// <summary>
     /// Formats a currency amount that is ALREADY in <see cref="DisplayCode"/> (conversion happens at
@@ -100,6 +102,16 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             return false;
         return true;
     }
+
+    /// <summary>
+    /// The same whole days as <see cref="IsInDateRange"/>, as the [start, end] the aggregators take.
+    /// An unset end is open, as an unset start is.
+    /// </summary>
+    private DateTime RangeStart => filters.StartDate?.Date ?? DateTime.MinValue;
+
+    private DateTime RangeEnd => filters.EndDate is { } end && end.Date < DateTime.MaxValue.Date
+        ? end.Date.AddDays(1).AddTicks(-1)
+        : DateTime.MaxValue;
 
     /// <summary>
     /// Checks whether a date falls on or before the end date filter.
@@ -178,24 +190,39 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
     }
 
     /// <summary>
-    /// Gets the USD conversion ratio for a transaction's original currency amounts.
-    /// Returns the multiplier to convert original currency values to USD equivalents.
+    /// Adds a transaction's tax, by rate, to <paramref name="byRate"/> for the Tax Summary. The amount
+    /// is the transaction's own recorded tax (<c>EffectiveTaxAmountUSD</c>), the figure the Balance
+    /// Sheet and the tax charts use, shared across its lines by each line's own tax
+    /// (<see cref="LineAllocation.AllocateTax"/>). A transaction whose lines carry no tax goes under
+    /// its own rate.
     /// </summary>
-    private static decimal GetUSDRatio(Transaction txn)
+    private void AddTaxByRate(Dictionary<decimal, decimal> byRate, Transaction txn)
     {
-        if (txn.IsPendingConversion) return 0;
-        if (string.Equals(txn.OriginalCurrency, "USD", StringComparison.OrdinalIgnoreCase))
-            return 1m; // Already in USD (including legacy data)
-        if (txn.Total != 0)
-            return txn.TotalUSD / txn.Total;
-        return 0m; // Zero-amount non-USD transaction
+        var taxDisplay = ToDisplay(txn.EffectiveTaxAmountUSD, txn.Date);
+        if (taxDisplay == 0)
+            return;
+
+        // LineItem.TaxRate is a fraction (0.08); Transaction.TaxRate is a percentage (8).
+        if (!LineAllocation.HasLineTax(txn.LineItems))
+        {
+            var rate = Math.Round(txn.TaxRate / 100m, 4);
+            byRate[rate] = byRate.GetValueOrDefault(rate) + taxDisplay;
+            return;
+        }
+
+        foreach (var (line, share) in LineAllocation.AllocateTax(txn.LineItems, taxDisplay).Shares)
+        {
+            if (share == 0) continue;
+            var rate = Math.Round(line.TaxRate, 2);
+            byRate[rate] = byRate.GetValueOrDefault(rate) + share;
+        }
     }
 
     /// <summary>
     /// Groups transaction pre-tax totals by category, derived from line items' product IDs.
     /// Uses Subtotal (pre-tax) because sales tax is a liability, not revenue/expense.
     /// Each transaction's USD amounts are converted to DisplayCode at the transaction's OWN date
-    /// (docs/Calculations.md §3a Phase 2) before being summed, so the result is already in
+    /// (docs/Calculations.md Rule 3a) before being summed, so the result is already in
     /// DisplayCode.
     /// </summary>
     private Dictionary<string, decimal> GroupTransactionsByCategory(
@@ -205,31 +232,19 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
 
         foreach (var txn in transactions)
         {
-            var lineItemsTotal = txn.LineItems.Sum(li => li.Subtotal);
-
-            // Proportional allocation needs a non-zero line-item subtotal to divide by.
-            if (txn.LineItems.Count > 0 && lineItemsTotal != 0)
+            var allocation = LineAllocation.Allocate(txn, LineAllocationBasis.PreTax);
+            if (!allocation.IsSplit)
             {
-                // Convert line item amounts to USD using the transaction's conversion ratio
-                var subtotalUSD = txn.EffectiveSubtotalUSD;
-
-                foreach (var lineItem in txn.LineItems)
-                {
-                    var categoryName = GetCategoryNameForProduct(lineItem.ProductId);
-                    result.TryAdd(categoryName, 0);
-                    // Proportionally allocate USD subtotal across line items, then convert at the
-                    // transaction's own date.
-                    var lineItemUSD = Math.Round(lineItem.Subtotal / lineItemsTotal * subtotalUSD, 2);
-                    result[categoryName] += ToDisplay(lineItemUSD, txn.Date);
-                }
+                // No lines, or lines that add up to 0 (a 100% discount): post the transaction's own
+                // pre-tax amount so it isn't dropped.
+                result["Uncategorized"] = result.GetValueOrDefault("Uncategorized") + ToDisplay(allocation.UnallocatedUSD, txn.Date);
+                continue;
             }
-            else
+
+            foreach (var (lineItem, lineUSD) in allocation.Shares)
             {
-                // No line items, or every line item nets to a zero subtotal (e.g. a 100% discount):
-                // post the transaction-level pre-tax amount so the transaction is not dropped.
-                var categoryName = "Uncategorized";
-                result.TryAdd(categoryName, 0);
-                result[categoryName] += ToDisplay(txn.EffectiveSubtotalUSD, txn.Date);
+                var categoryName = GetCategoryNameForProduct(lineItem.ProductId);
+                result[categoryName] = result.GetValueOrDefault(categoryName) + ToDisplay(lineUSD, txn.Date);
             }
         }
 
@@ -239,9 +254,8 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
     /// <summary>
     /// <see cref="GroupTransactionsByCategory"/> for expenses, leaving out tracked stock bought: it is
     /// stock until it sells, when it shows as cost of goods sold (docs/Calculations.md §14). The rest of
-    /// such an expense, shipping and fees included, is spread over its other lines, or kept under its
-    /// first line's category when every line bought stock. Expenses that bought no stock group exactly
-    /// as before.
+    /// such an expense, shipping and fees included, is spread over its other lines, or goes under
+    /// Uncategorized when they can't take it, as for any transaction (§13).
     /// </summary>
     private Dictionary<string, decimal> GroupExpensesByCategory(IEnumerable<Expense> expenses)
     {
@@ -260,19 +274,15 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
 
             var remainingUSD = expense.EffectiveSubtotalUSD - CostOfGoodsAggregator.StockPurchaseUSD(expense);
             var otherLines = expense.LineItems.Where(li => !li.IsStockPurchase).ToList();
-            var otherTotal = otherLines.Sum(li => li.Subtotal);
-
-            if (otherLines.Count > 0 && otherTotal != 0)
+            var allocation = LineAllocation.Allocate(otherLines, remainingUSD);
+            if (allocation.IsSplit)
             {
-                foreach (var line in otherLines)
-                {
-                    var lineUSD = Math.Round(line.Subtotal / otherTotal * remainingUSD, 2);
+                foreach (var (line, lineUSD) in allocation.Shares)
                     Add(GetCategoryNameForProduct(line.ProductId), ToDisplay(lineUSD, expense.Date));
-                }
             }
             else if (remainingUSD != 0)
             {
-                Add(GetCategoryNameForProduct(expense.LineItems[0].ProductId), ToDisplay(remainingUSD, expense.Date));
+                Add("Uncategorized", ToDisplay(remainingUSD, expense.Date));
             }
         }
 
@@ -314,14 +324,18 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         var expenseByCategory = GroupExpensesByCategory(expenses);
 
         // Refunds come off revenue on their own date, before tax (docs/Calculations.md §8).
-        var refunds = companyData.Payments
-            .Where(p => p.IsRefund && IsInDateRange(p.Date))
-            .Sum(p => ToDisplay(RefundAggregator.PreTaxPortionUSD(p, InvoicesById), p.Date));
+        var refunds = RefundAggregator.GetRefundedPreTaxInDateRangeDisplay(
+            companyData.Payments, InvoicesById, RangeStart, RangeEnd, ToDisplay);
 
         var totalRevenue = revenueByCategory.Values.Sum() - refunds;
         var totalExpenses = expenseByCategory.Values.Sum();
         var costOfGoods = revenues.Sum(r => ToDisplay(CostOfGoodsAggregator.CostOfGoodsSoldUSD(r), r.Date));
         var netIncome = totalRevenue - costOfGoods - totalExpenses;
+
+        // A sale waiting for its stock's cost counts none yet, so the figures that subtract cost
+        // of goods sold aren't known and read Pending rather than overstated (Calculations.md §14).
+        var costPending = CostOfGoodsAggregator.IsCostOfGoodsPending(revenues);
+        string AfterCost(decimal amount) => costPending ? PendingText : FormatCurrencyWithSign(amount);
 
         // Revenue section
         data.Rows.Add(new AccountingRow
@@ -360,12 +374,12 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             RowType = AccountingRowType.SubtotalRow
         });
 
-        if (costOfGoods != 0)
+        if (costOfGoods != 0 || costPending)
         {
             data.Rows.Add(new AccountingRow
             {
                 Label = "Cost of Goods Sold",
-                Values = [FormatCurrencyWithSign(-costOfGoods)],
+                Values = [AfterCost(-costOfGoods)],
                 IndentLevel = 1,
                 RowType = AccountingRowType.DataRow
             });
@@ -373,7 +387,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             data.Rows.Add(new AccountingRow
             {
                 Label = "Gross Profit",
-                Values = [FormatCurrencyWithSign(totalRevenue - costOfGoods)],
+                Values = [AfterCost(totalRevenue - costOfGoods)],
                 RowType = AccountingRowType.SubtotalRow
             });
         }
@@ -414,7 +428,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         data.Rows.Add(new AccountingRow
         {
             Label = t.NetIncome,
-            Values = [FormatCurrencyWithSign(netIncome)],
+            Values = [AfterCost(netIncome)],
             RowType = AccountingRowType.GrandTotalRow
         });
 
@@ -464,7 +478,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         // Cash = Revenue (Paid, no invoice) + Payments - Expenses, all filtered by date.
         // Uses post-tax (total) amounts because cash includes tax collected/paid.
         // Each component is converted at its OWN date, then combined (a derived figure: do not
-        // convert the combined result). See docs/Calculations.md §3a Phase 2.
+        // convert the combined result). See docs/Calculations.md Rule 3a.
         var cashFromRevenue = companyData.Revenues
             .Where(r => RevenueAggregator.IsCollected(r)
                         && string.IsNullOrEmpty(r.InvoiceId)
@@ -478,9 +492,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             .Where(p => string.IsNullOrEmpty(p.RevenueId) && IsOnOrBeforeEndDate(p.Date))
             .Sum(p => ToDisplay(p.EffectiveAmountUSD, p.Date));
 
-        var cashPaidForExpenses = companyData.Expenses
-            .Where(e => IsOnOrBeforeEndDate(e.Date))
-            .Sum(e => ToDisplay(e.EffectiveTotalUSD, e.Date));
+        var cashPaidForExpenses = ExpenseAggregator.SumExpensesDisplay(companyData.Expenses, DateTime.MinValue, RangeEnd, ToDisplay);
 
         var cash = cashFromRevenue + cashFromPayments - cashPaidForExpenses;
 
@@ -513,9 +525,8 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         var taxCollected = companyData.Revenues
             .Where(r => IsOnOrBeforeEndDate(r.Date))
             .Sum(r => ToDisplay(r.EffectiveTotalUSD - r.EffectiveSubtotalUSD, r.Date));
-        var taxRefunded = companyData.Payments
-            .Where(p => p.IsRefund && IsOnOrBeforeEndDate(p.Date))
-            .Sum(p => ToDisplay(RefundAggregator.TaxPortionUSD(p, InvoicesById), p.Date));
+        var taxRefunded = RefundAggregator.GetRefundedTaxInDateRangeDisplay(
+            companyData.Payments, InvoicesById, DateTime.MinValue, RangeEnd, ToDisplay);
         var taxPaidOnExpenses = companyData.Expenses
             .Where(e => IsOnOrBeforeEndDate(e.Date))
             .Sum(e => ToDisplay(e.EffectiveTotalUSD - e.EffectiveSubtotalUSD, e.Date));
@@ -750,9 +761,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             .Where(p => string.IsNullOrEmpty(p.RevenueId) && IsInDateRange(p.Date))
             .Sum(p => ToDisplay(p.EffectiveAmountUSD, p.Date));
 
-        var cashPaidForExpenses = companyData.Expenses
-            .Where(e => IsInDateRange(e.Date))
-            .Sum(e => ToDisplay(e.EffectiveTotalUSD, e.Date));
+        var cashPaidForExpenses = ExpenseAggregator.SumExpensesDisplay(companyData.Expenses, RangeStart, RangeEnd, ToDisplay);
 
         var totalOperating = cashFromSales + cashFromInvoicePayments - cashPaidForExpenses;
 
@@ -851,36 +860,32 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         // Revenue transactions (credits), all amounts in USD
         foreach (var rev in companyData.Revenues.Where(r => IsInDateRange(r.Date)))
         {
-            var lineItemsTotal = rev.LineItems.Sum(li => li.Subtotal);
-            if (rev.LineItems.Count > 0 && lineItemsTotal != 0)
+            var allocation = LineAllocation.Allocate(rev, LineAllocationBasis.PreTax);
+            // No lines, or lines that add up to 0 (a 100% discount) post the transaction's own
+            // amount, so the entry is not dropped from the ledger.
+            if (allocation.IsSplit)
             {
-                var subtotalUSD = rev.EffectiveSubtotalUSD;
-
-                foreach (var li in rev.LineItems)
+                foreach (var (li, lineUSD) in allocation.Shares)
                 {
-                    var catName = GetCategoryNameForProduct(li.ProductId);
-                    var lineItemUSD = Math.Round(li.Subtotal / lineItemsTotal * subtotalUSD, 2);
-                    AddLedgerEntry(entries, catName, new LedgerEntry
+                    AddLedgerEntry(entries, GetCategoryNameForProduct(li.ProductId), new LedgerEntry
                     {
                         Date = rev.Date,
                         Description = li.Description.Length > 0 ? li.Description : rev.Description,
                         Reference = rev.Id,
                         Debit = 0,
-                        Credit = ToDisplay(lineItemUSD, rev.Date)
+                        Credit = ToDisplay(lineUSD, rev.Date)
                     });
                 }
             }
             else
             {
-                // No line items, or every line item nets to a zero subtotal (e.g. a 100% discount):
-                // post the transaction-level amount so the entry is not dropped from the ledger.
                 AddLedgerEntry(entries, t.RevenueCategory, new LedgerEntry
                 {
                     Date = rev.Date,
                     Description = rev.Description,
                     Reference = rev.Id,
                     Debit = 0,
-                    Credit = ToDisplay(rev.EffectiveSubtotalUSD, rev.Date)
+                    Credit = ToDisplay(allocation.UnallocatedUSD, rev.Date)
                 });
             }
         }
@@ -888,21 +893,17 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         // Expense transactions (debits), all amounts in USD
         foreach (var exp in companyData.Expenses.Where(e => IsInDateRange(e.Date)))
         {
-            var lineItemsTotal = exp.LineItems.Sum(li => li.Subtotal);
-            if (exp.LineItems.Count > 0 && lineItemsTotal != 0)
+            var allocation = LineAllocation.Allocate(exp, LineAllocationBasis.PreTax);
+            if (allocation.IsSplit)
             {
-                var subtotalUSD = exp.EffectiveSubtotalUSD;
-
-                foreach (var li in exp.LineItems)
+                foreach (var (li, lineUSD) in allocation.Shares)
                 {
-                    var catName = GetCategoryNameForProduct(li.ProductId);
-                    var lineItemUSD = Math.Round(li.Subtotal / lineItemsTotal * subtotalUSD, 2);
-                    AddLedgerEntry(entries, catName, new LedgerEntry
+                    AddLedgerEntry(entries, GetCategoryNameForProduct(li.ProductId), new LedgerEntry
                     {
                         Date = exp.Date,
                         Description = li.Description.Length > 0 ? li.Description : exp.Description,
                         Reference = exp.Id,
-                        Debit = ToDisplay(lineItemUSD, exp.Date),
+                        Debit = ToDisplay(lineUSD, exp.Date),
                         Credit = 0
                     });
                 }
@@ -914,7 +915,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
                     Date = exp.Date,
                     Description = exp.Description,
                     Reference = exp.Id,
-                    Debit = ToDisplay(exp.EffectiveSubtotalUSD, exp.Date),
+                    Debit = ToDisplay(allocation.UnallocatedUSD, exp.Date),
                     Credit = 0
                 });
             }
@@ -1033,12 +1034,12 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             return data;
 
         // Pass ToDisplay so each line item is converted at its transaction's own date
-        // (Calculations.md §3a Phase 2); the returned RevenueUSD/AvgSalePriceUSD are then already
+        // (Calculations.md Rule 3a); the returned RevenueUSD/AvgSalePriceUSD are then already
         // in DisplayCode (USD identity for the USD-company/fallback path).
         var products = ProductSalesService.GetProductSales(
             companyData,
-            filters.StartDate ?? DateTime.MinValue,
-            filters.EndDate ?? DateTime.MaxValue,
+            RangeStart,
+            RangeEnd,
             cashBasis: false,
             toDisplay: ToDisplay);
 
@@ -1146,7 +1147,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             foreach (var (invoice, balanceUSD) in group)
             {
                 var daysPastDue = (asOf - invoice.DueDate.Date).Days;
-                // Convert each open invoice's balance at its issue date (Calculations.md §3a Phase 2).
+                // Convert each open invoice's balance at its issue date (Calculations.md Rule 3a).
                 var balance = ToDisplay(balanceUSD, invoice.IssueDate);
 
                 if (daysPastDue <= 0)
@@ -1425,76 +1426,22 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             .Where(r => IsInDateRange(r.Date))
             .ToList();
 
-        // Round tax rates to 2 decimal places to consolidate near-identical rates
         var taxCollectedByRate = new Dictionary<decimal, decimal>();
         foreach (var rev in filteredRevenues)
-        {
-            var usdRatio = GetUSDRatio(rev);
-            var anyLineItemTax = false;
-            foreach (var li in rev.LineItems)
-            {
-                if (li.TaxRate > 0)
-                {
-                    anyLineItemTax = true;
-                    var rate = Math.Round(li.TaxRate, 2);
-                    taxCollectedByRate.TryAdd(rate, 0);
-                    taxCollectedByRate[rate] +=
-                        ToDisplay(Math.Round(li.TaxAmount * usdRatio, 2), rev.Date);
-                }
-            }
-
-            // Fall back to the transaction-level tax when no line item carried a rate. Manually-entered
-            // transactions always have a line item (with TaxRate 0) but record their tax at the
-            // transaction level, so without this their collected tax would be omitted entirely.
-            if (!anyLineItemTax && rev.TaxRate > 0)
-            {
-                // Transaction.TaxRate is stored as a percentage (e.g., 8 for 8%); convert to decimal
-                // form (0.08) to match LineItem.TaxRate for consistent grouping.
-                var rate = Math.Round(rev.TaxRate / 100m, 4);
-                taxCollectedByRate.TryAdd(rate, 0);
-                taxCollectedByRate[rate] += ToDisplay(rev.EffectiveTaxAmountUSD, rev.Date);
-            }
-        }
+            AddTaxByRate(taxCollectedByRate, rev);
 
         // Tax paid on expenses, grouped by tax rate
-        // All amounts converted to USD for consistent cross-currency aggregation
         var filteredExpenses = companyData.Expenses
             .Where(e => IsInDateRange(e.Date))
             .ToList();
 
         var taxPaidByRate = new Dictionary<decimal, decimal>();
         foreach (var exp in filteredExpenses)
-        {
-            var usdRatio = GetUSDRatio(exp);
-            var anyLineItemTax = false;
-            foreach (var li in exp.LineItems)
-            {
-                if (li.TaxRate > 0)
-                {
-                    anyLineItemTax = true;
-                    var rate = Math.Round(li.TaxRate, 2);
-                    taxPaidByRate.TryAdd(rate, 0);
-                    taxPaidByRate[rate] +=
-                        ToDisplay(Math.Round(li.TaxAmount * usdRatio, 2), exp.Date);
-                }
-            }
-
-            // Fall back to the transaction-level tax when no line item carried a rate (see the
-            // matching revenue loop above for why manually-entered transactions need this).
-            if (!anyLineItemTax && exp.TaxRate > 0)
-            {
-                // Transaction.TaxRate is stored as a percentage (e.g., 8 for 8%); convert to decimal
-                // form (0.08) to match LineItem.TaxRate for consistent grouping.
-                var rate = Math.Round(exp.TaxRate / 100m, 4);
-                taxPaidByRate.TryAdd(rate, 0);
-                taxPaidByRate[rate] += ToDisplay(exp.EffectiveTaxAmountUSD, exp.Date);
-            }
-        }
+            AddTaxByRate(taxPaidByRate, exp);
 
         // Tax handed back on refunds in range is no longer owed (docs/Calculations.md §8).
-        var taxRefunded = companyData.Payments
-            .Where(p => p.IsRefund && IsInDateRange(p.Date))
-            .Sum(p => ToDisplay(RefundAggregator.TaxPortionUSD(p, InvoicesById), p.Date));
+        var taxRefunded = RefundAggregator.GetRefundedTaxInDateRangeDisplay(
+            companyData.Payments, InvoicesById, RangeStart, RangeEnd, ToDisplay);
 
         var totalTaxCollected = taxCollectedByRate.Values.Sum() - taxRefunded;
         var totalTaxPaid = taxPaidByRate.Values.Sum();

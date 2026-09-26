@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using ArgoBooks.Core.Validation;
 
 namespace ArgoBooks.Core.Services;
 
@@ -35,7 +36,7 @@ public class UpdateEmailService(HttpClient httpClient, IErrorLogger? errorLogger
     public async Task<UpdateEmailResult> SubscribeAsync(string email, CancellationToken cancellationToken = default)
     {
         email = (email ?? string.Empty).Trim();
-        if (email.Length == 0 || !email.Contains('@') || email.StartsWith('@') || email.EndsWith('@'))
+        if (!DataValidator.IsValidEmail(email))
             return new UpdateEmailResult(false, "Please enter a valid email address.");
 
         try

@@ -15,7 +15,7 @@ namespace ArgoBooks.Tests.ViewModels;
 [Collection("ModalViewModels")]
 public class PortalSyncCompanySwitchTests : IDisposable
 {
-    private readonly string _priorPortalKey = DotEnv.Get(PortalSettings.ApiKeyEnvVar);
+    private readonly string _priorPortalKey = PortalSettings.ApiKey;
 
     private const string SyncBody = """
         {
@@ -106,7 +106,7 @@ public class PortalSyncCompanySwitchTests : IDisposable
         if (string.IsNullOrEmpty(_priorPortalKey))
             PortalSettings.DeactivateApiKey();
         else
-            DotEnv.SetInMemory(PortalSettings.ApiKeyEnvVar, _priorPortalKey);
+            PortalSettings.SetActiveApiKey(_priorPortalKey);
         GC.SuppressFinalize(this);
     }
 }

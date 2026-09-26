@@ -169,7 +169,7 @@ public class CurrencyServiceTests
 
     #endregion
 
-    #region CreateMonetaryValue Tests
+    #region MonetaryValue Tests
 
     [Fact]
     public void MonetaryValue_CreateWithUSD_SetsCorrectValues()

@@ -73,32 +73,6 @@ public class ExchangeRateServiceTests
 
     #endregion
 
-    #region ConvertAsync Tests
-
-    [Fact]
-    public async Task ConvertAsync_SameCurrency_ReturnsSameAmount()
-    {
-        var httpClient = new HttpClient(new FailingHttpHandler());
-        var service = new ExchangeRateService(new MockPlatformService(), httpClient);
-
-        var result = await service.ConvertAsync(100m, "USD", "USD", DateTime.Today);
-
-        Assert.Equal(100m, result);
-    }
-
-    [Fact]
-    public async Task ConvertAsync_UnavailableRate_ReturnsOriginalAmount()
-    {
-        var httpClient = new HttpClient(new FailingHttpHandler());
-        var service = new ExchangeRateService(new MockPlatformService(), httpClient);
-
-        var result = await service.ConvertAsync(100m, "USD", "EUR", DateTime.Today);
-
-        Assert.Equal(100m, result);
-    }
-
-    #endregion
-
     #region Wasted request tests
 
     [Fact]
@@ -161,8 +135,6 @@ public class ExchangeRateServiceTests
         public PlatformType Platform => PlatformType.Linux;
         public string GetAppDataPath() => Path.GetTempPath();
         public string GetTempPath() => Path.GetTempPath();
-        public string GetDefaultDocumentsPath() => Path.GetTempPath();
-        public string GetLogsPath() => Path.GetTempPath();
         public string GetCachePath() => Path.GetTempPath();
         public void EnsureDirectoryExists(string path) { }
         public bool SupportsFileSystem => true;
@@ -179,7 +151,6 @@ public class ExchangeRateServiceTests
         public string NormalizePath(string path) => path;
         public string CombinePaths(params string[] paths) => Path.Combine(paths);
         public string GetMachineId() => "test-machine-id";
-        public void RegisterFileTypeAssociations(string iconPath) { }
         public StringComparer PathComparer => StringComparer.Ordinal;
     }
 

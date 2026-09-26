@@ -1,3 +1,4 @@
+using ArgoBooks.Core.Data;
 using ArgoBooks.Core;
 using ArgoBooks.Core.Models;
 using ArgoBooks.Services;
@@ -82,9 +83,6 @@ public partial class CategoryModalsViewModel : ViewModelBase
 
     [ObservableProperty]
     private string? _modalCategoryNameError;
-
-    [ObservableProperty]
-    private bool _deleteSubcategories;
 
     private Category? _editingCategory;
     private CategoryDisplayItem? _addingSubCategoryParent;
@@ -232,7 +230,6 @@ public partial class CategoryModalsViewModel : ViewModelBase
         CloseAddModal();
     }
 
-    [RelayCommand]
     public void SaveNewCategory()
     {
         if (!ValidateModal()) return;
@@ -262,8 +259,8 @@ public partial class CategoryModalsViewModel : ViewModelBase
         var categoryToUndo = newCategory;
         App.UndoRedoManager.RecordAction(new DelegateAction(
             $"Add category '{newCategory.Name}'",
-            () => { companyData.Categories.Remove(categoryToUndo); companyData.MarkAsModified(); CategorySaved?.Invoke(this, EventArgs.Empty); },
-            () => { companyData.Categories.Add(categoryToUndo); companyData.MarkAsModified(); CategorySaved?.Invoke(this, EventArgs.Empty); }));
+            () => { companyData.Categories.RemoveRecord(categoryToUndo); companyData.MarkAsModified(); CategorySaved?.Invoke(this, EventArgs.Empty); },
+            () => { companyData.Categories.RestoreRecord(categoryToUndo); companyData.MarkAsModified(); CategorySaved?.Invoke(this, EventArgs.Empty); }));
 
         LastSavedCategoryId = newCategory.Id;
         CategorySaved?.Invoke(this, EventArgs.Empty);
@@ -295,7 +292,6 @@ public partial class CategoryModalsViewModel : ViewModelBase
         IsEditModalOpen = true;
     }
 
-    [RelayCommand]
     public void CloseEditModal()
     {
         IsEditModalOpen = false;
@@ -306,7 +302,6 @@ public partial class CategoryModalsViewModel : ViewModelBase
     /// <summary>
     /// Requests to close the Edit modal, showing confirmation if changes were made.
     /// </summary>
-    [RelayCommand]
     public async Task RequestCloseEditModalAsync()
     {
         if (HasEditModalChanges)
@@ -318,7 +313,6 @@ public partial class CategoryModalsViewModel : ViewModelBase
         CloseEditModal();
     }
 
-    [RelayCommand]
     public void SaveEditedCategory()
     {
         if (!ValidateModal() || _editingCategory == null) return;
@@ -416,7 +410,7 @@ public partial class CategoryModalsViewModel : ViewModelBase
                 if (deleteSubcategories &&
                     companyData.Products.Any(p => p.CategoryId != null && childIds.Contains(p.CategoryId)))
                 {
-                    await App.ShowWarningMessageBoxAsync(
+                    await App.ShowWarningDialogAsync(
                         "Cannot Delete".Translate(),
                         "A subcategory of this category is used by one or more products, so it cannot be deleted. Choose Move to Top Level instead.".Translate());
                     return;
@@ -424,7 +418,7 @@ public partial class CategoryModalsViewModel : ViewModelBase
 
                 if (deleteSubcategories && companyData.BankCategoryRules.Any(r => childIds.Contains(r.CategoryId)))
                 {
-                    await App.ShowWarningMessageBoxAsync(
+                    await App.ShowWarningDialogAsync(
                         "Cannot Delete".Translate(),
                         "A subcategory of this category is used by one or more bank rules, so it cannot be deleted. Choose Move to Top Level instead.".Translate());
                     return;
@@ -443,7 +437,7 @@ public partial class CategoryModalsViewModel : ViewModelBase
                     foreach (var child in children)
                     {
                         if (deleteSubcategories)
-                            companyData.Categories.Remove(child);
+                            companyData.Categories.RemoveRecord(child);
                         else
                             child.ParentId = null;
                     }
@@ -453,7 +447,7 @@ public partial class CategoryModalsViewModel : ViewModelBase
                     foreach (var child in children)
                     {
                         if (deleteSubcategories)
-                            companyData.Categories.Add(child);
+                            companyData.Categories.RestoreRecord(child);
                         else
                             child.ParentId = category.Id;
                     }

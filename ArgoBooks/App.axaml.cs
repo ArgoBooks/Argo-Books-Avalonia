@@ -117,7 +117,7 @@ public partial class App : Application
     /// <summary>
     /// Gets the invoice usage service for tracking free-tier send limits.
     /// </summary>
-    public static InvoiceUsageService? InvoiceUsageService { get; private set; }
+    public static UsageLimitService? InvoiceUsageService { get; private set; }
 
     /// <summary>
     /// Gets the license service instance for secure license storage.
@@ -343,43 +343,58 @@ public partial class App : Application
         NavigationService?.NavigateTo("Invoices", new Dictionary<string, object?> { ["selectedTabIndex"] = 3 });
     }
 
-    /// <summary>
-    /// Shows a modal error message box.
-    /// </summary>
-    internal static async Task ShowErrorMessageBoxAsync(string title, string message)
+    /// <summary>Shows an error notice with an OK button.</summary>
+    internal static Task ShowErrorDialogAsync(string title, string message) =>
+        ShowNoticeAsync(DialogIcon.Error, title, message);
+
+    /// <summary>Shows an information notice with an OK button.</summary>
+    internal static Task ShowInfoDialogAsync(string title, string message) =>
+        ShowNoticeAsync(DialogIcon.Info, title, message);
+
+    /// <summary>Shows a warning notice with an OK button.</summary>
+    public static Task ShowWarningDialogAsync(string title, string message) =>
+        ShowNoticeAsync(DialogIcon.Warning, title, message);
+
+    private static async Task ShowNoticeAsync(DialogIcon icon, string title, string message)
     {
-        if (Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
-            && desktop.MainWindow is MainWindow mainWindow
-            && mainWindow.MessageBoxService is { } messageBoxService)
+        if (ConfirmationDialog is { } dialog)
+            await dialog.ShowNoticeAsync(icon, title, message);
+    }
+
+    /// <summary>
+    /// Asks the user to confirm, returning false when the dialog cannot be shown so a caller
+    /// never takes an irreversible action unasked.
+    /// </summary>
+    internal static async Task<bool> ConfirmDialogAsync(
+        string title, string message, string confirmText, string cancelText)
+    {
+        if (ConfirmationDialog is not { } dialog)
+            return false;
+
+        var result = await dialog.ShowAsync(new ConfirmationDialogOptions
         {
-            await messageBoxService.ShowErrorAsync(title, message);
-        }
+            Title = title,
+            Message = message,
+            PrimaryButtonText = confirmText,
+            CancelButtonText = cancelText
+        });
+        return result == ConfirmationResult.Primary;
     }
 
     /// <summary>
     /// Shows the one, consistent connectivity-error dialog (same title, body, and style)
     /// used everywhere an online action fails because the device is offline or the server
-    /// is unreachable. Uses the neutral confirmation dialog (no alarming red error styling)
-    /// since being offline is a normal, recoverable situation.
+    /// is unreachable. A warning rather than an error, since being offline is a normal,
+    /// recoverable situation.
     /// </summary>
-    public static async Task ShowConnectivityErrorAsync(string? message = null)
-    {
-        var dialog = ConfirmationDialog;
-        if (dialog == null) return;
-
-        await dialog.ShowAsync(new ConfirmationDialogOptions
-        {
-            Title = ConnectivityMessage.Title.Translate(),
+    public static Task ShowConnectivityErrorAsync(string? message = null) =>
+        ShowWarningDialogAsync(
+            ConnectivityMessage.Title.Translate(),
             // Localize the known connectivity constants (they're translation keys) instead of showing
             // them verbatim; leave any other caller-supplied message untouched.
-            Message = string.IsNullOrWhiteSpace(message)
+            string.IsNullOrWhiteSpace(message)
                 ? ConnectivityMessage.NoInternet.Translate()
-                : (ConnectivityMessage.IsConnectivityMessage(message) ? message.Translate() : message),
-            PrimaryButtonText = "OK".Translate(),
-            CancelButtonText = null,
-            SecondaryButtonText = null
-        });
-    }
+                : (ConnectivityMessage.IsConnectivityMessage(message) ? message.Translate() : message));
 
     /// <summary>
     /// Shows the global indeterminate loading overlay. Exposed so view models that can't reach the
@@ -390,35 +405,6 @@ public partial class App : Application
     /// <summary>Hides the global loading overlay shown by <see cref="ShowBusyOverlay"/>.</summary>
     internal static void HideBusyOverlay() => _mainWindowViewModel?.HideLoading();
 
-    /// <summary>
-    /// Shows a modal info message box.
-    /// </summary>
-    internal static async Task ShowInfoMessageBoxAsync(string title, string message)
-    {
-        if (Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
-            && desktop.MainWindow is MainWindow mainWindow
-            && mainWindow.MessageBoxService is { } messageBoxService)
-        {
-            await messageBoxService.ShowInfoAsync(title, message);
-        }
-    }
-
-    /// <summary>
-    /// Asks the user to confirm, returning false when the dialog cannot be shown so a caller
-    /// never takes an irreversible action unasked.
-    /// </summary>
-    internal static async Task<bool> ConfirmMessageBoxAsync(
-        string title, string message, string confirmText, string cancelText)
-    {
-        if (Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
-            && desktop.MainWindow is MainWindow mainWindow
-            && mainWindow.MessageBoxService is { } messageBoxService)
-        {
-            return await messageBoxService.ConfirmAsync(title, message, confirmText, cancelText);
-        }
-
-        return false;
-    }
 
     /// <summary>
     /// Puts text on the clipboard from the main window's top level.
@@ -447,18 +433,6 @@ public partial class App : Application
         return false;
     }
 
-    /// <summary>
-    /// Shows a modal warning message box.
-    /// </summary>
-    public static async Task ShowWarningMessageBoxAsync(string title, string message)
-    {
-        if (Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
-            && desktop.MainWindow is MainWindow mainWindow
-            && mainWindow.MessageBoxService is { } messageBoxService)
-        {
-            await messageBoxService.ShowWarningAsync(title, message);
-        }
-    }
 
     private static int _isAutoSyncing;
     private static Timer? _portalSyncTimer;
@@ -594,10 +568,11 @@ public partial class App : Application
                     // nothing the user just received to be notified about.
                     if (newPayments.Count > 0 && companyData.Settings.PaymentPortal.NotifyOnPayment)
                     {
-                        var total = newPayments.Sum(p => p.Amount);
+                        var total = CurrencyService.FormatSumDisplayFromUSD(
+                            newPayments, p => p.Amount, p => p.OriginalCurrency, p => p.EffectiveAmountUSD, p => p.Date);
                         var message = newPayments.Count == 1
-                            ? "{0} online payment received ({1:C})".TranslateFormat(newPayments.Count, total)
-                            : "{0} online payments received ({1:C})".TranslateFormat(newPayments.Count, total);
+                            ? "{0} online payment received ({1})".TranslateFormat(newPayments.Count, total)
+                            : "{0} online payments received ({1})".TranslateFormat(newPayments.Count, total);
 
                         AddNotification(
                             "Payment Received".Translate(),
@@ -944,10 +919,7 @@ public partial class App : Application
         // Check for overdue invoices
         if (settings.InvoiceOverdueAlert)
         {
-            // A never-sent draft isn't owed, as on the Invoices page and dashboard.
-            var overdueInvoices = companyData.Invoices
-                .Where(invoice => invoice.IsOverdue && invoice.Status != InvoiceStatus.Draft)
-                .ToList();
+            var overdueInvoices = companyData.Invoices.Where(invoice => invoice.IsOverdue).ToList();
 
             if (overdueInvoices.Count > 0)
             {
@@ -1335,11 +1307,6 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// Gets the change tracking service for aggregating changes from all sources.
-    /// </summary>
-    public static ChangeTrackingService? ChangeTrackingService { get; private set; }
-
-    /// <summary>
     /// Gets the pending conversion service for processing offline transactions.
     /// </summary>
     public static PendingConversionService? PendingConversionService { get; private set; }
@@ -1388,6 +1355,18 @@ public partial class App : Application
             catch (Exception ex)
             {
                 errorLogger.LogWarning($"Failed to apply saved theme during startup: {ex.Message}", "Startup");
+            }
+
+            // Also before any XAML is built: {loc:Loc} reads the language once, when the view is
+            // created, so applying it after the window opens shows English and then rewrites every
+            // label. A language not yet on disk is downloaded later, in InitializeAsync.
+            try
+            {
+                ApplyStartupLanguageFromCache();
+            }
+            catch (Exception ex)
+            {
+                errorLogger.LogWarning($"Failed to apply saved language during startup: {ex.Message}", "Startup");
             }
 
             // Show a splash straight away. Avalonia only shows MainWindow once this method
@@ -1467,7 +1446,7 @@ public partial class App : Application
                 PaymentPortalService,
                 () => CompanyManager?.CompanyData,
                 errorLogger);
-            InvoiceUsageService = new InvoiceUsageService(LicenseService, ErrorLogger);
+            InvoiceUsageService = new UsageLimitService(UsageLimit.InvoiceSends, LicenseService, ErrorLogger);
 
             // Initialize mobile-sync service (shares the same long-lived HttpClient)
             SyncService = new SyncService(httpClient);
@@ -1491,20 +1470,20 @@ public partial class App : Application
             // Everything above is the service graph; everything below builds view models.
             StartupTimeline.MarkServicesReady();
 
-            _mainWindowViewModel = new MainWindowViewModel();
+            _mainWindowViewModel = new MainWindowViewModel(SettingsService);
             ConfirmationDialog = new ConfirmationDialogViewModel();
             UnsavedChangesDialog = new UnsavedChangesDialogViewModel();
             ReceiptViewerModal = new ReceiptViewerModalViewModel();
-            ChangeTrackingService = new ChangeTrackingService();
             PendingConversionService = new PendingConversionService(errorLogger)
             {
-                CurrentCompany = () => (CompanyManager?.CompanyData, CompanyManager?.CurrentFilePath)
+                CurrentCompany = () => CompanyManager?.CompanyData
             };
-            PdfStatementExtractor = new PdfStatementExtractor(LicenseService, ErrorLogger);
+            PdfStatementExtractor = new PdfStatementExtractor(ErrorLogger);
             _idleDetectionService = new IdleDetectionService();
 
             // Create app shell with navigation service and optional update service
             _appShellViewModel = new AppShellViewModel(NavigationService, UpdateService);
+            StartupTimeline.MarkShellViewModel();
             CustomDateRangeModal = _appShellViewModel.CustomDateRangeModalViewModel;
 
             // Ensure no unsaved changes indicator on startup
@@ -1572,28 +1551,25 @@ public partial class App : Application
             // Wire up pending conversion events
             PendingConversionService.PendingConversionsProcessed += (_, args) =>
             {
-                if (args is { ConvertedCount: > 0 })
+                var message = args.ConvertedCount == 1
+                    ? "1 pending transaction has been processed successfully.".Translate()
+                    : string.Format("{0} pending transactions have been processed successfully.".Translate(), args.ConvertedCount);
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                 {
-                    var message = args.ConvertedCount == 1
-                        ? "1 pending transaction has been processed successfully.".Translate()
-                        : string.Format("{0} pending transactions have been processed successfully.".Translate(), args.ConvertedCount);
-                    Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                    // The sample converts its demo rows on every open; announcing that is noise.
+                    if (args.ConvertedCount > 0 && CompanyManager?.IsSampleCompany != true)
                     {
-                        // The sample converts its demo rows on every open; announcing that is noise.
-                        if (CompanyManager?.IsSampleCompany != true)
-                        {
-                            AddNotification(
-                                "Back Online".Translate(),
-                                message,
-                                NotificationType.Success);
-                        }
+                        AddNotification(
+                            "Back Online".Translate(),
+                            message,
+                            NotificationType.Success);
+                    }
 
-                        // Refresh ViewModels so converted transactions show updated status and amounts
-                        _expensesPageViewModel?.RefreshExpensesCommand.Execute(null);
-                        _revenuePageViewModel?.RefreshRevenueCommand.Execute(null);
-                        NavigationService.RefreshCurrentPage();
-                    });
-                }
+                    // Refresh ViewModels so converted transactions show updated status and amounts
+                    _expensesPageViewModel?.RefreshExpensesCommand.Execute(null);
+                    _revenuePageViewModel?.RefreshRevenueCommand.Execute(null);
+                    NavigationService.RefreshCurrentPage();
+                });
             };
 
             // Wire up modal change events (separate from company manager)
@@ -1676,7 +1652,7 @@ public partial class App : Application
                     {
                         _appShellViewModel.HeaderViewModel.ShowSavingIndicator = false;
                         ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to save company on close");
-                        await ShowErrorMessageBoxAsync("Error".Translate(), GetFriendlySaveErrorMessage(ex));
+                        await ShowErrorDialogAsync("Error".Translate(), GetFriendlySaveErrorMessage(ex));
                     }
                 }
             };
@@ -1726,10 +1702,15 @@ public partial class App : Application
 
             StartupTimeline.MarkViewModelsReady();
 
+            // Before the window exists, so it opens at the saved size and state rather than
+            // opening at the default and then resizing in front of the user.
+            _mainWindowViewModel.LoadWindowState();
+
             desktop.MainWindow = new MainWindow
             {
                 DataContext = _mainWindowViewModel
             };
+            StartupTimeline.MarkWindowBuilt();
 
             // Close the splash only once the main window is actually on screen. ShutdownMode
             // is left at its default of OnLastWindowClose, so closing the splash while the
@@ -1760,11 +1741,14 @@ public partial class App : Application
                 }
 
                 _ = TelemetryManager?.TrackStartupAsync(
-                    StartupTimeline.ToFirstPaintMs,
-                    StartupTimeline.ToServicesReadyMs,
-                    StartupTimeline.ToViewModelsReadyMs,
-                    StartupTimeline.ToReadyMs(),
-                    StartupTimeline.IsColdStart);
+                    toMainMs: StartupTimeline.ToMainMs,
+                    toFirstPaintMs: StartupTimeline.ToFirstPaintMs,
+                    toServicesReadyMs: StartupTimeline.ToServicesReadyMs,
+                    toShellViewModelMs: StartupTimeline.ToShellViewModelMs,
+                    toViewModelsReadyMs: StartupTimeline.ToViewModelsReadyMs,
+                    toWindowBuiltMs: StartupTimeline.ToWindowBuiltMs,
+                    toReadyMs: StartupTimeline.ToReadyMs(),
+                    coldStart: StartupTimeline.IsColdStart);
             };
 
             // Process pending conversions when window is activated (e.g., user returns after going offline)
@@ -1779,15 +1763,38 @@ public partial class App : Application
             // Load settings and recent companies asynchronously after window is shown
             _ = InitializeAsync();
         }
-        else if (ApplicationLifetime is ISingleViewApplicationLifetime singleViewPlatform)
-        {
-            singleViewPlatform.MainView = new MainView
-            {
-                DataContext = new MainViewModel()
-            };
-        }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    /// <summary>
+    /// Settles which language this launch uses and switches to it when its translations are
+    /// already cached. Runs before any window is built.
+    /// </summary>
+    private static void ApplyStartupLanguageFromCache()
+    {
+        if (SettingsService == null)
+            return;
+
+        var language = SettingsService.GlobalSettings.Ui.Language;
+
+        // A fresh install starts in the machine's own language when we have that translation.
+        // Only on the very first run: after that the setting is the user's answer, and a
+        // machine whose language changes later must not overrule it.
+        if (SettingsService.IsFirstRun
+            && Data.Languages.MatchSystemLanguage(System.Globalization.CultureInfo.CurrentUICulture.Name)
+                is { } detected
+            && detected != language)
+        {
+            language = detected;
+            SettingsService.GlobalSettings.Ui.Language = detected;
+            _ = SettingsService.SaveGlobalSettingsAsync();
+        }
+
+        if (!string.IsNullOrEmpty(language) && language != "English")
+        {
+            LanguageService.Instance.TrySetCachedLanguage(language);
+        }
     }
 
     /// <summary>
@@ -1797,6 +1804,13 @@ public partial class App : Application
     {
         try
         {
+            // Decrypting the license is a deliberately slow key-stretching pass, so it runs off the
+            // UI thread alongside the work below. Anything else that needs the key while it runs
+            // (usage checks, crash upload) waits on the same cached result.
+            var licenseLoad = LicenseService is { } licenseService
+                ? Task.Run(() => licenseService.LoadLicense())
+                : Task.FromResult(false);
+
             // Load recent companies asynchronously (footer reads from .argo files)
             await LoadRecentCompaniesAsync();
 
@@ -1845,9 +1859,11 @@ public partial class App : Application
                 {
                     try
                     {
-                        using var crashHttpClient = new HttpClient();
-                        crashHttpClient.Timeout = TimeSpan.FromSeconds(20);
-                        await CrashReporter.UploadPendingAsync(crashHttpClient, flushVersion);
+                        if (SharedHttpClient is { } crashClient)
+                        {
+                            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+                            await CrashReporter.UploadPendingAsync(crashClient, flushVersion, timeout.Token);
+                        }
                     }
                     catch
                     {
@@ -1876,22 +1892,23 @@ public partial class App : Application
 
             // Report first-run install for referral funnel attribution. Fire-and-forget
             // so app startup isn't blocked on network I/O. The reporter writes a marker
-            // after a successful POST so subsequent launches are no-ops. The HttpClient
-            // is disposed inside the task so it doesn't leak past the one-shot report.
+            // after a successful POST so subsequent launches are no-ops.
             try
             {
                 var appVersion = AppInfo.VersionNumber;
                 var capturedErrorLogger = ErrorLogger;
-                _ = Task.Run(async () =>
+                if (SharedHttpClient is { } firstRunClient)
                 {
-                    using var firstRunHttpClient = new HttpClient();
-                    firstRunHttpClient.Timeout = TimeSpan.FromSeconds(15);
-                    var firstRunReporter = new FirstRunReporter(
-                        firstRunHttpClient,
-                        appVersion,
-                        capturedErrorLogger);
-                    await firstRunReporter.ReportIfFirstRunAsync();
-                });
+                    _ = Task.Run(async () =>
+                    {
+                        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+                        var firstRunReporter = new FirstRunReporter(
+                            firstRunClient,
+                            appVersion,
+                            capturedErrorLogger);
+                        await firstRunReporter.ReportIfFirstRunAsync(timeout.Token);
+                    });
+                }
             }
             catch (Exception ex)
             {
@@ -1911,20 +1928,9 @@ public partial class App : Application
             {
                 var language = SettingsService.GlobalSettings.Ui.Language;
 
-                // A fresh install starts in the machine's own language when we have that translation.
-                // Only on the very first run: after that the setting is the user's answer, and a
-                // machine whose language changes later must not overrule it.
-                if (SettingsService.IsFirstRun
-                    && Data.Languages.MatchSystemLanguage(System.Globalization.CultureInfo.CurrentUICulture.Name)
-                        is { } detected
-                    && detected != language)
-                {
-                    language = detected;
-                    SettingsService.GlobalSettings.Ui.Language = detected;
-                    _ = SettingsService.SaveGlobalSettingsAsync();
-                }
-
-                if (!string.IsNullOrEmpty(language) && language != "English")
+                // Only reached when startup found no cached file for it, so this downloads.
+                if (!string.IsNullOrEmpty(language) && language != "English"
+                    && LanguageService.Instance.CurrentLanguage != language)
                 {
                     await LanguageService.Instance.SetLanguageAsync(language);
                 }
@@ -1962,16 +1968,10 @@ public partial class App : Application
             // background, and falls back to seed priors when offline.
             InitializeOperationTimingService();
 
-            // Load pending conversion queue from disk
-            if (PendingConversionService != null)
-            {
-                await PendingConversionService.LoadAsync();
-            }
-
             // Load and apply saved license status
             if (LicenseService != null && _appShellViewModel != null)
             {
-                var hasPremium = LicenseService.LoadLicense();
+                var hasPremium = await licenseLoad;
                 if (hasPremium)
                 {
                     _appShellViewModel.SetPlanStatus(hasPremium);
@@ -2029,7 +2029,7 @@ public partial class App : Application
                 case LicenseValidationStatus.InvalidKey:
                     await LicenseService.ClearLicenseAsync();
                     _appShellViewModel.SetPlanStatus(false);
-                    await ShowErrorMessageBoxAsync(
+                    await ShowErrorDialogAsync(
                         "License Issue".Translate(),
                         "Your license key is no longer valid. Please contact support or enter a new key.".Translate());
                     break;
@@ -2037,7 +2037,7 @@ public partial class App : Application
                 case LicenseValidationStatus.ExpiredSubscription:
                     await LicenseService.ClearLicenseAsync();
                     _appShellViewModel.SetPlanStatus(false);
-                    await ShowErrorMessageBoxAsync(
+                    await ShowErrorDialogAsync(
                         "Subscription Expired".Translate(),
                         "Your premium subscription has expired. Please renew your subscription to continue using premium features.".Translate());
                     break;
@@ -2045,7 +2045,7 @@ public partial class App : Application
                 case LicenseValidationStatus.WrongDevice:
                     await LicenseService.ClearLicenseAsync();
                     _appShellViewModel.SetPlanStatus(false);
-                    await ShowErrorMessageBoxAsync(
+                    await ShowErrorDialogAsync(
                         "License Deactivated".Translate(),
                         "Your license key has been activated on a different device. Premium features have been deactivated on this device. You can re-enter your key in the Upgrade menu to reactivate.".Translate());
                     break;
@@ -2450,7 +2450,7 @@ public partial class App : Application
         if (prepared == null)
         {
             ErrorLogger?.LogWarning($"Could not read avatar image: {path}", errorTag);
-            await ShowErrorMessageBoxAsync(
+            await ShowErrorDialogAsync(
                 "Image Not Supported".Translate(),
                 "That image could not be read. Try a PNG or JPEG.".Translate());
             return;
@@ -2479,7 +2479,7 @@ public partial class App : Application
             // convert at today's rate, so both are settled before anything is frozen.
             if (PendingConversionService != null && data.PendingConversions.Count > 0)
             {
-                await PendingConversionService.ReconcileWithCompanyDataAsync(data);
+                PendingConversionService.ReconcileWithCompanyData(data);
                 await PendingConversionService.ProcessPendingConversionsAsync(data);
                 data.MarkAsSaved();
                 if (_mainWindowViewModel != null)
@@ -2536,7 +2536,7 @@ public partial class App : Application
                 if (stream == null)
                 {
                     _mainWindowViewModel.HideLoading();
-                    await ShowErrorMessageBoxAsync("Error".Translate(), "Sample company data not found.".Translate());
+                    await ShowErrorDialogAsync("Error".Translate(), "Sample company data not found.".Translate());
                     return;
                 }
 
@@ -2595,6 +2595,9 @@ public partial class App : Application
                     // Set date range to show full year of sample data
                     ChartSettingsService.Instance.SelectedDateRange = "Last 365 Days";
 
+                    // The time shift moved every date, so their rates may not be cached yet.
+                    await CurrencyService.WarmCompanyRatesAsync(CompanyManager.CompanyData);
+
                     await CaptureSampleInsightsAsync();
                 }
 
@@ -2609,7 +2612,7 @@ public partial class App : Application
             else
             {
                 _mainWindowViewModel.HideLoading();
-                await ShowErrorMessageBoxAsync("Error".Translate(), "Failed to open sample company.".Translate());
+                await ShowErrorDialogAsync("Error".Translate(), "Failed to open sample company.".Translate());
             }
         }
         catch (CompanyAlreadyOpenException)
@@ -2621,7 +2624,7 @@ public partial class App : Application
         {
             _mainWindowViewModel.HideLoading();
             ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to open sample company");
-            await ShowErrorMessageBoxAsync("Error".Translate(), "Failed to open sample company: {0}".TranslateFormat(ex.Message));
+            await ShowErrorDialogAsync("Error".Translate(), "Failed to open sample company: {0}".TranslateFormat(ex.Message));
         }
     }
 
@@ -2747,7 +2750,7 @@ public partial class App : Application
                 _mainWindowViewModel?.HideLoading();
                 _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, "xls-convert");
                 ErrorLogger?.LogError(ex, ErrorCategory.Import, "Failed to convert legacy .xls file for import");
-                await ShowErrorMessageBoxAsync(
+                await ShowErrorDialogAsync(
                     "Import Failed".Translate(),
                     "This .xls file could not be read. Try re-saving it as .xlsx and importing that instead.".Translate());
                 return;
@@ -2755,10 +2758,10 @@ public partial class App : Application
         }
 
         // Check rate limit via server-side API
-        using var usageService = new AiImportUsageService(LicenseService, ErrorLogger);
+        using var usageService = new UsageLimitService(UsageLimit.AiImports(), LicenseService, ErrorLogger);
         var usageCheck = await usageService.CheckUsageAsync();
 
-        if (!usageCheck.CanImport)
+        if (!usageCheck.Allowed)
         {
             _mainWindowViewModel?.HideLoading();
 
@@ -2777,7 +2780,7 @@ public partial class App : Application
             else
             {
                 await UpgradePromptHelper.ShowAiImportLimitPromptAsync(
-                    usageCheck.ImportCount,
+                    usageCheck.Used,
                     usageCheck.MonthlyLimit,
                     usageCheck.ResetsAt);
             }
@@ -2789,7 +2792,7 @@ public partial class App : Application
         {
             _mainWindowViewModel?.HideLoading();
             _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, "not-configured");
-            await ShowErrorMessageBoxAsync(
+            await ShowErrorDialogAsync(
                 "AI Not Configured".Translate(),
                 "AI-powered import requires portal access. Please register your company first.".Translate());
             return;
@@ -2883,7 +2886,7 @@ public partial class App : Application
             if (includedSheets.Count == 0)
             {
                 _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportAbandoned, "no-sheets");
-                await ShowInfoMessageBoxAsync("Info".Translate(), "No sheets were selected for import.".Translate());
+                await ShowInfoDialogAsync("Info".Translate(), "No sheets were selected for import.".Translate());
                 return;
             }
 
@@ -2892,7 +2895,6 @@ public partial class App : Application
 
             // Create snapshot for undo
             var snapshot = CreateCompanyDataSnapshot(companyData);
-            var queuedBeforeImport = companyData.PendingConversions.ToHashSet();
 
             // Step 3: Split sheets by processing tier
             // Respect the AI's tier recommendation for both Excel and CSV files.
@@ -3055,9 +3057,13 @@ public partial class App : Application
                     _mainWindowViewModel?.ShowLoading("Importing data...".Translate(), p.detail, p.percent, importCts, ConfirmCancelAsync);
                 });
 
-                tier1Result = isCsv
-                    ? await importService.ImportCsvWithMappingsAsync(filePath, companyData, updatedAnalysis, importOptions, importCts.Token, importProgress)
-                    : await importService.ImportWithMappingsAsync(filePath, companyData, updatedAnalysis, importOptions, importCts.Token, importProgress);
+                // It runs off the UI thread, where the conversion pass changes the same records and queue.
+                using (PendingConversionService is { } conversions ? await conversions.SuspendAsync() : null)
+                {
+                    tier1Result = isCsv
+                        ? await importService.ImportCsvWithMappingsAsync(filePath, companyData, updatedAnalysis, importOptions, importCts.Token, importProgress)
+                        : await importService.ImportWithMappingsAsync(filePath, companyData, updatedAnalysis, importOptions, importCts.Token, importProgress);
+                }
 
                 // AI-categorize any products that ended up without a category
                 // (skip if Tier 2 sheets will handle it after their processing)
@@ -3195,11 +3201,6 @@ public partial class App : Application
             _ = TelemetryManager?.TrackFeatureAsync(
                 FeatureName.DataImported, importContext, importStopwatch.ElapsedMilliseconds);
 
-            // Rows the import could not price yet were queued, or requeued with new amounts, in the
-            // company file only.
-            MirrorQueuedConversions(companyData, companyData.PendingConversions
-                .Where(p => !queuedBeforeImport.Contains(p)).Select(p => p.TransactionId));
-
             // Create snapshot for redo
             var importedSnapshot = CreateCompanyDataSnapshot(companyData);
 
@@ -3308,17 +3309,9 @@ public partial class App : Application
             _mainWindowViewModel?.HideLoading();
             _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, "exception");
             ErrorLogger?.LogError(ex, ErrorCategory.Import, "Failed to perform AI import");
-            var errorDialog = ConfirmationDialog;
-            if (errorDialog != null)
-            {
-                await errorDialog.ShowAsync(new ConfirmationDialogOptions
-                {
-                    Title = "Import Failed".Translate(),
-                    Message = "Failed to import data:\n\n{0}".TranslateFormat(ex.Message),
-                    PrimaryButtonText = "OK".Translate(),
-                    CancelButtonText = ""
-                });
-            }
+            await ShowErrorDialogAsync(
+                "Import Failed".Translate(),
+                "Failed to import data:\n\n{0}".TranslateFormat(ex.Message));
         }
     }
 
@@ -3393,7 +3386,7 @@ public partial class App : Application
         {
             _mainWindowViewModel?.HideLoading();
             ErrorLogger?.LogError(ex, ErrorCategory.Import, "Failed to restore from backup");
-            await ShowErrorMessageBoxAsync("Restore Failed".Translate(), "Failed to restore from backup: {0}".TranslateFormat(ex.Message));
+            await ShowErrorDialogAsync("Restore Failed".Translate(), "Failed to restore from backup: {0}".TranslateFormat(ex.Message));
         }
     }
 
@@ -3436,7 +3429,7 @@ public partial class App : Application
         if (Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop) return;
         if (CompanyManager?.CompanyData is not { } companyData)
         {
-            await ShowErrorMessageBoxAsync("Error".Translate(), "No company is currently open.".Translate());
+            await ShowErrorDialogAsync("Error".Translate(), "No company is currently open.".Translate());
             return;
         }
 
@@ -3496,7 +3489,7 @@ public partial class App : Application
             if (lines.Count == 0)
             {
                 _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, $"bank-matching:no-rows:{ext.TrimStart('.')}");
-                await ShowInfoMessageBoxAsync("Info".Translate(),
+                await ShowInfoDialogAsync("Info".Translate(),
                     "No transactions were found. Make sure the file has Date, Description and Amount (or Debit/Credit) columns.".Translate());
                 return;
             }
@@ -3529,7 +3522,7 @@ public partial class App : Application
             _ = TelemetryManager?.TrackFeatureAsync(FeatureName.DataImported, $"bank-matching:{lines.Count}");
             TutorialService.Instance.CompleteChecklistItem(TutorialService.ChecklistItems.ImportData);
 
-            await ShowInfoMessageBoxAsync(
+            await ShowInfoDialogAsync(
                 "Bank Matching".Translate(),
                 "Imported {0} transactions from {1}.".TranslateFormat(lines.Count, Path.GetFileName(filePath)));
         }
@@ -3542,14 +3535,14 @@ public partial class App : Application
         {
             _mainWindowViewModel?.HideLoading();
             _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, $"bank-matching:unreadable:{ext.TrimStart('.')}");
-            await ShowInfoMessageBoxAsync("Import Bank Statement".Translate(), ImportRescueMessages.UnreadableFile);
+            await ShowInfoDialogAsync("Import Bank Statement".Translate(), ImportRescueMessages.UnreadableFile);
         }
         catch (Exception ex)
         {
             _mainWindowViewModel?.HideLoading();
             _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, "bank-matching:exception");
             ErrorLogger?.LogError(ex, ErrorCategory.Import, "Bank statement import failed");
-            await ShowErrorMessageBoxAsync("Import Failed".Translate(), "Failed to import bank statement:\n\n{0}".TranslateFormat(ex.Message));
+            await ShowErrorDialogAsync("Import Failed".Translate(), "Failed to import bank statement:\n\n{0}".TranslateFormat(ex.Message));
         }
     }
 
@@ -3559,7 +3552,7 @@ public partial class App : Application
     /// null when the user is out of bank imports (the limit prompt has been shown), or an empty list
     /// if AI isn't available or finds nothing.
     /// </summary>
-    private static async Task<List<Core.Models.BankMatching.BankStatementLine>?> TryAiParseBankStatementAsync(
+    internal static async Task<List<Core.Models.BankMatching.BankStatementLine>?> TryAiParseBankStatementAsync(
         string filePath, bool isCsv, BankStatementImportService parser)
     {
         var gemini = new GeminiService(ErrorLogger, TelemetryManager);
@@ -3598,71 +3591,94 @@ public partial class App : Application
     /// extraction succeeds. Shared by the Bank Matching page import and the review-modal import so the
     /// gate lives in one place.
     /// </summary>
-    internal static async Task<AiImportUsageService?> TryBeginBankPdfImportAsync()
+    internal static async Task<UsageLimitService?> TryBeginBankPdfImportAsync()
     {
-        var usage = new AiImportUsageService(LicenseService, ErrorLogger, importType: "bank");
+        var usage = new UsageLimitService(UsageLimit.AiImports("bank"), LicenseService, ErrorLogger);
         var check = await usage.CheckUsageAsync();
-        if (check.CanImport) return usage;
+        if (check.Allowed) return usage;
 
         usage.Dispose();
         if (check.ErrorMessage != null)
             await UpgradePromptHelper.ShowUsageCheckFailedAsync(check.ErrorMessage);
         else
-            await UpgradePromptHelper.ShowAiImportLimitPromptAsync(check.ImportCount, check.MonthlyLimit, check.ResetsAt);
+            await UpgradePromptHelper.ShowAiImportLimitPromptAsync(check.Used, check.MonthlyLimit, check.ResetsAt);
         return null;
     }
 
-    /// <summary>
-    /// PDF bank statement import for the Bank Matching page: checks the usage limit, calls the AI
-    /// extractor, and consumes the single bank-import credit on success. Returns the extracted rows,
-    /// or an empty list if out of imports or nothing could be extracted.
-    /// </summary>
-    private static async Task<List<Core.Models.BankMatching.BankStatementLine>> ImportPdfStatementAsync(string filePath)
-    {
-        // This path shows the rows on the Bank Matching page with no follow-up categorization, so the
-        // extraction below is the single charge.
-        using var usage = await TryBeginBankPdfImportAsync();
-        if (usage == null) return [];
-        if (PdfStatementExtractor == null) return [];
+    /// <summary>How a screen shows a PDF statement being read. See <see cref="ReadBankPdfStatementAsync"/>.</summary>
+    /// <param name="Begin">Reading starts; given the file's size, for a progress estimate.</param>
+    /// <param name="End">Reading is over; true when rows came back.</param>
+    /// <param name="StillWanted">False once the user has closed the screen, so no message is shown.</param>
+    internal sealed record BankPdfReadProgress(Action<long> Begin, Action<bool> End, Func<bool> StillWanted);
 
-        // Reading the PDF is a slow network + AI round-trip; show the loading overlay for the
-        // whole wait so there's instant feedback. Hide it before any dialog.
-        ShowBusyOverlay("Reading PDF statement...".Translate());
+    /// <summary>
+    /// The one way a PDF bank statement is read, for the Bank Matching page and the import modal:
+    /// checks the bank-import limit, sends the PDF to the AI extractor, and charges the single
+    /// bank-import credit once rows come back. Returns the rows, or an empty list when the user is
+    /// out of imports, the server is busy, or nothing could be read (each told to the user).
+    /// </summary>
+    internal static async Task<List<Core.Models.BankMatching.BankStatementLine>> ReadBankPdfStatementAsync(
+        string filePath, BankPdfReadProgress progress)
+    {
+        using var usage = await TryBeginBankPdfImportAsync();
+        if (usage == null || PdfStatementExtractor == null) return [];
+
+        progress.Begin(new FileInfo(filePath).Length);
+        List<Core.Models.BankMatching.BankStatementLine> extracted;
         try
         {
             var bytes = await SharedFileReader.ReadAllBytesAsync(filePath);
-            List<Core.Models.BankMatching.BankStatementLine> extracted;
-            try
-            {
-                extracted = await PdfStatementExtractor.ExtractAsync(bytes, Path.GetFileName(filePath));
-            }
-            catch (ServerRateLimitedException ex)
-            {
-                // Nothing was read, so nothing is charged; the file itself may be fine.
-                HideBusyOverlay();
-                await ShowInfoMessageBoxAsync("Import Bank Statement".Translate(), ex.Message);
-                return [];
-            }
-            HideBusyOverlay();
-            if (extracted.Count == 0)
-            {
-                // Don't fail silently: the extractor returns nothing both when the PDF has no
-                // recognizable transactions and when the server couldn't process it.
-                await ShowInfoMessageBoxAsync(
+            extracted = await PdfStatementExtractor.ExtractAsync(bytes, Path.GetFileName(filePath));
+        }
+        catch (ServerRateLimitedException ex)
+        {
+            // Nothing was read, so nothing is charged; the file itself may be fine.
+            if (EndRead(progress, false))
+                await ShowInfoDialogAsync("Import Bank Statement".Translate(), ex.Message);
+            return [];
+        }
+        catch
+        {
+            progress.End(false);
+            throw;
+        }
+
+        var stillWanted = EndRead(progress, extracted.Count > 0);
+        if (extracted.Count == 0)
+        {
+            // Don't fail silently: the extractor returns nothing both when the PDF has no
+            // recognizable transactions and when the server couldn't process it. Nothing is charged.
+            if (stillWanted)
+                await ShowInfoDialogAsync(
                     "Import Bank Statement".Translate(),
                     "We couldn't read any transactions from that PDF. It may not be a recognizable bank statement, or the server couldn't process it. Try again, or import a CSV or Excel export instead.".Translate());
-                return [];
-            }
+            return [];
+        }
 
-            // Extraction succeeded: consume the single bank-import credit and return the rows.
-            await usage.IncrementUsageAsync();
-            return extracted;
-        }
-        finally
-        {
-            HideBusyOverlay();
-        }
+        // Charged even if the user has since closed the screen, or a start-and-cancel loop could
+        // read PDFs without ever using up the limit.
+        await usage.IncrementUsageAsync();
+        return extracted;
     }
+
+    /// <summary>Ends the read and says whether the screen was still open beforehand.</summary>
+    /// <remarks>Asked before End, because ending a failed read closes the import screen.</remarks>
+    internal static bool EndRead(BankPdfReadProgress progress, bool succeeded)
+    {
+        var stillWanted = progress.StillWanted();
+        progress.End(succeeded);
+        return stillWanted;
+    }
+
+    /// <summary>
+    /// PDF bank statement import for the Bank Matching page, behind the loading overlay. The rows go
+    /// straight to the page with no follow-up categorization, so the read is the single charge.
+    /// </summary>
+    private static Task<List<Core.Models.BankMatching.BankStatementLine>> ImportPdfStatementAsync(string filePath) =>
+        ReadBankPdfStatementAsync(filePath, new BankPdfReadProgress(
+            _ => ShowBusyOverlay("Reading PDF statement...".Translate()),
+            _ => HideBusyOverlay(),
+            () => true));
 
     internal static string CreateCompanyDataSnapshot(CompanyData data)
     {
@@ -3699,18 +3715,6 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// Brings the conversion service's queue in line with the company file for these rows. The
-    /// service converts from its own copy, and takes in the company file's only when it opens, so
-    /// a row queued or unqueued anywhere else has to be handed over or it is missed or dropped.
-    /// </summary>
-    private static void MirrorQueuedConversions(CompanyData data, IEnumerable<string> transactionIds)
-    {
-        var ids = transactionIds.Distinct().ToList();
-        if (ids.Count > 0)
-            _ = Core.Services.PendingConversionService.Instance?.MirrorAsync(data, ids);
-    }
-
-    /// <summary>
     /// Restores company data collections from a JSON snapshot.
     /// </summary>
     internal static void RestoreCompanyDataFromSnapshot(CompanyData data, string snapshotJson)
@@ -3722,52 +3726,20 @@ public partial class App : Application
 
         using var doc = System.Text.Json.JsonDocument.Parse(snapshotJson);
         var root = doc.RootElement;
-        var queuedBefore = data.PendingConversions.Select(p => p.TransactionId).ToList();
+        var queuedBefore = data.PendingConversions.Select(p => p.Key).ToList();
 
-        // Helper to deserialize a list property
-        void RestoreList<T>(List<T> list, string propertyName)
-        {
-            list.Clear();
-            if (root.TryGetProperty(propertyName, out var prop))
-            {
-                var items = System.Text.Json.JsonSerializer.Deserialize<List<T>>(prop.GetRawText(), options);
-                if (items != null)
-                    list.AddRange(items);
-            }
-        }
+        List<T> Read<T>(string propertyName) =>
+            root.TryGetProperty(propertyName, out var prop)
+                ? System.Text.Json.JsonSerializer.Deserialize<List<T>>(prop.GetRawText(), options) ?? []
+                : [];
 
-        // Restore IdCounters
-        if (root.TryGetProperty("IdCounters", out var counters))
-        {
-            var restoredCounters = System.Text.Json.JsonSerializer.Deserialize<IdCounters>(counters.GetRawText(), options);
-            if (restoredCounters != null)
-            {
-                data.IdCounters.Customer = restoredCounters.Customer;
-                data.IdCounters.Product = restoredCounters.Product;
-                data.IdCounters.Supplier = restoredCounters.Supplier;
-                data.IdCounters.Category = restoredCounters.Category;
-                data.IdCounters.Location = restoredCounters.Location;
-                data.IdCounters.Revenue = restoredCounters.Revenue;
-                data.IdCounters.Expense = restoredCounters.Expense;
-                data.IdCounters.Invoice = restoredCounters.Invoice;
-                data.IdCounters.Quote = restoredCounters.Quote;
-                data.IdCounters.Payment = restoredCounters.Payment;
-                data.IdCounters.RecurringInvoice = restoredCounters.RecurringInvoice;
-                data.IdCounters.InventoryItem = restoredCounters.InventoryItem;
-                data.IdCounters.StockAdjustment = restoredCounters.StockAdjustment;
-                data.IdCounters.PurchaseOrder = restoredCounters.PurchaseOrder;
-                data.IdCounters.RentalItem = restoredCounters.RentalItem;
-                data.IdCounters.Rental = restoredCounters.Rental;
-                // Restore the remaining counters too, so a snapshot restore is faithful and later
-                // IDs don't drift/gap for these entity types.
-                data.IdCounters.Accountant = restoredCounters.Accountant;
-                data.IdCounters.StockTransfer = restoredCounters.StockTransfer;
-                data.IdCounters.Return = restoredCounters.Return;
-                data.IdCounters.LostDamaged = restoredCounters.LostDamaged;
-                data.IdCounters.Receipt = restoredCounters.Receipt;
-                data.IdCounters.InvoiceTemplate = restoredCounters.InvoiceTemplate;
-            }
-        }
+        // Undo steps hold records and change them later, so each record stays the object it was.
+        void RestoreList<T>(List<T> list, string propertyName) where T : class, Core.Models.Common.IRecord =>
+            list.RestoreInPlace(Read<T>(propertyName));
+
+        if (root.TryGetProperty("IdCounters", out var counters)
+            && System.Text.Json.JsonSerializer.Deserialize<IdCounters>(counters.GetRawText(), options) is { } restoredCounters)
+            data.IdCounters.CopyFrom(restoredCounters);
 
         // Restore all collections
         RestoreList(data.Customers, "Customers");
@@ -3794,10 +3766,23 @@ public partial class App : Application
         RestoreList(data.EventLog, "EventLog");
         RestoreList(data.BankImportSessions, "BankImportSessions");
         RestoreList(data.Employees, "Employees");
-        RestoreList(data.PendingConversions, "PendingConversions");
+        // An entry the restore leaves as it was stays the same object too: a stock undo reads the
+        // rate the queue converted its entry at off the entry it holds (StockChange.OldPendingCost).
+        var liveEntries = data.PendingConversions
+            .GroupBy(p => p.Key)
+            .ToDictionary(g => g.Key, g => g.First());
+        var restoredEntries = Read<Core.Models.Common.PendingConversion>("PendingConversions")
+            .Select(e => liveEntries.TryGetValue(e.Key, out var live)
+                         && System.Text.Json.JsonSerializer.Serialize(live) == System.Text.Json.JsonSerializer.Serialize(e)
+                ? live
+                : e)
+            .ToList();
+        data.PendingConversions.Clear();
+        data.PendingConversions.AddRange(restoredEntries);
+        data.InvalidateLookupCaches();
 
         // An undo takes away rows whose conversions were queued, and a redo brings them back pending.
-        MirrorQueuedConversions(data, queuedBefore.Concat(data.PendingConversions.Select(p => p.TransactionId)));
+        Core.Services.UsdConversion.Mirror(data, queuedBefore.Concat(data.PendingConversions.Select(p => p.Key)));
     }
 
     /// <summary>
@@ -3919,7 +3904,7 @@ public partial class App : Application
                     // What the security guidance does not cover, such as a drive that has gone.
                     // Staying on the open company keeps the changes; carrying on would discard them.
                     ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Save before leaving the company failed");
-                    await ShowWarningMessageBoxAsync(
+                    await ShowWarningDialogAsync(
                         "Could Not Save".Translate(),
                         "Your changes could not be saved, so the company is still open with them. {0}".TranslateFormat(ex.Message));
                     return false;
@@ -4009,17 +3994,9 @@ public partial class App : Application
             _isOpeningCompany = false;
             _mainWindowViewModel.HideLoading();
             passwordModal.Close();
-            if (ConfirmationDialog != null)
-            {
-                await ConfirmationDialog.ShowAsync(new ConfirmationDialogOptions
-                {
-                    Title = "Company File Not Found".Translate(),
-                    Message = "The company file no longer exists.".Translate(),
-                    PrimaryButtonText = "OK".Translate(),
-                    SecondaryButtonText = null,
-                    CancelButtonText = null
-                });
-            }
+            await ShowWarningDialogAsync(
+                "Company File Not Found".Translate(),
+                "The company file no longer exists.".Translate());
             SettingsService?.RemoveRecentCompany(filePath);
             await LoadRecentCompaniesAsync();
         }
@@ -4068,27 +4045,18 @@ public partial class App : Application
             _mainWindowViewModel.HideLoading();
             passwordModal.Close();
             ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to open company file");
-            await ShowErrorMessageBoxAsync("Error".Translate(), "Failed to open file: {0}".TranslateFormat(ex.Message));
+            await ShowErrorDialogAsync("Error".Translate(), "Failed to open file: {0}".TranslateFormat(ex.Message));
         }
     }
 
     /// <summary>
-    /// Shows the friendly "this company is already open in another window" notice. Uses the neutral
-    /// confirmation dialog (not the red error box) since it's an expected, recoverable situation.
+    /// Shows the friendly "this company is already open in another window" notice, as information
+    /// rather than an error since it's an expected, recoverable situation.
     /// </summary>
-    private static async Task ShowCompanyAlreadyOpenAsync()
-    {
-        if (ConfirmationDialog == null) return;
-
-        await ConfirmationDialog.ShowAsync(new ConfirmationDialogOptions
-        {
-            Title = "Already Open".Translate(),
-            Message = "This company is already open in another window. Close it there first, then try again.".Translate(),
-            PrimaryButtonText = "OK".Translate(),
-            SecondaryButtonText = null,
-            CancelButtonText = null
-        });
-    }
+    private static Task ShowCompanyAlreadyOpenAsync() =>
+        ShowInfoDialogAsync(
+            "Already Open".Translate(),
+            "This company is already open in another window. Close it there first, then try again.".Translate());
 
     /// <summary>
     /// Retries opening a company file with a specific password.
@@ -4150,7 +4118,7 @@ public partial class App : Application
             _mainWindowViewModel.HideLoading();
             passwordModal.Close();
             ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to open company file with password");
-            await ShowErrorMessageBoxAsync("Error".Translate(), "Failed to open file: {0}".TranslateFormat(ex.Message));
+            await ShowErrorDialogAsync("Error".Translate(), "Failed to open file: {0}".TranslateFormat(ex.Message));
             return false;
         }
     }
@@ -4217,7 +4185,7 @@ public partial class App : Application
             {
                 _suppressSavedFeedback = false;
                 ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to save company as new file");
-                await ShowErrorMessageBoxAsync("Error".Translate(), GetFriendlySaveErrorMessage(ex));
+                await ShowErrorDialogAsync("Error".Translate(), GetFriendlySaveErrorMessage(ex));
                 return false;
             }
         }
@@ -4315,9 +4283,7 @@ public partial class App : Application
     /// </summary>
     private static async Task<SaveBlockedChoice> ShowSaveBlockedDialogAsync(string? targetPath)
     {
-        if (Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
-            && desktop.MainWindow is MainWindow mainWindow
-            && mainWindow.MessageBoxService is { } messageBoxService)
+        if (ConfirmationDialog is { } dialog)
         {
             var folder = string.IsNullOrEmpty(targetPath)
                 ? "the selected folder".Translate()
@@ -4328,20 +4294,21 @@ public partial class App : Application
                            "(for example: Windows Security → Virus & threat protection → Ransomware protection → Allow an app).")
                 .TranslateFormat(folder);
 
-            var result = await messageBoxService.ShowAsync(new MessageBoxOptions
+            var result = await dialog.ShowAsync(new ConfirmationDialogOptions
             {
+                Icon = DialogIcon.Warning,
                 Title = "Couldn't save your company file".Translate(),
                 Message = message,
-                Type = MessageBoxType.Warning,
-                Buttons = MessageBoxButtons.YesNoCancel,
                 PrimaryButtonText = "Retry".Translate(),
-                SecondaryButtonText = "Save to a different folder…".Translate()
+                SecondaryButtonText = "Save to a different folder…".Translate(),
+                CancelButtonText = "Cancel".Translate(),
+                CloseOnBackdropClick = false
             });
 
             return result switch
             {
-                MessageBoxResult.Yes => SaveBlockedChoice.Retry,
-                MessageBoxResult.No => SaveBlockedChoice.SaveElsewhere,
+                ConfirmationResult.Primary => SaveBlockedChoice.Retry,
+                ConfirmationResult.Secondary => SaveBlockedChoice.SaveElsewhere,
                 _ => SaveBlockedChoice.Cancel
             };
         }
@@ -4564,29 +4531,20 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// Shows the unsaved changes dialog with a list of all changes.
+    /// Asks whether to save unsaved changes.
     /// </summary>
     /// <returns>The user's choice.</returns>
-    private static async Task<UnsavedChangesResult> ShowUnsavedChangesDialogAsync()
-    {
-        if (UnsavedChangesDialog == null)
-            return UnsavedChangesResult.Cancel;
-
-        // Get changes from the change tracking service if available
-        var categories = ChangeTrackingService?.GetAllChangeCategories();
-
-        return await UnsavedChangesDialog.ShowAsync(categories);
-    }
+    private static Task<UnsavedChangesResult> ShowUnsavedChangesDialogAsync() =>
+        UnsavedChangesDialog?.ShowAsync(
+            "Unsaved Changes".Translate(),
+            "You have unsaved changes. Would you like to save them before closing?".Translate())
+        ?? Task.FromResult(UnsavedChangesResult.Cancel);
 
     /// <summary>
     /// Registers all available pages with the navigation service.
     /// </summary>
     private static void RegisterPages(NavigationService navigationService)
     {
-        // Register placeholder pages - these will be replaced with actual views as they're implemented
-        // The page factory receives optional parameters and returns a view or viewmodel
-
-        // Welcome Screen (shown when no company is open)
         _welcomeScreenViewModel = new WelcomeScreenViewModel();
         navigationService.RegisterPage("Welcome", _ => new WelcomeScreen { DataContext = _welcomeScreenViewModel });
 
@@ -4596,7 +4554,6 @@ public partial class App : Application
             if (_dashboardPageViewModel == null)
             {
                 _dashboardPageViewModel = new DashboardPageViewModel();
-                // Wire up Google Sheets export notifications (only once)
                 _dashboardPageViewModel.GoogleSheetsExportStatusChanged += async (_, args) =>
                 {
                     if (args.IsExporting)
@@ -4616,7 +4573,7 @@ public partial class App : Application
                         if (ConnectivityMessage.IsConnectivityMessage(args.ErrorMessage))
                             await ShowConnectivityErrorAsync(args.ErrorMessage);
                         else
-                            await ShowErrorMessageBoxAsync("Export Failed".Translate(), args.ErrorMessage);
+                            await ShowErrorDialogAsync("Export Failed".Translate(), args.ErrorMessage);
                     }
                     else
                     {
@@ -4654,7 +4611,6 @@ public partial class App : Application
         {
             _revenuePageViewModel ??= new RevenuePageViewModel();
             _revenuePageViewModel.HasPremium = _appShellViewModel?.SidebarViewModel.HasPremium ?? false;
-            // Clear any previous highlight first
             _revenuePageViewModel.HighlightTransactionId = null;
             if (param is TransactionNavigationParameter navParam)
             {
@@ -4667,7 +4623,6 @@ public partial class App : Application
         {
             _expensesPageViewModel ??= new ExpensesPageViewModel();
             _expensesPageViewModel.HasPremium = _appShellViewModel?.SidebarViewModel.HasPremium ?? false;
-            // Clear any previous highlight first
             _expensesPageViewModel.HighlightTransactionId = null;
             if (param is TransactionNavigationParameter navParam)
             {
@@ -4680,7 +4635,7 @@ public partial class App : Application
         {
             _quotesPageViewModel ??= new QuotesPageViewModel();
             _quotesPageViewModel.HighlightTransactionId = null;
-            // The VM is cached across navigations, so re-read CompanyData on every arrival.
+            // Cached across navigations, so re-read CompanyData on arrival.
             _quotesPageViewModel.RefreshQuotesCommand.Execute(null);
             if (param is TransactionNavigationParameter navParam)
             {
@@ -4688,8 +4643,7 @@ public partial class App : Application
                 _quotesPageViewModel.ApplyHighlight();
             }
 
-            // The answers a customer gave while the app was elsewhere are what makes this page
-            // worth opening, so pull them on arrival rather than waiting out the timer.
+            // Pull the answers customers gave while the app was elsewhere.
             _ = AutoSyncPortalPaymentsAsync();
             return new QuotesPage { DataContext = _quotesPageViewModel };
         });
@@ -4702,35 +4656,17 @@ public partial class App : Application
             }
             _invoicesPageViewModel.HasPremium = _appShellViewModel!.SidebarViewModel.HasPremium;
             _invoicesPageViewModel.HighlightTransactionId = null;
-            if (param is RentalInvoiceNavigationParameter rentalParam)
-            {
-                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-                {
-                    InvoiceModalsViewModel?.OpenCreateFromRental(rentalParam.RentalRecordId);
-                });
-            }
             if (param is Dictionary<string, object?> dict
                 && dict.TryGetValue("selectedTabIndex", out var tabIndex) && tabIndex is int index)
             {
                 _invoicesPageViewModel.SelectedTabIndex = index;
             }
 
-            // The ViewModel is cached across navigations, so without this the page
-            // shows whatever it held when it was first built. Refresh reads the
-            // current CompanyData, and the portal sync pulls in online payments
-            // that landed since, which is what flips an invoice to Paid. The sync
-            // refreshes these ViewModels again when it completes, so an invoice
-            // paid on the portal shows up on arriving here rather than only after
-            // visiting Payments or waiting out the 5-minute timer.
-            //
-            // It also refreshes the statistics tiles, the recurring badge and the sent count,
-            // which is why it runs on every arrival rather than being skipped when a row is
-            // being highlighted.
+            // Cached across navigations, so re-read CompanyData on arrival.
             _invoicesPageViewModel.RefreshInvoicesCommand.Execute(null);
 
-            // After the refresh, never before. ApplyHighlight re-filters and then clears the id,
-            // so a refresh afterwards rebuilds the list with nothing highlighted and the row the
-            // user searched for comes back looking like every other one.
+            // After the refresh: ApplyHighlight clears the id as it re-filters, so refreshing
+            // afterwards would drop the highlight.
             if (param is TransactionNavigationParameter navParam)
             {
                 _invoicesPageViewModel.HighlightTransactionId = navParam.TransactionId;
@@ -4755,7 +4691,6 @@ public partial class App : Application
             }
             else if (param is Dictionary<string, object?> dict)
             {
-                // Check if we should select a specific tab (0 = Expenses, 1 = Revenue)
                 if (dict.TryGetValue("selectedTabIndex", out var tabIndex) && tabIndex is int index)
                 {
                     _productsPageViewModel.SelectedTabIndex = index;
@@ -4777,7 +4712,6 @@ public partial class App : Application
         navigationService.RegisterPage("Locations", param =>
         {
             _locationsPageViewModel ??= new LocationsPageViewModel();
-            // Check if we should open the add modal
             if (param is Dictionary<string, object?> dict && dict.TryGetValue("openAddModal", out var openAdd) && openAdd is true)
             {
                 LocationsModalsViewModel?.OpenAddModal();
@@ -4810,7 +4744,6 @@ public partial class App : Application
             _categoriesPageViewModel ??= new CategoriesPageViewModel();
             if (param is Dictionary<string, object?> dict)
             {
-                // Check if we should select a specific tab (0 = Expenses, 1 = Revenue)
                 if (dict.TryGetValue("selectedTabIndex", out var tabIndex) && tabIndex is int index)
                 {
                     _categoriesPageViewModel.SelectedTabIndex = index;
@@ -4819,9 +4752,8 @@ public partial class App : Application
             return new CategoriesPage { DataContext = _categoriesPageViewModel };
         });
 
-        // The sidebar lists each side of the categories and products pages separately.
-        // Both sides are still one page and one view model, entered on the matching tab,
-        // so these registrations only preset the tab. The pages have no tab bar.
+        // The sidebar lists each side separately, but both are one page and one view model,
+        // so these registrations only preset the tab.
         navigationService.RegisterPage("ExpenseCategories", _ => CategoriesPageForTab(0));
         navigationService.RegisterPage("RevenueCategories", _ => CategoriesPageForTab(1));
         navigationService.RegisterPage("ExpenseProducts", _ => ProductsPageForTab(0));
@@ -4891,6 +4823,11 @@ public partial class App : Application
         navigationService.RegisterPage("RentalRecords", param =>
         {
             _rentalRecordsPageViewModel ??= new RentalRecordsPageViewModel();
+
+            // An invoice paid elsewhere raises no rental-side event, so the Paid column
+            // would otherwise keep the answer it had when the page was built.
+            _rentalRecordsPageViewModel.RefreshRecordsCommand.Execute(null);
+
             _rentalRecordsPageViewModel.HighlightTransactionId = null;
             if (param is TransactionNavigationParameter navParam)
             {
@@ -4906,7 +4843,6 @@ public partial class App : Application
         navigationService.RegisterPage("Receipts", param =>
         {
             _receiptsPageViewModel ??= new ReceiptsPageViewModel();
-            // Update plan status each time (may have changed)
             _receiptsPageViewModel.HasPremium = _appShellViewModel?.SidebarViewModel.HasPremium ?? false;
             _ = AutoMobileSyncAsync();
             return new ReceiptsPage { DataContext = _receiptsPageViewModel };

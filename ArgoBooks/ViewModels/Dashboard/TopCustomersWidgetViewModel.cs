@@ -68,53 +68,25 @@ public partial class TopCustomersWidgetViewModel : WidgetViewModelBase
 
     private void LoadTopCustomers(CompanyData data)
     {
-        // Refund totals per customer, so the leaderboard reflects what the customer actually
-        // retained (gross − refunds). Each refund is converted to display currency at its OWN
-        // date before summing (Calculations.md §3a Phase 2), so a non-USD display total isn't
-        // re-priced at today's rate.
-        var refundsByCustomer = data.Payments
-            .Where(p => p.IsRefund && !string.IsNullOrEmpty(p.CustomerId))
-            .GroupBy(p => p.CustomerId)
-            .ToDictionary(g => g.Key, g =>
-            {
-                var complete = CurrencyService.TrySumDisplayFromUSD(
-                    g, p => Math.Abs(p.Amount) * p.RevenueShare, p => p.OriginalCurrency, p => Math.Abs(p.AmountUSD) * p.RevenueShare, p => p.Date, out var sum);
-                return (Sum: sum, Complete: complete);
-            });
-
-        var grouped = data.Revenues
-            .Where(r => !string.IsNullOrEmpty(r.CustomerId))
-            .Where(RevenueAggregator.IsCollected)
-            .GroupBy(r => r.CustomerId!)
-            .Select(g =>
-            {
-                // Each revenue row converted at its OWN date. Complete is false if any revenue or
-                // refund row is still awaiting its rate, so the amount shows Pending, not a partial.
-                var revComplete = CurrencyService.TrySumDisplayFromUSD(
-                    g, r => r.Total, r => r.OriginalCurrency, r => r.TotalUSD, r => r.Date, out var revSum);
-                var refund = refundsByCustomer.TryGetValue(g.Key, out var rf) ? rf : (Sum: 0m, Complete: true);
-                return new
-                {
-                    CustomerId = g.Key,
-                    TotalRevenue = revSum - refund.Sum,
-                    Complete = revComplete && refund.Complete,
-                    Count = g.Count()
-                };
-            });
+        // The same ranking as the Top Customers chart, over the dashboard's date range.
+        var chartSettings = ChartSettingsService.Instance;
+        var ranked = TopCustomers.Rank(data.Revenues, data.Payments, chartSettings.StartDate, chartSettings.EndDate,
+            CurrencyService.GetDisplayAmount);
 
         var sorted = SortBy == "count"
-            ? grouped.OrderByDescending(g => g.Count)
-            : grouped.OrderByDescending(g => g.TotalRevenue);
+            ? ranked.OrderByDescending(c => c.Customer.Sales.Count).ThenByDescending(c => c.Amount)
+            : (IEnumerable<(CustomerRevenue Customer, decimal Amount)>)ranked;
 
         var items = sorted
             .Take(Count)
-            .Select((g, i) =>
+            .Select((c, i) =>
             {
-                var customer = data.GetCustomer(g.CustomerId);
-                var name = customer?.Name ?? "Unknown";
-                // TotalRevenue is already in display currency; show Pending if any row awaits a rate.
-                var formatted = g.Complete ? CurrencyService.Format(g.TotalRevenue) : CurrencyService.PendingMarker;
-                return new TopCustomerItem(i + 1, name, formatted, g.Count);
+                var customer = data.GetCustomer(c.Customer.CustomerId);
+                var name = customer?.Name ?? customer?.CompanyName ?? "Unknown";
+                var formatted = CurrencyService.TryComputeDisplay(c.Customer.Total, out var amount)
+                    ? CurrencyService.Format(amount)
+                    : CurrencyService.PendingMarker;
+                return new TopCustomerItem(i + 1, name, formatted, c.Customer.Sales.Count);
             })
             .ToList();
 

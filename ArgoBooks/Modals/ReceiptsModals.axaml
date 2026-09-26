@@ -181,17 +181,13 @@
             <controls:ModalOverlay.ModalContent>
                 <Border Width="{Binding ModalWidth}"
                     Height="{Binding ModalHeight}"
-                    Margin="{Binding ModalMargin}"
+                    MaxWidth="{Binding $parent[controls:ModalOverlay].AvailableWidth}"
+                    MaxHeight="{Binding $parent[controls:ModalOverlay].AvailableHeight}"
                     HorizontalAlignment="{Binding ModalHorizontalAlignment}"
                     VerticalAlignment="{Binding ModalVerticalAlignment}"
                     Background="{DynamicResource SurfaceBrush}"
                     CornerRadius="12"
                     BoxShadow="0 8 32 0 #40000000">
-                    <Border.Transitions>
-                        <Transitions>
-                            <ThicknessTransition Property="Margin" Duration="0:0:0.2" Easing="CubicEaseInOut" />
-                        </Transitions>
-                    </Border.Transitions>
                 <Grid RowDefinitions="Auto,*,Auto">
                     <!-- Header -->
                     <Border Grid.Row="0"
@@ -203,7 +199,7 @@
                                 <PathIcon Data="{x:Static icons:Icons.ScanReceipt}"
                                           Width="24" Height="24"
                                           Foreground="{DynamicResource PrimaryBrush}" />
-                                <TextBlock Text="{loc:Loc 'AI Receipt Scanner'}"
+                                <TextBlock Text="{loc:Loc 'Receipt Scanner'}"
                                            FontSize="18"
                                            FontWeight="SemiBold"
                                            Foreground="{DynamicResource TextPrimaryBrush}"
@@ -1465,7 +1461,8 @@
             <controls:ModalOverlay.ModalContent>
                 <Border Width="{Binding ModalWidth}"
                         Height="{Binding ModalHeight}"
-                        Margin="{Binding ModalMargin}"
+                        MaxWidth="{Binding $parent[controls:ModalOverlay].AvailableWidth}"
+                        MaxHeight="{Binding $parent[controls:ModalOverlay].AvailableHeight}"
                         HorizontalAlignment="{Binding ModalHorizontalAlignment}"
                         VerticalAlignment="{Binding ModalVerticalAlignment}"
                         Background="{DynamicResource SurfaceBrush}"

@@ -42,6 +42,25 @@ public enum InvoiceStatus
 public static class InvoiceStatusExtensions
 {
     /// <summary>
+    /// The status as screens write it out, before translation. Each is written out here so the
+    /// translation tool collects it.
+    /// </summary>
+    public static string ToDisplayText(this InvoiceStatus status) => status switch
+    {
+        InvoiceStatus.Draft => "Draft",
+        InvoiceStatus.Pending => "Pending",
+        InvoiceStatus.Sent => "Sent",
+        InvoiceStatus.Viewed => "Viewed",
+        InvoiceStatus.Partial => "Partial",
+        InvoiceStatus.Paid => "Paid",
+        InvoiceStatus.Overdue => "Overdue",
+        InvoiceStatus.Cancelled => "Cancelled",
+        InvoiceStatus.Refunded => "Refunded",
+        InvoiceStatus.PartiallyRefunded => "Partially Refunded",
+        _ => status.ToString()
+    };
+
+    /// <summary>
     /// Gets the modal status options (statuses selectable when creating/editing).
     /// </summary>
     public static string[] GetModalOptions()

@@ -28,6 +28,7 @@
                        Classes="label"
                        Text="{Binding TranslatedText, RelativeSource={RelativeSource AncestorType=controls:SidebarItem}}"
                        VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis"
                        Margin="8,0,0,0"
                        IsVisible="{Binding !IsCollapsed, RelativeSource={RelativeSource AncestorType=controls:SidebarItem}}" />
 

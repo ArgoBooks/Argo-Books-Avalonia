@@ -108,6 +108,8 @@
                                 SearchQuery="{Binding SearchQuery, Mode=TwoWay}"
                                 SearchPlaceholder="{loc:Loc 'Search receipts...'}"
                                 FilterCommand="{Binding OpenFilterModalCommand}"
+                                FilterCount="{Binding ActiveFilterCount}"
+                                ClearFiltersCommand="{Binding ClearTableFiltersCommand}"
                                 AddCommand="{Binding AiScanReceiptCommand}"
                                 AddButtonText="{loc:Loc 'Scan Receipt'}"
                                 AddButtonTooltip="{loc:Loc 'Scan Receipt'}"
@@ -376,7 +378,7 @@
                                       IsVisible="{Binding IsListView}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate DataType="vm:ReceiptDisplayItem">
-                                    <Border Padding="24,0"
+                                    <Border Padding="24,0,0,0"
                                             BorderBrush="{DynamicResource BorderBrush}"
                                             BorderThickness="0,0,0,1"
                                             MinHeight="56"

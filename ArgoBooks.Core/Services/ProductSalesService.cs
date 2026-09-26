@@ -7,7 +7,7 @@ namespace ArgoBooks.Core.Services;
 /// Single source of truth for per-product sales (revenue and units). Both the
 /// Analytics "Products" tab and the "Sales by Product" report call this so their
 /// numbers never diverge; only the cash-basis flag differs. Revenue is gross
-/// (tax-inclusive) and allocated proportionally per line item. See
+/// (tax-inclusive), shared out per line by <see cref="LineAllocation"/>. See
 /// docs/Calculations.md §13.
 /// </summary>
 public static class ProductSalesService
@@ -26,24 +26,11 @@ public static class ProductSalesService
 
         foreach (var s in FilterRevenues(data, start, end, cashBasis))
         {
-            if (s.LineItems.Count == 0) continue;
-
-            // Allocate the transaction's gross USD total across its line items
-            // in proportion to each item's native pre-tax subtotal.
-            var lineItemsTotal = s.LineItems.Sum(li => li.Subtotal);
-            var totalUSD = s.EffectiveTotalUSD;
-
-            foreach (var li in s.LineItems)
+            foreach (var (li, revenueUSD) in LineAllocation.Allocate(s, LineAllocationBasis.Gross).Shares)
             {
                 var pid = li.ProductId ?? "";
-                var revenueUSD = lineItemsTotal != 0
-                    ? Math.Round(li.Subtotal / lineItemsTotal * totalUSD, 2)
-                    : 0;
-
-                // When a display converter is supplied, convert each allocated amount at the
-                // transaction's OWN date before accumulating (Calculations.md §3a Phase 2), so the
-                // per-product totals aren't re-priced at one date. Default (null) keeps USD for the
-                // formal report path (a documented exception) and unit tests.
+                // Converted at the sale's own date before adding up (Rule 3a); without a converter
+                // (the formal report path and tests) it stays USD.
                 var revenue = toDisplay != null ? toDisplay(revenueUSD, s.Date) : revenueUSD;
 
                 var cur = acc.GetValueOrDefault(pid);
@@ -82,20 +69,13 @@ public static class ProductSalesService
 
         foreach (var s in FilterRevenues(data, start, end, cashBasis))
         {
-            if (s.LineItems.Count == 0) continue;
-
-            var lineItemsTotal = s.LineItems.Sum(li => li.Subtotal);
-            var totalUSD = s.EffectiveTotalUSD;
-
             decimal dayRevenue = 0;
             var matched = false;
-            foreach (var li in s.LineItems)
+            foreach (var (li, revenueUSD) in LineAllocation.Allocate(s, LineAllocationBasis.Gross).Shares)
             {
                 if ((li.ProductId ?? "") != productId) continue;
                 matched = true;
-                dayRevenue += lineItemsTotal != 0
-                    ? Math.Round(li.Subtotal / lineItemsTotal * totalUSD, 2)
-                    : 0;
+                dayRevenue += revenueUSD;
             }
 
             if (matched)

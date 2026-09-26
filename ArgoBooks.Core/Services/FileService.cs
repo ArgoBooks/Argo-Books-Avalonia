@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using ArgoBooks.Core.Data;
+using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models;
 using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Security;
@@ -29,7 +30,14 @@ public class FileService(
     {
         WriteIndented = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        Converters = { new JsonStringEnumConverter() }
+        // A converter listed here outranks the [JsonConverter] attribute on the enum, so the lenient
+        // ones must come before the general enum converter or they never run.
+        Converters =
+        {
+            new RevenuePaymentStatusJsonConverter(),
+            new PaymentSourceJsonConverter(),
+            new JsonStringEnumConverter()
+        }
     };
 
     /// <inheritdoc />
@@ -42,9 +50,7 @@ public class FileService(
 
         try
         {
-            // Create company directory inside temp (sanitize name to prevent path traversal)
-            var sanitizedName = SanitizeDirectoryName(companyName);
-            var companyDir = Path.Combine(tempDirectory, sanitizedName);
+            var companyDir = Path.Combine(tempDirectory, CompanyManager.ToCompanyFileName(companyName));
             Directory.CreateDirectory(companyDir);
 
             // Create default company data
@@ -740,25 +746,6 @@ public class FileService(
         }
 
         return null;
-    }
-
-    /// <summary>
-    /// Sanitizes a directory name by removing path separators and traversal sequences.
-    /// </summary>
-    private static string SanitizeDirectoryName(string name)
-    {
-        var invalid = Path.GetInvalidFileNameChars();
-        var sanitized = new string(name.Where(c => !invalid.Contains(c)).ToArray());
-        sanitized = sanitized.Replace("..", "");
-        var result = string.IsNullOrWhiteSpace(sanitized) ? "Company" : sanitized.Trim();
-
-        // Verify the sanitized name doesn't escape the intended directory
-        var testPath = Path.Combine(Path.GetTempPath(), result);
-        var resolvedPath = Path.GetFullPath(testPath);
-        if (!resolvedPath.StartsWith(Path.GetTempPath(), StringComparison.OrdinalIgnoreCase))
-            return "Company";
-
-        return result;
     }
 
     private const int ThumbnailMaxSize = 64;

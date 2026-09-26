@@ -151,40 +151,6 @@ public class DateFormatServiceTests
 
     #endregion
 
-    #region FormatMonthYear Tests
-
-    [Fact]
-    public void FormatMonthYear_ValidDate_ReturnsMMMYYYYFormat()
-    {
-        var date = new DateTime(2025, 6, 15);
-
-        var result = DateFormatService.FormatMonthYear(date);
-
-        Assert.Equal("Jun 2025", result);
-    }
-
-    [Fact]
-    public void FormatMonthYear_January_ReturnsJan()
-    {
-        var date = new DateTime(2024, 1, 1);
-
-        var result = DateFormatService.FormatMonthYear(date);
-
-        Assert.Equal("Jan 2024", result);
-    }
-
-    [Fact]
-    public void FormatMonthYear_December_ReturnsDec()
-    {
-        var date = new DateTime(2025, 12, 31);
-
-        var result = DateFormatService.FormatMonthYear(date);
-
-        Assert.Equal("Dec 2025", result);
-    }
-
-    #endregion
-
     #region Culture-independence
 
     private static T WithCulture<T>(string culture, Func<T> func)

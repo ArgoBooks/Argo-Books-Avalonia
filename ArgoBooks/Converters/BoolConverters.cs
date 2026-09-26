@@ -31,14 +31,6 @@ public static class BoolConverters
         new FuncValueConverter<bool, Thickness>(value => value ? new Thickness(24, 0, 0, 0) : new Thickness(0));
 
     /// <summary>
-    /// Converts bool (isActive) to status badge background color.
-    /// Active = green (#DCFCE7), Inactive = gray (#F3F4F6).
-    /// </summary>
-    public static readonly IValueConverter ToStatusBackground =
-        new FuncValueConverter<bool, IBrush>(value =>
-            new SolidColorBrush(Color.Parse(value ? AppColors.SuccessLight : AppColors.GrayLightest)));
-
-    /// <summary>
     /// Converts bool (hasError) to border brush.
     /// Error = red (#dc2626), No error = default border color.
     /// </summary>
@@ -46,14 +38,6 @@ public static class BoolConverters
         new FuncValueConverter<bool, IBrush>(value => value
             ? ConverterUtils.ThemeBrush("ErrorBrush", AppColors.Error)
             : ConverterUtils.ThemeBrush("BorderBrush", AppColors.ChartGrid));
-
-    /// <summary>
-    /// Converts bool (isActive) to status badge foreground color.
-    /// Active = green (#166534), Inactive = gray (#4B5563).
-    /// </summary>
-    public static readonly IValueConverter ToStatusForeground =
-        new FuncValueConverter<bool, IBrush>(value =>
-            new SolidColorBrush(Color.Parse(value ? AppColors.SuccessText : AppColors.GrayText)));
 
     /// <summary>
     /// Converts bool (isPaid) to paid badge background.
@@ -80,11 +64,11 @@ public static class BoolConverters
 
     /// <summary>
     /// Converts bool (isFullscreen) to modal horizontal alignment.
-    /// Both fullscreen and normal modes use Center alignment.
+    /// Fullscreen = Stretch, Normal = Center.
     /// </summary>
     public static readonly IValueConverter ToFullscreenHorizontalAlignment =
         new FuncValueConverter<bool, Avalonia.Layout.HorizontalAlignment>(value =>
-            Avalonia.Layout.HorizontalAlignment.Center);
+            value ? Avalonia.Layout.HorizontalAlignment.Stretch : Avalonia.Layout.HorizontalAlignment.Center);
 
     /// <summary>
     /// Converts bool (isFullscreen) to modal vertical alignment.
@@ -115,16 +99,11 @@ public static class BoolConverters
 
     /// <summary>
     /// Converts bool (isFullscreen) to modal margin.
-    /// Fullscreen = 40px top margin (clears title bar) + 24px bottom, Normal = 0.
+    /// Fullscreen = 40px from the top and 24px from the bottom, counting the 8px ModalOverlay
+    /// already leaves on every side. Normal = 0.
     /// </summary>
     public static readonly IValueConverter ToFullscreenMargin =
-        new FuncValueConverter<bool, Thickness>(value => value ? new Thickness(0, 40, 0, 24) : new Thickness(0));
-
-    /// <summary>
-    /// Converts bool (isFullscreen) to modal max width.
-    /// Fullscreen = Infinity (no max), Normal = parameter or 1200.
-    /// </summary>
-    public static readonly IValueConverter ToFullscreenMaxWidth = new FullscreenMinMaxConverter(1200, false);
+        new FuncValueConverter<bool, Thickness>(value => value ? new Thickness(0, 32, 0, 16) : new Thickness(0));
 
     /// <summary>
     /// Converts bool (isFullscreen) to fullscreen icon path data.
@@ -253,9 +232,8 @@ public class BoolToTextDecorationConverter : IValueConverter
 
 /// <summary>
 /// Converter for fullscreen modal dimensions.
-/// Parameter format: "normalValue" or "normalValue,fullscreenValue"
-/// When fullscreen is true: returns fullscreenValue if provided, otherwise NaN (stretch).
-/// When fullscreen is false: returns normalValue or the default.
+/// Parameter: the normal value. When fullscreen is true: returns NaN (stretch).
+/// When fullscreen is false: returns the parameter or the default.
 /// </summary>
 public class FullscreenDimensionConverter : IValueConverter
 {
@@ -271,26 +249,16 @@ public class FullscreenDimensionConverter : IValueConverter
         if (value is not bool isFullscreen)
             return _defaultValue;
 
-        double normalValue = _defaultValue;
-        double? fullscreenValue = null;
-
-        if (parameter is string stringParam)
-        {
-            var parts = stringParam.Split(',');
-            if (double.TryParse(parts[0].Trim(), out var parsed))
-                normalValue = parsed;
-            if (parts.Length > 1 && double.TryParse(parts[1].Trim(), out var parsedFullscreen))
-                fullscreenValue = parsedFullscreen;
-        }
-        else if (parameter is double doubleParam)
-        {
-            normalValue = doubleParam;
-        }
-
         if (isFullscreen)
-            return fullscreenValue ?? double.NaN;
+            return double.NaN;
 
-        return normalValue;
+        if (parameter is string stringParam && double.TryParse(stringParam.Trim(), out var parsed))
+            return parsed;
+
+        if (parameter is double doubleParam)
+            return doubleParam;
+
+        return _defaultValue;
     }
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)

@@ -66,16 +66,6 @@ public partial class EmployeesPageViewModel : SortablePageViewModelBase
 
     #endregion
 
-    #region Empty states
-
-    /// <summary>True when the company has no employees at all, so the page invites adding one.</summary>
-    public bool HasNoEmployees => _all.Count == 0;
-
-    /// <summary>True when a search or filter hides everything, which is a different message.</summary>
-    public bool HasNoMatches => _all.Count > 0 && Employees.Count == 0;
-
-    #endregion
-
     public EmployeesPageViewModel()
     {
         Load();
@@ -112,14 +102,18 @@ public partial class EmployeesPageViewModel : SortablePageViewModelBase
             FilterProvince = modals.FilterProvince;
             FilterPayType = modals.FilterPayType;
             FilterFrequency = modals.FilterFrequency;
+            ActiveFilterCount = modals.ActiveFilterCount;
         }
 
         CurrentPage = 1;
         Filter();
     }
 
+    protected override void ClearTableFilters() => App.PayrollModalsViewModel?.ClearFiltersCommand.Execute(null);
+
     private void OnFiltersCleared(object? sender, EventArgs e)
     {
+        ActiveFilterCount = 0;
         FilterStatus = "All";
         FilterProvince = "All";
         FilterPayType = "All";
@@ -249,17 +243,6 @@ public partial class EmployeesPageViewModel : SortablePageViewModelBase
         }
     }
 
-    [RelayCommand]
-    private void ClearFilters()
-    {
-        SearchQuery = string.Empty;
-        FilterStatus = "All";
-        FilterProvince = "All";
-        FilterPayType = "All";
-        FilterFrequency = "All";
-        Filter();
-    }
-
     #endregion
 
     /// <summary>
@@ -281,7 +264,6 @@ public partial class EmployeesPageViewModel : SortablePageViewModelBase
 
         UpdateStatistics();
         Filter();
-        OnPropertyChanged(nameof(HasNoEmployees));
     }
 
     private void UpdateStatistics()
@@ -297,7 +279,7 @@ public partial class EmployeesPageViewModel : SortablePageViewModelBase
             .Where(e => e.PayType == PayType.Salary)
             .Sum(e => e.PayRate);
 
-        AnnualPayroll = $"${annual:N0}";
+        AnnualPayroll = CurrencyService.Format(annual);
     }
 
     private void Filter()
@@ -357,8 +339,6 @@ public partial class EmployeesPageViewModel : SortablePageViewModelBase
         {
             Employees.Add(EmployeeDisplayItem.From(e));
         }
-
-        OnPropertyChanged(nameof(HasNoMatches));
     }
 }
 

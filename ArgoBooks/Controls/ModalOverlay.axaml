@@ -8,8 +8,7 @@
         <Panel x:Name="OverlayPanel"
                HorizontalAlignment="Stretch"
                VerticalAlignment="Stretch"
-               Opacity="0"
-               IsHitTestVisible="False">
+               IsVisible="False">
 
             <!-- Semi-transparent backdrop -->
             <Border Background="{DynamicResource OverlayBrush}"
@@ -17,8 +16,10 @@
                     VerticalAlignment="Stretch"
                     PointerPressed="OnBackdropPointerPressed" />
 
-            <!-- Modal content container - stretches to fill, content controls its own alignment -->
+            <!-- Modal content container - stretches to fill, content controls its own alignment.
+                 The margin is the one gap every modal keeps from the window edges. -->
             <ContentPresenter x:Name="ModalContentPresenter"
+                              Margin="8"
                               HorizontalAlignment="Stretch"
                               VerticalAlignment="Stretch" />
         </Panel>

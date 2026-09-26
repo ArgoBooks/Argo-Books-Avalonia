@@ -109,6 +109,44 @@ public class ReportTemplateStorageTests : IDisposable
         Assert.Equal("Test Report", loaded.Title);
     }
 
+    /// <summary>
+    /// Earlier versions dropped characters like "/" from the file name instead of replacing them.
+    /// A template saved that way is still found by its name.
+    /// </summary>
+    [Fact]
+    public async Task LoadTemplateAsync_SavedUnderAnOlderFileName_IsFoundByItsName()
+    {
+        await _storage.SaveTemplateAsync(new ReportConfiguration { Title = "Old" }, "Q1/Q2 Sales");
+        var saved = Directory.GetFiles(_testDir, "*.argotemplate").Single();
+        File.Move(saved, Path.Combine(_testDir, "Q1Q2 Sales.argotemplate"));
+
+        var loaded = await _storage.LoadTemplateAsync("Q1/Q2 Sales");
+
+        Assert.Equal("Old", loaded?.Title);
+        Assert.True(_storage.DeleteTemplate("Q1/Q2 Sales"));
+        Assert.Empty(Directory.GetFiles(_testDir, "*.argotemplate"));
+    }
+
+    /// <summary>"A:B" and "A-B" make the same file name, so each needs its own file and is found by its own name.</summary>
+    [Fact]
+    public async Task TwoNamesWithTheSameFileName_AreKeptApart()
+    {
+        await _storage.SaveTemplateAsync(new ReportConfiguration { Title = "Colon" }, "A:B");
+
+        Assert.False(_storage.TemplateExists("A-B"));
+
+        await _storage.SaveTemplateAsync(new ReportConfiguration { Title = "Dash" }, "A-B");
+
+        Assert.Equal(2, Directory.GetFiles(_testDir, "*.argotemplate").Length);
+        Assert.Equal("Colon", (await _storage.LoadTemplateAsync("A:B"))?.Title);
+        Assert.Equal("Dash", (await _storage.LoadTemplateAsync("A-B"))?.Title);
+
+        Assert.True(await _storage.RenameTemplateAsync("A-B", "A|B"));
+        Assert.Equal("Colon", (await _storage.LoadTemplateAsync("A:B"))?.Title);
+        Assert.Equal("Dash", (await _storage.LoadTemplateAsync("A|B"))?.Title);
+        Assert.False(_storage.TemplateExists("A-B"));
+    }
+
     [Fact]
     public async Task LoadTemplateAsync_NonExistent_ReturnsNull()
     {
@@ -150,29 +188,6 @@ public class ReportTemplateStorageTests : IDisposable
         var exists = _storage.TemplateExists("Delete Test 2");
 
         Assert.False(exists);
-    }
-
-    #endregion
-
-    #region GetAllTemplatesAsync Tests
-
-    [Fact]
-    public async Task GetAllTemplatesAsync_EmptyDirectory_ReturnsEmptyList()
-    {
-        var result = await _storage.GetAllTemplatesAsync();
-
-        Assert.Empty(result);
-    }
-
-    [Fact]
-    public async Task GetAllTemplatesAsync_WithTemplates_ReturnsAll()
-    {
-        await _storage.SaveTemplateAsync(new ReportConfiguration(), "Template 1");
-        await _storage.SaveTemplateAsync(new ReportConfiguration(), "Template 2");
-
-        var result = await _storage.GetAllTemplatesAsync();
-
-        Assert.Equal(2, result.Count);
     }
 
     #endregion

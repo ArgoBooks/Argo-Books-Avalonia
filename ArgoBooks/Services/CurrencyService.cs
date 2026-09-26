@@ -1,4 +1,7 @@
+using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Models.Common;
+using ArgoBooks.Core.Models.Inventory;
+using ArgoBooks.Core.Models.Transactions;
 using ArgoBooks.Core.Services;
 
 namespace ArgoBooks.Services;
@@ -161,21 +164,8 @@ public static class CurrencyService
     /// the USD base. An amount already in the display currency is used as-is and never waits on a
     /// rate. Null when the exact-date rate is unavailable, which callers treat as pending.
     /// </summary>
-    public static decimal? GetDisplayAmountFromNative(decimal amount, string currency, DateTime date)
-    {
-        var target = CurrentCurrencyCode;
-        if (string.Equals(currency, target, StringComparison.OrdinalIgnoreCase))
-            return amount;
-
-        var svc = ExchangeRateService.Instance;
-        if (svc == null)
-            return amount;
-
-        return svc.TryConvertToUsdBase(amount, currency, date, out var usd)
-               && svc.TryConvertFromUSD(usd, target, date, out var converted)
-            ? converted
-            : null;
-    }
+    public static decimal? GetDisplayAmountFromNative(decimal amount, string currency, DateTime date) =>
+        DisplayCurrency.FromNative(amount, currency, CurrentCurrencyCode, date);
 
     /// <summary>
     /// Formats a legacy decimal value (assumes USD) in the current display currency, at the exact
@@ -190,19 +180,16 @@ public static class CurrencyService
     }
 
     /// <summary>
-    /// Sums per-item USD amounts after converting EACH to the display currency at that item's OWN
-    /// date, per the Phase 2 aggregate rule in docs/Calculations.md §3a. Use this for any total over
-    /// multiple transactions instead of converting the pre-summed USD at one date
-    /// (<c>FormatFromUSD(sum, DateTime.Now)</c>), which silently re-prices historical rows at today's
-    /// rate. For a USD display currency this is identical to summing the USD amounts directly.
+    /// Formats the value of <paramref name="items"/>, which is kept in USD, in the display currency at
+    /// today's rate, because stock on hand is valued as it stands now. Pending while a stock record
+    /// holding stock still waits for its cost's rate. See docs/Calculations.md §14.
     /// </summary>
-    public static decimal SumDisplayFromUSD<T>(
-        IEnumerable<T> items, Func<T, decimal> amountUSD, Func<T, DateTime> date)
+    public static string FormatStockValue(IEnumerable<InventoryItem> items)
     {
-        decimal total = 0m;
-        foreach (var item in items)
-            total += GetDisplayAmount(amountUSD(item), date(item));
-        return total;
+        var list = items as IReadOnlyCollection<InventoryItem> ?? items.ToList();
+        return list.Any(i => i.IsPendingConversion && i.InStock != 0)
+            ? PendingMarker
+            : FormatFromUSD(list.Sum(i => i.TotalValue), DateTime.Today);
     }
 
     /// <summary>
@@ -222,10 +209,13 @@ public static class CurrencyService
         var target = CurrentCurrencyCode;
         foreach (var item in items)
         {
-            // Already in the display currency: use the original amount as-is, no conversion needed.
+            // Already in the display currency: use the original amount as-is, no conversion needed. A
+            // row still waiting for its USD value counts 0 until it converts, as it does in every USD
+            // total (Calculations.md §3), so a card agrees with its % change and with Net Profit.
             if (string.Equals(target, originalCurrency(item), StringComparison.OrdinalIgnoreCase))
             {
-                total += originalAmount(item);
+                if (!IsPendingConversion(item))
+                    total += originalAmount(item);
                 continue;
             }
             var usd = amountUSD(item);
@@ -239,6 +229,15 @@ public static class CurrencyService
         }
         return complete;
     }
+
+    private static bool IsPendingConversion(object? item) => item switch
+    {
+        Transaction t => t.IsPendingConversion,
+        Invoice i => i.IsPendingConversion,
+        Payment p => p.IsPendingConversion,
+        PurchaseOrder o => o.IsPendingConversion,
+        _ => false
+    };
 
     /// <summary>
     /// Sums per-item amounts in the display currency, or returns <see cref="PendingMarker"/> when any
@@ -257,17 +256,35 @@ public static class CurrencyService
     /// when any of them is still waiting for its exact-date rate. Pass the aggregate as a function of the
     /// converter, e.g. <c>convert =&gt; ProfitCalculator.CalculateNetProfitDisplay(data, start, end, convert)</c>.
     /// </summary>
-    public static string FormatTotalOrPending(Func<Func<decimal, DateTime, decimal>, decimal> total)
+    public static string FormatTotalOrPending(Func<Func<decimal, DateTime, decimal>, decimal> total) =>
+        TryComputeDisplay(total, out var amount) ? Format(amount) : PendingMarker;
+
+    /// <summary>
+    /// Net profit for the range (Rule 1, paid sales only), or <see cref="PendingMarker"/> while any
+    /// part of it isn't known yet: a row waiting for its exchange rate, or a sale waiting for its
+    /// stock's cost (docs/Calculations.md §14). Every profit card shows it this way.
+    /// </summary>
+    public static string FormatNetProfitOrPending(CompanyData data, DateTime start, DateTime end) =>
+        CostOfGoodsAggregator.IsCostOfGoodsPending(data.Revenues, start, end, collectedOnly: true)
+            ? PendingMarker
+            : FormatTotalOrPending(convert => ProfitCalculator.CalculateNetProfitDisplay(data, start, end, convert));
+
+    /// <summary>
+    /// Runs <paramref name="compute"/> with a converter that converts each amount at its own date, and
+    /// returns false when any of them is still waiting for its exact-date rate, so the caller shows
+    /// <see cref="PendingMarker"/> instead of a figure with USD mixed in.
+    /// </summary>
+    public static bool TryComputeDisplay<T>(Func<Func<decimal, DateTime, decimal>, T> compute, out T result)
     {
         var complete = true;
-        var amount = total((amountUSD, date) =>
+        result = compute((amountUSD, date) =>
         {
             if (TryDisplayFromUSD(amountUSD, date, out var converted))
                 return converted;
             complete = false;
             return amountUSD;
         });
-        return complete ? Format(amount) : PendingMarker;
+        return complete;
     }
 
     /// <summary>
@@ -295,6 +312,25 @@ public static class CurrencyService
 
         var rate = await svc.GetExchangeRateAsync("USD", code, today, fetchIfMissing: true, cancellationToken: cancellationToken);
         return rate > 0;
+    }
+
+    /// <summary>
+    /// Fetches the rates the company's transaction dates are missing, then refreshes every money
+    /// display. The rate cache is per machine, so a company opened on another computer, or the sample
+    /// company after its dates move, can start without them and show Pending.
+    /// </summary>
+    public static async Task WarmCompanyRatesAsync(CompanyData data)
+    {
+        var code = CurrentCurrencyCode;
+        if (string.Equals(code, "USD", StringComparison.OrdinalIgnoreCase) || ExchangeRateService.Instance is not { } rates)
+            return;
+
+        var dates = DisplayCurrency.ReportDates(data, null).ToList();
+        if (dates.All(d => d.Date > DateTime.Today || rates.GetExchangeRate("USD", code, d) > 0))
+            return;
+
+        await new RateReadinessService(rates, new ConnectivityService(), App.ErrorLogger).EnsureRatesAsync(dates);
+        NotifyCurrencyChanged();
     }
 
     /// <summary>
@@ -349,64 +385,6 @@ public static class CurrencyService
 
         // Otherwise convert from USD to the target currency
         return FormatFromUSD(amountUSD, date);
-    }
-
-    /// <summary>
-    /// Creates a MonetaryValue from a user-entered amount in the current currency.
-    /// </summary>
-    /// <param name="amount">The amount entered by the user.</param>
-    /// <param name="date">The transaction date for exchange rate lookup.</param>
-    /// <returns>A MonetaryValue with both original and USD amounts.</returns>
-    public static Task<MonetaryValue> CreateMonetaryValueAsync(decimal amount, DateTime date)
-        => CreateMonetaryValueAsync(amount, CurrentCurrencyCode, date);
-
-    /// <summary>
-    /// <see cref="CreateMonetaryValueAsync(decimal, DateTime)"/> for an amount in
-    /// <paramref name="currency"/> rather than the company currency, such as an entry being edited
-    /// that was recorded in another currency.
-    /// </summary>
-    public static async Task<MonetaryValue> CreateMonetaryValueAsync(decimal amount, string currency, DateTime date)
-    {
-        if (string.Equals(currency, "USD", StringComparison.OrdinalIgnoreCase))
-        {
-            return new MonetaryValue(amount, "USD", amount, date);
-        }
-
-        // Convert to USD
-        var exchangeService = ExchangeRateService.Instance;
-        decimal amountUSD = amount;
-
-        if (exchangeService != null)
-        {
-            amountUSD = await exchangeService.ConvertToUSDAsync(amount, currency, date);
-        }
-
-        return new MonetaryValue(amount, currency, amountUSD, date);
-    }
-
-    /// <summary>
-    /// Creates a MonetaryValue synchronously (uses cached rates only).
-    /// </summary>
-    public static MonetaryValue CreateMonetaryValue(decimal amount, DateTime date)
-    {
-        var currentCurrency = CurrentCurrencyCode;
-
-        if (string.Equals(currentCurrency, "USD", StringComparison.OrdinalIgnoreCase))
-        {
-            return new MonetaryValue(amount, "USD", amount, date);
-        }
-
-        var exchangeService = ExchangeRateService.Instance;
-        decimal amountUSD = amount;
-
-        // Store the USD base at full precision (no 2dp round) so same-currency round-trips don't drift
-        // a cent; display rounds at the boundary. See docs/Calculations.md Rule 3.
-        if (exchangeService != null && exchangeService.TryConvertToUsdBase(amount, currentCurrency, date, out var converted))
-        {
-            amountUSD = converted;
-        }
-
-        return new MonetaryValue(amount, currentCurrency, amountUSD, date);
     }
 
     /// <summary>

@@ -41,15 +41,6 @@ public static class PaginationTextHelper
         var end = Math.Min(currentPage * pageSize, totalCount);
         return $"{start}-{end} of {totalCount} {plural}";
     }
-
-    /// <summary>
-    /// Simplified format for ViewModels without pagination (shows total count only).
-    /// </summary>
-    public static string FormatSimpleCount(int totalCount, string singular, string? plural = null)
-    {
-        plural ??= singular + "s";
-        return totalCount == 1 ? $"1 {singular}" : $"{totalCount} {plural}";
-    }
 }
 
 /// <summary>

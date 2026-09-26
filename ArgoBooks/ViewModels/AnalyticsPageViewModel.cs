@@ -5,10 +5,12 @@ using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Reports;
 using ArgoBooks.Core.Models.Telemetry;
+using ArgoBooks.Core.Models.Transactions;
 using ArgoBooks.Core.Services;
 using ArgoBooks.Helpers;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
+using ArgoBooks.ViewModels.Dashboard;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LiveChartsCore;
@@ -139,21 +141,24 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
     /// </summary>
     private void LoadProductSales(CompanyData data)
     {
-        // Convert each sale at its OWN date during aggregation (Calculations.md §3a Phase 2), so
+        // Convert each sale at its OWN date during aggregation (Calculations.md Rule 3a), so
         // the per-product and total figures aren't re-priced at a single date. The resulting
         // amounts are already in the display currency.
-        var rows = ProductSalesService.GetProductSales(data, StartDate, EndDate, cashBasis: true, CurrencyService.GetDisplayAmount)
-            .Select(d => new ProductSalesRow(d))
-            .OrderByDescending(r => r.RevenueUSD)
-            .ToList();
+        var complete = CurrencyService.TryComputeDisplay(
+            convert => ProductSalesService.GetProductSales(data, StartDate, EndDate, cashBasis: true, convert)
+                .Select(d => new ProductSalesRow(d))
+                .OrderByDescending(r => r.RevenueUSD)
+                .ToList(),
+            out var rows);
 
         var totalRevenue = rows.Sum(r => r.RevenueUSD);
         var totalUnits = rows.Sum(r => r.UnitsSold);
         var avgPrice = totalUnits > 0 ? totalRevenue / totalUnits : 0;
 
-        TotalProductRevenue = CurrencyService.Format(totalRevenue);
+        // Pending while any sale is still waiting for its rate, rather than a total with USD mixed in.
+        TotalProductRevenue = complete ? CurrencyService.Format(totalRevenue) : CurrencyService.PendingMarker;
         TotalProductUnits = totalUnits.ToString("0.##");
-        AvgProductSalePrice = CurrencyService.Format(avgPrice);
+        AvgProductSalePrice = complete ? CurrencyService.Format(avgPrice) : CurrencyService.PendingMarker;
         ProductsSoldCount = rows.Count.ToString();
 
         Products.ReplaceAll(rows);
@@ -847,6 +852,15 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
     private bool _hasCompaniesOfOriginData;
 
     [ObservableProperty]
+    private ObservableCollection<ISeries> _topCustomersSeries = [];
+
+    [ObservableProperty]
+    private ObservableCollection<PieLegendItem> _topCustomersLegend = [];
+
+    [ObservableProperty]
+    private bool _hasTopCustomersData;
+
+    [ObservableProperty]
     private ObservableCollection<ISeries> _countriesOfDestinationSeries = [];
 
     [ObservableProperty]
@@ -1228,19 +1242,9 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
     public LabelVisual ProfitOverTimeTitle => ChartLoaderService.CreateChartTitle(_profitOverTimeTitleText);
     public LabelVisual RevenueVsExpensesTitle => ChartLoaderService.CreateChartTitle(ChartDataType.RevenueVsExpenses.GetDisplayName());
     public LabelVisual RevenueTrendsTitle => ChartLoaderService.CreateChartTitle(ChartDataType.TotalRevenue.GetDisplayName());
-    public LabelVisual RevenueDistributionTitle => ChartLoaderService.CreateChartTitle(ChartDataType.RevenueDistribution.GetDisplayName());
     public LabelVisual ExpenseTrendsTitle => ChartLoaderService.CreateChartTitle(ChartDataType.TotalExpenses.GetDisplayName());
-    public LabelVisual ExpenseDistributionTitle => ChartLoaderService.CreateChartTitle(ChartDataType.ExpensesDistribution.GetDisplayName());
-
-    // Geographic Tab Chart Titles
-    public LabelVisual CountriesOfOriginTitle => ChartLoaderService.CreateChartTitle(ChartDataType.CountriesOfOrigin.GetDisplayName());
-    public LabelVisual CompaniesOfOriginTitle => ChartLoaderService.CreateChartTitle(ChartDataType.CompaniesOfOrigin.GetDisplayName());
-    public LabelVisual CountriesOfDestinationTitle => ChartLoaderService.CreateChartTitle(ChartDataType.CountriesOfDestination.GetDisplayName());
-    public LabelVisual CompaniesOfDestinationTitle => ChartLoaderService.CreateChartTitle(ChartDataType.CompaniesOfDestination.GetDisplayName());
-    public LabelVisual WorldMapOverviewTitle => ChartLoaderService.CreateChartTitle(ChartDataType.WorldMap.GetDisplayName());
 
     // Operational Tab Chart Titles
-    public LabelVisual TransactionsByAccountantTitle => ChartLoaderService.CreateChartTitle(ChartDataType.AccountantsTransactions.GetDisplayName());
     public LabelVisual WorkloadDistributionTitle => ChartLoaderService.CreateChartTitle(ChartDataType.TotalTransactions.GetDisplayName());
 
     // Performance Tab Chart Titles
@@ -1249,35 +1253,24 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
     public LabelVisual AverageShippingCostsTitle => ChartLoaderService.CreateChartTitle(ChartDataType.AverageShippingCosts.GetDisplayName());
 
     // Customers Tab Chart Titles
-    public LabelVisual TopCustomersByRevenueTitle => ChartLoaderService.CreateChartTitle(ChartDataType.TopCustomersByRevenue.GetDisplayName());
-    public LabelVisual CustomerPaymentStatusTitle => ChartLoaderService.CreateChartTitle(ChartDataType.CustomerPaymentStatus.GetDisplayName());
     public LabelVisual CustomerGrowthTitle => ChartLoaderService.CreateChartTitle(ChartDataType.CustomerGrowth.GetDisplayName());
     public LabelVisual CustomerLifetimeValueTitle => ChartLoaderService.CreateChartTitle(ChartDataType.CustomerLifetimeValue.GetDisplayName());
-    public LabelVisual ActiveVsInactiveCustomersTitle => ChartLoaderService.CreateChartTitle(ChartDataType.ActiveVsInactiveCustomers.GetDisplayName());
     public LabelVisual RentalsPerCustomerTitle => ChartLoaderService.CreateChartTitle(ChartDataType.RentalsPerCustomer.GetDisplayName());
 
     // Returns Tab Chart Titles
     public LabelVisual ReturnsOverTimeTitle => ChartLoaderService.CreateChartTitle(ChartDataType.ReturnsOverTime.GetDisplayName());
-    public LabelVisual ReturnReasonsTitle => ChartLoaderService.CreateChartTitle(ChartDataType.ReturnReasons.GetDisplayName());
     public LabelVisual FinancialImpactOfReturnsTitle => ChartLoaderService.CreateChartTitle(ChartDataType.ReturnFinancialImpact.GetDisplayName());
-    public LabelVisual ReturnsByCategoryTitle => ChartLoaderService.CreateChartTitle(ChartDataType.ReturnsByCategory.GetDisplayName());
-    public LabelVisual ReturnsByProductTitle => ChartLoaderService.CreateChartTitle(ChartDataType.ReturnsByProduct.GetDisplayName());
     public LabelVisual ExpenseVsRevenueReturnsTitle => ChartLoaderService.CreateChartTitle(ChartDataType.ExpenseVsRevenueReturns.GetDisplayName());
 
     // Losses Tab Chart Titles
     public LabelVisual LossesOverTimeTitle => ChartLoaderService.CreateChartTitle(ChartDataType.LossesOverTime.GetDisplayName());
-    public LabelVisual LossReasonsTitle => ChartLoaderService.CreateChartTitle(ChartDataType.LossReasons.GetDisplayName());
     public LabelVisual FinancialImpactOfLossesTitle => ChartLoaderService.CreateChartTitle(ChartDataType.LossFinancialImpact.GetDisplayName());
-    public LabelVisual LossesByCategoryTitle => ChartLoaderService.CreateChartTitle(ChartDataType.LossesByCategory.GetDisplayName());
-    public LabelVisual LossesByProductTitle => ChartLoaderService.CreateChartTitle(ChartDataType.LossesByProduct.GetDisplayName());
     public LabelVisual ExpenseVsRevenueLossesTitle => ChartLoaderService.CreateChartTitle(ChartDataType.ExpenseVsRevenueLosses.GetDisplayName());
 
     // Taxes Tab Chart Titles
     public LabelVisual TaxCollectedVsPaidTitle => ChartLoaderService.CreateChartTitle(ChartDataType.TaxCollectedVsPaid.GetDisplayName());
     public LabelVisual TaxLiabilityTrendTitle => ChartLoaderService.CreateChartTitle(ChartDataType.TaxLiabilityTrend.GetDisplayName());
-    public LabelVisual TaxByCategoryTitle => ChartLoaderService.CreateChartTitle(ChartDataType.TaxByCategory.GetDisplayName());
     public LabelVisual TaxRateDistributionTitle => ChartLoaderService.CreateChartTitle(ChartDataType.TaxRateDistribution.GetDisplayName());
-    public LabelVisual TaxByProductTitle => ChartLoaderService.CreateChartTitle(ChartDataType.TaxByProduct.GetDisplayName());
     public LabelVisual ExpenseVsRevenueTaxTitle => ChartLoaderService.CreateChartTitle(ChartDataType.ExpenseVsRevenueTax.GetDisplayName());
 
     /// <summary>
@@ -1286,20 +1279,13 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
     private static readonly string[] ChartTitlePropertyNames =
     [
         nameof(ProfitOverTimeTitle), nameof(RevenueVsExpensesTitle), nameof(RevenueTrendsTitle),
-        nameof(RevenueDistributionTitle), nameof(ExpenseTrendsTitle), nameof(ExpenseDistributionTitle),
-        nameof(CountriesOfOriginTitle), nameof(CompaniesOfOriginTitle), nameof(CountriesOfDestinationTitle),
-        nameof(CompaniesOfDestinationTitle), nameof(WorldMapOverviewTitle), nameof(TransactionsByAccountantTitle),
-        nameof(WorkloadDistributionTitle), nameof(AverageTransactionValueTitle),
-        nameof(TotalTransactionsTitle), nameof(AverageShippingCostsTitle),
-        nameof(TopCustomersByRevenueTitle), nameof(CustomerPaymentStatusTitle), nameof(CustomerGrowthTitle),
-        nameof(CustomerLifetimeValueTitle), nameof(ActiveVsInactiveCustomersTitle), nameof(RentalsPerCustomerTitle),
-        nameof(ReturnsOverTimeTitle), nameof(ReturnReasonsTitle), nameof(FinancialImpactOfReturnsTitle),
-        nameof(ReturnsByCategoryTitle), nameof(ReturnsByProductTitle), nameof(ExpenseVsRevenueReturnsTitle),
-        nameof(LossesOverTimeTitle), nameof(LossReasonsTitle), nameof(FinancialImpactOfLossesTitle),
-        nameof(LossesByCategoryTitle), nameof(LossesByProductTitle), nameof(ExpenseVsRevenueLossesTitle),
-        nameof(TaxCollectedVsPaidTitle), nameof(TaxLiabilityTrendTitle), nameof(TaxByCategoryTitle),
-        nameof(TaxRateDistributionTitle), nameof(TaxByProductTitle), nameof(ExpenseVsRevenueTaxTitle),
-        nameof(ProductRevenueTrendTitle)
+        nameof(ExpenseTrendsTitle), nameof(WorkloadDistributionTitle), nameof(AverageTransactionValueTitle),
+        nameof(TotalTransactionsTitle), nameof(AverageShippingCostsTitle), nameof(CustomerGrowthTitle),
+        nameof(CustomerLifetimeValueTitle), nameof(RentalsPerCustomerTitle), nameof(ReturnsOverTimeTitle),
+        nameof(FinancialImpactOfReturnsTitle), nameof(ExpenseVsRevenueReturnsTitle),
+        nameof(LossesOverTimeTitle), nameof(FinancialImpactOfLossesTitle),
+        nameof(ExpenseVsRevenueLossesTitle), nameof(TaxCollectedVsPaidTitle), nameof(TaxLiabilityTrendTitle),
+        nameof(TaxRateDistributionTitle), nameof(ExpenseVsRevenueTaxTitle), nameof(ProductRevenueTrendTitle)
     ];
 
     /// <summary>
@@ -1502,18 +1488,9 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
 
                 if (!browserOpened)
                 {
-                    var dialog = App.ConfirmationDialog;
-                    if (dialog != null)
-                    {
-                        await dialog.ShowAsync(new ConfirmationDialogOptions
-                        {
-                            Title = "Browser Error".Translate(),
-                            Message = "The spreadsheet was created but could not open in your browser. You can access it at:\n\n{0}".TranslateFormat(url),
-                            PrimaryButtonText = "OK".Translate(),
-                            SecondaryButtonText = null,
-                            CancelButtonText = null
-                        });
-                    }
+                    await App.ShowWarningDialogAsync(
+                        "Browser Error".Translate(),
+                        "The spreadsheet was created but could not open in your browser. You can access it at:\n\n{0}".TranslateFormat(url));
                 }
             }
             else
@@ -1826,6 +1803,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
             LoadAccountantsTransactionsChart(data);
 
             // Customer pie charts
+            LoadTopCustomersChart(data);
             LoadCustomerPaymentStatusChart(data);
             LoadActiveInactiveCustomersChart(data);
 
@@ -1893,7 +1871,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         HasProfitTrendsData = series.Count > 0;
 
         // totalProfit is already in the display currency, converted per-day at each day's OWN date
-        // (Calculations.md §3a Phase 2), so the title matches the bars and needs no today's-rate step.
+        // (Calculations.md Rule 3a), so the title matches the bars and needs no today's-rate step.
         _profitOverTimeTitleText = $"Total profits: {CurrencyService.Format(totalProfit)}";
         OnPropertyChanged(nameof(ProfitOverTimeTitle));
     }
@@ -1922,6 +1900,14 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         CompaniesOfOriginSeries = series;
         CompaniesOfOriginLegend = legend;
         HasCompaniesOfOriginData = series.Count > 0;
+    }
+
+    private void LoadTopCustomersChart(CompanyData data)
+    {
+        var (series, legend) = ChartLoaderService.LoadTopCustomersChart(data, StartDate, EndDate);
+        TopCustomersSeries = series;
+        TopCustomersLegend = legend;
+        HasTopCustomersData = series.Count > 0;
     }
 
     private void LoadCountriesOfDestinationChart(CompanyData data)
@@ -2245,28 +2231,29 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         var profitChange = prevNetProfit != 0 ? ((netProfitUSD - prevNetProfit) / Math.Abs(prevNetProfit)) * 100 : 0;
         var marginChange = margin - prevMargin;
 
-        // Update properties (convert each transaction at its OWN date per Calculations.md §3a).
+        // Update properties (convert each transaction at its OWN date per Calculations.md Rule 3a).
         // The same figures as the dashboard cards, showing Pending while a rate is missing.
-        TotalPurchases = CurrencyService.FormatSumDisplayFromUSD(
-            data.Expenses.Where(e => e.Date >= StartDate && e.Date <= EndDate),
-            e => e.Total, e => e.OriginalCurrency, e => e.TotalUSD, e => e.Date);
+        TotalPurchases = DashboardCalculations.FormatExpenses(data, StartDate, EndDate);
         PurchasesChangeValue = hasPrevPeriodData && prevPurchasesUSD > 0 ? (double)purchasesChange : null;
         PurchasesChangeText = hasPrevPeriodData && prevPurchasesUSD > 0 ? $"{Math.Abs(purchasesChange):F1}%" : null;
 
-        TotalRevenue = CurrencyService.FormatTotalOrPending(convert =>
-            RevenueAggregator.SumCollectedRevenueDisplay(data.Revenues, StartDate, EndDate, convert)
-            - RefundAggregator.GetRefundedInDateRangeDisplay(data.Payments, StartDate, EndDate, convert));
+        TotalRevenue = DashboardCalculations.FormatRevenue(data, StartDate, EndDate);
         RevenueChangeValue = hasPrevPeriodData && prevSalesUSD > 0 ? (double)revenueChange : null;
         RevenueChangeText = hasPrevPeriodData && prevSalesUSD > 0 ? $"{Math.Abs(revenueChange):F1}%" : null;
 
-        NetProfit = CurrencyService.FormatTotalOrPending(convert =>
-            ProfitCalculator.CalculateNetProfitDisplay(data, StartDate, EndDate, convert));
-        ProfitChangeValue = hasPrevPeriodData && prevNetProfit != 0 ? (double)profitChange : null;
-        ProfitChangeText = hasPrevPeriodData && prevNetProfit != 0 ? $"{Math.Abs(profitChange):F1}%" : null;
+        // Profit and margin both subtract cost of goods sold, so a sale waiting for its stock's cost
+        // leaves both Pending rather than overstated (docs/Calculations.md §14).
+        var costPending = CostOfGoodsAggregator.IsCostOfGoodsPending(data.Revenues, StartDate, EndDate, collectedOnly: true);
+        var changePending = CostOfGoodsAggregator.IsProfitChangePending(data.Revenues, StartDate, EndDate, prevStartDate, prevEndDate);
+        NetProfit = CurrencyService.FormatNetProfitOrPending(data, StartDate, EndDate);
+        var showProfitChange = !changePending && hasPrevPeriodData && prevNetProfit != 0;
+        ProfitChangeValue = showProfitChange ? (double)profitChange : null;
+        ProfitChangeText = showProfitChange ? $"{Math.Abs(profitChange):F1}%" : null;
 
-        ProfitMargin = $"{margin:F1}%";
-        ProfitMarginChangeValue = hasPrevPeriodData && prevSalesUSD > 0 ? (double)marginChange : null;
-        ProfitMarginChangeText = hasPrevPeriodData && prevSalesUSD > 0 ? $"{Math.Abs(marginChange):F1}%" : null;
+        ProfitMargin = costPending ? CurrencyService.PendingMarker : $"{margin:F1}%";
+        var showMarginChange = !changePending && hasPrevPeriodData && prevSalesUSD > 0;
+        ProfitMarginChangeValue = showMarginChange ? (double)marginChange : null;
+        ProfitMarginChangeText = showMarginChange ? $"{Math.Abs(marginChange):F1}%" : null;
     }
 
     private void LoadOperationalStatistics(CompanyData data)
@@ -2315,15 +2302,16 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         var purchases = data.Expenses.Where(p => p.Date >= StartDate && p.Date <= EndDate).ToList();
 
         var totalTransactionsCount = sales.Count + purchases.Count;
-        var allTransactionValues = sales.Select(s => s.EffectiveTotalUSD).Concat(purchases.Select(p => p.EffectiveTotalUSD)).ToList();
-        var avgTransactionValue = allTransactionValues.Count > 0 ? allTransactionValues.Average() : 0;
+        var avgTransactionValue = totalTransactionsCount > 0
+            ? (RevenueAggregator.SumCollectedRevenueUSD(data.Revenues, StartDate, EndDate)
+               + ExpenseAggregator.SumExpensesUSD(data.Expenses, StartDate, EndDate)) / totalTransactionsCount
+            : 0;
 
-        // Average display value: convert each transaction at its OWN date (Calculations.md §3a),
-        // sum, then divide by the same count used above.
-        var salesComplete = CurrencyService.TrySumDisplayFromUSD(sales, s => s.Total, s => s.OriginalCurrency, s => s.TotalUSD, s => s.Date, out var salesSumDisplay);
-        var purchasesComplete = CurrencyService.TrySumDisplayFromUSD(purchases, p => p.Total, p => p.OriginalCurrency, p => p.TotalUSD, p => p.Date, out var purchasesSumDisplay);
-        var transactionsComplete = salesComplete && purchasesComplete;
-        var transactionsValueDisplay = salesSumDisplay + purchasesSumDisplay;
+        // Average display value: each transaction converted at its OWN date (Calculations.md Rule 3a),
+        // summed, then divided by the same count used above.
+        var transactionsComplete = CurrencyService.TryComputeDisplay(convert =>
+            RevenueAggregator.SumCollectedRevenueDisplay(data.Revenues, StartDate, EndDate, convert)
+            + ExpenseAggregator.SumExpensesDisplay(data.Expenses, StartDate, EndDate, convert), out var transactionsValueDisplay);
         var avgTransactionValueDisplay = totalTransactionsCount > 0 ? transactionsValueDisplay / totalTransactionsCount : 0;
 
         // Shipping on collected sales and on expenses, as the Average Shipping Costs chart counts it,
@@ -2345,8 +2333,10 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         var prevPurchases = data.Expenses.Where(p => p.Date >= prevStartDate && p.Date <= prevEndDate).ToList();
 
         var prevTotalTransactionsCount = prevSales.Count + prevPurchases.Count;
-        var prevAllTransactionValues = prevSales.Select(s => s.EffectiveTotalUSD).Concat(prevPurchases.Select(p => p.EffectiveTotalUSD)).ToList();
-        var prevAvgTransactionValue = prevAllTransactionValues.Count > 0 ? prevAllTransactionValues.Average() : 0;
+        var prevAvgTransactionValue = prevTotalTransactionsCount > 0
+            ? (RevenueAggregator.SumCollectedRevenueUSD(data.Revenues, prevStartDate, prevEndDate)
+               + ExpenseAggregator.SumExpensesUSD(data.Expenses, prevStartDate, prevEndDate)) / prevTotalTransactionsCount
+            : 0;
         var prevAvgShipping = prevTotalTransactionsCount > 0
             ? (prevSales.Sum(s => s.EffectiveShippingCostUSD) + prevPurchases.Sum(p => p.EffectiveShippingCostUSD)) / prevTotalTransactionsCount
             : 0;
@@ -2407,16 +2397,15 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         NewCustomersChangeValue = hasPrevNewCustomers ? newCustomersChange : null;
         NewCustomersChangeText = hasPrevNewCustomers ? $"{(newCustomersChange >= 0 ? "+" : "")}{newCustomersChange:F1}%" : null;
 
-        // Retention rate and avg customer value are complex calculations
-        // For now, calculate avg customer value based on revenue per customer
         var sales = data.Revenues
             .Where(s => s.Date >= StartDate && s.Date <= EndDate)
             .Where(RevenueAggregator.IsCollected)
             .ToList();
         var customerIds = sales.Select(s => s.CustomerId).Distinct().ToList();
-        // Convert each sale at its OWN date (Calculations.md §3a), then divide by the
+        // Convert each sale at its OWN date (Calculations.md Rule 3a), then divide by the
         // same distinct-customer count.
-        var custSalesComplete = CurrencyService.TrySumDisplayFromUSD(sales, s => s.Total, s => s.OriginalCurrency, s => s.TotalUSD, s => s.Date, out var salesValueDisplay);
+        var custSalesComplete = CurrencyService.TryComputeDisplay(convert =>
+            RevenueAggregator.SumCollectedRevenueDisplay(data.Revenues, StartDate, EndDate, convert), out var salesValueDisplay);
         var avgValueDisplay = customerIds.Count > 0 ? salesValueDisplay / customerIds.Count : 0;
 
         RetentionRate = "N/A";
@@ -2435,7 +2424,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
 
         var totalReturnsCount = returns.Count;
         // Refund amounts are in their sale's own currency, so each converts from it at the return's date.
-        var impactComplete = ReturnLossAmounts.TrySumDisplay(returns, r => r.RefundAmount,
+        var impactComplete = DisplayCurrency.TrySumFromNative(returns, r => r.RefundAmount,
             r => ReturnLossAmounts.CurrencyOf(data, r), r => r.ReturnDate,
             CurrencyService.GetDisplayAmountFromNative, out var financialImpact);
 
@@ -2448,7 +2437,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
 
         var prevReturns = data.Returns.Where(r => r.ReturnDate >= prevStartDate && r.ReturnDate <= prevEndDate).ToList();
         var prevReturnsCount = prevReturns.Count;
-        ReturnLossAmounts.TrySumDisplay(prevReturns, r => r.RefundAmount,
+        DisplayCurrency.TrySumFromNative(prevReturns, r => r.RefundAmount,
             r => ReturnLossAmounts.CurrencyOf(data, r), r => r.ReturnDate,
             CurrencyService.GetDisplayAmountFromNative, out var prevFinancialImpact);
         var prevSalesTransactions = data.Revenues.Count(s => s.Date >= prevStartDate && s.Date <= prevEndDate);
@@ -2486,7 +2475,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
 
         var totalLossesCount = losses.Count;
         // Loss values are in their sale's or purchase's own currency, so each converts from it at the loss's date.
-        var impactComplete = ReturnLossAmounts.TrySumDisplay(losses, l => l.ValueLost,
+        var impactComplete = DisplayCurrency.TrySumFromNative(losses, l => l.ValueLost,
             l => ReturnLossAmounts.CurrencyOf(data, l), l => l.DateDiscovered,
             CurrencyService.GetDisplayAmountFromNative, out var financialImpact);
 
@@ -2503,7 +2492,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
 
         var prevLosses = data.LostDamaged.Where(l => l.DateDiscovered >= prevStartDate && l.DateDiscovered <= prevEndDate).ToList();
         var prevLossesCount = prevLosses.Count;
-        ReturnLossAmounts.TrySumDisplay(prevLosses, l => l.ValueLost,
+        DisplayCurrency.TrySumFromNative(prevLosses, l => l.ValueLost,
             l => ReturnLossAmounts.CurrencyOf(data, l), l => l.DateDiscovered,
             CurrencyService.GetDisplayAmountFromNative, out var prevFinancialImpact);
         var prevTotalTransactions = data.Revenues.Count(s => s.Date >= prevStartDate && s.Date <= prevEndDate) +
@@ -2538,8 +2527,11 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
 
     private void LoadTaxesStatistics(CompanyData data)
     {
-        // Calculate tax collected from revenues and tax paid on expenses
-        var revenues = data.Revenues.Where(r => r.Date >= StartDate && r.Date <= EndDate).ToList();
+        // Paid sales only (Rule 2), and the tax a refund handed back comes off tax collected on the
+        // refund's date, as in the Tax Summary report (docs/Calculations.md §8).
+        var invoicesById = ProfitCalculator.BuildInvoiceLookup(data.Invoices);
+
+        var revenues = data.Revenues.Where(r => r.Date >= StartDate && r.Date <= EndDate).Where(RevenueAggregator.IsCollected).ToList();
         var expenses = data.Expenses.Where(e => e.Date >= StartDate && e.Date <= EndDate).ToList();
 
         // EffectiveTaxAmountUSD, not a hand-rolled "USD if we have it, native otherwise".
@@ -2547,26 +2539,30 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         // property derives the missing figure
         // from the row's own Total/TotalUSD ratio and yields 0 when there is nothing to derive
         // it from, so a rate that never arrived reads as nothing rather than as dollars.
-        var taxCollectedUSD = revenues.Sum(r => r.EffectiveTaxAmountUSD);
+        var grossTaxCollectedUSD = revenues.Sum(r => r.EffectiveTaxAmountUSD);
+        var taxCollectedUSD = grossTaxCollectedUSD
+            - RefundAggregator.GetRefundedTaxInDateRangeUSD(data.Payments, invoicesById, StartDate, EndDate);
         var taxPaidUSD = expenses.Sum(e => e.EffectiveTaxAmountUSD);
         var netLiability = taxCollectedUSD - taxPaidUSD;
 
         // Calculate effective tax rate (weighted average across all transactions)
         var totalPreTax = revenues.Sum(r => r.EffectiveSubtotalUSD) + expenses.Sum(e => e.EffectiveSubtotalUSD);
-        var totalTax = taxCollectedUSD + taxPaidUSD;
+        var totalTax = grossTaxCollectedUSD + taxPaidUSD;
         var effectiveRate = totalPreTax > 0 ? (totalTax / totalPreTax) * 100 : 0;
 
         // Calculate previous period for comparison
         var (prevStartDate, prevEndDate) = ComparisonRange();
 
-        var prevRevenues = data.Revenues.Where(r => r.Date >= prevStartDate && r.Date <= prevEndDate).ToList();
+        var prevRevenues = data.Revenues.Where(r => r.Date >= prevStartDate && r.Date <= prevEndDate).Where(RevenueAggregator.IsCollected).ToList();
         var prevExpenses = data.Expenses.Where(e => e.Date >= prevStartDate && e.Date <= prevEndDate).ToList();
 
-        var prevTaxCollected = prevRevenues.Sum(r => r.EffectiveTaxAmountUSD);
+        var prevGrossTaxCollected = prevRevenues.Sum(r => r.EffectiveTaxAmountUSD);
+        var prevTaxCollected = prevGrossTaxCollected
+            - RefundAggregator.GetRefundedTaxInDateRangeUSD(data.Payments, invoicesById, prevStartDate, prevEndDate);
         var prevTaxPaid = prevExpenses.Sum(e => e.EffectiveTaxAmountUSD);
         var prevNetLiability = prevTaxCollected - prevTaxPaid;
         var prevTotalPreTax = prevRevenues.Sum(r => r.EffectiveSubtotalUSD) + prevExpenses.Sum(e => e.EffectiveSubtotalUSD);
-        var prevTotalTax = prevTaxCollected + prevTaxPaid;
+        var prevTotalTax = prevGrossTaxCollected + prevTaxPaid;
         var prevEffectiveRate = prevTotalPreTax > 0 ? (prevTotalTax / prevTotalPreTax) * 100 : 0;
 
         var hasPrevPeriodData = prevTaxCollected > 0 || prevTaxPaid > 0;
@@ -2576,10 +2572,16 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         var liabilityChange = prevNetLiability != 0 ? ((netLiability - prevNetLiability) / Math.Abs(prevNetLiability)) * 100 : 0;
         var rateChange = effectiveRate - prevEffectiveRate;
 
-        // Convert each transaction's tax at its OWN date (Calculations.md §3a). The per-row
+        // Convert each transaction's tax at its OWN date (Calculations.md Rule 3a). The per-row
         // USD selector mirrors taxCollectedUSD/taxPaidUSD above so USD display is identity.
-        var collectedComplete = CurrencyService.TrySumDisplayFromUSD(
-            revenues, r => r.TaxAmount, r => r.OriginalCurrency, r => r.EffectiveTaxAmountUSD, r => r.Date, out var taxCollectedDisplay);
+        var grossCollectedComplete = CurrencyService.TrySumDisplayFromUSD(
+            revenues, r => r.TaxAmount, r => r.OriginalCurrency, r => r.EffectiveTaxAmountUSD, r => r.Date, out var grossTaxCollectedDisplay);
+        // Refund tax is only known in USD, so it always converts from USD at the refund's date.
+        var refundedComplete = CurrencyService.TryComputeDisplay(convert =>
+            RefundAggregator.GetRefundedTaxInDateRangeDisplay(data.Payments, invoicesById, StartDate, EndDate, convert),
+            out var taxRefundedDisplay);
+        var collectedComplete = grossCollectedComplete && refundedComplete;
+        var taxCollectedDisplay = grossTaxCollectedDisplay - taxRefundedDisplay;
         var paidComplete = CurrencyService.TrySumDisplayFromUSD(
             expenses, e => e.TaxAmount, e => e.OriginalCurrency, e => e.EffectiveTaxAmountUSD, e => e.Date, out var taxPaidDisplay);
         var netLiabilityDisplay = taxCollectedDisplay - taxPaidDisplay;
@@ -2600,25 +2602,6 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         EffectiveTaxRate = $"{effectiveRate:F1}%";
         EffectiveTaxRateChangeValue = hasPrevPeriodData && prevTotalPreTax > 0 ? (double)rateChange : null;
         EffectiveTaxRateChangeText = hasPrevPeriodData && prevTotalPreTax > 0 ? $"{Math.Abs(rateChange):F1}%" : null;
-    }
-
-    #endregion
-
-    #region Customer Activity Info Modal
-
-    [ObservableProperty]
-    private bool _isCustomerActivityInfoOpen;
-
-    [RelayCommand]
-    private void ShowCustomerActivityInfo()
-    {
-        IsCustomerActivityInfoOpen = true;
-    }
-
-    [RelayCommand]
-    private void CloseCustomerActivityInfo()
-    {
-        IsCustomerActivityInfoOpen = false;
     }
 
     #endregion
@@ -2646,40 +2629,51 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
 
         var since = DateTime.Today.AddDays(-90);
 
-        // RefundAnalyticsService converts each refund at its OWN date (Calculations.md §3a)
-        // when passed CurrencyService.GetDisplayAmount, returning display-currency amounts
-        // that we format directly with CurrencyService.Format (no second conversion).
-        var toDisplay = (Func<decimal, DateTime, decimal>)CurrencyService.GetDisplayAmount;
-        var total = RefundAnalyticsService.TotalRefundedDisplay(company, since, toDisplay);
+        // RefundAnalyticsService converts each refund at its OWN date (Calculations.md Rule 3a) with
+        // the converter it is given. A figure whose refunds aren't all priced shows Pending rather
+        // than a number with USD mixed in.
+        string Money(bool complete, decimal amount) => complete ? CurrencyService.Format(amount) : CurrencyService.PendingMarker;
+
+        var totalComplete = CurrencyService.TryComputeDisplay(
+            convert => RefundAnalyticsService.TotalRefundedDisplay(company, since, convert), out var total);
         var rateDecimal = RefundAnalyticsService.RefundRate(company, since);
         var avgLatency = RefundAnalyticsService.AverageRefundLatencyDays(company, since);
 
-        RefundsTotal = CurrencyService.Format(total);
+        RefundsTotal = Money(totalComplete, total);
         RefundsRate = (rateDecimal * 100).ToString("F1") + "%";
         RefundsAvgLatency = avgLatency > 0 ? $"{avgLatency:F1} days" : "—";
         HasAnyRefunds = total > 0;
 
+        var customersComplete = CurrencyService.TryComputeDisplay(
+            convert => RefundAnalyticsService.TopRefundedCustomers(company, since, 10, convert).ToList(), out var customers);
         RefundsTopCustomers.Clear();
-        foreach (var c in RefundAnalyticsService.TopRefundedCustomers(company, since, 10, toDisplay))
-            RefundsTopCustomers.Add(new RefundsRow(c.CustomerName, CurrencyService.Format(c.AmountUSD), $"{c.Count} refund{(c.Count == 1 ? "" : "s")}"));
+        foreach (var c in customers)
+            RefundsTopCustomers.Add(new RefundsRow(c.CustomerName, Money(customersComplete, c.AmountUSD), $"{c.Count} refund{(c.Count == 1 ? "" : "s")}"));
 
+        var productsComplete = CurrencyService.TryComputeDisplay(
+            convert => RefundAnalyticsService.TopRefundedProducts(company, since, 10, convert).ToList(), out var products);
         RefundsTopProducts.Clear();
-        foreach (var p in RefundAnalyticsService.TopRefundedProducts(company, since, 10, toDisplay))
-            RefundsTopProducts.Add(new RefundsRow(p.ProductLabel, CurrencyService.Format(p.AmountUSD), null));
+        foreach (var p in products)
+            RefundsTopProducts.Add(new RefundsRow(p.ProductLabel, Money(productsComplete, p.AmountUSD), null));
 
+        var reasonsComplete = CurrencyService.TryComputeDisplay(
+            convert => RefundAnalyticsService.TopReasons(company, since, 5, convert).ToList(), out var reasons);
         RefundsTopReasons.Clear();
-        foreach (var r in RefundAnalyticsService.TopReasons(company, since, 5, toDisplay))
-            RefundsTopReasons.Add(new RefundsRow(r.Reason, CurrencyService.Format(r.TotalAmountUSD), $"{r.Count}"));
+        foreach (var r in reasons)
+            RefundsTopReasons.Add(new RefundsRow(r.Reason, Money(reasonsComplete, r.TotalAmountUSD), $"{r.Count}"));
 
+        var channelsComplete = CurrencyService.TryComputeDisplay(
+            convert => RefundAnalyticsService.ChannelBreakdown(company, since, convert).OrderByDescending(kv => kv.Value).ToList(),
+            out var channels);
         RefundsChannelBreakdown.Clear();
-        foreach (var (channel, amount) in RefundAnalyticsService.ChannelBreakdown(company, since, toDisplay)
-                     .OrderByDescending(kv => kv.Value))
-            RefundsChannelBreakdown.Add(new RefundsRow(channel, CurrencyService.Format(amount), null));
+        foreach (var (channel, amount) in channels)
+            RefundsChannelBreakdown.Add(new RefundsRow(channel, Money(channelsComplete, amount), null));
 
-        // Each refund is converted at its OWN date before monthly bucketing (Calculations.md §3a).
+        var monthsComplete = CurrencyService.TryComputeDisplay(
+            convert => RefundAnalyticsService.MonthlyTotals(company, 12, convert), out var months);
         RefundsMonthlyTotals.Clear();
-        foreach (var m in RefundAnalyticsService.MonthlyTotals(company, 12, toDisplay))
-            RefundsMonthlyTotals.Add(new RefundsMonthBucket(m.Month.ToString("MMM yyyy"), m.AmountUSD));
+        foreach (var m in months)
+            RefundsMonthlyTotals.Add(new RefundsMonthBucket(m.Month.ToString("MMM yyyy"), Money(monthsComplete, m.AmountUSD)));
     }
 
     #endregion
@@ -2688,5 +2682,5 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
 /// <summary>Generic display row for the Refunds tab tables.</summary>
 public record RefundsRow(string Label, string Amount, string? Detail);
 
-/// <summary>Monthly bucket for the Refunds-over-time chart.</summary>
-public record RefundsMonthBucket(string MonthLabel, decimal Amount);
+/// <summary>One month's refunds in the Refunds tab's monthly list.</summary>
+public record RefundsMonthBucket(string MonthLabel, string Amount);

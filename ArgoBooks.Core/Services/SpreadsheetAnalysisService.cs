@@ -662,6 +662,7 @@ IMPORTANT:
         sb.AppendLine();
         sb.AppendLine("Rules:");
         sb.AppendLine("- Output a JSON array of objects using the exact JSON property names listed above");
+        sb.AppendLine("- Output only the fields the source row has a value for. Leave a field out when its cell is empty or the sheet has no column for it: never invent a value, and never write 0, false or an empty string in place of a missing one. A field left out keeps the value an existing record already has");
         sb.AppendLine("- Generate reasonable IDs if none exist (e.g., CUS-001, INV-2024-001)");
         sb.AppendLine("- Parse dates to ISO 8601 format (yyyy-MM-dd or yyyy-MM-ddTHH:mm:ss)");
         sb.AppendLine("- Parse decimal amounts (remove currency symbols, handle comma/dot separators)");
@@ -670,15 +671,14 @@ IMPORTANT:
         sb.AppendLine("- Respond with JSON array only, no markdown");
         sb.AppendLine("- Cell values containing pipe characters appear as \\| in the table, use | (without backslash) in your JSON output");
 
-        // Product-specific instructions for category generation
+        // Products the row gives no category are categorized after the import
+        // (SpreadsheetImportService.AiCategorizeMissingProductsAsync), so none is inferred here.
         if (entityType == SpreadsheetSheetType.Products)
         {
             sb.AppendLine();
             sb.AppendLine("Product-specific rules:");
-            sb.AppendLine("- ALWAYS provide a categoryName for every product, even if the source data has no category column");
-            sb.AppendLine("- If the source data has a category, use it as categoryName");
-            sb.AppendLine("- If no category exists in source data, infer an appropriate category name from the product name and description (e.g., 'Industrial Drill Press' → 'Power Tools', 'Monthly Bookkeeping' → 'Bookkeeping Services', 'Copper Pipe' → 'Plumbing')");
-            sb.AppendLine("- Set type to 'Expense' for products/services that are typically purchased or expensed (e.g., office supplies, bookkeeping, equipment rental), and 'Revenue' for items typically sold to customers");
+            sb.AppendLine("- Give categoryName only when the source row has a category, and use it as written. Leave it out otherwise; products without one are categorized later");
+            sb.AppendLine("- Give type only when the source row says whether the item is sold (Revenue), bought (Expenses) or rented (Rental). Leave it out otherwise");
         }
 
         var prompt = sb.ToString();

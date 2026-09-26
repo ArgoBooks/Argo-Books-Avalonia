@@ -6,7 +6,7 @@ namespace ArgoBooks.Core.Models.Transactions;
 /// <summary>
 /// Base class for financial transactions (purchases and sales).
 /// </summary>
-public abstract class Transaction
+public abstract class Transaction : IRecord
 {
     /// <summary>
     /// Unique identifier.

@@ -114,13 +114,6 @@
             </Button>
         </StackPanel>
 
-        <!-- Modal Overlay for message boxes. ZIndex sits above the
-             welcome screen (150), create wizard (200), and onboarding/loading overlays (210-225)
-             so dialogs (errors, the save-blocked prompt) appear on top instead of behind them;
-             kept below the data-safety dialogs (Confirmation 250, UnsavedChanges 275). When no
-             modal is open the overlay is transparent and non-hit-testable, so the z-index is inert. -->
-        <controls:ModalOverlay x:Name="ModalOverlay"
-                               ZIndex="230" />
 
         <!-- Main Application Shell -->
         <DockPanel>
@@ -340,7 +333,8 @@
                                    VerticalAlignment="Stretch"
                                    ZIndex="200" />
 
-        <!-- Confirmation Dialog (high level, can appear over any modal) -->
+        <!-- Confirmation Dialog: questions and notices (errors, the save-blocked prompt). High
+             level, above the welcome screen, wizard and loading overlays, so it can appear over any modal. -->
         <modals:ConfirmationDialog DataContext="{Binding ConfirmationDialogViewModel}"
                                    HorizontalAlignment="Stretch"
                                    VerticalAlignment="Stretch"

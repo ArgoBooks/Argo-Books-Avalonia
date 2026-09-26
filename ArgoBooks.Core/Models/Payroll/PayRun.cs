@@ -1,3 +1,5 @@
+using ArgoBooks.Core.Models.Common;
+
 namespace ArgoBooks.Core.Models.Payroll;
 
 /// <summary>
@@ -8,7 +10,7 @@ namespace ArgoBooks.Core.Models.Payroll;
 /// is holding, and the T4 would not reconcile. This is the difference between a payroll record
 /// and a calculator.
 /// </summary>
-public class PayRun
+public class PayRun : IRecord
 {
     [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;

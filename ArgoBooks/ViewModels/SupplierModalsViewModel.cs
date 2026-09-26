@@ -1,10 +1,12 @@
-﻿using System.Collections.ObjectModel;
+﻿using ArgoBooks.Core.Data;
+using System.Collections.ObjectModel;
 using ArgoBooks.Controls;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models;
 using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Models.Entities;
 using ArgoBooks.Core.Services;
+using ArgoBooks.Core.Validation;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
 using Avalonia.Media.Imaging;
@@ -426,7 +428,6 @@ public partial class SupplierModalsViewModel : ViewModelBase
         CloseAddModal();
     }
 
-    [RelayCommand]
     public async Task SaveNewSupplierAsync()
     {
         if (!ValidateModal()) return;
@@ -482,13 +483,13 @@ public partial class SupplierModalsViewModel : ViewModelBase
             {
                 if (newAvatarBytes != null)
                     App.CompanyManager?.RestoreSupplierAvatar(supplierToUndo, null);
-                companyData.Suppliers.Remove(supplierToUndo);
+                companyData.Suppliers.RemoveRecord(supplierToUndo);
                 companyData.MarkAsModified();
                 SupplierSaved?.Invoke(this, EventArgs.Empty);
             },
             () =>
             {
-                companyData.Suppliers.Add(supplierToUndo);
+                companyData.Suppliers.RestoreRecord(supplierToUndo);
                 if (newAvatarBytes != null)
                     App.CompanyManager?.RestoreSupplierAvatar(supplierToUndo, newAvatarBytes);
                 companyData.MarkAsModified();
@@ -584,7 +585,6 @@ public partial class SupplierModalsViewModel : ViewModelBase
         IsEditModalOpen = true;
     }
 
-    [RelayCommand]
     public void CloseEditModal()
     {
         IsEditModalOpen = false;
@@ -595,7 +595,6 @@ public partial class SupplierModalsViewModel : ViewModelBase
     /// <summary>
     /// Requests to close the Edit modal, showing confirmation if changes were made.
     /// </summary>
-    [RelayCommand]
     public async Task RequestCloseEditModalAsync()
     {
         if (HasEditModalChanges)
@@ -607,7 +606,6 @@ public partial class SupplierModalsViewModel : ViewModelBase
         CloseEditModal();
     }
 
-    [RelayCommand]
     public async Task SaveEditedSupplierAsync()
     {
         if (!ValidateModal() || _editingSupplier == null) return;
@@ -848,9 +846,13 @@ public partial class SupplierModalsViewModel : ViewModelBase
             CloseFilterModal();
     }
 
+    /// <summary>How many filters are applied, for the page's Filter button.</summary>
+    public int ActiveFilterCount { get; private set; }
+
     [RelayCommand]
     public void ApplyFilters()
     {
+        ActiveFilterCount = Filters.ActiveCount;
         FiltersApplied?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
     }
@@ -859,6 +861,7 @@ public partial class SupplierModalsViewModel : ViewModelBase
     public void ClearFilters()
     {
         Filters.Reset();
+        ActiveFilterCount = 0;
         FiltersCleared?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
     }
@@ -985,7 +988,7 @@ public partial class SupplierModalsViewModel : ViewModelBase
             }
         }
 
-        if (!string.IsNullOrWhiteSpace(ModalEmail) && !ModalEmail.Contains('@'))
+        if (!string.IsNullOrWhiteSpace(ModalEmail) && !DataValidator.IsValidOrUnchangedEmail(ModalEmail, _editingSupplier?.Email))
         {
             ModalEmailError = "Please enter a valid email address.".Translate();
             isValid = false;

@@ -81,16 +81,6 @@ public partial class AppTourViewModel : TutorialStepperViewModelBase
     /// </summary>
     public event EventHandler? TargetAreaChanged;
 
-    /// <summary>
-    /// Event raised when the tour is completed.
-    /// </summary>
-    public event EventHandler? TourCompleted;
-
-    /// <summary>
-    /// Event raised when the tour is skipped/exited early.
-    /// </summary>
-    public event EventHandler? TourSkipped;
-
     public AppTourViewModel()
     {
         _tourSteps = GetTourSteps();
@@ -132,14 +122,12 @@ public partial class AppTourViewModel : TutorialStepperViewModelBase
     {
         IsOpen = false;
         TutorialService.Instance.CompleteAppTour();
-        TourSkipped?.Invoke(this, EventArgs.Empty);
     }
 
     protected override void Finish()
     {
         IsOpen = false;
         TutorialService.Instance.CompleteAppTour();
-        TourCompleted?.Invoke(this, EventArgs.Empty);
     }
 
     protected override void ApplyStep(int index)

@@ -47,6 +47,8 @@
                                 SearchQuery="{Binding SearchQuery, Mode=TwoWay}"
                                 SearchPlaceholder="{loc:Loc 'Search rentals...'}"
                                 FilterCommand="{Binding OpenFilterModalCommand}"
+                                FilterCount="{Binding ActiveFilterCount}"
+                                ClearFiltersCommand="{Binding ClearTableFiltersCommand}"
                                 AddCommand="{Binding OpenAddModalCommand}"
                                 AddButtonText="{loc:Loc 'New Rental'}"
                                 AddButtonTooltip="{loc:Loc 'New Rental'}"
@@ -143,7 +145,7 @@
                     <ItemsControl Classes="table-rows" ItemsSource="{Binding Records}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="vm:RentalRecordDisplayItem">
-                                <Border Padding="24,0"
+                                <Border Padding="24,0,0,0"
                                         BorderBrush="{DynamicResource BorderBrush}"
                                         BorderThickness="0,0,0,1"
                                         MinHeight="56"
@@ -306,6 +308,15 @@
                                                             Command="{Binding $parent[ItemsControl].((vm:RentalRecordsPageViewModel)DataContext).GenerateInvoiceCommand}"
                                                             CommandParameter="{Binding}">
                                                         <PathIcon Data="{x:Static icons:Icons.Invoices}"
+                                                                  Width="16" Height="16" />
+                                                    </Button>
+                                                    <!-- Refund the deposit a return recorded but never sent -->
+                                                    <Button Classes="icon-button"
+                                                            ToolTip.Tip="{loc:Loc 'Refund Deposit'}"
+                                                            IsVisible="{Binding CanRefundDeposit}"
+                                                            Command="{Binding $parent[ItemsControl].((vm:RentalRecordsPageViewModel)DataContext).RefundDepositCommand}"
+                                                            CommandParameter="{Binding}">
+                                                        <PathIcon Data="{x:Static icons:Icons.DollarCircle}"
                                                                   Width="16" Height="16" />
                                                     </Button>
                                                     <!-- Mark as Paid Button -->

@@ -68,12 +68,6 @@ public class SettingsModalViewModelTests
     }
 
     [Fact]
-    public void AccentColors_IsPopulated()
-    {
-        Assert.NotEmpty(_viewModel.AccentColors);
-    }
-
-    [Fact]
     public void MaxPieSlicesOptions_IsPopulated()
     {
         Assert.NotEmpty(_viewModel.MaxPieSlicesOptions);

@@ -42,15 +42,9 @@ public class PaymentPurchaseOrderPendingConversionTests
         };
         data.Payments.Add(payment);
 
-        var svc = new PendingConversionService(new MockPlatform(), exchangeRateService: ex);
-        await svc.AddPendingConversionAsync(new PendingConversion
-        {
-            TransactionId = "PAY-1",
-            TransactionType = "Payment",
-            Total = 100m,
-            OriginalCurrency = "EUR",
-            TransactionDate = past
-        });
+        UsdConversion.Apply(data, payment, rate: null);
+        var svc = new PendingConversionService(exchangeRateService: ex);
+        svc.ReconcileWithCompanyData(data);
 
         await svc.ProcessPendingConversionsAsync(data);
 
@@ -79,15 +73,9 @@ public class PaymentPurchaseOrderPendingConversionTests
         };
         data.PurchaseOrders.Add(po);
 
-        var svc = new PendingConversionService(new MockPlatform(), exchangeRateService: ex);
-        await svc.AddPendingConversionAsync(new PendingConversion
-        {
-            TransactionId = "PO-1",
-            TransactionType = "PurchaseOrder",
-            Total = 250m,
-            OriginalCurrency = "EUR",
-            TransactionDate = past
-        });
+        UsdConversion.Apply(data, po, rate: null);
+        var svc = new PendingConversionService(exchangeRateService: ex);
+        svc.ReconcileWithCompanyData(data);
 
         await svc.ProcessPendingConversionsAsync(data);
 
@@ -117,15 +105,9 @@ public class PaymentPurchaseOrderPendingConversionTests
         };
         data.Payments.Add(payment);
 
-        var svc = new PendingConversionService(new MockPlatform(), exchangeRateService: ex);
-        await svc.AddPendingConversionAsync(new PendingConversion
-        {
-            TransactionId = "PAY-2",
-            TransactionType = "Payment",
-            Total = 100m,
-            OriginalCurrency = "EUR",
-            TransactionDate = past
-        });
+        UsdConversion.Apply(data, payment, rate: null);
+        var svc = new PendingConversionService(exchangeRateService: ex);
+        svc.ReconcileWithCompanyData(data);
 
         await svc.ProcessPendingConversionsAsync(data);
 
@@ -159,8 +141,8 @@ public class PaymentPurchaseOrderPendingConversionTests
             TransactionDate = past
         });
 
-        var svc = new PendingConversionService(new MockPlatform());
-        await svc.ReconcileWithCompanyDataAsync(data);
+        var svc = new PendingConversionService();
+        svc.ReconcileWithCompanyData(data);
 
         Assert.Empty(data.PendingConversions);
         Assert.Equal(0, svc.PendingCount);
@@ -209,16 +191,9 @@ public class PaymentPurchaseOrderPendingConversionTests
         };
         data.Invoices.Add(invoice);
 
-        var svc = new PendingConversionService(new MockPlatform(), exchangeRateService: ex);
-        await svc.AddPendingConversionAsync(new PendingConversion
-        {
-            TransactionId = "INV-1",
-            TransactionType = "Invoice",
-            Total = 200m,
-            Balance = 80m,
-            OriginalCurrency = "EUR",
-            TransactionDate = past
-        });
+        UsdConversion.Apply(data, invoice, rate: null);
+        var svc = new PendingConversionService(exchangeRateService: ex);
+        svc.ReconcileWithCompanyData(data);
 
         await svc.ProcessPendingConversionsAsync(data);
 
@@ -254,8 +229,9 @@ public class PaymentPurchaseOrderPendingConversionTests
         var ex = new ExchangeRateService(new MockPlatform(), new HttpClient(new AlwaysEurHandler(UsdToEur)));
         await ex.GetExchangeRateAsync("USD", "EUR", date);
 
-        // Import-time primitive (SpreadsheetImportService.TryConvertRowAmountToUSD delegates to this).
-        Assert.True(ex.TryConvertToUsdBase(250m, "EUR", date, out var importUsd));
+        // Import time: converted straight away at the cached exact-date rate, as every import row is.
+        var imported = new PurchaseOrder { Id = "PO-1", Total = 250m, OriginalCurrency = "EUR", OrderDate = date };
+        Assert.True(UsdConversion.Apply(new CompanyData(), imported, UsdConversion.CachedRate("EUR", date, ex)));
 
         // Heal-time path: a row imported pending, then converted by PendingConversionService.
         var data = new CompanyData();
@@ -264,15 +240,12 @@ public class PaymentPurchaseOrderPendingConversionTests
             Id = "PO-1", Total = 250m, OriginalCurrency = "EUR", OrderDate = date,
             IsPendingConversion = true, TotalUSD = 0m
         });
-        var svc = new PendingConversionService(new MockPlatform(), exchangeRateService: ex);
-        await svc.AddPendingConversionAsync(new PendingConversion
-        {
-            TransactionId = "PO-1", TransactionType = "PurchaseOrder",
-            Total = 250m, OriginalCurrency = "EUR", TransactionDate = date
-        });
+        UsdConversion.Apply(data, data.PurchaseOrders[0], rate: null);
+        var svc = new PendingConversionService(exchangeRateService: ex);
+        svc.ReconcileWithCompanyData(data);
         await svc.ProcessPendingConversionsAsync(data);
 
-        Assert.Equal(importUsd, data.PurchaseOrders[0].TotalUSD);
+        Assert.Equal(imported.TotalUSD, data.PurchaseOrders[0].TotalUSD);
     }
 
     #region Stubs
@@ -310,8 +283,6 @@ public class PaymentPurchaseOrderPendingConversionTests
         public PlatformType Platform => PlatformType.Linux;
         public string GetAppDataPath() => Path.GetTempPath();
         public string GetTempPath() => Path.GetTempPath();
-        public string GetDefaultDocumentsPath() => Path.GetTempPath();
-        public string GetLogsPath() => Path.GetTempPath();
         public string GetCachePath() => Path.GetTempPath();
         public void EnsureDirectoryExists(string path) { }
         public bool SupportsFileSystem => false;
@@ -328,7 +299,6 @@ public class PaymentPurchaseOrderPendingConversionTests
         public string NormalizePath(string path) => path;
         public string CombinePaths(params string[] paths) => Path.Combine(paths);
         public string GetMachineId() => "test-machine-id";
-        public void RegisterFileTypeAssociations(string iconPath) { }
         public StringComparer PathComparer => StringComparer.Ordinal;
     }
 

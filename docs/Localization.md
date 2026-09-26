@@ -1,29 +1,29 @@
 # Localization
 
-Argo Books supports multiple languages through a dynamic translation system that downloads and caches translations from the server. You can view the list of supported languages on the website [here](https://www.argorobots.com/documentation/pages/reference/supported_languages.php).
-
-## Overview
+Argo Books shows its text in the user's language. Translations are downloaded from the server and saved on the computer. The list of supported languages is on the website [here](https://www.argorobots.com/documentation/pages/reference/supported_languages.php).
 
 ![Localization Overview](diagrams/localization/localization-overview.svg)
 
-## XAML Usage
+## Translating text
 
-Translations are applied in XAML using the `{loc:Loc}` markup extension:
+### In XAML
+
+Wrap the English text in the `{loc:Loc}` markup extension:
 
 ```xml
 <TextBlock Text="{loc:Loc 'Save Changes'}" />
 <Button Content="{loc:Loc 'Cancel'}" />
 ```
 
-For strings containing apostrophes, escape them by doubling:
+Write an apostrophe twice:
 
 ```xml
 <TextBlock Text="{loc:Loc 'Don''t save'}" />
 ```
 
-### TranslateConverter
+Prefer `{loc:Loc}` over translating in code, because it updates by itself when the user changes language.
 
-For data binding scenarios (e.g., ItemTemplates), use `TranslateConverter`:
+For bound data, such as the items in a ComboBox, use `TranslateConverter`:
 
 ```xml
 <ComboBox ItemsSource="{Binding Options}">
@@ -35,9 +35,7 @@ For data binding scenarios (e.g., ItemTemplates), use `TranslateConverter`:
 </ComboBox>
 ```
 
-## Code Usage
-
-### Loc.Tr() (Static Helper)
+### In code
 
 ```csharp
 using ArgoBooks.Localization;
@@ -45,77 +43,122 @@ using ArgoBooks.Localization;
 var message = Loc.Tr("Operation completed successfully");
 var formatted = Loc.Tr("Saved {0} items", count);
 
-// Check current language
 if (Loc.IsEnglish) { /* ... */ }
 var isoCode = Loc.CurrentIsoCode;  // e.g., "fr"
 var name = Loc.CurrentLanguage;     // e.g., "French"
 ```
 
-## Translation Flow
+Put changing values in placeholders (`{0}`, `{1}`) and translate the whole sentence. Don't join two translated pieces together, because word order differs between languages.
+
+`ArgoBooks.Core` can't translate, because the language service lives in the app. A message Core hands to a screen is a `public const string`, which the translation tool collects, and the screen translates it with `.Translate()` when it shows it. Text that comes from the server can't be translated and is shown as sent.
+
+## How a string is looked up
 
 ![Translation Flow](diagrams/localization/translation-flow.svg)
 
-1. **English text** is provided in XAML or code
-2. **Key generation** converts text to a lookup key (`str_savechanges`)
-3. **Cache lookup** finds the translation for the current language
-4. **Result** is returned (or original text if no translation exists)
+1. The English text is turned into a key.
+2. The key is looked up in the saved translations for the current language.
+3. If there is a translation it is shown; otherwise the English text is shown.
 
-English is looked up too, against the cached `en.json`, rather than being passed straight through. For a key with no collision that returns the same text it was given. When two strings share a key it returns the other one, which is how a stale `en.json` shows text that no longer appears anywhere in the source. Rebuild it with `--languages en` after changing English strings.
+The key is made from the English text (`LanguageService.GetStringKey`): it is lowercased, `&` becomes `amp`, everything except letters, digits, underscores and the braces of `{0}`-style placeholders is removed, it is cut to 50 characters, and `str_` is put in front. So `"Save Changes"` becomes `str_savechanges` and `"Saved {0} items"` becomes `str_saved{0}items`.
 
-### Key Generation
+**English is looked up too.** It comes from the saved `en.json` file, not straight from the source code. So after changing any English text, rebuild `en.json` (see [Rebuilding English](#rebuilding-english)), or the app keeps showing the old wording.
 
-Translation keys are generated from the English text:
-- Convert to lowercase
-- Remove special characters (except `{0}` placeholders)
-- Prefix with `str_`
-- Truncate to 50 characters max
+## Key collisions
 
-Example: `"Save Changes"` → `str_savechanges`
+Because capitals, punctuation and anything past 50 characters are dropped, different strings can end up with the same key:
 
-**Note:** This means `"Save Changes"` and `"save changes"` produce the same key. Avoid duplicate strings that differ only in case or punctuation.
+- `"Save Changes"` and `"Save changes"` both become `str_savechanges`.
+- `"Supplier"` and `"Supplier..."` both become `str_supplier`.
+- Two long strings that start with the same 50 characters share a key.
 
-## Language Change Flow
+Only one of them can exist. The translation tool keeps whichever it finds first and silently drops the others, so the wrong text can appear wherever the key is used. A table header reading `Supplier...` is the usual sign.
+
+The tool reads **all AXAML files before any C# file**, so text in `{loc:Loc}` always wins over a C# string with the same key. That keeps screen text safe from strings that only exist as spreadsheet column names or import aliases.
+
+Each run prints a collision report, but it doesn't help with this kind of problem. It only lists strings that still differ after lowercasing and removing punctuation, which catches two different long strings cut to the same 50 characters. Strings that differ only in capitals or punctuation are counted as harmless and shown as a single number. That is fine for a menu item and wrong for a table header, so look into that number when it changes, or check the screen.
+
+The rules below avoid most collisions.
+
+### Capitalization
+
+Use sentence case: capitalize the first word only.
+
+> Clear all, Sync now, Street address, Units sold
+
+Names and acronyms keep their capitals (`Argo Books`, `Stripe`, `PDF`, `GST/HST`). Since the key is lowercased, fixing capitalization never changes the key, so the existing translations stay attached and nothing needs translating again.
+
+When a string must appear in all capitals, translate it once and change the case afterwards, instead of adding a second string:
+
+```csharp
+var upper = Loc.Tr("Save Changes").ToUpperInvariant();
+```
+
+In XAML, use `UpperCaseConverter`.
+
+### Punctuation
+
+Keep punctuation out of translated text. Translate the word, then add the punctuation in a separate `Run`:
+
+```xml
+<!-- Instead of Text="{loc:Loc 'Quantity:'}", which collides with 'Quantity' -->
+<TextBlock><Run Text="{loc:Loc 'Quantity'}" /><Run Text=":" /></TextBlock>
+```
+
+Only the `Run` with `{loc:Loc}` is translated. The other is plain text, which is right, because `:`, `...`, `#` and `($)` are the same in every language. It looks the same as a single `Text` attribute.
+
+This only works for the text inside a `TextBlock`. It doesn't work for text in an attribute, such as `ToolTip.Tip`, `Placeholder`, `PlaceholderText` or a custom control's `Header`. There, either leave the punctuation out or use a different string that doesn't collide (`Select category...` rather than `Category...`).
+
+## Changing language
 
 ![Language Change Flow](diagrams/localization/language-change-flow.svg)
 
-1. **User** selects a new language in Settings
-2. **Settings** calls `LanguageService.SetLanguageAsync()`
-3. **LanguageService** downloads translations if not cached, then fires `LanguageChanged` event
-4. **LocalizationManager** receives the event
-5. **UI Update** refreshes all registered bindings with new translations
+1. The user picks a language in Settings, which calls `LanguageService.SetLanguageAsync()`.
+2. `LanguageService` downloads the translations if they aren't saved yet, then raises `LanguageChanged`.
+3. `LocalizationManager` receives it and refreshes every translated binding on screen.
 
-## Translation Download
+## Language at launch
+
+A `{loc:Loc}` value is read once, when its view is created. The saved language is therefore applied before any window is built, from the file already saved on disk (`LanguageService.TrySetCachedLanguage`), so the first screen appears translated and nothing has to be refreshed.
+
+When the saved language has no file yet, as on a fresh install that starts in the computer's own language, the app opens in English. Once the window is up it downloads the file through `SetLanguageAsync`, and the screen refreshes as described above.
+
+## Downloading and saving translations
 
 ![Download Flow](diagrams/localization/download-flow.svg)
 
-Translations are downloaded from the server based on app version:
+Each app version downloads its translations from:
 
 ```
 https://argorobots.com/resources/downloads/{version}/languages/{isoCode}.json
 ```
 
-### Caching
+They are saved here:
 
-Downloaded translations are cached locally:
-
-| Platform | Cache Location |
-|----------|----------------|
+| Platform | Folder |
+|----------|--------|
 | **Windows** | `%LOCALAPPDATA%\ArgoBooks\Languages\` |
 | **macOS** | `~/Library/Caches/ArgoBooks/Languages/` |
 | **Linux** | `~/.cache/ArgoBooks/Languages/` |
 
-Cache files:
-- `translations.json` - All non-English translations
-- `en.json` - English translations
-- `{isoCode}.json` - Individual language files (optional)
+The folder holds one `{isoCode}.json` file per downloaded language, with `en.json` for English.
 
-## Translation Generation (Admin)
+Each file maps keys to text:
 
-Translations are generated using the `TranslationGenerator` class and the **Azure Translator API**.
+```json
+{
+  "str_savechanges": "Enregistrer les modifications",
+  "str_cancel": "Annuler",
+  "str_saved{0}items": "Enregistré {0} éléments"
+}
+```
 
-### Running the Translation Tool
+## Making the translation files
 
-First, set up the environment variables:
+The files are made by the tool in `tools/ArgoBooks.Translations`, which uses the **Azure Translator API**.
+
+Set the Azure details, then go to the tool's folder:
+
 ```powershell
 $env:AZURE_TRANSLATOR_REGION = "canadacentral"
 $env:AZURE_TRANSLATOR_KEY = "your-api-key"
@@ -123,102 +166,30 @@ $env:AZURE_TRANSLATOR_KEY = "your-api-key"
 cd tools/ArgoBooks.Translations
 ```
 
-Then you can run the following commands:
-
-| Command | Description |
+| Command | What it does |
 |---------|-------------|
-| `dotnet run -- --languages en` | Rebuild `en.json` and report key collisions, nothing else. No API calls, no key needed |
-| `dotnet run -- --translate` | Translate to all languages |
-| `dotnet run -- --languages fr,de,es,ja` | Translate to specific languages |
-| `dotnet run -- --output C:\MyTranslations` | Custom output directory |
+| `dotnet run -- --languages en` | Rebuilds `en.json` and prints the collision report. No Azure calls, no key needed |
+| `dotnet run -- --translate` | Translates into every language |
+| `dotnet run -- --languages fr,de,es,ja` | Translates into the listed languages |
+| `dotnet run -- --output C:\MyTranslations` | Writes the files to another folder |
 
-Output files are saved to `./languages/` by default (e.g., `en.json`, `fr.json`).
+Files are written to `./languages/` unless `--output` says otherwise.
 
-**`en.json` is rebuilt from source on every run**, whatever the arguments, because it is written before the tool decides which languages to translate. The other language files are only touched when a non-English language is selected.
+### What a run does
 
-`--languages en` is therefore the way to apply an English-only change: English is skipped by the translation loop, so the run rebuilds `en.json`, reports "Nothing to do", and exits without reading the API key or opening any other language file.
+1. Collects every translatable string, from AXAML first and then C#.
+2. Rebuilds `en.json` from those strings. This happens on every run, whatever the options.
+3. For each language asked for, keeps every key that already has a translation and sends only the missing ones to Azure, in batches.
+4. Writes one `{isoCode}.json` file per language.
 
-**Run `--languages en` after changing any English string.** English is not read from the source text at runtime, it is read from `en.json` (see [Translation Flow](#translation-flow)), so editing a `{loc:Loc}` string in XAML has no visible effect until the file is rebuilt. It is free, so there is no reason to skip it.
+Keeping existing translations saves money and keeps any translations that were corrected by hand. For this to work, copy the current translation files into the output folder before running.
 
-**For incremental translation:** Copy existing translation files to the output folder first. The tool skips any key already present with a non-empty value, avoiding redundant API calls.
+### Rebuilding English
 
-### How It Works
+Run `dotnet run -- --languages en` after changing any English text. It is free and takes seconds. English is skipped when translating, so the run rebuilds `en.json`, says "Nothing to do", and stops without reading the Azure key or touching the other language files.
 
-1. **Scan source files** - Collects all translatable strings from AXAML, then C#. AXAML is scanned first, which matters for collisions (see below)
-2. **Write `en.json`** - Rebuilt from scratch from the collected strings
-3. **Compare with existing** - For each target language, any key already present with a non-empty value is reused as-is; only the remainder is sent for translation
-4. **Translate via Azure** - Sends the untranslated strings to Azure Translator API in batches
-5. **Save JSON files** - Outputs `{isoCode}.json` files for each language
+Deleting a key from `en.json` does nothing, because the file is rebuilt every run.
 
-This avoids re-translating existing content, saving API costs and preserving any manual translation fixes.
+### Translating a string again
 
-Because step 3 keys off the key and not the English text, **changing only the capitalization of a string costs nothing**: the key is lowercased before it is built, so the existing translation stays attached.
-
-**Limitations:** Key collisions can cause issues:
-- `"Save Changes"` and `"Save changes"` both produce key `str_savechanges`
-- `"Supplier"` and `"Supplier..."` do too, because punctuation is stripped
-- Keys are truncated to 50 characters, so only the first 50 chars affect the key
-
-To force a re-translation of one key, delete it from the target language file (`fr.json` and so on) and re-run `--translate`. Deleting it from `en.json` does nothing, since that file is rebuilt from source every run.
-
-**Workaround for casing:** Instead of creating separate translations for different cases, translate once and transform in code:
-
-```csharp
-var upper = Loc.Tr("Save Changes").ToUpperInvariant();
-```
-
-Or use `UpperCaseConverter` in XAML for UI elements that need all caps.
-
-## Avoiding key collisions
-
-Two source strings that reduce to the same key cannot both exist. The collector keeps whichever it scanned first and silently discards the rest, so the wrong text can appear anywhere the key is used. A label reading `Supplier...` in a table header is the classic symptom.
-
-Scan order decides the winner: **all AXAML files are read before any C# file.** A `{loc:Loc}` string therefore always beats a colliding C# literal, which is why UI text is safe from strings that exist only as spreadsheet column names or import aliases.
-
-Every run prints a collision report, but **do not rely on it for this class of problem.** It only lists collisions where the variants still differ after lowercasing and stripping punctuation, which is aimed at the 50-character truncation case where two unrelated strings merge. Case-only and punctuation-only variants are treated as "benign" and collapsed into a single suppressed count, on the assumption that they share one sensible translation. That assumption holds for a menu item and breaks for a table header, so these have to be caught by reading the report's benign count and investigating, or by checking the rendered UI.
-
-### Capitalization
-
-Sentence case. Capitalize the first word only, and leave the rest lowercase:
-
-> Clear all, Sync now, Street address, Units sold
-
-Proper nouns and acronyms keep their capitals (`Argo Books`, `Stripe`, `PDF`, `GST/HST`). Because the key is lowercased before it is built, fixing capitalization never changes the key and never costs a re-translation.
-
-### Punctuation
-
-Keep punctuation out of the translated string. Translate the word, then add the punctuation as a separate `Run`:
-
-```xml
-<!-- Instead of Text="{loc:Loc 'Quantity:'}" which collides with 'Quantity' -->
-<TextBlock><Run Text="{loc:Loc 'Quantity'}" /><Run Text=":" /></TextBlock>
-```
-
-Only the `Run` carrying `{loc:Loc}` is translated. The other is literal text and never reaches the translator, which is correct: `:`, `...`, `#` and `($)` are the same in every language. Renders identically to a single `Text` attribute.
-
-This works wherever the text is the content of a `TextBlock`. It does **not** work when the string sits in an attribute, such as `ToolTip.Tip`, `Placeholder`, `PlaceholderText` or a custom control's `Header`. There, either drop the punctuation or reuse an existing distinct string (`Select category...` rather than `Category...`).
-
-## Translation File Format
-
-Translation files are simple JSON key-value pairs:
-
-```json
-{
-  "str_savechanges": "Enregistrer les modifications",
-  "str_cancel": "Annuler",
-  "str_saved0items": "Enregistré {0} éléments"
-}
-```
-
-## Best Practices
-
-| Practice | Description |
-|----------|-------------|
-| **Use markup extension** | Prefer `{loc:Loc 'text'}` over code translations for automatic refresh |
-| **Use TranslateConverter for templates** | Required for translating bound data in ItemTemplates |
-| **Keep text short** | Long keys are truncated; keep source text concise |
-| **Use placeholders** | Use `{0}`, `{1}` for dynamic values: `Loc.Tr("Found {0} results", count)` |
-| **Avoid concatenation** | Don't join two translated strings; use full sentences with placeholders. Appending non-translatable punctuation via a second `Run` is fine and is the preferred fix for `Label:` |
-| **Avoid case-only variants** | `"Save"` and `"SAVE"` produce the same key; use one consistently |
-| **Use sentence case** | Capitalize the first word only, except proper nouns and acronyms |
-| **Rebuild after editing English** | Run `--languages en`, or the change won't show |
+Delete its key from the other language's file (`fr.json` and so on) and run `--translate` again.

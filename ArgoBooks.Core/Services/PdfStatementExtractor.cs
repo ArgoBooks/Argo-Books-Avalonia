@@ -10,33 +10,24 @@ namespace ArgoBooks.Core.Services;
 /// Sends a PDF bank statement to the AI proxy and returns parsed rows. Mirrors the receipt
 /// proxy's auth/multipart contract. Usage-counted by the caller.
 /// </summary>
-public class PdfStatementExtractor(LicenseService? licenseService, IErrorLogger? errorLogger = null) : IPdfStatementExtractor
+public class PdfStatementExtractor(IErrorLogger? errorLogger = null) : IPdfStatementExtractor
 {
     private static readonly string ExtractEndpoint = $"{ApiConfig.BaseUrl}/api/bank/extract.php";
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(120) };
 
-    public bool IsConfigured => licenseService?.LoadLicense() == true;
+    public bool IsConfigured => LicenseAuthHelper.IsConfigured;
 
     public async Task<List<BankStatementLine>> ExtractAsync(byte[] pdfData, string fileName, CancellationToken cancellationToken = default)
     {
         try
         {
-            var licenseKey = licenseService?.GetLicenseKey() ?? "";
-            var deviceId = licenseService?.GetDeviceId() ?? "";
-
             using var content = new MultipartFormDataContent();
             var fileContent = new ByteArrayContent(pdfData);
             fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
             content.Add(fileContent, "statement", fileName);
 
             using var request = new HttpRequestMessage(HttpMethod.Post, ExtractEndpoint) { Content = content };
-            if (!string.IsNullOrEmpty(licenseKey))
-            {
-                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", licenseKey);
-                request.Headers.Add("X-License-Key", licenseKey);
-            }
-            if (!string.IsNullOrEmpty(deviceId))
-                request.Headers.Add("X-Device-Id", deviceId);
+            LicenseAuthHelper.AddAuthHeaders(request);
 
             var wallClock = Stopwatch.StartNew();
             using var response = await Http.SendAsync(request, cancellationToken);

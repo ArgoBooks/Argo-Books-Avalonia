@@ -478,13 +478,9 @@ public partial class ReceiptViewerModalViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            await (App.ConfirmationDialog?.ShowAsync(new ConfirmationDialogOptions
-            {
-                Title = "Error",
-                Message = $"Failed to save receipt: {ex.Message}",
-                PrimaryButtonText = "OK",
-                CancelButtonText = null
-            }) ?? Task.CompletedTask);
+            await App.ShowErrorDialogAsync(
+                "Error",
+                $"Failed to save receipt: {ex.Message}");
         }
     }
 }

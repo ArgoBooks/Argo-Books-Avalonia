@@ -20,21 +20,6 @@ public abstract class BasePlatformService : IPlatformService
     }
 
     /// <inheritdoc />
-    public virtual string GetDefaultDocumentsPath()
-    {
-        var documentsPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-        return string.IsNullOrEmpty(documentsPath)
-            ? GetAppDataPath()
-            : CombinePaths(documentsPath, AppName);
-    }
-
-    /// <inheritdoc />
-    public virtual string GetLogsPath()
-    {
-        return CombinePaths(GetAppDataPath(), "Logs");
-    }
-
-    /// <inheritdoc />
     public virtual string GetCachePath()
     {
         return CombinePaths(GetAppDataPath(), "Cache");
@@ -114,13 +99,6 @@ public abstract class BasePlatformService : IPlatformService
         // Fallback implementation using machine name
         // Platform-specific implementations should override this with more stable identifiers
         return Environment.MachineName;
-    }
-
-    /// <inheritdoc />
-    public virtual void RegisterFileTypeAssociations(string iconPath)
-    {
-        // Default implementation does nothing
-        // Platform-specific implementations (Windows) should override this
     }
 
     /// <inheritdoc />

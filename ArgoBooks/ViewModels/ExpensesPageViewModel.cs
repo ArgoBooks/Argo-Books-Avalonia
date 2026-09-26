@@ -5,6 +5,7 @@ using ArgoBooks.Core.Models.Transactions;
 using ArgoBooks.Core.Services;
 using ArgoBooks.Services;
 using ArgoBooks.Utilities;
+using ArgoBooks.ViewModels.Dashboard;
 using ArgoBooks.Helpers;
 using ArgoBooks.Localization;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -339,13 +340,17 @@ public ExpensesPageViewModel()
             FilterDateFrom = modals.FilterDateFrom;
             FilterDateTo = modals.FilterDateTo;
             FilterReceiptStatus = modals.FilterReceiptStatus;
+            ActiveFilterCount = modals.ActiveFilterCount;
         }
         CurrentPage = 1;
         FilterExpenses();
     }
 
+    protected override void ClearTableFilters() => App.ExpenseModalsViewModel?.ClearFiltersCommand.Execute(null);
+
     private void OnFiltersCleared(object? sender, EventArgs e)
     {
+        ActiveFilterCount = 0;
         FilterStatus = "All";
         FilterSupplierId = null;
         FilterCategoryId = null;
@@ -379,23 +384,18 @@ public ExpensesPageViewModel()
 
     private void UpdateStatistics()
     {
-        var now = DateTime.Now;
-        var startOfMonth = new DateTime(now.Year, now.Month, 1);
-        var endOfThisMonth = startOfMonth.AddMonths(1).AddTicks(-1);
-
-        // Total monthly expenses: convert each at its OWN date before summing (Calculations.md
-        // §3a Phase 2), so a non-USD display total isn't re-priced at today's rate. Capped at the
-        // month's end like the Revenue page, so a future-dated expense isn't counted this month.
-        TotalMonthlyExpenses = CurrencyService.FormatSumDisplayFromUSD(
-            _allExpenses.Where(p => p.Date >= startOfMonth && p.Date <= endOfThisMonth),
-            p => p.Total, p => p.OriginalCurrency, p => p.TotalUSD, p => p.Date);
+        // The dashboard's Total Expenses card for This Month, so the two always match.
+        var companyData = App.CompanyManager?.CompanyData;
+        var (monthStart, monthEnd) = DashboardCalculations.ThisMonth();
+        TotalMonthlyExpenses = companyData != null
+            ? DashboardCalculations.FormatExpenses(companyData, monthStart, monthEnd)
+            : CurrencyService.Format(0m);
 
         TransactionCount = _allExpenses.Count;
 
         ReceiptsOnFile = _allExpenses.Count(p => !string.IsNullOrEmpty(p.ReceiptId));
 
         // Returns count (linked to returns data)
-        var companyData = App.CompanyManager?.CompanyData;
         if (companyData?.Returns.Count > 0)
         {
             var expenseIds = new HashSet<string>(_allExpenses.Select(p => p.Id));

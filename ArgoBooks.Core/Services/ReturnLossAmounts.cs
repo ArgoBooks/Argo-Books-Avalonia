@@ -36,26 +36,4 @@ public static class ReturnLossAmounts
         var companyCurrency = data.Settings.Localization.Currency;
         return string.IsNullOrEmpty(companyCurrency) ? "USD" : companyCurrency;
     }
-
-    /// <summary>
-    /// Sums amounts in the display currency. <paramref name="toDisplay"/> converts one amount from its
-    /// currency at its date, or returns null when that date's rate is unavailable. Such an amount
-    /// counts as 0 and the result is false, so a caller can show pending instead of a partial total.
-    /// </summary>
-    public static bool TrySumDisplay<T>(
-        IEnumerable<T> items, Func<T, decimal> amount, Func<T, string> currency, Func<T, DateTime> date,
-        Func<decimal, string, DateTime, decimal?> toDisplay, out decimal total)
-    {
-        total = 0m;
-        var complete = true;
-        foreach (var item in items)
-        {
-            var converted = toDisplay(amount(item), currency(item), date(item));
-            if (converted.HasValue)
-                total += converted.Value;
-            else
-                complete = false;
-        }
-        return complete;
-    }
 }

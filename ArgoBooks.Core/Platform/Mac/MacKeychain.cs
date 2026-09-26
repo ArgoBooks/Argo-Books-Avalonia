@@ -168,8 +168,5 @@ internal static class MacKeychain
         }
     }
 
-    /// <summary>True when a password is held for this file, without reading it back.</summary>
-    public static bool HasPassword(string fileId) => Lookup(fileId) != null;
-
     private static byte[] Utf8(string value) => System.Text.Encoding.UTF8.GetBytes(value);
 }

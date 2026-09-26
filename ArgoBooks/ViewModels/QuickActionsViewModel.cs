@@ -518,9 +518,10 @@ public partial class QuickActionsViewModel : ViewModelBase
         foreach (var inv in companyData.Invoices)
         {
             var customerName = companyData.Customers.FirstOrDefault(c => c.Id == inv.CustomerId)?.Name ?? "";
-            var score = LevenshteinDistance.BestScore(query, inv.InvoiceNumber, customerName, inv.Status.ToString());
+            var status = InvoiceTotalsService.DisplayStatus(inv).ToString();
+            var score = LevenshteinDistance.BestScore(query, inv.InvoiceNumber, customerName, status);
             if (score > 0)
-                results.Add((new QuickActionItem(inv.InvoiceNumber, $"{customerName} · {inv.Status}", Icons.Invoices, QuickActionType.SearchResult, "Invoices", entityId: inv.Id), score));
+                results.Add((new QuickActionItem(inv.InvoiceNumber, $"{customerName} · {status}", Icons.Invoices, QuickActionType.SearchResult, "Invoices", entityId: inv.Id), score));
         }
 
         // Quotes

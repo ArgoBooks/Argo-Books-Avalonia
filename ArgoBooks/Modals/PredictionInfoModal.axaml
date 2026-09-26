@@ -4,6 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:ArgoBooks.ViewModels"
              xmlns:controls="using:ArgoBooks.Controls"
+             xmlns:loc="using:ArgoBooks.Localization"
              xmlns:icons="using:ArgoBooks"
              mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="700"
              x:Class="ArgoBooks.Modals.PredictionInfoModal"
@@ -18,7 +19,6 @@
                 CornerRadius="12"
                 MaxWidth="600"
                 MaxHeight="750"
-                Margin="40"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center"
                 BoxShadow="0 8 32 0 #40000000">
@@ -414,7 +414,7 @@
                     <Button Classes="primary-button"
                             HorizontalAlignment="Right"
                             Command="{Binding CloseCommand}">
-                        <TextBlock Text="Got it" />
+                        <TextBlock Text="{loc:Loc 'Got it'}" />
                     </Button>
                 </Border>
             </Grid>

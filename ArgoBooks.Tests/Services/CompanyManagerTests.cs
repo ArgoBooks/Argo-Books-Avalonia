@@ -511,6 +511,47 @@ public class CompanyManagerTests : IDisposable
         }
     }
 
+    /// <summary>
+    /// A rename's undo renames the customer it held and moves every reference by id. Undoing an import
+    /// in between restores the company from a snapshot, and when that swapped the customer for a copy,
+    /// the undo renamed the copy and pointed every reference at an id no customer had.
+    /// </summary>
+    [Fact]
+    public async Task UndoingARename_AfterUndoingAnImport_RenamesTheCustomerInTheBooks()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"argo-cm-{Guid.NewGuid():N}.argo");
+        try
+        {
+            await _manager.CreateCompanyAsync(path, "Acme");
+            var data = _manager.CompanyData!;
+            var customer = new Customer { Id = "CUS-001", Name = "Acme Corp" };
+            data.Customers.Add(customer);
+            data.Invoices.Add(new Invoice { Id = "INV-1", CustomerId = "CUS-001" });
+
+            _manager.ChangeCustomerId(customer, "CUS-100");
+
+            var beforeImport = App.CreateCompanyDataSnapshot(data);
+            // A re-import of an exported sheet updates the customer it already has.
+            data.Customers.AddOrUpdate(customer, new Customer { Id = "CUS-100", Name = "Acme Corporation" });
+            data.Revenues.Add(new Revenue { Id = "REV-1", CustomerId = "CUS-100" });
+            App.RestoreCompanyDataFromSnapshot(data, beforeImport);
+
+            _manager.ChangeCustomerId(customer, "CUS-001");
+
+            Assert.Same(customer, Assert.Single(data.Customers));
+            Assert.Equal("CUS-001", customer.Id);
+            Assert.Equal("Acme Corp", customer.Name);
+            Assert.Equal("CUS-001", Assert.Single(data.Invoices).CustomerId);
+            Assert.Same(customer, data.GetCustomer("CUS-001"));
+            Assert.Empty(data.Revenues);
+        }
+        finally
+        {
+            await _manager.CloseCompanyAsync();
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
     [Fact]
     public async Task ChangeSupplierId_CascadesToRecurringTransactionTemplate()
     {
@@ -566,6 +607,101 @@ public class CompanyManagerTests : IDisposable
 
             Assert.Equal("PRD-2", data.RecurringInvoices[0].Template!.LineItems[0].ProductId);
             Assert.Equal("PRD-2", data.RecurringTransactions[0].ExpenseTemplate!.LineItems[0].ProductId);
+        }
+        finally
+        {
+            await _manager.CloseCompanyAsync();
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    #endregion
+
+    #region Avatar File Tests
+
+    // "CUS/002" and "CUS-002" both sanitise to "CUS-002", so a name derived from the Id alone
+    // would let one entity overwrite or delete the other's avatar.
+
+    [Fact]
+    public async Task RestoreCustomerAvatar_IdSanitisingToAnotherCustomersFile_KeepsBothAvatars()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"argo-cm-{Guid.NewGuid():N}.argo");
+        try
+        {
+            await _manager.CreateCompanyAsync(path, "Acme");
+            var data = _manager.CompanyData!;
+            var first = new Customer { Id = "CUS-002", Name = "First" };
+            var second = new Customer { Id = "CUS/002", Name = "Second" };
+            data.Customers.Add(first);
+            data.Customers.Add(second);
+
+            _manager.RestoreCustomerAvatar(first, [1, 1, 1]);
+            _manager.RestoreCustomerAvatar(second, [2, 2, 2]);
+
+            Assert.NotEqual(first.AvatarFileName, second.AvatarFileName, StringComparer.OrdinalIgnoreCase);
+            Assert.Equal(new byte[] { 1, 1, 1 }, _manager.ReadCustomerAvatarBytes(first));
+            Assert.Equal(new byte[] { 2, 2, 2 }, _manager.ReadCustomerAvatarBytes(second));
+        }
+        finally
+        {
+            await _manager.CloseCompanyAsync();
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task ChangeCustomerId_ToIdSanitisingToAnotherCustomersFile_KeepsBothAvatars()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"argo-cm-{Guid.NewGuid():N}.argo");
+        try
+        {
+            await _manager.CreateCompanyAsync(path, "Acme");
+            var data = _manager.CompanyData!;
+            var first = new Customer { Id = "CUS-002", Name = "First" };
+            var second = new Customer { Id = "CUS-009", Name = "Second" };
+            data.Customers.Add(first);
+            data.Customers.Add(second);
+            _manager.RestoreCustomerAvatar(first, [1, 1, 1]);
+            _manager.RestoreCustomerAvatar(second, [2, 2, 2]);
+
+            _manager.ChangeCustomerId(second, "CUS/002");
+
+            Assert.NotEqual(first.AvatarFileName, second.AvatarFileName, StringComparer.OrdinalIgnoreCase);
+            Assert.Equal(new byte[] { 1, 1, 1 }, _manager.ReadCustomerAvatarBytes(first));
+            Assert.Equal(new byte[] { 2, 2, 2 }, _manager.ReadCustomerAvatarBytes(second));
+        }
+        finally
+        {
+            await _manager.CloseCompanyAsync();
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    /// <summary>Files written before names were unique can already be shared by two customers.</summary>
+    [Fact]
+    public async Task SharedAvatarFile_RemovingOrRenamingOne_LeavesTheOthersAvatar()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"argo-cm-{Guid.NewGuid():N}.argo");
+        try
+        {
+            await _manager.CreateCompanyAsync(path, "Acme");
+            var data = _manager.CompanyData!;
+            var first = new Customer { Id = "CUS-002", Name = "First" };
+            var second = new Customer { Id = "CUS/002", Name = "Second" };
+            var third = new Customer { Id = "CUS:002", Name = "Third" };
+            data.Customers.Add(first);
+            _manager.RestoreCustomerAvatar(first, [1, 1, 1]);
+            second.AvatarFileName = first.AvatarFileName;
+            third.AvatarFileName = first.AvatarFileName;
+            data.Customers.Add(second);
+            data.Customers.Add(third);
+
+            await _manager.RemoveCustomerAvatarAsync(second);
+            _manager.ChangeCustomerId(third, "CUS-003");
+
+            Assert.Equal(new byte[] { 1, 1, 1 }, _manager.ReadCustomerAvatarBytes(first));
+            Assert.Equal(new byte[] { 1, 1, 1 }, _manager.ReadCustomerAvatarBytes(third));
+            Assert.NotEqual(first.AvatarFileName, third.AvatarFileName, StringComparer.OrdinalIgnoreCase);
         }
         finally
         {
@@ -648,8 +784,6 @@ public class CompanyManagerTests : IDisposable
         public PlatformType Platform => PlatformType.Linux;
         public string GetAppDataPath() => Path.Combine(Path.GetTempPath(), "ArgoBooks_Test_" + Guid.NewGuid().ToString("N")[..8]);
         public string GetTempPath() => Path.GetTempPath();
-        public string GetDefaultDocumentsPath() => Path.GetTempPath();
-        public string GetLogsPath() => Path.GetTempPath();
         public string GetCachePath() => Path.GetTempPath();
         public void EnsureDirectoryExists(string path) => Directory.CreateDirectory(path);
         public bool SupportsFileSystem => true;
@@ -666,7 +800,6 @@ public class CompanyManagerTests : IDisposable
         public string NormalizePath(string path) => path;
         public string CombinePaths(params string[] paths) => Path.Combine(paths);
         public string GetMachineId() => "test-machine-id";
-        public void RegisterFileTypeAssociations(string iconPath) { }
         public StringComparer PathComparer => StringComparer.Ordinal;
     }
 

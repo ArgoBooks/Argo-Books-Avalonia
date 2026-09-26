@@ -1,7 +1,6 @@
 using System.Collections.ObjectModel;
 using ArgoBooks.Core.Services;
 using Avalonia.Media;
-using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -55,9 +54,6 @@ public partial class HeaderViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool _showSettings = true;
-
-    [ObservableProperty]
-    private bool _showUserMenu = true;
 
     #endregion
 
@@ -147,34 +143,6 @@ public partial class HeaderViewModel : ViewModelBase
 
     #endregion
 
-    #region User
-
-    [ObservableProperty]
-    private string? _userDisplayName;
-
-    [ObservableProperty]
-    private string? _userInitials;
-
-    [ObservableProperty]
-    private int _userId;
-
-    [ObservableProperty]
-    private string? _userEmail;
-
-    [ObservableProperty]
-    private string? _userRole;
-
-    [ObservableProperty]
-    private bool _showUserInitials;
-
-    [ObservableProperty]
-    private bool _hasUserAvatar;
-
-    [ObservableProperty]
-    private Bitmap? _userAvatarSource;
-
-    #endregion
-
     #region Save State
 
     [ObservableProperty]
@@ -226,6 +194,9 @@ public partial class HeaderViewModel : ViewModelBase
     /// </summary>
     private void StartUnsavedChangesReminderTimer()
     {
+        if (App.CompanyManager?.IsSampleCompany == true)
+            return;
+
         var settings = App.CompanyManager?.CompanyData?.Settings.Notifications;
         if (settings == null || !settings.UnsavedChangesReminder)
             return;
@@ -241,7 +212,8 @@ public partial class HeaderViewModel : ViewModelBase
         {
             // Only show if still has unsaved changes and setting is still enabled
             var currentSettings = App.CompanyManager?.CompanyData?.Settings.Notifications;
-            if (HasUnsavedChanges && currentSettings?.UnsavedChangesReminder == true)
+            if (HasUnsavedChanges && currentSettings?.UnsavedChangesReminder == true &&
+                App.CompanyManager?.IsSampleCompany != true)
             {
                 ShowUnsavedChangesReminder = true;
             }
@@ -311,11 +283,6 @@ public partial class HeaderViewModel : ViewModelBase
         PageTitle = "Dashboard";
         HasUnreadNotifications = true;
         UnreadNotificationCount = 3;
-        UserId = 1;
-        UserDisplayName = "John Doe";
-        UserEmail = "john@example.com";
-        UserInitials = "JD";
-        UserRole = "Administrator";
     }
 
     /// <summary>
@@ -386,16 +353,6 @@ public partial class HeaderViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Toggles the sidebar collapsed state.
-    /// </summary>
-    [RelayCommand]
-    private void ToggleSidebar()
-    {
-        // This will be connected to the AppShell to toggle sidebar
-        ToggleSidebarRequested?.Invoke(this, EventArgs.Empty);
-    }
-
-    /// <summary>
     /// Saves the current company file.
     /// </summary>
     [RelayCommand]
@@ -423,11 +380,6 @@ public partial class HeaderViewModel : ViewModelBase
     {
         OpenUpgradeRequested?.Invoke(this, EventArgs.Empty);
     }
-
-    /// <summary>
-    /// Event raised when sidebar toggle is requested.
-    /// </summary>
-    public event EventHandler? ToggleSidebarRequested;
 
     /// <summary>
     /// Event raised when quick actions panel should be opened.
@@ -495,35 +447,6 @@ public partial class HeaderViewModel : ViewModelBase
     {
         PageTitle = title;
         PageSubtitle = subtitle;
-    }
-
-    /// <summary>
-    /// Sets the user information.
-    /// </summary>
-    /// <param name="displayName">User display name.</param>
-    /// <param name="email">User email.</param>
-    /// <param name="role">User role.</param>
-    /// <param name="avatarSource">Optional avatar image.</param>
-    public void SetUserInfo(string? displayName, string? email = null, string? role = null, Bitmap? avatarSource = null, int userId = 0)
-    {
-        UserId = userId;
-        UserDisplayName = displayName;
-        UserEmail = email;
-        UserRole = role;
-        UserAvatarSource = avatarSource;
-        HasUserAvatar = avatarSource != null;
-
-        // Generate initials from display name
-        if (!string.IsNullOrWhiteSpace(displayName))
-        {
-            UserInitials = Helpers.InitialsHelper.From(displayName);
-            ShowUserInitials = !HasUserAvatar;
-        }
-        else
-        {
-            UserInitials = null;
-            ShowUserInitials = false;
-        }
     }
 
     /// <summary>

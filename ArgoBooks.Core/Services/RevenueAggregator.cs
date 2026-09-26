@@ -59,7 +59,7 @@ public static class RevenueAggregator
 
     /// <summary>
     /// Display-currency variant of <see cref="SumCollectedRevenueUSD"/>: converts each row at its
-    /// OWN date via <paramref name="toDisplay"/> before summing (docs/Calculations.md §3a Phase 2).
+    /// OWN date via <paramref name="toDisplay"/> before summing (docs/Calculations.md Rule 3a).
     /// Pass <c>CurrencyService.GetDisplayAmount</c>. Equals the USD sum for a USD display currency.
     /// </summary>
     public static decimal SumCollectedRevenueDisplay(
@@ -81,5 +81,25 @@ public static class RevenueAggregator
             .Where(s => s.Date >= start && s.Date <= end)
             .Where(IsCollected)
             .Sum(s => toDisplay(s.EffectiveSubtotalUSD, s.Date));
+    }
+
+    /// <summary>Collected revenue, tax included (USD), by day, for time-series charts.</summary>
+    public static Dictionary<DateTime, decimal> GroupCollectedRevenueByDayUSD(
+        IEnumerable<Revenue> revenues, DateTime start, DateTime end) =>
+        GroupCollectedByDay(revenues, start, end, s => s.EffectiveTotalUSD);
+
+    /// <summary>Collected revenue without tax (USD), by day, for per-day profit.</summary>
+    public static Dictionary<DateTime, decimal> GroupCollectedRevenuePreTaxByDayUSD(
+        IEnumerable<Revenue> revenues, DateTime start, DateTime end) =>
+        GroupCollectedByDay(revenues, start, end, s => s.EffectiveSubtotalUSD);
+
+    private static Dictionary<DateTime, decimal> GroupCollectedByDay(
+        IEnumerable<Revenue> revenues, DateTime start, DateTime end, Func<Revenue, decimal> amountUSD)
+    {
+        return revenues
+            .Where(s => s.Date >= start && s.Date <= end)
+            .Where(IsCollected)
+            .GroupBy(s => s.Date.Date)
+            .ToDictionary(g => g.Key, g => g.Sum(amountUSD));
     }
 }

@@ -24,22 +24,31 @@ public class StripeDetailImporter
     public StripeDetailResult ImportCharges(CompanyData data, IReadOnlyList<StripeChargeDetail> charges)
     {
         int revs = 0, exps = 0;
+        var ids = new IdGenerator(data);
+        var revenueIds = IdGenerator.TakenSet(data.Revenues.Select(r => r.Id));
+        var expenseIds = IdGenerator.TakenSet(data.Expenses.Select(e => e.Id));
+        var customerIds = IdGenerator.TakenSet(data.Customers.Select(c => c.Id));
+        var productIds = IdGenerator.TakenSet(data.Products.Select(p => p.Id));
         foreach (var ch in charges)
         {
-            var customerId = ResolveCustomer(data, ch);
-            var productId = ResolveProduct(data, ch.ProductName);
+            var customerId = ResolveCustomer(data, ch, customerIds);
+            var productId = ResolveProduct(data, ch.ProductName, productIds);
 
             var currency = ImportLookup.NormalizeCurrency(ch.Currency);
             var gross = ArgoMoney.ToDecimal(ch.GrossCents, currency);
             var tax = ArgoMoney.ToDecimal(ch.TaxCents, currency);
             var discount = ArgoMoney.ToDecimal(ch.DiscountCents, currency);
-            var subtotal = gross - tax;
-            var taxRate = subtotal > 0 ? tax / subtotal : 0m;
+            // Gross is what was charged after the discount. Subtotal is before it, as on every
+            // transaction (Total = Subtotal − Discount + Tax), and the discount stays at the
+            // transaction level so it isn't taken off the line a second time.
+            var subtotal = gross - tax + discount;
+            var taxableBase = subtotal - discount;
+            var taxRate = taxableBase > 0 ? tax / taxableBase : 0m;
             var date = DateTimeOffset.FromUnixTimeSeconds(ch.CreatedUnix).LocalDateTime;
 
             var rev = new Revenue
             {
-                Id = new IdGenerator(data).NextRevenueId(date),
+                Id = ids.NextRevenueId(date, revenueIds),
                 Date = date,
                 Description = ch.ProductName,
                 CustomerId = customerId ?? string.Empty,
@@ -47,7 +56,8 @@ public class StripeDetailImporter
                 UnitPrice = subtotal,
                 Amount = subtotal,
                 Subtotal = subtotal,
-                TaxRate = taxRate,
+                // Transaction.TaxRate is a percentage; LineItem.TaxRate below is a fraction.
+                TaxRate = taxRate * 100m,
                 TaxAmount = tax,
                 Discount = discount,
                 Total = gross,
@@ -63,12 +73,12 @@ public class StripeDetailImporter
                         Description = ch.ProductName,
                         Quantity = 1,
                         UnitPrice = subtotal,
-                        TaxRate = taxRate,
-                        Discount = discount
+                        TaxRate = taxRate
                     }
                 ]
             };
-            IntegrationRates.ApplyUsdAmounts(rev, currency, data);
+            rev.OriginalCurrency = currency;
+            UsdConversion.Apply(data, rev, UsdConversion.CachedRate(currency, rev.Date));
             data.Revenues.Add(rev);
             revs++;
 
@@ -78,7 +88,7 @@ public class StripeDetailImporter
                 var feeAmount = ArgoMoney.ToDecimal(ch.FeeCents, feeCurrency);
                 var fee = new Expense
                 {
-                    Id = new IdGenerator(data).NextExpenseId(date),
+                    Id = ids.NextExpenseId(date, expenseIds),
                     Date = date,
                     Description = "Stripe processing fee",
                     Quantity = 1,
@@ -90,7 +100,8 @@ public class StripeDetailImporter
                     Notes = $"Processing fee for Stripe sale {ch.ChargeId}",
                     OriginalCurrency = feeCurrency
                 };
-                IntegrationRates.ApplyUsdAmounts(fee, feeCurrency, data);
+                fee.OriginalCurrency = feeCurrency;
+                UsdConversion.Apply(data, fee, UsdConversion.CachedRate(feeCurrency, fee.Date));
                 data.Expenses.Add(fee);
                 exps++;
             }
@@ -100,7 +111,7 @@ public class StripeDetailImporter
         return new StripeDetailResult(revs, exps, 0);
     }
 
-    private string? ResolveCustomer(CompanyData data, StripeChargeDetail ch)
+    private string? ResolveCustomer(CompanyData data, StripeChargeDetail ch, HashSet<string> customerIds)
     {
         var key = string.IsNullOrWhiteSpace(ch.CustomerEmail) ? ch.CustomerName : ch.CustomerEmail;
         if (string.IsNullOrWhiteSpace(key)) return null;
@@ -111,7 +122,7 @@ public class StripeDetailImporter
 
         var customer = new Customer
         {
-            Id = new IdGenerator(data).NextCustomerId(),
+            Id = new IdGenerator(data).NextCustomerId(customerIds),
             Name = string.IsNullOrWhiteSpace(ch.CustomerName) ? (ch.CustomerEmail ?? "Stripe customer") : ch.CustomerName!,
             Email = ch.CustomerEmail ?? string.Empty
         };
@@ -120,7 +131,7 @@ public class StripeDetailImporter
         return customer.Id;
     }
 
-    private string ResolveProduct(CompanyData data, string name)
+    private string ResolveProduct(CompanyData data, string name, HashSet<string> productIds)
     {
         if (_productCache.TryGetValue(name, out var cached)) return cached;
         var existing = ImportLookup.FindProduct(data, name, CategoryType.Revenue);
@@ -129,7 +140,7 @@ public class StripeDetailImporter
         var categoryId = ResolveStripeCategory(data);
         var product = new Product
         {
-            Id = new IdGenerator(data).NextProductId(),
+            Id = new IdGenerator(data).NextProductId(productIds),
             Name = name,
             CategoryId = categoryId,
             Type = CategoryType.Revenue,
@@ -148,6 +159,9 @@ public class StripeDetailImporter
     public int ApplyRefunds(CompanyData data, IReadOnlyList<StripeChargeDetail> charges)
     {
         var made = 0;
+        var ids = new IdGenerator(data);
+        var returnIds = IdGenerator.TakenSet(data.Returns.Select(r => r.Id));
+        var expenseIds = IdGenerator.TakenSet(data.Expenses.Select(e => e.Id));
         foreach (var ch in charges)
         {
             if (ch.AmountRefundedCents <= 0) continue;
@@ -159,10 +173,9 @@ public class StripeDetailImporter
             {
                 if (data.Returns.Any(rt => rt.OriginalTransactionId == rev.Id)) continue; // already recorded
 
-                data.IdCounters.Return++;
                 data.Returns.Add(new Return
                 {
-                    Id = $"RET-{data.IdCounters.Return:D3}",
+                    Id = ids.NextReturnId(returnIds),
                     OriginalTransactionId = rev.Id,
                     ReturnType = "Customer",
                     CustomerId = rev.CustomerId ?? string.Empty,
@@ -181,7 +194,7 @@ public class StripeDetailImporter
                 var refundDate = DateTime.Now;
                 var exp = new Expense
                 {
-                    Id = new IdGenerator(data).NextExpenseId(refundDate),
+                    Id = ids.NextExpenseId(refundDate, expenseIds),
                     Date = refundDate,
                     Description = "Stripe refund",
                     Quantity = 1,
@@ -192,7 +205,8 @@ public class StripeDetailImporter
                     Notes = "Imported from Stripe",
                     OriginalCurrency = currency
                 };
-                IntegrationRates.ApplyUsdAmounts(exp, currency, data);
+                exp.OriginalCurrency = currency;
+                UsdConversion.Apply(data, exp, UsdConversion.CachedRate(currency, exp.Date));
                 data.Expenses.Add(exp);
                 made++;
             }

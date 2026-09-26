@@ -28,14 +28,7 @@ public static class ReceiptTypeSwitchService
             var block = ReceiptTypeConverter.GetBlockReason(companyData, receipt);
             if (block != ReceiptSwitchBlock.None)
             {
-                await dialog.ShowAsync(new ConfirmationDialogOptions
-                {
-                    Title = "Cannot Change Type".Translate(),
-                    Message = BlockMessage(block, receipt),
-                    PrimaryButtonText = "OK".Translate(),
-                    SecondaryButtonText = null,
-                    CancelButtonText = null
-                });
+                await App.ShowWarningDialogAsync("Cannot Change Type".Translate(), BlockMessage(block, receipt));
                 return false;
             }
 
@@ -56,22 +49,12 @@ public static class ReceiptTypeSwitchService
 
             if (result != ConfirmationResult.Primary) return false;
 
-            var oldTransactionId = receipt.TransactionId;
             var switched = ReceiptTypeConverter.Switch(companyData, receipt);
-            ResyncPendingQueue(switched.MovedConversion, oldTransactionId);
 
             App.UndoRedoManager.RecordAction(new DelegateAction(
                 $"Change receipt {receipt.Id} to {target.ToLowerInvariant()}",
-                () =>
-                {
-                    ReceiptTypeConverter.Revert(companyData, receipt, switched);
-                    ResyncPendingQueue(switched.MovedConversion, switched.Created.Id);
-                },
-                () =>
-                {
-                    ReceiptTypeConverter.Reapply(companyData, receipt, switched);
-                    ResyncPendingQueue(switched.MovedConversion, switched.Removed.Id);
-                }));
+                () => ReceiptTypeConverter.Revert(companyData, receipt, switched),
+                () => ReceiptTypeConverter.Reapply(companyData, receipt, switched)));
 
             App.CompanyManager?.MarkAsChanged();
             return true;
@@ -81,36 +64,6 @@ public static class ReceiptTypeSwitchService
             App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.Validation, "Receipt.SwitchType");
             return false;
         }
-    }
-
-    /// <summary>
-    /// Moves a queued currency conversion in the self-heal service to match the move the
-    /// converter just made in the company file.
-    ///
-    /// The service works from its own copy of the queue, keyed on transaction id and shared
-    /// across companies, so re-pointing the row in CompanyData alone would leave it chasing
-    /// the id the switch deleted until the company was next opened.
-    /// </summary>
-    private static void ResyncPendingQueue(PendingConversion? moved, string staleId)
-    {
-        if (moved == null) return;
-
-        var service = PendingConversionService.Instance;
-        if (service == null) return;
-
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await service.ForgetAsync([staleId]);
-                await service.AddPendingConversionAsync(moved);
-            }
-            catch (Exception ex)
-            {
-                App.ErrorLogger?.LogWarning(
-                    $"Failed to move pending conversion {staleId}: {ex.Message}", "Receipt.SwitchType");
-            }
-        });
     }
 
     private static string BlockMessage(ReceiptSwitchBlock block, Receipt receipt) => block switch

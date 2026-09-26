@@ -20,7 +20,7 @@ namespace ArgoBooks.ViewModels;
 /// <summary>
 /// ViewModel for invoice modals (Create, Edit, Delete, Filter, History).
 /// </summary>
-public partial class InvoiceModalsViewModel : ViewModelBase
+public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<LineItemDisplayModel>
 {
     #region Events
 
@@ -130,40 +130,22 @@ public partial class InvoiceModalsViewModel : ViewModelBase
 
     public bool ShowPreviewContent => IsShowingPreview && !IsShowingSuccess && !IsSending;
 
-    /// <summary>
-    /// Gets the modal width based on current state. Success and sending overlays use the
-    /// same compact size so the transition from "Sending invoice..." to "Invoice Sent!"
-    /// doesn't resize the modal.
-    /// </summary>
-    public double ModalWidth => (IsShowingSuccess || IsSending) ? 400 : (IsShowingPreview ? 850 : 750);
-
-    /// <summary>
-    /// Gets the modal height based on current state.
-    /// </summary>
-    public double ModalHeight => (IsShowingSuccess || IsSending) ? 380 : 700;
-
     partial void OnIsShowingPreviewChanged(bool value)
     {
         OnPropertyChanged(nameof(ShowEditContent));
         OnPropertyChanged(nameof(ShowPreviewContent));
-        OnPropertyChanged(nameof(ModalWidth));
-        OnPropertyChanged(nameof(ModalHeight));
     }
 
     partial void OnIsShowingSuccessChanged(bool value)
     {
         OnPropertyChanged(nameof(ShowEditContent));
         OnPropertyChanged(nameof(ShowPreviewContent));
-        OnPropertyChanged(nameof(ModalWidth));
-        OnPropertyChanged(nameof(ModalHeight));
     }
 
     partial void OnIsSendingChanged(bool value)
     {
         OnPropertyChanged(nameof(ShowEditContent));
         OnPropertyChanged(nameof(ShowPreviewContent));
-        OnPropertyChanged(nameof(ModalWidth));
-        OnPropertyChanged(nameof(ModalHeight));
     }
 
     #endregion
@@ -178,22 +160,6 @@ public partial class InvoiceModalsViewModel : ViewModelBase
     /// resend to the same customer keeps this number. Cleared when the form resets.
     /// </summary>
     private (string Id, string Number, string CustomerId)? _unansweredSend;
-
-    [ObservableProperty]
-    private CustomerOption? _selectedCustomer;
-
-    [ObservableProperty]
-    private bool _hasCustomerError;
-
-    partial void OnSelectedCustomerChanged(CustomerOption? value)
-    {
-        // Clear customer error when a valid customer is selected
-        if (value != null && !string.IsNullOrEmpty(value.Id))
-        {
-            HasCustomerError = false;
-        }
-        RegeneratePaper();
-    }
 
     // Recurring schedule fields, driven by the "Repeat this invoice" toggle in the create form.
     [ObservableProperty]
@@ -262,83 +228,10 @@ public partial class InvoiceModalsViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Applies a single edit made directly on the invoice paper (via the editable HTML surface) back
-    /// into the form state. Line-item quantity/rate parse leniently (the paper shows a formatted,
-    /// currency-prefixed value). Totals recompute through the existing line-item change wiring.
-    /// </summary>
-    public void ApplyPaperEdit(string field, int? index, string value)
-    {
-        switch (field)
-        {
-            case "notes":
-                // The paper falls back to the template's footer when the document has no notes of
-                // its own, so a commit handing that same text back is the fallback, not typing.
-                // Taking it would make an untouched document look edited and stop it following
-                // the template.
-                if (value != (SelectedTemplate?.FooterText ?? string.Empty))
-                    ModalNotes = value;
-                break;
-            case "description":
-                if (index is int di && di >= 0 && di < LineItems.Count)
-                    LineItems[di].Description = value;
-                break;
-            case "quantity":
-                if (index is int qi && qi >= 0 && qi < LineItems.Count && TryParsePaperNumber(value, out var q))
-                    LineItems[qi].Quantity = q;
-                break;
-            case "rate":
-                if (index is int ri && ri >= 0 && ri < LineItems.Count && TryParsePaperNumber(value, out var r))
-                    LineItems[ri].UnitPrice = r;
-                break;
-            // An empty box means the placeholder is showing, i.e. zero (not "leave unchanged").
-            case "taxValue":
-                if (string.IsNullOrWhiteSpace(value)) TaxRate = 0;
-                else if (TryParsePaperNumber(value, out var tax)) TaxRate = tax;
-                break;
-            case "shippingValue":
-                if (string.IsNullOrWhiteSpace(value)) ShippingAmount = 0;
-                else if (TryParsePaperNumber(value, out var ship)) ShippingAmount = ship;
-                break;
-            case "discountValue":
-                if (string.IsNullOrWhiteSpace(value)) DiscountAmount = 0;
-                else if (TryParsePaperNumber(value, out var disc)) DiscountAmount = disc;
-                break;
-            case "feeValue":
-                if (string.IsNullOrWhiteSpace(value)) CustomFeeAmount = 0;
-                else if (TryParsePaperNumber(value, out var fee)) CustomFeeAmount = fee;
-                break;
-        }
-    }
-
-    /// <summary>Toggles a totals field between percent and fixed from the paper's swap button.</summary>
-    public void ToggleTotalsMode(string which)
-    {
-        switch (which)
-        {
-            case "tax": TaxIsFixed = !TaxIsFixed; break;
-            case "discount": DiscountIsPercent = !DiscountIsPercent; break;
-            case "fee": CustomFeeIsPercent = !CustomFeeIsPercent; break;
-        }
-    }
-
-    // Pulls a number out of a value that may carry a currency symbol / thousands separators.
-    private static bool TryParsePaperNumber(string raw, out decimal result)
-    {
-        var cleaned = new string(raw.Where(c => char.IsDigit(c) || c == '.' || c == '-').ToArray());
-        return decimal.TryParse(cleaned, System.Globalization.NumberStyles.Number,
-            System.Globalization.CultureInfo.InvariantCulture, out result);
-    }
-
-    /// <summary>The product/service options, as JSON, for the line-item picker built inside the paper.</summary>
-    public string ProductsJson =>
-        System.Text.Json.JsonSerializer.Serialize(
-            ProductOptions.Select(p => new { id = p.Id, name = p.Name, price = p.UnitPrice }));
-
-    /// <summary>
     /// Config the paper's live totals recompute needs: currency symbol/code, the security deposit,
     /// and whether the payment portal is connected (which decides if the processing-fee row shows).
     /// </summary>
-    public string TotalsConfigJson
+    public override string TotalsConfigJson
     {
         get
         {
@@ -364,123 +257,6 @@ public partial class InvoiceModalsViewModel : ViewModelBase
             });
         }
     }
-
-    /// <summary>
-    /// Selects a product for a line item from the paper's product dropdown. Setting SelectedProduct
-    /// fills the description and unit price via the line item's own handler; then the paper re-renders.
-    /// </summary>
-    public void SelectProductForLine(int index, string productId)
-    {
-        if (index < 0 || index >= LineItems.Count) return;
-        var product = ProductOptions.FirstOrDefault(p => p.Id == productId);
-        if (product == null) return;
-        LineItems[index].SelectedProduct = product;
-        RegeneratePaper();
-    }
-
-    /// <summary>Opens the create-product modal for a line item (the paper dropdown's "create new").</summary>
-    public void CreateProductForLine(int index)
-    {
-        if (index < 0 || index >= LineItems.Count) return;
-        OpenCreateProduct(LineItems[index]);
-    }
-
-    /// <summary>Adds a blank line item from the paper's "+ Add line item" and re-renders.</summary>
-    public void AddLineFromPaper()
-    {
-        AddLineItem();
-        RegeneratePaper();
-    }
-
-    /// <summary>Removes a line item from the paper's remove "x" and re-renders (keeps at least one).</summary>
-    public void RemoveLineFromPaper(int index)
-    {
-        if (index < 0 || index >= LineItems.Count || LineItems.Count <= 1) return;
-        RemoveLineItem(LineItems[index]);
-        RegeneratePaper();
-    }
-
-    /// <summary>The customer options, as JSON, for the Bill To picker built inside the paper.</summary>
-    public string CustomersJson =>
-        System.Text.Json.JsonSerializer.Serialize(CustomerOptions.Select(c => new { id = c.Id, name = c.Name }));
-
-    /// <summary>Selects a customer from the paper's Bill To dropdown; re-renders via the change handler.</summary>
-    public void SelectCustomerFromPaper(string customerId)
-    {
-        var customer = CustomerOptions.FirstOrDefault(c => c.Id == customerId);
-        if (customer != null) SelectedCustomer = customer;
-    }
-
-    /// <summary>Opens the create-customer modal from the paper's Bill To dropdown.</summary>
-    public void CreateCustomerFromPaper() => OpenCreateCustomer();
-
-    /// <summary>Sets an issue/due date from the paper's date editor (yyyy-MM-dd); re-renders via the handler.</summary>
-    public void SetDateFromPaper(string field, string iso)
-    {
-        if (!DateTime.TryParse(iso, System.Globalization.CultureInfo.InvariantCulture,
-                System.Globalization.DateTimeStyles.None, out var date))
-            return;
-        var dto = new DateTimeOffset(date);
-        if (field == "issueDate") ModalIssueDate = dto;
-        else if (field == "dueDate") ModalDueDate = dto;
-    }
-
-    // The logo the user set on the paper this session. null = untouched (leave each template's own
-    // logo alone); "" = explicitly removed; otherwise the raw base64 to carry across template switches.
-    private string? _paperLogo;
-
-    /// <summary>Sets the invoice template's logo (raw base64) from the paper's logo click, re-rendering.</summary>
-    public void SetLogoFromPaper(string base64)
-    {
-        if (string.IsNullOrEmpty(base64)) return;
-        _paperLogo = base64;
-        ApplyPaperLogo();
-        RegeneratePaper();
-    }
-
-    /// <summary>Removes the logo when the user clicks the hover "x" on the paper, re-rendering.</summary>
-    public void DeleteLogoFromPaper()
-    {
-        _paperLogo = string.Empty;
-        ApplyPaperLogo();
-        RegeneratePaper();
-    }
-
-    // The invoice logo is a single company-wide choice: apply it to every template (and persist) so it
-    // shows on all of them and survives closing/reopening the editor, not just the selected one.
-    private void ApplyPaperLogo()
-    {
-        if (_paperLogo == null) return;
-        var remove = _paperLogo.Length == 0;
-        // TemplateOptions holds the company's actual templates, so mutating them here updates the
-        // persisted objects directly.
-        var companyData = App.CompanyManager?.CompanyData;
-        foreach (var template in TemplateOptions)
-        {
-            // Anything already sent under the outgoing logo keeps it.
-            if (companyData != null)
-                LogoHistory.RetireLogo(companyData, template, remove ? null : _paperLogo);
-
-            if (remove)
-            {
-                template.LogoBase64 = null;
-                template.ShowLogo = false;
-            }
-            else
-            {
-                template.LogoBase64 = _paperLogo;
-                template.LogoWidth = 150;
-                template.ShowLogo = true;
-            }
-        }
-        // Mark dirty so the logo is saved even if the user cancels this invoice (it's a company setting).
-        App.CompanyManager?.MarkAsChanged();
-    }
-
-    // Preview mode shows the invoice clean (no edit outlines, no +line item, no product dropdowns) so
-    // the user can see exactly what the customer gets before sending. Bound to the paper's IsEditable.
-    [ObservableProperty]
-    private bool _isEditorPreviewing;
 
     [RelayCommand]
     private void ShowEditorPreview()
@@ -513,34 +289,7 @@ public partial class InvoiceModalsViewModel : ViewModelBase
     private string _modalStatus = "Draft";
 
     [ObservableProperty]
-    private string _modalNotes = string.Empty;
-
-    [ObservableProperty]
-    private decimal _taxRate;
-
-    [ObservableProperty]
     private decimal _securityDeposit;
-
-    [ObservableProperty]
-    private string _customFeeLabel = string.Empty;
-
-    [ObservableProperty]
-    private decimal _customFeeAmount;
-
-    [ObservableProperty]
-    private bool _customFeeIsPercent;
-
-    [ObservableProperty]
-    private decimal _discountAmount;
-
-    [ObservableProperty]
-    private bool _discountIsPercent;
-
-    [ObservableProperty]
-    private decimal _shippingAmount;
-
-    [ObservableProperty]
-    private bool _taxIsFixed;
 
     // Per-invoice display overrides, shown in the sidebar's "Invoice options". Initialised from the
     // selected template; changing one re-renders the paper (and, for the fee, the live totals config).
@@ -613,8 +362,6 @@ public partial class InvoiceModalsViewModel : ViewModelBase
     [ObservableProperty]
     private string _successMessage = string.Empty;
 
-    public ObservableCollection<LineItemDisplayModel> LineItems { get; } = [];
-
     /// <summary>
     /// Returns true if any data has been entered in the Create modal.
     /// When opened from a rental, pre-filled data doesn't count, only user-editable fields do.
@@ -656,16 +403,7 @@ public partial class InvoiceModalsViewModel : ViewModelBase
 
     private void CaptureOriginalValues() => _original = Capture();
 
-    public ObservableCollection<CustomerOption> CustomerOptions { get; } = [];
-
-    public ObservableCollection<ProductOption> ProductOptions { get; } = [];
-
     public ObservableCollection<string> StatusOptions { get; } = new(InvoiceStatusExtensions.GetModalOptions());
-
-    public ObservableCollection<InvoiceTemplate> TemplateOptions { get; } = [];
-
-    [ObservableProperty]
-    private InvoiceTemplate? _selectedTemplate;
 
     /// <summary>
     /// Display string of the currency the invoice is being issued in (e.g., "USD - US Dollar ($)").
@@ -698,23 +436,13 @@ public partial class InvoiceModalsViewModel : ViewModelBase
     // Format using the invoice's selected currency so modal totals match the picker.
     private CurrencyInfo InvoiceCurrencyInfo => CurrencyInfo.GetByCode(SelectedCurrencyCode);
     public string InvoiceCurrencySymbol => InvoiceCurrencyInfo.Symbol;
-    public string CustomFeeSymbol => CustomFeeIsPercent ? "%" : InvoiceCurrencySymbol;
-    public string DiscountSymbol => DiscountIsPercent ? "%" : InvoiceCurrencySymbol;
-    public string TaxSymbol => TaxIsFixed ? InvoiceCurrencySymbol : "%";
     public string SubtotalFormatted => InvoiceCurrencyInfo.Format(Subtotal);
     public string TaxAmountFormatted => InvoiceCurrencyInfo.Format(TaxAmount);
-    public string SecurityDepositFormatted => InvoiceCurrencyInfo.Format(SecurityDeposit);
-    public string ShippingFormatted => InvoiceCurrencyInfo.Format(ShippingAmount);
-    public string CustomFeeCalculatedFormatted => $"+{InvoiceCurrencyInfo.Format(CustomFeeCalculated)}";
-    public string DiscountCalculatedFormatted => $"-{InvoiceCurrencyInfo.Format(DiscountCalculated)}";
     public string TotalFormatted => InvoiceCurrencyInfo.Format(Total);
 
-    public bool HasSecurityDeposit => SecurityDeposit > 0;
-    public bool HasCustomFee => CustomFeeAmount > 0;
     public bool HasDiscount => DiscountAmount > 0;
-    public bool HasShipping => ShippingAmount > 0;
 
-    partial void OnSelectedTemplateChanged(InvoiceTemplate? value)
+    protected override void OnTemplateChanged(InvoiceTemplate? value)
     {
         // Pre-fill notes from template's default notes when creating (not editing)
         if (!IsEditMode && value != null && !string.IsNullOrWhiteSpace(value.DefaultNotes) && string.IsNullOrWhiteSpace(ModalNotes))
@@ -731,10 +459,7 @@ public partial class InvoiceModalsViewModel : ViewModelBase
     // Amount edits come from typing directly on the paper; only recompute totals here. A full
     // paper re-render would recreate the field mid-keystroke and drop the caret, so the paper is
     // rebuilt when previewing or saving instead, by which point the caret has moved on.
-    partial void OnTaxRateChanged(decimal value) => UpdateTotals();
-    partial void OnCustomFeeAmountChanged(decimal value) => UpdateTotals();
-    partial void OnDiscountAmountChanged(decimal value) => UpdateTotals();
-    partial void OnShippingAmountChanged(decimal value) => UpdateTotals();
+    protected override void OnTotalsAmountChanged() => UpdateTotals();
 
     partial void OnSecurityDepositChanged(decimal value)
     {
@@ -744,23 +469,8 @@ public partial class InvoiceModalsViewModel : ViewModelBase
     }
 
     // Mode toggles (percent vs fixed) are deliberate clicks, so a re-render here is fine.
-    partial void OnCustomFeeIsPercentChanged(bool value)
+    protected override void OnTotalsModeChanged()
     {
-        OnPropertyChanged(nameof(CustomFeeSymbol));
-        UpdateTotals();
-        RegeneratePaper();
-    }
-
-    partial void OnDiscountIsPercentChanged(bool value)
-    {
-        OnPropertyChanged(nameof(DiscountSymbol));
-        UpdateTotals();
-        RegeneratePaper();
-    }
-
-    partial void OnTaxIsFixedChanged(bool value)
-    {
-        OnPropertyChanged(nameof(TaxSymbol));
         UpdateTotals();
         RegeneratePaper();
     }
@@ -772,8 +482,6 @@ public partial class InvoiceModalsViewModel : ViewModelBase
     {
         OnPropertyChanged(nameof(SelectedCurrencyCode));
         OnPropertyChanged(nameof(InvoiceCurrencySymbol));
-        OnPropertyChanged(nameof(CustomFeeSymbol));
-        OnPropertyChanged(nameof(DiscountSymbol));
         OnPropertyChanged(nameof(TotalsConfigJson));
         var code = SelectedCurrencyCode;
         foreach (var item in LineItems)
@@ -790,7 +498,7 @@ public partial class InvoiceModalsViewModel : ViewModelBase
     /// discount, template) call this. Line-item text and notes edits happen directly in the page DOM
     /// and must NOT call this, a reload would interrupt typing.
     /// </summary>
-    private void RegeneratePaper()
+    protected override void RegeneratePaper()
     {
         if (IsCreateEditModalOpen && !IsViewOnly && SelectedTemplate != null)
             GeneratePreviewHtml();
@@ -813,17 +521,9 @@ public partial class InvoiceModalsViewModel : ViewModelBase
         OnPropertyChanged(nameof(Total));
         OnPropertyChanged(nameof(SubtotalFormatted));
         OnPropertyChanged(nameof(TaxAmountFormatted));
-        OnPropertyChanged(nameof(SecurityDepositFormatted));
-        OnPropertyChanged(nameof(HasSecurityDeposit));
         OnPropertyChanged(nameof(CustomFeeCalculated));
-        OnPropertyChanged(nameof(CustomFeeCalculatedFormatted));
-        OnPropertyChanged(nameof(HasCustomFee));
         OnPropertyChanged(nameof(DiscountCalculated));
-        OnPropertyChanged(nameof(DiscountCalculatedFormatted));
         OnPropertyChanged(nameof(HasDiscount));
-        OnPropertyChanged(nameof(ShippingFormatted));
-        OnPropertyChanged(nameof(HasShipping));
-        OnPropertyChanged(nameof(TaxSymbol));
         OnPropertyChanged(nameof(TotalFormatted));
     }
 
@@ -853,90 +553,14 @@ public partial class InvoiceModalsViewModel : ViewModelBase
         }
     }
 
-    /// <summary>
-    /// Opens the create customer modal on top of the current modal.
-    /// </summary>
-    // One-shot handlers for the "create entity from this modal" flows. Stored so a cancelled create
-    // (which never raises the *Saved event) can be detached before the next attempt, instead of
-    // leaking onto the singleton create-modal VMs. See CreateModalSubscription.
-    private EventHandler? _customerSavedHandler;
-    private EventHandler? _productSavedHandler;
+    protected override void AddBlankLine() => AddLineItem();
 
-    // True while a nested modal (create product/customer) is open over the editor. The native invoice
-    // WebView renders above Avalonia content and would occlude that modal, so the WebView is hidden
-    // (via the EditorPreview IsVisible binding) while this is true.
-    [ObservableProperty]
-    private bool _isNestedModalOpen;
+    protected override void RemoveLineAt(int index) => RemoveLineItem(LineItems[index]);
 
-    // Hide the invoice WebView while a modal is open on top of it; restore when it closes (its
-    // open flag flips back to false, on save or cancel). Only the named open-flag property is watched:
-    // OpenAddModal resets other fields first (firing PropertyChanged while the flag is still false), and
-    // reacting to those would prematurely clear our flag before the modal is even shown.
-    private void HideWebViewWhileModalOpen(System.ComponentModel.INotifyPropertyChanged modalVm, string openFlagName, Func<bool> isOpen)
+    protected override void ApplyPaperDate(string field, DateTimeOffset date)
     {
-        IsNestedModalOpen = true;
-        System.ComponentModel.PropertyChangedEventHandler? handler = null;
-        handler = (_, args) =>
-        {
-            if (args.PropertyName == openFlagName && !isOpen())
-            {
-                IsNestedModalOpen = false;
-                modalVm.PropertyChanged -= handler;
-            }
-        };
-        modalVm.PropertyChanged += handler;
-    }
-
-    [RelayCommand]
-    private void OpenCreateCustomer()
-    {
-        var customerModals = App.CustomerModalsViewModel;
-        if (customerModals == null) return;
-
-        CreateModalSubscription.RearmOnce(ref _customerSavedHandler,
-            h => customerModals.CustomerSaved += h,
-            h => customerModals.CustomerSaved -= h,
-            () =>
-            {
-                LoadCustomerOptions(includeAllOption: false);
-                OnPropertyChanged(nameof(CustomersJson));
-
-                // Auto-select the customer the user just created.
-                var newCustomer = CustomerOptions.FirstOrDefault(c => c.Id == customerModals.LastSavedCustomerId);
-                if (newCustomer != null)
-                    SelectedCustomer = newCustomer;
-            });
-        HideWebViewWhileModalOpen(customerModals, nameof(customerModals.IsAddModalOpen), () => customerModals.IsAddModalOpen);
-        customerModals.OpenAddModal();
-    }
-
-    /// <summary>
-    /// Opens the create product modal on top of the current modal.
-    /// </summary>
-    [RelayCommand]
-    private void OpenCreateProduct(LineItemDisplayModel? lineItem)
-    {
-        var productModals = App.ProductModalsViewModel;
-        if (productModals == null) return;
-
-        CreateModalSubscription.RearmOnce(ref _productSavedHandler,
-            h => productModals.ProductSaved += h,
-            h => productModals.ProductSaved -= h,
-            () =>
-            {
-                LoadProductOptions();
-
-                // Auto-select the new product into the line item whose dropdown launched the create.
-                if (lineItem != null)
-                {
-                    var newProduct = ProductOptions.FirstOrDefault(p => p.Id == productModals.LastSavedProductId);
-                    if (newProduct != null)
-                        lineItem.SelectedProduct = newProduct;
-                }
-                RegeneratePaper();
-            });
-        HideWebViewWhileModalOpen(productModals, nameof(productModals.IsAddModalOpen), () => productModals.IsAddModalOpen);
-        productModals.OpenAddModal();
+        if (field == "issueDate") ModalIssueDate = date;
+        else if (field == "dueDate") ModalDueDate = date;
     }
 
     #endregion
@@ -1018,7 +642,7 @@ public partial class InvoiceModalsViewModel : ViewModelBase
 
     public InvoiceModalsViewModel()
     {
-        LoadCustomerOptions(includeAllOption: false);
+        LoadCustomerOptions();
         LoadProductOptions();
 
         // Subscribe to plan status changes
@@ -1039,34 +663,11 @@ public partial class InvoiceModalsViewModel : ViewModelBase
             App.SettingsModalViewModel?.OpenWithTab(SettingsTab.PaymentPortal);
     }
 
-    private void LoadCustomerOptions(bool includeAllOption = false)
+    private void LoadCustomerOptions(bool includeAllOption)
     {
         OptionLoader.Fill(CustomerOptions,
             OptionLoader.Customers(App.CompanyManager?.CompanyData).AsOptions<CustomerOption>(),
             includeAllOption ? new CustomerOption { Name = "All Customers" } : null);
-    }
-
-    private void LoadProductOptions()
-    {
-        ProductOptions.Clear();
-
-        var companyData = App.CompanyManager?.CompanyData;
-        if (companyData?.Products == null)
-            return;
-
-        // Load only revenue products for invoices (exclude expense/rental products)
-        foreach (var product in companyData.Products
-                     .Where(p => p.Type == CategoryType.Revenue)
-                     .OrderBy(p => p.Name))
-        {
-            ProductOptions.Add(new ProductOption
-            {
-                Id = product.Id,
-                Name = product.Name,
-                Description = product.Description,
-                UnitPrice = product.UnitPrice
-            });
-        }
     }
 
     private void LoadTemplateOptions()
@@ -1117,7 +718,7 @@ public partial class InvoiceModalsViewModel : ViewModelBase
     {
         _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.InvoiceCreateOpened);
 
-        LoadCustomerOptions(includeAllOption: false);
+        LoadCustomerOptions();
         LoadProductOptions();
         LoadTemplateOptions();
         ResetForm();
@@ -1205,6 +806,8 @@ public partial class InvoiceModalsViewModel : ViewModelBase
         SecurityDeposit = rental.SecurityDeposit;
 
         UpdateTotals();
+        // Setting the customer drew the paper while it still held the blank placeholder line.
+        RegeneratePaper();
     }
 
     private void AddRentalLine(ProductOption? product, string description, decimal quantity, decimal unitPrice, string rentalId)
@@ -1266,6 +869,8 @@ public partial class InvoiceModalsViewModel : ViewModelBase
         TaxRate = revenue.TaxRate;
 
         UpdateTotals();
+        // Setting the customer drew the paper while it still held the blank placeholder line.
+        RegeneratePaper();
     }
 
     /// <summary>
@@ -1315,7 +920,7 @@ public partial class InvoiceModalsViewModel : ViewModelBase
     {
         if (item == null) return;
 
-        LoadCustomerOptions(includeAllOption: false);
+        LoadCustomerOptions();
         LoadProductOptions();
         LoadTemplateOptions();
 
@@ -1490,10 +1095,14 @@ public partial class InvoiceModalsViewModel : ViewModelBase
             CloseFilterModal();
     }
 
+    /// <summary>How many filters are applied, for the page's Filter button.</summary>
+    public int ActiveFilterCount { get; private set; }
+
     [RelayCommand]
     private void ApplyFilters()
     {
         FilterCustomerId = FilterSelectedCustomer?.Id;
+        ActiveFilterCount = Filters.ActiveCount;
         FiltersApplied?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
     }
@@ -1503,6 +1112,7 @@ public partial class InvoiceModalsViewModel : ViewModelBase
     {
         Filters.Reset();
         FilterCustomerId = null;
+        ActiveFilterCount = 0;
         FiltersCleared?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
     }
@@ -1627,10 +1237,6 @@ public partial class InvoiceModalsViewModel : ViewModelBase
 
     #region Preview Modal
 
-    public string PreviewCustomerName => SelectedCustomer?.Name ?? "No customer selected";
-    public string PreviewIssueDate => ModalIssueDate?.ToString("MMMM d, yyyy") ?? "-";
-    public string PreviewDueDate => ModalDueDate?.ToString("MMMM d, yyyy") ?? "-";
-
     [ObservableProperty]
     private string _previewHtml = string.Empty;
 
@@ -1662,7 +1268,8 @@ public partial class InvoiceModalsViewModel : ViewModelBase
             ShippingAmount = ShippingAmount,
             OriginalCurrency = SelectedCurrencyCode,
             Notes = ModalNotes,
-            Status = InvoiceStatus.Draft,
+            // Shown as the customer will receive it, so a past due date prints as overdue.
+            Status = InvoiceStatus.Sent,
             LineItems = LineItems.Select(li => new LineItem
             {
                 Description = li.Description,
@@ -1709,86 +1316,6 @@ public partial class InvoiceModalsViewModel : ViewModelBase
     {
         if (string.IsNullOrEmpty(PreviewHtml)) return;
         await InvoicePreviewService.PreviewInBrowserAsync(PreviewHtml, "invoice-preview");
-    }
-
-    [RelayCommand]
-    private void OpenPreviewModal()
-    {
-        // Clear previous validation errors first
-        HasCustomerError = false;
-        ValidationMessage = string.Empty;
-        HasValidationMessage = false;
-        HasSendError = false;
-        SendErrorMessage = string.Empty;
-        foreach (var lineItem in LineItems)
-        {
-            lineItem.HasProductError = false;
-        }
-
-        // Collect all validation errors
-        var hasErrors = false;
-        var errorMessages = new List<string>();
-
-        // Skip customer/line-item checks when created from external source (fields are pre-populated and hidden)
-        if (!IsFromExternalSource)
-        {
-            // Check customer
-            if (SelectedCustomer == null || string.IsNullOrEmpty(SelectedCustomer.Id))
-            {
-                HasCustomerError = true;
-                errorMessages.Add("Please select a customer.".Translate());
-                hasErrors = true;
-            }
-
-            if (LineItems.Count == 0)
-            {
-                errorMessages.Add("Please add at least one line item.".Translate());
-                hasErrors = true;
-            }
-            else
-            {
-                // Validate that all line items have a product selected (rental line items are exempt)
-                foreach (var lineItem in LineItems)
-                {
-                    if (lineItem.SelectedProduct == null && string.IsNullOrEmpty(lineItem.RentalRecordId) && string.IsNullOrEmpty(lineItem.RevenueRecordId))
-                    {
-                        lineItem.HasProductError = true;
-                        hasErrors = true;
-                    }
-                }
-
-                if (LineItems.Any(li => li.HasProductError))
-                {
-                    errorMessages.Add("Please select a product for all line items".Translate());
-                }
-            }
-        }
-
-        // Show errors if any
-        if (hasErrors)
-        {
-            ValidationMessage = string.Join(" ", errorMessages);
-            HasValidationMessage = true;
-            return;
-        }
-
-        // Update preview properties
-        OnPropertyChanged(nameof(PreviewCustomerName));
-        OnPropertyChanged(nameof(PreviewIssueDate));
-        OnPropertyChanged(nameof(PreviewDueDate));
-
-        // Generate HTML preview using the same renderer as the template designer
-        GeneratePreviewHtml();
-
-        // Show preview in the same modal instead of opening a new one
-        IsShowingPreview = true;
-    }
-
-    [RelayCommand]
-    private void ClosePreviewModal()
-    {
-        // Return to edit mode in the same modal
-        IsShowingPreview = false;
     }
 
     [RelayCommand]
@@ -1853,14 +1380,14 @@ public partial class InvoiceModalsViewModel : ViewModelBase
             if (usageService != null)
             {
                 var usage = await usageService.CheckUsageAsync();
-                if (!usage.CanSend)
+                if (!usage.Allowed)
                 {
                     // A failed check (offline / server unreachable) reports an ErrorMessage
                     // rather than a real limit. Show that inline instead of falsely claiming
                     // the monthly send limit was reached.
-                    if (!usage.Success && !string.IsNullOrEmpty(usage.ErrorMessage))
+                    if (!string.IsNullOrEmpty(usage.ErrorMessage))
                     {
-                        await ShowSendErrorAsync(usage.ErrorMessage);
+                        await ShowSendErrorAsync(usage.ErrorMessage.Translate());
                         return;
                     }
 
@@ -1928,7 +1455,7 @@ public partial class InvoiceModalsViewModel : ViewModelBase
         Invoice invoice;
         Invoice? existingDraft;
         Action? restoreDraft = null;
-        int? takenInvoiceCounter = null;
+        var tookInvoiceNumber = false;
 
         if (isContinuingDraft)
         {
@@ -1959,9 +1486,8 @@ public partial class InvoiceModalsViewModel : ViewModelBase
             invoice.DiscountAmount = DiscountAmount;
             invoice.DiscountIsPercent = DiscountIsPercent;
             invoice.Notes = ModalNotes;
-            // Leave the status as Draft during the send attempt; it's set to Sent only after publish/email
-            // succeeds (below). Flipping it to Pending here left the draft stuck and un-continuable if the
-            // send then failed (ContinueDraftInvoice only accepts Draft).
+            // The status becomes Sent just before the invoice is rendered for sending (below); a failed
+            // send puts the draft back through restoreDraft, so it can still be continued.
             invoice.UpdatedAt = DateTime.UtcNow;
             invoice.LineItems = LineItems.Select(i => new LineItem
             {
@@ -1991,7 +1517,7 @@ public partial class InvoiceModalsViewModel : ViewModelBase
                 var idGenerator = new IdGenerator(companyData);
                 invoiceId = idGenerator.NextInvoiceId();
                 invoiceNumber = idGenerator.NextInvoiceNumber();
-                takenInvoiceCounter = companyData.IdCounters.Invoice;
+                tookInvoiceNumber = true;
             }
 
             invoice = new Invoice
@@ -2053,6 +1579,10 @@ public partial class InvoiceModalsViewModel : ViewModelBase
         // the Payment list" is preserved. See docs/Calculations.md §5.
         InvoiceTotalsService.Recalculate(invoice, companyData.Payments);
 
+        // Rendered and published with the status it goes out with, so a due date already past prints
+        // as overdue (Invoice.IsOverdue) and the portal doesn't receive a draft.
+        invoice.Status = InvoiceStatus.Sent;
+
         // Undoes what this attempt changed and says why it failed. The number goes back only when the
         // portal can't hold it: reusing one it published would put another invoice behind the link
         // that customer was emailed.
@@ -2063,8 +1593,8 @@ public partial class InvoiceModalsViewModel : ViewModelBase
             {
                 if (mayHavePublished)
                     _unansweredSend = (invoice.Id, invoice.InvoiceNumber, invoice.CustomerId);
-                else if (takenInvoiceCounter is { } taken && companyData.IdCounters.Invoice == taken)
-                    companyData.IdCounters.Invoice = taken - 1;
+                else if (tookInvoiceNumber)
+                    new IdGenerator(companyData).ReleaseInvoiceNumber(invoice.Id);
             }
 
             await ShowSendErrorAsync(message);
@@ -2139,7 +1669,7 @@ public partial class InvoiceModalsViewModel : ViewModelBase
 
                 if (!response.Success)
                 {
-                    await SendFailedAsync(response.Message, mayHavePublished: false);
+                    await SendFailedAsync(response.Message.Translate(), mayHavePublished: false);
                     return;
                 }
             }
@@ -2222,15 +1752,14 @@ public partial class InvoiceModalsViewModel : ViewModelBase
     {
         var properties = typeof(Invoice).GetProperties().Where(p => p.CanWrite).ToArray();
         var values = properties.Select(p => p.GetValue(draft)).ToArray();
-        var conversions = companyData.PendingConversions.Where(p => p.TransactionId == draft.Id).ToList();
+        var key = UsdConversion.KeyOf(draft);
+        var conversions = UsdConversion.Snapshot(companyData, [key]);
 
         return () =>
         {
             for (var i = 0; i < properties.Length; i++)
                 properties[i].SetValue(draft, values[i]);
-            companyData.PendingConversions.RemoveAll(p => p.TransactionId == draft.Id);
-            companyData.PendingConversions.AddRange(conversions);
-            _ = PendingConversionService.Instance?.MirrorAsync(companyData, [draft.Id]);
+            UsdConversion.Restore(companyData, [key], conversions);
         };
     }
 
@@ -2238,7 +1767,7 @@ public partial class InvoiceModalsViewModel : ViewModelBase
     {
         var companyData = App.CompanyManager?.CompanyData;
         if (companyData == null)
-            return $"#INV-{DateTime.Now:yyyy}-001";
+            return IdGenerator.FormatInvoiceNumber(1);
 
         // If editing a draft, use its existing number
         if (!string.IsNullOrEmpty(_editingInvoiceId))
@@ -2271,8 +1800,7 @@ public partial class InvoiceModalsViewModel : ViewModelBase
     [RelayCommand]
     private async Task ShowProcessingFeeInfo()
     {
-        var dialog = App.ConfirmationDialog;
-        if (dialog == null) return;
+        if (App.ConfirmationDialog == null) return;
 
         IsNestedModalOpen = true;
         // The caller flushed the live paper edits into the model first. Rebuild PreviewHtml from it
@@ -2281,16 +1809,11 @@ public partial class InvoiceModalsViewModel : ViewModelBase
         RegeneratePaper();
         try
         {
-            await dialog.ShowAsync(new ConfirmationDialogOptions
-            {
-                Title = "Processing Fees".Translate(),
-                Message = ("When customers pay online, Stripe and Square deduct a processing fee " +
-                           "from each payment before depositing the rest into your account. Enabling this " +
-                           "adds the fee to the customer's payment so you receive the full invoiced amount.").Translate(),
-                PrimaryButtonText = "Got it".Translate(),
-                SecondaryButtonText = null,
-                CancelButtonText = null
-            });
+            await App.ShowInfoDialogAsync(
+                "Processing Fees".Translate(),
+                ("When customers pay online, Stripe and Square deduct a processing fee " +
+                 "from each payment before depositing the rest into your account. Enabling this " +
+                 "adds the fee to the customer's payment so you receive the full invoiced amount.").Translate());
         }
         finally
         {
@@ -2304,8 +1827,7 @@ public partial class InvoiceModalsViewModel : ViewModelBase
     [RelayCommand]
     private async Task ShowRecurringInfo()
     {
-        var dialog = App.ConfirmationDialog;
-        if (dialog == null) return;
+        if (App.ConfirmationDialog == null) return;
 
         IsNestedModalOpen = true;
         // See ShowProcessingFeeInfo: rebuild the paper from the just-flushed model while hidden so
@@ -2313,17 +1835,12 @@ public partial class InvoiceModalsViewModel : ViewModelBase
         RegeneratePaper();
         try
         {
-            await dialog.ShowAsync(new ConfirmationDialogOptions
-            {
-                Title = "Recurring invoices".Translate(),
-                Message = ("This creates a schedule that makes a fresh copy of this invoice on the frequency " +
-                           "you pick (e.g. monthly), starting on the start date and stopping at the end date " +
-                           "if you set one. Each new copy is added to your invoices as a draft the next time " +
-                           "you open the app, so you can review it and send it. Nothing is sent automatically.").Translate(),
-                PrimaryButtonText = "Got it".Translate(),
-                SecondaryButtonText = null,
-                CancelButtonText = null
-            });
+            await App.ShowInfoDialogAsync(
+                "Recurring invoices".Translate(),
+                ("This creates a schedule that makes a fresh copy of this invoice on the frequency " +
+                 "you pick (e.g. monthly), starting on the start date and stopping at the end date " +
+                 "if you set one. Each new copy is added to your invoices as a draft the next time " +
+                 "you open the app, so you can review it and send it. Nothing is sent automatically.").Translate());
         }
         finally
         {
@@ -2660,38 +2177,10 @@ public partial class InvoiceModalsViewModel : ViewModelBase
     /// </summary>
     private static async Task ApplyUsdTotalAsync(CompanyData companyData, Invoice invoice)
     {
-        companyData.PendingConversions.RemoveAll(p => p.TransactionId == invoice.Id);
-
-        if (string.Equals(invoice.OriginalCurrency, "USD", StringComparison.OrdinalIgnoreCase))
-        {
-            invoice.TotalUSD = invoice.Total;
-            invoice.IsPendingConversion = false;
-        }
-        else
-        {
-            var rate = ExchangeRateService.Instance is { } exchangeService
-                ? await exchangeService.GetExchangeRateAsync(invoice.OriginalCurrency, "USD", invoice.IssueDate)
-                : 0m;
-
-            // USD base stored full-precision (no 2dp round); display rounds. See Calculations.md Rule 3.
-            invoice.TotalUSD = rate > 0 ? invoice.Total * rate : 0m;
-            invoice.IsPendingConversion = rate <= 0;
-
-            if (invoice.IsPendingConversion)
-            {
-                companyData.PendingConversions.Add(new PendingConversion
-                {
-                    TransactionId = invoice.Id,
-                    TransactionType = "Invoice",
-                    OriginalCurrency = invoice.OriginalCurrency,
-                    TransactionDate = invoice.IssueDate,
-                    Total = invoice.Total,
-                    Balance = Math.Max(0, invoice.Total - invoice.AmountPaid)
-                });
-            }
-        }
-
-        _ = PendingConversionService.Instance?.MirrorAsync(companyData, [invoice.Id]);
+        // What it owes before this save's payments are counted, which the queue converts if it waits.
+        invoice.Balance = Math.Max(0, invoice.Total - invoice.AmountPaid);
+        UsdConversion.Apply(companyData, invoice,
+            await UsdConversion.FetchRateAsync(invoice.OriginalCurrency, invoice.IssueDate));
     }
 
     /// <summary>
@@ -2713,13 +2202,8 @@ public partial class InvoiceModalsViewModel : ViewModelBase
         var totalQuantity = invoice.LineItems.Sum(li => li.Quantity);
         if (totalQuantity == 0) totalQuantity = 1;
 
-        // Calculate the effective fee and discount as flat amounts
-        var feeAmount = invoice.CustomFeeIsPercent
-            ? invoice.Subtotal * (invoice.CustomFeeAmount / 100m)
-            : invoice.CustomFeeAmount;
-        var discountAmount = invoice.DiscountIsPercent
-            ? invoice.Subtotal * (invoice.DiscountAmount / 100m)
-            : invoice.DiscountAmount;
+        var feeAmount = InvoiceMath.CustomFee(invoice.Subtotal, invoice.CustomFeeAmount, invoice.CustomFeeIsPercent);
+        var discountAmount = InvoiceMath.Discount(invoice.Subtotal, invoice.DiscountAmount, invoice.DiscountIsPercent);
 
         // The deposit is held for the customer, not earned, so it stays out of the revenue
         // (docs/Calculations.md §4). A deposit kept when the rental comes back is added then.
@@ -2756,48 +2240,13 @@ public partial class InvoiceModalsViewModel : ViewModelBase
             ReferenceNumber = invoice.InvoiceNumber,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
-            // Currency fields: use EffectiveTotalUSD to avoid mixing currencies
-            // (returns 0 for pending-conversion invoices, correct USD for others)
-            OriginalCurrency = invoice.OriginalCurrency,
-            // USD base fields stored full-precision (no 2dp round) so they stay consistent with the
-            // unrounded TotalUSD above; display rounds at the boundary. See docs/Calculations.md Rule 3.
-            TotalUSD = invoice.Total > 0 ? invoice.EffectiveTotalUSD * total / invoice.Total : 0,
-            TaxAmountUSD = invoice.EffectiveTotalUSD > 0 && invoice.Total > 0
-                ? invoice.TaxAmount * (invoice.EffectiveTotalUSD / invoice.Total)
-                : string.Equals(invoice.OriginalCurrency, "USD", StringComparison.OrdinalIgnoreCase) ? invoice.TaxAmount : 0,
-            FeeUSD = invoice.EffectiveTotalUSD > 0 && invoice.Total > 0
-                ? (feeAmount + invoice.ShippingAmount) * (invoice.EffectiveTotalUSD / invoice.Total)
-                : string.Equals(invoice.OriginalCurrency, "USD", StringComparison.OrdinalIgnoreCase) ? feeAmount + invoice.ShippingAmount : 0,
-            DiscountUSD = invoice.EffectiveTotalUSD > 0 && invoice.Total > 0
-                ? discountAmount * (invoice.EffectiveTotalUSD / invoice.Total)
-                : string.Equals(invoice.OriginalCurrency, "USD", StringComparison.OrdinalIgnoreCase) ? discountAmount : 0,
-
-            // An invoice still waiting for its rate hands the wait on to its revenue, which the
-            // queue then converts from the same amounts. Otherwise the revenue counted as 0 for good.
-            IsPendingConversion = invoice.IsPendingConversion
+            OriginalCurrency = invoice.OriginalCurrency
         };
 
+        // At the invoice's rate. An invoice still waiting for its rate hands the wait on to its
+        // revenue, which the queue then converts from the same amounts.
+        UsdConversion.Apply(companyData, revenue, UsdConversion.InvoiceRate(invoice));
         companyData.Revenues.Add(revenue);
-
-        if (revenue.IsPendingConversion)
-        {
-            var pendingEntry = new PendingConversion
-            {
-                TransactionId = revenue.Id,
-                TransactionType = "Revenue",
-                OriginalCurrency = revenue.OriginalCurrency,
-                TransactionDate = revenue.Date,
-                Total = revenue.Total,
-                TaxAmount = revenue.TaxAmount,
-                ShippingCost = revenue.ShippingCost,
-                Discount = revenue.Discount,
-                Fee = revenue.Fee,
-                UnitPrice = revenue.UnitPrice
-            };
-            companyData.PendingConversions.RemoveAll(p => p.TransactionId == revenue.Id);
-            companyData.PendingConversions.Add(pendingEntry);
-            _ = PendingConversionService.Instance?.AddPendingConversionAsync(pendingEntry);
-        }
     }
 
     /// <summary>
@@ -2838,7 +2287,7 @@ public partial class InvoiceModalsViewModel : ViewModelBase
         IsPortalReady = PaymentProviderService.IsPortalReady();
         _editingInvoiceId = string.Empty;
         _unansweredSend = null;
-        _paperLogo = null;
+        PaperLogo = null;
         IsFromRental = false;
         IsFromRevenue = false;
         IsViewOnly = false;
@@ -2888,7 +2337,7 @@ public partial class InvoiceModalsViewModel : ViewModelBase
 /// <summary>
 /// Display model for line items in the invoice form.
 /// </summary>
-public partial class LineItemDisplayModel : ObservableObject
+public partial class LineItemDisplayModel : ObservableObject, IPaperLine
 {
     [ObservableProperty]
     private ProductOption? _selectedProduct;

@@ -7,7 +7,6 @@
              xmlns:icons="using:ArgoBooks"
              xmlns:controls="using:ArgoBooks.Controls"
              xmlns:loc="using:ArgoBooks.Localization"
-             xmlns:entities="using:ArgoBooks.Core.Models.Entities"
              xmlns:tracking="using:ArgoBooks.Core.Models.Tracking"
              mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="550"
              x:Class="ArgoBooks.Modals.SettingsModal"
@@ -24,8 +23,9 @@
                 <!-- Modal Container -->
                 <Border Classes="modal-card"
                 Width="840"
-                MinHeight="750"
-                MaxHeight="750">
+                Height="750"
+                MaxWidth="{Binding $parent[controls:ModalOverlay].AvailableWidth}"
+                MaxHeight="{Binding $parent[controls:ModalOverlay].AvailableHeight}">
 
             <Grid RowDefinitions="Auto,*,Auto">
                 <!-- Header -->
@@ -272,7 +272,7 @@
                                   </StackPanel>
                                 </Border>
 
-                                <TextBlock Text="{loc:Loc 'Returns and Lost / Damaged follow Inventory and Rentals, and are hidden when both are off.'}"
+                                <TextBlock Text="{loc:Loc 'The ‘Returns’ and ‘Lost / Damaged’ pages follow Inventory and Rentals, and are hidden when both are off.'}"
                                            FontSize="12"
                                            TextWrapping="Wrap"
                                            Foreground="{DynamicResource TextTertiaryBrush}"
@@ -1004,51 +1004,7 @@
                                         </Grid>
                                     </Border>
 
-                                    <!--
-                                        PayPal portal Connect is currently disabled. PayPal's "Log in with PayPal"
-                                        OAuth endpoint refuses to return identity for Business-account tokens, so
-                                        the Connect flow can't onboard real merchants. Re-enabling requires
-                                        migrating to PayPal Partner Referrals API after approval into PayPal
-                                        Platforms & Marketplaces. The view model still exposes PaypalConnected /
-                                        ConnectPaypalCommand / DisconnectPaypalCommand for parity with the server
-                                        response shape, but they're not bound to any UI.
-
-                                    <Border Classes="status-panel" Classes.on="{Binding PaypalConnected}">
-                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16" MinHeight="40">
-                                            <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
-                                                <TextBlock Text="PayPal"
-                                                           FontSize="14"
-                                                           FontWeight="Medium"
-                                                           Foreground="{DynamicResource TextPrimaryBrush}" />
-                                                <TextBlock Text="{loc:Loc 'Connected'}"
-                                                           FontSize="12"
-                                                           Foreground="{DynamicResource SuccessBrush}"
-                                                           IsVisible="{Binding PaypalConnected}" />
-                                                <TextBlock Text="{loc:Loc 'Not connected'}"
-                                                           FontSize="12"
-                                                           Foreground="{DynamicResource TextTertiaryBrush}"
-                                                           IsVisible="{Binding !PaypalConnected}" />
-                                            </StackPanel>
-                                            <Button Grid.Column="1"
-                                                    Classes="primary-button"
-                                                    Content="{loc:Loc Connect}"
-                                                    Command="{Binding ConnectPaypalCommand}"
-                                                    IsVisible="{Binding !PaypalConnected}"
-                                                    IsEnabled="{Binding !IsConnectingProvider}"
-                                                    VerticalAlignment="Center"
-                                                    Padding="12,6"
-                                                    MinHeight="0" />
-                                            <Button Grid.Column="1"
-                                                    Classes="danger-outline-button"
-                                                    Content="{loc:Loc Disconnect}"
-                                                    Command="{Binding DisconnectPaypalCommand}"
-                                                    IsVisible="{Binding PaypalConnected}"
-                                                    VerticalAlignment="Center"
-                                                    Padding="12,6"
-                                                    MinHeight="0" />
-                                        </Grid>
-                                    </Border>
-                                    -->
+                                    <!-- No PayPal row: PayPal portal Connect is disabled until PayPal Partner Referrals approval. -->
 
                                     <!-- Square -->
                                     <Border Classes="status-panel" Classes.on="{Binding SquareConnected}">

@@ -100,63 +100,6 @@ public class FooterServiceTests
 
     #endregion
 
-    #region IsValidArgoFile Tests
-
-    [Fact]
-    public async Task IsValidArgoFileAsync_WithValidFile_ReturnsTrue()
-    {
-        var tempFile = Path.Combine(Path.GetTempPath(), $"test_valid_{Guid.NewGuid():N}.argo");
-        try
-        {
-            await using var fileStream = File.Create(tempFile);
-            var content = new byte[100];
-            await fileStream.WriteAsync(content);
-            await _footerService.WriteFooterAsync(fileStream, new FileFooter { CompanyName = "Valid" });
-
-            // Close and validate
-            await fileStream.FlushAsync();
-            fileStream.Close();
-
-            var isValid = await _footerService.IsValidArgoFileAsync(tempFile);
-
-            Assert.True(isValid);
-        }
-        finally
-        {
-            if (File.Exists(tempFile))
-                File.Delete(tempFile);
-        }
-    }
-
-    [Fact]
-    public async Task IsValidArgoFileAsync_WithNonExistentFile_ReturnsFalse()
-    {
-        var isValid = await _footerService.IsValidArgoFileAsync("/nonexistent/path/file.argo");
-
-        Assert.False(isValid);
-    }
-
-    [Fact]
-    public async Task IsValidArgoFileAsync_WithInvalidFile_ReturnsFalse()
-    {
-        var tempFile = Path.Combine(Path.GetTempPath(), $"test_invalid_{Guid.NewGuid():N}.argo");
-        try
-        {
-            await File.WriteAllTextAsync(tempFile, "This is not an argo file at all.");
-
-            var isValid = await _footerService.IsValidArgoFileAsync(tempFile);
-
-            Assert.False(isValid);
-        }
-        finally
-        {
-            if (File.Exists(tempFile))
-                File.Delete(tempFile);
-        }
-    }
-
-    #endregion
-
     #region GetContentLength Tests
 
     [Fact]

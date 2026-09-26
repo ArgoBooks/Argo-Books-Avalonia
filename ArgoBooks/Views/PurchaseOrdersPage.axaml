@@ -62,6 +62,8 @@
                                     SearchQuery="{Binding SearchQuery, Mode=TwoWay}"
                                     SearchPlaceholder="{loc:Loc 'Search orders...'}"
                                     FilterCommand="{Binding OpenFilterModalCommand}"
+                                    FilterCount="{Binding ActiveFilterCount}"
+                                    ClearFiltersCommand="{Binding ClearTableFiltersCommand}"
                                     AddCommand="{Binding OpenAddModalCommand}"
                                     AddButtonText="{loc:Loc 'New Order'}"
                                     AddButtonTooltip="{loc:Loc 'New Order'}"
@@ -134,7 +136,7 @@
                         <ItemsControl Classes="table-rows" ItemsSource="{Binding Orders}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate DataType="vm:PurchaseOrderDisplayItem">
-                                    <Border Padding="24,0"
+                                    <Border Padding="24,0,0,0"
                                             BorderBrush="{DynamicResource BorderBrush}"
                                             BorderThickness="0,0,0,1"
                                             Classes.highlighted-row="{Binding IsHighlighted}"

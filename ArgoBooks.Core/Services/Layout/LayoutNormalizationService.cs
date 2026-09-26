@@ -31,9 +31,8 @@ namespace ArgoBooks.Core.Services.Layout;
 /// </para>
 ///
 /// <para>
-/// This is Phase 3, Task 5 part A (the pipeline integration). There is intentionally
-/// no feature flag, settings, or UI here; that is part B. This service does not wire
-/// itself into the import flow.
+/// The spreadsheet import in App runs this on every non-CSV file before analysis.
+/// There is no feature flag or setting for it.
 /// </para>
 /// </summary>
 public sealed class LayoutNormalizationService(IGeminiService geminiService, IErrorLogger? errorLogger = null)

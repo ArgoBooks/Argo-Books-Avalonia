@@ -9,9 +9,8 @@ using Xunit;
 namespace ArgoBooks.Tests.ViewModels;
 
 /// <summary>
-/// Drives the real RentalRecordsModalsViewModel return/undo/redo flow. Guards the fix where the redo
-/// lambda re-read the live return-modal fields (which reset when the modal reopens) instead of the
-/// values the user actually confirmed, so redo could flip "paid" back off and change the total.
+/// Drives the real RentalRecordsModalsViewModel return flow: what the return charges, what it
+/// records as revenue, and what it must leave alone.
 /// </summary>
 public class RentalRecordsModalsViewModelTests : ModalViewModelTestBase
 {
@@ -39,36 +38,6 @@ public class RentalRecordsModalsViewModelTests : ModalViewModelTestBase
 
     private static RentalRecordDisplayItem Row(bool active = true) =>
         new() { Id = "RNT-1", IsActive = active, ItemName = "Widget", CustomerName = "Bob" };
-
-    [Fact]
-    public void ReturnRental_UndoThenRedo_KeepsConfirmedPaidAndTotal()
-    {
-        var record = SeedActiveRental();
-        var vm = new RentalRecordsModalsViewModel();
-
-        vm.OpenReturnModal(Row());
-        vm.ReturnMarkAsPaid = true;                 // the value the user confirms
-        var confirmedCost = vm.ReturnTotalCost;     // computed from the line items
-        vm.ConfirmReturn();
-
-        Assert.Equal(RentalStatus.Returned, record.Status);
-        Assert.True(record.Paid);
-        Assert.Equal(confirmedCost, record.TotalCost);
-
-        Undo();
-        Assert.Equal(RentalStatus.Active, record.Status);
-        Assert.False(record.Paid);
-
-        // Simulate the modal being reopened for another record, which resets the live fields.
-        vm.ReturnMarkAsPaid = false;
-        vm.ReturnTotalCost = 999m;
-
-        Redo();
-        // Redo must reapply the CONFIRMED values, not the reset/live ones.
-        Assert.Equal(RentalStatus.Returned, record.Status);
-        Assert.True(record.Paid);
-        Assert.Equal(confirmedCost, record.TotalCost);
-    }
 
     [Fact]
     public void ReturnModal_ChangingReturnDate_RecomputesTheChargedCost()
@@ -117,6 +86,25 @@ public class RentalRecordsModalsViewModelTests : ModalViewModelTestBase
         vm.ConfirmReturn();
     }
 
+    /// <summary>
+    /// Returning a rental that was already paid must not unpay it. The return modal opens with
+    /// its Mark as Paid tick clear, and that was written straight over the rental's own flag.
+    /// </summary>
+    [Fact]
+    public void ReturnRental_AlreadyPaid_StaysPaid()
+    {
+        var record = SeedActiveRental();
+        record.Paid = true;
+        record.RevenueId = "REV-1";
+        Company.Revenues.Add(new Revenue { Id = "REV-1", ReferenceNumber = "RNT-1", Total = 50m });
+
+        Return(new RentalRecordsModalsViewModel(), refund: "20");
+
+        Assert.True(record.Paid);
+        Assert.Equal("REV-1", record.RevenueId);
+        Assert.Equal("REV-1", Assert.Single(Company.Revenues).Id);
+    }
+
     // A deposit the business keeps is earned, so it becomes revenue on the day the rental comes back.
     [Fact]
     public void ReturnRental_KeepingTheDeposit_MakesItRevenue()
@@ -130,12 +118,6 @@ public class RentalRecordsModalsViewModelTests : ModalViewModelTestBase
         Assert.True(kept.IsKeptDeposit);
         Assert.Equal((20m, RevenuePaymentStatus.Paid, DateTime.Today, "INV-1"),
             (kept.Total, kept.PaymentStatus, kept.Date.Date, kept.InvoiceId));
-
-        Undo();
-        Assert.Empty(Company.Revenues);
-
-        Redo();
-        Assert.Same(kept, Assert.Single(Company.Revenues));
     }
 
     [Fact]
@@ -208,13 +190,6 @@ public class RentalRecordsModalsViewModelTests : ModalViewModelTestBase
 
         var revenue = Assert.Single(Company.Revenues);
         Assert.Equal((50m, "RNT-1", revenue.Id), (revenue.Total, revenue.ReferenceNumber, record.RevenueId));
-
-        Undo();
-        Assert.Empty(Company.Revenues);
-        Assert.Null(record.RevenueId);
-
-        Redo();
-        Assert.Same(revenue, Assert.Single(Company.Revenues));
     }
 
     [Fact]

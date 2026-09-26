@@ -124,6 +124,12 @@
             <Setter Property="FontSize" Value="10" />
             <Setter Property="HorizontalAlignment" Value="Center" />
         </Style>
+        <Style Selector="controls|StatCard Grid#LabelRow">
+            <Setter Property="HorizontalAlignment" Value="Left" />
+        </Style>
+        <Style Selector="controls|StatCard.minimal Grid#LabelRow">
+            <Setter Property="HorizontalAlignment" Value="Center" />
+        </Style>
 
         <!-- Content stack panel -->
         <Style Selector="controls|StatCard StackPanel#ContentPanel">
@@ -155,6 +161,14 @@
             <Setter Property="FontSize" Value="9" />
         </Style>
 
+        <!-- "from last month" etc. The percentage alone is enough on a card this narrow. -->
+        <Style Selector="controls|StatCard TextBlock#ChangeLabelText">
+            <Setter Property="IsVisible" Value="{Binding ChangeLabel, RelativeSource={RelativeSource AncestorType=controls:StatCard}, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+        </Style>
+        <Style Selector="controls|StatCard.minimal TextBlock#ChangeLabelText">
+            <Setter Property="IsVisible" Value="False" />
+        </Style>
+
         <!-- Secondary text -->
         <Style Selector="controls|StatCard.minimal TextBlock#SecondaryTextBlock">
             <Setter Property="HorizontalAlignment" Value="Center" />
@@ -177,13 +191,17 @@
                 <TextBlock x:Name="ValueText"
                            Text="{Binding Value, RelativeSource={RelativeSource AncestorType=controls:StatCard}}" />
 
-                <!-- Label (with optional info icon) -->
-                <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+                <!-- Label (with optional info icon). Left-aligned so the info icon sits right after
+                     the label, while the star column still caps the label at the card's width. -->
+                <Grid x:Name="LabelRow" ColumnDefinitions="*,Auto" ColumnSpacing="5" VerticalAlignment="Center">
                     <TextBlock x:Name="LabelText"
                                VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis"
                                Text="{Binding Label, RelativeSource={RelativeSource AncestorType=controls:StatCard}}"
+                               ToolTip.Tip="{Binding Label, RelativeSource={RelativeSource AncestorType=controls:StatCard}}"
                                IsVisible="{Binding Label, RelativeSource={RelativeSource AncestorType=controls:StatCard}, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                    <Button Classes="icon-button"
+                    <Button Grid.Column="1"
+                            Classes="icon-button"
                             Width="18" Height="18" Padding="0"
                             VerticalAlignment="Center"
                             ToolTip.Tip="{Binding InfoText, RelativeSource={RelativeSource AncestorType=controls:StatCard}}"
@@ -191,7 +209,7 @@
                         <PathIcon Data="{x:Static icons:Icons.InfoOutline}" Width="13" Height="13"
                                   Foreground="{DynamicResource TextTertiaryBrush}" />
                     </Button>
-                </StackPanel>
+                </Grid>
 
                 <!-- Trend Line: arrow + percentage + "from last month" -->
                 <StackPanel x:Name="TrendPanel" Orientation="Horizontal"
@@ -237,12 +255,12 @@
                         </TextBlock.Styles>
                     </TextBlock>
                     <!-- comparison label text (always neutral gray) -->
-                    <TextBlock Text="{Binding ChangeLabel, RelativeSource={RelativeSource AncestorType=controls:StatCard}}"
+                    <TextBlock x:Name="ChangeLabelText"
+                               Text="{Binding ChangeLabel, RelativeSource={RelativeSource AncestorType=controls:StatCard}}"
                                FontSize="12"
                                VerticalAlignment="Center"
                                Margin="4,0,0,0"
-                               Foreground="{DynamicResource TextSecondaryBrush}"
-                               IsVisible="{Binding ChangeLabel, RelativeSource={RelativeSource AncestorType=controls:StatCard}, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                               Foreground="{DynamicResource TextSecondaryBrush}" />
                 </StackPanel>
 
                 <!-- Secondary Text -->

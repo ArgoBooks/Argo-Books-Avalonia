@@ -24,8 +24,8 @@
                     BorderThickness="1"
                     CornerRadius="12"
                     Width="1140"
+                    MaxWidth="{Binding $parent[controls:ModalOverlay].AvailableWidth}"
                     MaxHeight="780"
-                    Margin="40"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center"
                     BoxShadow="0 8 32 0 #40000000">

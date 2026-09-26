@@ -247,12 +247,16 @@ public partial class StockAdjustmentsPageViewModel : SortablePageViewModelBase
         EndDate = e.EndDate?.DateTime;
         FilterProduct = e.Product;
         FilterType = e.Type;
+        ActiveFilterCount = (sender as StockAdjustmentsModalsViewModel)?.ActiveFilterCount ?? 0;
         CurrentPage = 1;
         FilterAdjustments();
     }
 
+    protected override void ClearTableFilters() => App.StockAdjustmentsModalsViewModel?.ClearFiltersCommand.Execute(null);
+
     internal void OnFiltersCleared(object? sender, EventArgs e)
     {
+        ActiveFilterCount = 0;
         StartDate = null;
         EndDate = null;
         FilterProduct = "All";
@@ -322,15 +326,6 @@ public partial class StockAdjustmentsPageViewModel : SortablePageViewModelBase
         TotalAdded = adds.Sum(a => a.Quantity);
         TotalRemoved = removes.Sum(a => a.Quantity);
         NetChange = TotalAdded - TotalRemoved;
-    }
-
-    /// <summary>
-    /// Refreshes the adjustments from the data source.
-    /// </summary>
-    [RelayCommand]
-    private void RefreshAdjustments()
-    {
-        LoadAdjustments();
     }
 
     /// <summary>
@@ -511,19 +506,6 @@ public partial class StockAdjustmentsPageViewModel : SortablePageViewModelBase
         nameof(AdjustmentType.Set) => AdjustmentType.Set,
         _ => null
     };
-
-    #endregion
-
-    #region Tab Commands
-
-    /// <summary>
-    /// Switches to the specified tab.
-    /// </summary>
-    [RelayCommand]
-    private void SwitchTab(string tab)
-    {
-        ActiveTab = tab;
-    }
 
     #endregion
 }

@@ -66,6 +66,7 @@ public static class QuoteConversionService
         if (quote.Status == QuoteStatus.Converted) return null;
 
         var invoice = BuildDraftInvoice(quote, companyData);
+        UsdConversion.Apply(companyData, invoice, UsdConversion.CachedRate(invoice.OriginalCurrency, invoice.IssueDate));
         companyData.Invoices.Add(invoice);
 
         quote.Status = QuoteStatus.Converted;

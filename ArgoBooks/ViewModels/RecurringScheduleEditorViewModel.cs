@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Transactions;
 using ArgoBooks.Core.Services;
@@ -308,7 +309,6 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
 
             var dateBefore = created.NextDate;
             var generated = OwnEntries(GenerateDueNow(data), created);
-            var queued = QueueGenerated(data, generated);
             var dateAfter = created.NextDate;
 
             App.UndoRedoManager.RecordAction(new DelegateAction(
@@ -317,13 +317,13 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
                 {
                     RemoveGenerated(data, generated);
                     created.NextDate = dateBefore;
-                    data.RecurringTransactions.Remove(created);
+                    data.RecurringTransactions.RemoveRecord(created);
                     Saved?.Invoke();
                 },
                 () =>
                 {
-                    data.RecurringTransactions.Add(created);
-                    RestoreGenerated(data, generated, queued);
+                    data.RecurringTransactions.RestoreRecord(created);
+                    RestoreGenerated(data, generated);
                     created.NextDate = dateAfter;
                     Saved?.Invoke();
                 }));
@@ -372,7 +372,6 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
             var after = Capture(existing);
 
             var generated = OwnEntries(GenerateDueNow(data), existing);
-            var queued = QueueGenerated(data, generated);
             var dateAfter = existing.NextDate;
             var lastGeneratedAfter = existing.LastGeneratedAt;
             var statusAfter = existing.Status;
@@ -391,7 +390,7 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
                 () =>
                 {
                     Restore(existing, after);
-                    RestoreGenerated(data, generated, queued);
+                    RestoreGenerated(data, generated);
                     existing.NextDate = dateAfter;
                     existing.LastGeneratedAt = lastGeneratedAfter;
                     existing.Status = statusAfter;
@@ -429,44 +428,26 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
         IReadOnlyList<Transaction> generated, RecurringTransaction schedule) =>
         generated.Where(t => t.RecurringScheduleId == schedule.Id).ToList();
 
-    /// <summary>
-    /// Generation queues an entry it has no rate for in the company file only. A conversion pass
-    /// copies the service's queue back over that list, so anything missing there is dropped and
-    /// the entry stays pending for good.
-    /// </summary>
-    private static IReadOnlyList<Core.Models.Common.PendingConversion> QueueGenerated(
-        Core.Data.CompanyData data, IReadOnlyList<Transaction> generated)
-    {
-        var ids = generated.Select(t => t.Id).ToList();
-        MirrorPendingQueue(data, ids);
-        return data.PendingConversions.Where(p => ids.Contains(p.TransactionId)).ToList();
-    }
-
     private static void RemoveGenerated(Core.Data.CompanyData data, IReadOnlyList<Transaction> generated)
     {
         foreach (var entry in generated)
         {
-            if (entry is Expense expense) data.Expenses.Remove(expense);
-            else if (entry is Revenue revenue) data.Revenues.Remove(revenue);
+            if (entry is Expense expense) data.Expenses.RemoveRecord(expense);
+            else if (entry is Revenue revenue) data.Revenues.RemoveRecord(revenue);
         }
 
-        var ids = generated.Select(t => t.Id).ToList();
-        data.PendingConversions.RemoveAll(p => ids.Contains(p.TransactionId));
-        MirrorPendingQueue(data, ids);
+        UsdConversion.Restore(data, generated.Select(UsdConversion.KeyOf), []);
     }
 
-    private static void RestoreGenerated(
-        Core.Data.CompanyData data, IReadOnlyList<Transaction> generated, IReadOnlyList<Core.Models.Common.PendingConversion> queued)
+    /// <summary>An entry converted before the undo keeps its USD figure, so only one still waiting queues again.</summary>
+    private static void RestoreGenerated(Core.Data.CompanyData data, IReadOnlyList<Transaction> generated)
     {
         foreach (var entry in generated)
         {
-            if (entry is Expense expense && !data.Expenses.Contains(expense)) data.Expenses.Add(expense);
-            else if (entry is Revenue revenue && !data.Revenues.Contains(revenue)) data.Revenues.Add(revenue);
+            if (entry is Expense expense) data.Expenses.RestoreRecord(expense);
+            else if (entry is Revenue revenue) data.Revenues.RestoreRecord(revenue);
+            UsdConversion.Requeue(data, entry);
         }
-
-        foreach (var row in queued.Where(row => !data.PendingConversions.Contains(row)))
-            data.PendingConversions.Add(row);
-        MirrorPendingQueue(data, generated.Select(t => t.Id).ToList());
     }
 
     /// <summary>
@@ -476,7 +457,8 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
     /// </summary>
     private async Task ApplyTemplateAsync(RecurringTransaction schedule, decimal amount, DateTime date)
     {
-        var converted = await CurrencyService.CreateMonetaryValueAsync(amount, date);
+        var currency = CurrencyService.CurrentCurrencyCode;
+        var rate = await UsdConversion.FetchRateAsync(currency, date);
 
         var description = SelectedProduct?.Name ?? string.Empty;
         var lineItems = new List<Core.Models.Common.LineItem>
@@ -503,9 +485,7 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
                 UnitPrice = amount,
                 CustomerId = SelectedCounterparty?.Id,
                 LineItems = lineItems,
-                OriginalCurrency = converted.OriginalCurrency,
-                TotalUSD = converted.AmountUSD,
-                UnitPriceUSD = converted.AmountUSD
+                OriginalCurrency = currency
             };
         }
         else
@@ -520,11 +500,11 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
                 UnitPrice = amount,
                 SupplierId = SelectedCounterparty?.Id,
                 LineItems = lineItems,
-                OriginalCurrency = converted.OriginalCurrency,
-                TotalUSD = converted.AmountUSD,
-                UnitPriceUSD = converted.AmountUSD
+                OriginalCurrency = currency
             };
         }
+
+        UsdConversion.SetAmounts(schedule.Template!, rate);
     }
 
     private static (Frequency Freq, DateTime Start, DateTime? End, Expense? Exp, Revenue? Rev) Capture(
@@ -569,51 +549,21 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
         if (result != ConfirmationResult.Primary) return;
 
         var correction = RecurringTransactionService.CorrectOccurrences(data, schedule, correctable);
-        var ids = correctable.Select(t => t.Id).ToList();
-        MirrorPendingQueue(data, ids);
 
         App.UndoRedoManager.RecordAction(new DelegateAction(
             $"Update {correctable.Count} past entries for {schedule.Id}",
             () =>
             {
                 correction.Revert(data);
-                MirrorPendingQueue(data, ids);
                 Saved?.Invoke();
             },
             () =>
             {
                 correction.Reapply(data);
-                MirrorPendingQueue(data, ids);
                 Saved?.Invoke();
             }));
 
         App.CompanyManager?.MarkAsChanged();
         Saved?.Invoke();
-    }
-
-    /// <summary>
-    /// The conversion service works from its own copy of the queue, so a correction that changed
-    /// or cleared a queued row in the company file has to be repeated there. Called on the UI
-    /// thread: MirrorAsync reads the company file's rows before it first awaits.
-    /// </summary>
-    private static void MirrorPendingQueue(Core.Data.CompanyData data, IReadOnlyList<string> ids)
-    {
-        var service = PendingConversionService.Instance;
-        if (service == null) return;
-
-        _ = MirrorPendingQueueAsync(service, data, ids);
-    }
-
-    private static async Task MirrorPendingQueueAsync(
-        PendingConversionService service, Core.Data.CompanyData data, IReadOnlyList<string> ids)
-    {
-        try
-        {
-            await service.MirrorAsync(data, ids);
-        }
-        catch (Exception ex)
-        {
-            App.ErrorLogger?.LogWarning($"Failed to update queued conversions: {ex.Message}", "RecurringSchedule");
-        }
     }
 }

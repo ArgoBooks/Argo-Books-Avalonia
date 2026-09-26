@@ -155,7 +155,6 @@ public class GlobalSettingsServiceTests : IDisposable
         var original = new GlobalSettings();
         original.Ui.Theme = "Dark";
         original.Ui.AccentColor = "Red";
-        original.Welcome.EulaAccepted = true;
 
         IGlobalSettingsService globalService = _settingsService;
         await globalService.SaveAsync(original);
@@ -166,7 +165,6 @@ public class GlobalSettingsServiceTests : IDisposable
 
         Assert.Equal("Dark", loaded.Ui.Theme);
         Assert.Equal("Red", loaded.Ui.AccentColor);
-        Assert.True(loaded.Welcome.EulaAccepted);
     }
 
     [Fact]
@@ -298,57 +296,6 @@ public class GlobalSettingsServiceTests : IDisposable
 
     #endregion
 
-    #region CompanySettings Tests
-
-    [Fact]
-    public void CreateCompanySettings_SetsCompanyName()
-    {
-        var companySettings = _settingsService.CreateCompanySettings("Test Company");
-
-        Assert.NotNull(companySettings);
-        Assert.Equal("Test Company", companySettings.Company.Name);
-        Assert.Same(companySettings, _settingsService.CompanySettings);
-    }
-
-    [Fact]
-    public void ClearCompanySettings_SetsToNull()
-    {
-        _settingsService.CreateCompanySettings("Test");
-
-        _settingsService.ClearCompanySettings();
-
-        Assert.Null(_settingsService.CompanySettings);
-    }
-
-    [Fact]
-    public async Task LoadCompanySettingsAsync_WhenNoFile_CreatesDefaults()
-    {
-        var tempDir = Path.Combine(_testDirectory, "company_temp");
-        Directory.CreateDirectory(tempDir);
-
-        await _settingsService.LoadCompanySettingsAsync(tempDir);
-
-        Assert.NotNull(_settingsService.CompanySettings);
-    }
-
-    [Fact]
-    public async Task SaveCompanySettingsAsync_ThenLoad_RoundTrip()
-    {
-        var tempDir = Path.Combine(_testDirectory, "company_temp2");
-        Directory.CreateDirectory(tempDir);
-
-        _settingsService.CreateCompanySettings("Round Trip Co");
-        await _settingsService.SaveCompanySettingsAsync(tempDir);
-
-        var newService = new GlobalSettingsService(_platformService);
-        await newService.LoadCompanySettingsAsync(tempDir);
-
-        Assert.NotNull(newService.CompanySettings);
-        Assert.Equal("Round Trip Co", newService.CompanySettings!.Company.Name);
-    }
-
-    #endregion
-
     #region Mock Classes
 
     private class MockPlatformService(string appDataPath) : IPlatformService
@@ -356,8 +303,6 @@ public class GlobalSettingsServiceTests : IDisposable
         public PlatformType Platform => PlatformType.Linux;
         public string GetAppDataPath() => appDataPath;
         public string GetTempPath() => Path.Combine(appDataPath, "temp");
-        public string GetDefaultDocumentsPath() => Path.Combine(appDataPath, "docs");
-        public string GetLogsPath() => Path.Combine(appDataPath, "logs");
         public string GetCachePath() => Path.Combine(appDataPath, "cache");
 
         public void EnsureDirectoryExists(string path)
@@ -380,7 +325,6 @@ public class GlobalSettingsServiceTests : IDisposable
         public string NormalizePath(string path) => path;
         public string CombinePaths(params string[] paths) => Path.Combine(paths);
         public string GetMachineId() => "test-machine-id";
-        public void RegisterFileTypeAssociations(string iconPath) { }
         public StringComparer PathComparer => StringComparer.Ordinal;
     }
 

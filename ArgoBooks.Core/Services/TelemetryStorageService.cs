@@ -121,22 +121,6 @@ public class TelemetryStorageService : ITelemetryStorageService
     }
 
     /// <inheritdoc />
-    public async Task<string> ExportToJsonAsync(CancellationToken cancellationToken = default)
-    {
-        return await WithFreshStateAsync(() =>
-        {
-            var exportData = new TelemetryExport
-            {
-                ExportTime = DateTime.UtcNow,
-                TotalEvents = _events.Count,
-                Events = _events.Select(e => e.Event).OrderByDescending(e => e.Timestamp).ToList()
-            };
-
-            return Task.FromResult(JsonSerializer.Serialize(exportData, _jsonOptions));
-        }, fallback: string.Empty, cancellationToken);
-    }
-
-    /// <inheritdoc />
     public async Task ClearAllDataAsync(CancellationToken cancellationToken = default)
     {
         await _lock.WaitAsync(cancellationToken);
@@ -497,13 +481,6 @@ public class TelemetryStorageService : ITelemetryStorageService
         public int TotalEventsUploaded { get; set; }
     }
 
-    private class TelemetryExport
-    {
-        public DateTime ExportTime { get; set; }
-        public int TotalEvents { get; set; }
-        public List<TelemetryEvent> Events { get; set; } = [];
-    }
-
     private class TelemetryBackup
     {
         public DateTime BackupTime { get; set; }
@@ -598,11 +575,6 @@ public interface ITelemetryStorageService
     /// Marks the specified events as uploaded.
     /// </summary>
     Task MarkEventsUploadedAsync(IEnumerable<string> dataIds, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Exports all telemetry data as a JSON string for user review.
-    /// </summary>
-    Task<string> ExportToJsonAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Clears all stored telemetry data.

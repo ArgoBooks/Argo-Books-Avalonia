@@ -47,6 +47,8 @@
                                 SearchQuery="{Binding SearchQuery, Mode=TwoWay}"
                                 SearchPlaceholder="{loc:Loc 'Search suppliers...'}"
                                 FilterCommand="{Binding OpenFilterModalCommand}"
+                                FilterCount="{Binding ActiveFilterCount}"
+                                ClearFiltersCommand="{Binding ClearTableFiltersCommand}"
                                 AddCommand="{Binding OpenAddModalCommand}"
                                 AddButtonText="{loc:Loc 'Add Supplier'}"
                                 AddButtonTooltip="{loc:Loc 'Add Supplier'}"
@@ -113,7 +115,7 @@
                     <ItemsControl Classes="table-rows" ItemsSource="{Binding Suppliers}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="vm:SupplierDisplayItem">
-                                <Border Padding="24,0"
+                                <Border Padding="24,0,0,0"
                                         BorderBrush="{DynamicResource BorderBrush}"
                                         BorderThickness="0,0,0,1"
                                         Classes.highlighted-row="{Binding IsHighlighted}"
