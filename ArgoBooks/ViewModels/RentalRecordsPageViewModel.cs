@@ -371,6 +371,7 @@ public partial class RentalRecordsPageViewModel : SortablePageViewModelBase
                 : null;
             var settledByInvoice = companyData != null
                 && RentalBookings.SettledByInvoice(companyData, record);
+            var depositRefundPending = RentalBookings.DepositRefundPending(companyData, record);
 
             return new RentalRecordDisplayItem
             {
@@ -395,6 +396,7 @@ public partial class RentalRecordsPageViewModel : SortablePageViewModelBase
                 IsReserved = record.Status == RentalStatus.Reserved,
                 Paid = record.Paid || settledByInvoice,
                 SettledByInvoice = settledByInvoice,
+                DepositRefundPending = depositRefundPending,
                 HasInvoices = record.HasInvoices,
                 InvoiceId = record.InvoiceIds.FirstOrDefault() ?? string.Empty,
                 IsHighlighted = record.Id == HighlightTransactionId
@@ -485,6 +487,12 @@ public partial class RentalRecordsPageViewModel : SortablePageViewModelBase
     {
         if (record == null) return;
         App.InvoiceModalsViewModel?.OpenCreateFromRental(record.Id);
+    }
+
+    [RelayCommand]
+    private void RefundDeposit(RentalRecordDisplayItem? record)
+    {
+        App.RentalRecordsModalsViewModel?.RefundDeposit(record);
     }
 
     [RelayCommand]
@@ -591,6 +599,9 @@ public partial class RentalRecordDisplayItem : ObservableObject
     /// <summary>Paid because every invoice raised for it is paid, rather than by hand.</summary>
     public bool SettledByInvoice { get; init; }
 
+    /// <summary>The return recorded a deposit refund that has not reached the payments ledger.</summary>
+    public bool DepositRefundPending { get; init; }
+
     public bool HasInvoiceId => !string.IsNullOrEmpty(InvoiceId);
 
     public string StartDateFormatted => StartDate.ToString("MMM d, yyyy");
@@ -601,6 +612,7 @@ public partial class RentalRecordDisplayItem : ObservableObject
     public string DaysOverdueText => DaysOverdue > 0 ? $"{DaysOverdue} days" : "-";
     public bool CanGenerateInvoice => !Paid && !HasInvoices && Status != nameof(RentalStatus.Cancelled);
     public bool CanMarkAsPaid => !Paid && !IsActive && !IsReserved && Status != nameof(RentalStatus.Cancelled);
+    public bool CanRefundDeposit => DepositRefundPending;
     public bool CanEdit => IsActive || IsReserved;
     // Marking it unpaid by hand would do nothing when an invoice is what paid it: the
     // rental's own flag is already false. Unpay the invoice instead.

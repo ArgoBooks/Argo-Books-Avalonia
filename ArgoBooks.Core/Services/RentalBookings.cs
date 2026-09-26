@@ -31,6 +31,35 @@ public static class RentalBookings
         return linked.Count > 0 && linked.All(i => i!.Status == InvoiceStatus.Paid);
     }
 
+    /// <summary>The invoice carrying this rental's security deposit, if one was billed.</summary>
+    public static Invoice? DepositInvoice(RentalRecord rental, CompanyData data) =>
+        rental.InvoiceIds
+            .Select(data.GetInvoice)
+            .OfType<Invoice>()
+            .Where(i => i.SecurityDeposit > 0)
+            .OrderBy(i => i.IssueDate)
+            .FirstOrDefault();
+
+    /// <summary>
+    /// The rental records a deposit as returned, but the card refund has not reached the payments
+    /// ledger. Returning writes the amount the user chose to give back, which for an online payment
+    /// is a decision rather than a movement: the refund still has to clear and can be abandoned.
+    /// </summary>
+    public static bool DepositRefundPending(CompanyData? data, RentalRecord rental)
+    {
+        if (data == null || rental.DepositRefunded is not { } refunded || refunded <= 0)
+            return false;
+
+        var invoice = DepositInvoice(rental, data);
+        if (invoice == null)
+            return false;
+
+        var paidOnline = data.Payments.Any(p => p.InvoiceId == invoice.Id && !p.IsRefund
+            && p.Source == PaymentSource.Online && !string.IsNullOrEmpty(p.ProviderPaymentId));
+
+        return paidOnline && SecurityDeposits.StillHeld(invoice, data.Payments, data.Revenues) > 0;
+    }
+
     /// <summary>Whole days between two dates, and at least one: out Monday and back Wednesday is two.</summary>
     public static int ChargeableDays(DateTime start, DateTime end) => Math.Max(1, (end.Date - start.Date).Days);
 

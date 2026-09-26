@@ -935,7 +935,7 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
     /// </summary>
     private static Revenue? CreateKeptDepositRevenue(RentalRecord rental, CompanyData companyData, DateTime date, decimal kept)
     {
-        var invoice = DepositInvoice(rental, companyData);
+        var invoice = RentalBookings.DepositInvoice(rental, companyData);
         if (invoice == null)
             return null;
 
@@ -967,21 +967,13 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
         };
     }
 
-    private static Invoice? DepositInvoice(RentalRecord rental, CompanyData companyData) =>
-        rental.InvoiceIds
-            .Select(companyData.GetInvoice)
-            .OfType<Invoice>()
-            .Where(i => i.SecurityDeposit > 0)
-            .OrderBy(i => i.IssueDate)
-            .FirstOrDefault();
-
     /// <summary>
     /// A deposit billed on an invoice paid online has to go back through the provider, so its refund
     /// window opens with only the deposit selected. An invoice paid any other way has no refund to record.
     /// </summary>
     private static void OfferDepositRefund(CompanyData companyData, RentalRecord rental, decimal refund)
     {
-        var invoice = refund > 0 ? DepositInvoice(rental, companyData) : null;
+        var invoice = refund > 0 ? RentalBookings.DepositInvoice(rental, companyData) : null;
         if (invoice == null || App.RefundModalsViewModel is not { } refunds)
             return;
 
@@ -993,7 +985,11 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
             && p.Source == PaymentSource.Online && !string.IsNullOrEmpty(p.ProviderPaymentId));
         if (paidOnline)
         {
-            _ = refunds.OpenForInvoiceAsync(companyData, invoice, depositOnly: Math.Min(refund, held),
+            // Closing the refund window without finishing left nothing behind: no request, no
+            // money moved, and a rental still recording the deposit as returned.
+            _ = refunds.OpenForInvoiceAsync(companyData, invoice,
+                onClosed: () => WarnIfDepositStillHeld(companyData, invoice, rental),
+                depositOnly: Math.Min(refund, held),
                 reason: $"Security deposit, rental {rental.Id}");
             return;
         }
@@ -1007,24 +1003,20 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
                 .TranslateFormat(CurrencyService.Format(Math.Min(refund, held))));
     }
 
+
     /// <summary>
-    /// True when the rental says a deposit went back but the card refund has not: the invoice
-    /// was paid online and the ledger still shows the money held.
+    /// Said when the refund window closes with the deposit still held. True whether the refund
+    /// was never started or is still clearing, and either way the customer does not have it.
     /// </summary>
-    private static bool DepositRefundPending(CompanyData? companyData, RentalRecord rental)
+    private static void WarnIfDepositStillHeld(CompanyData companyData, Invoice invoice, RentalRecord rental)
     {
-        if (companyData == null || rental.DepositRefunded is not { } refunded || refunded <= 0)
-            return false;
+        if (SecurityDeposits.StillHeld(invoice, companyData.Payments, companyData.Revenues) <= 0)
+            return;
 
-        var invoice = DepositInvoice(rental, companyData);
-        if (invoice == null)
-            return false;
-
-        var paidOnline = companyData.Payments.Any(p => p.InvoiceId == invoice.Id && !p.IsRefund
-            && p.Source == PaymentSource.Online && !string.IsNullOrEmpty(p.ProviderPaymentId));
-
-        return paidOnline
-            && SecurityDeposits.StillHeld(invoice, companyData.Payments, companyData.Revenues) > 0;
+        _ = App.ShowWarningMessageBoxAsync(
+            "The deposit has not gone back".Translate(),
+            "Nothing has been refunded to the customer for rental {0}. It stays that way until you issue the refund from the invoice."
+                .TranslateFormat(rental.Id));
     }
 
     private static void AddRentalRevenue(CompanyData companyData, Revenue revenue)
@@ -1140,6 +1132,21 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
     }
 
     /// <summary>
+    /// Reopens the deposit refund for a rental whose return recorded one that never cleared.
+    /// The same window the return offers, with the deposit already selected, so it does not
+    /// have to be found and ticked among the invoice's other lines.
+    /// </summary>
+    public void RefundDeposit(RentalRecordDisplayItem? record)
+    {
+        var companyData = App.CompanyManager?.CompanyData;
+        var rental = companyData?.Rentals.FirstOrDefault(r => r.Id == record?.Id);
+        if (companyData == null || rental == null)
+            return;
+
+        OfferDepositRefund(companyData, rental, rental.DepositRefunded ?? 0m);
+    }
+
+    /// <summary>
     /// Marks a rental paid. Without an invoice to carry the money, it is recorded as revenue.
     /// </summary>
     public void MarkAsPaid(RentalRecordDisplayItem? record) => ChangePaid(record, paid: true);
@@ -1216,7 +1223,7 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
         ViewStatus = rentalRecord.Status.ToString();
         ViewTotalCost = rentalRecord.TotalCost ?? 0;
         ViewDepositRefundedAmount = rentalRecord.DepositRefunded;
-        ViewDepositRefundPending = DepositRefundPending(companyData, rentalRecord);
+        ViewDepositRefundPending = RentalBookings.DepositRefundPending(companyData, rentalRecord);
         ViewNotes = rentalRecord.Notes;
         ViewDaysOverdue = rentalRecord.EffectiveDaysOverdue;
 

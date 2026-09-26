@@ -310,6 +310,15 @@
                                                         <PathIcon Data="{x:Static icons:Icons.Invoices}"
                                                                   Width="16" Height="16" />
                                                     </Button>
+                                                    <!-- Refund the deposit a return recorded but never sent -->
+                                                    <Button Classes="icon-button"
+                                                            ToolTip.Tip="{loc:Loc 'Refund Deposit'}"
+                                                            IsVisible="{Binding CanRefundDeposit}"
+                                                            Command="{Binding $parent[ItemsControl].((vm:RentalRecordsPageViewModel)DataContext).RefundDepositCommand}"
+                                                            CommandParameter="{Binding}">
+                                                        <PathIcon Data="{x:Static icons:Icons.DollarCircle}"
+                                                                  Width="16" Height="16" />
+                                                    </Button>
                                                     <!-- Mark as Paid Button -->
                                                     <Button Classes="icon-button"
                                                             ToolTip.Tip="{loc:Loc 'Mark as Paid'}"
