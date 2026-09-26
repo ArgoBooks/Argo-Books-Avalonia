@@ -7,7 +7,6 @@
              xmlns:icons="using:ArgoBooks"
              xmlns:controls="using:ArgoBooks.Controls"
              xmlns:loc="using:ArgoBooks.Localization"
-             xmlns:entities="using:ArgoBooks.Core.Models.Entities"
              xmlns:tracking="using:ArgoBooks.Core.Models.Tracking"
              mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="550"
              x:Class="ArgoBooks.Modals.SettingsModal"
@@ -272,7 +271,7 @@
                                   </StackPanel>
                                 </Border>
 
-                                <TextBlock Text="{loc:Loc 'Returns and Lost / Damaged follow Inventory and Rentals, and are hidden when both are off.'}"
+                                <TextBlock Text="{loc:Loc 'The ‘Returns’ and ‘Lost / Damaged’ pages follow Inventory and Rentals, and are hidden when both are off.'}"
                                            FontSize="12"
                                            TextWrapping="Wrap"
                                            Foreground="{DynamicResource TextTertiaryBrush}"
