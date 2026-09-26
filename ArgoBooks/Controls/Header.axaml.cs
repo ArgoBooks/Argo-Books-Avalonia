@@ -229,11 +229,41 @@ public partial class Header : UserControl
     private bool _isInitialized;
     private HeaderViewModel? _subscribedVm;
 
+    private const double MaxSearchWidth = 280;
+    private const double SearchGap = 12;
+    private const double SearchHintMinWidth = 240;
+
     public Header()
     {
         InitializeComponent();
         _saveButtonContainer = this.FindControl<StackPanel>("SaveButtonContainer");
         Loaded += OnLoaded;
+
+        // The right group changes width when the Upgrade button shows or hides.
+        HeaderLayout.SizeChanged += (_, _) => UpdateSearchBoxLayout();
+        LeftGroup.SizeChanged += (_, _) => UpdateSearchBoxLayout();
+        RightGroup.SizeChanged += (_, _) => UpdateSearchBoxLayout();
+    }
+
+    /// <summary>
+    /// Centres the search box on the whole header while the gap between the button groups allows,
+    /// and otherwise narrows it and slides it off-centre rather than letting it run under them.
+    /// </summary>
+    private void UpdateSearchBoxLayout()
+    {
+        var total = HeaderLayout.Bounds.Width;
+        var left = LeftGroup.Bounds.Width;
+        var cell = total - left - RightGroup.Bounds.Width;
+        if (total <= 0 || cell <= 0)
+            return;
+
+        var width = Math.Clamp(cell - 2 * SearchGap, 0, MaxSearchWidth);
+        var centredOffset = (total - width) / 2 - left;
+        var offset = Math.Clamp(centredOffset, SearchGap, Math.Max(SearchGap, cell - SearchGap - width));
+
+        SearchBox.Width = width;
+        SearchBox.Margin = new Thickness(offset, 0, 0, 0);
+        SearchHint.IsVisible = width >= SearchHintMinWidth;
     }
 
     private async void OnLoaded(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
