@@ -181,8 +181,13 @@
         <Panel Grid.Row="1">
             <!-- Step 1: Template & Settings -->
             <Grid IsVisible="{Binding IsStep1}"
-                  ColumnDefinitions="*,400"
                   Margin="24">
+                <!-- Settings take a share of the width, capped at their old fixed 400, so a narrow
+                     window leaves the template panel room for its tab header. -->
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="3*" />
+                    <ColumnDefinition Width="2*" MaxWidth="400" />
+                </Grid.ColumnDefinitions>
                 <!-- Left: Templates with Tab Navigation -->
                 <Border Grid.Column="0"
                         Background="{DynamicResource SurfaceBrush}"
@@ -197,7 +202,7 @@
                             <Border Grid.Row="0"
                                     BorderBrush="{DynamicResource BorderBrush}"
                                     BorderThickness="0,0,0,1">
-                                <Grid ColumnDefinitions="*,Auto">
+                                <Grid x:Name="Step1TabHeader" ColumnDefinitions="*,Auto">
                                     <TabControl Grid.Column="0"
                                                 SelectedIndex="{Binding Step1TabIndex}"
                                                 Margin="0"
@@ -216,7 +221,7 @@
                                             ToolTip.Tip="{loc:Loc 'Send your statements, transactions and receipts to your accountant'}">
                                         <StackPanel Orientation="Horizontal" Spacing="8">
                                             <PathIcon Data="{x:Static local:Icons.Send}" Width="14" Height="14" />
-                                            <TextBlock Text="{loc:Loc 'Send to Accountant'}" VerticalAlignment="Center" />
+                                            <TextBlock x:Name="SendToAccountantText" Text="{loc:Loc 'Send to Accountant'}" VerticalAlignment="Center" />
                                         </StackPanel>
                                     </Button>
                                 </Grid>
@@ -691,7 +696,8 @@
                 </Grid>
 
             <!-- Step 2: Layout Designer -->
-            <Grid IsVisible="{Binding IsStep2}"
+            <Grid x:Name="DesignerLayout"
+                  IsVisible="{Binding IsStep2}"
                   ColumnDefinitions="Auto,*,260">
 
                 <!-- Left Panel: Element Toolbox (Collapsible) -->

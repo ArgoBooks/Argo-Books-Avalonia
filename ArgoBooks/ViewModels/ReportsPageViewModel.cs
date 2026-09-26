@@ -676,6 +676,25 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
     [ObservableProperty]
     private bool _isElementPanelExpanded = true;
 
+    private bool _isApplyingPageWidth;
+
+    /// <summary>
+    /// Opens or closes the element panel because the page changed width. Not saved, since it is
+    /// not the user's choice.
+    /// </summary>
+    public void SetElementPanelExpandedForWidth(bool expanded)
+    {
+        _isApplyingPageWidth = true;
+        try
+        {
+            IsElementPanelExpanded = expanded;
+        }
+        finally
+        {
+            _isApplyingPageWidth = false;
+        }
+    }
+
     #region Page Management
 
     [ObservableProperty]
@@ -2219,6 +2238,9 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
     /// </summary>
     partial void OnIsElementPanelExpandedChanged(bool value)
     {
+        if (_isApplyingPageWidth)
+            return;
+
         var settings = App.SettingsService?.GlobalSettings;
         if (settings != null)
         {
