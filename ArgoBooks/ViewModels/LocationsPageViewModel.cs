@@ -254,15 +254,6 @@ public partial class LocationsPageViewModel : SortablePageViewModelBase
     }
 
     /// <summary>
-    /// Refreshes the locations from the data source.
-    /// </summary>
-    [RelayCommand]
-    private void RefreshLocations()
-    {
-        LoadLocations();
-    }
-
-    /// <summary>
     /// Filters locations based on search query and filters.
     /// </summary>
     private void FilterLocations()

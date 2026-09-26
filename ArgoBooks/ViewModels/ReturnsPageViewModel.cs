@@ -211,12 +211,6 @@ public partial class ReturnsPageViewModel : SortablePageViewModelBase
         TotalRefunded = complete ? CurrencyService.Format(totalRefundedValue) : CurrencyService.PendingMarker;
     }
 
-    [RelayCommand]
-    private void RefreshReturns()
-    {
-        LoadReturns();
-    }
-
     private void FilterReturns()
     {
         IEnumerable<Return> filtered = _allReturns;

@@ -24,13 +24,6 @@ namespace ArgoBooks.Core.Data;
 public class CompanyData
 {
     /// <summary>
-    /// Lock object for thread-safe access to collections.
-    /// Callers performing multi-step operations should lock on this object.
-    /// </summary>
-    [JsonIgnore]
-    public object SyncRoot { get; } = new();
-
-    /// <summary>
     /// Company settings (stored as appSettings.json).
     /// </summary>
     [JsonPropertyName("settings")]

@@ -20,7 +20,6 @@ public partial class InvoiceTemplateDesignerViewModel : ViewModelBase
     #region Events
 
     public event EventHandler? TemplateSaved;
-    public event EventHandler? ModalClosed;
     public event EventHandler? BrowseLogoRequested;
 
     /// <summary>
@@ -512,7 +511,6 @@ public partial class InvoiceTemplateDesignerViewModel : ViewModelBase
         IsDeleteConfirmOpen = false;
         IsOpen = false;
         IsFullscreen = false;
-        ModalClosed?.Invoke(this, EventArgs.Empty);
     }
 
     [RelayCommand]

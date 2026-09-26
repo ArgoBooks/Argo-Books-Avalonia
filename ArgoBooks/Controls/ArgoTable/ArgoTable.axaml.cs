@@ -549,11 +549,6 @@ public partial class ArgoTable : UserControl, INotifyPropertyChanged
     #region Events
 
     /// <summary>
-    /// Raised when the table header is right-clicked (for column menu).
-    /// </summary>
-    public event EventHandler<PointerPressedEventArgs>? HeaderRightClicked;
-
-    /// <summary>
     /// Raised when the table grid size changes (for column width calculation).
     /// </summary>
     public event EventHandler<SizeChangedEventArgs>? TableGridSizeChanged;
@@ -711,7 +706,6 @@ public partial class ArgoTable : UserControl, INotifyPropertyChanged
                 }
             }
 
-            HeaderRightClicked?.Invoke(this, e);
             ToggleColumnMenuCommand?.Execute(null);
         }
     }

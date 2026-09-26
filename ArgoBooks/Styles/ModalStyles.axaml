@@ -97,29 +97,6 @@
         </Setter>
     </Style>
 
-    <!-- Modal Backdrop - semi-transparent overlay with fade animation -->
-    <Style Selector="Border.modal-backdrop">
-        <Setter Property="Background" Value="#80000000" />
-        <Setter Property="IsHitTestVisible" Value="True" />
-        <Setter Property="Transitions">
-            <Transitions>
-                <DoubleTransition Property="Opacity" Duration="0:0:0.2" />
-            </Transitions>
-        </Setter>
-    </Style>
-
-    <!-- Modal Animated - use with ModalAnimationBehavior for automatic animations -->
-    <Style Selector="Border.modal-animated">
-        <Setter Property="Focusable" Value="True" />
-        <Setter Property="BoxShadow" Value="0 8 32 0 #40000000" />
-        <Setter Property="Transitions">
-            <Transitions>
-                <DoubleTransition Property="Opacity" Duration="0:0:0.15" Easing="CubicEaseOut" />
-                <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.15" Easing="CubicEaseOut" />
-            </Transitions>
-        </Setter>
-    </Style>
-
     <!-- Popup Banner - small notification banner with fade-in animation -->
     <!-- Use with BannerAnimationBehavior for proper fade animations -->
     <Style Selector="Border.popup-banner">

@@ -289,15 +289,6 @@ public partial class PurchaseOrdersPageViewModel : SortablePageViewModelBase
     }
 
     /// <summary>
-    /// Refreshes the orders from the data source.
-    /// </summary>
-    [RelayCommand]
-    private void RefreshOrders()
-    {
-        LoadOrders();
-    }
-
-    /// <summary>
     /// Filters orders based on search query, tab, and filters.
     /// </summary>
     private void FilterOrders()
@@ -554,19 +545,6 @@ public partial class PurchaseOrdersPageViewModel : SortablePageViewModelBase
     private void OpenFilterModal()
     {
         App.PurchaseOrdersModalsViewModel?.OpenFilterModal();
-    }
-
-    #endregion
-
-    #region Tab Commands
-
-    /// <summary>
-    /// Switches to the specified tab.
-    /// </summary>
-    [RelayCommand]
-    private void SwitchTab(string tab)
-    {
-        ActiveTab = tab;
     }
 
     #endregion

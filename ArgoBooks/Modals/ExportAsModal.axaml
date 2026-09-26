@@ -215,16 +215,6 @@
             <Setter Property="CornerRadius" Value="1" />
         </Style>
 
-        <!-- Form Select (ComboBox) -->
-        <Style Selector="ComboBox.form-select">
-            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="6" />
-            <Setter Property="Padding" Value="12,10" />
-            <Setter Property="FontSize" Value="14" />
-        </Style>
-
         <!-- Form DatePicker -->
         <Style Selector="DatePicker.form-date">
             <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />

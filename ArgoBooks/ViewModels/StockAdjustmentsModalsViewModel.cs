@@ -148,9 +148,6 @@ public partial class StockAdjustmentsModalsViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isDeleteConfirmOpen;
 
-    [ObservableProperty]
-    private StockAdjustmentDisplayItem? _deletingAdjustment;
-
     #endregion
 
     #region Add Modal Commands

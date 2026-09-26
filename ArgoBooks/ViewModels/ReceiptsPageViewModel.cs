@@ -143,12 +143,6 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
     }
 
     [RelayCommand]
-    private void ToggleSelectionMode()
-    {
-        IsSelectionMode = !IsSelectionMode;
-    }
-
-    [RelayCommand]
     private void ExitSelectionMode()
     {
         IsSelectionMode = false;
@@ -944,16 +938,6 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
         foreach (var receipt in Receipts)
         {
             receipt.IsSelected = true;
-        }
-        UpdateSelectionState();
-    }
-
-    [RelayCommand]
-    private void DeselectAll()
-    {
-        foreach (var receipt in Receipts)
-        {
-            receipt.IsSelected = false;
         }
         UpdateSelectionState();
     }

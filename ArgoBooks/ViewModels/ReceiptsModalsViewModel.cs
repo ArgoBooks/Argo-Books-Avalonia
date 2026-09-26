@@ -456,14 +456,8 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isRevenue;
 
-    /// <summary>
-    /// The detected transaction type label for UI display.
-    /// </summary>
-    public string TransactionTypeLabel => IsRevenue ? "Revenue".Translate() : "Expense".Translate();
-
     partial void OnIsRevenueChanged(bool value)
     {
-        OnPropertyChanged(nameof(TransactionTypeLabel));
         ValidateCurrentBulkItem();
     }
 
@@ -2957,14 +2951,6 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
     {
         HasUnmatchedProducts = LineItems.Any(li => li.ShowCreateProductSuggestion);
         ValidateCurrentBulkItem();
-    }
-
-    [RelayCommand]
-    private void NavigateToSettings()
-    {
-        // Close modal and open settings
-        CloseScanReviewModal();
-        // The settings modal should be opened from the header
     }
 
     /// <summary>

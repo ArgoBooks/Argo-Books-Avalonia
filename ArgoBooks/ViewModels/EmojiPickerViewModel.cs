@@ -71,9 +71,6 @@ public partial class EmojiPickerViewModel : ObservableObject
             .GroupBy(e => e.Emoji)
             .ToDictionary(g => g.Key, g => g.First());
 
-    public bool HasRecentEmojis => _settings?.RecentEmojis.Count > 0;
-    public bool HasFavoriteEmojis => _settings?.FavoriteEmojis.Count > 0;
-
     /// <summary>
     /// Whether to show the empty state message (on Recent/Favorites tab with no items).
     /// </summary>
@@ -140,10 +137,6 @@ public partial class EmojiPickerViewModel : ObservableObject
         SelectedEmoji = currentEmoji;
         SearchText = string.Empty;
 
-        // Refresh favorite states
-        OnPropertyChanged(nameof(HasRecentEmojis));
-        OnPropertyChanged(nameof(HasFavoriteEmojis));
-
         // Select first tab with content
         if (_settings.RecentEmojis.Count > 0)
         {
@@ -199,7 +192,6 @@ public partial class EmojiPickerViewModel : ObservableObject
 
         _settings.RecentEmojis.Clear();
         SaveSettings();
-        OnPropertyChanged(nameof(HasRecentEmojis));
         UpdateDisplayedEmojis();
     }
 
@@ -234,7 +226,6 @@ public partial class EmojiPickerViewModel : ObservableObject
         }
 
         SaveSettings();
-        OnPropertyChanged(nameof(HasFavoriteEmojis));
 
         // Refresh if we're on the Favorites tab
         if (SelectedTab?.Name == "Favorites")
@@ -352,7 +343,6 @@ public partial class EmojiPickerViewModel : ObservableObject
         }
 
         SaveSettings();
-        OnPropertyChanged(nameof(HasRecentEmojis));
     }
 
     private void SaveSettings()

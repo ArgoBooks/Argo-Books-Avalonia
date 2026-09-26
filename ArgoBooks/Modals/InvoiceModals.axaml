@@ -34,10 +34,6 @@
             <Setter Property="Foreground" Value="#1A1F2B" />
             <Setter Property="MinHeight" Value="0" />
         </Style>
-        <Style Selector="TextBlock.paper-label">
-            <Setter Property="FontSize" Value="11" />
-            <Setter Property="Foreground" Value="#8A94A3" />
-        </Style>
         <Style Selector="TextBlock.sidebar-label">
             <Setter Property="FontSize" Value="11" />
             <Setter Property="FontWeight" Value="Medium" />

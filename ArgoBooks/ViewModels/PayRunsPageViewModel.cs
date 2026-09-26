@@ -87,9 +87,6 @@ public partial class PayRunsPageViewModel : SortablePageViewModelBase
 
     partial void OnSearchQueryChanged(string value) => Filter();
 
-    /// <summary>True when no payroll has ever been run, so the page leads with Run payroll.</summary>
-    public bool HasNoPayRuns => _all.Count == 0;
-
     #region Premium
 
     /// <summary>
@@ -428,7 +425,6 @@ public partial class PayRunsPageViewModel : SortablePageViewModelBase
 
         // Both prompts key off whether anything real is here, so they have to be re-read after
         // the list is rebuilt and not only when the plan changes.
-        OnPropertyChanged(nameof(HasNoPayRuns));
         OnPropertyChanged(nameof(ShowTeaser));
         OnPropertyChanged(nameof(ShowPayrollUpgradePrompt));
 

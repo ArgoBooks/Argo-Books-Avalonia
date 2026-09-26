@@ -618,11 +618,3 @@ public partial class RentalRecordDisplayItem : ObservableObject
     // rental's own flag is already false. Unpay the invoice instead.
     public bool CanMarkAsUnpaid => Paid && !SettledByInvoice;
 }
-
-/// <summary>
-/// Navigation parameter for navigating to the Invoices page to create an invoice from a rental.
-/// </summary>
-public class RentalInvoiceNavigationParameter(string rentalRecordId)
-{
-    public string RentalRecordId { get; } = rentalRecordId;
-}

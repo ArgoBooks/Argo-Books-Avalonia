@@ -177,14 +177,6 @@ public class ReportConfiguration
     }
 
     /// <summary>
-    /// Gets all elements of a specific type.
-    /// </summary>
-    public List<T> GetElementsOfType<T>() where T : ReportElementBase
-    {
-        return Elements.OfType<T>().ToList();
-    }
-
-    /// <summary>
     /// Creates a deep clone of this configuration.
     /// </summary>
     public ReportConfiguration Clone()
@@ -345,42 +337,6 @@ public class ReportFilters
         // For preset names, calculate the date range
         return DatePresetNames.GetDateRange(DatePresetName, earliestDate);
     }
-}
-
-/// <summary>
-/// Export settings for report output.
-/// </summary>
-public class ExportSettings
-{
-    /// <summary>
-    /// Export format.
-    /// </summary>
-    [JsonPropertyName("format")]
-    public ExportFormat Format { get; set; } = ExportFormat.PDF;
-
-    /// <summary>
-    /// Output file path.
-    /// </summary>
-    [JsonPropertyName("filePath")]
-    public string FilePath { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Quality setting (0-100).
-    /// </summary>
-    [JsonPropertyName("quality")]
-    public int Quality { get; set; } = 95;
-
-    /// <summary>
-    /// Whether to open the file after export.
-    /// </summary>
-    [JsonPropertyName("openAfterExport")]
-    public bool OpenAfterExport { get; set; } = true;
-
-    /// <summary>
-    /// Whether to include metadata in the export.
-    /// </summary>
-    [JsonPropertyName("includeMetadata")]
-    public bool IncludeMetadata { get; set; } = true;
 }
 
 /// <summary>

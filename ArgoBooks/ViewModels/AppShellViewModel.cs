@@ -127,8 +127,6 @@ public partial class AppShellViewModel : ViewModelBase
 
     public ExportAsModalViewModel ExportAsModalViewModel { get; }
 
-    public SwitchAccountModalViewModel SwitchAccountModalViewModel { get; }
-
     public PasswordPromptModalViewModel PasswordPromptModalViewModel { get; }
 
     public EditCompanyModalViewModel EditCompanyModalViewModel { get; }
@@ -691,8 +689,6 @@ public partial class AppShellViewModel : ViewModelBase
 
         ExportAsModalViewModel = new ExportAsModalViewModel();
 
-        SwitchAccountModalViewModel = new SwitchAccountModalViewModel();
-
         PasswordPromptModalViewModel = new PasswordPromptModalViewModel();
 
         EditCompanyModalViewModel = new EditCompanyModalViewModel();
@@ -708,12 +704,6 @@ public partial class AppShellViewModel : ViewModelBase
         {
             navService.RegisterNavigationGuard(CheckUnsavedChangesBeforeNavigation);
         }
-
-        // Wire up switch account modal's create account to open company wizard
-        SwitchAccountModalViewModel.CreateAccountRequested += (_, _) => CreateCompanyViewModel.OpenCommand.Execute(null);
-
-        // Wire up hamburger menu to toggle sidebar
-        HeaderViewModel.ToggleSidebarRequested += (_, _) => SidebarViewModel.IsCollapsed = !SidebarViewModel.IsCollapsed;
 
         // Wire up header's quick actions button to open the panel in dropdown mode. Re-sync the
         // query from the header searchbox first: closing the panel clears the panel's own

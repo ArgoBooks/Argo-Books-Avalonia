@@ -155,7 +155,6 @@ public class GlobalSettingsServiceTests : IDisposable
         var original = new GlobalSettings();
         original.Ui.Theme = "Dark";
         original.Ui.AccentColor = "Red";
-        original.Welcome.EulaAccepted = true;
 
         IGlobalSettingsService globalService = _settingsService;
         await globalService.SaveAsync(original);
@@ -166,7 +165,6 @@ public class GlobalSettingsServiceTests : IDisposable
 
         Assert.Equal("Dark", loaded.Ui.Theme);
         Assert.Equal("Red", loaded.Ui.AccentColor);
-        Assert.True(loaded.Welcome.EulaAccepted);
     }
 
     [Fact]

@@ -359,47 +359,6 @@ public class UndoRedoManager : ObservableObject, IUndoRedoManager
 }
 
 /// <summary>
-/// A generic property change action.
-/// </summary>
-/// <typeparam name="T">Type of the property value.</typeparam>
-public class PropertyChangeAction<T> : IUndoableAction
-{
-    private readonly Action<T> _setter;
-    private readonly T _oldValue;
-    private readonly T _newValue;
-
-    /// <summary>
-    /// Gets the description of the property change.
-    /// </summary>
-    public string Description { get; }
-
-    /// <summary>
-    /// Initializes a new property change action.
-    /// </summary>
-    /// <param name="description">Description of the change.</param>
-    /// <param name="setter">Action to set the property value.</param>
-    /// <param name="oldValue">The old property value.</param>
-    /// <param name="newValue">The new property value.</param>
-    public PropertyChangeAction(string description, Action<T> setter, T oldValue, T newValue)
-    {
-        Description = description;
-        _setter = setter;
-        _oldValue = oldValue;
-        _newValue = newValue;
-    }
-
-    /// <summary>
-    /// Undoes the property change.
-    /// </summary>
-    public void Undo() => _setter(_oldValue);
-
-    /// <summary>
-    /// Redoes the property change.
-    /// </summary>
-    public void Redo() => _setter(_newValue);
-}
-
-/// <summary>
 /// A generic property change action that supports coalescing rapid changes.
 /// </summary>
 /// <typeparam name="T">Type of the property value.</typeparam>

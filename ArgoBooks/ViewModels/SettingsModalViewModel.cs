@@ -140,9 +140,6 @@ public partial class SettingsModalViewModel : ViewModelBase
     private int _telemetryPendingCount;
 
     [ObservableProperty]
-    private bool _isExportingTelemetry;
-
-    [ObservableProperty]
     private bool _isDeletingTelemetry;
 
     [ObservableProperty]
@@ -1025,13 +1022,6 @@ public partial class SettingsModalViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private async Task ConnectPaypalAsync()
-    {
-        if (!await EnsurePortalAuthenticatedAsync()) return;
-        await ConnectProviderAsync("paypal");
-    }
-
-    [RelayCommand]
     private async Task ConnectSquareAsync()
     {
         if (!CanConnectProvider) return;
@@ -1044,13 +1034,6 @@ public partial class SettingsModalViewModel : ViewModelBase
     {
         if (!await EnsurePortalAuthenticatedAsync()) return;
         await DisconnectProviderAsync("stripe");
-    }
-
-    [RelayCommand]
-    private async Task DisconnectPaypalAsync()
-    {
-        if (!await EnsurePortalAuthenticatedAsync()) return;
-        await DisconnectProviderAsync("paypal");
     }
 
     [RelayCommand]

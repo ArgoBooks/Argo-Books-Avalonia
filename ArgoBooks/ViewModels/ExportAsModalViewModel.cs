@@ -47,12 +47,9 @@ public partial class ExportAsModalViewModel : ViewModelBase
 
     public bool IsBackupSelected => SelectedTabIndex == 0;
 
-    public bool IsSpreadsheetSelected => SelectedTabIndex == 1;
-
     partial void OnSelectedTabIndexChanged(int value)
     {
         OnPropertyChanged(nameof(IsBackupSelected));
-        OnPropertyChanged(nameof(IsSpreadsheetSelected));
     }
 
     [ObservableProperty]

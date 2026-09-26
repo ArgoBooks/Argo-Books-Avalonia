@@ -31,11 +31,6 @@
         <!-- Avalonia -->
         <PackageReference Include="Avalonia" />
         <PackageReference Include="Avalonia.Themes.Fluent" />
-        <PackageReference Include="Avalonia.Fonts.Inter" />
-        <PackageReference Include="AvaloniaUI.DiagnosticsSupport">
-            <IncludeAssets Condition="'$(Configuration)' != 'Debug'">none</IncludeAssets>
-            <PrivateAssets Condition="'$(Configuration)' != 'Debug'">all</PrivateAssets>
-        </PackageReference>
 
         <!-- Cross-platform WebView (invoice preview, PDF rendering) -->
         <PackageReference Include="Avalonia.Controls.WebView" />

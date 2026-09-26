@@ -1241,19 +1241,9 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
     public LabelVisual ProfitOverTimeTitle => ChartLoaderService.CreateChartTitle(_profitOverTimeTitleText);
     public LabelVisual RevenueVsExpensesTitle => ChartLoaderService.CreateChartTitle(ChartDataType.RevenueVsExpenses.GetDisplayName());
     public LabelVisual RevenueTrendsTitle => ChartLoaderService.CreateChartTitle(ChartDataType.TotalRevenue.GetDisplayName());
-    public LabelVisual RevenueDistributionTitle => ChartLoaderService.CreateChartTitle(ChartDataType.RevenueDistribution.GetDisplayName());
     public LabelVisual ExpenseTrendsTitle => ChartLoaderService.CreateChartTitle(ChartDataType.TotalExpenses.GetDisplayName());
-    public LabelVisual ExpenseDistributionTitle => ChartLoaderService.CreateChartTitle(ChartDataType.ExpensesDistribution.GetDisplayName());
-
-    // Geographic Tab Chart Titles
-    public LabelVisual CountriesOfOriginTitle => ChartLoaderService.CreateChartTitle(ChartDataType.CountriesOfOrigin.GetDisplayName());
-    public LabelVisual CompaniesOfOriginTitle => ChartLoaderService.CreateChartTitle(ChartDataType.CompaniesOfOrigin.GetDisplayName());
-    public LabelVisual CountriesOfDestinationTitle => ChartLoaderService.CreateChartTitle(ChartDataType.CountriesOfDestination.GetDisplayName());
-    public LabelVisual CompaniesOfDestinationTitle => ChartLoaderService.CreateChartTitle(ChartDataType.CompaniesOfDestination.GetDisplayName());
-    public LabelVisual WorldMapOverviewTitle => ChartLoaderService.CreateChartTitle(ChartDataType.WorldMap.GetDisplayName());
 
     // Operational Tab Chart Titles
-    public LabelVisual TransactionsByAccountantTitle => ChartLoaderService.CreateChartTitle(ChartDataType.AccountantsTransactions.GetDisplayName());
     public LabelVisual WorkloadDistributionTitle => ChartLoaderService.CreateChartTitle(ChartDataType.TotalTransactions.GetDisplayName());
 
     // Performance Tab Chart Titles
@@ -1262,35 +1252,24 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
     public LabelVisual AverageShippingCostsTitle => ChartLoaderService.CreateChartTitle(ChartDataType.AverageShippingCosts.GetDisplayName());
 
     // Customers Tab Chart Titles
-    public LabelVisual TopCustomersByRevenueTitle => ChartLoaderService.CreateChartTitle(ChartDataType.TopCustomersByRevenue.GetDisplayName());
-    public LabelVisual CustomerPaymentStatusTitle => ChartLoaderService.CreateChartTitle(ChartDataType.CustomerPaymentStatus.GetDisplayName());
     public LabelVisual CustomerGrowthTitle => ChartLoaderService.CreateChartTitle(ChartDataType.CustomerGrowth.GetDisplayName());
     public LabelVisual CustomerLifetimeValueTitle => ChartLoaderService.CreateChartTitle(ChartDataType.CustomerLifetimeValue.GetDisplayName());
-    public LabelVisual ActiveVsInactiveCustomersTitle => ChartLoaderService.CreateChartTitle(ChartDataType.ActiveVsInactiveCustomers.GetDisplayName());
     public LabelVisual RentalsPerCustomerTitle => ChartLoaderService.CreateChartTitle(ChartDataType.RentalsPerCustomer.GetDisplayName());
 
     // Returns Tab Chart Titles
     public LabelVisual ReturnsOverTimeTitle => ChartLoaderService.CreateChartTitle(ChartDataType.ReturnsOverTime.GetDisplayName());
-    public LabelVisual ReturnReasonsTitle => ChartLoaderService.CreateChartTitle(ChartDataType.ReturnReasons.GetDisplayName());
     public LabelVisual FinancialImpactOfReturnsTitle => ChartLoaderService.CreateChartTitle(ChartDataType.ReturnFinancialImpact.GetDisplayName());
-    public LabelVisual ReturnsByCategoryTitle => ChartLoaderService.CreateChartTitle(ChartDataType.ReturnsByCategory.GetDisplayName());
-    public LabelVisual ReturnsByProductTitle => ChartLoaderService.CreateChartTitle(ChartDataType.ReturnsByProduct.GetDisplayName());
     public LabelVisual ExpenseVsRevenueReturnsTitle => ChartLoaderService.CreateChartTitle(ChartDataType.ExpenseVsRevenueReturns.GetDisplayName());
 
     // Losses Tab Chart Titles
     public LabelVisual LossesOverTimeTitle => ChartLoaderService.CreateChartTitle(ChartDataType.LossesOverTime.GetDisplayName());
-    public LabelVisual LossReasonsTitle => ChartLoaderService.CreateChartTitle(ChartDataType.LossReasons.GetDisplayName());
     public LabelVisual FinancialImpactOfLossesTitle => ChartLoaderService.CreateChartTitle(ChartDataType.LossFinancialImpact.GetDisplayName());
-    public LabelVisual LossesByCategoryTitle => ChartLoaderService.CreateChartTitle(ChartDataType.LossesByCategory.GetDisplayName());
-    public LabelVisual LossesByProductTitle => ChartLoaderService.CreateChartTitle(ChartDataType.LossesByProduct.GetDisplayName());
     public LabelVisual ExpenseVsRevenueLossesTitle => ChartLoaderService.CreateChartTitle(ChartDataType.ExpenseVsRevenueLosses.GetDisplayName());
 
     // Taxes Tab Chart Titles
     public LabelVisual TaxCollectedVsPaidTitle => ChartLoaderService.CreateChartTitle(ChartDataType.TaxCollectedVsPaid.GetDisplayName());
     public LabelVisual TaxLiabilityTrendTitle => ChartLoaderService.CreateChartTitle(ChartDataType.TaxLiabilityTrend.GetDisplayName());
-    public LabelVisual TaxByCategoryTitle => ChartLoaderService.CreateChartTitle(ChartDataType.TaxByCategory.GetDisplayName());
     public LabelVisual TaxRateDistributionTitle => ChartLoaderService.CreateChartTitle(ChartDataType.TaxRateDistribution.GetDisplayName());
-    public LabelVisual TaxByProductTitle => ChartLoaderService.CreateChartTitle(ChartDataType.TaxByProduct.GetDisplayName());
     public LabelVisual ExpenseVsRevenueTaxTitle => ChartLoaderService.CreateChartTitle(ChartDataType.ExpenseVsRevenueTax.GetDisplayName());
 
     /// <summary>
@@ -1299,20 +1278,13 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
     private static readonly string[] ChartTitlePropertyNames =
     [
         nameof(ProfitOverTimeTitle), nameof(RevenueVsExpensesTitle), nameof(RevenueTrendsTitle),
-        nameof(RevenueDistributionTitle), nameof(ExpenseTrendsTitle), nameof(ExpenseDistributionTitle),
-        nameof(CountriesOfOriginTitle), nameof(CompaniesOfOriginTitle), nameof(CountriesOfDestinationTitle),
-        nameof(CompaniesOfDestinationTitle), nameof(WorldMapOverviewTitle), nameof(TransactionsByAccountantTitle),
-        nameof(WorkloadDistributionTitle), nameof(AverageTransactionValueTitle),
-        nameof(TotalTransactionsTitle), nameof(AverageShippingCostsTitle),
-        nameof(TopCustomersByRevenueTitle), nameof(CustomerPaymentStatusTitle), nameof(CustomerGrowthTitle),
-        nameof(CustomerLifetimeValueTitle), nameof(ActiveVsInactiveCustomersTitle), nameof(RentalsPerCustomerTitle),
-        nameof(ReturnsOverTimeTitle), nameof(ReturnReasonsTitle), nameof(FinancialImpactOfReturnsTitle),
-        nameof(ReturnsByCategoryTitle), nameof(ReturnsByProductTitle), nameof(ExpenseVsRevenueReturnsTitle),
-        nameof(LossesOverTimeTitle), nameof(LossReasonsTitle), nameof(FinancialImpactOfLossesTitle),
-        nameof(LossesByCategoryTitle), nameof(LossesByProductTitle), nameof(ExpenseVsRevenueLossesTitle),
-        nameof(TaxCollectedVsPaidTitle), nameof(TaxLiabilityTrendTitle), nameof(TaxByCategoryTitle),
-        nameof(TaxRateDistributionTitle), nameof(TaxByProductTitle), nameof(ExpenseVsRevenueTaxTitle),
-        nameof(ProductRevenueTrendTitle)
+        nameof(ExpenseTrendsTitle), nameof(WorkloadDistributionTitle), nameof(AverageTransactionValueTitle),
+        nameof(TotalTransactionsTitle), nameof(AverageShippingCostsTitle), nameof(CustomerGrowthTitle),
+        nameof(CustomerLifetimeValueTitle), nameof(RentalsPerCustomerTitle), nameof(ReturnsOverTimeTitle),
+        nameof(FinancialImpactOfReturnsTitle), nameof(ExpenseVsRevenueReturnsTitle),
+        nameof(LossesOverTimeTitle), nameof(FinancialImpactOfLossesTitle),
+        nameof(ExpenseVsRevenueLossesTitle), nameof(TaxCollectedVsPaidTitle), nameof(TaxLiabilityTrendTitle),
+        nameof(TaxRateDistributionTitle), nameof(ExpenseVsRevenueTaxTitle), nameof(ProductRevenueTrendTitle)
     ];
 
     /// <summary>
@@ -2633,25 +2605,6 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         EffectiveTaxRate = $"{effectiveRate:F1}%";
         EffectiveTaxRateChangeValue = hasPrevPeriodData && prevTotalPreTax > 0 ? (double)rateChange : null;
         EffectiveTaxRateChangeText = hasPrevPeriodData && prevTotalPreTax > 0 ? $"{Math.Abs(rateChange):F1}%" : null;
-    }
-
-    #endregion
-
-    #region Customer Activity Info Modal
-
-    [ObservableProperty]
-    private bool _isCustomerActivityInfoOpen;
-
-    [RelayCommand]
-    private void ShowCustomerActivityInfo()
-    {
-        IsCustomerActivityInfoOpen = true;
-    }
-
-    [RelayCommand]
-    private void CloseCustomerActivityInfo()
-    {
-        IsCustomerActivityInfoOpen = false;
     }
 
     #endregion

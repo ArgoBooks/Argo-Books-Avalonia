@@ -49,10 +49,6 @@
         <Setter Property="BorderBrush" Value="{DynamicResource SuccessBrush}" />
     </Style>
 
-    <Style Selector="Border.status-panel.warn">
-        <Setter Property="BorderBrush" Value="{DynamicResource WarningBrush}" />
-    </Style>
-
     <!-- NOTHING HERE YET. Outlined rather than filled, because a filled box reads as
          an item and an empty list that looks like its own first entry is exactly the
          confusion worth removing. -->

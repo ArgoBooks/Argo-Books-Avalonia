@@ -85,7 +85,6 @@ public partial class ImportValidationDialogViewModel : ViewModelBase
     private int _totalMissingReferences;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanAutoFix))]
     [NotifyPropertyChangedFor(nameof(CanImport))]
     private bool _hasNonAutoFixableIssues;
 
@@ -229,11 +228,6 @@ public partial class ImportValidationDialogViewModel : ViewModelBase
         IsOpen = false;
         _completionSource?.TrySetResult(ImportValidationDialogResult.CreateMissingAndImport);
     }
-
-    /// <summary>
-    /// Gets whether the import can proceed with auto-fix (no critical errors and all issues are auto-fixable).
-    /// </summary>
-    public bool CanAutoFix => !HasErrors && !HasNonAutoFixableIssues;
 
     /// <summary>
     /// Gets whether the import can proceed (no critical errors).

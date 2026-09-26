@@ -525,33 +525,6 @@ public partial class LanguageService
     }
 
     /// <summary>
-    /// Translates a string using a specific language.
-    /// </summary>
-    /// <param name="text">The English text to translate.</param>
-    /// <param name="isoCode">The target language ISO code.</param>
-    /// <returns>The translated text, or the original if no translation is found.</returns>
-    public string Translate(string text, string isoCode)
-    {
-        if (string.IsNullOrEmpty(text))
-            return text;
-
-        if (isoCode == "en")
-            return DecodeHtmlEntities(text);
-
-        var key = GetStringKey(text);
-        var result = GetCachedTranslationByKey(isoCode, key);
-
-        // Log missing translations to console
-        if (result == null && text.Length < 100)
-        {
-            Console.WriteLine($"[TRANSLATE] Missing: '{DecodeHtmlEntities(text)}' (key: {key}) for {isoCode}");
-            return DecodeHtmlEntities(text);
-        }
-
-        return result ?? DecodeHtmlEntities(text);
-    }
-
-    /// <summary>
     /// Decodes common HTML/XML entities that may come from XAML markup extensions.
     /// </summary>
     private static string DecodeHtmlEntities(string text)
@@ -598,21 +571,6 @@ public partial class LanguageService
         }
 
         return $"str_{cleanText}";
-    }
-
-    /// <summary>
-    /// Checks if a translation exists for the given text in the current language.
-    /// </summary>
-    /// <param name="text">The English text to check.</param>
-    /// <returns>True if a translation exists.</returns>
-    public bool HasTranslation(string text)
-    {
-        if (string.IsNullOrEmpty(text) || CurrentIsoCode == "en")
-            return true;
-
-        var textKey = GetStringKey(text);
-        EnsureLanguageLoaded(CurrentIsoCode);
-        return _currentLanguageCache.ContainsKey(textKey);
     }
 
 }

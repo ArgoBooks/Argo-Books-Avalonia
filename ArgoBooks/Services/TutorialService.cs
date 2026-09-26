@@ -565,22 +565,6 @@ public class TutorialService
         SourceSurveyVisibilityChanged?.Invoke(this, false);
     }
 
-    /// <summary>
-    /// Persists that the user dismissed the survey without answering. Closes the overlay
-    /// and prevents the dashboard banner from showing on future loads.
-    /// </summary>
-    public void MarkSourceSurveyDismissed()
-    {
-        var settings = _globalSettingsService?.GetSettings();
-        if (settings?.Tutorial != null)
-        {
-            settings.Tutorial.IsSourceSurveyDismissed = true;
-            settings.Tutorial.HasShownSourceSurvey = true;
-            SaveSettings();
-        }
-        SourceSurveyVisibilityChanged?.Invoke(this, false);
-    }
-
     private void SaveSettings()
     {
         var settings = _globalSettingsService?.GetSettings();

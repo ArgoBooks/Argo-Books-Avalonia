@@ -219,9 +219,6 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isDeleteConfirmOpen;
 
-    [ObservableProperty]
-    private PurchaseOrderDisplayItem? _deletingOrder;
-
     #endregion
 
     #region Add/Edit Modal Commands

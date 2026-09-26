@@ -8,7 +8,6 @@ namespace ArgoBooks.Core.Models;
 /// </summary>
 public class GlobalSettings
 {
-    public WelcomeSettings Welcome { get; set; } = new();
     public List<string> RecentCompanies { get; set; } = [];
     public UpdateSettings Updates { get; set; } = new();
     public UiSettings Ui { get; set; } = new();
@@ -23,11 +22,6 @@ public class GlobalSettings
     /// removed, so the one-time cleanup does not run again.
     /// </summary>
     public bool LegacyFileAssociationsCleared { get; set; }
-}
-
-public class WelcomeSettings
-{
-    public bool EulaAccepted { get; set; } = false;
 }
 
 public class UpdateSettings

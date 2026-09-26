@@ -4697,13 +4697,6 @@ public partial class App : Application
             }
             _invoicesPageViewModel.HasPremium = _appShellViewModel!.SidebarViewModel.HasPremium;
             _invoicesPageViewModel.HighlightTransactionId = null;
-            if (param is RentalInvoiceNavigationParameter rentalParam)
-            {
-                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-                {
-                    InvoiceModalsViewModel?.OpenCreateFromRental(rentalParam.RentalRecordId);
-                });
-            }
             if (param is Dictionary<string, object?> dict
                 && dict.TryGetValue("selectedTabIndex", out var tabIndex) && tabIndex is int index)
             {

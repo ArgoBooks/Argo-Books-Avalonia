@@ -84,7 +84,6 @@ public partial class EmailChangeModalViewModel : ObservableObject
     public bool IsEnterOldCode  => CurrentStep == Step.EnterOldCode;
     public bool IsEnterNewCode  => CurrentStep == Step.EnterNewCode;
     public bool IsSuccess       => CurrentStep == Step.Success;
-    public bool IsFailure       => CurrentStep == Step.Failure;
 
     partial void OnCurrentStepChanged(Step value)
     {
@@ -93,7 +92,6 @@ public partial class EmailChangeModalViewModel : ObservableObject
         OnPropertyChanged(nameof(IsEnterOldCode));
         OnPropertyChanged(nameof(IsEnterNewCode));
         OnPropertyChanged(nameof(IsSuccess));
-        OnPropertyChanged(nameof(IsFailure));
         OnPropertyChanged(nameof(ShowSharedStatusMessage));
     }
 

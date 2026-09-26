@@ -468,7 +468,6 @@ public partial class YearEndModalViewModel : ViewModelBase
             _quebecReturn = null;
             QuebecTotalRemitted = CurrencyService.Format(0m);
             OnPropertyChanged(nameof(HasQuebecProblems));
-            OnPropertyChanged(nameof(CanFileQuebec));
             return;
         }
 
@@ -482,11 +481,7 @@ public partial class YearEndModalViewModel : ViewModelBase
         QuebecTotalRemitted = CurrencyService.Format(_quebecReturn.TotalRemittable);
 
         OnPropertyChanged(nameof(HasQuebecProblems));
-        OnPropertyChanged(nameof(CanFileQuebec));
     }
-
-    /// <summary>Mirrors <see cref="CanFile"/>: the slips print regardless, filing is what blocks.</summary>
-    public bool CanFileQuebec => HasQuebec && QuebecProblems.Count == 0 && _quebecReturn?.Slips.Count > 0;
 
     /// <summary>An employee who changed province during the year has a T4 for each.</summary>
     private static bool HasSeveralSlips(T4Return t4, T4Slip slip) =>

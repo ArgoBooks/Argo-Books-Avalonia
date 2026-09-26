@@ -390,16 +390,6 @@ public partial class HeaderViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Toggles the sidebar collapsed state.
-    /// </summary>
-    [RelayCommand]
-    private void ToggleSidebar()
-    {
-        // This will be connected to the AppShell to toggle sidebar
-        ToggleSidebarRequested?.Invoke(this, EventArgs.Empty);
-    }
-
-    /// <summary>
     /// Saves the current company file.
     /// </summary>
     [RelayCommand]
@@ -427,11 +417,6 @@ public partial class HeaderViewModel : ViewModelBase
     {
         OpenUpgradeRequested?.Invoke(this, EventArgs.Empty);
     }
-
-    /// <summary>
-    /// Event raised when sidebar toggle is requested.
-    /// </summary>
-    public event EventHandler? ToggleSidebarRequested;
 
     /// <summary>
     /// Event raised when quick actions panel should be opened.

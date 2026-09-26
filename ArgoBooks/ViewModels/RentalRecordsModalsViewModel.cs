@@ -236,7 +236,7 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
     private DateTimeOffset? _returnDate = DateTimeOffset.Now;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ReturnTotalCostFormatted), nameof(ReturnAmountDueFormatted), nameof(ReturnCostDetail))]
+    [NotifyPropertyChangedFor(nameof(ReturnAmountDueFormatted), nameof(ReturnCostDetail))]
     private decimal _returnTotalCost;
 
     [ObservableProperty]
@@ -278,7 +278,6 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
     public string ReturnRateFormatted => _returnLineCount > 1
         ? "{0} items".TranslateFormat(_returnLineCount)
         : $"{CurrencyService.Format(ReturnRateAmount)}/{ReturnRateType}";
-    public string ReturnTotalCostFormatted => CurrencyService.Format(ReturnTotalCost);
     public string ReturnDepositFormatted => CurrencyService.Format(ReturnDeposit);
     public string ReturnDepositHeldText => "of {0} held".TranslateFormat(ReturnDepositFormatted);
     public bool HasDeposit => ReturnDeposit > 0;
@@ -1616,8 +1615,6 @@ public partial class RentalModalLineItem : ObservableObject
     }
 
     public string AmountFormatted => CurrencyService.Format(Amount);
-    public string RateAmountDisplay => decimal.TryParse(RateAmount, out var r) ? CurrencyService.Format(r) : "-";
-    public string SecurityDepositDisplay => decimal.TryParse(SecurityDeposit, out var d) ? CurrencyService.Format(d) : "-";
 
     partial void OnSelectedItemChanged(RentalItemOption? value)
     {
@@ -1638,7 +1635,6 @@ public partial class RentalModalLineItem : ObservableObject
                     _ => item.DailyRate.ToString("0.00")
                 };
                 SecurityDeposit = item.SecurityDeposit.ToString("0.00");
-                OnPropertyChanged(nameof(SecurityDepositDisplay));
             }
         }
 
@@ -1662,7 +1658,6 @@ public partial class RentalModalLineItem : ObservableObject
 
         OnPropertyChanged(nameof(Amount));
         OnPropertyChanged(nameof(AmountFormatted));
-        OnPropertyChanged(nameof(RateAmountDisplay));
         _parent.UpdateLineItemTotals();
     }
 

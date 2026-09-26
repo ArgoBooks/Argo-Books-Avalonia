@@ -60,7 +60,7 @@ File-based. Company data lives in encrypted `.argo` files (AES-256). `CompanyMan
 
 ### Key Patterns
 
-- **Singleton services** via `Microsoft.Extensions.DependencyInjection`
+- **Shared services**: one instance each, held as static properties on `App` (e.g. `App.CompanyManager`). There is no DI container.
 - **Compiled bindings** enabled by default (`AvaloniaUseCompiledBindingsByDefault=true`)
 - **Platform abstraction** via `PlatformServiceFactory` with platform-specific implementations (Windows Hello, etc.)
 - **Central package versioning** in `Directory.Packages.props`; app version in `Directory.Build.props`

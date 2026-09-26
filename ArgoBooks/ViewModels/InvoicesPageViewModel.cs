@@ -1660,10 +1660,8 @@ public partial class RecurringScheduleDisplayItem : ObservableObject
     [ObservableProperty] private string _frequencyDisplay = string.Empty;
     [ObservableProperty] private string _nextInvoiceFormatted = string.Empty;
 
-    [NotifyPropertyChangedFor(nameof(PauseResumeLabel))]
     [ObservableProperty] private string _statusDisplay = string.Empty;
 
-    [NotifyPropertyChangedFor(nameof(PauseResumeLabel))]
     [ObservableProperty] private bool _isPaused;
 
     // Id of the invoice this schedule most recently produced, used by the "View invoice" action.
@@ -1672,8 +1670,6 @@ public partial class RecurringScheduleDisplayItem : ObservableObject
     [ObservableProperty] private string _invoiceId = string.Empty;
 
     public bool HasInvoice => !string.IsNullOrEmpty(InvoiceId);
-
-    public string PauseResumeLabel => IsPaused ? "Resume" : "Pause";
 }
 
 /// <summary>

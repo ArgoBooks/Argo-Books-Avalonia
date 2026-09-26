@@ -60,7 +60,6 @@ public partial class PageTutorialViewModel : TutorialStepperViewModelBase
     [ObservableProperty]
     private string _currentHighlightArea = "none";
 
-    public event EventHandler? TutorialCompleted;
     public event EventHandler? HighlightAreaChanged;
 
     public PageTutorialViewModel(string pageKey, IReadOnlyList<TutorialStep> steps)
@@ -97,7 +96,6 @@ public partial class PageTutorialViewModel : TutorialStepperViewModelBase
     {
         TutorialService.Instance.MarkPageVisited(_pageKey);
         IsOpen = false;
-        TutorialCompleted?.Invoke(this, EventArgs.Empty);
     }
 
     protected override void ApplyStep(int index)

@@ -87,12 +87,6 @@ public partial class StockLevelsPageViewModel : SortablePageViewModelBase
 
     public bool IsAllItemsTabSelected => SelectedTabIndex == 0;
 
-    public bool IsLowStockTabSelected => SelectedTabIndex == 1;
-
-    public bool IsOutOfStockTabSelected => SelectedTabIndex == 2;
-
-    public bool IsOverstockTabSelected => SelectedTabIndex == 3;
-
     /// <summary>
     /// The empty state's title. Only All Items being empty means nothing has been added; the other tabs
     /// being empty is good news about stock.
@@ -116,9 +110,6 @@ public partial class StockLevelsPageViewModel : SortablePageViewModelBase
     partial void OnSelectedTabIndexChanged(int value)
     {
         OnPropertyChanged(nameof(IsAllItemsTabSelected));
-        OnPropertyChanged(nameof(IsLowStockTabSelected));
-        OnPropertyChanged(nameof(IsOutOfStockTabSelected));
-        OnPropertyChanged(nameof(IsOverstockTabSelected));
         OnPropertyChanged(nameof(EmptyStateTitle));
         OnPropertyChanged(nameof(EmptyStateMessage));
         CurrentPage = 1;

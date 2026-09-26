@@ -83,9 +83,6 @@ public partial class CategoryModalsViewModel : ViewModelBase
     [ObservableProperty]
     private string? _modalCategoryNameError;
 
-    [ObservableProperty]
-    private bool _deleteSubcategories;
-
     private Category? _editingCategory;
     private CategoryDisplayItem? _addingSubCategoryParent;
     private CategoryDisplayItem? _movingCategory;

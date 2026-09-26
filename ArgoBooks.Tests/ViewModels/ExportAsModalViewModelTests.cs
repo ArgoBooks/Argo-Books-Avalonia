@@ -28,33 +28,6 @@ public class ExportAsModalViewModelTests
         Assert.False(_viewModel.IsBackupSelected);
     }
 
-    [Fact]
-    public void IsSpreadsheetSelected_WhenTabIndexIsOne_ReturnsTrue()
-    {
-        _viewModel.SelectedTabIndex = 1;
-
-        Assert.True(_viewModel.IsSpreadsheetSelected);
-    }
-
-    [Fact]
-    public void IsSpreadsheetSelected_WhenTabIndexIsZero_ReturnsFalse()
-    {
-        _viewModel.SelectedTabIndex = 0;
-
-        Assert.False(_viewModel.IsSpreadsheetSelected);
-    }
-
-    [Theory]
-    [InlineData(0, true, false)]
-    [InlineData(1, false, true)]
-    public void TabSelection_CorrectComputedProperties(int tabIndex, bool expectedBackup, bool expectedSpreadsheet)
-    {
-        _viewModel.SelectedTabIndex = tabIndex;
-
-        Assert.Equal(expectedBackup, _viewModel.IsBackupSelected);
-        Assert.Equal(expectedSpreadsheet, _viewModel.IsSpreadsheetSelected);
-    }
-
     #endregion
 
     #region FileFormats Tests

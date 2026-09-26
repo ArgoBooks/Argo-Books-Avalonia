@@ -18,11 +18,6 @@ public partial class TutorialWelcomeViewModel : ViewModelBase
     public event EventHandler? StartTourRequested;
 
     /// <summary>
-    /// Event raised when the user skips the tutorial.
-    /// </summary>
-    public event EventHandler? TutorialSkipped;
-
-    /// <summary>
     /// Shows the welcome overlay if the user hasn't completed the welcome tutorial
     /// and we're on the company where the tutorial was started.
     /// </summary>
@@ -59,6 +54,5 @@ public partial class TutorialWelcomeViewModel : ViewModelBase
     {
         IsOpen = false;
         TutorialService.Instance.SkipTour();
-        TutorialSkipped?.Invoke(this, EventArgs.Empty);
     }
 }

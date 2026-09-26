@@ -392,13 +392,6 @@ public partial class DashboardPageViewModel : ChartContextMenuViewModelBase, ICl
         TutorialService.Instance.RequestShowSourceSurvey();
     }
 
-    [RelayCommand]
-    private void DismissSourceSurveyBanner()
-    {
-        TutorialService.Instance.MarkSourceSurveyDismissed();
-        ShowSourceSurveyBanner = false;
-    }
-
     #endregion
 
     #region Update Email Banner

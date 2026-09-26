@@ -111,7 +111,6 @@ public partial class DashboardPage : UserControl
     private void OnLayoutPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(DashboardLayoutViewModel.HasWidgets)
-            or nameof(DashboardLayoutViewModel.HasNoWidgets)
             or nameof(DashboardLayoutViewModel.IsEditMode))
         {
             if (sender is DashboardLayoutViewModel layoutVm)

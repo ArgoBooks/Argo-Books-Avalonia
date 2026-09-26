@@ -112,10 +112,6 @@ public partial class BankMatchingPageViewModel : SortablePageViewModelBase
     [ObservableProperty]
     private int _unmatchedBookCount;
 
-    public bool HasUnmatchedBook => UnmatchedBookCount > 0;
-
-    partial void OnUnmatchedBookCountChanged(int value) => OnPropertyChanged(nameof(HasUnmatchedBook));
-
     #endregion
 
     #region Search, filter, tabs

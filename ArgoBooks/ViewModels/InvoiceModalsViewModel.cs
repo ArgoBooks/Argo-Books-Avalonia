@@ -698,21 +698,11 @@ public partial class InvoiceModalsViewModel : ViewModelBase
     // Format using the invoice's selected currency so modal totals match the picker.
     private CurrencyInfo InvoiceCurrencyInfo => CurrencyInfo.GetByCode(SelectedCurrencyCode);
     public string InvoiceCurrencySymbol => InvoiceCurrencyInfo.Symbol;
-    public string CustomFeeSymbol => CustomFeeIsPercent ? "%" : InvoiceCurrencySymbol;
-    public string DiscountSymbol => DiscountIsPercent ? "%" : InvoiceCurrencySymbol;
-    public string TaxSymbol => TaxIsFixed ? InvoiceCurrencySymbol : "%";
     public string SubtotalFormatted => InvoiceCurrencyInfo.Format(Subtotal);
     public string TaxAmountFormatted => InvoiceCurrencyInfo.Format(TaxAmount);
-    public string SecurityDepositFormatted => InvoiceCurrencyInfo.Format(SecurityDeposit);
-    public string ShippingFormatted => InvoiceCurrencyInfo.Format(ShippingAmount);
-    public string CustomFeeCalculatedFormatted => $"+{InvoiceCurrencyInfo.Format(CustomFeeCalculated)}";
-    public string DiscountCalculatedFormatted => $"-{InvoiceCurrencyInfo.Format(DiscountCalculated)}";
     public string TotalFormatted => InvoiceCurrencyInfo.Format(Total);
 
-    public bool HasSecurityDeposit => SecurityDeposit > 0;
-    public bool HasCustomFee => CustomFeeAmount > 0;
     public bool HasDiscount => DiscountAmount > 0;
-    public bool HasShipping => ShippingAmount > 0;
 
     partial void OnSelectedTemplateChanged(InvoiceTemplate? value)
     {
@@ -746,21 +736,18 @@ public partial class InvoiceModalsViewModel : ViewModelBase
     // Mode toggles (percent vs fixed) are deliberate clicks, so a re-render here is fine.
     partial void OnCustomFeeIsPercentChanged(bool value)
     {
-        OnPropertyChanged(nameof(CustomFeeSymbol));
         UpdateTotals();
         RegeneratePaper();
     }
 
     partial void OnDiscountIsPercentChanged(bool value)
     {
-        OnPropertyChanged(nameof(DiscountSymbol));
         UpdateTotals();
         RegeneratePaper();
     }
 
     partial void OnTaxIsFixedChanged(bool value)
     {
-        OnPropertyChanged(nameof(TaxSymbol));
         UpdateTotals();
         RegeneratePaper();
     }
@@ -772,8 +759,6 @@ public partial class InvoiceModalsViewModel : ViewModelBase
     {
         OnPropertyChanged(nameof(SelectedCurrencyCode));
         OnPropertyChanged(nameof(InvoiceCurrencySymbol));
-        OnPropertyChanged(nameof(CustomFeeSymbol));
-        OnPropertyChanged(nameof(DiscountSymbol));
         OnPropertyChanged(nameof(TotalsConfigJson));
         var code = SelectedCurrencyCode;
         foreach (var item in LineItems)
@@ -813,17 +798,9 @@ public partial class InvoiceModalsViewModel : ViewModelBase
         OnPropertyChanged(nameof(Total));
         OnPropertyChanged(nameof(SubtotalFormatted));
         OnPropertyChanged(nameof(TaxAmountFormatted));
-        OnPropertyChanged(nameof(SecurityDepositFormatted));
-        OnPropertyChanged(nameof(HasSecurityDeposit));
         OnPropertyChanged(nameof(CustomFeeCalculated));
-        OnPropertyChanged(nameof(CustomFeeCalculatedFormatted));
-        OnPropertyChanged(nameof(HasCustomFee));
         OnPropertyChanged(nameof(DiscountCalculated));
-        OnPropertyChanged(nameof(DiscountCalculatedFormatted));
         OnPropertyChanged(nameof(HasDiscount));
-        OnPropertyChanged(nameof(ShippingFormatted));
-        OnPropertyChanged(nameof(HasShipping));
-        OnPropertyChanged(nameof(TaxSymbol));
         OnPropertyChanged(nameof(TotalFormatted));
     }
 
@@ -1636,10 +1613,6 @@ public partial class InvoiceModalsViewModel : ViewModelBase
 
     #region Preview Modal
 
-    public string PreviewCustomerName => SelectedCustomer?.Name ?? "No customer selected";
-    public string PreviewIssueDate => ModalIssueDate?.ToString("MMMM d, yyyy") ?? "-";
-    public string PreviewDueDate => ModalDueDate?.ToString("MMMM d, yyyy") ?? "-";
-
     [ObservableProperty]
     private string _previewHtml = string.Empty;
 
@@ -1718,86 +1691,6 @@ public partial class InvoiceModalsViewModel : ViewModelBase
     {
         if (string.IsNullOrEmpty(PreviewHtml)) return;
         await InvoicePreviewService.PreviewInBrowserAsync(PreviewHtml, "invoice-preview");
-    }
-
-    [RelayCommand]
-    private void OpenPreviewModal()
-    {
-        // Clear previous validation errors first
-        HasCustomerError = false;
-        ValidationMessage = string.Empty;
-        HasValidationMessage = false;
-        HasSendError = false;
-        SendErrorMessage = string.Empty;
-        foreach (var lineItem in LineItems)
-        {
-            lineItem.HasProductError = false;
-        }
-
-        // Collect all validation errors
-        var hasErrors = false;
-        var errorMessages = new List<string>();
-
-        // Skip customer/line-item checks when created from external source (fields are pre-populated and hidden)
-        if (!IsFromExternalSource)
-        {
-            // Check customer
-            if (SelectedCustomer == null || string.IsNullOrEmpty(SelectedCustomer.Id))
-            {
-                HasCustomerError = true;
-                errorMessages.Add("Please select a customer.".Translate());
-                hasErrors = true;
-            }
-
-            if (LineItems.Count == 0)
-            {
-                errorMessages.Add("Please add at least one line item.".Translate());
-                hasErrors = true;
-            }
-            else
-            {
-                // Validate that all line items have a product selected (rental line items are exempt)
-                foreach (var lineItem in LineItems)
-                {
-                    if (lineItem.SelectedProduct == null && string.IsNullOrEmpty(lineItem.RentalRecordId) && string.IsNullOrEmpty(lineItem.RevenueRecordId))
-                    {
-                        lineItem.HasProductError = true;
-                        hasErrors = true;
-                    }
-                }
-
-                if (LineItems.Any(li => li.HasProductError))
-                {
-                    errorMessages.Add("Please select a product for all line items".Translate());
-                }
-            }
-        }
-
-        // Show errors if any
-        if (hasErrors)
-        {
-            ValidationMessage = string.Join(" ", errorMessages);
-            HasValidationMessage = true;
-            return;
-        }
-
-        // Update preview properties
-        OnPropertyChanged(nameof(PreviewCustomerName));
-        OnPropertyChanged(nameof(PreviewIssueDate));
-        OnPropertyChanged(nameof(PreviewDueDate));
-
-        // Generate HTML preview using the same renderer as the template designer
-        GeneratePreviewHtml();
-
-        // Show preview in the same modal instead of opening a new one
-        IsShowingPreview = true;
-    }
-
-    [RelayCommand]
-    private void ClosePreviewModal()
-    {
-        // Return to edit mode in the same modal
-        IsShowingPreview = false;
     }
 
     [RelayCommand]

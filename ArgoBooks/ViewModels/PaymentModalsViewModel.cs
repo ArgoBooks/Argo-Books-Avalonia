@@ -812,9 +812,6 @@ public partial class PaymentDisplayItem : ObservableObject
     [NotifyPropertyChangedFor(nameof(HasInvoiceId))]
     private string _invoiceId = string.Empty;
 
-    [ObservableProperty]
-    private string _invoiceDisplay = string.Empty;
-
     /// <summary>
     /// True when this payment has a linked invoice, drives the Invoice
     /// column's hyperlink visibility. Manual payments without an invoice
@@ -833,9 +830,6 @@ public partial class PaymentDisplayItem : ObservableObject
 
     [ObservableProperty]
     private PaymentMethod _paymentMethod;
-
-    [ObservableProperty]
-    private string _paymentMethodDisplay = string.Empty;
 
     [ObservableProperty]
     private decimal _amount;

@@ -255,19 +255,6 @@ public partial class SetupChecklistViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void CompleteAll()
-    {
-        // Mark all remaining items as completed (user confirms they've done everything)
-        foreach (var item in Items)
-        {
-            if (!item.IsCompleted)
-            {
-                TutorialService.Instance.CompleteChecklistItem(item.Id);
-            }
-        }
-    }
-
-    [RelayCommand]
     private void OpenUpgradeUrl()
     {
         UrlHelper.SafeOpenUrl("https://www.argorobots.com/pricing/");

@@ -2316,21 +2316,5 @@
             <Setter Property="Foreground" Value="{DynamicResource TextTertiaryBrush}" />
         </Style>
 
-        <!-- Close Button (for modals) -->
-        <Style Selector="Button.close-button">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Width" Value="32" />
-            <Setter Property="Height" Value="32" />
-            <Setter Property="CornerRadius" Value="6" />
-            <Setter Property="Cursor" Value="Hand" />
-        </Style>
-        <Style Selector="Button.close-button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
-        </Style>
-        <Style Selector="Button.close-button PathIcon">
-            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
-        </Style>
-
     </UserControl.Styles>
 </UserControl>

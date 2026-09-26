@@ -329,15 +329,6 @@ public partial class StockAdjustmentsPageViewModel : SortablePageViewModelBase
     }
 
     /// <summary>
-    /// Refreshes the adjustments from the data source.
-    /// </summary>
-    [RelayCommand]
-    private void RefreshAdjustments()
-    {
-        LoadAdjustments();
-    }
-
-    /// <summary>
     /// Filters adjustments based on search query, tab, and filters.
     /// </summary>
     private void FilterAdjustments()
@@ -515,19 +506,6 @@ public partial class StockAdjustmentsPageViewModel : SortablePageViewModelBase
         nameof(AdjustmentType.Set) => AdjustmentType.Set,
         _ => null
     };
-
-    #endregion
-
-    #region Tab Commands
-
-    /// <summary>
-    /// Switches to the specified tab.
-    /// </summary>
-    [RelayCommand]
-    private void SwitchTab(string tab)
-    {
-        ActiveTab = tab;
-    }
 
     #endregion
 }
