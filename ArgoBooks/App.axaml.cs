@@ -1470,7 +1470,7 @@ public partial class App : Application
             // Everything above is the service graph; everything below builds view models.
             StartupTimeline.MarkServicesReady();
 
-            _mainWindowViewModel = new MainWindowViewModel();
+            _mainWindowViewModel = new MainWindowViewModel(SettingsService);
             ConfirmationDialog = new ConfirmationDialogViewModel();
             UnsavedChangesDialog = new UnsavedChangesDialogViewModel();
             ReceiptViewerModal = new ReceiptViewerModalViewModel();
@@ -1700,6 +1700,10 @@ public partial class App : Application
             }
 
             StartupTimeline.MarkViewModelsReady();
+
+            // Before the window exists, so it opens at the saved size and state rather than
+            // opening at the default and then resizing in front of the user.
+            _mainWindowViewModel.LoadWindowState();
 
             desktop.MainWindow = new MainWindow
             {

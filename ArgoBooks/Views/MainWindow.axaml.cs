@@ -216,6 +216,8 @@ public partial class MainWindow : Window
         // Restore window position if saved
         if (DataContext is MainWindowViewModel viewModel)
         {
+            // Loaded again, not only before the window was built: showing it centers it, and
+            // OnPositionChanged can record that over the saved position before this runs.
             viewModel.LoadWindowState();
 
             // Apply saved position if valid
