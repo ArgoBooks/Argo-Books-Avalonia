@@ -421,7 +421,7 @@ public partial class PayrollModalsViewModel : ViewModelBase
     {
         var employee = new Employee
         {
-            Id = NextId(data),
+            Id = new Core.Data.IdGenerator(data).NextEmployeeId(),
             CreatedAt = DateTime.UtcNow,
         };
 
@@ -723,21 +723,6 @@ public partial class PayrollModalsViewModel : ViewModelBase
         {
             Province = SupportedProvinces[0];
         }
-    }
-
-    private static string NextId(Core.Data.CompanyData data)
-    {
-        int highest = 0;
-        foreach (Employee e in data.Employees)
-        {
-            if (e.Id.StartsWith("EMP-", StringComparison.OrdinalIgnoreCase)
-                && int.TryParse(e.Id[4..], out int n) && n > highest)
-            {
-                highest = n;
-            }
-        }
-
-        return $"EMP-{highest + 1:D3}";
     }
 
     /// <summary>Blank rather than "0.00", so an unset optional amount shows its placeholder.</summary>

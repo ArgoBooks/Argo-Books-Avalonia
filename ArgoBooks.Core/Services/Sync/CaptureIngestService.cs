@@ -76,7 +76,7 @@ public static class CaptureIngestService
     {
         var expenseId = new IdGenerator(data).NextExpenseId(tx.Date);
 
-        var receiptId = NextReceiptId(data);
+        var receiptId = new IdGenerator(data).NextReceiptId();
 
         var expense = new Expense
         {
@@ -111,7 +111,7 @@ public static class CaptureIngestService
     {
         var revenueId = new IdGenerator(data).NextRevenueId(tx.Date);
 
-        var receiptId = NextReceiptId(data);
+        var receiptId = new IdGenerator(data).NextReceiptId();
 
         var revenue = new Revenue
         {
@@ -140,12 +140,6 @@ public static class CaptureIngestService
         data.Revenues.Add(revenue);
         data.Receipts.Add(receipt);
         return revenueId;
-    }
-
-    private static string NextReceiptId(CompanyData data)
-    {
-        data.IdCounters.Receipt++;
-        return $"RCP-{DateTime.Now:yyyy}-{data.IdCounters.Receipt:D5}";
     }
 
     private static Receipt BuildReceipt(CapturedTransaction tx, string receiptId, string transactionId, string transactionType)

@@ -180,8 +180,7 @@ public partial class QuotesModalsViewModel : ViewModelBase
                 var existing = companyData.Quotes.FirstOrDefault(q => q.Id == _editingQuoteId);
                 if (existing != null) return existing.QuoteNumber;
             }
-            var next = companyData.IdCounters.Quote + 1;
-            return $"#QUO-{DateTime.UtcNow.Year}-{next:D5}";
+            return new IdGenerator(companyData).PeekNextQuoteNumber();
         }
     }
 

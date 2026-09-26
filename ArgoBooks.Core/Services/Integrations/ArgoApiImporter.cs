@@ -325,10 +325,9 @@ public class ArgoApiImporter
             return;
         }
 
-        data.IdCounters.Return++;
         var ret = new Return
         {
-            Id = $"RET-{data.IdCounters.Return:D3}",
+            Id = new IdGenerator(data).NextReturnId(),
             OriginalTransactionId = revenue.Id,
             ReturnType = "Customer",
             CustomerId = revenue.CustomerId ?? string.Empty,

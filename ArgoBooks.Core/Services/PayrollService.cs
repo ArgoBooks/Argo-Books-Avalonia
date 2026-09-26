@@ -33,7 +33,7 @@ public class PayrollService(PayrollRateService? rateService = null)
 
         var run = new PayRun
         {
-            Id = NextRunId(data),
+            Id = new IdGenerator(data).NextPayRunId(),
             PayDate = payDate,
             PeriodStart = periodStart,
             PeriodEnd = periodEnd,
@@ -510,7 +510,7 @@ public class PayrollService(PayrollRateService? rateService = null)
 
         var reversal = new PayRun
         {
-            Id = NextRunId(data),
+            Id = new IdGenerator(data).NextPayRunId(),
             PayDate = run.PayDate,
             PeriodStart = run.PeriodStart,
             PeriodEnd = run.PeriodEnd,
@@ -565,20 +565,5 @@ public class PayrollService(PayrollRateService? rateService = null)
         run.Status = PayRunStatus.Void;
         data.PayRuns.Add(reversal);
         return reversal;
-    }
-
-    private static string NextRunId(CompanyData data)
-    {
-        int highest = 0;
-        foreach (PayRun run in data.PayRuns)
-        {
-            if (run.Id.StartsWith("PR-", StringComparison.OrdinalIgnoreCase)
-                && int.TryParse(run.Id[3..], out int n) && n > highest)
-            {
-                highest = n;
-            }
-        }
-
-        return $"PR-{highest + 1:D4}";
     }
 }

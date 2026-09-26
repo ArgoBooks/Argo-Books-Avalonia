@@ -341,7 +341,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
 
         var lostDamaged = new LostDamaged
         {
-            Id = $"LOST-{++companyData.IdCounters.LostDamaged:D3}",
+            Id = new IdGenerator(companyData).NextLostDamagedId(),
             ProductId = productId,
             InventoryItemId = purchase.Id,
             Quantity = (int)purchase.Quantity,
@@ -364,7 +364,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
 
         var returnRecord = new Return
         {
-            Id = $"RET-{++companyData.IdCounters.Return:D3}",
+            Id = new IdGenerator(companyData).NextReturnId(),
             OriginalTransactionId = purchase.Id,
             ReturnType = "Expense",
             SupplierId = purchase.SupplierId ?? "",
@@ -632,8 +632,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
     {
         if (string.IsNullOrEmpty(ReceiptFilePath)) return null;
 
-        companyData.IdCounters.Receipt++;
-        var receiptId = $"RCP-{DateTime.Now:yyyy}-{companyData.IdCounters.Receipt:D5}";
+        var receiptId = new IdGenerator(companyData).NextReceiptId();
         var fileInfo = new FileInfo(ReceiptFilePath);
         var fileType = GetFileType(ReceiptFilePath);
 

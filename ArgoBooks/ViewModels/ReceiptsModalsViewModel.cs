@@ -1509,8 +1509,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
                 };
             }).Where(li => !string.IsNullOrWhiteSpace(li.Description) || li.ProductId != null).ToList();
 
-            companyData.IdCounters.Receipt++;
-            var receiptId = $"RCP-{DateTime.Now:yyyy}-{companyData.IdCounters.Receipt:D5}";
+            var receiptId = new IdGenerator(companyData).NextReceiptId();
 
             var fileData = encodedImages.GetValueOrDefault(item);
 
@@ -2478,8 +2477,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         }).Where(li => !string.IsNullOrWhiteSpace(li.Description) || li.ProductId != null).ToList();
 
         // Create receipt first (common for both transaction types)
-        companyData.IdCounters.Receipt++;
-        var receiptId = $"RCP-{DateTime.Now:yyyy}-{companyData.IdCounters.Receipt:D5}";
+        var receiptId = new IdGenerator(companyData).NextReceiptId();
 
         string? fileData = null;
         if (_currentImageData != null)

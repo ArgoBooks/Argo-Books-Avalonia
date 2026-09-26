@@ -730,10 +730,7 @@ public class PaymentPortalService : IDisposable
                 _ => portalPayment.PaymentMethod
             };
 
-            // Generate payment ID
-            var nextId = companyData.IdCounters.Payment + 1;
-            companyData.IdCounters.Payment = nextId;
-            var paymentId = $"PAY-{DateTime.UtcNow:yyyy}-{nextId:D5}";
+            var paymentId = new IdGenerator(companyData).NextPaymentId();
 
             Payment payment;
 

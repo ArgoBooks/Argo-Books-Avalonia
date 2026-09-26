@@ -440,8 +440,7 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
         if (companyData == null)
             return;
 
-        companyData.IdCounters.RentalItem++;
-        var newId = $"RNT-ITM-{companyData.IdCounters.RentalItem:D3}";
+        var newId = new IdGenerator(companyData).NextRentalItemId();
 
         var newItem = new RentalItem
         {

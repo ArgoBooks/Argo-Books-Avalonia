@@ -338,8 +338,7 @@ public partial class PaymentModalsViewModel : ViewModelBase
         if (companyData == null)
             return;
 
-        companyData.IdCounters.Payment++;
-        var newId = $"PAY-{companyData.IdCounters.Payment:D3}";
+        var newId = new Core.Data.IdGenerator(companyData).NextPaymentId();
 
         var paymentMethod = PaymentMethodExtensions.ParseDisplayName(ModalPaymentMethod);
 

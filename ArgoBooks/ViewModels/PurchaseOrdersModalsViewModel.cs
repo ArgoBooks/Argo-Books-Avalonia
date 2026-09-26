@@ -513,10 +513,9 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
 
     private string SaveNewOrder(CompanyData companyData, decimal shipping)
     {
-        // Generate ID
-        companyData.IdCounters.PurchaseOrder++;
-        var orderId = $"PO-{companyData.IdCounters.PurchaseOrder:D5}";
-        var poNumber = $"#PO-{DateTime.Now.Year}-{companyData.IdCounters.PurchaseOrder:D3}";
+        var ids = new IdGenerator(companyData);
+        var orderId = ids.NextPurchaseOrderId();
+        var poNumber = ids.NextPurchaseOrderNumber();
 
         var lineItems = LineItems.Select(li => new PurchaseOrderLineItem
         {
@@ -958,10 +957,9 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
             var product = companyData.Products.FirstOrDefault(p => p.Id == line.ProductId);
             if (product is not { TrackInventory: true }) return null;
 
-            companyData.IdCounters.InventoryItem++;
             inventoryItem = new InventoryItem
             {
-                Id = $"INV-ITM-{companyData.IdCounters.InventoryItem:D5}",
+                Id = new IdGenerator(companyData).NextInventoryItemId(),
                 ProductId = product.Id,
                 Sku = product.Sku,
                 LocationId = InventoryStockService.EnsureLocationId(companyData),
@@ -978,10 +976,9 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
         inventoryItem.Status = inventoryItem.CalculateStatus();
         inventoryItem.LastUpdated = DateTime.UtcNow;
 
-        companyData.IdCounters.StockAdjustment++;
         var adjustment = new StockAdjustment
         {
-            Id = $"ADJ-{companyData.IdCounters.StockAdjustment:D5}",
+            Id = new IdGenerator(companyData).NextStockAdjustmentId(),
             InventoryItemId = inventoryItem.Id,
             AdjustmentType = AdjustmentType.Add,
             Quantity = qty,

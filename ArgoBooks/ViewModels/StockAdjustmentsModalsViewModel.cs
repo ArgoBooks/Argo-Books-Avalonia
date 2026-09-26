@@ -285,10 +285,9 @@ public partial class StockAdjustmentsModalsViewModel : ViewModelBase
         // Create stock adjustment record
         if (companyData != null)
         {
-            companyData.IdCounters.StockAdjustment++;
             var adjustmentRecord = new StockAdjustment
             {
-                Id = $"ADJ-{companyData.IdCounters.StockAdjustment:D5}",
+                Id = new Core.Data.IdGenerator(companyData).NextStockAdjustmentId(),
                 InventoryItemId = inventoryItem.Id,
                 AdjustmentType = adjustmentTypeEnum,
                 Quantity = quantity,

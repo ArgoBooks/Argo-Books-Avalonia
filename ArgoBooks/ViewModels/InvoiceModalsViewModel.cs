@@ -2140,7 +2140,7 @@ public partial class InvoiceModalsViewModel : ViewModelBase
     {
         var companyData = App.CompanyManager?.CompanyData;
         if (companyData == null)
-            return $"#INV-{DateTime.Now:yyyy}-001";
+            return IdGenerator.FormatInvoiceNumber(1);
 
         // If editing a draft, use its existing number
         if (!string.IsNullOrEmpty(_editingInvoiceId))

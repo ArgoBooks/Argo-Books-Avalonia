@@ -399,10 +399,9 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
         // Create stock adjustment record
         if (companyData != null)
         {
-            companyData.IdCounters.StockAdjustment++;
             var adjustmentRecord = new StockAdjustment
             {
-                Id = $"ADJ-{companyData.IdCounters.StockAdjustment:D5}",
+                Id = new Core.Data.IdGenerator(companyData).NextStockAdjustmentId(),
                 InventoryItemId = inventoryItem.Id,
                 AdjustmentType = AdjustmentType switch
                 {
@@ -659,9 +658,7 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
             return;
         }
 
-        // Generate new ID
-        companyData.IdCounters.InventoryItem++;
-        var newId = $"INV-ITM-{companyData.IdCounters.InventoryItem:D5}";
+        var newId = new Core.Data.IdGenerator(companyData).NextInventoryItemId();
 
         // Parse thresholds
         decimal.TryParse(AddItemReorderPoint, out var reorderPoint);

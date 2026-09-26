@@ -551,10 +551,9 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
     internal static RentalRecord CreateRental(CompanyData companyData, string customerId, string? accountantId,
         List<RentalLineItem> lines, DateTime start, DateTime due, string notes, Action changed)
     {
-        companyData.IdCounters.Rental++;
         var rental = new RentalRecord
         {
-            Id = $"RNT-{companyData.IdCounters.Rental:D3}",
+            Id = new IdGenerator(companyData).NextRentalId(),
             Status = start.Date > DateTime.Today ? RentalStatus.Reserved : RentalStatus.Active,
             CreatedAt = DateTime.UtcNow
         };
@@ -1494,10 +1493,9 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
             stock.LastUpdated = DateTime.UtcNow;
             App.CheckAndNotifyStockStatus(stock, previous);
 
-            companyData.IdCounters.StockAdjustment++;
             var adjustment = new StockAdjustment
             {
-                Id = $"ADJ-{companyData.IdCounters.StockAdjustment:D5}",
+                Id = new IdGenerator(companyData).NextStockAdjustmentId(),
                 InventoryItemId = stock.Id,
                 AdjustmentType = units > 0 ? AdjustmentType.Add : AdjustmentType.Remove,
                 Quantity = Math.Abs(units),

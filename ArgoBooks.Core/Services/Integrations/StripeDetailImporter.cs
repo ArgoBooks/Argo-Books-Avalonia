@@ -163,10 +163,9 @@ public class StripeDetailImporter
             {
                 if (data.Returns.Any(rt => rt.OriginalTransactionId == rev.Id)) continue; // already recorded
 
-                data.IdCounters.Return++;
                 data.Returns.Add(new Return
                 {
-                    Id = $"RET-{data.IdCounters.Return:D3}",
+                    Id = new IdGenerator(data).NextReturnId(),
                     OriginalTransactionId = rev.Id,
                     ReturnType = "Customer",
                     CustomerId = rev.CustomerId ?? string.Empty,

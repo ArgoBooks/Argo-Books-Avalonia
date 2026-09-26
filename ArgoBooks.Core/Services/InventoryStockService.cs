@@ -167,7 +167,7 @@ public static class InventoryStockService
             {
                 adjustment = new StockAdjustment
                 {
-                    Id = NextAdjustmentId(data),
+                    Id = new IdGenerator(data).NextStockAdjustmentId(),
                     InventoryItemId = item.Id,
                     AdjustmentType = net > 0 ? AdjustmentType.Add : AdjustmentType.Remove,
                     Quantity = Math.Abs(net),
@@ -287,7 +287,7 @@ public static class InventoryStockService
 
         var transfer = new StockTransfer
         {
-            Id = NextTransferId(data),
+            Id = new IdGenerator(data).NextStockTransferId(),
             InventoryItemId = source.Id,
             SourceLocationId = source.LocationId,
             DestinationLocationId = destinationLocationId,
@@ -305,7 +305,7 @@ public static class InventoryStockService
 
         var outAdjustment = new StockAdjustment
         {
-            Id = NextAdjustmentId(data),
+            Id = new IdGenerator(data).NextStockAdjustmentId(),
             InventoryItemId = source.Id,
             AdjustmentType = AdjustmentType.Remove,
             Quantity = quantity,
@@ -320,7 +320,7 @@ public static class InventoryStockService
 
         var inAdjustment = new StockAdjustment
         {
-            Id = NextAdjustmentId(data),
+            Id = new IdGenerator(data).NextStockAdjustmentId(),
             InventoryItemId = destination.Id,
             AdjustmentType = AdjustmentType.Add,
             Quantity = quantity,
@@ -406,16 +406,9 @@ public static class InventoryStockService
 
     private static InventoryItem NewStockItem(CompanyData data, string productId, string sku, string? locationId)
     {
-        string id;
-        do
-        {
-            data.IdCounters.InventoryItem++;
-            id = $"INV-ITM-{data.IdCounters.InventoryItem:D5}";
-        } while (data.Inventory.Any(i => i.Id == id));
-
         var item = new InventoryItem
         {
-            Id = id,
+            Id = new IdGenerator(data).NextInventoryItemId(),
             ProductId = productId,
             Sku = sku,
             LocationId = !string.IsNullOrEmpty(locationId)
@@ -425,28 +418,6 @@ public static class InventoryStockService
         };
         data.Inventory.Add(item);
         return item;
-    }
-
-    private static string NextAdjustmentId(CompanyData data)
-    {
-        string id;
-        do
-        {
-            data.IdCounters.StockAdjustment++;
-            id = $"ADJ-{data.IdCounters.StockAdjustment:D5}";
-        } while (data.StockAdjustments.Any(a => a.Id == id));
-        return id;
-    }
-
-    private static string NextTransferId(CompanyData data)
-    {
-        string id;
-        do
-        {
-            data.IdCounters.StockTransfer++;
-            id = $"TRF-{data.IdCounters.StockTransfer:D5}";
-        } while (data.StockTransfers.Any(t => t.Id == id));
-        return id;
     }
 }
 

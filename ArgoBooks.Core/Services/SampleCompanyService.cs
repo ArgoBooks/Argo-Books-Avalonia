@@ -363,15 +363,14 @@ public class SampleCompanyService
         var products = data.Products;
         if (customers.Count == 0 || products.Count == 0) return;
 
-        var counter = 0;
-        var year = referenceDate.Year;
+        var ids = new IdGenerator(data);
 
         Quote Build(int customerIndex, int[] productIndexes, decimal[] quantities, DateTime issued, int validForDays)
         {
             var quote = new Quote
             {
-                Id = $"QUO-{year}-{++counter:D5}",
-                QuoteNumber = $"#QUO-{year}-{counter:D5}",
+                Id = ids.NextQuoteId(),
+                QuoteNumber = ids.NextQuoteNumber(),
                 CustomerId = customers[customerIndex % customers.Count].Id,
                 IssueDate = issued,
                 ValidUntil = issued.AddDays(validForDays),
@@ -451,7 +450,6 @@ public class SampleCompanyService
         }
 
         data.Quotes.AddRange(quotes);
-        data.IdCounters.Quote = counter;
     }
 
     private static void AddSampleActiveRentals(CompanyData data, DateTime referenceDate)
@@ -461,14 +459,7 @@ public class SampleCompanyService
         if (items.Count == 0 || customers.Count == 0) return;
 
         var today = referenceDate;
-        var maxId = data.Rentals
-            .Select(r =>
-            {
-                var parts = r.Id.Split('-');
-                return parts.Length > 0 && int.TryParse(parts[^1], out var n) ? n : 0;
-            })
-            .DefaultIfEmpty(0)
-            .Max();
+        var ids = new IdGenerator(data);
 
         var newRentals = new List<RentalRecord>();
 
@@ -485,7 +476,7 @@ public class SampleCompanyService
         // Active rental 1 - started 5 days ago, due in 9 days, daily rate (single item)
         newRentals.Add(new RentalRecord
         {
-            Id = $"RNT-{++maxId:D3}",
+            Id = ids.NextRentalId(),
             RentalItemId = item0.Id,
             CustomerId = cust0.Id,
             Quantity = 1,
@@ -506,7 +497,7 @@ public class SampleCompanyService
         var multiDeposit = item0.SecurityDeposit + item1.SecurityDeposit;
         newRentals.Add(new RentalRecord
         {
-            Id = $"RNT-{++maxId:D3}",
+            Id = ids.NextRentalId(),
             RentalItemId = item0.Id,
             CustomerId = cust1.Id,
             Quantity = multiQty,
@@ -529,7 +520,7 @@ public class SampleCompanyService
         // Active rental 3 - started 10 days ago, due in 4 days, weekly rate (single item)
         newRentals.Add(new RentalRecord
         {
-            Id = $"RNT-{++maxId:D3}",
+            Id = ids.NextRentalId(),
             RentalItemId = item2.Id,
             CustomerId = cust2.Id,
             Quantity = 1,
@@ -548,7 +539,7 @@ public class SampleCompanyService
         // Active rental 4 - overdue, started 20 days ago, due 3 days ago (single item)
         newRentals.Add(new RentalRecord
         {
-            Id = $"RNT-{++maxId:D3}",
+            Id = ids.NextRentalId(),
             RentalItemId = item0.Id,
             CustomerId = cust3.Id,
             Quantity = 1,
@@ -567,7 +558,7 @@ public class SampleCompanyService
         // Reserved - starts in 3 days, due in 6 days, so its stock is still on the shelf
         newRentals.Add(new RentalRecord
         {
-            Id = $"RNT-{++maxId:D3}",
+            Id = ids.NextRentalId(),
             RentalItemId = item1.Id,
             CustomerId = cust2.Id,
             Quantity = 1,
@@ -587,9 +578,6 @@ public class SampleCompanyService
         {
             data.Rentals.Add(rental);
         }
-
-        // Update the ID counter
-        data.IdCounters.Rental = maxId;
     }
 
     /// <summary>
