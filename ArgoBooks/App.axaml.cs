@@ -1483,6 +1483,7 @@ public partial class App : Application
 
             // Create app shell with navigation service and optional update service
             _appShellViewModel = new AppShellViewModel(NavigationService, UpdateService);
+            StartupTimeline.MarkShellViewModel();
             CustomDateRangeModal = _appShellViewModel.CustomDateRangeModalViewModel;
 
             // Ensure no unsaved changes indicator on startup
@@ -1709,6 +1710,7 @@ public partial class App : Application
             {
                 DataContext = _mainWindowViewModel
             };
+            StartupTimeline.MarkWindowBuilt();
 
             // Close the splash only once the main window is actually on screen. ShutdownMode
             // is left at its default of OnLastWindowClose, so closing the splash while the
@@ -1739,11 +1741,14 @@ public partial class App : Application
                 }
 
                 _ = TelemetryManager?.TrackStartupAsync(
-                    StartupTimeline.ToFirstPaintMs,
-                    StartupTimeline.ToServicesReadyMs,
-                    StartupTimeline.ToViewModelsReadyMs,
-                    StartupTimeline.ToReadyMs(),
-                    StartupTimeline.IsColdStart);
+                    toMainMs: StartupTimeline.ToMainMs,
+                    toFirstPaintMs: StartupTimeline.ToFirstPaintMs,
+                    toServicesReadyMs: StartupTimeline.ToServicesReadyMs,
+                    toShellViewModelMs: StartupTimeline.ToShellViewModelMs,
+                    toViewModelsReadyMs: StartupTimeline.ToViewModelsReadyMs,
+                    toWindowBuiltMs: StartupTimeline.ToWindowBuiltMs,
+                    toReadyMs: StartupTimeline.ToReadyMs(),
+                    coldStart: StartupTimeline.IsColdStart);
             };
 
             // Process pending conversions when window is activated (e.g., user returns after going offline)

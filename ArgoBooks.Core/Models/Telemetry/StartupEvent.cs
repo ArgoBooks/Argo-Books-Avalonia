@@ -45,6 +45,24 @@ public class StartupEvent : TelemetryEvent
     public long? ToViewModelsReadyMs { get; set; }
 
     /// <summary>
+    /// Milliseconds from process start to Main running: the runtime starting and loading the
+    /// app's assemblies, before any of its own code.
+    /// </summary>
+    public long? ToMainMs { get; set; }
+
+    /// <summary>
+    /// Milliseconds from process start to the app shell's view model being built. Falls
+    /// between <see cref="ToServicesReadyMs"/> and <see cref="ToViewModelsReadyMs"/>.
+    /// </summary>
+    public long? ToShellViewModelMs { get; set; }
+
+    /// <summary>
+    /// Milliseconds from process start to the main window being constructed, before it is
+    /// shown. The gap from <see cref="ToViewModelsReadyMs"/> is building the views.
+    /// </summary>
+    public long? ToWindowBuiltMs { get; set; }
+
+    /// <summary>
     /// True when this launch had to read from disk rather than from a warm OS file cache,
     /// decided by how long ago the previous launch was. See
     /// <see cref="Services.StartupTimeline.IsColdStart"/>. Relaunching soon after quitting is

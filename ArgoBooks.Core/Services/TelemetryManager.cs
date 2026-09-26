@@ -538,9 +538,12 @@ public class TelemetryManager : ITelemetryManager
 
     /// <inheritdoc />
     public async Task TrackStartupAsync(
+        long? toMainMs,
         long? toFirstPaintMs,
         long? toServicesReadyMs,
+        long? toShellViewModelMs,
         long? toViewModelsReadyMs,
+        long? toWindowBuiltMs,
         long? toReadyMs,
         bool coldStart,
         CancellationToken cancellationToken = default)
@@ -548,10 +551,13 @@ public class TelemetryManager : ITelemetryManager
         try
         {
             var startupEvent = await CreateEventAsync<StartupEvent>(cancellationToken);
+            startupEvent.ToMainMs = toMainMs;
             startupEvent.ToFirstPaintMs = toFirstPaintMs;
             startupEvent.ToReadyMs = toReadyMs;
             startupEvent.ToServicesReadyMs = toServicesReadyMs;
+            startupEvent.ToShellViewModelMs = toShellViewModelMs;
             startupEvent.ToViewModelsReadyMs = toViewModelsReadyMs;
+            startupEvent.ToWindowBuiltMs = toWindowBuiltMs;
             startupEvent.ColdStart = coldStart;
             await _storageService.RecordEventAsync(startupEvent, cancellationToken);
         }

@@ -85,9 +85,12 @@ public interface ITelemetryManager
     /// Records how long this launch took. Called once, when the main window opens.
     /// </summary>
     Task TrackStartupAsync(
+        long? toMainMs,
         long? toFirstPaintMs,
         long? toServicesReadyMs,
+        long? toShellViewModelMs,
         long? toViewModelsReadyMs,
+        long? toWindowBuiltMs,
         long? toReadyMs,
         bool coldStart,
         CancellationToken cancellationToken = default);
