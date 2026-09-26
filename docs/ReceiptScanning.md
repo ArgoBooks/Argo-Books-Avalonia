@@ -1,58 +1,55 @@
-﻿# Receipt Scanning
+# Receipt Scanning
 
-Argo Books extracts structured data from receipts using Google Gemini's vision model. Take a photo or drop in a PDF; the AI returns line items, totals, supplier name, date, and currency. A second AI pass then matches the supplier and category against your existing records before you review and save as an expense or revenue.
+Argo Books reads receipts with Google Gemini's vision model. The user takes a photo or drops in a PDF, and the AI returns the supplier, date, totals, currency and line items. A second AI call then matches the supplier and category to the company's existing ones. The user checks the result and saves it as an expense or revenue.
 
-All AI calls route through the Argo Books server. Your device never holds a Google API key. The server is authenticated by your license key and enforces a monthly scan quota. See [LicenseKey](LicenseKey.md) for the quota mechanics.
+Every AI call goes through the Argo Books server, so the app never holds a Google API key. The server checks the license key and the monthly scan limit (see [LicenseKey](LicenseKey.md#usage-limits)).
 
-## Supported formats
+## Supported files
 
-JPEG, PNG, HEIC, WebP, PDF.
+JPEG, PNG, HEIC, WebP and PDF.
 
-The list itself lives in `FilePickerTypes.ReceiptFormats`, which the picker filters, the drag and drop validation, the stored content type and the wording on screen are all derived from. Adding a format there is enough to have it offered and announced everywhere.
+The list is kept in one place, `FilePickerTypes.ReceiptFormats`. The file picker, drag and drop, the saved file type and the wording on screen all come from it, so adding a format there is all it takes.
 
-HEIC is what an iPhone shoots by default. Skia has no HEIF decoder on Windows or Linux, so these are decoded separately and re-encoded as JPEG before the rest of the pre-processing runs. A file the decoder cannot read is sent on as it stands, since the vision model accepts HEIC directly; only the on-screen preview is lost.
+HEIC is what an iPhone takes photos in. Skia can't read HEIC on Windows or Linux, so these files are converted to JPEG separately first. If that conversion fails, the file is sent to the AI as it is, since the AI can read HEIC; only the preview on screen is missing.
 
-Images are pre-processed before scanning: EXIF orientation is corrected, contrast is boosted slightly, and the image is sharpened to help with faded thermal receipts.
+Before scanning, images are rotated the right way up, given a little more contrast and sharpened, which helps with faded thermal receipts.
 
-For multi-page PDFs, the preview shows page 1, but the AI sees every page.
+For a PDF with several pages, the preview shows page 1, but the AI reads every page.
 
 ## Scanning a receipt
 
-1. Click **AI Scan** on the Receipts page.
-2. Select the receipt file.
-3. The image is processed and sent to the AI for extraction.
-4. The result modal opens with the extracted fields pre-filled: supplier, date, totals, currency, payment method, and a line-item table.
-5. A second AI pass runs in the background to suggest a supplier and category match against your existing records.
-6. Review the result, edit anything the AI got wrong, and save it.
+1. Click **AI Scan** on the Receipts page and pick the file.
+2. The image is prepared and sent to the AI.
+3. A window opens with the supplier, date, totals, currency, payment method and line items filled in.
+4. In the background, a second AI call suggests a matching supplier and category.
+5. The user fixes anything the AI got wrong and saves.
 
-A transaction is automatically created and the receipt is attached to it. The receipt is also added to the Receipts page.
+Saving creates the expense or revenue with the receipt attached, and adds the receipt to the Receipts page.
 
-## Bulk scanning
+## Scanning several at once
 
-Select multiple receipts to queue a bulk scan. Three receipts are scanned in parallel; the rest wait their turn. When the batch finishes, a review carousel walks you through approving or skipping each result.
+Select several receipts to scan them together. Three are scanned at a time while the rest wait. When all are done, the user goes through the results one by one, saving or skipping each.
 
 ## Supplier and category matching
 
-After OCR returns, a second AI call compares the extracted supplier and line items against your existing supplier and category lists.
+After the receipt is read, a second AI call compares the supplier and line items with the company's existing suppliers and categories.
 
-**Supplier matching**: recognises exact names, common variations ("Walmart" ≈ "Walmart Inc."), and known abbreviations. If no confident match exists, the modal suggests creating a new supplier with the cleaned-up name.
+**Supplier:** it recognizes exact names, common variations ("Walmart" and "Walmart Inc.") and known abbreviations. If nothing matches well, it suggests creating a new supplier with a cleaned-up name.
 
-**Category matching**: chosen based on the line items and supplier type. Vague names like "General", "Expenses", or "Miscellaneous" are explicitly rejected. The AI is pushed toward specific categories or new-category creation.
+**Category:** it is chosen from the line items and the kind of supplier. Vague categories like "General", "Expenses" or "Miscellaneous" are never picked; the AI suggests a specific existing category or a new one instead.
 
-You can override either suggestion in the modal before saving.
+The user can change either suggestion before saving.
 
-## Multi-currency receipts
+## Currency
 
-The AI infers the currency from address, language, currency symbol, and tax labels (GST → CAD, VAT → EUR/GBP, etc.) and returns an ISO 4217 code. If detection is ambiguous, USD is used as the fallback. You can override the currency in the modal before saving.
+The AI works out the currency from the address, language, currency symbol and tax names (GST means CAD, VAT means EUR or GBP, and so on) and returns a three-letter ISO 4217 code. If it can't tell, it uses USD. The user can change it before saving.
 
-## Quota
+## Scan limit
 
-Each scan counts against your monthly limit (the limit depends on your subscription tier). The quota is checked inside the scan modal before each scan and incremented on success. The dashboard's Quick Scan widget also pre-checks the quota before opening the file picker.
+Each scan counts toward the monthly limit, which is checked before every scan (see [LicenseKey](LicenseKey.md#usage-limits)). The dashboard's Quick Scan button also checks it before opening the file picker.
 
-If you're offline, scans are allowed when cached quota data shows remaining capacity. If the quota is exhausted, scans are blocked until the network returns to confirm.
+## Limitations
 
-## Notable limitations
-
-- **No offline OCR.** Scanning requires an internet connection.
-- **No automatic retries.** Failed scans surface in the modal and you retry manually.
-- **Receipt images live in the `.argo` file.** Large receipt libraries grow the file proportionally.
+- **Scanning needs the internet.** There is no offline reading of receipts.
+- **Failed scans are not retried automatically.** The error shows in the window and the user tries again.
+- **Receipt images are stored inside the `.argo` file**, so a lot of receipts makes the file larger.

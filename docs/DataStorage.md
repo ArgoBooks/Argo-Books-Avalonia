@@ -1,91 +1,56 @@
 # Data Storage
 
-Argo Books uses a file-based storage system with portable `.argo` files instead of a traditional
-database. Files are encrypted once the user sets a password; without one they are compressed but
-not encrypted.
+Each company is saved as a single `.argo` file instead of in a database. The whole company is loaded into memory when it opens, so everything runs fast. The data stays on the user's computer, and the file can be copied, emailed or backed up like any other file. No database or server has to be installed.
+
+A file is always compressed. It is encrypted only once the user sets a password (see [Security](SecurityArchitecture.md)).
 
 ## CompanyManager
 
-Central orchestrator for all company file operations.
+`CompanyManager` handles everything to do with company files:
 
-- Company file lifecycle management
-- Temporary directory management
-- Save/load coordination
-- Encryption coordination
-- Auto-save functionality
-- File locking
+- Opening, saving and closing files
+- The temporary folder a company is unpacked into while it is open
+- Encryption, through the encryption service
+- Auto-save
+- Locking the file so two copies of the app can't edit it at once
 
-### CompanyManager Operations
+Opening a file:
 
-Load File:
+![Company Manager Load File](diagrams/data-storage/company-manager-load-file.svg)
 
-![Security Architecture](diagrams/data-storage/company-manager-load-file.svg)
+Saving a file:
 
-Save File:
+![Company Manager Save File](diagrams/data-storage/company-manager-save-file.svg)
 
-![Security Architecture](diagrams/data-storage/company-manager-save-file.svg)
+## The `.argo` file
 
-## `.argo` File Format
-
-A company is a directory of JSON files and attachments. Saving packs that directory into a TAR
-archive, GZip compresses it, optionally encrypts it, and appends a metadata footer:
+While a company is open, it is a folder of JSON files and attachments. Saving packs that folder into a TAR archive, compresses it with GZip, encrypts it if there is a password, and adds a footer at the end:
 
 ```
-[ content: gzip(tar(company directory)), encrypted if a password is set ]
-[ footer JSON (UTF-8, plaintext)                                        ]
-[ footer length (4 bytes, little-endian)                                ]
-[ magic bytes "ARGO"                                                    ]
+[ content: gzip(tar(company folder)), encrypted if a password is set ]
+[ footer JSON (UTF-8, not encrypted)                                 ]
+[ footer length (4 bytes, little-endian)                             ]
+[ magic bytes "ARGO"                                                 ]
 ```
 
-Opening reads the trailer backwards: magic bytes, then length, then the footer, and only then
-the content. That is why the footer can never be encrypted, it holds the parameters needed to
-begin decrypting.
+Opening reads the file from the end: first the magic bytes, then the length, then the footer, and only then the content. The footer can't be encrypted, because it holds what is needed to start decrypting. [Security](SecurityArchitecture.md#what-is-not-encrypted) lists what it contains.
 
 ![Argo File Format](diagrams/data-storage/argo-file-format.svg)
 
 ### Format versions
 
-| Version | Layout |
+The footer records a format version:
+
+| Version | What changed |
 |---|---|
-| **1** | The archive is encrypted directly with the password-derived key |
-| **2** | Envelope encryption. A random data key encrypts the archive, and that key is stored wrapped under the password and, separately, under the recovery key |
-| **3** | Version 2's layout. Stock quantities can hold decimals, which an older build cannot read |
+| **1** | The content is encrypted directly with the key made from the password |
+| **2** | Added in 2.0.11. A random data key encrypts the content, and that key is stored locked by the password and, separately, by the recovery key ([details](SecurityArchitecture.md#envelope-encryption)) |
+| **3** | Added with decimal stock quantities and cost of goods sold. Same layout as version 2 |
 
-Version 2 arrived in 2.0.11. Version 1 files still open on their original code path and are
-upgraded the next time they are saved. Files written at version 2 cannot be opened by older
-builds, so `FileService` checks the footer's format version **before** attempting any decryption
-and reports an out-of-date app rather than a misleading wrong-password error.
+Version 1 files still open, and are upgraded to the current version the next time they are saved.
 
-Version 3 arrived with decimal stock quantities and cost of goods sold. It opens on the same code
-path as version 2; the bump exists so an older build reports itself out of date instead of failing
-on a stock quantity like 2.5 that it can only read as a whole number.
+Older versions of the app can't open newer files. `FileService` checks the format version **before** trying to decrypt, so an old app says it needs updating instead of wrongly saying the password is incorrect. That is the only reason version 3 exists: its layout is the same as version 2, but an older app would misread a stock quantity like 2.5 as a whole number.
 
-See [Security](SecurityArchitecture.md) for the key derivation and envelope details, and
-[Password recovery](../tools/ArgoBooks.Recovery/README.md) for the support-side unlock path.
+## Global settings
 
-### Footer contents
-
-The footer is plaintext JSON. It carries the metadata needed to list a company without opening
-it (name, accountants, timestamps, logo thumbnail, app and format version), plus the encryption
-parameters (salt, nonce, password verification hash) and the wrapped data keys. The wrapped keys
-are themselves ciphertext; the parameters alongside them are not secrets.
-
-No financial data is recoverable from the footer.
-
-## Global Settings
-
-Application-wide settings stored separately.
-
-- Recent files list
-- User preferences
-- Application state persistence
-
-## Benefits of File-Based Storage
-
-| Benefit | Description |
-|---------|-------------|
-| **Portability** | Files can be copied, emailed, backed up easily |
-| **No Database** | No server or database installation required |
-| **Performance** | All data in memory = fast operations |
-| **Privacy** | Data stays local, encrypted on disk |
-| **Simplicity** | Single file per company |
+Settings that belong to the app rather than to one company, such as the recent files list, user preferences and the license, are kept in a separate `settings.json` file. [LicenseKey](LicenseKey.md#clearing-a-license) lists where it is on each platform.

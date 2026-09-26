@@ -1,7 +1,7 @@
 # Architecture Overview
 
-Argo Books is a cross-platform desktop accounting application built with modern .NET
-technologies, with an Android companion app for capturing receipts away from the desk.
+Argo Books is a desktop accounting app for Windows, macOS and Linux, built with .NET, with an
+Android companion app for capturing receipts away from the desk.
 
 ## Technology Stack
 
@@ -16,13 +16,13 @@ technologies, with an Android companion app for capturing receipts away from the
 
 ## MVVM Architecture
 
-The application follows the [Model-View-ViewModel (MVVM)](https://docs.avaloniaui.net/docs/concepts/the-mvvm-pattern/) pattern for clean separation of concerns.
+The app uses the [Model-View-ViewModel (MVVM)](https://docs.avaloniaui.net/docs/concepts/the-mvvm-pattern/) pattern, which keeps the screens, their logic and the data apart.
 
 ![MVVM Pattern](diagrams/architecture/mvvm.svg)
 
-- **View** - XAML UI definitions and controls
-- **ViewModel** - Presentation logic and state management
-- **Model** - Business entities and data structures
+- **View**: the XAML screens and controls
+- **ViewModel**: what a screen shows and what its buttons do
+- **Model**: the business data, such as customers, invoices and expenses
 
 ## Project Contents
 
@@ -35,19 +35,17 @@ The application follows the [Model-View-ViewModel (MVVM)](https://docs.avaloniau
 | **ArgoBooks.Mobile** | Android companion app: receipt capture, scan review, read-only snapshot viewing |
 | **ArgoBooks.Tests** | Unit tests (xUnit) |
 
-`ArgoBooks.Shared` is referenced by `ArgoBooks.Core`, so its types live in the `ArgoBooks.Core.*`
-namespaces despite sitting in a separate project. Anything the phone and the desktop both need,
-in particular the encryption used on company files, belongs there rather than in Core.
+`ArgoBooks.Shared` is referenced by `ArgoBooks.Core`, and its types use the `ArgoBooks.Core.*`
+namespaces even though they sit in a separate project. Anything the phone and the desktop both
+need, especially the encryption used on company files, goes there rather than in Core.
 
-The developer tools in `tools/` are deliberately **outside** the solution, so nothing in the app can
-take a dependency on them and can never be built into or shipped with a release.
+The developer tools in `tools/` are deliberately **outside** the solution, so the app can't depend
+on them and they are never built into or shipped with a release.
 
-## Design Principles
+## Design principles
 
-1. **MVVM Pattern** - Clear separation between Views, ViewModels, and Models
-2. **Service-Oriented** - Business logic encapsulated in dedicated services
-3. **Cross-Platform** - Single codebase targets Windows, macOS, Linux, and Android
-4. **In-Memory Data** - Fast operations with full data loaded in memory
-5. **File-Based Storage** - Portable `.argo` files instead of database
-6. **Compiled Bindings** - Performance-optimized data binding
-7. **Singleton Services** - App-wide service instances via dependency injection
+- **Business logic lives in services**, not in views or view models.
+- **One codebase** runs on Windows, macOS, Linux and Android.
+- **One shared instance of each app-wide service**, held as a static property on `App`. There is no dependency injection container.
+- **Compiled bindings** are on by default, so bindings are checked when the app is built and run faster.
+- **Company data is a file, loaded fully into memory.** See [Data Storage](DataStorage.md).
