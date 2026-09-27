@@ -30,6 +30,7 @@ public class SetupChecklistWidgetViewModel : WidgetViewModelBase
     {
         Checklist.NavigationRequested -= OnChecklistNavigationRequested;
         Checklist.PropertyChanged -= OnChecklistPropertyChanged;
+        Checklist.Cleanup();
     }
 
     private void OnChecklistPropertyChanged(object? sender, PropertyChangedEventArgs e)

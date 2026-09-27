@@ -503,6 +503,10 @@ public partial class DashboardPageViewModel : ChartContextMenuViewModelBase, ICl
     /// </summary>
     public void Initialize(CompanyManager companyManager)
     {
+        // The page factory reuses this view model and calls Initialize on every visit, so
+        // subscribing without removing first would reload the dashboard once per past visit.
+        if (_companyManager != null)
+            _companyManager.CompanyDataChanged -= OnCompanyDataChanged;
         _companyManager = companyManager;
 
         // Initialize the widget layout system
@@ -517,12 +521,20 @@ public partial class DashboardPageViewModel : ChartContextMenuViewModelBase, ICl
         // Notify properties that depend on company manager
         RefreshSampleCompanyState();
 
-        // Subscribe to data change events
+        _companyManager.CompanyDataChanged -= OnCompanyDataChanged;
         _companyManager.CompanyDataChanged += OnCompanyDataChanged;
 
         // Subscribe to language changes to refresh translated chart titles
+        LanguageService.Instance.LanguageChanged -= OnLanguageChanged;
         LanguageService.Instance.LanguageChanged += OnLanguageChanged;
     }
+
+    /// <summary>
+    /// Whether the dashboard is the page on screen. Changes made while it isn't skip the reload:
+    /// the page factory calls <see cref="Initialize"/> on every visit, which reloads it anyway.
+    /// </summary>
+    private static bool IsOnScreen =>
+        App.NavigationService is not { } navigation || navigation.CurrentPageName == PageNames.Dashboard;
 
     /// <summary>
     /// Cleans up event subscriptions.
@@ -549,6 +561,9 @@ public partial class DashboardPageViewModel : ChartContextMenuViewModelBase, ICl
         // Unsubscribe from tutorial / source-survey events
         TutorialService.Instance.SourceSurveyVisibilityChanged -= OnSourceSurveyVisibilityChanged;
         TutorialService.Instance.TutorialStateChanged -= OnTutorialStateChanged;
+
+        if (App.UpdateEmailModalViewModel is { } updateEmailModal)
+            updateEmailModal.Subscribed -= OnUpdateEmailSubscribed;
 
         // Cleanup widget layout
         LayoutViewModel.Cleanup();
@@ -600,7 +615,7 @@ public partial class DashboardPageViewModel : ChartContextMenuViewModelBase, ICl
     public void LoadDashboardData()
     {
         var data = _companyManager?.CompanyData;
-        if (data == null) return;
+        if (data == null || !IsOnScreen) return;
 
         // Correct rental statuses before displaying
         CorrectRentalStatuses(data);

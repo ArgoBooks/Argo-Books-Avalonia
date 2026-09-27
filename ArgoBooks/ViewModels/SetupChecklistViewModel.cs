@@ -94,10 +94,24 @@ public partial class SetupChecklistViewModel : ViewModelBase
 
         // The card may already be on screen with the fallback limits when the plans fetch
         // lands, so re-read them when the server answers.
-        FreePlanLimits.Changed += (_, _) => OnPropertyChanged(nameof(FreeTierSummary));
+        FreePlanLimits.Changed += OnFreePlanLimitsChanged;
 
         App.PlanStatusChanged += OnPlanStatusChanged;
     }
+
+    /// <summary>
+    /// Unsubscribes from the app-wide events. The dashboard builds a new checklist each time it
+    /// loads its layout, so without this every visit left one behind, still reacting to them.
+    /// </summary>
+    public void Cleanup()
+    {
+        TutorialService.Instance.ChecklistItemCompleted -= OnChecklistItemCompleted;
+        TutorialService.Instance.TutorialStateChanged -= OnTutorialStateChanged;
+        FreePlanLimits.Changed -= OnFreePlanLimitsChanged;
+        App.PlanStatusChanged -= OnPlanStatusChanged;
+    }
+
+    private void OnFreePlanLimitsChanged(object? sender, EventArgs e) => OnPropertyChanged(nameof(FreeTierSummary));
 
     private void OnPlanStatusChanged(object? sender, PlanStatusChangedEventArgs e)
     {
