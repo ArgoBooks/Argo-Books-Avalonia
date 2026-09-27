@@ -229,7 +229,6 @@ public partial class QuickActionsViewModel : ViewModelBase
         NavigationItems.Clear();
         ToolsItems.Clear();
         TopResults.Clear();
-        SearchResults.Clear();
 
         IEnumerable<(QuickActionItem Item, double Score, double TitleScore)> scoredItems;
 
@@ -319,10 +318,16 @@ public partial class QuickActionsViewModel : ViewModelBase
                 ToolsItems.Add(item);
         }
 
-        // Search CompanyData when there's a query
-        if (!string.IsNullOrWhiteSpace(query))
+        // Searching the company's records scores every record, so it waits for a pause in typing.
+        // The previous query's records go now, so Enter can never open one that no longer matches.
+        SearchResults.Clear();
+        if (string.IsNullOrWhiteSpace(query))
         {
-            SearchCompanyData(query);
+            CancelPendingSearch();
+        }
+        else
+        {
+            DebounceSearch(() => RunDataSearch(query));
         }
 
         OnPropertyChanged(nameof(HasSearchResults));
@@ -481,6 +486,19 @@ public partial class QuickActionsViewModel : ViewModelBase
     private const int MaxTotalResults = 15;
 
     /// <summary>
+    /// Replaces SearchResults with the company records matching <paramref name="query"/>.
+    /// </summary>
+    private void RunDataSearch(string query)
+    {
+        SearchResults.Clear();
+        SearchCompanyData(query);
+
+        OnPropertyChanged(nameof(HasSearchResults));
+        OnPropertyChanged(nameof(HasResults));
+        OnSelectedIndexChanged(SelectedIndex);
+    }
+
+    /// <summary>
     /// Searches CompanyData collections and populates SearchResults.
     /// </summary>
     private void SearchCompanyData(string query)
@@ -488,73 +506,72 @@ public partial class QuickActionsViewModel : ViewModelBase
         var companyData = App.CompanyManager?.CompanyData;
         if (companyData == null) return;
 
-        var results = new List<(QuickActionItem Item, double Score)>();
+        // Every match is scored, but only the few shown get a row, which formats amounts and dates.
+        var results = new List<(double Score, string Target, Func<QuickActionItem> Create)>();
+
+        void Add(double score, string target, Func<QuickActionItem> create)
+        {
+            if (score > 0)
+                results.Add((score, target, create));
+        }
 
         // Customers
         foreach (var c in companyData.Customers)
         {
-            var score = LevenshteinDistance.BestScore(query, c.Name, c.Id, c.CompanyName ?? "", c.Email, c.Phone);
-            if (score > 0)
-                results.Add((new QuickActionItem(c.Name, string.IsNullOrWhiteSpace(c.CompanyName) ? c.Email : c.CompanyName, Icons.Customers, QuickActionType.SearchResult, "Customers", entityId: c.Id), score));
+            Add(LevenshteinDistance.BestScore(query, c.Name, c.Id, c.CompanyName ?? "", c.Email, c.Phone), "Customers",
+                () => new QuickActionItem(c.Name, string.IsNullOrWhiteSpace(c.CompanyName) ? c.Email : c.CompanyName, Icons.Customers, QuickActionType.SearchResult, "Customers", entityId: c.Id));
         }
 
         // Products
         foreach (var p in companyData.Products)
         {
-            var score = LevenshteinDistance.BestScore(query, p.Name, p.Id, p.Sku, p.Description);
-            if (score > 0)
-                results.Add((new QuickActionItem(p.Name, string.IsNullOrWhiteSpace(p.Sku) ? p.Description : $"SKU: {p.Sku}", Icons.Products, QuickActionType.SearchResult, "Products", entityId: p.Id), score));
+            Add(LevenshteinDistance.BestScore(query, p.Name, p.Id, p.Sku, p.Description), "Products",
+                () => new QuickActionItem(p.Name, string.IsNullOrWhiteSpace(p.Sku) ? p.Description : $"SKU: {p.Sku}", Icons.Products, QuickActionType.SearchResult, "Products", entityId: p.Id));
         }
 
         // Categories
         foreach (var cat in companyData.Categories)
         {
-            var score = LevenshteinDistance.BestScore(query, cat.Name, cat.Description ?? "");
-            if (score > 0)
-                results.Add((new QuickActionItem(cat.Name, $"{cat.Type} category", Icons.Categories, QuickActionType.SearchResult, "Categories", entityId: cat.Id), score));
+            Add(LevenshteinDistance.BestScore(query, cat.Name, cat.Description ?? ""), "Categories",
+                () => new QuickActionItem(cat.Name, $"{cat.Type} category", Icons.Categories, QuickActionType.SearchResult, "Categories", entityId: cat.Id));
         }
 
         // Invoices
         foreach (var inv in companyData.Invoices)
         {
-            var customerName = companyData.Customers.FirstOrDefault(c => c.Id == inv.CustomerId)?.Name ?? "";
+            var customerName = companyData.GetCustomer(inv.CustomerId)?.Name ?? "";
             var status = InvoiceTotalsService.DisplayStatus(inv).ToString();
-            var score = LevenshteinDistance.BestScore(query, inv.InvoiceNumber, customerName, status);
-            if (score > 0)
-                results.Add((new QuickActionItem(inv.InvoiceNumber, $"{customerName} · {status}", Icons.Invoices, QuickActionType.SearchResult, "Invoices", entityId: inv.Id), score));
+            Add(LevenshteinDistance.BestScore(query, inv.InvoiceNumber, customerName, status), "Invoices",
+                () => new QuickActionItem(inv.InvoiceNumber, $"{customerName} · {status}", Icons.Invoices, QuickActionType.SearchResult, "Invoices", entityId: inv.Id));
         }
 
         // Quotes
         foreach (var q in companyData.Quotes)
         {
-            var customerName = companyData.Customers.FirstOrDefault(c => c.Id == q.CustomerId)?.Name ?? "";
-            var score = LevenshteinDistance.BestScore(query, q.QuoteNumber, customerName, q.Status.ToString());
-            if (score > 0)
-                results.Add((new QuickActionItem(q.QuoteNumber, $"{customerName} · {q.Status}", Icons.Quotes, QuickActionType.SearchResult, "Quotes", entityId: q.Id), score));
+            var customerName = companyData.GetCustomer(q.CustomerId)?.Name ?? "";
+            Add(LevenshteinDistance.BestScore(query, q.QuoteNumber, customerName, q.Status.ToString()), "Quotes",
+                () => new QuickActionItem(q.QuoteNumber, $"{customerName} · {q.Status}", Icons.Quotes, QuickActionType.SearchResult, "Quotes", entityId: q.Id));
         }
 
         // Expenses
         foreach (var e in companyData.Expenses)
         {
-            var score = LevenshteinDistance.BestScore(query, e.Description, e.ReferenceNumber, e.Id);
-            if (score > 0)
-                results.Add((new QuickActionItem(e.Description, $"{CurrencyService.Format(e.Amount)} · {e.Date:MMM dd, yyyy}", Icons.Expenses, QuickActionType.SearchResult, "Expenses", entityId: e.Id), score));
+            Add(LevenshteinDistance.BestScore(query, e.Description, e.ReferenceNumber, e.Id), "Expenses",
+                () => new QuickActionItem(e.Description, $"{CurrencyService.Format(e.Amount)} · {e.Date:MMM dd, yyyy}", Icons.Expenses, QuickActionType.SearchResult, "Expenses", entityId: e.Id));
         }
 
         // Revenues
         foreach (var r in companyData.Revenues)
         {
-            var score = LevenshteinDistance.BestScore(query, r.Description, r.ReferenceNumber, r.Id);
-            if (score > 0)
-                results.Add((new QuickActionItem(r.Description, $"{CurrencyService.Format(r.Amount)} · {r.Date:MMM dd, yyyy}", Icons.Revenue, QuickActionType.SearchResult, "Revenue", entityId: r.Id), score));
+            Add(LevenshteinDistance.BestScore(query, r.Description, r.ReferenceNumber, r.Id), "Revenue",
+                () => new QuickActionItem(r.Description, $"{CurrencyService.Format(r.Amount)} · {r.Date:MMM dd, yyyy}", Icons.Revenue, QuickActionType.SearchResult, "Revenue", entityId: r.Id));
         }
 
         // Suppliers
         foreach (var s in companyData.Suppliers)
         {
-            var score = LevenshteinDistance.BestScore(query, s.Name, s.Id, s.ContactPerson, s.Email);
-            if (score > 0)
-                results.Add((new QuickActionItem(s.Name, string.IsNullOrWhiteSpace(s.ContactPerson) ? s.Email : s.ContactPerson, Icons.Suppliers, QuickActionType.SearchResult, "Suppliers", entityId: s.Id), score));
+            Add(LevenshteinDistance.BestScore(query, s.Name, s.Id, s.ContactPerson, s.Email), "Suppliers",
+                () => new QuickActionItem(s.Name, string.IsNullOrWhiteSpace(s.ContactPerson) ? s.Email : s.ContactPerson, Icons.Suppliers, QuickActionType.SearchResult, "Suppliers", entityId: s.Id));
         }
 
         // Payments. They have no page of their own, so a hit opens the invoice it belongs to.
@@ -562,50 +579,45 @@ public partial class QuickActionsViewModel : ViewModelBase
         {
             if (string.IsNullOrEmpty(p.InvoiceId))
                 continue;
-            var score = LevenshteinDistance.BestScore(query, p.Id, p.ReferenceNumber ?? "", p.InvoiceId);
-            if (score > 0)
-                results.Add((new QuickActionItem(p.Id, $"{CurrencyService.Format(p.Amount)} · {p.PaymentMethod}", Icons.Payments, QuickActionType.SearchResult, "Invoices", entityId: p.InvoiceId), score));
+            Add(LevenshteinDistance.BestScore(query, p.Id, p.ReferenceNumber ?? "", p.InvoiceId), "Invoices",
+                () => new QuickActionItem(p.Id, $"{CurrencyService.Format(p.Amount)} · {p.PaymentMethod}", Icons.Payments, QuickActionType.SearchResult, "Invoices", entityId: p.InvoiceId));
         }
 
         // Rental Records
         foreach (var r in companyData.Rentals)
         {
-            var customerName = companyData.Customers.FirstOrDefault(c => c.Id == r.CustomerId)?.Name ?? "";
-            var score = LevenshteinDistance.BestScore(query, r.Id, customerName, r.Status.ToString());
-            if (score > 0)
-                results.Add((new QuickActionItem(r.Id, $"{customerName} · {r.Status}", Icons.RentalRecords, QuickActionType.SearchResult, "RentalRecords", entityId: r.Id), score));
+            var customerName = companyData.GetCustomer(r.CustomerId)?.Name ?? "";
+            Add(LevenshteinDistance.BestScore(query, r.Id, customerName, r.Status.ToString()), "RentalRecords",
+                () => new QuickActionItem(r.Id, $"{customerName} · {r.Status}", Icons.RentalRecords, QuickActionType.SearchResult, "RentalRecords", entityId: r.Id));
         }
 
         // Inventory Items
         foreach (var i in companyData.Inventory)
         {
-            var product = companyData.Products.FirstOrDefault(p => p.Id == i.ProductId);
-            var location = companyData.Locations.FirstOrDefault(l => l.Id == i.LocationId);
+            var product = companyData.GetProduct(i.ProductId);
+            var location = companyData.GetLocation(i.LocationId);
             var productName = product?.Name ?? "";
-            var score = LevenshteinDistance.BestScore(query, productName, i.Sku, product?.Sku ?? "", location?.Name ?? "");
-            if (score > 0)
-                results.Add((new QuickActionItem($"{productName} @ {location?.Name ?? "Unknown"}", $"SKU: {i.Sku} · In Stock: {i.InStock}", Icons.StockLevels, QuickActionType.SearchResult, "StockLevels", entityId: i.Id), score));
+            Add(LevenshteinDistance.BestScore(query, productName, i.Sku, product?.Sku ?? "", location?.Name ?? ""), "StockLevels",
+                () => new QuickActionItem($"{productName} @ {location?.Name ?? "Unknown"}", $"SKU: {i.Sku} · In Stock: {i.InStock}", Icons.StockLevels, QuickActionType.SearchResult, "StockLevels", entityId: i.Id));
         }
 
         foreach (var po in companyData.PurchaseOrders)
         {
-            var supplierName = companyData.Suppliers.FirstOrDefault(s => s.Id == po.SupplierId)?.Name ?? "";
-            var score = LevenshteinDistance.BestScore(query, po.PoNumber, supplierName, po.Status.ToString());
-            if (score > 0)
-                results.Add((new QuickActionItem(po.PoNumber, $"{supplierName} · {po.Status}", Icons.PurchaseOrders, QuickActionType.SearchResult, "PurchaseOrders", entityId: po.Id), score));
+            var supplierName = companyData.GetSupplier(po.SupplierId)?.Name ?? "";
+            Add(LevenshteinDistance.BestScore(query, po.PoNumber, supplierName, po.Status.ToString()), "PurchaseOrders",
+                () => new QuickActionItem(po.PoNumber, $"{supplierName} · {po.Status}", Icons.PurchaseOrders, QuickActionType.SearchResult, "PurchaseOrders", entityId: po.Id));
         }
 
         // Sort by score and take top results, max 3 per type
         var typeCounts = new Dictionary<string, int>();
         var added = 0;
-        foreach (var (item, _) in results.OrderByDescending(r => r.Score))
+        foreach (var (_, target, create) in results.OrderByDescending(r => r.Score))
         {
             if (added >= MaxTotalResults) break;
-            var key = item.NavigationTarget ?? "";
-            typeCounts.TryGetValue(key, out var count);
+            typeCounts.TryGetValue(target, out var count);
             if (count >= MaxResultsPerType) continue;
-            typeCounts[key] = count + 1;
-            SearchResults.Add(item);
+            typeCounts[target] = count + 1;
+            SearchResults.Add(create());
             added++;
         }
     }
