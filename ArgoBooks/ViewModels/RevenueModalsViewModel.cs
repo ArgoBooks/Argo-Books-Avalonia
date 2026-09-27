@@ -412,8 +412,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
                     Reason = SelectedItemStatusReason ?? "Other"
                 }
             ],
-            // Refund the product amount + tax, excluding shipping/fees
-            RefundAmount = (revenue.Subtotal > 0 ? revenue.Subtotal : revenue.Amount) + revenue.TaxAmount,
+            RefundAmount = ReturnLossAmounts.RefundFor(revenue, revenue.Subtotal > 0 ? revenue.Subtotal : revenue.Amount),
             RestockingFee = 0,
             Status = ReturnStatus.Completed,
             Notes = ItemStatusNotes,

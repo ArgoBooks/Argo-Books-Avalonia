@@ -379,7 +379,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
                     Reason = SelectedItemStatusReason ?? "Other"
                 }
             ],
-            RefundAmount = purchase.Total,
+            RefundAmount = ReturnLossAmounts.RefundFor(purchase, purchase.Amount),
             RestockingFee = 0,
             Status = ReturnStatus.Completed,
             Notes = ItemStatusNotes,

@@ -261,6 +261,8 @@ The Insights tab (trends, anomalies, forecasts, recommendations) uses collected 
 
 Returns (items returned by customers or sent back to suppliers) and Losses (lost or damaged stock) don't change revenue, profit or expenses; it is the refund payment (§8) that reduces revenue and profit. The Financial Impact charts and stat cards add up `Return.RefundAmount` and `LostDamaged.ValueLost`. The Returns page shows `Return.NetRefund`, which is the refund less any restocking fee.
 
+Marking a sale or purchase as returned records its items after the transaction's discount, plus the tax charged, as the refund (`ReturnLossAmounts.RefundFor`). Shipping and fees are left out, since a shop keeps them when goods come back. Sales and purchases follow the same rule.
+
 Neither record stores a USD amount or its own currency. The amount is in the currency of the sale or purchase it came from (`Return.OriginalTransactionId`, `LostDamaged.InventoryItemId`), or in the company's currency if there is none, and it is converted from that currency at the record's own date (`ReturnLossAmounts.CurrencyOf`, `DisplayCurrency.FromNative`). An amount already in the display currency is used as it is. If the rate is missing, the amount counts as 0 on a chart and shows Pending on a stat card or page total.
 
 ### Integration import previews

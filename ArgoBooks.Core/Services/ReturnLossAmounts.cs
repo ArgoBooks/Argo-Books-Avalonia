@@ -1,5 +1,6 @@
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Models.Tracking;
+using ArgoBooks.Core.Models.Transactions;
 
 namespace ArgoBooks.Core.Services;
 
@@ -10,6 +11,14 @@ namespace ArgoBooks.Core.Services;
 /// </summary>
 public static class ReturnLossAmounts
 {
+    /// <summary>
+    /// What marking a sale or purchase as returned refunds: its items after the transaction's
+    /// discount, plus the tax charged. Shipping and fees are left out, as a shop keeps them when goods
+    /// come back. <paramref name="itemsAmount"/> is the items' total before that discount.
+    /// </summary>
+    public static decimal RefundFor(Transaction transaction, decimal itemsAmount) =>
+        Math.Max(0m, itemsAmount - transaction.Discount + transaction.TaxAmount);
+
     /// <summary>The currency a return's <see cref="Return.RefundAmount"/> is recorded in.</summary>
     public static string CurrencyOf(CompanyData data, Return returnRecord) =>
         RecordedCurrency(data, returnRecord.OriginalTransactionId);
