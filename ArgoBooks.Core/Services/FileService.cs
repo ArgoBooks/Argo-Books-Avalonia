@@ -145,11 +145,18 @@ public class FileService(
                     contentStream, password!, footer.Salt!, footer.Iv!, footer.PasswordHash!);
         }
 
-        await using var decompressedStream = await compressionService.DecompressGZipAsync(dataStream, cancellationToken);
-
-        // Extract TAR to temp directory
+        // Decompressed straight into the extractor rather than into memory first. A failure part-way
+        // leaves decrypted files behind, so the directory goes with it.
         var tempDirectory = SecureTempDirectory.Create();
-        await compressionService.ExtractTarArchiveAsync(decompressedStream, tempDirectory, cancellationToken);
+        try
+        {
+            await compressionService.ExtractGZipTarArchiveAsync(dataStream, tempDirectory, cancellationToken);
+        }
+        catch
+        {
+            try { Directory.Delete(tempDirectory, recursive: true); } catch { /* best effort */ }
+            throw;
+        }
 
         return tempDirectory;
     }

@@ -50,6 +50,13 @@ public class CompanyManager : IDisposable
     /// </summary>
     public bool IsCompanyOpen => CompanyData != null && _currentTempDirectory != null;
 
+    private int _isOpening;
+
+    /// <summary>
+    /// Gets whether <see cref="OpenCompanyAsync"/> is still running. Only one open runs at a time.
+    /// </summary>
+    public bool IsOpening => Volatile.Read(ref _isOpening) == 1;
+
     /// <summary>
     /// Gets the current company data.
     /// </summary>
@@ -636,11 +643,7 @@ public class CompanyManager : IDisposable
             // Clean up on failure
             _instanceLock.Release();
             _errorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to create company");
-            if (_currentTempDirectory != null && Directory.Exists(_currentTempDirectory))
-            {
-                Directory.Delete(_currentTempDirectory, recursive: true);
-            }
-            _currentTempDirectory = null;
+            DeleteTempDirectoryAfterFailure();
             CompanyData = null;
             throw;
         }
@@ -652,10 +655,32 @@ public class CompanyManager : IDisposable
     /// <param name="filePath">Path to the .argo file.</param>
     /// <param name="password">Password if the file is encrypted (or null to prompt).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
+    /// <exception cref="InvalidOperationException">Another open has not finished yet.</exception>
     public async Task<bool> OpenCompanyAsync(
         string filePath,
         string? password = null,
         CancellationToken cancellationToken = default)
+    {
+        // The UI stays responsive while a file opens, so a second request (a file double-clicked
+        // in Finder, say) can arrive mid-open. Running both would orphan the first one's temp
+        // directory and locks, so the second is refused; callers wait on IsOpening instead.
+        if (Interlocked.Exchange(ref _isOpening, 1) == 1)
+            throw new InvalidOperationException("Another company is still being opened.");
+
+        try
+        {
+            return await OpenCompanyCoreAsync(filePath, password, cancellationToken);
+        }
+        finally
+        {
+            Volatile.Write(ref _isOpening, 0);
+        }
+    }
+
+    private async Task<bool> OpenCompanyCoreAsync(
+        string filePath,
+        string? password,
+        CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrEmpty(filePath);
 
@@ -722,14 +747,19 @@ public class CompanyManager : IDisposable
                 }
             }
 
-            _currentTempDirectory = await _fileService.OpenCompanyAsync(filePath, password, cancellationToken);
+            // Key derivation, decryption, decompression, extraction and parsing all run on the thread
+            // pool: parts of them complete synchronously, which froze the UI for the whole open. The
+            // loaded data is only published to CompanyData once back on the caller's thread.
+            var tempDirectory = await Task.Run(
+                () => _fileService.OpenCompanyAsync(filePath, password, cancellationToken));
+            _currentTempDirectory = tempDirectory;
 
             // Load company data, but defer receipts (they carry base64 image data and
             // aren't needed to show the dashboard). They load in the background and are
             // merged in by EnsureReceiptsLoadedAsync before any save or receipts UI read.
-            CompanyData = await _fileService.LoadCompanyDataAsync(
-                _currentTempDirectory, cancellationToken, loadReceipts: false);
-            StartReceiptsBackgroundLoad(_currentTempDirectory, CompanyData);
+            CompanyData = await Task.Run(
+                () => _fileService.LoadCompanyDataAsync(tempDirectory, cancellationToken, loadReceipts: false));
+            StartReceiptsBackgroundLoad(tempDirectory, CompanyData);
 
             // Runs before the heal: it removes Payment rows, and the heal
             // recalculates invoice totals from whatever is left.
@@ -782,11 +812,7 @@ public class CompanyManager : IDisposable
             // Clean up on failure (the finally releases the instance lock).
             ReleaseFileLock();
             _errorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to open company");
-            if (_currentTempDirectory != null && Directory.Exists(_currentTempDirectory))
-            {
-                Directory.Delete(_currentTempDirectory, recursive: true);
-            }
-            _currentTempDirectory = null;
+            DeleteTempDirectoryAfterFailure();
             CompanyData = null;
             throw;
         }
@@ -804,6 +830,29 @@ public class CompanyManager : IDisposable
     /// healing rules change so the pass re-runs once on the next open.
     /// </summary>
     public const string InvoiceTotalsHealVersion = "3";
+
+    /// <summary>
+    /// Removes the temp directory of a create or open that failed. A file still held by antivirus or
+    /// the indexer makes the delete throw on Windows, and that must not replace the exception the
+    /// user needs to see, such as the one asking them to update Argo Books.
+    /// </summary>
+    private void DeleteTempDirectoryAfterFailure()
+    {
+        var tempDirectory = _currentTempDirectory;
+        _currentTempDirectory = null;
+        if (tempDirectory == null)
+            return;
+
+        try
+        {
+            if (Directory.Exists(tempDirectory))
+                Directory.Delete(tempDirectory, recursive: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _errorLogger?.LogWarning($"Could not remove the temp directory of a failed open: {ex.Message}", "CompanyManager");
+        }
+    }
 
     /// <summary>
     /// One-time recalc that heals any historic drift between Invoice totals and

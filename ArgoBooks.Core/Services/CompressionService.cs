@@ -197,6 +197,69 @@ public class CompressionService
     }
 
     /// <summary>
+    /// Extracts a GZip-compressed TAR archive to a directory, decompressing as it goes so the
+    /// archive is never held in memory whole. Subject to the same size limit as
+    /// <see cref="DecompressGZipAsync"/>.
+    /// </summary>
+    /// <exception cref="InvalidDataException">Thrown if decompressed size exceeds the limit.</exception>
+    public async Task ExtractGZipTarArchiveAsync(
+        Stream compressedStream,
+        string destinationDirectory,
+        CancellationToken cancellationToken = default)
+    {
+        await using var gzipStream = new GZipStream(compressedStream, CompressionMode.Decompress, leaveOpen: true);
+        await using var limitedStream = new SizeLimitedReadStream(gzipStream, MaxDecompressedSize);
+
+        await ExtractTarArchiveAsync(limitedStream, destinationDirectory, cancellationToken);
+
+        // The reader stops at the archive's end marker. Reading on to the end of the GZip data
+        // checks its trailer, as decompressing it whole did.
+        await limitedStream.CopyToAsync(Stream.Null, cancellationToken);
+    }
+
+    private sealed class SizeLimitedReadStream(Stream inner, long maxBytes) : Stream
+    {
+        private long _totalRead;
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+
+        public override long Position
+        {
+            get => _totalRead;
+            set => throw new NotSupportedException();
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) => Counted(inner.Read(buffer, offset, count));
+
+        public override int Read(Span<byte> buffer) => Counted(inner.Read(buffer));
+
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) =>
+            Counted(await inner.ReadAsync(buffer, cancellationToken));
+
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+            ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+
+        private int Counted(int bytesRead)
+        {
+            _totalRead += bytesRead;
+            if (_totalRead > maxBytes)
+            {
+                throw new InvalidDataException(
+                    $"Decompressed data exceeds the maximum allowed size of {maxBytes / (1024 * 1024)} MB. The file may be corrupted.");
+            }
+            return bytesRead;
+        }
+
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
+    /// <summary>
     /// Sanitizes a TAR entry name to prevent path traversal attacks.
     /// </summary>
     private static string SanitizeEntryName(string entryName)

@@ -2230,6 +2230,11 @@ public partial class App : Application
     {
         try
         {
+            // A file double-clicked while another is still opening waits for that open to finish,
+            // then replaces it the way opening any file over an open company does.
+            while (CompanyManager?.IsOpening == true)
+                await Task.Delay(100);
+
             await OpenCompanyWithRetryAsync(path);
         }
         catch (Exception ex)
