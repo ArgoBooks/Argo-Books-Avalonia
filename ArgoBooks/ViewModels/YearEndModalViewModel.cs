@@ -236,6 +236,7 @@ public partial class YearEndModalViewModel : ViewModelBase
 
     public string ContactPhoneError => FieldProblem(T4ProblemField.ContactPhone);
 
+
     /// <summary>
     /// What validation said about one box, held back until Export for filing has been pressed.
     /// Marking a box red before anything has been typed is nagging, but once filing has been
@@ -417,6 +418,8 @@ public partial class YearEndModalViewModel : ViewModelBase
         QuebecIdentificationNumber = data?.Settings.Company.QuebecIdentificationNumber ?? string.Empty;
         _loading = false;
 
+        _detailsOnOpen = CurrentDetails();
+
         // Reselect before lifting the guard, so the whole refill produces exactly one rebuild
         // here rather than one from the setter and another from this call.
         //
@@ -433,7 +436,62 @@ public partial class YearEndModalViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void Close() => IsOpen = false;
+    private void Close()
+    {
+        RecordDetailsEdit();
+        IsOpen = false;
+    }
+
+    /// <summary>
+    /// The filing details as they stand, for comparing what a visit to this modal changed.
+    /// </summary>
+    private sealed record FilingDetails(
+        string AccountNumber, string ContactName, string ContactPhone, string ContactEmail,
+        string QuebecIdentificationNumber, RemitterType RemitterType);
+
+    private FilingDetails? _detailsOnOpen;
+
+    private FilingDetails CurrentDetails() => new(
+        AccountNumber, ContactName, ContactPhone, ContactEmail,
+        QuebecIdentificationNumber, RemitterType);
+
+    /// <summary>
+    /// One undo entry for the whole visit, not one per keystroke. Each box saves as it is typed
+    /// in, which is what keeps the figures on screen right, so the alternative was a stack of
+    /// single-character actions to step back through.
+    /// </summary>
+    private void RecordDetailsEdit()
+    {
+        if (_detailsOnOpen is not { } before || App.CompanyManager?.CompanyData is not { } data)
+        {
+            return;
+        }
+
+        FilingDetails after = CurrentDetails();
+        _detailsOnOpen = null;
+
+        if (after == before)
+        {
+            return;
+        }
+
+        void Apply(FilingDetails details)
+        {
+            var company = data.Settings.Company;
+            company.PayrollAccountNumber = details.AccountNumber;
+            company.PayrollContactName = details.ContactName;
+            company.PayrollContactPhone = details.ContactPhone;
+            company.PayrollContactEmail = details.ContactEmail;
+            company.QuebecIdentificationNumber = details.QuebecIdentificationNumber;
+            company.RemitterType = details.RemitterType;
+            App.CompanyManager?.MarkAsChanged();
+        }
+
+        App.UndoRedoManager.RecordAction(new DelegateAction(
+            "Edit payroll filing details",
+            () => Apply(before),
+            () => Apply(after)));
+    }
 
     private void Rebuild()
     {
