@@ -115,5 +115,10 @@ public enum FeatureName
     PhonePaired,
 
     // set, changed or removed, in the context.
-    CompanyPasswordSet
+    CompanyPasswordSet,
+
+    // How long it took, in the duration. The context holds what prompted it, whether the file is
+    // encrypted, and its size band, such as "manual:plain:1-10MB".
+    CompanyOpened,
+    CompanySaved
 }

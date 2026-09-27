@@ -137,6 +137,24 @@ public partial class App
             // before navigating so the dashboard renders with the right range.
             ChartSettingsService.Instance.LoadForCompany(args.FilePath);
 
+            // This handler is async void, so nothing above it would catch a failure here; it would
+            // leave the loading overlay up. The company is open either way, as it was when the
+            // opening flows did this themselves and showed the same error over the dashboard.
+            var sampleShifted = false;
+            Exception? samplePrepareError = null;
+            if (CompanyManager.IsSampleCompany)
+            {
+                try
+                {
+                    sampleShifted = await PrepareSampleCompanyAsync();
+                }
+                catch (Exception ex)
+                {
+                    samplePrepareError = ex;
+                    ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to open sample company");
+                }
+            }
+
             // Load this company's portal API key into the process-level cache (cheap, so any
             // portal-dependent UI has it on first paint; the actual sync is deferred below).
             PortalSettings.ActivateApiKey(CompanyManager.CompanyData?.Settings.PaymentPortal);
@@ -148,6 +166,7 @@ public partial class App
             // overlay together so the user never sees a half-initialized dashboard.
             _mainWindowViewModel.OpenCompany(args.CompanyName);
             _mainWindowViewModel.HideLoading();
+            ReportCompanyOpenTiming(args);
 
             // Defer non-visual and network work until after the dashboard has painted,
             // so the company opens as fast as possible. Posted on the UI thread at
@@ -175,7 +194,7 @@ public partial class App
                             .GenerateDueInvoices(CompanyManager.CompanyData, DateTime.Today);
                         if (generatedRecurring.Count > 0)
                         {
-                            await CompanyManager.SaveCompanyAsync();
+                            await CompanyManager.SaveCompanyAsync(kind: "recurring");
                             RecurringInvoiceService.RaiseGenerated(generatedRecurring.Count);
                             var recurringCount = generatedRecurring.Count;
                             AddNotification(
@@ -191,7 +210,7 @@ public partial class App
                             .GenerateDue(CompanyManager.CompanyData, DateTime.Today);
                         if (generatedTxns.Count > 0)
                         {
-                            await CompanyManager.SaveCompanyAsync();
+                            await CompanyManager.SaveCompanyAsync(kind: "recurring");
                             var txnExpenses = generatedTxns.Count(t => t is Core.Models.Transactions.Expense);
                             var txnRevenues = generatedTxns.Count - txnExpenses;
                             RecurringTransactionService.RaiseGenerated(txnExpenses, txnRevenues);
@@ -249,6 +268,11 @@ public partial class App
                     ErrorLogger?.LogError(ex, ErrorCategory.Unknown, "Deferred post-open initialization failed");
                 }
             }, Avalonia.Threading.DispatcherPriority.Background);
+
+            if (samplePrepareError != null)
+                await ShowErrorDialogAsync("Error".Translate(), "Failed to open sample company: {0}".TranslateFormat(samplePrepareError.Message));
+            else if (CompanyManager.IsSampleCompany)
+                await FinishOpeningSampleCompanyAsync(sampleShifted);
         };
 
         CompanyManager.CompanyClosed += async (_, _) =>
@@ -292,8 +316,11 @@ public partial class App
             await LanguageService.Instance.SetLanguageAsync(globalLanguage);
         };
 
-        CompanyManager.CompanySaved += (_, _) =>
+        CompanyManager.CompanySaved += (_, e) =>
         {
+            _ = TelemetryManager?.TrackFeatureAsync(
+                FeatureName.CompanySaved, TimingContext(e.Kind, e.IsEncrypted, e.FileSizeBytes), e.ElapsedMs);
+
             _mainWindowViewModel.HideLoading();
 
             if (_suppressSavedFeedback)
@@ -366,6 +393,9 @@ public partial class App
             {
                 _appShellViewModel.PasswordPromptModalViewModel.Close();
                 _mainWindowViewModel.ShowLoading("Opening company...".Translate());
+
+                // Time spent typing the password is not part of opening the file.
+                _companyOpenTiming?.Timer.Restart();
             }
 
             return password;
@@ -500,7 +530,7 @@ public partial class App
                 _appShellViewModel.HeaderViewModel.ShowSavingIndicator = true;
                 try
                 {
-                    await CompanyManager.SaveCompanyAsync();
+                    await CompanyManager.SaveCompanyAsync(kind: "manual");
                 }
                 catch (Exception ex)
                 {
@@ -598,7 +628,7 @@ public partial class App
                     }
 
                     _suppressSavedFeedback = true;
-                    await CompanyManager.SaveCompanyAsync();
+                    await CompanyManager.SaveCompanyAsync(kind: "created");
 
                     await LoadRecentCompaniesAsync();
                     // Here, not on the wizard's button: a cancelled save dialog creates nothing.
@@ -763,7 +793,7 @@ public partial class App
                 {
                     try
                     {
-                        await CompanyManager.SaveCompanyAsync();
+                        await CompanyManager.SaveCompanyAsync(kind: "tutorial");
                     }
                     catch (Exception ex)
                     {
@@ -1681,7 +1711,7 @@ public partial class App
                     try
                     {
                         _mainWindowViewModel?.ShowLoading("Auto-saving before lock...".Translate());
-                        await CompanyManager.SaveCompanyAsync();
+                        await CompanyManager.SaveCompanyAsync(kind: "auto-lock");
                         _mainWindowViewModel?.HideLoading();
                     }
                     catch (Exception ex)

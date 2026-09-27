@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using ArgoBooks.Core.Data;
@@ -489,9 +490,28 @@ public class CompanyManager : IDisposable
     public event EventHandler? CompanySaving;
 
     /// <summary>
-    /// Event raised when a company is saved.
+    /// Event raised when a company is saved, with how long the save took.
     /// </summary>
-    public event EventHandler? CompanySaved;
+    public event EventHandler<CompanySavedEventArgs>? CompanySaved;
+
+    private static CompanySavedEventArgs CreateSavedEventArgs(string kind, Stopwatch stopwatch, string? filePath, bool isEncrypted)
+    {
+        long fileSize = 0;
+        try
+        {
+            if (filePath != null)
+                fileSize = new FileInfo(filePath).Length;
+        }
+        catch (IOException)
+        {
+            // Only reported with the timing, so an unreadable size is left at zero.
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+
+        return new CompanySavedEventArgs(kind, stopwatch.ElapsedMilliseconds, fileSize, isEncrypted);
+    }
 
     /// <summary>
     /// Event raised when the open company's file was renamed during a save.
@@ -826,12 +846,6 @@ public class CompanyManager : IDisposable
     }
 
     /// <summary>
-    /// Current version of the invoice-totals healing logic. Bump this when the
-    /// healing rules change so the pass re-runs once on the next open.
-    /// </summary>
-    public const string InvoiceTotalsHealVersion = "3";
-
-    /// <summary>
     /// Removes the temp directory of a create or open that failed. A file still held by antivirus or
     /// the indexer makes the delete throw on Windows, and that must not replace the exception the
     /// user needs to see, such as the one asking them to update Argo Books.
@@ -853,6 +867,12 @@ public class CompanyManager : IDisposable
             _errorLogger?.LogWarning($"Could not remove the temp directory of a failed open: {ex.Message}", "CompanyManager");
         }
     }
+
+    /// <summary>
+    /// Current version of the invoice-totals healing logic. Bump this when the
+    /// healing rules change so the pass re-runs once on the next open.
+    /// </summary>
+    public const string InvoiceTotalsHealVersion = "3";
 
     /// <summary>
     /// One-time recalc that heals any historic drift between Invoice totals and
@@ -1136,9 +1156,12 @@ public class CompanyManager : IDisposable
     /// Saves the current company to its file.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task SaveCompanyAsync(CancellationToken cancellationToken = default)
+    /// <param name="kind">What prompted the save, reported with its timing on <see cref="CompanySaved"/>.
+    /// Saves made as a side effect of an action, such as sending an invoice, leave the default.</param>
+    public async Task SaveCompanyAsync(CancellationToken cancellationToken = default, string kind = "automatic")
     {
         await _saveLock.WaitAsync(cancellationToken);
+        var stopwatch = Stopwatch.StartNew();
         try
         {
             if (!IsCompanyOpen || CurrentFilePath == null || _currentTempDirectory == null)
@@ -1224,8 +1247,7 @@ public class CompanyManager : IDisposable
                 CompanyRenamed?.Invoke(this, EventArgs.Empty);
             }
 
-            // Raise event
-            CompanySaved?.Invoke(this, EventArgs.Empty);
+            CompanySaved?.Invoke(this, CreateSavedEventArgs(kind, stopwatch, CurrentFilePath, IsEncrypted));
         }
         finally
         {
@@ -1245,6 +1267,7 @@ public class CompanyManager : IDisposable
         CancellationToken cancellationToken = default)
     {
         await _saveLock.WaitAsync(cancellationToken);
+        var stopwatch = Stopwatch.StartNew();
         try
         {
             if (!IsCompanyOpen || _currentTempDirectory == null)
@@ -1313,8 +1336,7 @@ public class CompanyManager : IDisposable
             _settingsService.AddRecentCompany(newFilePath);
             await _settingsService.SaveGlobalSettingsAsync(cancellationToken);
 
-            // Raise event
-            CompanySaved?.Invoke(this, EventArgs.Empty);
+            CompanySaved?.Invoke(this, CreateSavedEventArgs("save-as", stopwatch, newFilePath, !string.IsNullOrEmpty(passwordToUse)));
         }
         finally
         {
@@ -2023,6 +2045,17 @@ public class CompanyOpenedEventArgs(string companyName, string filePath, bool is
 {
     public string CompanyName { get; } = companyName;
     public string FilePath { get; } = filePath;
+    public bool IsEncrypted { get; } = isEncrypted;
+}
+
+/// <summary>
+/// Event args for a completed save. <see cref="Kind"/> says what prompted it, such as "manual".
+/// </summary>
+public class CompanySavedEventArgs(string kind, long elapsedMs, long fileSizeBytes, bool isEncrypted) : EventArgs
+{
+    public string Kind { get; } = kind;
+    public long ElapsedMs { get; } = elapsedMs;
+    public long FileSizeBytes { get; } = fileSizeBytes;
     public bool IsEncrypted { get; } = isEncrypted;
 }
 

@@ -1261,6 +1261,64 @@ public partial class App : Application
     private static bool _suppressSavedFeedback;
     private static bool _isOpeningCompany;
 
+    // Started by each way of opening a company and reported once its dashboard is showing. The path
+    // stops a created company, which also raises CompanyOpened, reporting a failed open's timer.
+    private sealed record CompanyOpenTiming(System.Diagnostics.Stopwatch Timer, string Kind, string FilePath);
+    private static CompanyOpenTiming? _companyOpenTiming;
+
+    private static void StartCompanyOpenTiming(string kind, string filePath) =>
+        _companyOpenTiming = new CompanyOpenTiming(System.Diagnostics.Stopwatch.StartNew(), kind, filePath);
+
+    /// <summary>Starts the timing for a file picked by path, which may be the sample company's.</summary>
+    private static void StartFileOpenTiming(string filePath) =>
+        StartCompanyOpenTiming(
+            string.Equals(filePath, SampleCompanyService.GetSampleCompanyPath(), StringComparison.OrdinalIgnoreCase) ? "sample" : "file",
+            filePath);
+
+    private static void CancelCompanyOpenTiming() => _companyOpenTiming = null;
+
+    private static void ReportCompanyOpenTiming(CompanyOpenedEventArgs args)
+    {
+        var timing = _companyOpenTiming;
+        _companyOpenTiming = null;
+        if (timing == null || !string.Equals(timing.FilePath, args.FilePath, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        _ = TelemetryManager?.TrackFeatureAsync(
+            FeatureName.CompanyOpened,
+            TimingContext(timing.Kind, args.IsEncrypted, FileSizeOrZero(args.FilePath)),
+            timing.Timer.ElapsedMilliseconds);
+    }
+
+    /// <summary>
+    /// The context for open and save timings: what prompted it, whether the file is encrypted, and
+    /// a size band, which is what the time mostly depends on without identifying the file.
+    /// </summary>
+    private static string TimingContext(string kind, bool isEncrypted, long fileSizeBytes)
+    {
+        const long mb = 1024 * 1024;
+        var size = fileSizeBytes switch
+        {
+            < mb => "<1MB",
+            < 10 * mb => "1-10MB",
+            < 50 * mb => "10-50MB",
+            _ => "50MB+"
+        };
+        return $"{kind}:{(isEncrypted ? "encrypted" : "plain")}:{size}";
+    }
+
+    private static long FileSizeOrZero(string path)
+    {
+        try
+        {
+            return new FileInfo(path).Length;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return 0;
+        }
+    }
+
     // When true, a new company is being created. Like _isOpeningCompany, this keeps the loading
     // overlay up across the close-then-open transition so the welcome screen doesn't flash between
     // closing the current company and opening the new one.
@@ -2082,7 +2140,7 @@ public partial class App : Application
                 if (CompanyManager?.IsCompanyOpen == true)
                 {
                     // Use synchronous wait since we must complete before the process exits
-                    Task.Run(async () => await CompanyManager.SaveCompanyAsync())
+                    Task.Run(async () => await CompanyManager.SaveCompanyAsync(kind: "update"))
                         .GetAwaiter().GetResult();
                 }
 
@@ -2467,8 +2525,62 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// Creates and opens a sample company with pre-populated demo data.
+    /// Moves the sample company's dates up to today, shows its whole year and fetches the rates for
+    /// the moved dates. Called by the CompanyOpened handler before the dashboard is built, so the
+    /// dashboard loads once with all of it instead of again after each step.
     /// </summary>
+    /// <returns>True if the dates moved, so the file should be saved.</returns>
+    private static async Task<bool> PrepareSampleCompanyAsync()
+    {
+        if (CompanyManager?.CompanyData is not { } data || _mainWindowViewModel == null || _appShellViewModel == null)
+            return false;
+
+        var shifted = SampleCompanyService.TimeShiftSampleData(data);
+
+        // The shift is automatic, so it is not a change of the user's.
+        data.MarkAsSaved();
+        _mainWindowViewModel.HasUnsavedChanges = false;
+        _appShellViewModel.HeaderViewModel.HasUnsavedChanges = false;
+        SyncSampleCompanyState();
+
+        ChartSettingsService.Instance.SelectedDateRange = "Last 365 Days";
+
+        try
+        {
+            await CurrencyService.WarmCompanyRatesAsync(data);
+        }
+        catch (Exception ex)
+        {
+            ErrorLogger?.LogWarning($"Could not fetch the sample company's rates: {ex.Message}", "ExchangeRate");
+        }
+
+        return shifted;
+    }
+
+    /// <summary>
+    /// The sample company's steps once its dashboard is showing: saves the moved dates, then takes
+    /// the insights snapshot.
+    /// </summary>
+    private static async Task FinishOpeningSampleCompanyAsync(bool shifted)
+    {
+        if (shifted && CompanyManager != null)
+        {
+            // Suppress the "Saved" indicator for this internal save
+            _suppressSavedFeedback = true;
+            try
+            {
+                await CompanyManager.SaveCompanyAsync(kind: "sample");
+            }
+            catch (Exception ex)
+            {
+                _suppressSavedFeedback = false;
+                ErrorLogger?.LogWarning($"Could not save the sample company's moved dates: {ex.Message}", "SampleCompany");
+            }
+        }
+
+        await CaptureSampleInsightsAsync();
+    }
+
     /// <summary>
     /// Freezes the sample's insights for a free user, straight after it opens and before anything
     /// in it can change. Never fails the open: the page falls back to its teaser.
@@ -2513,11 +2625,15 @@ public partial class App : Application
         }
     }
 
+    /// <summary>
+    /// Creates and opens a sample company with pre-populated demo data.
+    /// </summary>
     private static async Task OpenSampleCompanyAsync()
     {
         if (CompanyManager == null || _mainWindowViewModel == null || _appShellViewModel == null || _fileService == null)
             return;
 
+        var opened = false;
         try
         {
             var sampleFilePath = SampleCompanyService.GetSampleCompanyPath();
@@ -2533,6 +2649,7 @@ public partial class App : Application
             }
 
             _mainWindowViewModel.ShowLoading("Opening sample company...".Translate());
+            StartCompanyOpenTiming(needsCreation ? "sample-new" : "sample", sampleFilePath);
 
             if (needsCreation)
             {
@@ -2578,36 +2695,13 @@ public partial class App : Application
                 sampleFilePath = await sampleService.FinishSampleCompanyCreationAsync(validationContext);
             }
 
+            // The time shift, date range, rates and insights snapshot are done by the CompanyOpened
+            // handler, around building the dashboard. See PrepareSampleCompanyAsync.
             var success = await CompanyManager.OpenCompanyAsync(sampleFilePath);
+            opened = success;
 
             if (success)
             {
-                if (CompanyManager.CompanyData != null)
-                {
-                    if (SampleCompanyService.TimeShiftSampleData(CompanyManager.CompanyData))
-                    {
-                        CompanyManager.NotifyDataChanged();
-
-                        // Suppress the "Saved" indicator for this internal save
-                        _suppressSavedFeedback = true;
-                        await CompanyManager.SaveCompanyAsync();
-                    }
-                    CompanyManager.CompanyData.MarkAsSaved();
-
-                    // Reset unsaved changes since time-shift is automatic
-                    _mainWindowViewModel.HasUnsavedChanges = false;
-                    _appShellViewModel.HeaderViewModel.HasUnsavedChanges = false;
-                    SyncSampleCompanyState();
-
-                    // Set date range to show full year of sample data
-                    ChartSettingsService.Instance.SelectedDateRange = "Last 365 Days";
-
-                    // The time shift moved every date, so their rates may not be cached yet.
-                    await CurrencyService.WarmCompanyRatesAsync(CompanyManager.CompanyData);
-
-                    await CaptureSampleInsightsAsync();
-                }
-
                 // Exploring in the sample company looks identical to real use on the
                 // dashboard otherwise: the same CustomerCreated and ProductCreated events
                 // arrive with no CompanyCreated before them, which reads as lost telemetry
@@ -2632,6 +2726,11 @@ public partial class App : Application
             _mainWindowViewModel.HideLoading();
             ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to open sample company");
             await ShowErrorDialogAsync("Error".Translate(), "Failed to open sample company: {0}".TranslateFormat(ex.Message));
+        }
+        finally
+        {
+            if (!opened)
+                CancelCompanyOpenTiming();
         }
     }
 
@@ -3938,32 +4037,18 @@ public partial class App : Application
 
         _isOpeningCompany = true;
         _mainWindowViewModel.ShowLoading("Opening company...".Translate());
+        StartFileOpenTiming(filePath);
 
         try
         {
+            // The sample company, opened from the recent list, is prepared by the CompanyOpened
+            // handler as it is when opened from the welcome screen.
             var success = await CompanyManager.OpenCompanyAsync(filePath);
             _isOpeningCompany = false;
             if (success)
             {
                 // Close the password modal if it was open
                 passwordModal.Close();
-
-                // Time-shift sample company data if needed
-                if (CompanyManager.IsSampleCompany && CompanyManager.CompanyData != null)
-                {
-                    if (SampleCompanyService.TimeShiftSampleData(CompanyManager.CompanyData))
-                    {
-                        CompanyManager.NotifyDataChanged();
-                        _suppressSavedFeedback = true;
-                        await CompanyManager.SaveCompanyAsync();
-                    }
-                    CompanyManager.CompanyData.MarkAsSaved();
-                    _mainWindowViewModel.HasUnsavedChanges = false;
-                    _appShellViewModel.HeaderViewModel.HasUnsavedChanges = false;
-                    SyncSampleCompanyState();
-                    ChartSettingsService.Instance.SelectedDateRange = "Last 365 Days";
-                    await CaptureSampleInsightsAsync();
-                }
 
                 await LoadRecentCompaniesAsync();
             }
@@ -3972,6 +4057,7 @@ public partial class App : Application
                 // User cancelled password prompt
                 _isOpeningCompany = false;
                 _mainWindowViewModel.HideLoading();
+                CancelCompanyOpenTiming();
             }
         }
         catch (UnauthorizedAccessException)
@@ -3979,6 +4065,7 @@ public partial class App : Application
             // Wrong password - show error and retry
             _isOpeningCompany = false;
             _mainWindowViewModel.HideLoading();
+            CancelCompanyOpenTiming();
 
             passwordModal.ShowError("Invalid password. Please try again.".Translate());
 
@@ -4000,6 +4087,7 @@ public partial class App : Application
         {
             _isOpeningCompany = false;
             _mainWindowViewModel.HideLoading();
+            CancelCompanyOpenTiming();
             passwordModal.Close();
             await ShowWarningDialogAsync(
                 "Company File Not Found".Translate(),
@@ -4015,6 +4103,7 @@ public partial class App : Application
             // next user action.
             _isOpeningCompany = false;
             _mainWindowViewModel.HideLoading();
+            CancelCompanyOpenTiming();
             passwordModal.Close();
             // Not logged as an error: this is an expected, handled condition (the file was saved by a
             // newer build) that already shows the user the "Update Argo Books" dialog below.
@@ -4043,6 +4132,7 @@ public partial class App : Application
             // friendly notice (neutral dialog, not the red error box) and leave it in recents.
             _isOpeningCompany = false;
             _mainWindowViewModel.HideLoading();
+            CancelCompanyOpenTiming();
             passwordModal.Close();
             await ShowCompanyAlreadyOpenAsync();
         }
@@ -4050,6 +4140,7 @@ public partial class App : Application
         {
             _isOpeningCompany = false;
             _mainWindowViewModel.HideLoading();
+            CancelCompanyOpenTiming();
             passwordModal.Close();
             ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to open company file");
             await ShowErrorDialogAsync("Error".Translate(), "Failed to open file: {0}".TranslateFormat(ex.Message));
@@ -4076,6 +4167,7 @@ public partial class App : Application
         var passwordModal = _appShellViewModel.PasswordPromptModalViewModel;
 
         _mainWindowViewModel.ShowLoading("Opening company...".Translate());
+        StartFileOpenTiming(filePath);
 
         try
         {
@@ -4089,6 +4181,7 @@ public partial class App : Application
             else
             {
                 _mainWindowViewModel.HideLoading();
+                CancelCompanyOpenTiming();
                 return false;
             }
         }
@@ -4096,6 +4189,7 @@ public partial class App : Application
         {
             // Wrong password again - show error and retry
             _mainWindowViewModel.HideLoading();
+            CancelCompanyOpenTiming();
 
             passwordModal.ShowError("Invalid password. Please try again.".Translate());
 
@@ -4116,6 +4210,7 @@ public partial class App : Application
         catch (CompanyAlreadyOpenException)
         {
             _mainWindowViewModel.HideLoading();
+            CancelCompanyOpenTiming();
             passwordModal.Close();
             await ShowCompanyAlreadyOpenAsync();
             return false;
@@ -4123,6 +4218,7 @@ public partial class App : Application
         catch (Exception ex)
         {
             _mainWindowViewModel.HideLoading();
+            CancelCompanyOpenTiming();
             passwordModal.Close();
             ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to open company file with password");
             await ShowErrorDialogAsync("Error".Translate(), "Failed to open file: {0}".TranslateFormat(ex.Message));
@@ -4266,7 +4362,7 @@ public partial class App : Application
         {
             try
             {
-                await CompanyManager.SaveCompanyAsync();
+                await CompanyManager.SaveCompanyAsync(kind: "manual");
                 return true;
             }
             catch (Exception ex) when (FileAccessHelper.IsLikelySecurityBlock(ex))
