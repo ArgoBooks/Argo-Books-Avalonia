@@ -27,6 +27,9 @@ public partial class MainWindow : Window
         AddHandler(InputElement.KeyDownEvent, OnAnyInput, RoutingStrategies.Tunnel);
         AddHandler(InputElement.PointerPressedEvent, OnAnyInput, RoutingStrategies.Tunnel);
 
+        AddHandler(InputElement.KeyDownEvent, BlockKeysWhileLoading, RoutingStrategies.Tunnel);
+        AddHandler(InputElement.TextInputEvent, BlockKeysWhileLoading, RoutingStrategies.Tunnel);
+
         // Subscribe to DataContext changes to ensure content is set
         DataContextChanged += OnDataContextChanged;
 
@@ -109,6 +112,25 @@ public partial class MainWindow : Window
     private static void OnAnyInput(object? sender, RoutedEventArgs e)
     {
         App.TelemetryManager?.MarkActivity();
+    }
+
+    /// <summary>
+    /// Stops key presses and typing while the loading overlay is up. The overlay only stops clicks,
+    /// so keys still reached whatever had focus beneath it: an undo shortcut or a field could change
+    /// the company while a save before closing ran, and the change was then closed away unsaved.
+    /// The dialogs drawn above the overlay keep their keys.
+    /// </summary>
+    private void BlockKeysWhileLoading(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel { IsLoading: true })
+            return;
+
+        if (e.Source is Visual { IsEffectivelyVisible: true } source
+            && (source.FindAncestorOfType<Modals.ConfirmationDialog>(includeSelf: true) != null
+                || source.FindAncestorOfType<Modals.UnsavedChangesDialog>(includeSelf: true) != null))
+            return;
+
+        e.Handled = true;
     }
 
     /// <summary>
@@ -311,34 +333,44 @@ public partial class MainWindow : Window
                     switch (result)
                     {
                         case UnsavedChangesResult.Save:
-                            // Save and close
-                            if (App.CompanyManager != null)
+                            // Save and close. The overlay stays up until the window has closed, so
+                            // nothing can be edited after the save and then lost with the window.
+                            viewModel.ShowLoading("Saving...".Translate());
+                            try
                             {
-                                // Sample company cannot be saved directly - redirect to Save As
-                                if (App.CompanyManager.IsSampleCompany)
+                                if (App.CompanyManager != null)
                                 {
-                                    var saved = await App.SaveCompanyAsFromWindowAsync();
-                                    if (!saved) return; // User cancelled Save As, don't close
-                                }
-                                else
-                                {
-                                    try
+                                    // Sample company cannot be saved directly - redirect to Save As
+                                    if (App.CompanyManager.IsSampleCompany)
                                     {
-                                        var saved = await App.SaveCompanyWithSecurityGuidanceAsync();
-                                        if (!saved) return; // User cancelled the blocked-save dialog, don't close
+                                        var saved = await App.SaveCompanyAsFromWindowAsync();
+                                        if (!saved) return; // User cancelled Save As, don't close
                                     }
-                                    catch (Exception ex)
+                                    else
                                     {
-                                        // Staying open keeps the changes; closing would discard them.
-                                        App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.FileSystem, "Save before closing failed");
-                                        await App.ShowWarningDialogAsync(
-                                            "Could Not Save".Translate(),
-                                            "Your changes could not be saved, so the company is still open with them. {0}".TranslateFormat(ex.Message));
-                                        return;
+                                        try
+                                        {
+                                            var saved = await App.SaveCompanyWithSecurityGuidanceAsync();
+                                            if (!saved) return; // User cancelled the blocked-save dialog, don't close
+                                        }
+                                        catch (Exception ex)
+                                        {
+                                            // Staying open keeps the changes; closing would discard them.
+                                            viewModel.HideLoading();
+                                            App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.FileSystem, "Save before closing failed");
+                                            await App.ShowWarningDialogAsync(
+                                                "Could Not Save".Translate(),
+                                                "Your changes could not be saved, so the company is still open with them. {0}".TranslateFormat(ex.Message));
+                                            return;
+                                        }
                                     }
                                 }
+                                await EndTelemetryAndCloseAsync();
                             }
-                            await EndTelemetryAndCloseAsync();
+                            finally
+                            {
+                                viewModel.HideLoading();
+                            }
                             break;
 
                         case UnsavedChangesResult.DontSave:
@@ -378,6 +410,12 @@ public partial class MainWindow : Window
         if (App.TelemetryManager != null)
         {
             await App.TelemetryManager.EndSessionAsync();
+        }
+
+        // Saves write the file in the background, and exiting would cut one off part-way.
+        if (App.CompanyManager != null)
+        {
+            await App.CompanyManager.WaitForSaveToFinishAsync();
         }
         _isClosingConfirmed = true;
         Close();

@@ -25,6 +25,9 @@ public class CompanyManager : IDisposable
     private readonly FooterService _footerService;
     private readonly IErrorLogger? _errorLogger;
 
+    // Held for the whole of every save. Saves pack the temp directory into the .argo file on the
+    // thread pool while the UI keeps running, so anything else that writes to or deletes that
+    // directory takes this lock too: see WriteTempFilesAsync and WriteTempFilesWhenFree.
     private readonly SemaphoreSlim _saveLock = new(1, 1);
     private string? _currentTempDirectory;
     private string? _currentPassword;
@@ -179,6 +182,77 @@ public class CompanyManager : IDisposable
         return path != null && File.Exists(path) ? path : null;
     }
 
+    /// <summary>
+    /// Runs <paramref name="write"/> against the open company's temp directory once no save holds
+    /// it. A file written or deleted while a save is packing the directory could reach the .argo
+    /// file half-written, or make the save fail.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The company closed while this waited.</exception>
+    private async Task WriteTempFilesAsync(Func<Task> write)
+    {
+        var data = CompanyData;
+        await _saveLock.WaitAsync();
+        try
+        {
+            if (data == null || !ReferenceEquals(CompanyData, data) || _currentTempDirectory == null)
+                throw new InvalidOperationException("No company is currently open.");
+
+            await write();
+        }
+        finally
+        {
+            _saveLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// The same guarantee as <see cref="WriteTempFilesAsync"/> for callers that cannot wait, such
+    /// as undo and redo: runs <paramref name="write"/> now when no save is running, and otherwise
+    /// queues it to run as soon as that save finishes, in the order it was asked for.
+    /// </summary>
+    private void WriteTempFilesWhenFree(Action write)
+    {
+        if (_saveLock.Wait(0))
+        {
+            try
+            {
+                write();
+            }
+            finally
+            {
+                _saveLock.Release();
+            }
+            return;
+        }
+
+        _ = WriteTempFilesLaterAsync(write);
+    }
+
+    private async Task WriteTempFilesLaterAsync(Action write)
+    {
+        var data = CompanyData;
+        await _saveLock.WaitAsync();
+        try
+        {
+            if (data == null || !ReferenceEquals(CompanyData, data) || _currentTempDirectory == null)
+                return;
+
+            write();
+
+            // The save this waited for may have written the company before the change reached it.
+            data.ChangesMade = true;
+            CompanyDataChanged?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception ex)
+        {
+            _errorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to update company files after a save");
+        }
+        finally
+        {
+            _saveLock.Release();
+        }
+    }
+
     private async Task SetEntityAvatarFromPathAsync(IAvatarOwner entity, string sourceImagePath, string subdirectory)
     {
         ArgumentNullException.ThrowIfNull(entity);
@@ -188,12 +262,15 @@ public class CompanyManager : IDisposable
         if (!File.Exists(sourceImagePath))
             throw new FileNotFoundException("Avatar source file not found.", sourceImagePath);
 
-        var (destPath, relativePath) = PrepareAvatarDestination(entity, entity.Id, subdirectory);
-        var ok = await Task.Run(() => ReceiptImageHelper.ResizeAndSaveAsPng(sourceImagePath, destPath, AvatarMaxDimension));
-        if (!ok)
-            throw new InvalidOperationException("Selected file could not be loaded as an image.");
+        await WriteTempFilesAsync(async () =>
+        {
+            var (destPath, relativePath) = PrepareAvatarDestination(entity, entity.Id, subdirectory);
+            var ok = await Task.Run(() => ReceiptImageHelper.ResizeAndSaveAsPng(sourceImagePath, destPath, AvatarMaxDimension));
+            if (!ok)
+                throw new InvalidOperationException("Selected file could not be loaded as an image.");
 
-        FinalizeAvatarUpdate(entity, relativePath);
+            FinalizeAvatarUpdate(entity, relativePath);
+        });
     }
 
     private async Task SetEntityAvatarFromBytesAsync(IAvatarOwner entity, byte[] sourceBytes, string subdirectory)
@@ -203,12 +280,15 @@ public class CompanyManager : IDisposable
         if (CompanyData == null || _currentTempDirectory == null)
             throw new InvalidOperationException("No company is currently open.");
 
-        var (destPath, relativePath) = PrepareAvatarDestination(entity, entity.Id, subdirectory);
-        var ok = await Task.Run(() => ReceiptImageHelper.ResizeBytesAndSaveAsPng(sourceBytes, destPath, AvatarMaxDimension));
-        if (!ok)
-            throw new InvalidOperationException("Provided bytes could not be decoded as an image.");
+        await WriteTempFilesAsync(async () =>
+        {
+            var (destPath, relativePath) = PrepareAvatarDestination(entity, entity.Id, subdirectory);
+            var ok = await Task.Run(() => ReceiptImageHelper.ResizeBytesAndSaveAsPng(sourceBytes, destPath, AvatarMaxDimension));
+            if (!ok)
+                throw new InvalidOperationException("Provided bytes could not be decoded as an image.");
 
-        FinalizeAvatarUpdate(entity, relativePath);
+            FinalizeAvatarUpdate(entity, relativePath);
+        });
     }
 
     /// <summary>
@@ -287,22 +367,28 @@ public class CompanyManager : IDisposable
         if (CompanyData == null || _currentTempDirectory == null)
             throw new InvalidOperationException("No company is currently open.");
 
-        var existing = entity.AvatarFileName;
-        if (string.IsNullOrEmpty(existing))
+        if (string.IsNullOrEmpty(entity.AvatarFileName))
             return;
 
-        // Only delete files that resolve safely under the temp directory, guard against
-        // a crafted AvatarFileName escaping into the rest of the filesystem.
-        var fullPath = ResolveAvatarPathSafely(existing);
-        if (fullPath != null && File.Exists(fullPath) && !AvatarPathsReferencedByOthers(entity).Contains(fullPath))
+        await WriteTempFilesAsync(async () =>
         {
-            await Task.Run(() => File.Delete(fullPath));
-        }
+            var existing = entity.AvatarFileName;
+            if (string.IsNullOrEmpty(existing))
+                return;
 
-        entity.AvatarFileName = null;
-        entity.UpdatedAt = DateTime.UtcNow;
-        CompanyData.ChangesMade = true;
-        CompanyDataChanged?.Invoke(this, EventArgs.Empty);
+            // Only delete files that resolve safely under the temp directory, guard against
+            // a crafted AvatarFileName escaping into the rest of the filesystem.
+            var fullPath = ResolveAvatarPathSafely(existing);
+            if (fullPath != null && File.Exists(fullPath) && !AvatarPathsReferencedByOthers(entity).Contains(fullPath))
+            {
+                await Task.Run(() => File.Delete(fullPath));
+            }
+
+            entity.AvatarFileName = null;
+            entity.UpdatedAt = DateTime.UtcNow;
+            CompanyData!.ChangesMade = true;
+            CompanyDataChanged?.Invoke(this, EventArgs.Empty);
+        });
     }
 
     /// <summary>
@@ -323,44 +409,48 @@ public class CompanyManager : IDisposable
     /// to restore "no avatar" (deletes the file and clears AvatarFileName); pass bytes
     /// to write them back as the avatar (no resize, the bytes are already a resized
     /// PNG captured by an earlier <see cref="ReadEntityAvatarBytes"/>). Synchronous so
-    /// it can be called directly from undo/redo callbacks.
+    /// it can be called directly from undo/redo callbacks; while a save is running the
+    /// change waits for it (see <see cref="WriteTempFilesWhenFree"/>).
     /// </summary>
     private void RestoreEntityAvatarSync(IAvatarOwner entity, byte[]? bytes, string subdirectory)
     {
         if (CompanyData == null || _currentTempDirectory == null) return;
 
-        if (bytes == null)
+        WriteTempFilesWhenFree(() =>
         {
-            var existing = entity.AvatarFileName;
-            if (!string.IsNullOrEmpty(existing))
+            if (bytes == null)
             {
-                var path = ResolveAvatarPathSafely(existing);
-                if (path != null && File.Exists(path) && !AvatarPathsReferencedByOthers(entity).Contains(path))
+                var existing = entity.AvatarFileName;
+                if (!string.IsNullOrEmpty(existing))
                 {
-                    try { File.Delete(path); } catch { /* best effort */ }
+                    var path = ResolveAvatarPathSafely(existing);
+                    if (path != null && File.Exists(path) && !AvatarPathsReferencedByOthers(entity).Contains(path))
+                    {
+                        try { File.Delete(path); } catch { /* best effort */ }
+                    }
                 }
-            }
-            entity.AvatarFileName = null;
-        }
-        else
-        {
-            var (destPath, relativePath) = PrepareAvatarDestination(entity, entity.Id, subdirectory);
-            try
-            {
-                File.WriteAllBytes(destPath, bytes);
-                entity.AvatarFileName = relativePath;
-            }
-            catch
-            {
-                // If the write fails, leave the entity without an avatar reference rather
-                // than pointing at a partially-written file.
                 entity.AvatarFileName = null;
             }
-        }
+            else
+            {
+                var (destPath, relativePath) = PrepareAvatarDestination(entity, entity.Id, subdirectory);
+                try
+                {
+                    File.WriteAllBytes(destPath, bytes);
+                    entity.AvatarFileName = relativePath;
+                }
+                catch
+                {
+                    // If the write fails, leave the entity without an avatar reference rather
+                    // than pointing at a partially-written file.
+                    entity.AvatarFileName = null;
+                }
+            }
 
-        entity.UpdatedAt = DateTime.UtcNow;
-        CompanyData.ChangesMade = true;
-        CompanyDataChanged?.Invoke(this, EventArgs.Empty);
+            entity.UpdatedAt = DateTime.UtcNow;
+            CompanyData!.ChangesMade = true;
+            CompanyDataChanged?.Invoke(this, EventArgs.Empty);
+        });
     }
 
     /// <summary>Reads the customer's avatar file as bytes, or null if none/unreadable.</summary>
@@ -386,41 +476,49 @@ public class CompanyManager : IDisposable
     /// <summary>
     /// Move the avatar file to track a renamed entity Id. Failure is non-fatal: if the
     /// file move can't complete, AvatarFileName is left at its previous value and the
-    /// avatar simply won't load until the user re-uploads.
+    /// avatar simply won't load until the user re-uploads. While a save is running the
+    /// move waits for it (see <see cref="WriteTempFilesWhenFree"/>).
     /// </summary>
     private void TryMoveEntityAvatarOnRename(IAvatarOwner entity, string newId, string subdirectory)
     {
         if (string.IsNullOrEmpty(entity.AvatarFileName) || _currentTempDirectory == null)
             return;
 
-        try
+        WriteTempFilesWhenFree(() =>
         {
-            var oldPath = ResolveAvatarPathSafely(entity.AvatarFileName);
-            var inUse = AvatarPathsReferencedByOthers(entity);
-            var ext = Path.GetExtension(entity.AvatarFileName);
-            var (newPath, newRelative) = FreeAvatarDestination(newId, subdirectory, ext, inUse, oldPath);
-
-            if (string.Equals(oldPath, newPath, StringComparison.OrdinalIgnoreCase))
+            // Checked again: a queued move runs later, after an undo may have removed the avatar.
+            if (string.IsNullOrEmpty(entity.AvatarFileName))
                 return;
 
-            if (oldPath != null && File.Exists(oldPath))
+            try
             {
-                // Files written before avatar names were kept unique can be shared by two
-                // entities; the other one still needs its copy.
-                if (inUse.Contains(oldPath))
-                    File.Copy(oldPath, newPath);
-                else
-                    File.Move(oldPath, newPath);
+                var oldPath = ResolveAvatarPathSafely(entity.AvatarFileName);
+                var inUse = AvatarPathsReferencedByOthers(entity);
+                var ext = Path.GetExtension(entity.AvatarFileName);
+                var (newPath, newRelative) = FreeAvatarDestination(newId, subdirectory, ext, inUse, oldPath);
+
+                if (string.Equals(oldPath, newPath, StringComparison.OrdinalIgnoreCase))
+                    return;
+
+                if (oldPath != null && File.Exists(oldPath))
+                {
+                    // Files written before avatar names were kept unique can be shared by two
+                    // entities; the other one still needs its copy.
+                    if (inUse.Contains(oldPath))
+                        File.Copy(oldPath, newPath);
+                    else
+                        File.Move(oldPath, newPath);
+                }
+                // Always update AvatarFileName to the new relative path: even if the old
+                // file was missing or unsafe, the entity record should now point inside
+                // the temp dir using the new Id.
+                entity.AvatarFileName = newRelative;
             }
-            // Always update AvatarFileName to the new relative path: even if the old
-            // file was missing or unsafe, the entity record should now point inside
-            // the temp dir using the new Id.
-            entity.AvatarFileName = newRelative;
-        }
-        catch
-        {
-            // Leave AvatarFileName as-is.
-        }
+            catch
+            {
+                // Leave AvatarFileName as-is.
+            }
+        });
     }
 
     /// <summary>
@@ -638,7 +736,8 @@ public class CompanyManager : IDisposable
             // Create receipts subdirectory after saving data files
             Directory.CreateDirectory(Path.Combine(companyDir, "receipts"));
 
-            await _fileService.SaveCompanyAsync(filePath, _currentTempDirectory, password, cancellationToken);
+            var tempDirectory = _currentTempDirectory;
+            await Task.Run(() => _fileService.SaveCompanyAsync(filePath, tempDirectory, password, cancellationToken), cancellationToken);
 
             // The new company is now durably on disk, so it starts with no unsaved changes.
             CompanyData.MarkAsSaved();
@@ -1230,7 +1329,7 @@ public class CompanyManager : IDisposable
             ReleaseFileLock();
             try
             {
-                await _fileService.SaveCompanyAsync(CurrentFilePath, _currentTempDirectory, _currentPassword, cancellationToken);
+                await PackTempDirectoryAsync(CurrentFilePath, _currentPassword, cancellationToken);
             }
             finally
             {
@@ -1314,7 +1413,7 @@ public class CompanyManager : IDisposable
             ReleaseFileLock();
             try
             {
-                await _fileService.SaveCompanyAsync(newFilePath, _currentTempDirectory, passwordToUse, cancellationToken);
+                await PackTempDirectoryAsync(newFilePath, passwordToUse, cancellationToken);
 
                 // Update current file path and password
                 CurrentFilePath = newFilePath;
@@ -1350,30 +1449,50 @@ public class CompanyManager : IDisposable
     /// <param name="cancellationToken">Cancellation token.</param>
     public async Task CloseCompanyAsync(CancellationToken cancellationToken = default)
     {
-        ReleaseFileLock();
-        _instanceLock.Release();
-
-        if (_currentTempDirectory != null)
+        // A save still writing the file must finish before its temp directory is deleted.
+        await _saveLock.WaitAsync(cancellationToken);
+        try
         {
-            await _fileService.CloseCompanyAsync(_currentTempDirectory);
-            _currentTempDirectory = null;
+            ReleaseFileLock();
+            _instanceLock.Release();
+
+            if (_currentTempDirectory != null)
+            {
+                await _fileService.CloseCompanyAsync(_currentTempDirectory);
+                _currentTempDirectory = null;
+            }
+
+            CompanyData = null;
+            CurrentFilePath = null;
+            _currentPassword = null;
+            PendingRenamePath = null;
+
+            // Drop any in-flight receipts load so it can't merge into the next company.
+            lock (_receiptsLock)
+            {
+                _receiptsLoadTask = null;
+                _receiptsLoadTarget = null;
+                _receiptsMerged = false;
+            }
         }
-
-        CompanyData = null;
-        CurrentFilePath = null;
-        _currentPassword = null;
-        PendingRenamePath = null;
-
-        // Drop any in-flight receipts load so it can't merge into the next company.
-        lock (_receiptsLock)
+        finally
         {
-            _receiptsLoadTask = null;
-            _receiptsLoadTarget = null;
-            _receiptsMerged = false;
+            _saveLock.Release();
         }
 
         // Raise event
         CompanyClosed?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Waits until no save is running, for callers about to end the process, which would cut a
+    /// save off part-way. Writes queued behind a save (see <see cref="WriteTempFilesWhenFree"/>)
+    /// finish first too.
+    /// </summary>
+    public async Task WaitForSaveToFinishAsync()
+    {
+        await _saveLock.WaitAsync();
+        _saveLock.Release();
     }
 
     /// <summary>
@@ -1388,19 +1507,22 @@ public class CompanyManager : IDisposable
         if (!File.Exists(logoPath))
             throw new FileNotFoundException("Logo file not found.", logoPath);
 
-        // Generate a unique filename for the logo
-        var extension = Path.GetExtension(logoPath);
-        var logoFileName = $"logo{extension}";
-        var destPath = Path.Combine(_currentTempDirectory, logoFileName);
+        await WriteTempFilesAsync(async () =>
+        {
+            // Generate a unique filename for the logo
+            var extension = Path.GetExtension(logoPath);
+            var logoFileName = $"logo{extension}";
+            var destPath = Path.Combine(_currentTempDirectory!, logoFileName);
 
-        // Copy the logo file to the temp directory
-        await Task.Run(() => File.Copy(logoPath, destPath, overwrite: true));
+            // Copy the logo file to the temp directory
+            await Task.Run(() => File.Copy(logoPath, destPath, overwrite: true));
 
-        // Update settings
-        CompanyData.Settings.Company.LogoFileName = logoFileName;
-        CompanyData.ChangesMade = true;
+            // Update settings
+            CompanyData!.Settings.Company.LogoFileName = logoFileName;
+            CompanyData.ChangesMade = true;
 
-        CompanyDataChanged?.Invoke(this, EventArgs.Empty);
+            CompanyDataChanged?.Invoke(this, EventArgs.Empty);
+        });
     }
 
     /// <summary>
@@ -1411,23 +1533,48 @@ public class CompanyManager : IDisposable
         if (CompanyData == null || _currentTempDirectory == null)
             throw new InvalidOperationException("No company is currently open.");
 
-        var logoFileName = CompanyData.Settings.Company.LogoFileName;
-        if (string.IsNullOrEmpty(logoFileName))
+        if (string.IsNullOrEmpty(CompanyData.Settings.Company.LogoFileName))
             return;
 
-        var logoPath = Path.Combine(_currentTempDirectory, logoFileName);
-
-        // Delete the logo file if it exists
-        if (File.Exists(logoPath))
+        await WriteTempFilesAsync(async () =>
         {
-            await Task.Run(() => File.Delete(logoPath));
-        }
+            var logoFileName = CompanyData!.Settings.Company.LogoFileName;
+            if (string.IsNullOrEmpty(logoFileName))
+                return;
 
-        // Update settings
-        CompanyData.Settings.Company.LogoFileName = null;
-        CompanyData.ChangesMade = true;
+            var logoPath = Path.Combine(_currentTempDirectory!, logoFileName);
 
-        CompanyDataChanged?.Invoke(this, EventArgs.Empty);
+            // Delete the logo file if it exists
+            if (File.Exists(logoPath))
+            {
+                await Task.Run(() => File.Delete(logoPath));
+            }
+
+            // Update settings
+            CompanyData.Settings.Company.LogoFileName = null;
+            CompanyData.ChangesMade = true;
+
+            CompanyDataChanged?.Invoke(this, EventArgs.Empty);
+        });
+    }
+
+    /// <summary>
+    /// Puts the company logo back to a state captured earlier, for undo and redo: sets
+    /// LogoFileName and, when <paramref name="logoBytes"/> are given, writes them to that file.
+    /// While a save is running this waits for it (see <see cref="WriteTempFilesWhenFree"/>), so
+    /// <paramref name="whenWritten"/> is where the caller refreshes anything showing the logo.
+    /// </summary>
+    public void RestoreCompanyLogo(string? logoFileName, byte[]? logoBytes, Action? whenWritten = null)
+    {
+        if (CompanyData == null || _currentTempDirectory == null) return;
+
+        WriteTempFilesWhenFree(() =>
+        {
+            CompanyData!.Settings.Company.LogoFileName = logoFileName;
+            if (logoFileName != null && logoBytes != null)
+                File.WriteAllBytes(Path.Combine(_currentTempDirectory!, logoFileName), logoBytes);
+            whenWritten?.Invoke();
+        });
     }
 
     /// <summary>
@@ -1734,23 +1881,28 @@ public class CompanyManager : IDisposable
 
             // Re-encrypt what is saved, not the working folder. That already holds changes the user
             // hasn't saved, such as a deleted logo, which quitting without saving could then not undo.
-            var savedCopy = await _fileService.OpenCompanyAsync(CurrentFilePath, _currentPassword, cancellationToken);
+            // Decrypting, extracting and re-packing are file work only, so they run on the thread pool.
+            var filePath = CurrentFilePath;
+            var currentPassword = _currentPassword;
+            var savedCopy = await Task.Run(
+                () => _fileService.OpenCompanyAsync(filePath, currentPassword, cancellationToken), cancellationToken);
             try
             {
                 // Release file lock before saving (save uses exclusive access), then re-acquire
                 ReleaseFileLock();
                 try
                 {
-                    await _fileService.SaveCompanyAsync(CurrentFilePath, savedCopy, passwordToUse, cancellationToken);
+                    await Task.Run(
+                        () => _fileService.SaveCompanyAsync(filePath, savedCopy, passwordToUse, cancellationToken), cancellationToken);
                 }
                 finally
                 {
-                    AcquireFileLock(CurrentFilePath);
+                    AcquireFileLock(filePath);
                 }
             }
             finally
             {
-                await _fileService.CloseCompanyAsync(savedCopy);
+                await Task.Run(() => _fileService.CloseCompanyAsync(savedCopy));
             }
 
             _currentPassword = passwordToUse;
@@ -1800,7 +1952,7 @@ public class CompanyManager : IDisposable
             // Export the entire temp directory as-is (includes receipts/). Use the working file's
             // password so a backup of an encrypted company is itself encrypted; passing null wrote
             // the backup in plaintext, letting anyone restore it without the password.
-            await _fileService.SaveCompanyAsync(backupPath, _currentTempDirectory, _currentPassword, cancellationToken);
+            await PackTempDirectoryAsync(backupPath, _currentPassword, cancellationToken);
 
             // Note: We intentionally do NOT:
             // - Change _currentFilePath (backup is a separate file)
@@ -1848,7 +2000,7 @@ public class CompanyManager : IDisposable
             ReleaseFileLock();
             try
             {
-                await _fileService.SaveCompanyAsync(CurrentFilePath, _currentTempDirectory, _currentPassword, cancellationToken);
+                await PackTempDirectoryAsync(CurrentFilePath, _currentPassword, cancellationToken);
             }
             finally
             {
@@ -1900,7 +2052,7 @@ public class CompanyManager : IDisposable
             ReleaseFileLock();
             try
             {
-                await _fileService.SaveCompanyAsync(CurrentFilePath, _currentTempDirectory, _currentPassword, cancellationToken);
+                await PackTempDirectoryAsync(CurrentFilePath, _currentPassword, cancellationToken);
             }
             finally
             {
@@ -1966,6 +2118,19 @@ public class CompanyManager : IDisposable
         {
             // Ignore errors opening folder
         }
+    }
+
+    /// <summary>
+    /// Packs the open company's temp directory into <paramref name="filePath"/>: archive, compress,
+    /// encrypt and write. That takes seconds for a large or encrypted company, so it runs on the
+    /// thread pool. It reads only the temp directory, which the caller keeps still by holding
+    /// <see cref="_saveLock"/>.
+    /// </summary>
+    private Task PackTempDirectoryAsync(string filePath, string? password, CancellationToken cancellationToken)
+    {
+        var tempDirectory = _currentTempDirectory!;
+        return Task.Run(
+            () => _fileService.SaveCompanyAsync(filePath, tempDirectory, password, cancellationToken), cancellationToken);
     }
 
     private static string GetCompanyDirectory(string tempDirectory)

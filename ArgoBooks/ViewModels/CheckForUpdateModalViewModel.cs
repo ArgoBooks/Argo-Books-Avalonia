@@ -231,9 +231,14 @@ public partial class CheckForUpdateModalViewModel : ViewModelBase
     /// Applies the downloaded update and restarts the application.
     /// </summary>
     [RelayCommand]
-    private void ApplyUpdate()
+    private async Task ApplyUpdate()
     {
         if (_updateService == null) return;
+
+        // Applying saves the company while blocking the UI thread, which a save already running
+        // needs in order to finish, so that one has to end first.
+        if (App.CompanyManager != null)
+            await App.CompanyManager.WaitForSaveToFinishAsync();
 
         try
         {

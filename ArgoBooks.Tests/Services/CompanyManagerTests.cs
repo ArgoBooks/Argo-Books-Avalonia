@@ -777,6 +777,175 @@ public class CompanyManagerTests : IDisposable
 
     #endregion
 
+    #region Background Save Tests
+
+    // The .argo file is written on the thread pool while the app stays usable, so these hold a
+    // save at that point and act on the company meanwhile.
+
+    [Fact]
+    public async Task SaveCompany_EditWhileFileIsWritten_StaysUnsaved()
+    {
+        var files = new HoldingFileService();
+        using var manager = NewManager(files);
+        var path = Path.Combine(Path.GetTempPath(), $"argo-cm-{Guid.NewGuid():N}.argo");
+        try
+        {
+            await manager.CreateCompanyAsync(path, "Acme");
+            manager.MarkAsChanged();
+
+            files.HoldNextSave = true;
+            var save = manager.SaveCompanyAsync();
+            await files.SaveReached.Task.WaitAsync(TimeSpan.FromSeconds(30));
+            manager.MarkAsChanged();
+            files.ReleaseSave.SetResult();
+            await save;
+
+            Assert.True(manager.HasUnsavedChanges);
+
+            await manager.SaveCompanyAsync();
+            Assert.False(manager.HasUnsavedChanges);
+        }
+        finally
+        {
+            files.ReleaseSave.TrySetResult();
+            await manager.CloseCompanyAsync();
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task SetCompanyLogo_WhileFileIsWritten_WaitsForTheSave()
+    {
+        var files = new HoldingFileService();
+        using var manager = NewManager(files);
+        var path = Path.Combine(Path.GetTempPath(), $"argo-cm-{Guid.NewGuid():N}.argo");
+        var logo = Path.Combine(Path.GetTempPath(), $"argo-cm-{Guid.NewGuid():N}.png");
+        try
+        {
+            await File.WriteAllBytesAsync(logo, [1, 2, 3]);
+            await manager.CreateCompanyAsync(path, "Acme");
+
+            files.HoldNextSave = true;
+            var save = manager.SaveCompanyAsync();
+            await files.SaveReached.Task.WaitAsync(TimeSpan.FromSeconds(30));
+
+            var setLogo = manager.SetCompanyLogoAsync(logo);
+            Assert.False(setLogo.IsCompleted);
+            Assert.Null(manager.CurrentCompanyLogoPath);
+
+            files.ReleaseSave.SetResult();
+            await save;
+            await setLogo;
+
+            Assert.NotNull(manager.CurrentCompanyLogoPath);
+            Assert.True(manager.HasUnsavedChanges);
+        }
+        finally
+        {
+            files.ReleaseSave.TrySetResult();
+            await manager.CloseCompanyAsync();
+            foreach (var p in new[] { path, logo })
+                if (File.Exists(p)) File.Delete(p);
+        }
+    }
+
+    /// <summary>Undo and redo cannot wait, so their avatar writes queue behind the save.</summary>
+    [Fact]
+    public async Task RestoreCustomerAvatar_WhileFileIsWritten_RunsAfterTheSave()
+    {
+        var files = new HoldingFileService();
+        using var manager = NewManager(files);
+        var path = Path.Combine(Path.GetTempPath(), $"argo-cm-{Guid.NewGuid():N}.argo");
+        try
+        {
+            await manager.CreateCompanyAsync(path, "Acme");
+            var customer = new Customer { Id = "CUS-001", Name = "First" };
+            manager.CompanyData!.Customers.Add(customer);
+
+            files.HoldNextSave = true;
+            var save = manager.SaveCompanyAsync();
+            await files.SaveReached.Task.WaitAsync(TimeSpan.FromSeconds(30));
+
+            manager.RestoreCustomerAvatar(customer, [1, 2, 3]);
+            Assert.Null(customer.AvatarFileName);
+
+            files.ReleaseSave.SetResult();
+            await save;
+            await manager.WaitForSaveToFinishAsync();
+
+            Assert.Equal(new byte[] { 1, 2, 3 }, manager.ReadCustomerAvatarBytes(customer));
+            Assert.True(manager.HasUnsavedChanges);
+        }
+        finally
+        {
+            files.ReleaseSave.TrySetResult();
+            await manager.CloseCompanyAsync();
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task CloseCompany_WhileFileIsWritten_WaitsForTheSave()
+    {
+        var files = new HoldingFileService();
+        using var manager = NewManager(files);
+        var path = Path.Combine(Path.GetTempPath(), $"argo-cm-{Guid.NewGuid():N}.argo");
+        try
+        {
+            await manager.CreateCompanyAsync(path, "Acme");
+            manager.CompanyData!.Customers.Add(new Customer { Id = "CUS-001", Name = "Kept" });
+            manager.MarkAsChanged();
+
+            files.HoldNextSave = true;
+            var save = manager.SaveCompanyAsync();
+            await files.SaveReached.Task.WaitAsync(TimeSpan.FromSeconds(30));
+
+            var close = manager.CloseCompanyAsync();
+            Assert.False(close.IsCompleted);
+            Assert.True(manager.IsCompanyOpen);
+
+            files.ReleaseSave.SetResult();
+            await save;
+            await close;
+            Assert.False(manager.IsCompanyOpen);
+
+            Assert.True(await manager.OpenCompanyAsync(path));
+            Assert.Contains(manager.CompanyData!.Customers, c => c.Name == "Kept");
+        }
+        finally
+        {
+            files.ReleaseSave.TrySetResult();
+            await manager.CloseCompanyAsync();
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    private static CompanyManager NewManager(FileService files) =>
+        new(files, new GlobalSettingsService(new MockPlatformService()), new FooterService());
+
+    /// <summary>Stops one save where it starts writing the .argo file, until released.</summary>
+    private sealed class HoldingFileService() : FileService(new CompressionService(), new FooterService())
+    {
+        public volatile bool HoldNextSave;
+        public TaskCompletionSource SaveReached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource ReleaseSave { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public override async Task SaveCompanyAsync(
+            string filePath, string tempDirectory, string? password = null, CancellationToken cancellationToken = default)
+        {
+            if (HoldNextSave)
+            {
+                HoldNextSave = false;
+                SaveReached.TrySetResult();
+                await ReleaseSave.Task;
+            }
+
+            await base.SaveCompanyAsync(filePath, tempDirectory, password, cancellationToken);
+        }
+    }
+
+    #endregion
+
     #region Mock Classes
 
     private class MockPlatformService : IPlatformService

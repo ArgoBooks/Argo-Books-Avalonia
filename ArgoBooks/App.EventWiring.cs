@@ -321,8 +321,8 @@ public partial class App
             _ = TelemetryManager?.TrackFeatureAsync(
                 FeatureName.CompanySaved, TimingContext(e.Kind, e.IsEncrypted, e.FileSizeBytes), e.ElapsedMs);
 
-            _mainWindowViewModel.HideLoading();
-
+            // The loading overlay is left to whoever showed it. A save before closing keeps it up
+            // until the company has closed, and a background save must not drop another flow's.
             if (_suppressSavedFeedback)
                 _suppressSavedFeedback = false;
             else
@@ -332,6 +332,14 @@ public partial class App
 
             // Mark undo/redo state as saved so IsAtSavedState returns true
             UndoRedoManager.MarkSaved(_saveUndoPoint);
+
+            // The UI stays usable while a save writes, and an edit made meanwhile that has no undo
+            // entry is not in the file either.
+            if (CompanyManager.HasUnsavedChanges)
+            {
+                _mainWindowViewModel.HasUnsavedChanges = true;
+                _appShellViewModel.HeaderViewModel.HasUnsavedChanges = true;
+            }
         };
 
         CompanyManager.CompanyDataChanged += (_, _) =>
@@ -554,7 +562,14 @@ public partial class App
         {
             if (CompanyManager?.IsCompanyOpen == true && await ConfirmLeavingCompanyAsync())
             {
-                await CompanyManager.CloseCompanyAsync();
+                try
+                {
+                    await CompanyManager.CloseCompanyAsync();
+                }
+                finally
+                {
+                    _mainWindowViewModel?.HideLoading();
+                }
             }
         };
 
@@ -789,27 +804,39 @@ public partial class App
 
             if (CompanyManager?.IsCompanyOpen == true)
             {
-                if (!CompanyManager.IsSampleCompany)
+                // Up until the company has closed, so nothing can be edited after the save.
+                var saving = !CompanyManager.IsSampleCompany;
+                if (saving)
+                    _mainWindowViewModel?.ShowLoading("Saving...".Translate());
+                try
                 {
-                    try
+                    if (saving)
                     {
-                        await CompanyManager.SaveCompanyAsync(kind: "tutorial");
+                        try
+                        {
+                            await CompanyManager.SaveCompanyAsync(kind: "tutorial");
+                        }
+                        catch (Exception ex)
+                        {
+                            // Don't close on a failed save: CloseCompanyAsync discards unsaved edits.
+                            // Abort the restart and keep the company open to protect the user's data.
+                            ErrorLogger?.LogWarning($"Save before tutorial restart failed: {ex.Message}", "AutoSave");
+                            if (_welcomeScreenViewModel != null)
+                                _welcomeScreenViewModel.IsTutorialMode = false;
+                            _appShellViewModel.AddNotification(
+                                "Could not restart tutorial",
+                                "Your company could not be saved, so it was left open to protect unsaved changes. Please save manually and try again.",
+                                NotificationType.Warning);
+                            return;
+                        }
                     }
-                    catch (Exception ex)
-                    {
-                        // Don't close on a failed save: CloseCompanyAsync discards unsaved edits.
-                        // Abort the restart and keep the company open to protect the user's data.
-                        ErrorLogger?.LogWarning($"Save before tutorial restart failed: {ex.Message}", "AutoSave");
-                        if (_welcomeScreenViewModel != null)
-                            _welcomeScreenViewModel.IsTutorialMode = false;
-                        _appShellViewModel.AddNotification(
-                            "Could not restart tutorial",
-                            "Your company could not be saved, so it was left open to protect unsaved changes. Please save manually and try again.",
-                            NotificationType.Warning);
-                        return;
-                    }
+                    await CompanyManager.CloseCompanyAsync();
                 }
-                await CompanyManager.CloseCompanyAsync();
+                finally
+                {
+                    if (saving)
+                        _mainWindowViewModel?.HideLoading();
+                }
             }
         };
 
@@ -890,13 +917,6 @@ public partial class App
                         newLogoBytes = await Task.Run(() => SharedFileReader.ReadAllBytes(newLogoFilePath));
                     }
 
-                    // Derive temp directory for logo file operations during undo/redo
-                    var logoTempDir = !string.IsNullOrEmpty(oldLogoFilePath)
-                        ? Path.GetDirectoryName(oldLogoFilePath)
-                        : (!string.IsNullOrEmpty(newLogoFilePath)
-                            ? Path.GetDirectoryName(newLogoFilePath)
-                            : null);
-
                     // Mark settings as changed
                     settings.ChangesMade = true;
 
@@ -971,8 +991,6 @@ public partial class App
                             settings.Company.Address = oldAddress;
                             settings.Company.ProvinceState = oldProvinceState;
 
-                            RestoreCompanyLogo(settings, oldLogoFileName, oldLogoBytes, logoTempDir);
-
                             // Clear pending rename (revert to original file name)
                             if (oldFilePath != newFilePath)
                             {
@@ -980,7 +998,7 @@ public partial class App
                             }
 
                             settings.ChangesMade = true;
-                            RefreshCompanyUi(oldName);
+                            CompanyManager?.RestoreCompanyLogo(oldLogoFileName, oldLogoBytes, () => RefreshCompanyUi(oldName));
                         },
                         () =>
                         {
@@ -995,8 +1013,6 @@ public partial class App
                             settings.Company.Address = newAddress;
                             settings.Company.ProvinceState = newProvinceState;
 
-                            RestoreCompanyLogo(settings, newLogoFileName, newLogoBytes, logoTempDir);
-
                             // Re-schedule the file rename
                             if (oldFilePath != newFilePath && newFilePath != null)
                             {
@@ -1004,7 +1020,7 @@ public partial class App
                             }
 
                             settings.ChangesMade = true;
-                            RefreshCompanyUi(newName);
+                            CompanyManager?.RestoreCompanyLogo(newLogoFileName, newLogoBytes, () => RefreshCompanyUi(newName));
                         }));
                 }
             }
@@ -1705,14 +1721,15 @@ public partial class App
                 if (CompanyManager.IsCompanyOpen != true) return;
 
                 // Check for unsaved changes (skip auto-save for sample company)
-                if (CompanyManager.HasUnsavedChanges && !CompanyManager.IsSampleCompany)
+                var saving = CompanyManager.HasUnsavedChanges && !CompanyManager.IsSampleCompany;
+                if (saving)
                 {
-                    // Auto-save before locking
+                    // Auto-save before locking. The overlay stays up until the company has closed,
+                    // so nothing can be edited after the save.
                     try
                     {
                         _mainWindowViewModel?.ShowLoading("Auto-saving before lock...".Translate());
                         await CompanyManager.SaveCompanyAsync(kind: "auto-lock");
-                        _mainWindowViewModel?.HideLoading();
                     }
                     catch (Exception ex)
                     {
@@ -1731,7 +1748,15 @@ public partial class App
                 }
 
                 // Close the company - this will trigger navigation back to welcome screen
-                await CompanyManager.CloseCompanyAsync();
+                try
+                {
+                    await CompanyManager.CloseCompanyAsync();
+                }
+                finally
+                {
+                    if (saving)
+                        _mainWindowViewModel?.HideLoading();
+                }
 
                 // Re-enable idle detection for next session
                 _idleDetectionService.ResetIdleTimer();

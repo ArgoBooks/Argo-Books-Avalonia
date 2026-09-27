@@ -2778,20 +2778,6 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// Restores a company logo file and updates the LogoFileName setting.
-    /// Used by undo/redo to restore logo state.
-    /// </summary>
-    private static void RestoreCompanyLogo(CompanySettings settings, string? logoFileName, byte[]? logoBytes, string? tempDir)
-    {
-        settings.Company.LogoFileName = logoFileName;
-        if (tempDir != null && logoFileName != null && logoBytes != null)
-        {
-            var path = Path.Combine(tempDir, logoFileName);
-            File.WriteAllBytes(path, logoBytes);
-        }
-    }
-
-    /// <summary>
     /// Refreshes company-related UI elements (sidebar, company switcher, main window title).
     /// Used by undo/redo to update the UI after restoring company data.
     /// </summary>
@@ -3975,6 +3961,7 @@ public partial class App : Application
         if (_appShellViewModel == null) return;
         if (!await ConfirmLeavingCompanyAsync()) return;
 
+        _mainWindowViewModel?.HideLoading();
         _appShellViewModel.CreateCompanyViewModel.OpenCommand.Execute(null);
     }
 
@@ -3984,6 +3971,11 @@ public partial class App : Application
     /// current company without saving it, so any path that skips this loses the changes.
     /// </summary>
     /// <returns>False when the user chose to stay where they are.</returns>
+    /// <remarks>
+    /// After a save this returns true with the loading overlay still up, so nothing can be edited
+    /// between the save and the close. The caller hides it once the company has closed, or shows its
+    /// own in its place. Every other result leaves no overlay.
+    /// </remarks>
     private static async Task<bool> ConfirmLeavingCompanyAsync()
     {
         // UndoRedoManager's saved state, which correctly accounts for undoing back to the
@@ -3994,26 +3986,32 @@ public partial class App : Application
         switch (await ShowUnsavedChangesDialogAsync())
         {
             case UnsavedChangesResult.Save:
-                // Sample company cannot be saved directly - redirect to Save As.
-                if (CompanyManager.IsSampleCompany)
-                {
-                    return Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
-                           && await SaveCompanyAsDialogAsync(desktop);
-                }
-
+                _mainWindowViewModel?.ShowLoading("Saving...".Translate());
+                var saved = false;
                 try
                 {
-                    return await SaveCompanyWithSecurityGuidanceAsync();
+                    // Sample company cannot be saved directly - redirect to Save As.
+                    saved = CompanyManager.IsSampleCompany
+                        ? Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
+                          && await SaveCompanyAsDialogAsync(desktop)
+                        : await SaveCompanyWithSecurityGuidanceAsync();
+                    return saved;
                 }
                 catch (Exception ex)
                 {
                     // What the security guidance does not cover, such as a drive that has gone.
                     // Staying on the open company keeps the changes; carrying on would discard them.
+                    _mainWindowViewModel?.HideLoading();
                     ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Save before leaving the company failed");
                     await ShowWarningDialogAsync(
                         "Could Not Save".Translate(),
                         "Your changes could not be saved, so the company is still open with them. {0}".TranslateFormat(ex.Message));
                     return false;
+                }
+                finally
+                {
+                    if (!saved)
+                        _mainWindowViewModel?.HideLoading();
                 }
             case UnsavedChangesResult.DontSave:
                 return true;

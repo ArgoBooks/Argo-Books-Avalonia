@@ -22,6 +22,12 @@ Saving a file:
 
 ![Company Manager Save File](diagrams/data-storage/company-manager-save-file.svg)
 
+A save has two steps. First the company's data is turned into JSON, every file in one go on the UI thread, because it reads the same lists the screens are editing. Doing all of it before anything is written means no edit can land in some files and not others. The JSON is then written into the temporary folder, and the folder is packed, compressed, encrypted and written to the `.argo` file, all on a background thread. That part can take seconds for a large or encrypted company, so the app stays usable while it runs. An edit made during a save is not in the file, so the company still shows unsaved changes once the save ends.
+
+A save that is followed by closing the company is different, because an edit made during it would be closed away unsaved. Saving from the unsaved changes prompt before closing the company, opening another one, restoring a backup or quitting, and the saves before restarting the tutorial and before auto-lock, all keep the loading overlay up until the company has closed. The overlay blocks clicks and key presses, so nothing can be edited in between.
+
+Nothing else may change the temporary folder while a save is packing it, or the file could get a half-written copy of something. Customer and supplier photos and the company logo are the only other things kept there, and changing one waits for a running save to finish first. An undo or redo that changes one cannot wait, so its change is queued and applied as soon as the save ends. Closing the company, opening another one and quitting the app also wait for a running save.
+
 ## The `.argo` file
 
 While a company is open, it is a folder of JSON files and attachments. Saving packs that folder into a TAR archive, compresses it with GZip, encrypts it if there is a password, and adds a footer at the end:

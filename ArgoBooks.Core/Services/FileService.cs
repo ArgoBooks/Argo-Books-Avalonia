@@ -226,7 +226,8 @@ public class FileService(
     }
 
     /// <inheritdoc />
-    public async Task SaveCompanyAsync(
+    /// <remarks>Virtual so tests can hold a save part-way through.</remarks>
+    public virtual async Task SaveCompanyAsync(
         string filePath,
         string tempDirectory,
         string? password = null,
@@ -406,12 +407,10 @@ public class FileService(
     {
         var filePath = Path.Combine(tempDirectory, fileName);
 
-        // Streamed like ReadJsonAsync. Failing part-way now truncates the file, which is safe:
-        // callers write into a staging directory only archived once every write succeeds.
-        await using var stream = new FileStream(
-            filePath, FileMode.Create, FileAccess.Write, FileShare.None,
-            bufferSize: 64 * 1024, FileOptions.Asynchronous);
-        await JsonSerializer.SerializeAsync(stream, data, JsonOptions, cancellationToken);
+        // Serialized in full before the first await. SerializeAsync resumes on the thread pool
+        // after its first flush, where it would read lists the UI thread may be editing.
+        var bytes = JsonSerializer.SerializeToUtf8Bytes(data, JsonOptions);
+        await File.WriteAllBytesAsync(filePath, bytes, cancellationToken);
     }
 
     /// <summary>
@@ -612,48 +611,63 @@ public class FileService(
         // because all save flows route through here.
         data.Settings.AppVersion = AppInfo.VersionNumber;
 
-        // Write directly to the provided company directory - caller is responsible for providing the correct path
-        await WriteJsonAsync(companyDirectory, "appSettings.json", data.Settings, cancellationToken);
-        await WriteJsonAsync(companyDirectory, "idCounters.json", data.IdCounters, cancellationToken);
-        await WriteJsonAsync(companyDirectory, "customers.json", data.Customers, cancellationToken);
-        await WriteJsonAsync(companyDirectory, "products.json", data.Products, cancellationToken);
-        await WriteJsonAsync(companyDirectory, "suppliers.json", data.Suppliers, cancellationToken);
-        await WriteJsonAsync(companyDirectory, "categories.json", data.Categories, cancellationToken);
-        await WriteJsonAsync(companyDirectory, "accountants.json", data.Accountants, cancellationToken);
-        await WriteJsonAsync(companyDirectory, "locations.json", data.Locations, cancellationToken);
-        await WriteJsonAsync(companyDirectory, "revenues.json", data.Revenues, cancellationToken);
-        await WriteJsonAsync(companyDirectory, "expenses.json", data.Expenses, cancellationToken);
-        await WriteJsonAsync(companyDirectory, "invoices.json", data.Invoices, cancellationToken);
-        await WriteJsonAsync(companyDirectory, "quotes.json", data.Quotes, cancellationToken);
-        await WriteJsonAsync(companyDirectory, "payments.json", data.Payments, cancellationToken);
-        await WriteJsonAsync(companyDirectory, "recurringInvoices.json", data.RecurringInvoices, cancellationToken);
-        await WriteJsonAsync(companyDirectory, "recurringTransactions.json", data.RecurringTransactions, cancellationToken);
-        await WriteJsonAsync(companyDirectory, "inventory.json", data.Inventory, cancellationToken);
-        await WriteJsonAsync(companyDirectory, "stockAdjustments.json", data.StockAdjustments, cancellationToken);
-        await WriteJsonAsync(companyDirectory, "stockTransfers.json", data.StockTransfers, cancellationToken);
-        await WriteJsonAsync(companyDirectory, "purchaseOrders.json", data.PurchaseOrders, cancellationToken);
-        await WriteJsonAsync(companyDirectory, "rentalInventory.json", data.RentalInventory, cancellationToken);
-        await WriteJsonAsync(companyDirectory, "rentals.json", data.Rentals, cancellationToken);
-        await WriteJsonAsync(companyDirectory, "returns.json", data.Returns, cancellationToken);
-        await WriteJsonAsync(companyDirectory, "lostDamaged.json", data.LostDamaged, cancellationToken);
-        await WriteJsonAsync(companyDirectory, "receipts.json", data.Receipts, cancellationToken);
-        await WriteJsonAsync(companyDirectory, "invoiceTemplates.json", data.InvoiceTemplates, cancellationToken);
-        await WriteJsonAsync(companyDirectory, "eventLog.json", data.EventLog, cancellationToken);
-        await WriteJsonAsync(companyDirectory, "pendingConversions.json", data.PendingConversions, cancellationToken);
-        await WriteJsonAsync(companyDirectory, "forecastRecords.json", data.ForecastRecords, cancellationToken);
-        await WriteJsonAsync(companyDirectory, "bankImportSessions.json", data.BankImportSessions, cancellationToken);
+        // Every file is serialized before the first await, so the snapshot is taken in one go on
+        // the calling thread and no edit made while the files are written can land in some of them.
+        var files = new List<(string FileName, byte[] Bytes)>();
+        void Add<T>(string fileName, T value) =>
+            files.Add((fileName, JsonSerializer.SerializeToUtf8Bytes(value, JsonOptions)));
+
+        Add("appSettings.json", data.Settings);
+        Add("idCounters.json", data.IdCounters);
+        Add("customers.json", data.Customers);
+        Add("products.json", data.Products);
+        Add("suppliers.json", data.Suppliers);
+        Add("categories.json", data.Categories);
+        Add("accountants.json", data.Accountants);
+        Add("locations.json", data.Locations);
+        Add("revenues.json", data.Revenues);
+        Add("expenses.json", data.Expenses);
+        Add("invoices.json", data.Invoices);
+        Add("quotes.json", data.Quotes);
+        Add("payments.json", data.Payments);
+        Add("recurringInvoices.json", data.RecurringInvoices);
+        Add("recurringTransactions.json", data.RecurringTransactions);
+        Add("inventory.json", data.Inventory);
+        Add("stockAdjustments.json", data.StockAdjustments);
+        Add("stockTransfers.json", data.StockTransfers);
+        Add("purchaseOrders.json", data.PurchaseOrders);
+        Add("rentalInventory.json", data.RentalInventory);
+        Add("rentals.json", data.Rentals);
+        Add("returns.json", data.Returns);
+        Add("lostDamaged.json", data.LostDamaged);
+        Add("receipts.json", data.Receipts);
+        Add("invoiceTemplates.json", data.InvoiceTemplates);
+        Add("eventLog.json", data.EventLog);
+        Add("pendingConversions.json", data.PendingConversions);
+        Add("forecastRecords.json", data.ForecastRecords);
+        Add("bankImportSessions.json", data.BankImportSessions);
 
         // Payroll. Added late, and their absence was silent: CompanyData carried both lists, every
         // payroll screen read and wrote them happily, and nothing failed. They simply never
         // reached the .argo file, so every employee and pay run was lost on close.
-        await WriteJsonAsync(companyDirectory, "employees.json", data.Employees, cancellationToken);
-        await WriteJsonAsync(companyDirectory, "payRuns.json", data.PayRuns, cancellationToken);
+        Add("employees.json", data.Employees);
+        Add("payRuns.json", data.PayRuns);
 
         // Mobile sync. Both were read and written all session and reached no file, so a paired
         // phone vanished on close and the ingested-capture list could not de-dupe across a
         // restart, which is the whole reason it is stored rather than held in memory.
-        await WriteJsonAsync(companyDirectory, "pairedDevices.json", data.PairedDevices, cancellationToken);
-        await WriteJsonAsync(companyDirectory, "ingestedScanUids.json", data.IngestedScanUids, cancellationToken);
+        Add("pairedDevices.json", data.PairedDevices);
+        Add("ingestedScanUids.json", data.IngestedScanUids);
+
+        // Write directly to the provided company directory - caller is responsible for providing the correct path
+        await Task.Run(() =>
+        {
+            foreach (var (fileName, bytes) in files)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                File.WriteAllBytes(Path.Combine(companyDirectory, fileName), bytes);
+            }
+        }, cancellationToken);
 
         // Deliberately does NOT call data.MarkAsSaved() here: this only stages JSON into the temp
         // directory, and the data isn't durable until the caller commits the .argo file via

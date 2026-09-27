@@ -155,8 +155,10 @@ public class SampleCompanyService
                 Directory.CreateDirectory(sampleDir);
             }
 
-            // Save as unencrypted .argo file
-            await _fileService.SaveCompanyAsync(sampleFilePath, context.TempRoot, password: null, cancellationToken);
+            // Save as unencrypted .argo file. Archiving and compressing are file work only, so they
+            // run on the thread pool.
+            var tempRoot = context.TempRoot;
+            await Task.Run(() => _fileService.SaveCompanyAsync(sampleFilePath, tempRoot, password: null, cancellationToken));
 
             return sampleFilePath;
         }
