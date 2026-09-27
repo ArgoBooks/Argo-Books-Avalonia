@@ -25,7 +25,7 @@
                         <!-- Header -->
                         <controls:ModalHeader Grid.Row="0" Title="{loc:Loc 'Year end'}" CloseCommand="{Binding CloseCommand}">
                             <TextBlock Text="{loc:Loc 'T4 slips for your employees, and the file CRA needs'}"
-                                       FontSize="12"
+                                       FontSize="14"
                                        Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
                         </controls:ModalHeader>
 
@@ -42,7 +42,7 @@
                                      close button, which read as window furniture rather than as
                                      the control the screen turns on. -->
                                 <StackPanel Spacing="6" HorizontalAlignment="Left" MinWidth="180">
-                                    <TextBlock Text="{loc:Loc 'Tax year'}" FontSize="12"
+                                    <TextBlock Text="{loc:Loc 'Tax year'}" FontSize="14"
                                                Foreground="{DynamicResource TextSecondaryBrush}" />
                                     <ComboBox ItemsSource="{Binding AvailableYears}"
                                               SelectedItem="{Binding SelectedYear, Mode=TwoWay}"
@@ -55,19 +55,20 @@
                                 <Border Background="{DynamicResource SurfaceAltBrush}" CornerRadius="8" Padding="16"
                                         IsVisible="{Binding HasProblems}">
                                     <StackPanel Spacing="8">
-                                        <TextBlock Text="{loc:Loc 'Fix these before filing'}" FontSize="13" FontWeight="SemiBold"
+                                        <TextBlock Text="{loc:Loc 'Fix these before filing'}" FontSize="14" FontWeight="SemiBold"
                                                    Foreground="{DynamicResource WarningBrush}" />
                                         <ItemsControl ItemsSource="{Binding Problems}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
-                                                    <TextBlock Text="{Binding}" FontSize="12" TextWrapping="Wrap"
+                                                    <TextBlock Text="{Binding}" FontSize="14" TextWrapping="Wrap"
                                                                Margin="0,2"
                                                                Foreground="{DynamicResource TextSecondaryBrush}" />
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>
                                         <TextBlock Text="{loc:Loc 'You can still download the slips. Only filing is blocked.'}"
-                                                   FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"
+                                                   FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0"
+                                                   IsVisible="{Binding HasRows}"
                                                    Foreground="{DynamicResource TextTertiaryBrush}" />
                                     </StackPanel>
                                 </Border>
@@ -79,12 +80,12 @@
                                         IsVisible="{Binding HasWarnings}">
                                     <StackPanel Spacing="8">
                                         <TextBlock Text="{loc:Loc 'Worth checking, but you can still file'}"
-                                                   FontSize="13" FontWeight="SemiBold"
+                                                   FontSize="14" FontWeight="SemiBold"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
                                         <ItemsControl ItemsSource="{Binding Warnings}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
-                                                    <TextBlock Text="{Binding}" FontSize="12" TextWrapping="Wrap"
+                                                    <TextBlock Text="{Binding}" FontSize="14" TextWrapping="Wrap"
                                                                Margin="0,2"
                                                                Foreground="{DynamicResource TextSecondaryBrush}" />
                                                 </DataTemplate>
@@ -98,34 +99,34 @@
                                      fixed where it is reported. -->
                                 <Border Background="{DynamicResource SurfaceAltBrush}" CornerRadius="8" Padding="16">
                                     <StackPanel Spacing="12">
-                                        <TextBlock Text="{loc:Loc 'Filing details'}" FontSize="13" FontWeight="SemiBold"
+                                        <TextBlock Text="{loc:Loc 'Filing details'}" FontSize="14" FontWeight="SemiBold"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
                                         <Grid ColumnDefinitions="*,16,*">
                                             <StackPanel Grid.Column="0" Spacing="6">
-                                                <TextBlock FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"><Run Text="{loc:Loc 'Payroll account number'}" /><Run Text=" *" Foreground="{DynamicResource ErrorBrush}" /></TextBlock>
+                                                <TextBlock FontSize="14" Foreground="{DynamicResource TextSecondaryBrush}"><Run Text="{loc:Loc 'Payroll account number'}" /><Run Text=" *" Foreground="{DynamicResource ErrorBrush}" /></TextBlock>
                                                 <TextBox Text="{Binding AccountNumber, Mode=TwoWay}" Classes="form-input"
                                                          PlaceholderText="000000000RP0000" MaxLength="17" />
                                                 <!-- Said at the field as well as in the problem list at the top,
                                                      which scrolls out of sight long before the export button. -->
-                                                <TextBlock Text="{Binding AccountNumberError}" FontSize="12"
+                                                <TextBlock Text="{Binding AccountNumberError}" FontSize="14"
                                                            TextWrapping="Wrap"
                                                            Foreground="{DynamicResource ErrorBrush}"
                                                            IsVisible="{Binding AccountNumberError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                                 <TextBlock Text="{loc:Loc 'From your CRA statement of account. RP, not RC.'}"
-                                                           FontSize="11" TextWrapping="Wrap"
+                                                           FontSize="12" TextWrapping="Wrap"
                                                            Foreground="{DynamicResource TextTertiaryBrush}" />
                                             </StackPanel>
                                             <StackPanel Grid.Column="2" Spacing="6">
-                                                <TextBlock FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"><Run Text="{loc:Loc 'Who CRA should contact'}" /><Run Text=" *" Foreground="{DynamicResource ErrorBrush}" /></TextBlock>
+                                                <TextBlock FontSize="14" Foreground="{DynamicResource TextSecondaryBrush}"><Run Text="{loc:Loc 'Who CRA should contact'}" /><Run Text=" *" Foreground="{DynamicResource ErrorBrush}" /></TextBlock>
                                                 <TextBox Text="{Binding ContactName, Mode=TwoWay}" Classes="form-input"
                                                          PlaceholderText="{loc:Loc 'Name'}" MaxLength="22" />
-                                                <TextBlock Text="{Binding ContactNameError}" FontSize="12"
+                                                <TextBlock Text="{Binding ContactNameError}" FontSize="14"
                                                            TextWrapping="Wrap"
                                                            Foreground="{DynamicResource ErrorBrush}"
                                                            IsVisible="{Binding ContactNameError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                                 <TextBox Text="{Binding ContactPhone, Mode=TwoWay}" Classes="form-input"
                                                          PlaceholderText="403 555 1234" MaxLength="14" />
-                                                <TextBlock Text="{Binding ContactPhoneError}" FontSize="12"
+                                                <TextBlock Text="{Binding ContactPhoneError}" FontSize="14"
                                                            TextWrapping="Wrap"
                                                            Foreground="{DynamicResource ErrorBrush}"
                                                            IsVisible="{Binding ContactPhoneError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
@@ -133,12 +134,12 @@
                                                      replies to about the filing. Not printed on any slip. -->
                                                 <TextBox Text="{Binding ContactEmail, Mode=TwoWay}" Classes="form-input"
                                                          PlaceholderText="name@example.com" MaxLength="60" />
-                                                <TextBlock Text="{Binding ContactEmailError}" FontSize="12"
+                                                <TextBlock Text="{Binding ContactEmailError}" FontSize="14"
                                                            TextWrapping="Wrap"
                                                            Foreground="{DynamicResource ErrorBrush}"
                                                            IsVisible="{Binding ContactEmailError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                                 <TextBlock Text="{loc:Loc 'CRA emails you here about how the filing was processed.'}"
-                                                           FontSize="11" TextWrapping="Wrap"
+                                                           FontSize="12" TextWrapping="Wrap"
                                                            Foreground="{DynamicResource TextTertiaryBrush}" />
                                             </StackPanel>
                                         </Grid>
@@ -149,7 +150,7 @@
                                              remitter reports a date up to five weeks late. -->
                                         <StackPanel Spacing="6">
                                             <TextBlock Text="{loc:Loc 'How often does CRA want your remittances?'}"
-                                                       FontSize="12"
+                                                       FontSize="14"
                                                        Foreground="{DynamicResource TextSecondaryBrush}" />
                                             <ComboBox ItemsSource="{Binding RemitterTypes}"
                                                       SelectedItem="{Binding RemitterType, Mode=TwoWay}"
@@ -161,10 +162,10 @@
                                                 </ComboBox.ItemTemplate>
                                             </ComboBox>
                                             <TextBlock Text="{Binding RemitterTypeDescription}"
-                                                       FontSize="11" TextWrapping="Wrap"
+                                                       FontSize="12" TextWrapping="Wrap"
                                                        Foreground="{DynamicResource TextTertiaryBrush}" />
                                             <TextBlock Text="{loc:Loc 'CRA assigns this and shows it in your account. Most small employers are regular.'}"
-                                                       FontSize="11" TextWrapping="Wrap"
+                                                       FontSize="12" TextWrapping="Wrap"
                                                        Foreground="{DynamicResource TextTertiaryBrush}" />
                                         </StackPanel>
                                     </StackPanel>
@@ -177,7 +178,7 @@
                                 <Border Background="{DynamicResource SurfaceAltBrush}" CornerRadius="8" Padding="16"
                                         IsVisible="{Binding HasRows}">
                                     <StackPanel Spacing="10">
-                                        <TextBlock Text="{loc:Loc 'What kind of filing is this?'}" FontSize="13"
+                                        <TextBlock Text="{loc:Loc 'What kind of filing is this?'}" FontSize="14"
                                                    FontWeight="SemiBold"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
                                         <StackPanel Orientation="Horizontal" Spacing="20">
@@ -191,7 +192,7 @@
 
                                         <StackPanel Spacing="6" IsVisible="{Binding IsAmending}">
                                             <TextBlock Text="{loc:Loc 'Tick the employees whose slips changed. Send this on its own: CRA rejects a return that mixes amended and original slips.'}"
-                                                       FontSize="11" TextWrapping="Wrap"
+                                                       FontSize="12" TextWrapping="Wrap"
                                                        Foreground="{DynamicResource TextTertiaryBrush}" />
                                             <TextBox Text="{Binding AmendmentNote, Mode=TwoWay}" Classes="form-input"
                                                      MaxLength="1309" AcceptsReturn="True" MinHeight="56"
@@ -205,18 +206,18 @@
                                      pay stubs before anything leaves the building. -->
                                 <StackPanel Spacing="8" IsVisible="{Binding HasRows}">
                                     <Grid ColumnDefinitions="2*,1.2*,1.2*,1.2*,1.2*">
-                                        <TextBlock Grid.Column="0" Text="{loc:Loc Employee}" FontSize="12" FontWeight="SemiBold"
+                                        <TextBlock Grid.Column="0" Text="{loc:Loc Employee}" FontSize="14" FontWeight="SemiBold"
                                                    Foreground="{DynamicResource TextSecondaryBrush}" />
-                                        <TextBlock Grid.Column="1" Text="{loc:Loc 'Income'}" FontSize="12" FontWeight="SemiBold"
+                                        <TextBlock Grid.Column="1" Text="{loc:Loc 'Income'}" FontSize="14" FontWeight="SemiBold"
                                                    HorizontalAlignment="Right"
                                                    Foreground="{DynamicResource TextSecondaryBrush}" />
-                                        <TextBlock Grid.Column="2" Text="{loc:Loc CPP}" FontSize="12" FontWeight="SemiBold"
+                                        <TextBlock Grid.Column="2" Text="{loc:Loc CPP}" FontSize="14" FontWeight="SemiBold"
                                                    HorizontalAlignment="Right"
                                                    Foreground="{DynamicResource TextSecondaryBrush}" />
-                                        <TextBlock Grid.Column="3" Text="{loc:Loc EI}" FontSize="12" FontWeight="SemiBold"
+                                        <TextBlock Grid.Column="3" Text="{loc:Loc EI}" FontSize="14" FontWeight="SemiBold"
                                                    HorizontalAlignment="Right"
                                                    Foreground="{DynamicResource TextSecondaryBrush}" />
-                                        <TextBlock Grid.Column="4" Text="{loc:Loc 'Tax'}" FontSize="12" FontWeight="SemiBold"
+                                        <TextBlock Grid.Column="4" Text="{loc:Loc 'Tax'}" FontSize="14" FontWeight="SemiBold"
                                                    HorizontalAlignment="Right"
                                                    Foreground="{DynamicResource TextSecondaryBrush}" />
                                     </Grid>
@@ -235,26 +236,26 @@
                                                             <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
                                                                       VerticalAlignment="Center" MinWidth="0"
                                                                       IsVisible="{Binding $parent[ItemsControl].((vm:YearEndModalViewModel)DataContext).IsAmending}" />
-                                                            <TextBlock Text="{Binding Name}" FontSize="13"
+                                                            <TextBlock Text="{Binding Name}" FontSize="14"
                                                                        VerticalAlignment="Center"
                                                                        Foreground="{DynamicResource TextPrimaryBrush}" />
                                                             <!-- Flagged per row so a missing SIN
                                                                  is traceable to a person. -->
-                                                            <TextBlock Text="{loc:Loc 'no SIN'}" FontSize="11"
+                                                            <TextBlock Text="{loc:Loc 'no SIN'}" FontSize="12"
                                                                        VerticalAlignment="Center"
                                                                        Foreground="{DynamicResource WarningBrush}"
                                                                        IsVisible="{Binding !HasSin}" />
                                                         </StackPanel>
-                                                        <TextBlock Grid.Column="1" Text="{Binding Income}" FontSize="13"
+                                                        <TextBlock Grid.Column="1" Text="{Binding Income}" FontSize="14"
                                                                    HorizontalAlignment="Right"
                                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
-                                                        <TextBlock Grid.Column="2" Text="{Binding Cpp}" FontSize="13"
+                                                        <TextBlock Grid.Column="2" Text="{Binding Cpp}" FontSize="14"
                                                                    HorizontalAlignment="Right"
                                                                    Foreground="{DynamicResource TextSecondaryBrush}" />
-                                                        <TextBlock Grid.Column="3" Text="{Binding Ei}" FontSize="13"
+                                                        <TextBlock Grid.Column="3" Text="{Binding Ei}" FontSize="14"
                                                                    HorizontalAlignment="Right"
                                                                    Foreground="{DynamicResource TextSecondaryBrush}" />
-                                                        <TextBlock Grid.Column="4" Text="{Binding Tax}" FontSize="13"
+                                                        <TextBlock Grid.Column="4" Text="{Binding Tax}" FontSize="14"
                                                                    HorizontalAlignment="Right"
                                                                    Foreground="{DynamicResource TextSecondaryBrush}" />
                                                     </Grid>
@@ -268,26 +269,26 @@
                                         IsVisible="{Binding HasRows}">
                                     <StackPanel Spacing="10">
                                         <Grid ColumnDefinitions="*,Auto">
-                                            <TextBlock Grid.Column="0" Text="{loc:Loc 'Total employment income'}" FontSize="13"
+                                            <TextBlock Grid.Column="0" Text="{loc:Loc 'Total employment income'}" FontSize="14"
                                                        Foreground="{DynamicResource TextPrimaryBrush}" TextWrapping="Wrap" />
-                                            <TextBlock Grid.Column="1" Text="{Binding TotalIncome}" FontSize="13" FontWeight="SemiBold"
+                                            <TextBlock Grid.Column="1" Text="{Binding TotalIncome}" FontSize="14" FontWeight="SemiBold"
                                                        Foreground="{DynamicResource TextPrimaryBrush}" />
                                         </Grid>
                                         <Grid ColumnDefinitions="*,Auto">
-                                            <TextBlock Grid.Column="0" Text="{loc:Loc 'Total withheld from employees'}" FontSize="13"
+                                            <TextBlock Grid.Column="0" Text="{loc:Loc 'Total withheld from employees'}" FontSize="14"
                                                        Foreground="{DynamicResource TextPrimaryBrush}" TextWrapping="Wrap" />
-                                            <TextBlock Grid.Column="1" Text="{Binding TotalDeductions}" FontSize="13" FontWeight="SemiBold"
+                                            <TextBlock Grid.Column="1" Text="{Binding TotalDeductions}" FontSize="14" FontWeight="SemiBold"
                                                        Foreground="{DynamicResource TextPrimaryBrush}" />
                                         </Grid>
                                         <Grid ColumnDefinitions="*,Auto">
                                             <StackPanel Grid.Column="0">
-                                                <TextBlock Text="{loc:Loc 'Total that should have been remitted'}" FontSize="13"
+                                                <TextBlock Text="{loc:Loc 'Total that should have been remitted'}" FontSize="14"
                                                            Foreground="{DynamicResource TextPrimaryBrush}" TextWrapping="Wrap" />
                                                 <TextBlock Text="{loc:Loc 'Compare this against what you actually sent CRA over the year'}"
-                                                           FontSize="11"
+                                                           FontSize="12"
                                                            Foreground="{DynamicResource TextTertiaryBrush}" TextWrapping="Wrap" />
                                             </StackPanel>
-                                            <TextBlock Grid.Column="1" Text="{Binding TotalRemitted}" FontSize="15" FontWeight="SemiBold"
+                                            <TextBlock Grid.Column="1" Text="{Binding TotalRemitted}" FontSize="16" FontWeight="SemiBold"
                                                        VerticalAlignment="Center"
                                                        Foreground="{DynamicResource TextPrimaryBrush}" />
                                         </Grid>
@@ -303,20 +304,20 @@
                                         IsVisible="{Binding HasQuebec}">
                                     <StackPanel Spacing="12">
                                         <StackPanel Spacing="2">
-                                            <TextBlock Text="{loc:Loc 'Quebec: RL-1'}" FontSize="13" FontWeight="SemiBold"
+                                            <TextBlock Text="{loc:Loc 'Quebec: RL-1'}" FontSize="14" FontWeight="SemiBold"
                                                        Foreground="{DynamicResource TextPrimaryBrush}" />
                                             <TextBlock Text="{loc:Loc 'You have Quebec employees, so you also file an RL-1 with Revenu Quebec. It is separate from the T4 and carries the Quebec tax and QPIP amounts.'}"
-                                                       FontSize="11" TextWrapping="Wrap"
+                                                       FontSize="12" TextWrapping="Wrap"
                                                        Foreground="{DynamicResource TextTertiaryBrush}" />
                                         </StackPanel>
 
                                         <StackPanel Spacing="6">
-                                            <TextBlock Text="{loc:Loc 'Revenu Quebec identification number'}" FontSize="12"
+                                            <TextBlock Text="{loc:Loc 'Revenu Quebec identification number'}" FontSize="14"
                                                        Foreground="{DynamicResource TextSecondaryBrush}" />
                                             <TextBox Text="{Binding QuebecIdentificationNumber, Mode=TwoWay}" Classes="form-input"
                                                      PlaceholderText="1234567890RS0001" MaxLength="18" />
                                             <TextBlock Text="{loc:Loc 'This is not your CRA payroll account number. It is on your Revenu Quebec statement.'}"
-                                                       FontSize="11" TextWrapping="Wrap"
+                                                       FontSize="12" TextWrapping="Wrap"
                                                        Foreground="{DynamicResource TextTertiaryBrush}" />
                                         </StackPanel>
 
@@ -328,7 +329,7 @@
                                                 BorderThickness="3,0,0,0"
                                                 Padding="12,10">
                                             <TextBlock Text="{Binding QuebecFilingNotice}"
-                                                       FontSize="12" TextWrapping="Wrap"
+                                                       FontSize="14" TextWrapping="Wrap"
                                                        Foreground="{DynamicResource TextSecondaryBrush}" />
                                         </Border>
 
@@ -336,7 +337,7 @@
                                                       IsVisible="{Binding HasQuebecProblems}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
-                                                    <TextBlock Text="{Binding}" FontSize="12" TextWrapping="Wrap"
+                                                    <TextBlock Text="{Binding}" FontSize="14" TextWrapping="Wrap"
                                                                Margin="0,2"
                                                                Foreground="{DynamicResource WarningBrush}" />
                                                 </DataTemplate>
@@ -346,13 +347,13 @@
                                         <Grid ColumnDefinitions="*,Auto">
                                             <StackPanel Grid.Column="0">
                                                 <TextBlock Text="{loc:Loc 'Total that should have been remitted to Revenu Quebec'}"
-                                                           FontSize="13"
+                                                           FontSize="14"
                                                            Foreground="{DynamicResource TextPrimaryBrush}" TextWrapping="Wrap" />
                                                 <TextBlock Text="{loc:Loc 'QPP, QPIP and Quebec tax only. It does not include the health services fund.'}"
-                                                           FontSize="11" TextWrapping="Wrap"
+                                                           FontSize="12" TextWrapping="Wrap"
                                                            Foreground="{DynamicResource TextTertiaryBrush}" />
                                             </StackPanel>
-                                            <TextBlock Grid.Column="1" Text="{Binding QuebecTotalRemitted}" FontSize="15"
+                                            <TextBlock Grid.Column="1" Text="{Binding QuebecTotalRemitted}" FontSize="16"
                                                        FontWeight="SemiBold" VerticalAlignment="Center"
                                                        Foreground="{DynamicResource TextPrimaryBrush}" />
                                         </Grid>
@@ -364,11 +365,11 @@
                                 </Border>
 
                                 <TextBlock Text="{loc:Loc 'No approved pay runs in this year, so there is nothing to file.'}"
-                                           FontSize="13" TextWrapping="Wrap"
+                                           FontSize="14" TextWrapping="Wrap"
                                            Foreground="{DynamicResource TextTertiaryBrush}"
                                            IsVisible="{Binding !HasRows}" />
 
-                                <TextBlock Text="{Binding StatusMessage}" FontSize="12" TextWrapping="Wrap"
+                                <TextBlock Text="{Binding StatusMessage}" FontSize="14" TextWrapping="Wrap"
                                            Foreground="{DynamicResource SuccessBrush}"
                                            IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                             </StackPanel>
@@ -379,12 +380,12 @@
                             <Grid ColumnDefinitions="*,Auto">
                                 <!-- The deadline gives way to the validation line, so the footer
                                      keeps to one message. -->
-                                <TextBlock Grid.Column="0" VerticalAlignment="Center" FontSize="11" TextWrapping="Wrap"
+                                <TextBlock Grid.Column="0" VerticalAlignment="Center" FontSize="12" TextWrapping="Wrap"
                                            Margin="0,0,16,0"
                                            Foreground="{DynamicResource TextTertiaryBrush}"
                                            IsVisible="{Binding !HasValidationMessage}"
                                            Text="{loc:Loc 'T4s are due to CRA and to your employees by the last day of February.'}" />
-                                <TextBlock Grid.Column="0" VerticalAlignment="Center" FontSize="13" TextWrapping="Wrap"
+                                <TextBlock Grid.Column="0" VerticalAlignment="Center" FontSize="14" TextWrapping="Wrap"
                                            Margin="0,0,16,0"
                                            Foreground="{DynamicResource ErrorBrush}"
                                            IsVisible="{Binding HasValidationMessage}"
