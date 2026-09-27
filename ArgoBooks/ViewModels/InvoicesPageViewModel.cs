@@ -765,41 +765,49 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
             filtered = filtered.Where(i => i.DueDate <= FilterDueDateTo.Value.DateTime);
         }
 
-        // Create display items
-        var allPayments = companyData?.Payments ?? new List<Payment>();
-        var displayItems = filtered.Select(invoice =>
+        var payments = companyData?.Payments ?? [];
+        var paymentsByInvoice = payments.ToLookup(p => p.InvoiceId);
+
+        // Sorted and paged on light rows, so only the page's rows pay for avatars and refund checks.
+        var rows = filtered.Select(invoice =>
         {
-            var customer = companyData?.GetCustomer(invoice.CustomerId);
+            var (feesPaid, feesPaidUSD) = ProcessorFeesPaid(invoice, paymentsByInvoice[invoice.Id]);
+            return new InvoiceRow(invoice, companyData?.GetCustomer(invoice.CustomerId),
+                GetStatusDisplay(invoice), feesPaid, feesPaidUSD);
+        }).ToList();
+
+        // Apply sorting (only if not searching, since search has its own relevance sorting)
+        if (string.IsNullOrWhiteSpace(SearchQuery))
+        {
+            rows = rows.ApplySort(
+                SortColumn,
+                SortDirection,
+                new Dictionary<string, Func<InvoiceRow, object?>>
+                {
+                    ["Id"] = r => r.Invoice.Id,
+                    ["Customer"] = r => r.CustomerName,
+                    ["IssueDate"] = r => r.Invoice.IssueDate,
+                    ["DueDate"] = r => r.Invoice.DueDate,
+                    ["Amount"] = r => r.Invoice.Total + r.FeesPaid,
+                    ["Status"] = r => r.StatusDisplay
+                },
+                r => r.Invoice.IssueDate);
+        }
+
+        // Read before NavigateToHighlightedItem, which clears it.
+        var highlightId = HighlightTransactionId;
+        NavigateToHighlightedItem(rows, r => r.Invoice.Id);
+
+        var pagedRows = Paginate(rows, "invoice");
+
+        var refundsByPayment = payments.Where(p => p.IsRefund).ToLookup(p => p.RefundedFromPaymentId);
+        var pagedInvoices = pagedRows.Select(row =>
+        {
+            var invoice = row.Invoice;
             var accountant = !string.IsNullOrEmpty(invoice.AccountantId)
-                ? companyData?.Accountants.FirstOrDefault(a => a.Id == invoice.AccountantId)
+                ? companyData?.GetAccountant(invoice.AccountantId)
                 : null;
-            var statusDisplay = GetStatusDisplay(invoice);
-
-            var avatarBitmap = AvatarBitmapLoader.LoadCustomer(customer);
-
-            // Sum of processor fees the customer actually paid on top of
-            // the invoice (pass_processing_fee portal payments). Lets the
-            // Amount column reflect the gross customer charge (what they
-            // were actually billed) rather than only the line-item total.
-            // Revenue page intentionally does NOT include this (fees are
-            // not revenue, just pass-through).
-            var invoiceCurrency = string.IsNullOrEmpty(invoice.OriginalCurrency)
-                ? "USD" : invoice.OriginalCurrency;
-            decimal processorFeesPaid = 0m;
-            decimal processorFeesPaidUSD = 0m;
-            foreach (var p in allPayments)
-            {
-                if (p.InvoiceId != invoice.Id || p.IsRefund || p.ProcessingFee <= 0)
-                    continue;
-                var paymentCurrency = string.IsNullOrEmpty(p.OriginalCurrency) ? "USD" : p.OriginalCurrency;
-                if (!string.Equals(paymentCurrency, invoiceCurrency, StringComparison.OrdinalIgnoreCase))
-                    continue;
-                processorFeesPaid += p.ProcessingFee;
-                if (invoice.TotalUSD > 0 && invoice.Total > 0)
-                    processorFeesPaidUSD += Math.Round(p.ProcessingFee * (invoice.TotalUSD / invoice.Total), 2);
-                else
-                    processorFeesPaidUSD += p.ProcessingFee;
-            }
+            var avatarBitmap = AvatarBitmapLoader.LoadCustomer(row.Customer);
 
             return new InvoiceDisplayItem
             {
@@ -807,8 +815,8 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
                 InvoiceNumber = invoice.InvoiceNumber,
                 AccountantName = accountant?.Name ?? "System",
                 CustomerId = invoice.CustomerId,
-                CustomerName = customer?.Name ?? "Unknown Customer",
-                CustomerInitials = Helpers.InitialsHelper.From(customer?.Name),
+                CustomerName = row.CustomerName,
+                CustomerInitials = Helpers.InitialsHelper.From(row.Customer?.Name),
                 CustomerAvatarBitmap = avatarBitmap,
                 HasCustomerAvatar = avatarBitmap != null,
                 IssueDate = invoice.IssueDate,
@@ -817,44 +825,57 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
                 TaxAmount = invoice.TaxAmount,
                 Total = invoice.Total,
                 TotalUSD = invoice.EffectiveTotalUSD,
-                ProcessorFeesPaid = processorFeesPaid,
-                ProcessorFeesPaidUSD = processorFeesPaidUSD,
+                ProcessorFeesPaid = row.FeesPaid,
+                ProcessorFeesPaidUSD = row.FeesPaidUSD,
                 AmountPaid = invoice.AmountPaid,
                 Balance = invoice.Balance,
                 BalanceUSD = invoice.EffectiveBalanceUSD,
                 Status = invoice.Status,
-                StatusDisplay = statusDisplay,
+                StatusDisplay = row.StatusDisplay,
                 Notes = invoice.Notes,
                 OriginalCurrency = invoice.OriginalCurrency,
                 IsRecurring = !string.IsNullOrEmpty(invoice.RecurringInvoiceId),
-                IsHighlighted = invoice.Id == HighlightTransactionId,
-                CanRefund = ComputeCanRefund(invoice, companyData)
+                IsHighlighted = invoice.Id == highlightId,
+                CanRefund = companyData != null
+                    && ComputeCanRefund(invoice, paymentsByInvoice[invoice.Id], refundsByPayment)
             };
         }).ToList();
 
-        // Apply sorting (only if not searching, since search has its own relevance sorting)
-        if (string.IsNullOrWhiteSpace(SearchQuery))
-        {
-            displayItems = displayItems.ApplySort(
-                SortColumn,
-                SortDirection,
-                new Dictionary<string, Func<InvoiceDisplayItem, object?>>
-                {
-                    ["Id"] = i => i.Id,
-                    ["Customer"] = i => i.CustomerName,
-                    ["IssueDate"] = i => i.IssueDate,
-                    ["DueDate"] = i => i.DueDate,
-                    ["Amount"] = i => i.Total + i.ProcessorFeesPaid,
-                    ["Status"] = i => i.StatusDisplay
-                },
-                i => i.IssueDate);
-        }
-
-        NavigateToHighlightedItem(displayItems, x => x.Id);
-
-        var pagedInvoices = Paginate(displayItems, "invoice");
-
         Invoices.ReplaceAll(pagedInvoices);
+    }
+
+    /// <summary>An invoice with the values the table filters and sorts on, before its row is built.</summary>
+    private readonly record struct InvoiceRow(
+        Invoice Invoice, Customer? Customer, string StatusDisplay, decimal FeesPaid, decimal FeesPaidUSD)
+    {
+        public string CustomerName => Customer?.Name ?? "Unknown Customer";
+    }
+
+    /// <summary>
+    /// Sum of processor fees the customer actually paid on top of the invoice (pass_processing_fee
+    /// portal payments), so the Amount column shows the gross charge they were billed. The Revenue
+    /// page leaves these out: fees are pass-through, not revenue.
+    /// </summary>
+    private static (decimal Fees, decimal FeesUSD) ProcessorFeesPaid(Invoice invoice, IEnumerable<Payment> invoicePayments)
+    {
+        var invoiceCurrency = string.IsNullOrEmpty(invoice.OriginalCurrency)
+            ? "USD" : invoice.OriginalCurrency;
+        decimal fees = 0m;
+        decimal feesUSD = 0m;
+        foreach (var p in invoicePayments)
+        {
+            if (p.IsRefund || p.ProcessingFee <= 0)
+                continue;
+            var paymentCurrency = string.IsNullOrEmpty(p.OriginalCurrency) ? "USD" : p.OriginalCurrency;
+            if (!string.Equals(paymentCurrency, invoiceCurrency, StringComparison.OrdinalIgnoreCase))
+                continue;
+            fees += p.ProcessingFee;
+            if (invoice.TotalUSD > 0 && invoice.Total > 0)
+                feesUSD += Math.Round(p.ProcessingFee * (invoice.TotalUSD / invoice.Total), 2);
+            else
+                feesUSD += p.ProcessingFee;
+        }
+        return (fees, feesUSD);
     }
 
     private static string GetStatusDisplay(Invoice invoice) =>
@@ -865,15 +886,14 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
     /// Returns true when either money is still refundable OR a past refund
     /// exists (so the user can open the modal to view refund history).
     /// </summary>
-    private static bool ComputeCanRefund(Invoice invoice, CompanyData? companyData)
+    private static bool ComputeCanRefund(
+        Invoice invoice, IEnumerable<Payment> invoicePayments, ILookup<string?, Payment> refundsByPayment)
     {
-        if (companyData == null) return false;
         if (invoice.Status == InvoiceStatus.Draft || invoice.Status == InvoiceStatus.Cancelled)
             return false;
 
-        var portalPayments = companyData.Payments
-            .Where(p => p.InvoiceId == invoice.Id
-                        && !p.IsRefund
+        var portalPayments = invoicePayments
+            .Where(p => !p.IsRefund
                         && p.Source == PaymentSource.Online
                         && !string.IsNullOrEmpty(p.ProviderPaymentId))
             .ToList();
@@ -881,15 +901,11 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
 
         // Any past refund on this invoice keeps the button visible so the
         // modal can show details, even if nothing's left to refund.
-        var hasRefundHistory = companyData.Payments
-            .Any(r => r.InvoiceId == invoice.Id && r.IsRefund);
-        if (hasRefundHistory) return true;
+        if (invoicePayments.Any(r => r.IsRefund)) return true;
 
         foreach (var p in portalPayments)
         {
-            var refunded = companyData.Payments
-                .Where(r => r.IsRefund && r.RefundedFromPaymentId == p.Id)
-                .Sum(r => Math.Abs(r.Amount));
+            var refunded = refundsByPayment[p.Id].Sum(r => Math.Abs(r.Amount));
             if (p.Amount - refunded > 0.01m) return true;
         }
         return false;

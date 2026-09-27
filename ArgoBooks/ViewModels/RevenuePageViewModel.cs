@@ -535,7 +535,6 @@ public RevenuePageViewModel()
             var hasReceipt = !string.IsNullOrEmpty(revenue.ReceiptId);
             var receipt = hasReceipt ? companyData?.GetReceipt(revenue.ReceiptId!) : null;
             var receiptFilePath = receipt?.OriginalFilePath ?? string.Empty;
-            var customerAvatar = AvatarBitmapLoader.LoadCustomer(customer);
 
             return new RevenueDisplayItem
             {
@@ -574,8 +573,6 @@ public RevenuePageViewModel()
                 InvoiceId = revenue.InvoiceId ?? string.Empty,
                 IsPendingConversion = revenue.IsPendingConversion,
                 OriginalCurrency = revenue.OriginalCurrency,
-                CustomerAvatarBitmap = customerAvatar,
-                HasCustomerAvatar = customerAvatar != null,
                 IsFromPortal = isFromPortal
             };
         }).ToList();
@@ -605,6 +602,14 @@ public RevenuePageViewModel()
         NavigateToHighlightedItem(displayItems, x => x.Id);
 
         var pagedRevenue = Paginate(displayItems, "revenue");
+
+        // Avatars are read from disk, so only the rows on this page load theirs.
+        foreach (var item in pagedRevenue)
+        {
+            var avatar = AvatarBitmapLoader.LoadCustomer(companyData?.GetCustomer(item.CustomerId ?? ""));
+            item.CustomerAvatarBitmap = avatar;
+            item.HasCustomerAvatar = avatar != null;
+        }
 
         Revenue.ReplaceAll(pagedRevenue);
     }

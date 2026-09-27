@@ -302,8 +302,6 @@ public partial class SuppliersPageViewModel : SortablePageViewModelBase
                 addressParts.Add(supplier.Address.State);
             var addressString = addressParts.Count > 0 ? string.Join(", ", addressParts) : "-";
 
-            var avatarBitmap = AvatarBitmapLoader.LoadSupplier(supplier);
-
             return new SupplierDisplayItem
             {
                 Id = supplier.Id,
@@ -315,8 +313,6 @@ public partial class SuppliersPageViewModel : SortablePageViewModelBase
                 Country = string.IsNullOrWhiteSpace(supplier.Address.Country) ? "-" : supplier.Address.Country,
                 ProductCount = productCount,
                 Initials = Helpers.InitialsHelper.From(supplier.Name),
-                AvatarBitmap = avatarBitmap,
-                HasAvatar = avatarBitmap != null,
                 IsHighlighted = supplier.Id == HighlightTransactionId
             };
         }).ToList();
@@ -342,6 +338,14 @@ public partial class SuppliersPageViewModel : SortablePageViewModelBase
         NavigateToHighlightedItem(displayItems, x => x.Id);
 
         var pagedItems = Paginate(displayItems, "supplier");
+
+        // Avatars are read from disk, so only the rows on this page load theirs.
+        foreach (var item in pagedItems)
+        {
+            var avatar = AvatarBitmapLoader.LoadSupplier(App.CompanyManager?.CompanyData?.GetSupplier(item.Id));
+            item.AvatarBitmap = avatar;
+            item.HasAvatar = avatar != null;
+        }
 
         Suppliers.ReplaceAll(pagedItems);
     }

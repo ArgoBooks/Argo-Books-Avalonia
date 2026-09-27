@@ -1219,6 +1219,8 @@ public partial class App : Application
         })
             (vm as ICleanupViewModel)?.Cleanup();
 
+        Helpers.AvatarBitmapLoader.Clear();
+
         _dashboardPageViewModel = null;
         _analyticsPageViewModel = null;
         _insightsPageViewModel = null;
