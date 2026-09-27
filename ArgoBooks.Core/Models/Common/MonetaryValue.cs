@@ -78,7 +78,7 @@ public class MonetaryValue
     /// amount when the target is the original currency; the stored USD when the target is USD;
     /// otherwise converts USD-&gt;target via <paramref name="tryConvert"/>. Returns
     /// <see langword="false"/> when the exact-date rate is unavailable, so the caller shows a
-    /// pending marker rather than a wrong-date number. See docs/Calculations.md (Rule 3a).
+    /// pending marker rather than a wrong-date number. See docs/Calculations.md (Rule 4).
     /// </summary>
     public bool TryGetDisplayAmount(
         string targetCurrency,

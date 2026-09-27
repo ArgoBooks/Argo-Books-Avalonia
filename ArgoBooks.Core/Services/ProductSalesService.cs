@@ -29,7 +29,7 @@ public static class ProductSalesService
             foreach (var (li, revenueUSD) in LineAllocation.Allocate(s, LineAllocationBasis.Gross).Shares)
             {
                 var pid = li.ProductId ?? "";
-                // Converted at the sale's own date before adding up (Rule 3a); without a converter
+                // Converted at the sale's own date before adding up (Rule 4); without a converter
                 // (the formal report path and tests) it stays USD.
                 var revenue = toDisplay != null ? toDisplay(revenueUSD, s.Date) : revenueUSD;
 

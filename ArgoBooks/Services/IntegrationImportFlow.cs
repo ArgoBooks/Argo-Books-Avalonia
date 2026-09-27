@@ -162,7 +162,7 @@ public static class IntegrationImportFlow
     }
 
     /// <summary>
-    /// The preview's amounts in the display currency, each converted at its own date (Rule 3a), or
+    /// The preview's amounts in the display currency, each converted at its own date (Rule 4), or
     /// Pending while a rate is missing. Never a sum of raw amounts, which may be in different currencies.
     /// </summary>
     private static string Total(IEnumerable<IncomingAmount> amounts) =>

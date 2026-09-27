@@ -286,7 +286,7 @@ public class QuoteTests
     }
 
     // The draft was added with no USD amount and not waiting for one, so it counted as 0 USD for
-    // good and never converted (Rule 3a).
+    // good and never converted (Rule 4).
     [Fact]
     public void Convert_StoresTheInvoicesUsdAmounts_OrQueuesThemWhileTheRateIsMissing()
     {

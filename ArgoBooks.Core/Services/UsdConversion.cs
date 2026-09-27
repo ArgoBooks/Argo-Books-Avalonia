@@ -13,7 +13,7 @@ public delegate decimal? UsdRateSource(string currency, DateTime date);
 
 /// <summary>
 /// Stores a record's USD amounts at its own date's rate, or marks it pending and queues it for
-/// <see cref="PendingConversionService"/> (docs/Calculations.md Rule 3a). Every save, import and sync
+/// <see cref="PendingConversionService"/> (docs/Calculations.md Rule 4). Every save, import and sync
 /// goes through here, and the queue converts with the same field writes, so a record converted
 /// straight away and one converted later store the same figures.
 /// </summary>
@@ -51,7 +51,7 @@ public static class UsdConversion
 
     /// <summary>
     /// The rate money tied to an invoice converts at: the invoice's own, so a paid invoice nets to
-    /// zero in USD, or its issue date's while the invoice has none yet (Rule 3a).
+    /// zero in USD, or its issue date's while the invoice has none yet (Rule 4).
     /// </summary>
     public static decimal? InvoiceRate(Invoice invoice)
     {

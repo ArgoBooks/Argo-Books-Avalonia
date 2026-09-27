@@ -2173,7 +2173,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
     /// The invoice's USD total at its issue date's rate, or pending when there is none (future
     /// dated, offline, or no rate service) so the conversion queue prices it later. Keeping the
     /// previous figure, 0 or another date's rate, dropped the invoice out of Outstanding Invoices
-    /// for good and priced its online payments at nothing (docs/Calculations.md Rule 3a).
+    /// for good and priced its online payments at nothing (docs/Calculations.md Rule 4).
     /// </summary>
     private static async Task ApplyUsdTotalAsync(CompanyData companyData, Invoice invoice)
     {

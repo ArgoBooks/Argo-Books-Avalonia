@@ -852,7 +852,7 @@ public class PaymentPortalService : IDisposable
     /// The rate an online payment converts at: its invoice's, like the invoice's refunds, so a paid
     /// invoice nets to zero in USD. An invoice still waiting for its rate has no ratio to take yet,
     /// so the payment is priced at the invoice's date, the rate that ratio will come from, or waits
-    /// with the invoice (docs/Calculations.md Rule 3a).
+    /// with the invoice (docs/Calculations.md Rule 4).
     /// </summary>
     private static decimal? PortalRate(string currency, Invoice invoice) =>
         UsdConversion.IsUsd(currency) ? 1m : UsdConversion.InvoiceRate(invoice);

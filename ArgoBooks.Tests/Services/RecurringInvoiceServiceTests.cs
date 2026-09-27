@@ -32,7 +32,7 @@ public class RecurringInvoiceServiceTests
         };
 
     // The copy took the template's USD amounts, converted at another day's rate, and its waiting
-    // flag with no queue entry behind it. It converts at its own issue date instead (Rule 3a).
+    // flag with no queue entry behind it. It converts at its own issue date instead (Rule 4).
     [Fact]
     public void CloneInvoiceFrom_ConvertsAtItsOwnIssueDate_OrQueuesItself()
     {

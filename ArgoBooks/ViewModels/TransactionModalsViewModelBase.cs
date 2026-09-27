@@ -248,7 +248,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
 
     /// <summary>
     /// USD per unit of <see cref="SaveCurrency"/> at the transaction's date, or null when the rate
-    /// can't be had, in which case the transaction is saved pending (docs/Calculations.md Rule 3a).
+    /// can't be had, in which case the transaction is saved pending (docs/Calculations.md Rule 4).
     /// </summary>
     protected decimal? SaveRate = 1m;
 

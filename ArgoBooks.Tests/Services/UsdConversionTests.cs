@@ -8,7 +8,7 @@ namespace ArgoBooks.Tests.Services;
 
 /// <summary>
 /// Storing a record's USD amounts, or leaving it pending in the conversion queue, is done one way
-/// for every save, import and sync (docs/Calculations.md Rule 3a).
+/// for every save, import and sync (docs/Calculations.md Rule 4).
 /// </summary>
 public class UsdConversionTests
 {

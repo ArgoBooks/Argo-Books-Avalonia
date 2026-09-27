@@ -177,7 +177,7 @@ public class BankLineImportServiceTests
 
     private static decimal? NoRate(string currency, DateTime date) => null;
 
-    // Calculations.md Rule 3a: a CAD company's -100.00 line is CAD 100 converted at the line's own
+    // Calculations.md Rule 4: a CAD company's -100.00 line is CAD 100 converted at the line's own
     // date, not filed as 100 USD.
     [Fact]
     public void CreateFromLines_NonUsdCompany_ConvertsAtTheLinesOwnDate()

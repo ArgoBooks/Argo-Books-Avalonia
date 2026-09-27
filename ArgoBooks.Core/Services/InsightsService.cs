@@ -56,7 +56,7 @@ public class InsightsService(
 
     /// <summary>
     /// Sums per-item USD amounts after converting EACH at that item's OWN date, per the totals
-    /// rule in docs/Calculations.md Rule 3a (never convert a pre-summed total at one date).
+    /// rule in docs/Calculations.md Rule 4 (never convert a pre-summed total at one date).
     /// Identical to summing the USD amounts directly for a USD run.
     /// </summary>
     private decimal SumDisplay<T>(IEnumerable<T> items, Func<T, decimal> amountUSD, Func<T, DateTime> date)

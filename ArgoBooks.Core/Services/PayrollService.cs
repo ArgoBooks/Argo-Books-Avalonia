@@ -482,7 +482,7 @@ public class PayrollService(PayrollRateService? rateService = null)
 
             // Pay is worked out in the company's currency. Its USD base is that amount at the pay
             // date's rate like any other expense, so totals across currencies add up; screens in
-            // the company's currency still show the amount paid (docs/Calculations.md Rule 3a).
+            // the company's currency still show the amount paid (docs/Calculations.md Rule 4).
             UsdConversion.Apply(data, expense, UsdConversion.CachedRate(companyCurrency, run.PayDate));
 
             data.Expenses.Add(expense);

@@ -34,7 +34,7 @@ public static class ProfitCalculator
     /// <summary>
     /// Display-currency variant of <see cref="CalculateNetProfitUSD"/>: each component (revenue,
     /// expenses, refunds) is converted to the display currency at each transaction's OWN date via
-    /// <paramref name="toDisplay"/> before the profit subtraction, per docs/Calculations.md Rule 3a.
+    /// <paramref name="toDisplay"/> before the profit subtraction, per docs/Calculations.md Rule 4.
     /// Pass <c>CurrencyService.GetDisplayAmount</c>. Equals the USD profit for USD display.
     /// </summary>
     public static decimal CalculateNetProfitDisplay(

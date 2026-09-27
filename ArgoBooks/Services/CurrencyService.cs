@@ -51,7 +51,7 @@ public static class CurrencyService
     /// exact-date exchange rate isn't available. Future-dated rows (the common case) get
     /// date-arrives wording; a past date whose rate simply hasn't been fetched gets rate-available
     /// wording. Both promise an automatic conversion to the default currency, so the user never
-    /// thinks the value is lost. See docs/Calculations.md (Rule 3a).
+    /// thinks the value is lost. See docs/Calculations.md (Rule 4).
     /// </summary>
     public static string BuildPendingConversionHint(decimal originalAmount, string originalCurrency, DateTime date)
     {

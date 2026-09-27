@@ -281,7 +281,7 @@ public partial class PurchaseOrdersPageViewModel : SortablePageViewModelBase
         // Sum in USD (the normalized base) so mixed-currency POs aren't added as if same-currency,
         // then render in the display currency at today's rate. Pending POs contribute 0 until they
         // heal (Calculations.md §3).
-        // Convert each PO at its OWN order date before summing (Calculations.md Rule 3a).
+        // Convert each PO at its OWN order date before summing (Calculations.md Rule 4).
         TotalValue = CurrencyService.TrySumDisplayFromUSD(
             _allOrders, o => o.Total, o => o.OriginalCurrency, o => o.TotalUSD, o => o.OrderDate, out var poTotalDisplay)
             ? CurrencyService.Format(poTotalDisplay)

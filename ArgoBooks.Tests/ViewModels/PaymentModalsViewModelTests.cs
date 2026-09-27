@@ -317,7 +317,7 @@ public class PaymentModalsViewModelTests : ModalViewModelTestBase
 
     /// <summary>
     /// With no rate for the payment's date, the foreign amount was stored as the USD figure, so a
-    /// ¥50,000 payment counted as $50,000. It now waits for its own date's rate (Rule 3a).
+    /// ¥50,000 payment counted as $50,000. It now waits for its own date's rate (Rule 4).
     /// </summary>
     [Fact]
     public async Task SaveNewPayment_NoRateForItsDate_WaitsForConversionInsteadOfCountingAsUsd()

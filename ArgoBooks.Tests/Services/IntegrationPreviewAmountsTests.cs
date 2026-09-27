@@ -6,7 +6,7 @@ namespace ArgoBooks.Tests.Services;
 
 /// <summary>
 /// A sync preview keeps each amount in its own currency with its date, so its totals are converted
-/// row by row (Rule 3a) rather than adding dollars to euros.
+/// row by row (Rule 4) rather than adding dollars to euros.
 /// </summary>
 public class IntegrationPreviewAmountsTests
 {

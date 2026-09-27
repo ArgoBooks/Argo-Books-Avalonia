@@ -12,9 +12,9 @@ namespace ArgoBooks.Tests.Services;
 
 /// <summary>
 /// Payments and purchase orders follow the same exact-date pending-conversion rule as Revenue/Expense
-/// (Calculations.md Rule 3a): a row whose exact-date rate is unavailable imports pending and is healed
+/// (Calculations.md Rule 4): a row whose exact-date rate is unavailable imports pending and is healed
 /// later by <see cref="PendingConversionService"/>, never converted at a wrong-date rate. While pending
-/// their Effective*USD report 0 (Calculations.md §3) so they don't contaminate USD aggregates.
+/// their USD amount properties report 0 (Calculations.md §3) so they don't contaminate USD aggregates.
 /// </summary>
 public class PaymentPurchaseOrderPendingConversionTests
 {

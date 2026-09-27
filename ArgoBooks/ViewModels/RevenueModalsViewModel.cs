@@ -548,7 +548,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
         revenue.Notes = ModalNotes;
         revenue.UpdatedAt = DateTime.UtcNow;
         revenue.OriginalCurrency = SaveCurrency;
-        // A kept deposit converts at its invoice's rate, as when it was created (Rule 3a).
+        // A kept deposit converts at its invoice's rate, as when it was created (Rule 4).
         if (revenue.IsKeptDeposit && companyData.GetInvoice(revenue.InvoiceId ?? "") is { } depositInvoice
             && string.Equals(depositInvoice.OriginalCurrency, SaveCurrency, StringComparison.OrdinalIgnoreCase))
             UsdConversion.Apply(companyData, revenue, UsdConversion.InvoiceRate(depositInvoice), depositInvoice.IssueDate);

@@ -25,7 +25,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
     private string? _displayCode;
 
     /// <summary>
-    /// The single currency the whole report is rendered in (docs/Calculations.md Rule 3a).
+    /// The single currency the whole report is rendered in (docs/Calculations.md Rule 4).
     ///
     /// Chosen ONCE per report so a printed document is never a mix of currencies:
     /// <list type="bullet">
@@ -48,7 +48,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         : DisplayCurrency.Resolve(GetCurrencyCode(), DisplayCurrency.ReportDates(companyData, filters.EndDate));
 
     /// <summary>
-    /// A USD amount in <see cref="DisplayCode"/> at its transaction's date (docs/Calculations.md Rule 3a), so a
+    /// A USD amount in <see cref="DisplayCode"/> at its transaction's date (docs/Calculations.md Rule 4), so a
     /// total equals the sum of its rows converted at each row's own date.
     /// </summary>
     private decimal ToDisplay(decimal amountUSD, DateTime date) => DisplayCurrency.FromUSD(amountUSD, DisplayCode, date);
@@ -222,7 +222,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
     /// Groups transaction pre-tax totals by category, derived from line items' product IDs.
     /// Uses Subtotal (pre-tax) because sales tax is a liability, not revenue/expense.
     /// Each transaction's USD amounts are converted to DisplayCode at the transaction's OWN date
-    /// (docs/Calculations.md Rule 3a) before being summed, so the result is already in
+    /// (docs/Calculations.md Rule 4) before being summed, so the result is already in
     /// DisplayCode.
     /// </summary>
     private Dictionary<string, decimal> GroupTransactionsByCategory(
@@ -478,7 +478,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         // Cash = Revenue (Paid, no invoice) + Payments - Expenses, all filtered by date.
         // Uses post-tax (total) amounts because cash includes tax collected/paid.
         // Each component is converted at its OWN date, then combined (a derived figure: do not
-        // convert the combined result). See docs/Calculations.md Rule 3a.
+        // convert the combined result). See docs/Calculations.md Rule 4.
         var cashFromRevenue = companyData.Revenues
             .Where(r => RevenueAggregator.IsCollected(r)
                         && string.IsNullOrEmpty(r.InvoiceId)
@@ -1034,7 +1034,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             return data;
 
         // Pass ToDisplay so each line item is converted at its transaction's own date
-        // (Calculations.md Rule 3a); the returned RevenueUSD/AvgSalePriceUSD are then already
+        // (Calculations.md Rule 4); the returned RevenueUSD/AvgSalePriceUSD are then already
         // in DisplayCode (USD identity for the USD-company/fallback path).
         var products = ProductSalesService.GetProductSales(
             companyData,
@@ -1147,7 +1147,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             foreach (var (invoice, balanceUSD) in group)
             {
                 var daysPastDue = (asOf - invoice.DueDate.Date).Days;
-                // Convert each open invoice's balance at its issue date (Calculations.md Rule 3a).
+                // Convert each open invoice's balance at its issue date (Calculations.md Rule 4).
                 var balance = ToDisplay(balanceUSD, invoice.IssueDate);
 
                 if (daysPastDue <= 0)

@@ -14,7 +14,7 @@ namespace ArgoBooks.Tests.Services;
 /// <summary>
 /// An online payment on an invoice still waiting for its exchange rate took a USD amount of 0 and
 /// was never queued. Once the invoice converted it read as paid with its whole USD balance still
-/// owing, and the payment added nothing to cash (Calculations.md Rule 3a).
+/// owing, and the payment added nothing to cash (Calculations.md Rule 4).
 /// </summary>
 public class PortalPaymentPendingConversionTests : ModalViewModelTestBase
 {

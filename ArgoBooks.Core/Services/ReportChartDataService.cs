@@ -124,7 +124,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
     /// <summary>
     /// Adds a transaction's gross USD amount to its lines' product categories, shared out by
     /// <see cref="LineAllocation"/>; what no line can take goes to "Other". Each share is converted at
-    /// the transaction's own date before adding up (Rule 3a); without a converter it stays USD.
+    /// the transaction's own date before adding up (Rule 4); without a converter it stays USD.
     /// </summary>
     private void AddGrossByCategory(Dictionary<string, decimal> categoryTotals, Transaction txn,
         Func<decimal, DateTime, decimal>? toDisplay)
@@ -238,7 +238,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
     /// rate (via <paramref name="toDisplay"/>) BEFORE bucketing to the report's granularity. A wide
     /// range must never convert a month total at the month-start date, whose exact-date rate is usually
     /// uncached, because that falls back to the raw USD figure. Mirrors the dashboard / analytics path
-    /// (docs/Calculations.md Rule 3a).
+    /// (docs/Calculations.md Rule 4).
     /// </summary>
     public List<ChartSeriesData> GetRevenueVsExpensesConverted(Func<decimal, DateTime, decimal> toDisplay)
     {
@@ -517,7 +517,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
         var (startDate, endDate) = GetDateRange();
 
         // When a display converter is supplied, convert each transaction's USD amount at its OWN
-        // date before grouping (Calculations.md Rule 3a). Default (null) keeps USD.
+        // date before grouping (Calculations.md Rule 4). Default (null) keeps USD.
         decimal Display(decimal amountUSD, DateTime date) => toDisplay != null ? toDisplay(amountUSD, date) : amountUSD;
 
         return companyData.Revenues
@@ -561,7 +561,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
             })
             .Where(g => g.Key != null)
             // Convert each revenue at its OWN date before summing per country
-            // (docs/Calculations.md Rule 3a); null keeps USD.
+            // (docs/Calculations.md Rule 4); null keeps USD.
             .ToDictionary(g => g.Key!, g => (double)g.Sum(s =>
                 toDisplay != null ? toDisplay(s.EffectiveTotalUSD, s.Date) : s.EffectiveTotalUSD));
     }
@@ -599,7 +599,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
         var (startDate, endDate) = GetDateRange();
 
         // When a display converter is supplied, convert each transaction's USD amount at its OWN
-        // date before grouping (Calculations.md Rule 3a). Default (null) keeps USD.
+        // date before grouping (Calculations.md Rule 4). Default (null) keeps USD.
         decimal Display(decimal amountUSD, DateTime date) => toDisplay != null ? toDisplay(amountUSD, date) : amountUSD;
 
         return companyData.Expenses
@@ -630,7 +630,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
         var (startDate, endDate) = GetDateRange();
 
         // When a display converter is supplied, convert each transaction's USD amount at its OWN
-        // date before grouping (Calculations.md Rule 3a). Default (null) keeps USD.
+        // date before grouping (Calculations.md Rule 4). Default (null) keeps USD.
         decimal Display(decimal amountUSD, DateTime date) => toDisplay != null ? toDisplay(amountUSD, date) : amountUSD;
 
         return companyData.Expenses
@@ -658,7 +658,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
         var (startDate, endDate) = GetDateRange();
 
         // When a display converter is supplied, convert each transaction's USD amount at its OWN
-        // date before grouping (Calculations.md Rule 3a). Default (null) keeps USD.
+        // date before grouping (Calculations.md Rule 4). Default (null) keeps USD.
         decimal Display(decimal amountUSD, DateTime date) => toDisplay != null ? toDisplay(amountUSD, date) : amountUSD;
 
         return companyData.Revenues
@@ -687,7 +687,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
         var (startDate, endDate) = GetDateRange();
 
         // When a display converter is supplied, convert each transaction's USD amount at its OWN
-        // date before grouping (Calculations.md Rule 3a). Default (null) keeps USD.
+        // date before grouping (Calculations.md Rule 4). Default (null) keeps USD.
         decimal Display(decimal amountUSD, DateTime date) => toDisplay != null ? toDisplay(amountUSD, date) : amountUSD;
 
         return companyData.Revenues
@@ -1577,7 +1577,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
         if (taxed.Count == 0)
             return [];
 
-        // Each transaction's tax converts at its OWN date before grouping (Calculations.md Rule 3a).
+        // Each transaction's tax converts at its OWN date before grouping (Calculations.md Rule 4).
         // Default (null) keeps USD.
         decimal Display(decimal amountUSD, DateTime date) => toDisplay != null ? toDisplay(amountUSD, date) : amountUSD;
 

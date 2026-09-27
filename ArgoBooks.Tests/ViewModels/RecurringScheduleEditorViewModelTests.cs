@@ -21,7 +21,7 @@ public class RecurringScheduleEditorViewModelTests : ModalViewModelTestBase
         Company.Suppliers.Add(new Supplier { Id = "SUP-001", Name = "Landlord" });
     }
 
-    // With no exchange rate service, an entry in JPY is saved pending (Calculations.md Rule 3a).
+    // With no exchange rate service, an entry in JPY is saved pending (Calculations.md Rule 4).
     private void UseCurrencyWithNoRate()
     {
         Company.Settings.Localization.Currency = "JPY";

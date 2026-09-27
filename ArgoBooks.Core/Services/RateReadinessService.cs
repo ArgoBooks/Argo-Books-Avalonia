@@ -22,7 +22,7 @@ public sealed record RateReadiness(
 /// that are missing. Used before import (and other bulk operations) so money converts at the exact
 /// date and never falls back to a wrong date. Future dates are never required (unpriceable) and are
 /// returned for deferral. The server returns USD-&gt;all per date, so caching a date covers every
-/// currency for that date. See docs/Calculations.md (Rule 3a).
+/// currency for that date. See docs/Calculations.md (Rule 4).
 /// </summary>
 public sealed class RateReadinessService
 {

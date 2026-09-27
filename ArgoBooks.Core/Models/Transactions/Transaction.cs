@@ -202,7 +202,7 @@ public abstract class Transaction : IRecord
 
     /// <summary>
     /// Whether this transaction was saved offline and is awaiting USD conversion.
-    /// When true, all Effective*USD properties return 0 to prevent wrong cross-currency aggregation.
+    /// When true, all its USD amount properties (EffectiveTotalUSD and the others below) return 0 to prevent wrong cross-currency aggregation.
     /// </summary>
     [JsonPropertyName("isPendingConversion")]
     public bool IsPendingConversion { get; set; }

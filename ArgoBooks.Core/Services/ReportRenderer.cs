@@ -77,8 +77,8 @@ public class ReportRenderer : IDisposable
         (double)DisplayCurrency.FromUSD((decimal)amountUSD, _currencyCode, date ?? DateTime.Today);
 
     /// <summary>
-    /// A single USD amount in the report's display currency at its own date (docs/Calculations.md Rule 3a).
-    /// Aggregate <c>Effective*USD</c> through this; never sum the native <c>Total</c> field.
+    /// A single USD amount in the report's display currency at its own date (docs/Calculations.md Rule 4).
+    /// Aggregate the USD amount properties (<c>EffectiveTotalUSD</c> and the like) through this; never sum the native <c>Total</c> field.
     /// </summary>
     private decimal ToDisplayCurrency(decimal amountUSD, DateTime date) =>
         DisplayCurrency.FromUSD(amountUSD, _currencyCode, date);
@@ -1168,7 +1168,7 @@ public class ReportRenderer : IDisposable
     /// Chart types whose data method converts each transaction at its OWN date when handed a converter.
     /// For these, a non-USD report passes the converter and does NOT re-convert the bucket afterwards,
     /// so a month bucket is never converted at the month-start date (whose rate is usually uncached,
-    /// which falls back to the raw USD figure). Calculations.md Rule 3a.
+    /// which falls back to the raw USD figure). Calculations.md Rule 4.
     /// </summary>
     private static bool ConvertsPerTransaction(ChartDataType chartType) => chartType is
         ChartDataType.AverageTransactionValue
@@ -1224,7 +1224,7 @@ public class ReportRenderer : IDisposable
         // Revenue vs Expenses for a non-USD display currency: convert each day's value at that day's
         // OWN rate before bucketing, so a wide range doesn't convert a month total at the month-start
         // date (whose rate is usually uncached) and fall back to showing the raw USD figure. Matches
-        // the dashboard / analytics path (Calculations.md Rule 3a).
+        // the dashboard / analytics path (Calculations.md Rule 4).
         if (chartType == ChartDataType.RevenueVsExpenses
             && !string.Equals(_currencyCode, "USD", StringComparison.OrdinalIgnoreCase))
         {
@@ -1267,7 +1267,7 @@ public class ReportRenderer : IDisposable
             return null;
 
         // Convert each country's revenue at each transaction's OWN date during aggregation
-        // (docs/Calculations.md Rule 3a) instead of converting the country total at today's
+        // (docs/Calculations.md Rule 4) instead of converting the country total at today's
         // rate. Null for a USD report (identity).
         var converter = string.Equals(_currencyCode, "USD", StringComparison.OrdinalIgnoreCase)
             ? (Func<decimal, DateTime, decimal>?)null

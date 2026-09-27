@@ -246,7 +246,7 @@ public class CompanyData
 
     /// <summary>
     /// Records waiting for their exchange rate, the conversion queue itself. Saved in the .argo file
-    /// with the records it converts, and the only copy that is (docs/Calculations.md Rule 3a).
+    /// with the records it converts, and the only copy that is (docs/Calculations.md Rule 4).
     /// </summary>
     [JsonPropertyName("pendingConversions")]
     public List<PendingConversion> PendingConversions { get; init; } = [];

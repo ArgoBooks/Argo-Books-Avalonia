@@ -55,9 +55,9 @@ Unpaid revenue counts only in:
 
 ### Rule 3: Add up in USD, show in the company's currency.
 
-Every row stores its amounts in USD as well as in its own currency (the `Effective*USD` properties), so totals across different currencies add up correctly. Every number the user sees or exports is then converted to the display currency. That is normally the company's currency, or USD for a report or Insights run that is missing an exchange rate it needs (Rule 3a).
+Every row stores its amounts in USD as well as in its own currency (its USD amount properties, listed in §3), so totals across different currencies add up correctly. Every number the user sees or exports is then converted to the display currency. That is normally the company's currency, or USD for a report or Insights run that is missing an exchange rate it needs (Rule 4).
 
-### Rule 3a: Convert using the exchange rate for the transaction's own date.
+### Rule 4: Convert using the exchange rate for the transaction's own date.
 
 Exchange rates come from the Argo server (`/api/exchange-rates*.php`), which returns every currency's rate against USD for a given day. A transaction is converted using the rate for the day it happened. There are two exceptions:
 
@@ -77,9 +77,9 @@ What this means in practice:
 
 ---
 
-## 3. USD amounts (`Effective*USD`)
+## 3. USD amounts
 
-Totals that add up rows in different currencies use each row's `Effective*USD` properties. Never add up rows' own-currency fields (`Total`, `Amount`, `TaxAmount`) when the rows are in different currencies, because that would add dollars to euros.
+Totals that add up rows in different currencies use each row's USD amount properties: `EffectiveTotalUSD`, `EffectiveSubtotalUSD`, `EffectiveTaxAmountUSD`, `EffectiveShippingCostUSD` and `EffectiveUnitPriceUSD` on revenues and expenses, `EffectiveAmountUSD` on payments, `EffectiveTotalUSD` and `EffectiveBalanceUSD` on invoices, and `EffectiveTotalUSD` on purchase orders. Never add up rows' own-currency fields (`Total`, `Amount`, `TaxAmount`) when the rows are in different currencies, because that would add dollars to euros.
 
 | Property | Meaning |
 |---|---|
@@ -89,7 +89,7 @@ Totals that add up rows in different currencies use each row's `Effective*USD` p
 | `EffectiveShippingCostUSD` (`Transaction` only) | The shipping, in USD. It is already part of the total. |
 | `EffectiveAmountUSD` (`Payment`) | One payment or refund, in USD. Negative for a refund. |
 
-A row with `IsPendingConversion = true` is still waiting for its exchange rate (Rule 3a) and has no USD amount yet, so every `Effective*USD` property returns 0 until it is converted.
+A row with `IsPendingConversion = true` is still waiting for its exchange rate (Rule 4) and has no USD amount yet, so every one of its USD amount properties returns 0 until it is converted.
 
 ---
 
@@ -231,7 +231,7 @@ A deposit was never revenue (§4), so the part of a refund that returns it doesn
 
 Expenses have no paid or unpaid status, so every expense counts. Expense totals include tax (`EffectiveTotalUSD`, Rule 1). Profit uses `OperatingExpenseUSD` instead, which leaves out tracked stock (§14).
 
-**Payroll.** Approving a pay run records each employee's net pay as an expense dated on the pay date (`PayrollService.ApproveAndRecord`). Wages are worked out in the company's currency, and each wage expense is stored in USD like any other expense, at the pay date's rate (Rule 3a). A pay run approved ahead of its pay date has no rate yet, so its expenses wait for that date's rate and convert once it can be fetched; until then they count as 0 (§3) and totals that include them show Pending. Voiding a pay run removes its expenses, and undoing the void puts them back waiting again if they still are.
+**Payroll.** Approving a pay run records each employee's net pay as an expense dated on the pay date (`PayrollService.ApproveAndRecord`). Wages are worked out in the company's currency, and each wage expense is stored in USD like any other expense, at the pay date's rate (Rule 4). A pay run approved ahead of its pay date has no rate yet, so its expenses wait for that date's rate and convert once it can be fetched; until then they count as 0 (§3) and totals that include them show Pending. Voiding a pay run removes its expenses, and undoing the void puts them back waiting again if they still are.
 
 ---
 
@@ -251,7 +251,7 @@ The Insights tab (trends, anomalies, forecasts, recommendations) uses collected 
 
 **Trend comparisons** compare against the period `ComparisonPeriod.For` gives (§12). It works this out from the date preset's name (`AnalysisDateRange.PresetName`), so the page must build its range with `AnalysisDateRange.FromPreset`. A range built with `AnalysisDateRange.Custom` is compared with the same number of days just before it. A forecast range such as "Next Month" is first mapped to this month, quarter or year so far.
 
-**Currency.** Insights does its analysis in USD and converts only the amounts it shows. Like a report, each run picks one currency for everything (Rule 3a), except that it ignores dates after today, since it never converts anything at a future date. Amounts in descriptions, averages included, convert each row at its own date, and the overdue total converts each invoice's balance at its issue date. Forecast cards, ranges and Past Predictions convert their stored USD figures to the company's currency at today's rate (`InsightsPageViewModel.FormatForecastAmount`). The sample numbers shown to free users are for illustration only and are never converted.
+**Currency.** Insights does its analysis in USD and converts only the amounts it shows. Like a report, each run picks one currency for everything (Rule 4), except that it ignores dates after today, since it never converts anything at a future date. Amounts in descriptions, averages included, convert each row at its own date, and the overdue total converts each invoice's balance at its issue date. Forecast cards, ranges and Past Predictions convert their stored USD figures to the company's currency at today's rate (`InsightsPageViewModel.FormatForecastAmount`). The sample numbers shown to free users are for illustration only and are never converted.
 
 **Top Performing Product** compares each product's collected revenue with its `CostPrice` converted to USD at each sale's date. A sale still waiting for its rate, or a line whose cost price can't be converted yet, is left out of the comparison rather than counted as having no revenue or no cost. A product with under a cent of revenue in the period has no meaningful margin and is left out too.
 
@@ -275,7 +275,7 @@ Bank Matching (`BankMatchingService`) only marks revenue, expenses, invoices and
 
 ### Mobile app
 
-The phone shows a snapshot the desktop builds (`SnapshotBuilder`), covering all time. Money In is worked out the same way as the dashboard's Total Revenue card: collected revenue less refunds (Rule 2, §8). Money Out is every expense, and Profit is Money In minus Money Out. Like a report, the snapshot picks one currency for everything (`DisplayCurrency.Resolve`, Rule 3a) and converts each row at its own date. It sends the numbers together with that currency, and the phone writes them out with the currency's symbol. Each invoice row carries the status the desktop shows (`InvoiceTotalsService.DisplayStatus`, §6), as text the phone displays as it is.
+The phone shows a snapshot the desktop builds (`SnapshotBuilder`), covering all time. Money In is worked out the same way as the dashboard's Total Revenue card: collected revenue less refunds (Rule 2, §8). Money Out is every expense, and Profit is Money In minus Money Out. Like a report, the snapshot picks one currency for everything (`DisplayCurrency.Resolve`, Rule 4) and converts each row at its own date. It sends the numbers together with that currency, and the phone writes them out with the currency's symbol. Each invoice row carries the status the desktop shows (`InvoiceTotalsService.DisplayStatus`, §6), as text the phone displays as it is.
 
 ---
 
@@ -400,7 +400,7 @@ Undoing a change puts the stock record's cost back as it was before the change. 
 
 Net profit is the Rule 1 formula. The dashboard counts only paid sales, for both revenue and cost of goods sold (Rule 2). The Income Statement counts every sale in the date range, shows **Cost of Goods Sold** and **Gross Profit** under revenue whenever that cost isn't zero, and leaves tracked stock out of its expense categories. The Expenses card, the Expenses page and cash flow still count every purchase in full, because that money really was spent.
 
-**Profit while a sale waits for its stock's cost.** A sale waiting for its stock's cost counts that cost as 0, so a figure that subtracts cost of goods sold would read high. While any sale it counts is waiting (`CostOfGoodsAggregator.IsCostOfGoodsPending`), such a figure follows the all-or-nothing Pending rule of Rule 3a and shows Pending until the cost converts. That covers the dashboard's Net Profit card, the Analytics Net Profit and Profit Margin cards (`CurrencyService.FormatNetProfitOrPending`), and the report Summary box's net profit. The cards' change against the previous period is left blank, and the Summary box's net profit growth rate reads Pending, while a sale in either period is waiting (`CostOfGoodsAggregator.IsProfitChangePending`), since a period that reads high makes the change wrong either way. On the Income Statement the Cost of Goods Sold, Gross Profit and Net Income lines read Pending, while its revenue and expense lines still show their amounts. Profit Over Time is a chart and can't show Pending, so it plots the cost as 0.
+**Profit while a sale waits for its stock's cost.** A sale waiting for its stock's cost counts that cost as 0, so a figure that subtracts cost of goods sold would read high. While any sale it counts is waiting (`CostOfGoodsAggregator.IsCostOfGoodsPending`), such a figure follows the all-or-nothing Pending rule of Rule 4 and shows Pending until the cost converts. That covers the dashboard's Net Profit card, the Analytics Net Profit and Profit Margin cards (`CurrencyService.FormatNetProfitOrPending`), and the report Summary box's net profit. The cards' change against the previous period is left blank, and the Summary box's net profit growth rate reads Pending, while a sale in either period is waiting (`CostOfGoodsAggregator.IsProfitChangePending`), since a period that reads high makes the change wrong either way. On the Income Statement the Cost of Goods Sold, Gross Profit and Net Income lines read Pending, while its revenue and expense lines still show their amounts. Profit Over Time is a chart and can't show Pending, so it plots the cost as 0.
 
 ### Stock on hand when this began (opening units)
 
@@ -412,7 +412,7 @@ A stock record's `UnitCost` is always in USD. A product's `CostPrice` is in the 
 
 - A purchase of tracked stock sets `UnitCost` from the purchase line (above).
 - A new stock record starts at the product's `CostPrice` converted to USD at one day's rate (`InventoryStockService.StartAtCostPrice`). The day is the date of the sale or purchase that created the record, the order date for a purchase order being received, and today for a record added on the Stock Levels page. When receiving a purchase order creates the record, its cost comes from the order line instead, converted at the order's own rate. Receiving into an existing record doesn't change its cost. A transfer gives the new record the cost of the stock it came from, pending if that cost is pending.
-- **A missing rate leaves the cost pending**, following Rule 3a. The record is marked `InventoryItem.IsPendingConversion`, its `UnitCost` is 0 for now, and the cost in its own currency waits in the conversion queue (`PendingConversionService`, type `InventoryItem`) with the date whose rate it needs. When that rate can be fetched, the queue converts it into `UnitCost` and fills in the sales that were waiting on it (above). A purchase with a known rate that sets the cost first ends the wait for the record, but the queued cost still converts for those sales.
+- **A missing rate leaves the cost pending**, following Rule 4. The record is marked `InventoryItem.IsPendingConversion`, its `UnitCost` is 0 for now, and the cost in its own currency waits in the conversion queue (`PendingConversionService`, type `InventoryItem`) with the date whose rate it needs. When that rate can be fetched, the queue converts it into `UnitCost` and fills in the sales that were waiting on it (above). A purchase with a known rate that sets the cost first ends the wait for the record, but the queued cost still converts for those sales.
 - The spreadsheet Inventory sheet's Unit Cost column is the stored USD value, both on export and on import. Both imports, the column one and the AI one, update a stock record through `InventoryStockService.ImportStockRecord`, which changes only the fields the sheet gives. A pending cost is exported as 0, so a Unit Cost of 0 leaves a pending cost waiting, and a different, non-zero Unit Cost replaces it. Sales already waiting on the queued cost still take that one.
 - Sales waiting on a record's pending cost find the record by its product and location. An import therefore leaves the product and location of a record with such sales as they are, and changes its other fields.
 
@@ -456,14 +456,14 @@ Days are counted by date, not time, so out Monday and back Wednesday is two days
 
 The rental's `SecurityDeposit` is the per-unit deposit × quantity, added up over its lines. At return, any part of it can be refunded (`DepositRefunded`) and the rest is kept. A kept deposit becomes revenue on the return date:
 
-- On a rental with an invoice, it becomes its own revenue row (`Revenue.IsKeptDeposit`), linked to the invoice and converted at the invoice's rate (Rule 3a).
+- On a rental with an invoice, it becomes its own revenue row (`Revenue.IsKeptDeposit`), linked to the invoice and converted at the invoice's rate (Rule 4).
 - On a rental without an invoice, it is added to the revenue recorded when the rental is marked paid (below).
 
 If the invoice was paid online, the refunded deposit goes back through the payment provider, and the Balance Sheet stops counting it as held once that refund syncs. Extra charges, such as a late fee or damage, are billed on top of the rental and don't come out of the deposit.
 
 ### Paid without an invoice
 
-Marking a rental paid when it has no invoice records a revenue row for `TotalCost` plus any kept deposit, in the company's currency and converted at its own date (Rule 3a). It is dated on the return date if marked paid at return, otherwise on the day it was marked paid. `RentalRecord.RevenueId` links the two, so marking the rental unpaid, or deleting it, removes that revenue. A rental with an invoice is counted through its invoice instead, and a rental already marked paid can't be invoiced, so its money is never counted twice.
+Marking a rental paid when it has no invoice records a revenue row for `TotalCost` plus any kept deposit, in the company's currency and converted at its own date (Rule 4). It is dated on the return date if marked paid at return, otherwise on the day it was marked paid. `RentalRecord.RevenueId` links the two, so marking the rental unpaid, or deleting it, removes that revenue. A rental with an invoice is counted through its invoice instead, and a rental already marked paid can't be invoiced, so its money is never counted twice.
 
 ### Stock and reservations
 

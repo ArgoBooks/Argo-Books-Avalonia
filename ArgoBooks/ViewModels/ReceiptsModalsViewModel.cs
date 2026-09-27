@@ -2547,7 +2547,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
     /// <summary>
     /// Tags a receipt-created transaction with the receipt's currency and its USD amounts, like the
     /// normal expense/revenue save: converted at its own date when that rate is held, otherwise
-    /// pending and queued until it is (Calculations.md Rule 3a).
+    /// pending and queued until it is (Calculations.md Rule 4).
     /// </summary>
     private static void ApplyDisplayCurrency(CompanyData companyData, Transaction txn, string currency)
     {

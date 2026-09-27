@@ -155,7 +155,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
     /// </summary>
     private void LoadProductSales(CompanyData data)
     {
-        // Convert each sale at its OWN date during aggregation (Calculations.md Rule 3a), so
+        // Convert each sale at its OWN date during aggregation (Calculations.md Rule 4), so
         // the per-product and total figures aren't re-priced at a single date. The resulting
         // amounts are already in the display currency.
         var complete = CurrencyService.TryComputeDisplay(
@@ -1971,7 +1971,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         HasProfitTrendsData = series.Count > 0;
 
         // totalProfit is already in the display currency, converted per-day at each day's OWN date
-        // (Calculations.md Rule 3a), so the title matches the bars and needs no today's-rate step.
+        // (Calculations.md Rule 4), so the title matches the bars and needs no today's-rate step.
         _profitOverTimeTitleText = $"Total profits: {CurrencyService.Format(totalProfit)}";
         OnPropertyChanged(nameof(ProfitOverTimeTitle));
     }
@@ -2317,7 +2317,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         var profitChange = prevNetProfit != 0 ? ((netProfitUSD - prevNetProfit) / Math.Abs(prevNetProfit)) * 100 : 0;
         var marginChange = margin - prevMargin;
 
-        // Update properties (convert each transaction at its OWN date per Calculations.md Rule 3a).
+        // Update properties (convert each transaction at its OWN date per Calculations.md Rule 4).
         // The same figures as the dashboard cards, showing Pending while a rate is missing.
         TotalPurchases = DashboardCalculations.FormatExpenses(data, StartDate, EndDate);
         PurchasesChangeValue = hasPrevPeriodData && prevPurchasesUSD > 0 ? (double)purchasesChange : null;
@@ -2393,7 +2393,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
                + ExpenseAggregator.SumExpensesUSD(data.Expenses, StartDate, EndDate)) / totalTransactionsCount
             : 0;
 
-        // Average display value: each transaction converted at its OWN date (Calculations.md Rule 3a),
+        // Average display value: each transaction converted at its OWN date (Calculations.md Rule 4),
         // summed, then divided by the same count used above.
         var transactionsComplete = CurrencyService.TryComputeDisplay(convert =>
             RevenueAggregator.SumCollectedRevenueDisplay(data.Revenues, StartDate, EndDate, convert)
@@ -2488,7 +2488,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
             .Where(RevenueAggregator.IsCollected)
             .ToList();
         var customerIds = sales.Select(s => s.CustomerId).Distinct().ToList();
-        // Convert each sale at its OWN date (Calculations.md Rule 3a), then divide by the
+        // Convert each sale at its OWN date (Calculations.md Rule 4), then divide by the
         // same distinct-customer count.
         var custSalesComplete = CurrencyService.TryComputeDisplay(convert =>
             RevenueAggregator.SumCollectedRevenueDisplay(data.Revenues, StartDate, EndDate, convert), out var salesValueDisplay);
@@ -2658,7 +2658,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         var liabilityChange = prevNetLiability != 0 ? ((netLiability - prevNetLiability) / Math.Abs(prevNetLiability)) * 100 : 0;
         var rateChange = effectiveRate - prevEffectiveRate;
 
-        // Convert each transaction's tax at its OWN date (Calculations.md Rule 3a). The per-row
+        // Convert each transaction's tax at its OWN date (Calculations.md Rule 4). The per-row
         // USD selector mirrors taxCollectedUSD/taxPaidUSD above so USD display is identity.
         var grossCollectedComplete = CurrencyService.TrySumDisplayFromUSD(
             revenues, r => r.TaxAmount, r => r.OriginalCurrency, r => r.EffectiveTaxAmountUSD, r => r.Date, out var grossTaxCollectedDisplay);
@@ -2715,7 +2715,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
 
         var since = DateTime.Today.AddDays(-90);
 
-        // RefundAnalyticsService converts each refund at its OWN date (Calculations.md Rule 3a) with
+        // RefundAnalyticsService converts each refund at its OWN date (Calculations.md Rule 4) with
         // the converter it is given. A figure whose refunds aren't all priced shows Pending rather
         // than a number with USD mixed in.
         string Money(bool complete, decimal amount) => complete ? CurrencyService.Format(amount) : CurrencyService.PendingMarker;

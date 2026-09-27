@@ -314,7 +314,7 @@ public partial class PaymentModalsViewModel : ViewModelBase
         var currentCurrency = ResolvePaymentCurrency(companyData);
         var paymentDate = ModalDate?.DateTime ?? DateTime.Today;
 
-        // At its own date's rate, or pending when there is none (docs/Calculations.md Rule 3a).
+        // At its own date's rate, or pending when there is none (docs/Calculations.md Rule 4).
         var rate = await UsdConversion.FetchRateAsync(currentCurrency, paymentDate);
 
         var newPayment = new Payment

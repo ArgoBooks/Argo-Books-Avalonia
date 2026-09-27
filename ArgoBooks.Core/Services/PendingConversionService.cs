@@ -6,7 +6,7 @@ using ArgoBooks.Core.Models.Transactions;
 namespace ArgoBooks.Core.Services;
 
 /// <summary>
-/// Converts the records waiting for their exchange rate (docs/Calculations.md Rule 3a). The queue is
+/// Converts the records waiting for their exchange rate (docs/Calculations.md Rule 4). The queue is
 /// the open company's own list (<see cref="CompanyData.PendingConversions"/>), saved in the company
 /// file together with the records it converts, so the file is its only source: this service holds a
 /// copy of it to work from, kept in step by <see cref="Mirror"/>.
@@ -314,7 +314,7 @@ public class PendingConversionService
             {
                 // Convert ONLY at the exact transaction-date rate (fetching it if missing). Never
                 // fall back to today's or any other date's rate: a row stays pending until its own
-                // date's rate is available. See docs/Calculations.md (Rule 3a).
+                // date's rate is available. See docs/Calculations.md (Rule 4).
                 var rate = await exchangeService.GetExchangeRateAsync(
                     entry.OriginalCurrency, "USD", entry.TransactionDate, fetchIfMissing: true);
 

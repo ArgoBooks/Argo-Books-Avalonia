@@ -5,7 +5,7 @@ namespace ArgoBooks.Core.Services;
 /// <summary>One customer's collected sales and refunds in a date range.</summary>
 public sealed record CustomerRevenue(string CustomerId, IReadOnlyList<Revenue> Sales, IReadOnlyList<Payment> Refunds)
 {
-    /// <summary>Collected revenue less refunds, each converted at its own date (Rule 3a).</summary>
+    /// <summary>Collected revenue less refunds, each converted at its own date (Rule 4).</summary>
     public decimal Total(Func<decimal, DateTime, decimal> convert) =>
         Sales.Sum(r => convert(r.EffectiveTotalUSD, r.Date))
         - Refunds.Sum(p => convert(RefundAggregator.RevenuePortionUSD(p), p.Date));

@@ -165,7 +165,7 @@ public class ExchangeRateService
     /// (or when <paramref name="from"/> == <paramref name="to"/>); otherwise returns
     /// <see langword="false"/> and <paramref name="result"/> = 0. This is the strict chokepoint for
     /// all money conversion: it never substitutes a different date's rate, so a caller treats a
-    /// false result as "pending", not as a number. See docs/Calculations.md (Rule 3a).
+    /// false result as "pending", not as a number. See docs/Calculations.md (Rule 4).
     /// </summary>
     public bool TryConvertExact(decimal amount, string from, string to, DateTime date, out decimal result)
     {
