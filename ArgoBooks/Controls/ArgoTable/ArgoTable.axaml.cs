@@ -584,10 +584,28 @@ public partial class ArgoTable : UserControl, INotifyPropertyChanged
     /// </summary>
     private static readonly HashSet<string> ReportedEmptyPages = new(StringComparer.Ordinal);
 
+    /// <summary>
+    /// The page this table belongs to, captured on attach. By the time it detaches the navigation
+    /// service already names the page being moved to, which would credit the empty state to the
+    /// wrong one.
+    /// </summary>
+    private string? _attachedPage;
+
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
+        _attachedPage = App.NavigationService?.CurrentPageName;
+    }
+
+    /// <summary>
+    /// Reported as the page is left rather than while it is open: a table is empty for the frames
+    /// between attaching and its rows arriving, so anything asked earlier records every page as
+    /// empty. On the way out the answer is settled.
+    /// </summary>
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
         ReportEmptyStateIfNeeded();
+        base.OnDetachedFromVisualTree(e);
     }
 
     private void ReportEmptyStateIfNeeded()
@@ -596,7 +614,7 @@ public partial class ArgoTable : UserControl, INotifyPropertyChanged
         if (!IsEmpty || !string.IsNullOrWhiteSpace(SearchQuery))
             return;
 
-        var page = App.NavigationService?.CurrentPageName;
+        var page = _attachedPage;
         if (string.IsNullOrWhiteSpace(page) || !ReportedEmptyPages.Add(page))
             return;
 
@@ -610,7 +628,6 @@ public partial class ArgoTable : UserControl, INotifyPropertyChanged
         if (change.Property == ItemsSourceProperty)
         {
             RaisePropertyChanged(nameof(IsEmpty));
-            ReportEmptyStateIfNeeded();
 
             if (change.OldValue is INotifyCollectionChanged oldCollection)
                 oldCollection.CollectionChanged -= OnItemsCollectionChanged;
@@ -644,7 +661,6 @@ public partial class ArgoTable : UserControl, INotifyPropertyChanged
     private void OnItemsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         RaisePropertyChanged(nameof(IsEmpty));
-        ReportEmptyStateIfNeeded();
     }
 
     private void OnColumnWidthsPropertyChanged(object? sender, PropertyChangedEventArgs e)
