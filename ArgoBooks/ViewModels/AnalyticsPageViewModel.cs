@@ -69,6 +69,22 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
 
     partial void OnSelectedTabIndexChanged(int value)
     {
+        // Load before the tab's visibility flips, so it never shows the data it had when last loaded.
+        var data = _companyManager?.CompanyData;
+        if (data != null && IsTabIndex(value))
+        {
+            if (_staleTabs[value])
+            {
+                ApplyChartStyle();
+                LoadTab(value, data, styleChangeOnly: false);
+            }
+            else if (value == RefundsTab)
+            {
+                // Refund figures cover the last 90 days, so they are re-read on each visit.
+                RefreshRefundMetrics();
+            }
+        }
+
         OnPropertyChanged(nameof(IsDashboardTabSelected));
         OnPropertyChanged(nameof(IsGeographicTabSelected));
         OnPropertyChanged(nameof(IsOperationalTabSelected));
@@ -79,8 +95,6 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         OnPropertyChanged(nameof(IsTaxesTabSelected));
         OnPropertyChanged(nameof(IsRefundsTabSelected));
         OnPropertyChanged(nameof(IsProductsTabSelected));
-
-        if (IsRefundsTabSelected) RefreshRefundMetrics();
 
         // Make sure a product is selected when arriving on the Products tab so
         // the detail chart is populated even if the first load raced the tab.
@@ -178,7 +192,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
 
     /// <summary>
     /// (Re)builds the selected product's revenue-trend series. Called when the
-    /// selection changes and whenever the chart style changes (via LoadAllCharts),
+    /// selection changes and whenever the chart style changes (via ReloadCharts),
     /// since the series geometry depends on the chosen chart type.
     /// </summary>
     private void ReloadProductRevenueTrend()
@@ -263,7 +277,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
                         ChartSettingsShared.HasAppliedCustomRange = false;
                         OnPropertyChanged(nameof(HasAppliedCustomRange));
                         OnPropertyChanged(nameof(AppliedDateRangeText));
-                        LoadAllCharts();
+                        ReloadCharts();
                     }
                 }
                 finally
@@ -347,7 +361,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
             if (value.HasValue)
             {
                 StartDate = value.Value.DateTime;
-                LoadAllCharts();
+                ReloadCharts();
             }
         }
     }
@@ -363,7 +377,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
             if (value.HasValue)
             {
                 EndDate = value.Value.DateTime;
-                LoadAllCharts();
+                ReloadCharts();
             }
         }
     }
@@ -404,7 +418,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
                 HasAppliedCustomRange = true;
                 OnPropertyChanged(nameof(AppliedDateRangeText));
                 OnPropertyChanged(nameof(DateRangeDisplayText));
-                LoadAllCharts();
+                ReloadCharts();
             },
             onCancel: () =>
             {
@@ -716,7 +730,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
                 {
                     ChartSettingsShared.SelectedChartType = value;
                     OnPropertyChanged();
-                    LoadAllCharts(styleChangeOnly: true);
+                    ReloadCharts(styleChangeOnly: true);
                 }
                 finally
                 {
@@ -1330,23 +1344,23 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
 
     private void OnThemeChanged(object? sender, ThemeMode e)
     {
-        LoadAllCharts();
+        ReloadCharts();
         NotifyAllChartTitlesChanged();
     }
 
     private void OnDateFormatChanged(object? sender, EventArgs e)
     {
-        LoadAllCharts();
+        ReloadCharts();
     }
 
     private void OnMaxPieSlicesChanged(object? sender, EventArgs e)
     {
-        LoadAllCharts();
+        ReloadCharts();
     }
 
     private void OnCurrencyChanged(object? sender, EventArgs e)
     {
-        LoadAllCharts();
+        ReloadCharts();
     }
 
     private void OnChartSettingsChartTypeChanged(object? sender, string chartType)
@@ -1355,7 +1369,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         if (!_isLocalSettingChange)
         {
             OnPropertyChanged(nameof(SelectedChartType));
-            LoadAllCharts();
+            ReloadCharts();
         }
     }
 
@@ -1372,7 +1386,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
             OnPropertyChanged(nameof(DateRangeDisplayText));
             OnPropertyChanged(nameof(IsCustomDateRange));
             OnPropertyChanged(nameof(ComparisonPeriodLabel));
-            LoadAllCharts();
+            ReloadCharts();
         }
     }
 
@@ -1665,12 +1679,23 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
     /// </summary>
     public void Initialize(CompanyManager companyManager)
     {
+        // The page factory reuses this view model and calls Initialize on every visit, so
+        // subscribing without removing first would reload the page once per past visit.
+        if (_companyManager != null)
+            _companyManager.CompanyDataChanged -= OnCompanyDataChanged;
         _companyManager = companyManager;
-        LoadAllCharts();
+        ReloadCharts();
 
-        // Subscribe to data change events
+        _companyManager.CompanyDataChanged -= OnCompanyDataChanged;
         _companyManager.CompanyDataChanged += OnCompanyDataChanged;
     }
+
+    /// <summary>
+    /// Whether Analytics is the page on screen. Changes made while it isn't only mark the tabs
+    /// stale: the page factory calls <see cref="Initialize"/> on every visit, which reloads it.
+    /// </summary>
+    private static bool IsOnScreen =>
+        App.NavigationService is not { } navigation || navigation.CurrentPageName == PageNames.Analytics;
 
     /// <summary>
     /// Cleans up event subscriptions.
@@ -1697,7 +1722,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
 
     private void OnCompanyDataChanged(object? sender, EventArgs e)
     {
-        LoadAllCharts();
+        ReloadCharts();
     }
 
     [RelayCommand]
@@ -1711,27 +1736,44 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
 
     #region Chart Loading
 
+    private const int DashboardTab = 0;
+    private const int ProductsTab = 1;
+    private const int GeographicTab = 2;
+    private const int OperationalTab = 3;
+    private const int PerformanceTab = 4;
+    private const int CustomersTab = 5;
+    private const int TaxesTab = 6;
+    private const int ReturnsTab = 7;
+    private const int LossesTab = 8;
+    private const int RefundsTab = 9;
+    private const int TabCount = 10;
+
+    // Tabs whose charts and stat cards no longer match the data, filters or settings. Only the
+    // selected tab loads; the rest load when selected.
+    private readonly bool[] _staleTabs = Enumerable.Repeat(true, TabCount).ToArray();
+
+    private static bool IsTabIndex(int index) => index is >= 0 and < TabCount;
+
     /// <summary>
-    /// Loads all chart data.
+    /// Reloads the selected tab and marks every other tab stale. Does nothing but mark them all
+    /// stale while the page isn't on screen.
     /// </summary>
-    public void LoadAllCharts(bool styleChangeOnly = false)
+    public void ReloadCharts(bool styleChangeOnly = false)
     {
         var data = _companyManager?.CompanyData;
         if (data == null) return;
 
-        // Update theme colors and chart style
-        ChartLoaderService.UpdateThemeColors(ThemeService.Instance.IsDarkTheme);
-        ChartLoaderService.SelectedChartStyle = SelectedChartType switch
-        {
-            "Line" => ChartStyle.Line,
-            "Column" => ChartStyle.Column,
-            "Step Line" => ChartStyle.StepLine,
-            "Area" => ChartStyle.Area,
-            "Scatter" => ChartStyle.Scatter,
-            _ => ChartStyle.Line
-        };
+        var tab = SelectedTabIndex;
+        // A style-only reload redraws the cartesian charts of an already-loaded tab; a tab that
+        // was never loaded (or went stale) needs everything.
+        var styleOnly = styleChangeOnly && IsTabIndex(tab) && !_staleTabs[tab];
+        Array.Fill(_staleTabs, true);
 
-        if (!styleChangeOnly)
+        if (!IsOnScreen) return;
+
+        ApplyChartStyle();
+
+        if (!styleOnly)
         {
             // Determine if a date range filter is active and data exists beyond it
             var isFiltered = SelectedDateRange != DateRangePreset.AllTime.GetDisplayName();
@@ -1744,86 +1786,144 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
             ShowTaxDateRangeMessage = isFiltered && (data.Revenues.Any(r => r.TaxAmount > 0 || r.TaxAmountUSD > 0) ||
                                                       data.Expenses.Any(e => e.TaxAmount > 0 || e.TaxAmountUSD > 0));
             HasNoTransactions = data.Expenses.Count == 0 && data.Revenues.Count == 0;
-
-            // Load statistics for stat cards
-            LoadAllStatistics(data);
         }
 
-        // Dashboard charts (cartesian)
-        LoadExpensesTrendsChart(data);
-        LoadRevenueTrendsChart(data);
-        LoadProfitTrendsChart(data);
-        LoadRevenueVsExpensesChart(data);
+        if (IsTabIndex(tab))
+            LoadTab(tab, data, styleOnly);
+    }
 
-        // Operational charts (cartesian)
-        LoadAvgTransactionValueChart(data);
-        LoadTotalTransactionsChart(data);
-        LoadAvgShippingCostsChart(data);
-
-        // Performance charts (cartesian)
-        LoadCustomerGrowthChart(data);
-
-        // Returns charts (cartesian)
-        LoadReturnsOverTimeChart(data);
-        LoadReturnFinancialImpactChart(data);
-        LoadExpenseVsRevenueReturnsChart(data);
-
-        // Losses charts (cartesian)
-        LoadLossesOverTimeChart(data);
-        LoadLossFinancialImpactChart(data);
-        LoadExpenseVsRevenueLossesChart(data);
-
-        // Taxes charts (cartesian)
-        LoadTaxCollectedVsPaidChart(data);
-        LoadTaxLiabilityTrendChart(data);
-        LoadTaxRateDistributionChart(data);
-        LoadExpenseVsRevenueTaxChart(data);
-
-        // Products detail chart (cartesian) reacts to chart-style changes too. On a data/filter
-        // change LoadProductSales (below) reassigns SelectedProduct and reloads it, so only the
-        // style-only path needs an explicit reload here (avoids reloading the trend twice).
-        if (styleChangeOnly)
-            ReloadProductRevenueTrend();
-
-        // Pie charts and geo map are style-independent, only reload on data/filter changes
-        if (!styleChangeOnly)
+    private void ApplyChartStyle()
+    {
+        ChartLoaderService.UpdateThemeColors(ThemeService.Instance.IsDarkTheme);
+        ChartLoaderService.SelectedChartStyle = SelectedChartType switch
         {
-            // Dashboard pie charts
-            LoadExpensesDistributionChart(data);
-            LoadRevenueDistributionChart(data);
+            "Line" => ChartStyle.Line,
+            "Column" => ChartStyle.Column,
+            "Step Line" => ChartStyle.StepLine,
+            "Area" => ChartStyle.Area,
+            "Scatter" => ChartStyle.Scatter,
+            _ => ChartStyle.Line
+        };
+    }
 
-            // Geographic charts
-            LoadCountriesOfOriginChart(data);
-            LoadCompaniesOfOriginChart(data);
-            LoadCountriesOfDestinationChart(data);
-            LoadCompaniesOfDestinationChart(data);
-            LoadGeoMapChart();
+    /// <summary>
+    /// Loads one tab's stat cards and charts. With <paramref name="styleChangeOnly"/> only the
+    /// charts drawn in the chart style reload; pies, maps and stat cards don't depend on it.
+    /// </summary>
+    private void LoadTab(int tab, CompanyData data, bool styleChangeOnly)
+    {
+        var full = !styleChangeOnly;
+        switch (tab)
+        {
+            case DashboardTab:
+                if (full)
+                {
+                    LoadDashboardStatistics(data);
+                    LoadExpensesDistributionChart(data);
+                    LoadRevenueDistributionChart(data);
+                }
+                LoadExpensesTrendsChart(data);
+                LoadRevenueTrendsChart(data);
+                LoadProfitTrendsChart(data);
+                LoadRevenueVsExpensesChart(data);
+                break;
 
-            // Operational pie chart
-            LoadAccountantsTransactionsChart(data);
+            case ProductsTab:
+                // LoadProductSales reassigns SelectedProduct, which reloads the trend chart, so
+                // only a style-only change needs the explicit reload.
+                if (full)
+                    LoadProductSales(data);
+                else
+                    ReloadProductRevenueTrend();
+                break;
 
-            // Customer pie charts
-            LoadTopCustomersChart(data);
-            LoadCustomerPaymentStatusChart(data);
-            LoadActiveInactiveCustomersChart(data);
+            case GeographicTab:
+                if (full)
+                {
+                    LoadCountriesOfOriginChart(data);
+                    LoadCompaniesOfOriginChart(data);
+                    LoadCountriesOfDestinationChart(data);
+                    LoadCompaniesOfDestinationChart(data);
+                    LoadGeoMapChart();
+                }
+                break;
 
-            // Returns pie charts
-            LoadReturnReasonsChart(data);
-            LoadReturnsByCategoryChart(data);
-            LoadReturnsByProductChart(data);
+            case OperationalTab:
+                if (full)
+                {
+                    LoadOperationalStatistics(data);
+                    LoadAccountantsTransactionsChart(data);
+                }
+                LoadTotalTransactionsChart(data);
+                break;
 
-            // Losses pie charts
-            LoadLossReasonsChart(data);
-            LoadLossesByProductChart(data);
-            LoadLossesByCategoryChart(data);
+            case PerformanceTab:
+                if (full)
+                    LoadPerformanceStatistics(data);
+                LoadAvgTransactionValueChart(data);
+                LoadTotalTransactionsChart(data);
+                LoadAvgShippingCostsChart(data);
+                break;
 
-            // Taxes pie charts
-            LoadTaxByCategoryChart(data);
-            LoadTaxByProductChart(data);
+            case CustomersTab:
+                if (full)
+                {
+                    LoadCustomerStatistics(data);
+                    LoadTopCustomersChart(data);
+                    LoadCustomerPaymentStatusChart(data);
+                    LoadActiveInactiveCustomersChart(data);
+                }
+                LoadCustomerGrowthChart(data);
+                LoadAvgTransactionValueChart(data);
+                LoadTotalTransactionsChart(data);
+                break;
 
-            // Products tab
-            LoadProductSales(data);
+            case TaxesTab:
+                if (full)
+                {
+                    LoadTaxesStatistics(data);
+                    LoadTaxByCategoryChart(data);
+                    LoadTaxByProductChart(data);
+                }
+                LoadTaxCollectedVsPaidChart(data);
+                LoadTaxLiabilityTrendChart(data);
+                LoadTaxRateDistributionChart(data);
+                LoadExpenseVsRevenueTaxChart(data);
+                break;
+
+            case ReturnsTab:
+                if (full)
+                {
+                    LoadReturnsStatistics(data);
+                    LoadReturnReasonsChart(data);
+                    LoadReturnsByCategoryChart(data);
+                    LoadReturnsByProductChart(data);
+                }
+                LoadReturnsOverTimeChart(data);
+                LoadReturnFinancialImpactChart(data);
+                LoadExpenseVsRevenueReturnsChart(data);
+                break;
+
+            case LossesTab:
+                if (full)
+                {
+                    LoadLossesStatistics(data);
+                    LoadLossReasonsChart(data);
+                    LoadLossesByProductChart(data);
+                    LoadLossesByCategoryChart(data);
+                }
+                LoadLossesOverTimeChart(data);
+                LoadLossFinancialImpactChart(data);
+                LoadExpenseVsRevenueLossesChart(data);
+                break;
+
+            case RefundsTab:
+                if (full)
+                    RefreshRefundMetrics();
+                break;
         }
+
+        _staleTabs[tab] = false;
     }
 
     private void LoadExpensesTrendsChart(CompanyData data)
@@ -2180,20 +2280,6 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
     #endregion
 
     #region Statistics Loading
-
-    /// <summary>
-    /// Loads all statistics for stat cards across all tabs.
-    /// </summary>
-    private void LoadAllStatistics(CompanyData data)
-    {
-        LoadDashboardStatistics(data);
-        LoadOperationalStatistics(data);
-        LoadPerformanceStatistics(data);
-        LoadCustomerStatistics(data);
-        LoadReturnsStatistics(data);
-        LoadLossesStatistics(data);
-        LoadTaxesStatistics(data);
-    }
 
     private (DateTime Start, DateTime End) ComparisonRange() =>
         ComparisonPeriod.For(DateRangePresetExtensions.ParseDateRange(SelectedDateRange), StartDate, EndDate);
