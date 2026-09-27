@@ -372,6 +372,23 @@ public partial class RefundModalViewModel : ObservableObject
             LineRows.Add(row);
         }
 
+        // Part of what the customer paid (the tax row above already includes tax charged on it),
+        // so without its own row a full refund came up short by the shipping.
+        if (_invoice.ShippingAmount > 0)
+        {
+            var row = new RefundableLineRow
+            {
+                Currency = Currency,
+                Label = "Shipping",
+                Detail = "",
+                Amount = _invoice.ShippingAmount,
+                IsSelected = true,
+                Kind = "shipping",
+            };
+            row.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(RefundableLineRow.IsSelected)) RecomputeTotals(); };
+            LineRows.Add(row);
+        }
+
         if (_invoice.SecurityDeposit > 0)
         {
             var row = new RefundableLineRow
@@ -861,7 +878,7 @@ public partial class RefundableLineRow : ObservableObject
     public decimal Amount { get; set; }
     public string Currency { get; set; } = "USD";
     public string AmountDisplay => CurrencyInfo.FormatAmount(Amount, Currency);
-    public string Kind { get; set; } = "lineItem"; // lineItem | tax | fee | deposit | discount | processingFee
+    public string Kind { get; set; } = "lineItem"; // lineItem | tax | fee | shipping | deposit | discount | processingFee
 
     [ObservableProperty]
     private bool _isSelected;
