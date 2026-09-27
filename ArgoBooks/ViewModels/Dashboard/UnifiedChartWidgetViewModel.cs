@@ -304,8 +304,12 @@ public partial class UnifiedChartWidgetViewModel : WidgetViewModelBase
         for (int i = 0; i < seriesData.Count; i++)
         {
             var sd = seriesData[i];
-            var displayValues = allDates.Select(date =>
-                sd.DataPoints.FirstOrDefault(p => p.Date == date)?.Value ?? 0.0).ToArray();
+            // The first point on each date, as a scan of the points per date would find.
+            var valueByDate = new Dictionary<DateTime, double>();
+            foreach (var p in sd.DataPoints)
+                if (p.Date is { } pointDate)
+                    valueByDate.TryAdd(pointDate, p.Value);
+            var displayValues = allDates.Select(date => valueByDate.GetValueOrDefault(date)).ToArray();
             seriesDisplayValues.Add(displayValues);
 
             var colorHex = sd.Color;

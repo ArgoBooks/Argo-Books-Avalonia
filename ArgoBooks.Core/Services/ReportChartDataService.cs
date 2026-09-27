@@ -1528,12 +1528,17 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
         if (allDates.Count == 0)
             return [];
 
+        // Grouped once rather than rescanning every record for each day. Each day still sums its
+        // records in list order, the same figures NetTaxCollected gives for a one-day window.
+        var revenuesByDay = CollectedRevenues.ToLookup(r => r.Date.Date);
+        var refundsByDay = Refunds.ToLookup(p => p.Date.Date);
+        var expensesByDay = companyData.Expenses.ToLookup(e => e.Date.Date);
+
         return allDates.Select(date =>
         {
-            var collected = NetTaxCollected(date, date.AddDays(1).AddTicks(-1), null);
-            var paid = companyData.Expenses
-                .Where(e => e.Date.Date == date)
-                .Sum(e => e.EffectiveTaxAmountUSD);
+            var collected = revenuesByDay[date].Sum(r => r.EffectiveTaxAmountUSD)
+                            - refundsByDay[date].Sum(p => RefundTaxUSD(p));
+            var paid = expensesByDay[date].Sum(e => e.EffectiveTaxAmountUSD);
 
             return new ChartDataPoint
             {
