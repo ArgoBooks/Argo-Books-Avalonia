@@ -567,9 +567,9 @@ public class T4Tests
         data.Settings.Company.PayrollContactEmail = string.Empty;
         data.PayRuns.Add(Run("PR-0001", new DateTime(2026, 7, 3), "EMP-001", 2000m));
 
-        List<string> problems = T4Service.Validate(data, BuiltReturn(data));
+        List<T4Problem> problems = T4Service.Validate(data, BuiltReturn(data));
 
-        Assert.Contains(problems, p => p.Contains("email", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(problems, p => p.Message.Contains("email", StringComparison.OrdinalIgnoreCase));
     }
 
     #endregion
@@ -811,11 +811,11 @@ public class T4Tests
         data.Settings.Company.PayrollContactPhone = null;
         data.PayRuns.Add(Run("PR-0001", new DateTime(2026, 7, 3), "EMP-001", 2000m));
 
-        List<string> problems = T4Service.Validate(data, BuiltReturn(data));
+        List<T4Problem> problems = T4Service.Validate(data, BuiltReturn(data));
 
-        Assert.Contains(problems, p => p.Contains("payroll account number", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(problems, p => p.Contains("contact name", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(problems, p => p.Contains("phone", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(problems, p => p.Message.Contains("payroll account number", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(problems, p => p.Message.Contains("contact name", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(problems, p => p.Message.Contains("phone", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -828,9 +828,9 @@ public class T4Tests
         draft.Status = PayRunStatus.Draft;
         data.PayRuns.Add(draft);
 
-        List<string> problems = T4Service.Validate(data, BuiltReturn(data));
+        List<T4Problem> problems = T4Service.Validate(data, BuiltReturn(data));
 
-        Assert.Contains(problems, p => p.Contains("draft", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(problems, p => p.Message.Contains("draft", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -856,7 +856,7 @@ public class T4Tests
         data.Settings.Company.PayrollContactPhone = null;
         data.PayRuns.Add(Run("PR-0001", new DateTime(2026, 7, 3), "EMP-001", 2000m));
 
-        List<string> problems = T4Service.Validate(data, BuiltReturn(data));
+        List<T4Problem> problems = T4Service.Validate(data, BuiltReturn(data));
 
         Assert.True(problems.Count >= 3, $"expected several problems, got {problems.Count}");
     }
@@ -1003,7 +1003,7 @@ public class T4Tests
 
         T4Return t4 = BuiltReturn(data);
 
-        Assert.Contains(T4Service.Validate(data, t4), p => p.Contains("postal code", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(T4Service.Validate(data, t4), p => p.Message.Contains("postal code", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -1015,7 +1015,7 @@ public class T4Tests
 
         T4Return t4 = BuiltReturn(data);
 
-        Assert.Contains(T4Service.Validate(data, t4), p => p.Contains("province or territory code", StringComparison.Ordinal));
+        Assert.Contains(T4Service.Validate(data, t4), p => p.Message.Contains("province or territory code", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -1026,7 +1026,7 @@ public class T4Tests
 
         T4Return t4 = BuiltReturn(data);
 
-        Assert.Contains(T4Service.Validate(data, t4), p => p.Contains("does not accept", StringComparison.Ordinal));
+        Assert.Contains(T4Service.Validate(data, t4), p => p.Message.Contains("does not accept", StringComparison.Ordinal));
     }
 
     /// <summary>An employee with no address at all files perfectly well, and must not be blocked.</summary>

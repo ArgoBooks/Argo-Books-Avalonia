@@ -208,12 +208,12 @@ public class T4Service
     /// employer missing three SINs wants to see three, not to fix one and be told about the
     /// next.
     /// </summary>
-    public static List<string> Validate(CompanyData data, T4Return t4)
+    public static List<T4Problem> Validate(CompanyData data, T4Return t4)
     {
         ArgumentNullException.ThrowIfNull(data);
         ArgumentNullException.ThrowIfNull(t4);
 
-        var problems = new List<string>();
+        var problems = new List<T4Problem>();
 
         // A draft run means the year is not finished being recorded. Filing now would produce
         // a T4 that disagrees with the books as soon as the draft is approved.
@@ -225,8 +225,9 @@ public class T4Service
 
         if (!IsPayrollAccountNumber(t4.PayrollAccountNumber))
         {
-            problems.Add("The payroll account number is missing or not in the form 000000000RP0000. "
-                         + "It is on your CRA statement of account and is required on every slip.");
+            problems.Add(new("The payroll account number is missing or not in the form 000000000RP0000. "
+                         + "It is on your CRA statement of account and is required on every slip.",
+                T4ProblemField.PayrollAccountNumber));
         }
 
         if (string.IsNullOrWhiteSpace(t4.EmployerName))
@@ -236,20 +237,23 @@ public class T4Service
 
         if (string.IsNullOrWhiteSpace(t4.ContactName))
         {
-            problems.Add("A contact name is required on the T4 Summary, so CRA knows who to call.");
+            problems.Add(new("A contact name is required on the T4 Summary, so CRA knows who to call.",
+                T4ProblemField.ContactName));
         }
 
         if (new string(t4.ContactPhone.Where(char.IsAsciiDigit).ToArray()).Length < 10)
         {
-            problems.Add("A ten digit contact phone number is required on the T4 Summary.");
+            problems.Add(new("A ten digit contact phone number is required on the T4 Summary.",
+                T4ProblemField.ContactPhone));
         }
 
         // Required by the T619 transmittal record wrapping the submission. Without it CRA rejects
         // the upload, so it is refused here rather than discovered at the deadline.
         if (!IsEmailAddress(t4.ContactEmail))
         {
-            problems.Add("A contact email address is required. CRA uses it to tell you how the "
-                         + "filing was processed, and the submission is rejected without one.");
+            problems.Add(new("A contact email address is required. CRA uses it to tell you how the "
+                         + "filing was processed, and the submission is rejected without one.",
+                T4ProblemField.ContactEmail));
         }
 
         // The employer's own address, which BuildSummary writes as prov_cd, pstl_cd and cntry_cd

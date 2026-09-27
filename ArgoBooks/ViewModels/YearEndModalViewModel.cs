@@ -228,9 +228,33 @@ public partial class YearEndModalViewModel : ViewModelBase
     /// anything has been typed is nagging rather than help.
     /// </summary>
     public string AccountNumberError =>
-        string.IsNullOrWhiteSpace(AccountNumber) || T4Service.IsPayrollAccountNumber(AccountNumber)
-            ? string.Empty
-            : "Nine digits, then RP, then four: 000000000RP0000.";
+        !string.IsNullOrWhiteSpace(AccountNumber) && !T4Service.IsPayrollAccountNumber(AccountNumber)
+            ? "Nine digits, then RP, then four: 000000000RP0000."
+            : FieldProblem(T4ProblemField.PayrollAccountNumber);
+
+    public string ContactNameError => FieldProblem(T4ProblemField.ContactName);
+
+    public string ContactPhoneError => FieldProblem(T4ProblemField.ContactPhone);
+
+    /// <summary>
+    /// What validation said about one box, held back until Export for filing has been pressed.
+    /// Marking a box red before anything has been typed is nagging, but once filing has been
+    /// asked for, saying which boxes stopped it beats a panel of prose above them.
+    /// </summary>
+    private string FieldProblem(T4ProblemField field) =>
+        _fileAttempted && _fieldProblems.TryGetValue(field, out string? message) ? message : string.Empty;
+
+    private readonly Dictionary<T4ProblemField, string> _fieldProblems = [];
+
+    private bool _fileAttempted;
+
+    private void RefreshFieldErrors()
+    {
+        OnPropertyChanged(nameof(AccountNumberError));
+        OnPropertyChanged(nameof(ContactNameError));
+        OnPropertyChanged(nameof(ContactPhoneError));
+        OnPropertyChanged(nameof(ContactEmailError));
+    }
 
     [ObservableProperty]
     private string _contactName = string.Empty;
@@ -252,9 +276,9 @@ public partial class YearEndModalViewModel : ViewModelBase
     /// wrong.
     /// </summary>
     public string ContactEmailError =>
-        string.IsNullOrWhiteSpace(ContactEmail) || T4Service.IsEmailAddress(ContactEmail)
-            ? string.Empty
-            : "That does not look like an email address.";
+        !string.IsNullOrWhiteSpace(ContactEmail) && !T4Service.IsEmailAddress(ContactEmail)
+            ? "That does not look like an email address."
+            : FieldProblem(T4ProblemField.ContactEmail);
 
     /// <summary>
     /// How often CRA wants the deductions. Not a filing detail, but this is the only screen that
@@ -280,11 +304,23 @@ public partial class YearEndModalViewModel : ViewModelBase
 
     partial void OnAccountNumberChanged(string value) => SaveDetails();
 
-    partial void OnContactNameChanged(string value) => SaveDetails();
+    partial void OnContactNameChanged(string value)
+    {
+        SaveDetails();
+        OnPropertyChanged(nameof(ContactNameError));
+    }
 
-    partial void OnContactPhoneChanged(string value) => SaveDetails();
+    partial void OnContactPhoneChanged(string value)
+    {
+        SaveDetails();
+        OnPropertyChanged(nameof(ContactPhoneError));
+    }
 
-    partial void OnContactEmailChanged(string value) => SaveDetails();
+    partial void OnContactEmailChanged(string value)
+    {
+        SaveDetails();
+        OnPropertyChanged(nameof(ContactEmailError));
+    }
 
     partial void OnRemitterTypeChanged(RemitterType value)
     {
@@ -430,10 +466,19 @@ public partial class YearEndModalViewModel : ViewModelBase
             });
         }
 
-        foreach (string problem in T4Service.Validate(data, _return))
+        _fieldProblems.Clear();
+        foreach (T4Problem problem in T4Service.Validate(data, _return))
         {
-            Problems.Add(problem);
+            if (problem.Field == T4ProblemField.None)
+            {
+                Problems.Add(problem.Message);
+            }
+            else
+            {
+                _fieldProblems[problem.Field] = problem.Message;
+            }
         }
+        RefreshFieldErrors();
 
         foreach (string warning in T4Service.Warnings(_return))
         {
@@ -602,7 +647,10 @@ public partial class YearEndModalViewModel : ViewModelBase
     [RelayCommand]
     private async Task ExportXmlAsync()
     {
-        if (_return == null || !CanFile)
+        _fileAttempted = true;
+        RefreshFieldErrors();
+
+        if (_return == null || _fieldProblems.Count > 0 || !CanFile)
         {
             return;
         }

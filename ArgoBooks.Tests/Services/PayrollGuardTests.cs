@@ -480,7 +480,7 @@ public class PayrollGuardTests
         T4Return t4 = new T4Service().Build(data, 2026);
         t4.Slips[0].ProvinceOfEmployment = string.Empty;
 
-        Assert.Contains(T4Service.Validate(data, t4), p => p.Contains("province of employment"));
+        Assert.Contains(T4Service.Validate(data, t4), p => p.Message.Contains("province of employment"));
     }
 
     #endregion

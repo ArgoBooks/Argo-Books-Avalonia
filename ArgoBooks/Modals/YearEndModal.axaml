@@ -119,8 +119,16 @@
                                                 <TextBlock FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"><Run Text="{loc:Loc 'Who CRA should contact'}" /><Run Text=" *" Foreground="{DynamicResource ErrorBrush}" /></TextBlock>
                                                 <TextBox Text="{Binding ContactName, Mode=TwoWay}" Classes="form-input"
                                                          PlaceholderText="{loc:Loc 'Name'}" MaxLength="22" />
+                                                <TextBlock Text="{Binding ContactNameError}" FontSize="12"
+                                                           TextWrapping="Wrap"
+                                                           Foreground="{DynamicResource ErrorBrush}"
+                                                           IsVisible="{Binding ContactNameError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                                 <TextBox Text="{Binding ContactPhone, Mode=TwoWay}" Classes="form-input"
                                                          PlaceholderText="403 555 1234" MaxLength="14" />
+                                                <TextBlock Text="{Binding ContactPhoneError}" FontSize="12"
+                                                           TextWrapping="Wrap"
+                                                           Foreground="{DynamicResource ErrorBrush}"
+                                                           IsVisible="{Binding ContactPhoneError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                                 <!-- Required by the T619 transmittal record, and the address CRA
                                                      replies to about the filing. Not printed on any slip. -->
                                                 <TextBox Text="{Binding ContactEmail, Mode=TwoWay}" Classes="form-input"
@@ -378,7 +386,7 @@
                                             IsEnabled="{Binding HasRows}"
                                             Command="{Binding DownloadSlipsCommand}" />
                                     <Button Classes="primary-button" Content="{loc:Loc 'Export for filing'}"
-                                            IsEnabled="{Binding CanFile}"
+                                            IsEnabled="{Binding HasRows}"
                                             Command="{Binding ExportXmlCommand}" />
                                 </StackPanel>
                             </Grid>
