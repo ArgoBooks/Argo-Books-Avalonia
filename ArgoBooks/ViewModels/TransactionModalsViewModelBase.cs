@@ -586,10 +586,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     [RelayCommand]
     public void OpenAddModal()
     {
-        _ = App.TelemetryManager?.TrackFeatureAsync(
-            CategoryTypeFilter == CategoryType.Expense
-                ? FeatureName.ExpenseCreateOpened
-                : FeatureName.RevenueCreateOpened);
+        TrackCreateOpened();
 
         LoadCounterpartyOptions();
         LoadCategoryOptions();
@@ -601,11 +598,49 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         IsAddEditModalOpen = true;
     }
 
+    private void TrackCreateOpened() =>
+        _ = App.TelemetryManager?.TrackFeatureAsync(
+            CategoryTypeFilter == CategoryType.Expense
+                ? FeatureName.ExpenseCreateOpened
+                : FeatureName.RevenueCreateOpened);
+
+    /// <summary>
+    /// Opens the add form filled from an existing record, loaded exactly as the edit form loads it.
+    /// The copy is dated today and carries no receipt; saving it adds a new record and leaves the
+    /// original alone. Links to invoices, rentals and the portal are not form fields, so the add
+    /// path never writes them.
+    /// </summary>
+    public void OpenDuplicateModal(TDisplayItem? item)
+    {
+        if (item == null || LoadIntoForm(item) == null) return;
+
+        _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.RecordDuplicated, TransactionTypeName.ToLowerInvariant());
+        TrackCreateOpened();
+
+        EditingTransactionId = string.Empty;
+        IsEditMode = false;
+        ModalTitle = $"Add {TransactionTypeName}";
+        SaveButtonText = $"Add {TransactionTypeName}";
+        ModalDate = DateTimeOffset.Now;
+        ReceiptFilePath = null;
+        ReceiptFileName = "No receipt attached";
+        // The copy has no stored total of its own to disagree with.
+        HasTotalMismatchWarning = false;
+        TotalMismatchWarningMessage = string.Empty;
+        IsAddEditModalOpen = true;
+    }
+
     #endregion
 
     #region Edit Modal
 
     public abstract void OpenEditModal(TDisplayItem? item);
+
+    /// <summary>
+    /// Fills the form from the stored record behind <paramref name="item"/>, as the edit form shows
+    /// it. Returns the record, or null when it no longer exists.
+    /// </summary>
+    protected abstract Transaction? LoadIntoForm(TDisplayItem item);
 
     protected void PopulateFormFromTransaction(Transaction transaction)
     {

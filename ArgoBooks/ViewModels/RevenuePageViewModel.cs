@@ -658,6 +658,12 @@ public RevenuePageViewModel()
     }
 
     [RelayCommand]
+    private void Duplicate(RevenueDisplayItem? item)
+    {
+        App.RevenueModalsViewModel?.OpenDuplicateModal(item);
+    }
+
+    [RelayCommand]
     private void OpenDeleteConfirm(RevenueDisplayItem? item)
     {
         App.RevenueModalsViewModel?.OpenDeleteConfirm(item);

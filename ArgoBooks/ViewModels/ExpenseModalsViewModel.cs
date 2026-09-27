@@ -121,24 +121,28 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
 
     public override void OpenEditModal(ExpenseDisplayItem? item)
     {
-        if (item == null) return;
-
-        var expense = App.CompanyManager?.CompanyData?.Expenses.FirstOrDefault(p => p.Id == item.Id);
-        if (expense == null) return;
-
-        LoadCounterpartyOptions();
-        LoadCategoryOptions();
-        LoadProductOptions();
+        if (item == null || LoadIntoForm(item) is not { } expense) return;
 
         EditingTransactionId = expense.Id;
         IsEditMode = true;
         ModalTitle = $"Edit Expense {expense.Id}";
         SaveButtonText = "Save Changes";
 
+        IsAddEditModalOpen = true;
+    }
+
+    protected override Transaction? LoadIntoForm(ExpenseDisplayItem item)
+    {
+        var expense = App.CompanyManager?.CompanyData?.Expenses.FirstOrDefault(p => p.Id == item.Id);
+        if (expense == null) return null;
+
+        LoadCounterpartyOptions();
+        LoadCategoryOptions();
+        LoadProductOptions();
+
         SelectedSupplier = SupplierOptions.FirstOrDefault(s => s.Id == expense.SupplierId);
         PopulateFormFromTransaction(expense);
-
-        IsAddEditModalOpen = true;
+        return expense;
     }
 
     #endregion

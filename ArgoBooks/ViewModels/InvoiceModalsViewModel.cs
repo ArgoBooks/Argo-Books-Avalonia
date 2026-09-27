@@ -726,14 +726,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
         AllowPreview = true;
         ModalTitle = "Create Invoice";
         SaveButtonText = "Preview";
-        OnPropertyChanged(nameof(CompanyName));
-        OnPropertyChanged(nameof(ShowCompanyDetailsPrompt));
-        OnPropertyChanged(nameof(InvoiceNumberDisplay));
-        OnPropertyChanged(nameof(ProductsJson));
-        OnPropertyChanged(nameof(CustomersJson));
-        OnPropertyChanged(nameof(TotalsConfigJson));
-        GeneratePreviewHtml();
-        IsCreateEditModalOpen = true;
+        ShowForm();
     }
 
     /// <summary>
@@ -937,17 +930,80 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
             return;
         }
 
+        LoadInvoiceIntoForm(invoice);
+
+        _editingInvoiceId = invoice.Id;
+        EditingRecurringInvoice = !string.IsNullOrEmpty(invoice.RecurringInvoiceId);
+        ModalTitle = "Continue Invoice";
+
+        // Capture original values for change detection
+        CaptureOriginalValues();
+
+        ShowForm();
+    }
+
+    /// <summary>
+    /// Opens the create form filled from an existing invoice, loaded as Continue loads a draft. The
+    /// copy is a new draft dated today with the original's payment terms. Nothing ties it to the
+    /// original's payments, portal listing, schedule, rental or revenue, and saving or sending it
+    /// takes the create path, which gives it the next number.
+    /// </summary>
+    public void DuplicateInvoice(InvoiceDisplayItem? item)
+    {
+        if (item == null) return;
+
+        LoadCustomerOptions();
+        LoadProductOptions();
+        LoadTemplateOptions();
+
+        var companyData = App.CompanyManager?.CompanyData;
+        var invoice = companyData?.GetInvoice(item.Id);
+        if (companyData == null || invoice == null) return;
+
+        _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.RecordDuplicated, "invoice");
+        _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.InvoiceCreateOpened);
+
+        LoadInvoiceIntoForm(invoice);
+
+        // A rental's deposit is released when that rental comes back, which a copy cut loose from
+        // the rental never does, so only a deposit charged on its own is kept.
+        var fromRental = invoice.LineItems.Any(li => !string.IsNullOrEmpty(li.RentalRecordId))
+                         || companyData.Rentals.Any(r => r.InvoiceIds.Contains(invoice.Id));
+        if (fromRental)
+            SecurityDeposit = 0;
+
+        // Saving links the invoice to whatever these name, which would take them over from the original.
+        foreach (var line in LineItems)
+        {
+            line.RentalRecordId = null;
+            line.RevenueRecordId = null;
+        }
+
+        var termDays = Math.Max(0, (invoice.DueDate.Date - invoice.IssueDate.Date).Days);
+        ModalIssueDate = DateTimeOffset.Now;
+        ModalDueDate = DateTimeOffset.Now.AddDays(termDays);
+        ModalStatus = nameof(InvoiceStatus.Draft);
+
+        IsEditMode = false;
+        ModalTitle = "Create Invoice";
+
+        ShowForm();
+    }
+
+    /// <summary>
+    /// Fills the form from a stored invoice. Leaves it in edit mode, so selecting the invoice's
+    /// template keeps the invoice's notes rather than putting the template's default in.
+    /// </summary>
+    private void LoadInvoiceIntoForm(Invoice invoice)
+    {
         // Reset to a clean baseline: clears stale external-source flags
         // (IsFromRental/IsFromRevenue/IsViewOnly), unsubscribes any line items
         // left over from a previous modal session, and zeroes validation state.
         // We then overwrite the relevant fields below from the loaded invoice.
         ResetForm();
 
-        _editingInvoiceId = invoice.Id;
-        IsEditMode = true; // We're editing an existing invoice
-        EditingRecurringInvoice = !string.IsNullOrEmpty(invoice.RecurringInvoiceId);
+        IsEditMode = true;
         AllowPreview = true; // Show Preview button like create mode
-        ModalTitle = "Continue Invoice";
         SaveButtonText = "Preview"; // Show Preview button like create mode
 
         // Populate form
@@ -1017,11 +1073,12 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
         HasCustomerError = false;
         ValidationMessage = string.Empty;
         HasValidationMessage = false;
+    }
 
-        // Capture original values for change detection
-        CaptureOriginalValues();
-
+    private void ShowForm()
+    {
         OnPropertyChanged(nameof(CompanyName));
+        OnPropertyChanged(nameof(ShowCompanyDetailsPrompt));
         OnPropertyChanged(nameof(InvoiceNumberDisplay));
         OnPropertyChanged(nameof(ProductsJson));
         OnPropertyChanged(nameof(CustomersJson));

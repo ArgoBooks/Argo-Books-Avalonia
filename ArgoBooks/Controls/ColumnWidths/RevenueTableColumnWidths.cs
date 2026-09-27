@@ -67,7 +67,7 @@ public partial class RevenueTableColumnWidths : TableColumnWidthsBase
         RegisterColumn("Receipt", new ColumnDef { StarValue = 0.8, MinWidth = 50, PreferredWidth = 70 }, w => ReceiptColumnWidth = w);
         RegisterColumn("Status", new ColumnDef { StarValue = 0.6, MinWidth = 70, PreferredWidth = 90 }, w => StatusColumnWidth = w);
         RegisterColumn("Invoice", new ColumnDef { StarValue = 0.7, MinWidth = 90, PreferredWidth = 120 }, w => InvoiceColumnWidth = w);
-        RegisterColumn("Actions", new ColumnDef { IsFixed = true, FixedWidth = ActionsWidth(5), MinWidth = ActionsWidth(5) }, w => ActionsColumnWidth = w);
+        RegisterColumn("Actions", new ColumnDef { IsFixed = true, FixedWidth = ActionsWidth(6), MinWidth = ActionsWidth(6) }, w => ActionsColumnWidth = w);
 
         RecalculateWidths();
     }

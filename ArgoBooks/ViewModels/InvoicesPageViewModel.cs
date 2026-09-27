@@ -916,7 +916,7 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
     #region Portal Configuration
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(OpenCreateModalCommand))]
+    [NotifyCanExecuteChangedFor(nameof(OpenCreateModalCommand), nameof(DuplicateInvoiceCommand))]
     private bool _isPortalConfigured;
 
     private void CheckPortalConfiguration() => IsPortalConfigured = PaymentProviderService.IsPortalReady();
@@ -937,6 +937,12 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
     private void OpenCreateModal()
     {
         App.InvoiceModalsViewModel?.OpenCreateModal();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanOpenCreateModal))]
+    private void DuplicateInvoice(InvoiceDisplayItem? item)
+    {
+        App.InvoiceModalsViewModel?.DuplicateInvoice(item);
     }
 
     [RelayCommand(CanExecute = nameof(CanOpenCreateModal))]

@@ -502,6 +502,14 @@
                                                                   Width="16" Height="16" />
                                                     </Button>
                                                     <Button Classes="icon-button"
+                                                            ToolTip.Tip="{loc:Loc Duplicate}"
+                                                            AutomationProperties.Name="Duplicate"
+                                                            Command="{Binding $parent[ItemsControl].((vm:InvoicesPageViewModel)DataContext).DuplicateInvoiceCommand}"
+                                                            CommandParameter="{Binding}">
+                                                        <PathIcon Data="{x:Static icons:Icons.Copy}"
+                                                                  Width="16" Height="16" />
+                                                    </Button>
+                                                    <Button Classes="icon-button"
                                                             ToolTip.Tip="{loc:Loc 'Record Payment'}"
                                                             AutomationProperties.Name="Record Payment"
                                                             IsVisible="{Binding CanSend}"

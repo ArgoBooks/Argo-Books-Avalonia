@@ -604,6 +604,12 @@ public ExpensesPageViewModel()
     }
 
     [RelayCommand]
+    private void Duplicate(ExpenseDisplayItem? item)
+    {
+        App.ExpenseModalsViewModel?.OpenDuplicateModal(item);
+    }
+
+    [RelayCommand]
     private void OpenDeleteConfirm(ExpenseDisplayItem? item)
     {
         App.ExpenseModalsViewModel?.OpenDeleteConfirm(item);

@@ -128,25 +128,29 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
 
     public override void OpenEditModal(RevenueDisplayItem? item)
     {
-        if (item == null) return;
-
-        var revenue = App.CompanyManager?.CompanyData?.Revenues.FirstOrDefault(s => s.Id == item.Id);
-        if (revenue == null) return;
-
-        LoadCounterpartyOptions();
-        LoadCategoryOptions();
-        LoadProductOptions();
+        if (item == null || LoadIntoForm(item) is not Revenue revenue) return;
 
         EditingTransactionId = revenue.Id;
         IsEditMode = true;
         ModalTitle = $"Edit Revenue {revenue.Id}";
         SaveButtonText = "Save Changes";
-
-        SelectedCustomer = CustomerOptions.FirstOrDefault(c => c.Id == revenue.CustomerId);
         ModalPaid = RevenueAggregator.IsCollected(revenue);
-        PopulateFormFromTransaction(revenue);
 
         IsAddEditModalOpen = true;
+    }
+
+    protected override Transaction? LoadIntoForm(RevenueDisplayItem item)
+    {
+        var revenue = App.CompanyManager?.CompanyData?.Revenues.FirstOrDefault(s => s.Id == item.Id);
+        if (revenue == null) return null;
+
+        LoadCounterpartyOptions();
+        LoadCategoryOptions();
+        LoadProductOptions();
+
+        SelectedCustomer = CustomerOptions.FirstOrDefault(c => c.Id == revenue.CustomerId);
+        PopulateFormFromTransaction(revenue);
+        return revenue;
     }
 
     #endregion

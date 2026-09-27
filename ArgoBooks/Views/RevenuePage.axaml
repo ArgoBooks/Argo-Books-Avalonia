@@ -582,6 +582,13 @@
                                                         <PathIcon Data="{x:Static icons:Icons.Edit}"
                                                                   Width="16" Height="16" />
                                                     </Button>
+                                                    <Button Classes="icon-button"
+                                                            ToolTip.Tip="{loc:Loc Duplicate}"
+                                                            Command="{Binding $parent[ItemsControl].((vm:RevenuePageViewModel)DataContext).DuplicateCommand}"
+                                                            CommandParameter="{Binding}">
+                                                        <PathIcon Data="{x:Static icons:Icons.Copy}"
+                                                                  Width="16" Height="16" />
+                                                    </Button>
                                                     <!-- Mark as Lost/Damaged (shown when not already marked) -->
                                                     <Button Classes="icon-button warning"
                                                             ToolTip.Tip="{loc:Loc 'Mark as Lost / Damaged'}"
