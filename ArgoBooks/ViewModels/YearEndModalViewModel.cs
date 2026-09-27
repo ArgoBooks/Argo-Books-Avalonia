@@ -248,8 +248,16 @@ public partial class YearEndModalViewModel : ViewModelBase
 
     private bool _fileAttempted;
 
+    /// <summary>
+    /// Whether the footer's "enter all required fields" line shows, on the same reasoning as
+    /// the other modals: derived from the field errors rather than stored, so it cannot be
+    /// left behind once the boxes are filled in.
+    /// </summary>
+    public bool HasValidationMessage => _fileAttempted && _fieldProblems.Count > 0;
+
     private void RefreshFieldErrors()
     {
+        OnPropertyChanged(nameof(HasValidationMessage));
         OnPropertyChanged(nameof(AccountNumberError));
         OnPropertyChanged(nameof(ContactNameError));
         OnPropertyChanged(nameof(ContactPhoneError));

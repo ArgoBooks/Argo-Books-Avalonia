@@ -377,10 +377,18 @@
                         <!-- Footer -->
                         <Border Classes="modal-footer" Grid.Row="2">
                             <Grid ColumnDefinitions="*,Auto">
+                                <!-- The deadline gives way to the validation line, so the footer
+                                     keeps to one message. -->
                                 <TextBlock Grid.Column="0" VerticalAlignment="Center" FontSize="11" TextWrapping="Wrap"
                                            Margin="0,0,16,0"
                                            Foreground="{DynamicResource TextTertiaryBrush}"
+                                           IsVisible="{Binding !HasValidationMessage}"
                                            Text="{loc:Loc 'T4s are due to CRA and to your employees by the last day of February.'}" />
+                                <TextBlock Grid.Column="0" VerticalAlignment="Center" FontSize="13" TextWrapping="Wrap"
+                                           Margin="0,0,16,0"
+                                           Foreground="{DynamicResource ErrorBrush}"
+                                           IsVisible="{Binding HasValidationMessage}"
+                                           Text="{loc:Loc 'Please enter all required fields'}" />
                                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="12">
                                     <Button Classes="secondary-button" Content="{loc:Loc 'Download slips'}"
                                             IsEnabled="{Binding HasRows}"
