@@ -13,7 +13,12 @@ public class ExchangeRateCache
     private readonly IPlatformService _platformService;
     private readonly IErrorLogger? _errorLogger;
     private readonly Lock _lock = new();
-    private bool _isDirty;
+    private readonly SemaphoreSlim _saveLock = new(1, 1);
+
+    // Bumped on every change. The file is current when the last version written matches, so a
+    // rate stored while a save is writing still counts as unsaved afterwards.
+    private long _version;
+    private long _savedVersion;
 
     /// <summary>
     /// Creates a new ExchangeRateCache instance.
@@ -87,19 +92,12 @@ public class ExchangeRateCache
         if (rate <= 0) return;
 
         var key = GetCacheKey(fromCurrency, toCurrency, date);
-        var inverseKey = GetCacheKey(toCurrency, fromCurrency, date);
 
+        // The inverse is not stored: TryGetRate works it out, and storing it doubled the file.
         lock (_lock)
         {
             _memoryCache[key] = rate;
-
-            // Also store the inverse rate for efficiency
-            if (rate != 0)
-            {
-                _memoryCache[inverseKey] = 1m / rate;
-            }
-
-            _isDirty = true;
+            _version++;
         }
     }
 
@@ -118,17 +116,14 @@ public class ExchangeRateCache
                 if (kvp.Value <= 0) continue;
 
                 var key = GetCacheKey(baseCurrency, kvp.Key, date);
-                var inverseKey = GetCacheKey(kvp.Key, baseCurrency, date);
-
                 _memoryCache[key] = kvp.Value;
-                _memoryCache[inverseKey] = 1m / kvp.Value;
             }
 
             // Also store the base currency to itself (rate = 1)
             var selfKey = GetCacheKey(baseCurrency, baseCurrency, date);
             _memoryCache[selfKey] = 1m;
 
-            _isDirty = true;
+            _version++;
         }
     }
 
@@ -150,8 +145,11 @@ public class ExchangeRateCache
 
             try
             {
-                var json = await File.ReadAllTextAsync(cachePath);
-                var data = JsonSerializer.Deserialize<Dictionary<string, decimal>>(json);
+                Dictionary<string, decimal>? data;
+                await using (var stream = File.OpenRead(cachePath))
+                {
+                    data = await JsonSerializer.DeserializeAsync<Dictionary<string, decimal>>(stream);
+                }
 
                 if (data != null)
                 {
@@ -159,9 +157,9 @@ public class ExchangeRateCache
                     {
                         foreach (var kvp in data)
                         {
-                            _memoryCache[kvp.Key] = kvp.Value;
+                            if (!IsStoredInverse(kvp.Key, data))
+                                _memoryCache[kvp.Key] = kvp.Value;
                         }
-                        _isDirty = false;
                     }
                 }
             }
@@ -174,24 +172,46 @@ public class ExchangeRateCache
     }
 
     /// <summary>
-    /// Saves the cache to disk if there are changes.
+    /// Whether <paramref name="key"/> is an X to USD rate stored beside the USD to X rate the
+    /// provider sent, as older builds did. Those are left out on load: TryGetRate derives them.
     /// </summary>
-    public async Task SaveAsync()
+    private static bool IsStoredInverse(string key, Dictionary<string, decimal> data)
+    {
+        var parts = key.Split('_');
+        return parts.Length == 3
+               && string.Equals(parts[2], "USD", StringComparison.OrdinalIgnoreCase)
+               && !string.Equals(parts[1], "USD", StringComparison.OrdinalIgnoreCase)
+               && data.ContainsKey($"{parts[0]}_USD_{parts[1]}");
+    }
+
+    /// <summary>
+    /// Saves the cache to disk if there are changes. The file runs to megabytes, so it is written
+    /// on the thread pool, one save at a time.
+    /// </summary>
+    public Task SaveAsync()
     {
         if (!_platformService.SupportsFileSystem)
-            return;
+            return Task.CompletedTask;
 
-        Dictionary<string, decimal> snapshot;
-        lock (_lock)
-        {
-            if (!_isDirty)
-                return;
+        return Task.Run(() => SaveCoreAsync());
+    }
 
-            snapshot = new Dictionary<string, decimal>(_memoryCache);
-        }
-
+    private async Task SaveCoreAsync()
+    {
+        await _saveLock.WaitAsync();
         try
         {
+            Dictionary<string, decimal> snapshot;
+            long version;
+            lock (_lock)
+            {
+                if (_version == _savedVersion)
+                    return;
+
+                snapshot = new Dictionary<string, decimal>(_memoryCache);
+                version = _version;
+            }
+
             var cachePath = GetCachePath();
             var directory = Path.GetDirectoryName(cachePath);
             if (!string.IsNullOrEmpty(directory))
@@ -199,20 +219,36 @@ public class ExchangeRateCache
                 _platformService.EnsureDirectoryExists(directory);
             }
 
-            var options = new JsonSerializerOptions { WriteIndented = true };
-            var json = JsonSerializer.Serialize(snapshot, options);
-            await File.WriteAllTextAsync(cachePath, json);
+            // Every running instance writes this file, so each writes its own scratch copy.
+            var tempPath = AtomicFile.TempPathFor(cachePath);
+            try
+            {
+                await using (var stream = File.Create(tempPath))
+                {
+                    await JsonSerializer.SerializeAsync(stream, snapshot);
+                }
 
-            // Only clear dirty flag after successful write
+                await AtomicFile.ReplaceAsync(tempPath, cachePath);
+            }
+            catch
+            {
+                AtomicFile.TryDeleteTemp(tempPath);
+                throw;
+            }
+
             lock (_lock)
             {
-                _isDirty = false;
+                _savedVersion = version;
             }
         }
         catch (Exception ex)
         {
-            // Failed to save cache - not critical, dirty flag remains set so we retry next time
+            // Failed to save cache - not critical, it stays unsaved so we retry next time
             _errorLogger?.LogWarning($"Failed to save exchange rate cache: {ex.Message}", "ExchangeRateCache");
+        }
+        finally
+        {
+            _saveLock.Release();
         }
     }
 
@@ -224,7 +260,7 @@ public class ExchangeRateCache
         lock (_lock)
         {
             _memoryCache.Clear();
-            _isDirty = true;
+            _version++;
         }
     }
 

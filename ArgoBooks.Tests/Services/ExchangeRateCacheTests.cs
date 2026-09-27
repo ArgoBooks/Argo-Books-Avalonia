@@ -1,3 +1,4 @@
+using System.Text.Json;
 using ArgoBooks.Core.Platform;
 using ArgoBooks.Core.Services;
 using Xunit;
@@ -230,18 +231,74 @@ public class ExchangeRateCacheTests
         var date = new DateTime(2025, 1, 15);
         _cache.SetRate("USD", "EUR", date, 0.92m);
 
-        // SetRate also stores the inverse, so count should be 2
-        Assert.Equal(2, _cache.Count);
+        // The inverse is derived on lookup, not stored.
+        Assert.Equal(1, _cache.Count);
+    }
+
+    #endregion
+
+    #region Persistence Tests
+
+    /// <summary>
+    /// Files written before inverses stopped being stored hold both directions. They must still
+    /// answer both, and the next save must leave the inverses out.
+    /// </summary>
+    [Fact]
+    public async Task LoadAsync_FileWithStoredInverses_LooksUpBothWaysAndSavesWithoutThem()
+    {
+        var platform = new MockPlatformService(
+            Path.Combine(Path.GetTempPath(), "ExchangeRateCacheTest_" + Guid.NewGuid().ToString("N")[..8]));
+        try
+        {
+            Directory.CreateDirectory(platform.GetAppDataPath());
+            var cachePath = Path.Combine(platform.GetAppDataPath(), "exchange_rates.json");
+            await File.WriteAllTextAsync(cachePath, """
+                {
+                  "2025-01-15_USD_EUR": 0.92,
+                  "2025-01-15_EUR_USD": 1.0869565217391304347826086957,
+                  "2025-01-15_USD_USD": 1
+                }
+                """);
+
+            var cache = new ExchangeRateCache(platform);
+            await cache.LoadAsync();
+
+            var date = new DateTime(2025, 1, 15);
+            Assert.True(cache.TryGetRate("USD", "EUR", date, out var usdToEur));
+            Assert.Equal(0.92m, usdToEur);
+            Assert.True(cache.TryGetRate("EUR", "USD", date, out var eurToUsd));
+            Assert.Equal(1m / 0.92m, eurToUsd);
+
+            cache.SetRatesFromBase(new Dictionary<string, decimal> { ["GBP"] = 0.79m }, "USD", date);
+            await cache.SaveAsync();
+
+            var saved = JsonSerializer.Deserialize<Dictionary<string, decimal>>(await File.ReadAllTextAsync(cachePath))!;
+            Assert.Equal(
+                new[] { "2025-01-15_USD_EUR", "2025-01-15_USD_GBP", "2025-01-15_USD_USD" },
+                saved.Keys.OrderBy(k => k, StringComparer.Ordinal));
+
+            var reloaded = new ExchangeRateCache(platform);
+            await reloaded.LoadAsync();
+            Assert.True(reloaded.TryGetRate("GBP", "USD", date, out var gbpToUsd));
+            Assert.Equal(1m / 0.79m, gbpToUsd);
+        }
+        finally
+        {
+            if (Directory.Exists(platform.GetAppDataPath()))
+                Directory.Delete(platform.GetAppDataPath(), recursive: true);
+        }
     }
 
     #endregion
 
     #region Mock Classes
 
-    private class MockPlatformService : IPlatformService
+    private class MockPlatformService(string? appDataPath = null) : IPlatformService
     {
+        private readonly string _appDataPath = appDataPath ?? Path.Combine(Path.GetTempPath(), "ExchangeRateCacheTest");
+
         public PlatformType Platform => PlatformType.Linux;
-        public string GetAppDataPath() => Path.Combine(Path.GetTempPath(), "ExchangeRateCacheTest");
+        public string GetAppDataPath() => _appDataPath;
         public string GetTempPath() => Path.GetTempPath();
         public string GetCachePath() => Path.GetTempPath();
 
