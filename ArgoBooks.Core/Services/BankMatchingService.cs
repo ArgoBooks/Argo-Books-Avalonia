@@ -41,7 +41,7 @@ public class BankMatchingService
         AutoIgnoreStripePayouts(result.Lines, data, options);
 
         // All in-scope book records, aligned to bank sign convention, that aren't already matched.
-        var records = BuildRecordRefs(data, options.Scope).Where(r => !IsRecordMatched(data, r)).ToList();
+        var records = UnmatchedRecordRefs(data, options.Scope);
 
         foreach (var line in result.Lines)
         {
@@ -81,7 +81,7 @@ public class BankMatchingService
         }
 
         // Reverse view: in-scope book records still unmatched (possibly missing from the statement).
-        var stillUnmatched = BuildRecordRefs(data, options.Scope).Where(r => !IsRecordMatched(data, r)).ToList();
+        var stillUnmatched = UnmatchedRecordRefs(data, options.Scope);
         FlagDuplicates(stillUnmatched, options.DateWindowDays);
         result.UnmatchedBookRecords = stillUnmatched;
 
@@ -183,7 +183,7 @@ public class BankMatchingService
     /// </summary>
     public List<BankMatchCandidate> FindCandidates(BankStatementLine line, CompanyData data, BankMatchingOptions options)
     {
-        var records = BuildRecordRefs(data, options.Scope).Where(r => !IsRecordMatched(data, r));
+        var records = UnmatchedRecordRefs(data, options.Scope);
         return ScoreCandidates(line, records, options)
             .Where(c => c.Confidence >= options.SuggestThreshold)
             .ToList();
@@ -195,7 +195,7 @@ public class BankMatchingService
     /// build the books-side month overview (matched vs total per month).
     /// </summary>
     public List<(BookRecordRef Record, bool IsMatched)> GetBookRecordsWithStatus(CompanyData data, BankMatchingOptions options) =>
-        BuildRecordRefs(data, options.Scope).Select(r => (r, IsRecordMatched(data, r))).ToList();
+        BuildRecordRefs(data, options.Scope);
 
     /// <summary>
     /// Returns all unmatched, in-scope records the user can manually pick to match a line,
@@ -203,8 +203,7 @@ public class BankMatchingService
     /// </summary>
     public List<BankMatchCandidate> GetManualMatchOptions(BankStatementLine line, CompanyData data, BankMatchingOptions options)
     {
-        return BuildRecordRefs(data, options.Scope)
-            .Where(r => !IsRecordMatched(data, r))
+        return UnmatchedRecordRefs(data, options.Scope)
             .Where(r => line.Amount == 0
                         || (line.Amount < 0 && r.Type == BookRecordType.Expense)
                         || (line.Amount > 0 && r.Type != BookRecordType.Expense))
@@ -406,9 +405,6 @@ public class BankMatchingService
         }
     }
 
-    private static bool IsRecordMatched(CompanyData data, BookRecordRef r) =>
-        GetRecordMatchFlags(data, r.Type, r.Id)?.Matched ?? false;
-
     /// <summary>The record's bank-match flag and the line it names, or null when no such record exists.</summary>
     private static (bool Matched, string? LineId)? GetRecordMatchFlags(CompanyData data, BookRecordType type, string id)
     {
@@ -431,39 +427,67 @@ public class BankMatchingService
 
     #region Record extraction
 
-    private static List<BookRecordRef> BuildRecordRefs(CompanyData data, HashSet<BookRecordType> scope)
+    private static List<BookRecordRef> UnmatchedRecordRefs(CompanyData data, HashSet<BookRecordType> scope) =>
+        BuildRecordRefs(data, scope).Where(r => !r.IsMatched).Select(r => r.Record).ToList();
+
+    /// <summary>
+    /// Every in-scope book record with its bank-match flag. Matching works by id and flags the
+    /// first record with that id, so the first record's flag stands for every record sharing it;
+    /// otherwise a duplicate would stay listed as unmatched however often it was matched.
+    /// </summary>
+    private static List<(BookRecordRef Record, bool IsMatched)> BuildRecordRefs(CompanyData data, HashSet<BookRecordType> scope)
     {
-        var refs = new List<BookRecordRef>();
+        var refs = new List<(BookRecordRef Record, bool IsMatched)>();
 
         if (scope.Contains(BookRecordType.Expense))
-            refs.AddRange(data.Expenses.Select(e => new BookRecordRef
+        {
+            var matched = MatchedById(data.Expenses, e => e.Id, e => e.BankMatched);
+            refs.AddRange(data.Expenses.Select(e => (new BookRecordRef
             {
                 Type = BookRecordType.Expense, Id = e.Id, Description = e.Description, Date = e.Date, Amount = -e.Total
-            }));
+            }, matched[e.Id ?? string.Empty])));
+        }
 
         if (scope.Contains(BookRecordType.Revenue))
-            refs.AddRange(data.Revenues.Select(r => new BookRecordRef
+        {
+            var matched = MatchedById(data.Revenues, r => r.Id, r => r.BankMatched);
+            refs.AddRange(data.Revenues.Select(r => (new BookRecordRef
             {
                 Type = BookRecordType.Revenue, Id = r.Id, Description = r.Description, Date = r.Date, Amount = r.Total
-            }));
+            }, matched[r.Id ?? string.Empty])));
+        }
 
         if (scope.Contains(BookRecordType.Payment))
-            refs.AddRange(data.Payments.Select(p => new BookRecordRef
+        {
+            var matched = MatchedById(data.Payments, p => p.Id, p => p.BankMatched);
+            refs.AddRange(data.Payments.Select(p => (new BookRecordRef
             {
                 Type = BookRecordType.Payment,
                 Id = p.Id,
                 Description = string.IsNullOrWhiteSpace(p.Notes) ? p.ReferenceNumber ?? string.Empty : p.Notes,
                 Date = p.Date,
                 Amount = p.Amount // refunds are stored negative => money out
-            }));
+            }, matched[p.Id ?? string.Empty])));
+        }
 
         if (scope.Contains(BookRecordType.Invoice))
-            refs.AddRange(data.Invoices.Select(i => new BookRecordRef
+        {
+            var matched = MatchedById(data.Invoices, i => i.Id, i => i.BankMatched);
+            refs.AddRange(data.Invoices.Select(i => (new BookRecordRef
             {
                 Type = BookRecordType.Invoice, Id = i.Id, Description = i.InvoiceNumber, Date = i.IssueDate, Amount = i.Total
-            }));
+            }, matched[i.Id ?? string.Empty])));
+        }
 
         return refs;
+    }
+
+    private static Dictionary<string, bool> MatchedById<T>(List<T> records, Func<T, string?> id, Func<T, bool> isMatched)
+    {
+        var matched = new Dictionary<string, bool>(records.Count, StringComparer.Ordinal);
+        foreach (var record in records)
+            matched.TryAdd(id(record) ?? string.Empty, isMatched(record));
+        return matched;
     }
 
     #endregion
