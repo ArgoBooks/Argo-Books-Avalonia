@@ -114,6 +114,10 @@ public class TelemetryStorageService : ITelemetryStorageService
             _uploadState.LastUploadTime = DateTime.UtcNow;
             _uploadState.TotalEventsUploaded += newlyMarked;
 
+            // Nothing reads an uploaded event again; the running total above is what the stats
+            // keep. Kept, they made every recorded event rewrite a file thousands of events long.
+            _events.RemoveAll(e => e.Event.IsUploaded);
+
             await SaveEventsAsync(cancellationToken);
             await SaveUploadStateAsync(cancellationToken);
             return true;
