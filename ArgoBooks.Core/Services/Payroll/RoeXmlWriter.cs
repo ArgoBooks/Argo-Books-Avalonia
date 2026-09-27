@@ -117,11 +117,11 @@ public static partial class RoeXmlWriter
     /// Returned rather than thrown so the export screen can show all of them at once, which is
     /// the difference between filling the form in once and filling it in five times.
     /// </summary>
-    public static IReadOnlyList<string> Validate(RoeWorksheet sheet)
+    public static IReadOnlyList<RoeProblem> Validate(RoeWorksheet sheet)
     {
         ArgumentNullException.ThrowIfNull(sheet);
 
-        var problems = new List<string>();
+        var problems = new List<RoeProblem>();
 
         if (Digits(sheet.Sin, 9) is not { Length: 9 })
         {
@@ -193,22 +193,23 @@ public static partial class RoeXmlWriter
 
         if (sheet.Reason == null)
         {
-            problems.Add("Block 16 needs a reason for issuing this ROE.");
+            problems.Add(new("Block 16 needs a reason for issuing this ROE.", RoeProblemField.Reason));
         }
 
         if (sheet.Recall == RoeRecall.ExpectedDate && sheet.RecallDate == null)
         {
-            problems.Add("Block 14 needs the expected date of recall.");
+            problems.Add(new("Block 14 needs the expected date of recall.", RoeProblemField.RecallDate));
         }
 
         if (Name(sheet.ContactFirstName, 20) == null || Name(sheet.ContactLastName, 20) == null)
         {
-            problems.Add("Block 16 needs the name of the person Service Canada should contact.");
+            problems.Add(new("Block 16 needs the name of the person Service Canada should contact.",
+                RoeProblemField.ContactName));
         }
 
         if (NationalPhone(sheet.ContactPhone) == null)
         {
-            problems.Add("Block 16 needs a ten digit contact telephone number.");
+            problems.Add(new("Block 16 needs a ten digit contact telephone number.", RoeProblemField.ContactPhone));
         }
 
         // Appendix D's range for the amount.

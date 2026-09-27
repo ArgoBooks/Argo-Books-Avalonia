@@ -137,6 +137,37 @@ public partial class RoeModalViewModel : ViewModelBase
     [ObservableProperty]
     private IReadOnlyList<string> _problems = [];
 
+    /// <summary>
+    /// What validation said about one box, held back until Save has been pressed, on the same
+    /// reasoning as the year end screen: marking boxes red before anything is typed is nagging.
+    /// </summary>
+    private readonly Dictionary<RoeProblemField, string> _fieldProblems = [];
+
+    private bool _saveAttempted;
+
+    public string ReasonError => FieldProblem(RoeProblemField.Reason);
+
+    public string RecallDateError => FieldProblem(RoeProblemField.RecallDate);
+
+    public string ContactNameError => FieldProblem(RoeProblemField.ContactName);
+
+    public string ContactPhoneError => FieldProblem(RoeProblemField.ContactPhone);
+
+    /// <summary>Whether the footer's "enter all required fields" line shows.</summary>
+    public bool HasValidationMessage => _saveAttempted && _fieldProblems.Count > 0;
+
+    private string FieldProblem(RoeProblemField field) =>
+        _saveAttempted && _fieldProblems.TryGetValue(field, out string? message) ? message : string.Empty;
+
+    private void RefreshFieldErrors()
+    {
+        OnPropertyChanged(nameof(HasValidationMessage));
+        OnPropertyChanged(nameof(ReasonError));
+        OnPropertyChanged(nameof(RecallDateError));
+        OnPropertyChanged(nameof(ContactNameError));
+        OnPropertyChanged(nameof(ContactPhoneError));
+    }
+
     [ObservableProperty]
     private bool _canExport;
 
@@ -239,7 +270,19 @@ public partial class RoeModalViewModel : ViewModelBase
 
         Apply();
 
-        List<string> found = RoeXmlWriter.Validate(_sheet).Select(p => p.Translate()).ToList();
+        IReadOnlyList<RoeProblem> validated = RoeXmlWriter.Validate(_sheet);
+
+        _fieldProblems.Clear();
+        foreach (RoeProblem problem in validated.Where(p => p.Field != RoeProblemField.None))
+        {
+            _fieldProblems[problem.Field] = problem.Message.Translate();
+        }
+        RefreshFieldErrors();
+
+        List<string> found = validated
+            .Where(p => p.Field == RoeProblemField.None)
+            .Select(p => p.Message.Translate())
+            .ToList();
 
         // Assigning an equal list still raises a change and rebuilds the items, so it is worth
         // the comparison: most keystrokes do not alter what is missing.
@@ -248,7 +291,7 @@ public partial class RoeModalViewModel : ViewModelBase
             Problems = found;
         }
 
-        CanExport = found.Count == 0;
+        CanExport = found.Count == 0 && _fieldProblems.Count == 0;
     }
 
     private void Apply()
@@ -328,11 +371,11 @@ public partial class RoeModalViewModel : ViewModelBase
             return;
         }
 
+        _saveAttempted = true;
         Revalidate();
 
         if (!CanExport)
         {
-            StatusMessage = "Fill in what is listed above first.".Translate();
             return;
         }
 

@@ -493,6 +493,9 @@
                                             </DataTemplate>
                                         </ComboBox.ItemTemplate>
                                     </ComboBox>
+                                    <TextBlock Text="{Binding Roe.ReasonError}" FontSize="12" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource ErrorBrush}"
+                                               IsVisible="{Binding Roe.ReasonError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                 </StackPanel>
 
                                 <Grid ColumnDefinitions="*,16,*">
@@ -513,6 +516,9 @@
                                         <TextBlock Text="{loc:Loc 'Date of recall'}" FontSize="13" FontWeight="Medium"
                                                    Foreground="{DynamicResource TextSecondaryBrush}" />
                                         <DatePicker SelectedDate="{Binding Roe.RecallDate}" HorizontalAlignment="Stretch" />
+                                        <TextBlock Text="{Binding Roe.RecallDateError}" FontSize="12" TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource ErrorBrush}"
+                                                   IsVisible="{Binding Roe.RecallDateError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                     </StackPanel>
                                 </Grid>
 
@@ -533,6 +539,9 @@
                                         <TextBox Text="{Binding Roe.ContactLastName}" Classes="form-input" MaxLength="20" />
                                     </StackPanel>
                                 </Grid>
+                                <TextBlock Text="{Binding Roe.ContactNameError}" FontSize="12" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource ErrorBrush}"
+                                           IsVisible="{Binding Roe.ContactNameError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
 
                                 <Grid ColumnDefinitions="*,16,*">
                                     <StackPanel Grid.Column="0" Spacing="6">
@@ -540,6 +549,9 @@
                                         <!-- PhoneNumber, not FullPhoneNumber: that one prefixes the dial code, and
                                              Service Canada wants block 16 as a bare area code plus seven digits. -->
                                         <controls:PhoneInput PhoneNumber="{Binding Roe.ContactPhone, Mode=TwoWay}" />
+                                        <TextBlock Text="{Binding Roe.ContactPhoneError}" FontSize="12" TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource ErrorBrush}"
+                                                   IsVisible="{Binding Roe.ContactPhoneError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="2" Spacing="6">
                                         <TextBlock Text="{loc:Loc 'Extension'}" FontSize="13" FontWeight="Medium"
@@ -636,13 +648,16 @@
                                 <Button Grid.Column="0" Classes="secondary-button"
                                         Content="{loc:Loc 'View worksheet'}"
                                         Command="{Binding Roe.ViewWorksheetCommand}" />
+                                <TextBlock Grid.Column="1" VerticalAlignment="Center" FontSize="13" TextWrapping="Wrap"
+                                           Margin="16,0"
+                                           Foreground="{DynamicResource ErrorBrush}"
+                                           IsVisible="{Binding Roe.HasValidationMessage}"
+                                           Text="{loc:Loc 'Please enter all required fields'}" />
                                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12">
                                     <Button Classes="secondary-button" Content="{loc:Loc 'Save as draft'}"
-                                            Command="{Binding Roe.SaveDraftXmlCommand}"
-                                            IsEnabled="{Binding Roe.CanExport}" />
+                                            Command="{Binding Roe.SaveDraftXmlCommand}" />
                                     <Button Classes="primary-button" Content="{loc:Loc 'Save ROE XML'}"
-                                            Command="{Binding Roe.SaveXmlCommand}"
-                                            IsEnabled="{Binding Roe.CanExport}" />
+                                            Command="{Binding Roe.SaveXmlCommand}" />
                                 </StackPanel>
                             </Grid>
                         </Border>

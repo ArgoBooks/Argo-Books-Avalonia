@@ -178,7 +178,7 @@ public class RoeXmlTests
         RoeWorksheet sheet = Sheet();
         sheet.EmployeeName = "Cher";
 
-        Assert.Contains(RoeXmlWriter.Validate(sheet), p => p.Contains("first and last name"));
+        Assert.Contains(RoeXmlWriter.Validate(sheet), p => p.Message.Contains("first and last name"));
     }
 
     [Fact]
@@ -198,7 +198,7 @@ public class RoeXmlTests
         RoeWorksheet sheet = Sheet();
         sheet.PayrollAccountNumber = "123456789";
 
-        Assert.Contains(RoeXmlWriter.Validate(sheet), p => p.Contains("Block 5"));
+        Assert.Contains(RoeXmlWriter.Validate(sheet), p => p.Message.Contains("Block 5"));
     }
 
     [Theory]
@@ -210,7 +210,7 @@ public class RoeXmlTests
         RoeWorksheet sheet = Sheet();
         sheet.PayrollAccountNumber = number;
 
-        Assert.Contains(RoeXmlWriter.Validate(sheet), p => p.Contains("Block 5"));
+        Assert.Contains(RoeXmlWriter.Validate(sheet), p => p.Message.Contains("Block 5"));
     }
 
     /// <summary>The T4 takes the number typed with spaces, so the ROE has to as well.</summary>
@@ -220,7 +220,7 @@ public class RoeXmlTests
         RoeWorksheet sheet = Sheet();
         sheet.PayrollAccountNumber = "123456789 rp 0001";
 
-        Assert.DoesNotContain(RoeXmlWriter.Validate(sheet), p => p.Contains("Block 5"));
+        Assert.DoesNotContain(RoeXmlWriter.Validate(sheet), p => p.Message.Contains("Block 5"));
         Assert.Equal("123456789RP0001", Roe(sheet).Element("B5")!.Value);
     }
 
@@ -264,7 +264,7 @@ public class RoeXmlTests
         RoeWorksheet sheet = Sheet();
         sheet.ContactPhone = "30655512";
 
-        Assert.Contains(RoeXmlWriter.Validate(sheet), p => p.Contains("telephone"));
+        Assert.Contains(RoeXmlWriter.Validate(sheet), p => p.Message.Contains("telephone"));
     }
 
     [Theory]
@@ -338,7 +338,7 @@ public class RoeXmlTests
         RoeWorksheet sheet = Sheet();
         sheet.Reason = null;
 
-        Assert.Contains(RoeXmlWriter.Validate(sheet), p => p.Contains("Block 16"));
+        Assert.Contains(RoeXmlWriter.Validate(sheet), p => p.Message.Contains("Block 16"));
         Assert.Throws<InvalidOperationException>(() => RoeXmlWriter.Build(sheet, Version));
     }
 
@@ -349,7 +349,7 @@ public class RoeXmlTests
         sheet.Recall = RoeRecall.ExpectedDate;
         sheet.RecallDate = null;
 
-        Assert.Contains(RoeXmlWriter.Validate(sheet), p => p.Contains("Block 14"));
+        Assert.Contains(RoeXmlWriter.Validate(sheet), p => p.Message.Contains("Block 14"));
     }
 
     [Fact]
@@ -359,7 +359,7 @@ public class RoeXmlTests
         RoeWorksheet sheet = Sheet();
         sheet.FinalPeriodEnd = sheet.LastDayPaid!.Value.AddDays(-1);
 
-        Assert.Contains(RoeXmlWriter.Validate(sheet), p => p.Contains("Block 12"));
+        Assert.Contains(RoeXmlWriter.Validate(sheet), p => p.Message.Contains("Block 12"));
     }
 
     [Fact]
@@ -370,7 +370,7 @@ public class RoeXmlTests
         RoeWorksheet sheet = Sheet();
         sheet.TotalInsurableHours = null;
 
-        Assert.Contains(RoeXmlWriter.Validate(sheet), p => p.Contains("Block 15A"));
+        Assert.Contains(RoeXmlWriter.Validate(sheet), p => p.Message.Contains("Block 15A"));
     }
 
     [Fact]
@@ -432,7 +432,7 @@ public class RoeXmlTests
         RoeWorksheet sheet = Sheet();
         sheet.VacationPayOnLeaving = 10_000_000m;
 
-        Assert.Contains(RoeXmlWriter.Validate(sheet), p => p.Contains("Block 17A"));
+        Assert.Contains(RoeXmlWriter.Validate(sheet), p => p.Message.Contains("Block 17A"));
     }
 
     #endregion
