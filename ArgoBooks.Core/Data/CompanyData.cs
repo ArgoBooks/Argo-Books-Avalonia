@@ -363,8 +363,9 @@ public class CompanyData
         foreach (var item in list)
         {
             var key = keySelector(item);
+            // First match wins, as the FirstOrDefault scans these replaced did.
             if (!string.IsNullOrEmpty(key))
-                dict[key] = item;
+                dict.TryAdd(key, item);
         }
         return dict;
     }

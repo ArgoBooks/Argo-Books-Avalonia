@@ -312,8 +312,8 @@ public partial class ProductsPageViewModel : SortablePageViewModelBase
 
         var displayItems = filtered.Select(product =>
         {
-            var category = companyData.Categories.FirstOrDefault(c => c.Id == product.CategoryId);
-            var supplier = companyData.Suppliers.FirstOrDefault(s => s.Id == product.SupplierId);
+            var category = companyData.GetCategory(product.CategoryId ?? "");
+            var supplier = companyData.GetSupplier(product.SupplierId ?? "");
 
             return new ProductDisplayItem
             {

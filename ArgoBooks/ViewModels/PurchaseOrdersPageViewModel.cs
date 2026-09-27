@@ -294,7 +294,6 @@ public partial class PurchaseOrdersPageViewModel : SortablePageViewModelBase
     private void FilterOrders()
     {
         var companyData = App.CompanyManager?.CompanyData;
-        var suppliers = companyData?.Suppliers ?? [];
 
         IEnumerable<PurchaseOrder> filtered = _allOrders;
 
@@ -337,7 +336,7 @@ public partial class PurchaseOrdersPageViewModel : SortablePageViewModelBase
         {
             filtered = filtered.Where(o =>
             {
-                var supplier = suppliers.FirstOrDefault(s => s.Id == o.SupplierId);
+                var supplier = companyData?.GetSupplier(o.SupplierId);
                 return supplier?.Name == filterSupplier;
             });
         }
@@ -356,13 +355,13 @@ public partial class PurchaseOrdersPageViewModel : SortablePageViewModelBase
         if (!string.IsNullOrWhiteSpace(SearchQuery))
         {
             filtered = filtered
-                .RankBySearch(SearchQuery, o => [o.Id, o.PoNumber, suppliers.FirstOrDefault(s => s.Id == o.SupplierId)?.Name, o.Notes])
+                .RankBySearch(SearchQuery, o => [o.Id, o.PoNumber, companyData?.GetSupplier(o.SupplierId)?.Name, o.Notes])
                 .ToList();
         }
 
         var displayItems = filtered.Select(order =>
         {
-            var supplier = suppliers.FirstOrDefault(s => s.Id == order.SupplierId);
+            var supplier = companyData?.GetSupplier(order.SupplierId);
 
             return new PurchaseOrderDisplayItem
             {

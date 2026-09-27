@@ -330,7 +330,7 @@ public partial class RentalRecordsPageViewModel : SortablePageViewModelBase
                 .RankBySearch(SearchQuery, r =>
                 {
                     var itemName = RentalBookings.ItemNames(companyData, r);
-                    var customer = companyData?.Customers.FirstOrDefault(c => c.Id == r.CustomerId);
+                    var customer = companyData?.GetCustomer(r.CustomerId);
                     return [r.Id, itemName, customer?.Name];
                 })
                 .ToList();
@@ -365,9 +365,9 @@ public partial class RentalRecordsPageViewModel : SortablePageViewModelBase
 
         var displayItems = filtered.Select(record =>
         {
-            var customer = companyData?.Customers.FirstOrDefault(c => c.Id == record.CustomerId);
+            var customer = companyData?.GetCustomer(record.CustomerId);
             var accountant = !string.IsNullOrEmpty(record.AccountantId)
-                ? companyData?.Accountants.FirstOrDefault(a => a.Id == record.AccountantId)
+                ? companyData?.GetAccountant(record.AccountantId)
                 : null;
             var settledByInvoice = companyData != null
                 && RentalBookings.SettledByInvoice(companyData, record);

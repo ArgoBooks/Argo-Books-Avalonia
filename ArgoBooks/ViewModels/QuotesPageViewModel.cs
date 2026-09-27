@@ -250,7 +250,6 @@ public partial class QuotesPageViewModel : SortablePageViewModelBase
     private void FilterQuotes()
     {
         var companyData = App.CompanyManager?.CompanyData;
-        var customers = companyData?.Customers ?? [];
 
         IEnumerable<Quote> filtered = _allQuotes;
 
@@ -275,7 +274,7 @@ public partial class QuotesPageViewModel : SortablePageViewModelBase
         if (!string.IsNullOrEmpty(filterCustomer) && filterCustomer != "All")
         {
             filtered = filtered.Where(q =>
-                customers.FirstOrDefault(c => c.Id == q.CustomerId)?.Name == filterCustomer);
+                companyData?.GetCustomer(q.CustomerId)?.Name == filterCustomer);
         }
 
         if (!string.IsNullOrEmpty(filterStatus) && filterStatus != "All")
@@ -295,13 +294,13 @@ public partial class QuotesPageViewModel : SortablePageViewModelBase
         {
             filtered = filtered
                 .RankBySearch(SearchQuery, q => [q.Id, q.QuoteNumber,
-                    customers.FirstOrDefault(c => c.Id == q.CustomerId)?.Name, q.Notes])
+                    companyData?.GetCustomer(q.CustomerId)?.Name, q.Notes])
                 .ToList();
         }
 
         var displayItems = filtered.Select(quote =>
         {
-            var customer = customers.FirstOrDefault(c => c.Id == quote.CustomerId);
+            var customer = companyData?.GetCustomer(quote.CustomerId);
 
             return new QuoteDisplayItem
             {
