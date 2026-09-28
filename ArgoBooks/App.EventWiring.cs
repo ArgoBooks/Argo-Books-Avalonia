@@ -137,25 +137,27 @@ public partial class App
             // before navigating so the dashboard renders with the right range.
             ChartSettingsService.Instance.LoadForCompany(args.FilePath);
 
-            // Migrate: if a legacy .env API key exists but the company has no persisted key,
-            // adopt the .env key, but only if this company actually has portal activity
-            // (connected providers or a portal URL), so we don't assign the key to the wrong company.
-            // Best-effort: persists to .argo on next save; re-runs harmlessly if the save doesn't happen.
-            var portalSettings = CompanyManager.CompanyData?.Settings.PaymentPortal;
-            if (portalSettings != null
-                && string.IsNullOrEmpty(portalSettings.PersistedApiKey)
-                && DotEnv.HasValue(PortalSettings.ApiKeyEnvVar)
-                && (portalSettings.ConnectedAccounts.StripeConnected
-                    || portalSettings.ConnectedAccounts.PaypalConnected
-                    || portalSettings.ConnectedAccounts.SquareConnected
-                    || !string.IsNullOrEmpty(portalSettings.PortalUrl)))
+            // This handler is async void, so nothing above it would catch a failure here; it would
+            // leave the loading overlay up. The company is open either way, as it was when the
+            // opening flows did this themselves and showed the same error over the dashboard.
+            var sampleShifted = false;
+            Exception? samplePrepareError = null;
+            if (CompanyManager.IsSampleCompany)
             {
-                portalSettings.PersistedApiKey = DotEnv.Get(PortalSettings.ApiKeyEnvVar);
+                try
+                {
+                    sampleShifted = await PrepareSampleCompanyAsync();
+                }
+                catch (Exception ex)
+                {
+                    samplePrepareError = ex;
+                    ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to open sample company");
+                }
             }
 
             // Load this company's portal API key into the process-level cache (cheap, so any
             // portal-dependent UI has it on first paint; the actual sync is deferred below).
-            PortalSettings.ActivateApiKey(portalSettings);
+            PortalSettings.ActivateApiKey(CompanyManager.CompanyData?.Settings.PaymentPortal);
 
             // Navigate to Dashboard when company is opened
             NavigationService?.NavigateTo("Dashboard");
@@ -164,6 +166,7 @@ public partial class App
             // overlay together so the user never sees a half-initialized dashboard.
             _mainWindowViewModel.OpenCompany(args.CompanyName);
             _mainWindowViewModel.HideLoading();
+            ReportCompanyOpenTiming(args);
 
             // Defer non-visual and network work until after the dashboard has painted,
             // so the company opens as fast as possible. Posted on the UI thread at
@@ -191,7 +194,7 @@ public partial class App
                             .GenerateDueInvoices(CompanyManager.CompanyData, DateTime.Today);
                         if (generatedRecurring.Count > 0)
                         {
-                            await CompanyManager.SaveCompanyAsync();
+                            await CompanyManager.SaveCompanyAsync(kind: "recurring");
                             RecurringInvoiceService.RaiseGenerated(generatedRecurring.Count);
                             var recurringCount = generatedRecurring.Count;
                             AddNotification(
@@ -207,7 +210,7 @@ public partial class App
                             .GenerateDue(CompanyManager.CompanyData, DateTime.Today);
                         if (generatedTxns.Count > 0)
                         {
-                            await CompanyManager.SaveCompanyAsync();
+                            await CompanyManager.SaveCompanyAsync(kind: "recurring");
                             var txnExpenses = generatedTxns.Count(t => t is Core.Models.Transactions.Expense);
                             var txnRevenues = generatedTxns.Count - txnExpenses;
                             RecurringTransactionService.RaiseGenerated(txnExpenses, txnRevenues);
@@ -242,9 +245,12 @@ public partial class App
                     // Reconcile and process any pending currency conversions
                     if (PendingConversionService != null && CompanyManager.CompanyData != null)
                     {
-                        await PendingConversionService.ReconcileWithCompanyDataAsync(CompanyManager.CompanyData);
+                        PendingConversionService.ReconcileWithCompanyData(CompanyManager.CompanyData);
                         await PendingConversionService.ProcessPendingConversionsAsync(CompanyManager.CompanyData);
                     }
+
+                    if (CompanyManager.CompanyData != null)
+                        await CurrencyService.WarmCompanyRatesAsync(CompanyManager.CompanyData);
 
                     // Start periodic timer to process pending conversions when connectivity returns
                     StartPendingConversionTimer();
@@ -262,6 +268,11 @@ public partial class App
                     ErrorLogger?.LogError(ex, ErrorCategory.Unknown, "Deferred post-open initialization failed");
                 }
             }, Avalonia.Threading.DispatcherPriority.Background);
+
+            if (samplePrepareError != null)
+                await ShowErrorDialogAsync("Error".Translate(), "Failed to open sample company: {0}".TranslateFormat(samplePrepareError.Message));
+            else if (CompanyManager.IsSampleCompany)
+                await FinishOpeningSampleCompanyAsync(sampleShifted);
         };
 
         CompanyManager.CompanyClosed += async (_, _) =>
@@ -282,7 +293,6 @@ public partial class App
 
             UndoRedoManager.Clear();
             EventLogService?.Clear();
-            ChangeTrackingService?.ClearAllChanges();
             _appShellViewModel.HeaderViewModel.ClearNotifications();
 
             // Stop pending conversion timer when company is closed
@@ -306,10 +316,13 @@ public partial class App
             await LanguageService.Instance.SetLanguageAsync(globalLanguage);
         };
 
-        CompanyManager.CompanySaved += (_, _) =>
+        CompanyManager.CompanySaved += (_, e) =>
         {
-            _mainWindowViewModel.HideLoading();
+            _ = TelemetryManager?.TrackFeatureAsync(
+                FeatureName.CompanySaved, TimingContext(e.Kind, e.IsEncrypted, e.FileSizeBytes), e.ElapsedMs);
 
+            // The loading overlay is left to whoever showed it. A save before closing keeps it up
+            // until the company has closed, and a background save must not drop another flow's.
             if (_suppressSavedFeedback)
                 _suppressSavedFeedback = false;
             else
@@ -320,8 +333,13 @@ public partial class App
             // Mark undo/redo state as saved so IsAtSavedState returns true
             UndoRedoManager.MarkSaved(_saveUndoPoint);
 
-            // Clear tracked changes after saving
-            ChangeTrackingService?.ClearAllChanges();
+            // The UI stays usable while a save writes, and an edit made meanwhile that has no undo
+            // entry is not in the file either.
+            if (CompanyManager.HasUnsavedChanges)
+            {
+                _mainWindowViewModel.HasUnsavedChanges = true;
+                _appShellViewModel.HeaderViewModel.HasUnsavedChanges = true;
+            }
         };
 
         CompanyManager.CompanyDataChanged += (_, _) =>
@@ -383,6 +401,9 @@ public partial class App
             {
                 _appShellViewModel.PasswordPromptModalViewModel.Close();
                 _mainWindowViewModel.ShowLoading("Opening company...".Translate());
+
+                // Time spent typing the password is not part of opening the file.
+                _companyOpenTiming?.Timer.Restart();
             }
 
             return password;
@@ -456,7 +477,7 @@ public partial class App
                 var prepared = await Task.Run(() => ImageFileLoader.TryPrepare(picked));
                 if (prepared == null)
                 {
-                    await ShowErrorMessageBoxAsync(
+                    await ShowErrorDialogAsync(
                         "Logo Not Supported".Translate(),
                         "That image could not be read. Try a PNG or JPEG.".Translate());
                     return;
@@ -517,13 +538,13 @@ public partial class App
                 _appShellViewModel.HeaderViewModel.ShowSavingIndicator = true;
                 try
                 {
-                    await CompanyManager.SaveCompanyAsync();
+                    await CompanyManager.SaveCompanyAsync(kind: "manual");
                 }
                 catch (Exception ex)
                 {
                     _appShellViewModel.HeaderViewModel.ShowSavingIndicator = false;
                     ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to save company");
-                    await ShowErrorMessageBoxAsync("Error".Translate(), GetFriendlySaveErrorMessage(ex));
+                    await ShowErrorDialogAsync("Error".Translate(), GetFriendlySaveErrorMessage(ex));
                 }
             }
         };
@@ -541,7 +562,14 @@ public partial class App
         {
             if (CompanyManager?.IsCompanyOpen == true && await ConfirmLeavingCompanyAsync())
             {
-                await CompanyManager.CloseCompanyAsync();
+                try
+                {
+                    await CompanyManager.CloseCompanyAsync();
+                }
+                finally
+                {
+                    _mainWindowViewModel?.HideLoading();
+                }
             }
         };
 
@@ -615,7 +643,7 @@ public partial class App
                     }
 
                     _suppressSavedFeedback = true;
-                    await CompanyManager.SaveCompanyAsync();
+                    await CompanyManager.SaveCompanyAsync(kind: "created");
 
                     await LoadRecentCompaniesAsync();
                     // Here, not on the wizard's button: a cancelled save dialog creates nothing.
@@ -643,7 +671,7 @@ public partial class App
                 {
                     _mainWindowViewModel?.HideLoading();
                     ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to create company");
-                    await ShowErrorMessageBoxAsync("Error".Translate(), "Failed to create company: {0}".TranslateFormat(ex.Message));
+                    await ShowErrorDialogAsync("Error".Translate(), "Failed to create company: {0}".TranslateFormat(ex.Message));
                     return;
                 }
             }
@@ -669,7 +697,7 @@ public partial class App
                 var prepared = await Task.Run(() => ImageFileLoader.TryPrepare(path));
                 if (prepared == null)
                 {
-                    await ShowErrorMessageBoxAsync(
+                    await ShowErrorDialogAsync(
                         "Logo Not Supported".Translate(),
                         "That image could not be read. Try a PNG or JPEG.".Translate());
                     return;
@@ -776,27 +804,39 @@ public partial class App
 
             if (CompanyManager?.IsCompanyOpen == true)
             {
-                if (!CompanyManager.IsSampleCompany)
+                // Up until the company has closed, so nothing can be edited after the save.
+                var saving = !CompanyManager.IsSampleCompany;
+                if (saving)
+                    _mainWindowViewModel?.ShowLoading("Saving...".Translate());
+                try
                 {
-                    try
+                    if (saving)
                     {
-                        await CompanyManager.SaveCompanyAsync();
+                        try
+                        {
+                            await CompanyManager.SaveCompanyAsync(kind: "tutorial");
+                        }
+                        catch (Exception ex)
+                        {
+                            // Don't close on a failed save: CloseCompanyAsync discards unsaved edits.
+                            // Abort the restart and keep the company open to protect the user's data.
+                            ErrorLogger?.LogWarning($"Save before tutorial restart failed: {ex.Message}", "AutoSave");
+                            if (_welcomeScreenViewModel != null)
+                                _welcomeScreenViewModel.IsTutorialMode = false;
+                            _appShellViewModel.AddNotification(
+                                "Could not restart tutorial",
+                                "Your company could not be saved, so it was left open to protect unsaved changes. Please save manually and try again.",
+                                NotificationType.Warning);
+                            return;
+                        }
                     }
-                    catch (Exception ex)
-                    {
-                        // Don't close on a failed save: CloseCompanyAsync discards unsaved edits.
-                        // Abort the restart and keep the company open to protect the user's data.
-                        ErrorLogger?.LogWarning($"Save before tutorial restart failed: {ex.Message}", "AutoSave");
-                        if (_welcomeScreenViewModel != null)
-                            _welcomeScreenViewModel.IsTutorialMode = false;
-                        _appShellViewModel.AddNotification(
-                            "Could not restart tutorial",
-                            "Your company could not be saved, so it was left open to protect unsaved changes. Please save manually and try again.",
-                            NotificationType.Warning);
-                        return;
-                    }
+                    await CompanyManager.CloseCompanyAsync();
                 }
-                await CompanyManager.CloseCompanyAsync();
+                finally
+                {
+                    if (saving)
+                        _mainWindowViewModel?.HideLoading();
+                }
             }
         };
 
@@ -877,13 +917,6 @@ public partial class App
                         newLogoBytes = await Task.Run(() => SharedFileReader.ReadAllBytes(newLogoFilePath));
                     }
 
-                    // Derive temp directory for logo file operations during undo/redo
-                    var logoTempDir = !string.IsNullOrEmpty(oldLogoFilePath)
-                        ? Path.GetDirectoryName(oldLogoFilePath)
-                        : (!string.IsNullOrEmpty(newLogoFilePath)
-                            ? Path.GetDirectoryName(newLogoFilePath)
-                            : null);
-
                     // Mark settings as changed
                     settings.ChangesMade = true;
 
@@ -958,8 +991,6 @@ public partial class App
                             settings.Company.Address = oldAddress;
                             settings.Company.ProvinceState = oldProvinceState;
 
-                            RestoreCompanyLogo(settings, oldLogoFileName, oldLogoBytes, logoTempDir);
-
                             // Clear pending rename (revert to original file name)
                             if (oldFilePath != newFilePath)
                             {
@@ -967,7 +998,7 @@ public partial class App
                             }
 
                             settings.ChangesMade = true;
-                            RefreshCompanyUi(oldName);
+                            CompanyManager?.RestoreCompanyLogo(oldLogoFileName, oldLogoBytes, () => RefreshCompanyUi(oldName));
                         },
                         () =>
                         {
@@ -982,8 +1013,6 @@ public partial class App
                             settings.Company.Address = newAddress;
                             settings.Company.ProvinceState = newProvinceState;
 
-                            RestoreCompanyLogo(settings, newLogoFileName, newLogoBytes, logoTempDir);
-
                             // Re-schedule the file rename
                             if (oldFilePath != newFilePath && newFilePath != null)
                             {
@@ -991,14 +1020,14 @@ public partial class App
                             }
 
                             settings.ChangesMade = true;
-                            RefreshCompanyUi(newName);
+                            CompanyManager?.RestoreCompanyLogo(newLogoFileName, newLogoBytes, () => RefreshCompanyUi(newName));
                         }));
                 }
             }
             catch (Exception ex)
             {
                 ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to update company");
-                await ShowErrorMessageBoxAsync("Error".Translate(), "Failed to update company: {0}".TranslateFormat(ex.Message));
+                await ShowErrorDialogAsync("Error".Translate(), "Failed to update company: {0}".TranslateFormat(ex.Message));
             }
         };
 
@@ -1017,7 +1046,7 @@ public partial class App
                 var prepared = await Task.Run(() => ImageFileLoader.TryPrepare(path));
                 if (prepared == null)
                 {
-                    await ShowErrorMessageBoxAsync(
+                    await ShowErrorDialogAsync(
                         "Logo Not Supported".Translate(),
                         "That image could not be read. Try a PNG or JPEG.".Translate());
                     return;
@@ -1105,7 +1134,7 @@ public partial class App
             {
                 settings.HasPassword = false;
                 ErrorLogger?.LogError(ex, ErrorCategory.Authentication, "Failed to set password");
-                await ShowErrorMessageBoxAsync("Error".Translate(), "Failed to set password: {0}".TranslateFormat(ex.Message));
+                await ShowErrorDialogAsync("Error".Translate(), "Failed to set password: {0}".TranslateFormat(ex.Message));
             }
         };
 
@@ -1136,7 +1165,7 @@ public partial class App
             {
                 settings.OnPasswordVerificationFailed();
                 ErrorLogger?.LogError(ex, ErrorCategory.Authentication, "Failed to change password");
-                await ShowErrorMessageBoxAsync("Error".Translate(), "Failed to change password: {0}".TranslateFormat(ex.Message));
+                await ShowErrorDialogAsync("Error".Translate(), "Failed to change password: {0}".TranslateFormat(ex.Message));
             }
         };
 
@@ -1168,7 +1197,7 @@ public partial class App
             {
                 settings.OnPasswordVerificationFailed();
                 ErrorLogger?.LogError(ex, ErrorCategory.Authentication, "Failed to remove password");
-                await ShowErrorMessageBoxAsync("Error".Translate(), "Failed to remove password: {0}".TranslateFormat(ex.Message));
+                await ShowErrorDialogAsync("Error".Translate(), "Failed to remove password: {0}".TranslateFormat(ex.Message));
             }
         };
 
@@ -1202,17 +1231,9 @@ public partial class App
                     // Get detailed reason why biometric login is not available
                     var details = await platformService.GetBiometricAvailabilityDetailsAsync();
 
-                    var dialog = ConfirmationDialog;
-                    if (dialog != null)
-                    {
-                        await dialog.ShowAsync(new ConfirmationDialogOptions
-                        {
-                            Title = "Biometric Login Not Available".Translate(),
-                            Message = "Biometric login cannot be enabled on this device.\n\nReason: {0}".TranslateFormat(details),
-                            PrimaryButtonText = "OK".Translate(),
-                            CancelButtonText = ""
-                        });
-                    }
+                    await ShowWarningDialogAsync(
+                        "Biometric Login Not Available".Translate(),
+                        "Biometric login cannot be enabled on this device.\n\nReason: {0}".TranslateFormat(details));
                     settings.OnBiometricAuthResult(false);
                     return;
                 }
@@ -1223,33 +1244,17 @@ public partial class App
 
                 if (!success)
                 {
-                    var dialog = ConfirmationDialog;
-                    if (dialog != null)
-                    {
-                        await dialog.ShowAsync(new ConfirmationDialogOptions
-                        {
-                            Title = "Biometric Login".Translate(),
-                            Message = "Authentication was cancelled or failed. Biometric login has not been enabled.".Translate(),
-                            PrimaryButtonText = "OK".Translate(),
-                            CancelButtonText = ""
-                        });
-                    }
+                    await ShowWarningDialogAsync(
+                        "Biometric Login".Translate(),
+                        "Authentication was cancelled or failed. Biometric login has not been enabled.".Translate());
                 }
             }
             catch (Exception ex)
             {
                 ErrorLogger?.LogError(ex, ErrorCategory.Authentication, "Biometric authentication failed");
-                var dialog = ConfirmationDialog;
-                if (dialog != null)
-                {
-                    await dialog.ShowAsync(new ConfirmationDialogOptions
-                    {
-                        Title = "Biometric Login Error".Translate(),
-                        Message = "Failed to authenticate:\n\n{0}".TranslateFormat(ex.Message),
-                        PrimaryButtonText = "OK".Translate(),
-                        CancelButtonText = ""
-                    });
-                }
+                await ShowErrorDialogAsync(
+                    "Biometric Login Error".Translate(),
+                    "Failed to authenticate:\n\n{0}".TranslateFormat(ex.Message));
                 settings.OnBiometricAuthResult(false);
             }
         };
@@ -1271,7 +1276,6 @@ public partial class App
                     if (args.Enabled && CompanyManager.IsEncrypted)
                     {
                         // Store the current password for biometric unlock
-                        // Note: We need to get the password from CompanyManager
                         var password = CompanyManager.GetCurrentPassword();
                         if (!string.IsNullOrEmpty(password))
                         {
@@ -1422,7 +1426,7 @@ public partial class App
             {
                 if (CompanyManager?.IsCompanyOpen != true)
                 {
-                    await ShowErrorMessageBoxAsync("Error".Translate(), "No company is currently open.".Translate());
+                    await ShowErrorDialogAsync("Error".Translate(), "No company is currently open.".Translate());
                     return;
                 }
 
@@ -1491,7 +1495,7 @@ public partial class App
                     backupStopwatch.Stop();
                     _mainWindowViewModel?.HideLoading();
                     ErrorLogger?.LogError(ex, ErrorCategory.Export, "Failed to export backup");
-                    await ShowErrorMessageBoxAsync("Export Failed".Translate(), "Failed to export backup: {0}".TranslateFormat(ex.Message));
+                    await ShowErrorDialogAsync("Export Failed".Translate(), "Failed to export backup: {0}".TranslateFormat(ex.Message));
                 }
 
                 return;
@@ -1506,7 +1510,7 @@ public partial class App
 
             if (CompanyManager?.CompanyData == null)
             {
-                await ShowErrorMessageBoxAsync("Error".Translate(), "No company is currently open.".Translate());
+                await ShowErrorDialogAsync("Error".Translate(), "No company is currently open.".Translate());
                 return;
             }
 
@@ -1619,7 +1623,7 @@ public partial class App
                 stopwatch.Stop();
                 _mainWindowViewModel?.HideLoading();
                 ErrorLogger?.LogError(ex, ErrorCategory.Export, $"Failed to export {args.Format}");
-                await ShowErrorMessageBoxAsync("Export Failed".Translate(), "Failed to export data: {0}".TranslateFormat(ex.Message));
+                await ShowErrorDialogAsync("Export Failed".Translate(), "Failed to export data: {0}".TranslateFormat(ex.Message));
             }
         };
     }
@@ -1639,7 +1643,7 @@ public partial class App
         {
             if (CompanyManager?.CompanyData == null)
             {
-                await ShowErrorMessageBoxAsync("Error".Translate(), "No company is currently open.".Translate());
+                await ShowErrorDialogAsync("Error".Translate(), "No company is currently open.".Translate());
                 return;
             }
 
@@ -1659,7 +1663,7 @@ public partial class App
             if (format.ToUpperInvariant() != "EXCEL")
             {
                 _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, $"format-unavailable:{format}");
-                await ShowInfoMessageBoxAsync("Info".Translate(), "{0} import will be available in a future update.".TranslateFormat(format));
+                await ShowInfoDialogAsync("Info".Translate(), "{0} import will be available in a future update.".TranslateFormat(format));
                 return;
             }
 
@@ -1717,14 +1721,15 @@ public partial class App
                 if (CompanyManager.IsCompanyOpen != true) return;
 
                 // Check for unsaved changes (skip auto-save for sample company)
-                if (CompanyManager.HasUnsavedChanges && !CompanyManager.IsSampleCompany)
+                var saving = CompanyManager.HasUnsavedChanges && !CompanyManager.IsSampleCompany;
+                if (saving)
                 {
-                    // Auto-save before locking
+                    // Auto-save before locking. The overlay stays up until the company has closed,
+                    // so nothing can be edited after the save.
                     try
                     {
                         _mainWindowViewModel?.ShowLoading("Auto-saving before lock...".Translate());
-                        await CompanyManager.SaveCompanyAsync();
-                        _mainWindowViewModel?.HideLoading();
+                        await CompanyManager.SaveCompanyAsync(kind: "auto-lock");
                     }
                     catch (Exception ex)
                     {
@@ -1743,7 +1748,15 @@ public partial class App
                 }
 
                 // Close the company - this will trigger navigation back to welcome screen
-                await CompanyManager.CloseCompanyAsync();
+                try
+                {
+                    await CompanyManager.CloseCompanyAsync();
+                }
+                finally
+                {
+                    if (saving)
+                        _mainWindowViewModel?.HideLoading();
+                }
 
                 // Re-enable idle detection for next session
                 _idleDetectionService.ResetIdleTimer();

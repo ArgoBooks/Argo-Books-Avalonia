@@ -47,12 +47,9 @@ public partial class ExportAsModalViewModel : ViewModelBase
 
     public bool IsBackupSelected => SelectedTabIndex == 0;
 
-    public bool IsSpreadsheetSelected => SelectedTabIndex == 1;
-
     partial void OnSelectedTabIndexChanged(int value)
     {
         OnPropertyChanged(nameof(IsBackupSelected));
-        OnPropertyChanged(nameof(IsSpreadsheetSelected));
     }
 
     [ObservableProperty]
@@ -66,11 +63,6 @@ public partial class ExportAsModalViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool _selectAllData;
-
-    /// <summary>
-    /// Available file formats for spreadsheet export.
-    /// </summary>
-    public ObservableCollection<string> FileFormats { get; } = ["xlsx"];
 
     /// <summary>
     /// Data items available for export.

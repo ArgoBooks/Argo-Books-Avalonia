@@ -100,64 +100,6 @@ public class PaginationTextHelperTests
 
     #endregion
 
-    #region FormatSimpleCount Tests
-
-    [Fact]
-    public void FormatSimpleCount_ZeroItems_ReturnsZeroPlural()
-    {
-        var result = PaginationTextHelper.FormatSimpleCount(0, "receipt", "receipts");
-
-        Assert.Equal("0 receipts", result);
-    }
-
-    [Fact]
-    public void FormatSimpleCount_SingleItem_ReturnsSingular()
-    {
-        var result = PaginationTextHelper.FormatSimpleCount(1, "receipt", "receipts");
-
-        Assert.Equal("1 receipt", result);
-    }
-
-    [Fact]
-    public void FormatSimpleCount_MultipleItems_ReturnsPlural()
-    {
-        var result = PaginationTextHelper.FormatSimpleCount(42, "receipt", "receipts");
-
-        Assert.Equal("42 receipts", result);
-    }
-
-    [Fact]
-    public void FormatSimpleCount_NullPlural_AddsS()
-    {
-        var result = PaginationTextHelper.FormatSimpleCount(5, "order");
-
-        Assert.Equal("5 orders", result);
-    }
-
-    [Fact]
-    public void FormatSimpleCount_NullPluralSingular_UsesSingular()
-    {
-        var result = PaginationTextHelper.FormatSimpleCount(1, "order");
-
-        Assert.Equal("1 order", result);
-    }
-
-    [Theory]
-    [InlineData(0, "item", "0 items")]
-    [InlineData(1, "item", "1 item")]
-    [InlineData(2, "item", "2 items")]
-    [InlineData(100, "item", "100 items")]
-    [InlineData(1000, "item", "1000 items")]
-    public void FormatSimpleCount_VariousCounts_ReturnsCorrectFormat(
-        int count, string singular, string expected)
-    {
-        var result = PaginationTextHelper.FormatSimpleCount(count, singular);
-
-        Assert.Equal(expected, result);
-    }
-
-    #endregion
-
     #region Edge Cases
 
     [Fact]
@@ -184,26 +126,6 @@ public class PaginationTextHelperTests
         var result = PaginationTextHelper.FormatPaginationText(5, 3, 1, 5, "item", "items");
 
         Assert.Equal("3-3 of 5 items", result);
-    }
-
-    #endregion
-
-    #region Different Entity Names
-
-    [Theory]
-    [InlineData("customer", "customers")]
-    [InlineData("invoice", "invoices")]
-    [InlineData("product", "products")]
-    [InlineData("employee", "employees")]
-    [InlineData("category", "categories")]
-    [InlineData("entry", "entries")]
-    public void FormatSimpleCount_VariousEntityNames_FormatsCorrectly(string singular, string plural)
-    {
-        var resultSingle = PaginationTextHelper.FormatSimpleCount(1, singular, plural);
-        var resultMultiple = PaginationTextHelper.FormatSimpleCount(5, singular, plural);
-
-        Assert.Equal($"1 {singular}", resultSingle);
-        Assert.Equal($"5 {plural}", resultMultiple);
     }
 
     #endregion

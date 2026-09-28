@@ -54,9 +54,10 @@ public partial class DashboardViewModel : ViewModelBase
         HasData = snapshot != null;
 
         var dashboard = snapshot?.Dashboard ?? new DashboardDto();
-        MoneyIn = FormatMoney(dashboard.MoneyIn);
-        MoneyOut = FormatMoney(dashboard.MoneyOut);
-        Profit = FormatMoney(dashboard.Profit);
+        var currency = snapshot?.Currency ?? new CurrencyDto();
+        MoneyIn = currency.Format(dashboard.MoneyIn);
+        MoneyOut = currency.Format(dashboard.MoneyOut);
+        Profit = currency.Format(dashboard.Profit);
         ProfitMargin = dashboard.ProfitMargin.ToString("P0", CultureInfo.InvariantCulture);
 
         WhoOwesYou.Clear();
@@ -66,8 +67,8 @@ public partial class DashboardViewModel : ViewModelBase
         if (snapshot != null)
         {
             foreach (var customer in snapshot.Customers
-                         .Where(c => ParseAmount(c.Amount) > 0)
-                         .OrderByDescending(c => ParseAmount(c.Amount))
+                         .Where(c => c.Value > 0)
+                         .OrderByDescending(c => c.Value)
                          .Take(5))
             {
                 WhoOwesYou.Add(new RowItemViewModel(customer, _onOpenRow));
@@ -111,7 +112,7 @@ public partial class DashboardViewModel : ViewModelBase
                 }
 
                 var month = new DateTime(date.Year, date.Month, 1);
-                var amount = Math.Abs(ParseAmount(row.Amount));
+                var amount = Math.Abs(row.Value ?? 0m);
                 var index = months.FindIndex(m => m.Month == month);
                 if (index < 0)
                 {
@@ -156,12 +157,4 @@ public partial class DashboardViewModel : ViewModelBase
 
         HasCashFlowChart = true;
     }
-
-    private static decimal ParseAmount(string amount)
-    {
-        var cleaned = new string(amount.Where(ch => char.IsDigit(ch) || ch is '.' or '-').ToArray());
-        return decimal.TryParse(cleaned, NumberStyles.Any, CultureInfo.InvariantCulture, out var value) ? value : 0m;
-    }
-
-    private static string FormatMoney(decimal amount) => amount.ToString("C2", CultureInfo.InvariantCulture);
 }

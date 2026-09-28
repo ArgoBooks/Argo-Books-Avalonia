@@ -579,14 +579,6 @@ window.__totalsConfig = __TOTALS_CONFIG__;
     public InvoicePreviewControl()
     {
         InitializeComponent();
-
-        // The web view is declared in XAML, so it attaches as soon as this control does, and
-        // attaching is what creates the WebView2 environment. OnLoaded already runs too late to
-        // influence that, so the lookup is duplicated here rather than moved.
-        if (this.FindControl<NativeWebView>("WebView") is { } webView)
-        {
-            WebViewEnvironment.Configure(webView);
-        }
     }
 
     protected override void OnLoaded(RoutedEventArgs e)
@@ -599,20 +591,20 @@ window.__totalsConfig = __TOTALS_CONFIG__;
         WebViewEnvironment.Failed -= OnWebViewFailed;
         WebViewEnvironment.Failed += OnWebViewFailed;
 
-        if (_isInitialized)
-            return;
+        if (!_isInitialized)
+        {
+            _rootPanel = this.FindControl<Panel>("RootPanel");
+            _fallbackPanel = this.FindControl<Border>("FallbackPanel");
+            _zoomToolbar = this.FindControl<Border>("ZoomToolbar");
+            _zoomPercentageText = this.FindControl<TextBlock>("ZoomPercentageText");
 
-        _rootPanel = this.FindControl<Panel>("RootPanel");
-        _fallbackPanel = this.FindControl<Border>("FallbackPanel");
-        _zoomToolbar = this.FindControl<Border>("ZoomToolbar");
-        _zoomPercentageText = this.FindControl<TextBlock>("ZoomPercentageText");
-        _webView = this.FindControl<NativeWebView>("WebView");
+            _isInitialized = true;
+        }
 
-        _isInitialized = true;
-
-        // IMPORTANT: Do NOT create/show WebView here!
-        // OnLoaded fires before bindings evaluate, so IsVisible may incorrectly be true.
-        // We must only activate the WebView when IsVisible explicitly changes to true.
+        // A modal hands over its content only once it is open, so this control usually loads with
+        // its visibility and Html bindings already true and no later change to react to. Requiring
+        // Html keeps a preview whose bindings have not run yet (default IsVisible is true) hidden.
+        EnsureWebViewActiveIfVisible();
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -676,7 +668,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
     /// Returns true if it activated the inline WebView, which itself renders the current content.</summary>
     private bool EnsureWebViewActiveIfVisible()
     {
-        if (PlatformSupportsInlineWebView && _webView != null && !_webView.IsVisible
+        if (PlatformSupportsInlineWebView && _webView is not { IsVisible: true }
             && IsEffectivelyVisible && !string.IsNullOrEmpty(Html))
         {
             InitializePlatformPreview();
@@ -691,8 +683,16 @@ window.__totalsConfig = __TOTALS_CONFIG__;
 
     private void ActivateWebView()
     {
-        if (_webView == null || _webViewReady)
+        if (_webViewReady || _rootPanel == null)
             return;
+
+        if (_webView == null)
+        {
+            _webView = new NativeWebView { IsVisible = false };
+            // Configured before it is added: attaching it is what builds the environment.
+            WebViewEnvironment.Configure(_webView);
+            _rootPanel.Children.Insert(0, _webView);
+        }
 
         _webView.IsVisible = true;
         _webView.NavigationCompleted += OnNavigationCompleted;

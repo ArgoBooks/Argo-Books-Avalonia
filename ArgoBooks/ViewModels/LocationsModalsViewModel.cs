@@ -1,3 +1,4 @@
+using ArgoBooks.Core.Data;
 using System.Collections.ObjectModel;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models;
@@ -251,7 +252,6 @@ public partial class LocationsModalsViewModel : ViewModelBase
     /// <summary>
     /// Saves a new location.
     /// </summary>
-    [RelayCommand]
     private void SaveNewLocation()
     {
         if (!ValidateModal())
@@ -301,13 +301,13 @@ public partial class LocationsModalsViewModel : ViewModelBase
             $"Add location '{newLocation.Name}'",
             () =>
             {
-                companyData.Locations.Remove(locationToUndo);
+                companyData.Locations.RemoveRecord(locationToUndo);
                 companyData.MarkAsModified();
                 LocationSaved?.Invoke(this, EventArgs.Empty);
             },
             () =>
             {
-                companyData.Locations.Add(locationToUndo);
+                companyData.Locations.RestoreRecord(locationToUndo);
                 companyData.MarkAsModified();
                 LocationSaved?.Invoke(this, EventArgs.Empty);
             }));
@@ -353,7 +353,6 @@ public partial class LocationsModalsViewModel : ViewModelBase
     /// <summary>
     /// Closes the Edit modal.
     /// </summary>
-    [RelayCommand]
     private void CloseEditModal()
     {
         IsEditModalOpen = false;
@@ -364,7 +363,6 @@ public partial class LocationsModalsViewModel : ViewModelBase
     /// <summary>
     /// Requests to close the Edit modal, showing confirmation if changes were made.
     /// </summary>
-    [RelayCommand]
     public async Task RequestCloseEditModalAsync()
     {
         if (HasEditModalChanges)
@@ -379,7 +377,6 @@ public partial class LocationsModalsViewModel : ViewModelBase
     /// <summary>
     /// Saves changes to an existing location.
     /// </summary>
-    [RelayCommand]
     private void SaveEditedLocation()
     {
         if (!ValidateModal() || _editingLocation == null)
@@ -512,12 +509,16 @@ public partial class LocationsModalsViewModel : ViewModelBase
             CloseFilterModal();
     }
 
+    /// <summary>How many filters are applied, for the page's Filter button.</summary>
+    public int ActiveFilterCount { get; private set; }
+
     /// <summary>
     /// Applies the current filters and closes the modal.
     /// </summary>
     [RelayCommand]
     private void ApplyFilters()
     {
+        ActiveFilterCount = Filters.ActiveCount;
         FiltersApplied?.Invoke(this, new LocationsFilterAppliedEventArgs(FilterType, FilterStatus));
         CloseFilterModal();
     }
@@ -529,6 +530,7 @@ public partial class LocationsModalsViewModel : ViewModelBase
     private void ClearFilters()
     {
         Filters.Reset();
+        ActiveFilterCount = 0;
         FiltersCleared?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
     }

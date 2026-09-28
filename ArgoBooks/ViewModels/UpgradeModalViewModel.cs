@@ -5,6 +5,7 @@ using System.Text.Json.Serialization;
 using ArgoBooks.Core.Models.Telemetry;
 using ArgoBooks.Core.Platform;
 using ArgoBooks.Core.Services;
+using ArgoBooks.Core.Validation;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -375,10 +376,7 @@ public partial class UpgradeModalViewModel : ViewModelBase
             return;
         }
 
-        // Deliberately loose. The server validates properly, and a regex that rejects a real
-        // address here would cost us the very thing we are trying to collect.
-        int at = email.IndexOf('@');
-        if (at <= 0 || email.IndexOf('.', at) <= at + 1 || email.EndsWith('.'))
+        if (!DataValidator.IsValidEmail(email))
         {
             EmailError = "That does not look like an email address".Translate();
             return;
@@ -610,18 +608,9 @@ public partial class UpgradeModalViewModel : ViewModelBase
                     catch (Exception ex)
                     {
                         App.ErrorLogger?.LogError(ex, ErrorCategory.License, "Failed to save license after verification");
-                        var dialog = App.ConfirmationDialog;
-                        if (dialog != null)
-                        {
-                            await dialog.ShowAsync(new ConfirmationDialogOptions
-                            {
-                                Title = "Warning".Translate(),
-                                Message = "Your license was activated but could not be saved locally. You may need to re-enter your license key next time.".Translate(),
-                                PrimaryButtonText = "OK".Translate(),
-                                SecondaryButtonText = null,
-                                CancelButtonText = null
-                            });
-                        }
+                        await App.ShowWarningDialogAsync(
+                            "Warning".Translate(),
+                            "Your license was activated but could not be saved locally. You may need to re-enter your license key next time.".Translate());
                     }
                 }
 

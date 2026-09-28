@@ -1,3 +1,4 @@
+using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Enums;
 
 namespace ArgoBooks.Core.Models.Transactions;
@@ -14,7 +15,7 @@ public enum RecurringTransactionStatus
 /// A transaction that repeats on a schedule. The payload lives in <see cref="Template"/> so a
 /// future field on Transaction needs no change here, matching how RecurringInvoice works.
 /// </summary>
-public class RecurringTransaction
+public class RecurringTransaction : IRecord
 {
     [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;

@@ -186,18 +186,6 @@ public class AppTourViewModelTests
         Assert.False(_viewModel.IsOpen);
     }
 
-    [Fact]
-    public void SkipTourCommand_WhenExecuted_RaisesTourSkippedEvent()
-    {
-        var eventRaised = false;
-        _viewModel.TourSkipped += (_, _) => eventRaised = true;
-        _viewModel.StartTour();
-
-        _viewModel.SkipTourCommand.Execute(null);
-
-        Assert.True(eventRaised);
-    }
-
     #endregion
 
     #region Step Titles Tests

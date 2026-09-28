@@ -1,3 +1,4 @@
+using ArgoBooks.Services;
 using Avalonia.Data.Converters;
 
 namespace ArgoBooks.Converters;
@@ -17,4 +18,9 @@ public static class Converters
     /// where the last step actually ends the flow (Products, Categories).
     /// </summary>
     public static readonly IValueConverter BoolToFinishNext = new BoolToFixedStringConverter("Finish", "Next");
+
+    /// <summary>
+    /// Formats an amount already in the company's currency, through <see cref="CurrencyService.Format(decimal, bool)"/>.
+    /// </summary>
+    public static readonly IValueConverter Money = new FuncValueConverter<decimal, string>(amount => CurrencyService.Format(amount));
 }

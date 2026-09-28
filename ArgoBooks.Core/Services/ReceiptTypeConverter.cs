@@ -100,7 +100,7 @@ public static class ReceiptTypeConverter
         if (toRevenue)
         {
             var expense = (Expense)existing;
-            data.Expenses.Remove(expense);
+            data.Expenses.RemoveRecord(expense);
 
             var revenue = new Revenue
             {
@@ -115,7 +115,7 @@ public static class ReceiptTypeConverter
         else
         {
             var revenue = (Revenue)existing;
-            data.Revenues.Remove(revenue);
+            data.Revenues.RemoveRecord(revenue);
 
             var expense = new Expense
             {
@@ -132,7 +132,8 @@ public static class ReceiptTypeConverter
         receipt.TransactionId = created.Id;
         receipt.TransactionType = toRevenue ? Revenue : Expense;
 
-        var moved = MoveConversion(data, existing.Id, created.Id, receipt.TransactionType);
+        var moved = UsdConversion.Queued(data, UsdConversion.KeyOf(existing));
+        MoveConversion(data, moved, created, existing);
 
         return new ReceiptSwitchResult(
             existing, created, toRevenue ? Expense : Revenue,
@@ -140,8 +141,8 @@ public static class ReceiptTypeConverter
     }
 
     /// <summary>
-    /// Re-points a queued currency conversion at the transaction that replaced the one it was
-    /// raised for.
+    /// Points the queued currency conversion at whichever of the two transactions is in the books,
+    /// and drops the other's.
     ///
     /// <para>
     /// A transaction entered without its date's rate on hand carries IsPendingConversion and a
@@ -149,18 +150,19 @@ public static class ReceiptTypeConverter
     /// named the transaction the switch deleted, so when the rate finally arrived it found
     /// nothing, dropped the row as done, and left the replacement flagged forever. A pending
     /// transaction reports zero in USD, so it counted as nothing in every report rather than
-    /// merely looking unfinished.
+    /// merely looking unfinished. Undo and redo move it back and forth, and queue it again for
+    /// a transaction still waiting, since a conversion pass may have taken it off the queue.
     /// </para>
     /// </summary>
-    private static PendingConversion? MoveConversion(
-        CompanyData data, string fromId, string toId, string toType)
+    private static void MoveConversion(CompanyData data, PendingConversion? moved, Transaction inBooks, Transaction other)
     {
-        var entry = data.PendingConversions.FirstOrDefault(p => p.TransactionId == fromId);
-        if (entry == null) return null;
+        UsdConversion.Set(data, UsdConversion.KeyOf(other), null);
+        if (moved == null) return;
 
-        entry.TransactionId = toId;
-        entry.TransactionType = toType;
-        return entry;
+        var key = UsdConversion.KeyOf(inBooks);
+        moved.TransactionId = key.TransactionId;
+        moved.TransactionType = key.TransactionType;
+        UsdConversion.Set(data, key, inBooks.IsPendingConversion ? moved : null);
     }
 
     /// <summary>Puts back exactly what <see cref="Switch"/> replaced.</summary>
@@ -169,21 +171,17 @@ public static class ReceiptTypeConverter
         Remove(data, result.Created);
 
         foreach (var product in result.CreatedProducts)
-            data.Products.Remove(product);
-        if (result.CreatedCategory != null) data.Categories.Remove(result.CreatedCategory);
-        if (result.CreatedSupplier != null) data.Suppliers.Remove(result.CreatedSupplier);
-        if (result.CreatedCustomer != null) data.Customers.Remove(result.CreatedCustomer);
+            data.Products.RemoveRecord(product);
+        if (result.CreatedCategory != null) data.Categories.RemoveRecord(result.CreatedCategory);
+        if (result.CreatedSupplier != null) data.Suppliers.RemoveRecord(result.CreatedSupplier);
+        if (result.CreatedCustomer != null) data.Customers.RemoveRecord(result.CreatedCustomer);
 
         Add(data, result.Removed);
         result.Removed.ReceiptId = receipt.Id;
         receipt.TransactionId = result.Removed.Id;
         receipt.TransactionType = result.PreviousType;
 
-        if (result.MovedConversion != null)
-        {
-            result.MovedConversion.TransactionId = result.Removed.Id;
-            result.MovedConversion.TransactionType = result.PreviousType;
-        }
+        MoveConversion(data, result.MovedConversion, result.Removed, result.Created);
     }
 
     /// <summary>Re-applies a switch that <see cref="Revert"/> undid, reusing the same records.</summary>
@@ -191,25 +189,18 @@ public static class ReceiptTypeConverter
     {
         Remove(data, result.Removed);
 
-        if (result.CreatedCategory != null && !data.Categories.Contains(result.CreatedCategory))
-            data.Categories.Add(result.CreatedCategory);
-        foreach (var product in result.CreatedProducts.Where(p => !data.Products.Contains(p)))
-            data.Products.Add(product);
-        if (result.CreatedSupplier != null && !data.Suppliers.Contains(result.CreatedSupplier))
-            data.Suppliers.Add(result.CreatedSupplier);
-        if (result.CreatedCustomer != null && !data.Customers.Contains(result.CreatedCustomer))
-            data.Customers.Add(result.CreatedCustomer);
+        if (result.CreatedCategory != null) data.Categories.RestoreRecord(result.CreatedCategory);
+        foreach (var product in result.CreatedProducts)
+            data.Products.RestoreRecord(product);
+        if (result.CreatedSupplier != null) data.Suppliers.RestoreRecord(result.CreatedSupplier);
+        if (result.CreatedCustomer != null) data.Customers.RestoreRecord(result.CreatedCustomer);
 
         Add(data, result.Created);
         result.Created.ReceiptId = receipt.Id;
         receipt.TransactionId = result.Created.Id;
         receipt.TransactionType = result.PreviousType == Expense ? Revenue : Expense;
 
-        if (result.MovedConversion != null)
-        {
-            result.MovedConversion.TransactionId = result.Created.Id;
-            result.MovedConversion.TransactionType = receipt.TransactionType;
-        }
+        MoveConversion(data, result.MovedConversion, result.Created, result.Removed);
     }
 
     /// <summary>
@@ -366,14 +357,14 @@ public static class ReceiptTypeConverter
 
     private static void Add(CompanyData data, Transaction transaction)
     {
-        if (transaction is Expense expense) data.Expenses.Add(expense);
-        else if (transaction is Revenue revenue) data.Revenues.Add(revenue);
+        if (transaction is Expense expense) data.Expenses.RestoreRecord(expense);
+        else if (transaction is Revenue revenue) data.Revenues.RestoreRecord(revenue);
     }
 
     private static void Remove(CompanyData data, Transaction transaction)
     {
-        if (transaction is Expense expense) data.Expenses.Remove(expense);
-        else if (transaction is Revenue revenue) data.Revenues.Remove(revenue);
+        if (transaction is Expense expense) data.Expenses.RemoveRecord(expense);
+        else if (transaction is Revenue revenue) data.Revenues.RemoveRecord(revenue);
     }
 
     private static void CopyShared(Transaction from, Transaction to, List<LineItem> lineItems)

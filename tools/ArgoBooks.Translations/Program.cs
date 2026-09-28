@@ -1,8 +1,7 @@
 using System.Net.Http.Json;
 using System.Text.Json;
-using ArgoBooks.Core.Services;
 using ArgoBooks.Data;
-using ArgoBooks.Localization;
+using ArgoBooks.Translations;
 
 // Translation Generator Tool
 // Usage: dotnet run -- [options]
@@ -46,7 +45,7 @@ for (int i = 0; i < args.Length; i++)
 }
 
 // Load .env file for API keys
-DotEnv.Load();
+EnvFile.Load();
 
 // Get Azure API key from environment
 var azureKey = Environment.GetEnvironmentVariable("AZURE_TRANSLATOR_KEY");
@@ -415,7 +414,7 @@ static string FormatCost(decimal costUsd, decimal? usdToCad)
 
 static async Task<decimal?> GetUsdToCadRateAsync()
 {
-    var oxrKey = DotEnv.Get("OPENEXCHANGERATES_API_KEY");
+    var oxrKey = Environment.GetEnvironmentVariable("OPENEXCHANGERATES_API_KEY");
     if (string.IsNullOrEmpty(oxrKey))
         return null;
 

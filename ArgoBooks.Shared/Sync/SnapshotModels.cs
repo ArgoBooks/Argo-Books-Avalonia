@@ -43,6 +43,29 @@ public sealed class MobileSnapshot
     /// <summary>When this snapshot was built (UTC).</summary>
     [JsonPropertyName("generatedAt")]
     public DateTime GeneratedAt { get; init; }
+
+    /// <summary>The currency every amount in this snapshot is in.</summary>
+    [JsonPropertyName("currency")]
+    public CurrencyDto Currency { get; init; } = new();
+}
+
+/// <summary>
+/// The snapshot's currency, with what the phone needs to write an amount in it.
+/// </summary>
+public sealed class CurrencyDto
+{
+    /// <summary>ISO 4217 code, e.g. "CAD".</summary>
+    [JsonPropertyName("code")]
+    public string Code { get; init; } = "USD";
+
+    [JsonPropertyName("symbol")]
+    public string Symbol { get; init; } = "$";
+
+    /// <summary>2 for most currencies, 0 for ones without minor units such as JPY.</summary>
+    [JsonPropertyName("decimalPlaces")]
+    public int DecimalPlaces { get; init; } = 2;
+
+    public string Format(decimal amount) => MoneyFormat.Format(amount, Symbol, DecimalPlaces);
 }
 
 /// <summary>
@@ -50,11 +73,11 @@ public sealed class MobileSnapshot
 /// </summary>
 public sealed class DashboardDto
 {
-    /// <summary>Total collected revenue (gross, USD).</summary>
+    /// <summary>Collected revenue less refunds, as the desktop's Total Revenue card counts it.</summary>
     [JsonPropertyName("moneyIn")]
     public decimal MoneyIn { get; init; }
 
-    /// <summary>Total expenses (gross, USD).</summary>
+    /// <summary>Total expenses (gross).</summary>
     [JsonPropertyName("moneyOut")]
     public decimal MoneyOut { get; init; }
 
@@ -85,4 +108,8 @@ public sealed class RowDto
     /// <summary>Pre-formatted amount/value (e.g. "-$40.00", "42 in stock").</summary>
     [JsonPropertyName("amount")]
     public string Amount { get; init; } = string.Empty;
+
+    /// <summary>The money behind <see cref="Amount"/>, signed as shown; null for a row that isn't money.</summary>
+    [JsonPropertyName("value")]
+    public decimal? Value { get; init; }
 }

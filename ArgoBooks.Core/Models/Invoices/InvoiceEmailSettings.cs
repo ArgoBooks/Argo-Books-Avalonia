@@ -126,7 +126,7 @@ public class InvoiceEmailRequest
 /// <summary>
 /// Response from the invoice email API.
 /// </summary>
-public class InvoiceEmailResponse
+public class InvoiceEmailResponse : ArgoBooks.Core.Services.IEmailApiResponse
 {
     /// <summary>
     /// Whether the email was sent successfully.

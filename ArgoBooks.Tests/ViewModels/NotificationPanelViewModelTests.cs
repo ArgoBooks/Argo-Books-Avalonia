@@ -122,11 +122,11 @@ public class NotificationPanelViewModelTests
         var headerVm = new HeaderViewModel(null);
         var vm = new NotificationPanelViewModel(headerVm);
 
-        Assert.Equal(0, vm.UnreadCount);
+        Assert.Equal(0, headerVm.UnreadNotificationCount);
     }
 
     [Fact]
-    public void UnreadCount_AfterAddingUnread_MatchesHeaderCount()
+    public void UnreadCount_AfterAddingUnread_CountsOnlyUnread()
     {
         var headerVm = new HeaderViewModel(null);
         var vm = new NotificationPanelViewModel(headerVm);
@@ -135,7 +135,7 @@ public class NotificationPanelViewModelTests
         headerVm.AddNotification(new NotificationItem { Title = "B", IsRead = false });
         headerVm.AddNotification(new NotificationItem { Title = "C", IsRead = true });
 
-        Assert.Equal(2, vm.UnreadCount);
+        Assert.Equal(2, headerVm.UnreadNotificationCount);
     }
 
     [Fact]
@@ -148,7 +148,7 @@ public class NotificationPanelViewModelTests
 
         vm.MarkAllAsReadCommand.Execute(null);
 
-        Assert.Equal(0, vm.UnreadCount);
+        Assert.Equal(0, headerVm.UnreadNotificationCount);
     }
 
     #endregion
@@ -223,11 +223,11 @@ public class NotificationPanelViewModelTests
         var vm = new NotificationPanelViewModel(headerVm);
         var notification = new NotificationItem { Title = "Test", IsRead = false };
         headerVm.AddNotification(notification);
-        Assert.Equal(1, vm.UnreadCount);
+        Assert.Equal(1, headerVm.UnreadNotificationCount);
 
         vm.MarkAsReadCommand.Execute(notification);
 
-        Assert.Equal(0, vm.UnreadCount);
+        Assert.Equal(0, headerVm.UnreadNotificationCount);
     }
 
     [Fact]
@@ -240,7 +240,7 @@ public class NotificationPanelViewModelTests
 
         vm.MarkAsReadCommand.Execute(notification);
 
-        Assert.Equal(0, vm.UnreadCount);
+        Assert.Equal(0, headerVm.UnreadNotificationCount);
     }
 
     #endregion
@@ -270,7 +270,7 @@ public class NotificationPanelViewModelTests
 
         vm.RemoveNotificationCommand.Execute(notification);
 
-        Assert.Equal(0, vm.UnreadCount);
+        Assert.Equal(0, headerVm.UnreadNotificationCount);
     }
 
     #endregion

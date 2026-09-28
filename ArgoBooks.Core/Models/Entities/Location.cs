@@ -5,7 +5,7 @@ namespace ArgoBooks.Core.Models.Entities;
 /// <summary>
 /// Represents a warehouse or building.
 /// </summary>
-public class Location
+public class Location : IRecord
 {
     /// <summary>
     /// Unique identifier (e.g., LOC-001).

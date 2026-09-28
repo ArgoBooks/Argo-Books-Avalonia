@@ -21,7 +21,9 @@ public class StripeDetailImporterTests
         Assert.Equal(50.00m, rev.Total);            // gross
         Assert.Equal(4.00m, rev.TaxAmount);         // tax
         Assert.Equal(5.00m, rev.Discount);          // discount
-        Assert.Equal(46.00m, rev.Subtotal);         // gross - tax
+        Assert.Equal(51.00m, rev.Subtotal);         // before the discount: gross - tax + discount
+        Assert.Equal(51.00m, rev.LineItems[0].Subtotal); // the discount isn't taken off the line too
+        Assert.Equal(8.70m, Math.Round(rev.TaxRate, 2)); // a percentage: 4 / (51 - 5)
         Assert.Equal("ch_1", rev.ReferenceNumber);  // charge id for refund linkage
         Assert.NotEmpty(rev.CustomerId!);
         Assert.Single(rev.LineItems);
@@ -69,5 +71,19 @@ public class StripeDetailImporterTests
         new StripeDetailImporter().ImportCharges(data, [Charge("ch_1", 5000, 0, 0, 0, name: null, email: null)]);
         Assert.Empty(data.Customers);
         Assert.True(string.IsNullOrEmpty(data.Revenues[0].CustomerId));
+    }
+
+    [Fact]
+    public void Import_ManyCharges_GetDistinctIds_PastOneTypedByHand()
+    {
+        var data = new CompanyData();
+        data.Revenues.Add(new ArgoBooks.Core.Models.Transactions.Revenue { Id = "REV-2023-00002" });
+
+        new StripeDetailImporter().ImportCharges(data,
+            [Charge("ch_1", 1000, 30, 0, 0), Charge("ch_2", 1000, 30, 0, 0), Charge("ch_3", 1000, 30, 0, 0)]);
+
+        Assert.Equal(["REV-2023-00001", "REV-2023-00003", "REV-2023-00004"],
+            data.Revenues.Where(r => r.ReferenceNumber.StartsWith("ch_")).Select(r => r.Id).ToList());
+        Assert.Equal(3, data.Expenses.Select(e => e.Id).Distinct().Count());
     }
 }

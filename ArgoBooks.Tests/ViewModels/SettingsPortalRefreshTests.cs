@@ -13,7 +13,7 @@ namespace ArgoBooks.Tests.ViewModels;
 [Collection("ModalViewModels")]
 public class SettingsPortalRefreshTests : IDisposable
 {
-    private readonly string _priorPortalKey = DotEnv.Get(PortalSettings.ApiKeyEnvVar);
+    private readonly string _priorPortalKey = PortalSettings.ApiKey;
 
     private sealed class GatedHandler(string body) : HttpMessageHandler
     {
@@ -80,7 +80,7 @@ public class SettingsPortalRefreshTests : IDisposable
         if (string.IsNullOrEmpty(_priorPortalKey))
             PortalSettings.DeactivateApiKey();
         else
-            DotEnv.SetInMemory(PortalSettings.ApiKeyEnvVar, _priorPortalKey);
+            PortalSettings.SetActiveApiKey(_priorPortalKey);
         GC.SuppressFinalize(this);
     }
 }

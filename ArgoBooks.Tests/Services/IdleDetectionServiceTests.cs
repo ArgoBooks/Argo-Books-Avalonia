@@ -45,25 +45,4 @@ public class IdleDetectionServiceTests : IDisposable
     }
 
     #endregion
-
-    #region ParseTimeoutString Tests
-
-    [Theory]
-    [InlineData("5 minutes", 5)]
-    [InlineData("10 minutes", 10)]
-    [InlineData("15 minutes", 15)]
-    [InlineData("30 minutes", 30)]
-    [InlineData("1 hour", 60)]
-    [InlineData("Never", 0)]
-    [InlineData(null, 0)]
-    [InlineData("", 0)]
-    public void ParseTimeoutString_VariousInputs_ReturnsExpectedMinutes(string? input, int expected)
-    {
-        var result = IdleDetectionService.ParseTimeoutString(input);
-
-        Assert.Equal(expected, result);
-    }
-
-    #endregion
-
 }

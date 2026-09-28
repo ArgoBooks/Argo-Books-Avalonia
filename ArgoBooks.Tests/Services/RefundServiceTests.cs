@@ -11,7 +11,7 @@ namespace ArgoBooks.Tests.Services;
 /// so we can verify request shape (path, headers, body) and response parsing
 /// without standing up the PHP server.
 /// </summary>
-[Collection("DotEnv")]
+[Collection("PortalApiKey")]
 public class RefundServiceTests
 {
     private static (RefundService service, RecordingHandler handler) BuildService(
@@ -19,7 +19,7 @@ public class RefundServiceTests
         string body = "{}")
     {
         // Activate a fake API key so the service emits Authorization: Bearer
-        DotEnv.SetInMemory(PortalSettings.ApiKeyEnvVar, "test-api-key-fake");
+        PortalSettings.SetActiveApiKey("test-api-key-fake");
         var handler = new RecordingHandler(status, body);
         var http = new HttpClient(handler);
         return (new RefundService(http), handler);
@@ -65,7 +65,7 @@ public class RefundServiceTests
         }
         finally
         {
-            DotEnv.Unset(PortalSettings.ApiKeyEnvVar);
+            PortalSettings.DeactivateApiKey();
         }
     }
 
@@ -81,7 +81,7 @@ public class RefundServiceTests
             Assert.Equal("AMOUNT_EXCEEDS_REFUNDABLE", result.ErrorCode);
             Assert.Equal((int)HttpStatusCode.UnprocessableEntity, result.HttpStatus);
         }
-        finally { DotEnv.Unset(PortalSettings.ApiKeyEnvVar); }
+        finally { PortalSettings.DeactivateApiKey(); }
     }
 
     [Fact]
@@ -101,7 +101,7 @@ public class RefundServiceTests
             Assert.Contains("\"request_id\":42", sentBody);
             Assert.Contains("\"code\":\"123456\"", sentBody);
         }
-        finally { DotEnv.Unset(PortalSettings.ApiKeyEnvVar); }
+        finally { PortalSettings.DeactivateApiKey(); }
     }
 
     [Fact]
@@ -116,7 +116,7 @@ public class RefundServiceTests
             Assert.Equal("WRONG_CODE", result.ErrorCode);
             Assert.Equal(3, result.AttemptsRemaining);
         }
-        finally { DotEnv.Unset(PortalSettings.ApiKeyEnvVar); }
+        finally { PortalSettings.DeactivateApiKey(); }
     }
 
     [Fact]
@@ -135,13 +135,13 @@ public class RefundServiceTests
             Assert.EndsWith("/api/portal/refunds/status.php?id=42", handler.LastRequest.RequestUri!.ToString());
             Assert.False(handler.LastRequest.Headers.Contains("Idempotency-Key"), "GET should not send Idempotency-Key");
         }
-        finally { DotEnv.Unset(PortalSettings.ApiKeyEnvVar); }
+        finally { PortalSettings.DeactivateApiKey(); }
     }
 
     [Fact]
     public async Task NetworkError_IsCaughtAndReturnedStructurally()
     {
-        DotEnv.SetInMemory(PortalSettings.ApiKeyEnvVar, "k");
+        PortalSettings.SetActiveApiKey("k");
         try
         {
             var http = new HttpClient(new ThrowingHandler(new HttpRequestException("DNS fail")));
@@ -152,7 +152,7 @@ public class RefundServiceTests
             Assert.Equal("NETWORK_ERROR", result.ErrorCode);
             Assert.Equal((int)HttpStatusCode.ServiceUnavailable, result.HttpStatus);
         }
-        finally { DotEnv.Unset(PortalSettings.ApiKeyEnvVar); }
+        finally { PortalSettings.DeactivateApiKey(); }
     }
 
     [Fact]
@@ -172,7 +172,7 @@ public class RefundServiceTests
             Assert.Contains("\"new_email\":\"new@example.com\"", body);
             Assert.Contains("\"password_verified\":true", body);
         }
-        finally { DotEnv.Unset(PortalSettings.ApiKeyEnvVar); }
+        finally { PortalSettings.DeactivateApiKey(); }
     }
 
     [Fact]
@@ -187,7 +187,7 @@ public class RefundServiceTests
             var body = await handler.LastRequest.Content!.ReadAsStringAsync();
             Assert.Contains("\"code\":\"424242\"", body);
         }
-        finally { DotEnv.Unset(PortalSettings.ApiKeyEnvVar); }
+        finally { PortalSettings.DeactivateApiKey(); }
     }
 
     private sealed class RecordingHandler : HttpMessageHandler

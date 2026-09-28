@@ -1,10 +1,11 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
-using System.Net.Mail;
 using ArgoBooks.Core.Models.Reports;
 using ArgoBooks.Core.Models.Telemetry;
 using ArgoBooks.Core.Models.Tracking;
 using ArgoBooks.Core.Services;
+using ArgoBooks.Core.Utilities;
+using ArgoBooks.Core.Validation;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
 using ArgoBooks.Shared.Telemetry;
@@ -246,7 +247,7 @@ public partial class SendToAccountantModalViewModel : ViewModelBase
         var file = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
             Title = "Save accountant pack".Translate(),
-            SuggestedFileName = $"{SafeFileName(App.CompanyManager?.CurrentCompanyName)} books {period}.zip",
+            SuggestedFileName = $"{SafeFileName.Create(App.CompanyManager?.CurrentCompanyName, "Company")} books {period}.zip",
             DefaultExtension = "zip",
             FileTypeChoices = [new FilePickerFileType("ZIP") { Patterns = ["*.zip"] }]
         });
@@ -289,7 +290,8 @@ public partial class SendToAccountantModalViewModel : ViewModelBase
             return;
 
         var email = AccountantEmail.Trim();
-        if (!MailAddress.TryCreate(email, out var address) || address.Address != email)
+        var storedEmail = App.CompanyManager?.CompanyData?.Settings.Company.AccountantEmail;
+        if (email.Length == 0 || !DataValidator.IsValidOrUnchangedEmail(email, storedEmail))
         {
             EmailError = "Enter your accountant's email address.".Translate();
             return;
@@ -349,7 +351,7 @@ public partial class SendToAccountantModalViewModel : ViewModelBase
 
                 if (!response.Success)
                 {
-                    ErrorMessage = response.Message;
+                    ErrorMessage = response.Message.Translate();
                     return;
                 }
 
@@ -481,12 +483,6 @@ public partial class SendToAccountantModalViewModel : ViewModelBase
         },
         Data = Convert.ToBase64String(bytes)
     };
-
-    private static string SafeFileName(string? name)
-    {
-        var cleaned = string.Concat((name ?? string.Empty).Split(Path.GetInvalidFileNameChars())).Trim();
-        return cleaned.Length > 0 ? cleaned : "Company";
-    }
 
     private static void DeleteStaging(Pack pack)
     {

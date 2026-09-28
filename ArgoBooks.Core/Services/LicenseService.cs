@@ -20,6 +20,18 @@ public class LicenseService
     private readonly IConnectivityService _connectivityService;
     private readonly IErrorLogger? _errorLogger;
 
+    // Reading the license costs a key-stretching pass (and on macOS an ioreg process for the
+    // machine ID), and several services read it repeatedly, so both are worked out once a session.
+    private readonly Lazy<string> _machineKey;
+    private readonly Lock _cacheLock = new();
+    private CachedLicense? _cachedLicense;
+
+    /// <summary>
+    /// The decrypted license and the stored values it came from. Keyed on those values rather than
+    /// cleared by hand, so anything that rewrites the stored license is picked up on the next read.
+    /// </summary>
+    private sealed record CachedLicense(string Data, string Salt, string Iv, LicenseData? License);
+
     /// <summary>
     /// Internal license data structure.
     /// </summary>
@@ -57,6 +69,7 @@ public class LicenseService
         _platformService = platformService ?? throw new ArgumentNullException(nameof(platformService));
         _connectivityService = connectivityService ?? throw new ArgumentNullException(nameof(connectivityService));
         _errorLogger = errorLogger;
+        _machineKey = new Lazy<string>(ComputeMachineKey);
         Instance ??= this;
     }
 
@@ -97,10 +110,15 @@ public class LicenseService
         var encryptedData = _encryptionService.Encrypt(dataBytes, machineKey, salt, iv);
 
         // Store in settings
-        settings.License.LicenseData = Convert.ToBase64String(encryptedData);
+        var storedData = Convert.ToBase64String(encryptedData);
+        settings.License.LicenseData = storedData;
         settings.License.Salt = salt;
         settings.License.Iv = iv;
-        settings.License.LastValidationDate = DateTime.UtcNow;
+
+        lock (_cacheLock)
+        {
+            _cachedLicense = new CachedLicense(storedData, salt, iv, licenseData);
+        }
 
         await _settingsService.SaveAsync(settings);
     }
@@ -113,28 +131,37 @@ public class LicenseService
     {
         try
         {
-            var settings = _settingsService.GetSettings();
-            if (settings?.License.LicenseData == null ||
-                settings.License.Salt == null ||
-                settings.License.Iv == null)
-            {
-                return false;
-            }
-
-            var encryptedData = Convert.FromBase64String(settings.License.LicenseData);
-
-            var machineKey = GetMachineKey();
-            var licenseData = TryDecryptLicense(encryptedData, machineKey, settings.License.Salt, settings.License.Iv);
-
-            if (licenseData == null)
-                return false;
-
-            return licenseData.HasPremium;
+            return ReadLicense()?.HasPremium ?? false;
         }
         catch (Exception ex)
         {
             _errorLogger?.LogError(ex, ErrorCategory.License, "Failed to load license status");
             return false;
+        }
+    }
+
+    /// <summary>
+    /// The stored license, decrypted, or null when there is none or it cannot be read. Safe to call
+    /// from any thread: a caller arriving mid-decrypt waits for that result instead of repeating it.
+    /// </summary>
+    private LicenseData? ReadLicense()
+    {
+        var stored = _settingsService.GetSettings()?.License;
+        var data = stored?.LicenseData;
+        var salt = stored?.Salt;
+        var iv = stored?.Iv;
+        if (data == null || salt == null || iv == null)
+            return null;
+
+        lock (_cacheLock)
+        {
+            if (_cachedLicense is { } cached && cached.Data == data && cached.Salt == salt && cached.Iv == iv)
+                return cached.License;
+
+            var encryptedData = Convert.FromBase64String(data);
+            var license = TryDecryptLicense(encryptedData, GetMachineKey(), salt, iv);
+            _cachedLicense = new CachedLicense(data, salt, iv, license);
+            return license;
         }
     }
 
@@ -163,20 +190,7 @@ public class LicenseService
     {
         try
         {
-            var settings = _settingsService.GetSettings();
-            if (settings?.License.LicenseData == null ||
-                settings.License.Salt == null ||
-                settings.License.Iv == null)
-            {
-                return null;
-            }
-
-            var encryptedData = Convert.FromBase64String(settings.License.LicenseData);
-
-            var machineKey = GetMachineKey();
-            var licenseData = TryDecryptLicense(encryptedData, machineKey, settings.License.Salt, settings.License.Iv);
-
-            return licenseData?.LicenseKey;
+            return ReadLicense()?.LicenseKey;
         }
         catch (Exception ex)
         {
@@ -195,6 +209,12 @@ public class LicenseService
             return;
 
         settings.License = new LicenseSettings();
+
+        lock (_cacheLock)
+        {
+            _cachedLicense = null;
+        }
+
         await _settingsService.SaveAsync(settings);
     }
 
@@ -302,10 +322,12 @@ public class LicenseService
         }
     }
 
+    private string GetMachineKey() => _machineKey.Value;
+
     /// <summary>
     /// Gets a machine-specific key for encryption using stable platform identifiers.
     /// </summary>
-    private string GetMachineKey()
+    private string ComputeMachineKey()
     {
         var machineInfo = new StringBuilder();
 

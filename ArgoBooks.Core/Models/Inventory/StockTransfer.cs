@@ -1,3 +1,4 @@
+using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Enums;
 
 namespace ArgoBooks.Core.Models.Inventory;
@@ -5,7 +6,7 @@ namespace ArgoBooks.Core.Models.Inventory;
 /// <summary>
 /// Represents a transfer of stock between locations.
 /// </summary>
-public class StockTransfer
+public class StockTransfer : IRecord
 {
     /// <summary>
     /// Unique identifier (e.g., TRF-001).

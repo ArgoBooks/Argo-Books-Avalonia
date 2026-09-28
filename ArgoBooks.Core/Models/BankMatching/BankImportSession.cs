@@ -1,10 +1,12 @@
+using ArgoBooks.Core.Models.Common;
+
 namespace ArgoBooks.Core.Models.BankMatching;
 
 /// <summary>
 /// A persisted bank statement import. Stored in the .argo file so that match
 /// progress survives reload.
 /// </summary>
-public class BankImportSession
+public class BankImportSession : IRecord
 {
     [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;

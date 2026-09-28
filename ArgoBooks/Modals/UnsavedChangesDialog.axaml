@@ -3,8 +3,6 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:ArgoBooks.ViewModels"
-             xmlns:converters="using:ArgoBooks.Converters"
-             xmlns:loc="using:ArgoBooks.Localization"
              xmlns:controls="using:ArgoBooks.Controls"
              xmlns:icons="using:ArgoBooks"
              mc:Ignorable="d" d:DesignWidth="550" d:DesignHeight="450"
@@ -16,15 +14,6 @@
         <vm:UnsavedChangesDialogViewModel />
     </Design.DataContext>
 
-    <UserControl.Resources>
-        <!-- Bool to Angle Converter for expand/collapse arrow -->
-        <converters:BoolToAngleConverter x:Key="BoolToAngleConverter" TrueAngle="90" FalseAngle="0" />
-        <!-- Change Type Converters -->
-        <converters:ChangeTypeToVisibilityConverter x:Key="IsAddedConverter" TargetType="Added" />
-        <converters:ChangeTypeToVisibilityConverter x:Key="IsModifiedConverter" TargetType="Modified" />
-        <converters:ChangeTypeToVisibilityConverter x:Key="IsDeletedConverter" TargetType="Deleted" />
-    </UserControl.Resources>
-
     <Panel>
         <controls:ModalOverlay IsOpen="{Binding IsOpen}" CloseOnBackdropClick="False">
             <controls:ModalOverlay.ModalContent>
@@ -33,7 +22,7 @@
                 Width="550"
                 MaxHeight="500">
 
-            <Grid RowDefinitions="Auto,Auto,*,Auto">
+            <Grid RowDefinitions="Auto,Auto,Auto">
                 <!-- Header -->
                 <controls:ModalHeader Grid.Row="0">
                     <Grid ColumnDefinitions="Auto,*">
@@ -47,14 +36,8 @@
                                        Width="20" Height="20"
                                        Foreground="{DynamicResource WarningBrush}" />
                         </Border>
-                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                            <TextBlock Classes="modal-title" Text="{Binding Title}" />
-                            <TextBlock Text="{Binding UnsavedChangeCountText}"
-                                       FontSize="13"
-                                       Foreground="{DynamicResource TextTertiaryBrush}"
-                                       IsVisible="{Binding HasChanges}"
-                                       Margin="0,2,0,0" />
-                        </StackPanel>
+                        <TextBlock Grid.Column="1" Classes="modal-title" Text="{Binding Title}"
+                                   VerticalAlignment="Center" />
                     </Grid>
                 </controls:ModalHeader>
 
@@ -66,153 +49,12 @@
                                TextWrapping="Wrap" />
                 </Border>
 
-                <!-- Changes List (Scrollable) -->
-                <Border Grid.Row="2"
-                        IsVisible="{Binding HasChanges}"
-                        Margin="24,0"
-                        BorderBrush="{DynamicResource BorderBrush}"
-                        BorderThickness="1"
-                        CornerRadius="8"
-                        Background="{DynamicResource BackgroundSecondaryBrush}"
-                        ClipToBounds="True">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto"
-                                  HorizontalScrollBarVisibility="Disabled"
-                                  MaxHeight="220">
-                        <ItemsControl ItemsSource="{Binding Categories}"
-                                      Margin="0,4">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate DataType="vm:ChangeCategory">
-                                    <StackPanel>
-                                        <!-- Category Header -->
-                                        <Button Classes="category-header"
-                                                Command="{Binding $parent[ItemsControl].((vm:UnsavedChangesDialogViewModel)DataContext).ToggleCategoryCommand}"
-                                                CommandParameter="{Binding}">
-                                            <Grid ColumnDefinitions="Auto,*,Auto,Auto">
-                                                <!-- Expand/Collapse Arrow -->
-                                                <PathIcon Grid.Column="0"
-                                                          Data="{x:Static icons:Icons.ChevronRightStroke}"
-                                                          Width="12" Height="12"
-                                                          Foreground="{DynamicResource TextTertiaryBrush}"
-                                                          Margin="12,0,8,0"
-                                                          RenderTransformOrigin="0.5,0.5">
-                                                    <PathIcon.RenderTransform>
-                                                        <RotateTransform Angle="{Binding IsExpanded, Converter={StaticResource BoolToAngleConverter}}" />
-                                                    </PathIcon.RenderTransform>
-                                                </PathIcon>
-
-                                                <!-- Category Name -->
-                                                <TextBlock Grid.Column="1"
-                                                           Text="{Binding Name}"
-                                                           FontSize="13"
-                                                           FontWeight="SemiBold"
-                                                           Foreground="{DynamicResource TextPrimaryBrush}"
-                                                           VerticalAlignment="Center" />
-
-                                                <!-- Change Count Badge -->
-                                                <Border Grid.Column="2"
-                                                        Background="{DynamicResource PrimaryIconBgBrush}"
-                                                        CornerRadius="10"
-                                                        Padding="8,2"
-                                                        Margin="8,0">
-                                                    <TextBlock Text="{Binding ChangeCount}"
-                                                               FontSize="11"
-                                                               FontWeight="Medium"
-                                                               Foreground="{DynamicResource PrimaryBrush}"
-                                                               VerticalAlignment="Center" />
-                                                </Border>
-
-                                                <Border Grid.Column="3" Width="12" />
-                                            </Grid>
-                                        </Button>
-
-                                        <!-- Change Items -->
-                                        <ItemsControl ItemsSource="{Binding Changes}"
-                                                      IsVisible="{Binding IsExpanded}"
-                                                      Margin="0,0,0,4">
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate DataType="vm:ChangeItem">
-                                                    <Border Padding="40,6,16,6"
-                                                            Background="Transparent">
-                                                        <Border.Styles>
-                                                            <Style Selector="Border:pointerover">
-                                                                <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
-                                                            </Style>
-                                                        </Border.Styles>
-                                                        <Grid ColumnDefinitions="Auto,*">
-                                                            <!-- Change Type Indicator -->
-                                                            <Panel Grid.Column="0"
-                                                                   Width="20" Height="20"
-                                                                   Margin="0,0,10,0"
-                                                                   VerticalAlignment="Center">
-                                                                <!-- Added Icon -->
-                                                                <Border Width="20" Height="20"
-                                                                        CornerRadius="10"
-                                                                        Background="{DynamicResource SuccessIconBgBrush}"
-                                                                        IsVisible="{Binding ChangeType, Converter={StaticResource IsAddedConverter}}">
-                                                                    <PathIcon Data="{x:Static icons:Icons.Add}"
-                                                                              Width="12" Height="12"
-                                                                              Foreground="{DynamicResource SuccessBrush}" />
-                                                                </Border>
-                                                                <!-- Modified Icon -->
-                                                                <Border Width="20" Height="20"
-                                                                        CornerRadius="10"
-                                                                        Background="{DynamicResource WarningIconBgBrush}"
-                                                                        IsVisible="{Binding ChangeType, Converter={StaticResource IsModifiedConverter}}">
-                                                                    <PathIcon Data="{x:Static icons:Icons.Edit}"
-                                                                              Width="11" Height="11"
-                                                                              Foreground="{DynamicResource WarningBrush}" />
-                                                                </Border>
-                                                                <!-- Deleted Icon -->
-                                                                <Border Width="20" Height="20"
-                                                                        CornerRadius="10"
-                                                                        Background="{DynamicResource DangerIconBgBrush}"
-                                                                        IsVisible="{Binding ChangeType, Converter={StaticResource IsDeletedConverter}}">
-                                                                    <PathIcon Data="{x:Static icons:Icons.Delete}"
-                                                                              Width="11" Height="11"
-                                                                              Foreground="{DynamicResource DangerBrush}" />
-                                                                </Border>
-                                                            </Panel>
-
-                                                            <!-- Change Description -->
-                                                            <TextBlock Grid.Column="1"
-                                                                       Text="{Binding Description}"
-                                                                       FontSize="13"
-                                                                       Foreground="{DynamicResource TextSecondaryBrush}"
-                                                                       TextTrimming="CharacterEllipsis"
-                                                                       VerticalAlignment="Center" />
-                                                        </Grid>
-                                                    </Border>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                    </StackPanel>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </ScrollViewer>
-                </Border>
-
                 <!-- Footer -->
-                <Border Classes="modal-footer" Grid.Row="3"
+                <Border Classes="modal-footer" Grid.Row="2"
                         Margin="0,16,0,0">
-                    <Grid ColumnDefinitions="Auto,*,Auto">
-                        <!-- Expand/Collapse All (only when there are changes) -->
-                        <StackPanel Grid.Column="0"
-                                    Orientation="Horizontal"
-                                    Spacing="8"
-                                    IsVisible="{Binding HasChanges}">
-                            <Button Classes="ghost-button"
-                                    Content="{loc:Loc 'Expand All'}"
-                                    Command="{Binding ExpandAllCommand}"
-                                    FontSize="12" />
-                            <Button Classes="ghost-button"
-                                    Content="{loc:Loc 'Collapse All'}"
-                                    Command="{Binding CollapseAllCommand}"
-                                    FontSize="12" />
-                        </StackPanel>
-
+                    <Grid ColumnDefinitions="*,Auto">
                         <!-- Action Buttons -->
-                        <StackPanel Grid.Column="2"
+                        <StackPanel Grid.Column="1"
                                     Orientation="Horizontal"
                                     HorizontalAlignment="Right"
                                     Spacing="12">
@@ -240,22 +82,6 @@
     </Panel>
 
     <UserControl.Styles>
-        <!-- Category Header Button -->
-        <Style Selector="Button.category-header">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Padding" Value="0,10" />
-            <Setter Property="HorizontalAlignment" Value="Stretch" />
-            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-            <Setter Property="Cursor" Value="Hand" />
-        </Style>
-        <Style Selector="Button.category-header /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="Transparent" />
-        </Style>
-        <Style Selector="Button.category-header:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
-        </Style>
-
         <!-- Danger Outline Button -->
         <Style Selector="Button.danger-outline-button">
             <Setter Property="Background" Value="Transparent" />
@@ -272,25 +98,6 @@
         </Style>
         <Style Selector="Button.danger-outline-button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="{DynamicResource DangerIconBgBrush}" />
-        </Style>
-
-        <!-- Ghost Button -->
-        <Style Selector="Button.ghost-button">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Foreground" Value="{DynamicResource TextTertiaryBrush}" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Padding" Value="8,4" />
-            <Setter Property="CornerRadius" Value="4" />
-            <Setter Property="Cursor" Value="Hand" />
-        </Style>
-        <Style Selector="Button.ghost-button /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="Transparent" />
-        </Style>
-        <Style Selector="Button.ghost-button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
-        </Style>
-        <Style Selector="Button.ghost-button:pointerover">
-            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
         </Style>
     </UserControl.Styles>
 </UserControl>

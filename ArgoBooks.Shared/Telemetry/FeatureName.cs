@@ -115,5 +115,13 @@ public enum FeatureName
     PhonePaired,
 
     // set, changed or removed, in the context.
-    CompanyPasswordSet
+    CompanyPasswordSet,
+
+    // An expense, revenue or invoice copied into a new form, with which one in the context.
+    RecordDuplicated,
+
+    // How long it took, in the duration. The context holds what prompted it, whether the file is
+    // encrypted, and its size band, such as "manual:plain:1-10MB".
+    CompanyOpened,
+    CompanySaved
 }

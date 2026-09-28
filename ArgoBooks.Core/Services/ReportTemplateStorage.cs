@@ -1,6 +1,7 @@
 using ArgoBooks.Core.Models.Reports;
 using ArgoBooks.Core.Models.Telemetry;
 using ArgoBooks.Core.Platform;
+using ArgoBooks.Core.Utilities;
 
 namespace ArgoBooks.Core.Services;
 
@@ -14,6 +15,8 @@ public class ReportTemplateStorage
         WriteIndented = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
+
+    private const string TemplateExtension = ".argotemplate";
 
     private readonly IErrorLogger? _errorLogger;
 
@@ -55,8 +58,8 @@ public class ReportTemplateStorage
         {
             EnsureDirectoryExists();
 
-            var sanitizedName = SanitizeFileName(templateName);
-            var filePath = Path.Combine(TemplatesDirectory, $"{sanitizedName}.argotemplate");
+            var files = ReadTemplateFiles();
+            var filePath = FindTemplateFile(files, templateName) ?? NewTemplateFile(templateName);
 
             var templateData = new SavedTemplate
             {
@@ -85,10 +88,8 @@ public class ReportTemplateStorage
     {
         try
         {
-            var sanitizedName = SanitizeFileName(templateName);
-            var filePath = Path.Combine(TemplatesDirectory, $"{sanitizedName}.argotemplate");
-
-            if (!File.Exists(filePath))
+            var filePath = FindTemplateFile(ReadTemplateFiles(), templateName);
+            if (filePath == null)
                 return null;
 
             var json = await File.ReadAllTextAsync(filePath);
@@ -108,74 +109,16 @@ public class ReportTemplateStorage
     /// </summary>
     public List<string> GetSavedTemplateNames()
     {
-        var names = new List<string>();
-
         try
         {
             EnsureDirectoryExists();
-
-            var files = Directory.GetFiles(TemplatesDirectory, "*.argotemplate");
-            foreach (var file in files)
-            {
-                try
-                {
-                    var json = File.ReadAllText(file);
-                    var templateData = JsonSerializer.Deserialize<SavedTemplate>(json, JsonOptions);
-                    if (templateData?.Name != null)
-                    {
-                        names.Add(templateData.Name);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _errorLogger?.LogWarning($"Failed to read template file {Path.GetFileName(file)}: {ex.Message}", "ReportTemplateStorage");
-                }
-            }
+            return ReadTemplateFiles().Select(t => t.Name).ToList();
         }
         catch (Exception ex)
         {
             _errorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to enumerate report templates");
+            return [];
         }
-
-        return names;
-    }
-
-    /// <summary>
-    /// Gets all saved templates with metadata.
-    /// </summary>
-    public async Task<List<SavedTemplate>> GetAllTemplatesAsync()
-    {
-        var templates = new List<SavedTemplate>();
-
-        try
-        {
-            EnsureDirectoryExists();
-
-            var files = Directory.GetFiles(TemplatesDirectory, "*.argotemplate");
-            foreach (var file in files)
-            {
-                try
-                {
-                    var json = await File.ReadAllTextAsync(file);
-                    var templateData = JsonSerializer.Deserialize<SavedTemplate>(json, JsonOptions);
-                    if (templateData != null)
-                    {
-                        templateData.FilePath = file;
-                        templates.Add(templateData);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _errorLogger?.LogWarning($"Failed to read template file {Path.GetFileName(file)}: {ex.Message}", "ReportTemplateStorage");
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            _errorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to enumerate report templates");
-        }
-
-        return templates.OrderByDescending(t => t.ModifiedAt).ToList();
     }
 
     /// <summary>
@@ -185,10 +128,8 @@ public class ReportTemplateStorage
     {
         try
         {
-            var sanitizedName = SanitizeFileName(templateName);
-            var filePath = Path.Combine(TemplatesDirectory, $"{sanitizedName}.argotemplate");
-
-            if (File.Exists(filePath))
+            var filePath = FindTemplateFile(ReadTemplateFiles(), templateName);
+            if (filePath != null)
             {
                 File.Delete(filePath);
                 return true;
@@ -209,14 +150,12 @@ public class ReportTemplateStorage
     {
         try
         {
-            var oldSanitized = SanitizeFileName(oldName);
-            var newSanitized = SanitizeFileName(newName);
-
-            var oldPath = Path.Combine(TemplatesDirectory, $"{oldSanitized}.argotemplate");
-            var newPath = Path.Combine(TemplatesDirectory, $"{newSanitized}.argotemplate");
-
-            if (!File.Exists(oldPath) || File.Exists(newPath))
+            var files = ReadTemplateFiles();
+            var oldPath = FindTemplateFile(files, oldName);
+            if (oldPath == null || FindTemplateFile(files, newName) != null)
                 return false;
+
+            var newPath = NewTemplateFile(newName);
 
             // Load, update, and save atomically (write to temp file first)
             var json = await File.ReadAllTextAsync(oldPath);
@@ -258,12 +197,7 @@ public class ReportTemplateStorage
     /// <summary>
     /// Checks if a template exists.
     /// </summary>
-    public bool TemplateExists(string templateName)
-    {
-        var sanitizedName = SanitizeFileName(templateName);
-        var filePath = Path.Combine(TemplatesDirectory, $"{sanitizedName}.argotemplate");
-        return File.Exists(filePath);
-    }
+    public bool TemplateExists(string templateName) => FindTemplateFile(ReadTemplateFiles(), templateName) != null;
 
     /// <summary>
     /// Gets the images directory path for storing embedded images.
@@ -299,13 +233,47 @@ public class ReportTemplateStorage
     }
 
     /// <summary>
-    /// Sanitizes a filename by removing invalid characters.
+    /// Every template file with the name stored inside it. A template is found by that name, never by
+    /// its file name: sanitising can give two names one file name ("A:B" and "A-B"), and templates
+    /// saved under an older naming rule have file names that match nothing.
     /// </summary>
-    private static string SanitizeFileName(string name)
+    private List<(string File, string Name)> ReadTemplateFiles()
     {
-        var invalid = Path.GetInvalidFileNameChars();
-        var sanitized = new string(name.Where(c => !invalid.Contains(c)).ToArray());
-        return sanitized.Trim();
+        var templates = new List<(string File, string Name)>();
+        if (!Directory.Exists(TemplatesDirectory))
+            return templates;
+
+        foreach (var file in Directory.GetFiles(TemplatesDirectory, $"*{TemplateExtension}"))
+        {
+            try
+            {
+                var templateData = JsonSerializer.Deserialize<SavedTemplate>(File.ReadAllText(file), JsonOptions);
+                if (templateData?.Name != null)
+                    templates.Add((file, templateData.Name));
+            }
+            catch (Exception ex)
+            {
+                _errorLogger?.LogWarning($"Failed to read template file {Path.GetFileName(file)}: {ex.Message}", "ReportTemplateStorage");
+            }
+        }
+
+        return templates;
+    }
+
+    private static string? FindTemplateFile(List<(string File, string Name)> templates, string templateName) =>
+        templates.FirstOrDefault(t => t.Name == templateName).File;
+
+    /// <summary>A file for a new template, named after it, that no existing file uses.</summary>
+    private string NewTemplateFile(string templateName)
+    {
+        var stem = SafeFileName.Create(templateName, "Template");
+        for (var n = 1; ; n++)
+        {
+            var path = Path.Combine(TemplatesDirectory, n == 1 ? stem + TemplateExtension : $"{stem}-{n}{TemplateExtension}");
+            // Checks the disk rather than the parsed list, so an unreadable file is never overwritten.
+            if (!File.Exists(path))
+                return path;
+        }
     }
 }
 

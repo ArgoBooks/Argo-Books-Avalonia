@@ -64,26 +64,6 @@ public static class TimeZoneService
             var timeZone = TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
             return TimeZoneInfo.ConvertTimeFromUtc(utcDateTime, timeZone);
         }
-        catch (TimeZoneNotFoundException)
-        {
-            // If timezone not found, try common IANA to Windows mappings
-            // This handles legacy settings that might have IANA identifiers on Windows
-            var windowsTimeZone = MapIanaToWindows(timeZoneId);
-            if (windowsTimeZone != null)
-            {
-                try
-                {
-                    var timeZone = TimeZoneInfo.FindSystemTimeZoneById(windowsTimeZone);
-                    return TimeZoneInfo.ConvertTimeFromUtc(utcDateTime, timeZone);
-                }
-                catch
-                {
-                    // Fall back to UTC
-                    return utcDateTime;
-                }
-            }
-            return utcDateTime;
-        }
         catch
         {
             // Fall back to UTC on any error
@@ -120,36 +100,4 @@ public static class TimeZoneService
         var timeFormat = Is24HourFormat ? "HH:mm" : "h:mm tt";
         return dateTime.ToString($"MMM d, yyyy 'at' {timeFormat}");
     }
-
-    /// <summary>
-    /// Maps common IANA timezone IDs to Windows timezone IDs.
-    /// Used for backwards compatibility with legacy settings.
-    /// </summary>
-    private static string? MapIanaToWindows(string ianaTimeZone)
-    {
-        // Common mappings for Windows systems that don't support IANA identifiers
-        // This handles legacy settings that might have been saved with IANA IDs
-        return ianaTimeZone switch
-        {
-            "America/New_York" => "Eastern Standard Time",
-            "America/Chicago" => "Central Standard Time",
-            "America/Denver" => "Mountain Standard Time",
-            "America/Los_Angeles" => "Pacific Standard Time",
-            "America/Toronto" => "Eastern Standard Time",
-            "America/Vancouver" => "Pacific Standard Time",
-            "Europe/London" => "GMT Standard Time",
-            "Europe/Paris" => "Romance Standard Time",
-            "Europe/Berlin" => "W. Europe Standard Time",
-            "Europe/Amsterdam" => "W. Europe Standard Time",
-            "Asia/Tokyo" => "Tokyo Standard Time",
-            "Asia/Shanghai" => "China Standard Time",
-            "Asia/Singapore" => "Singapore Standard Time",
-            "Asia/Dubai" => "Arabian Standard Time",
-            "Australia/Sydney" => "AUS Eastern Standard Time",
-            "Australia/Melbourne" => "AUS Eastern Standard Time",
-            "Pacific/Auckland" => "New Zealand Standard Time",
-            _ => null
-        };
-    }
-
 }

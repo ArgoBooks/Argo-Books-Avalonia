@@ -177,14 +177,6 @@ public class ReportConfiguration
     }
 
     /// <summary>
-    /// Gets all elements of a specific type.
-    /// </summary>
-    public List<T> GetElementsOfType<T>() where T : ReportElementBase
-    {
-        return Elements.OfType<T>().ToList();
-    }
-
-    /// <summary>
     /// Creates a deep clone of this configuration.
     /// </summary>
     public ReportConfiguration Clone()
@@ -348,42 +340,6 @@ public class ReportFilters
 }
 
 /// <summary>
-/// Export settings for report output.
-/// </summary>
-public class ExportSettings
-{
-    /// <summary>
-    /// Export format.
-    /// </summary>
-    [JsonPropertyName("format")]
-    public ExportFormat Format { get; set; } = ExportFormat.PDF;
-
-    /// <summary>
-    /// Output file path.
-    /// </summary>
-    [JsonPropertyName("filePath")]
-    public string FilePath { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Quality setting (0-100).
-    /// </summary>
-    [JsonPropertyName("quality")]
-    public int Quality { get; set; } = 95;
-
-    /// <summary>
-    /// Whether to open the file after export.
-    /// </summary>
-    [JsonPropertyName("openAfterExport")]
-    public bool OpenAfterExport { get; set; } = true;
-
-    /// <summary>
-    /// Whether to include metadata in the export.
-    /// </summary>
-    [JsonPropertyName("includeMetadata")]
-    public bool IncludeMetadata { get; set; } = true;
-}
-
-/// <summary>
 /// Page size dimensions helper.
 /// </summary>
 public static class PageDimensions
@@ -465,7 +421,11 @@ public static class DatePresetNames
     public const string YearToDate = "This Year";
     public const string LastYear = "Last Year";
     public const string AllTime = "All Time";
+    /// <summary>A custom range as report templates store it.</summary>
     public const string Custom = "Custom";
+
+    /// <summary>A custom range as the dashboard and Analytics store it (settings.json); reads the same as <see cref="Custom"/>.</summary>
+    public const string CustomRange = "Custom Range";
 
     // Future date range presets (for insights/forecasting)
     public const string NextMonth = "Next Month";

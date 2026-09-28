@@ -158,11 +158,22 @@ public partial class PastPredictionsModalViewModel : ViewModelBase
     [ObservableProperty]
     private ObservableCollection<ISeries> _accuracyChartSeries = [];
 
-    [ObservableProperty]
-    private Axis[] _accuracyChartXAxes = [new Axis()];
+    // Placeholder axes are made on first read, when the chart binds, not with the view model at
+    // launch: the first Axis starts up LiveCharts. The chart needs at least one axis per side.
+    private Axis[]? _accuracyChartXAxes;
+    private Axis[]? _accuracyChartYAxes;
 
-    [ObservableProperty]
-    private Axis[] _accuracyChartYAxes = [new Axis()];
+    public Axis[] AccuracyChartXAxes
+    {
+        get => _accuracyChartXAxes ??= [new Axis()];
+        set => SetProperty(ref _accuracyChartXAxes, value);
+    }
+
+    public Axis[] AccuracyChartYAxes
+    {
+        get => _accuracyChartYAxes ??= [new Axis()];
+        set => SetProperty(ref _accuracyChartYAxes, value);
+    }
 
     // Chart context menu properties
     [ObservableProperty]

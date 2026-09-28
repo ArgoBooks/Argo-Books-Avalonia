@@ -17,6 +17,19 @@ public sealed class FilterSnapshot<T>(T defaults, Func<T> read, Action<T> write)
 
     public bool HasChanges => !EqualityComparer<T>.Default.Equals(read(), _original);
 
+    /// <summary>How many of the current values differ from <see cref="Default"/>, shown on the Filter button.</summary>
+    public int ActiveCount
+    {
+        get
+        {
+            var current = read();
+            return typeof(T).GetProperties().Count(p => !Equals(Normalize(p.GetValue(current)), Normalize(p.GetValue(Default))));
+        }
+    }
+
+    // A text box that was typed in and emptied holds "" rather than null; neither filters anything.
+    private static object? Normalize(object? value) => value is string s && string.IsNullOrWhiteSpace(s) ? null : value;
+
     /// <summary>Records the current values as the ones to return to.</summary>
     public void Capture() => _original = read();
 

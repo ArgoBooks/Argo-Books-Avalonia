@@ -9,6 +9,7 @@ using ArgoBooks.Core.Models.Telemetry;
 using ArgoBooks.Core.Models.Transactions;
 using ArgoBooks.Core.Services;
 using ArgoBooks.Core.Services.InvoiceTemplates;
+using ArgoBooks.Core.Validation;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
 using ArgoBooks.Shared.Telemetry;
@@ -20,7 +21,7 @@ namespace ArgoBooks.ViewModels;
 /// <summary>
 /// ViewModel for the Quotes modals (Add/Edit, View, Filter, Send, Delete).
 /// </summary>
-public partial class QuotesModalsViewModel : ViewModelBase
+public partial class QuotesModalsViewModel : PaperDocumentEditorViewModelBase<QuoteLineViewModel>
 {
     /// <summary>The server caps the personal note at 500 characters; so does the box.</summary>
     public const int MaxPersonalMessageLength = 500;
@@ -63,20 +64,6 @@ public partial class QuotesModalsViewModel : ViewModelBase
     [ObservableProperty]
     private string _previewHtml = string.Empty;
 
-    /// <summary>
-    /// Preview mode renders the paper clean (no edit outlines, no add-line, no pickers) so the user
-    /// sees exactly what the customer gets before sending.
-    /// </summary>
-    [ObservableProperty]
-    private bool _isEditorPreviewing;
-
-    /// <summary>
-    /// True while a create-product / create-customer modal is open over the editor. The document
-    /// control draws above Avalonia content and would cover it, so it is hidden meanwhile.
-    /// </summary>
-    [ObservableProperty]
-    private bool _isNestedModalOpen;
-
     private string? _editingQuoteId;
 
     /// <summary>The currency the quote in the editor is priced in, which is not always the one
@@ -105,9 +92,6 @@ public partial class QuotesModalsViewModel : ViewModelBase
     }
 
     [ObservableProperty]
-    private CustomerOption? _selectedCustomer;
-
-    [ObservableProperty]
     private DateTimeOffset? _issueDate = new DateTimeOffset(DateTime.Today);
 
     /// <summary>
@@ -118,54 +102,10 @@ public partial class QuotesModalsViewModel : ViewModelBase
     private DateTimeOffset? _validUntil = new DateTimeOffset(DateTime.Today.AddDays(30));
 
     [ObservableProperty]
-    private InvoiceTemplate? _selectedTemplate;
-
-    [ObservableProperty]
-    private string _modalNotes = string.Empty;
-
-    // Totals fields, all edited directly in the totals block on the paper.
-    [ObservableProperty]
-    private decimal _taxRate;
-
-    [ObservableProperty]
-    private bool _taxIsFixed;
-
-    [ObservableProperty]
-    private decimal _shippingAmount;
-
-    [ObservableProperty]
-    private decimal _discountAmount;
-
-    [ObservableProperty]
-    private bool _discountIsPercent;
-
-    [ObservableProperty]
-    private string _customFeeLabel = string.Empty;
-
-    [ObservableProperty]
-    private decimal _customFeeAmount;
-
-    [ObservableProperty]
-    private bool _customFeeIsPercent;
-
-    [ObservableProperty]
     private string _validationMessage = string.Empty;
 
     [ObservableProperty]
     private bool _hasValidationMessage;
-
-    [ObservableProperty]
-    private bool _hasCustomerError;
-
-    /// <summary>Line items for the quote being written, edited in place on the paper.</summary>
-    public ObservableCollection<QuoteLineViewModel> LineItems { get; } = [];
-
-    public ObservableCollection<CustomerOption> CustomerOptions { get; } = [];
-
-    public ObservableCollection<ProductOption> ProductOptions { get; } = [];
-
-    /// <summary>The invoice templates, which quotes share so both documents look the same.</summary>
-    public ObservableCollection<InvoiceTemplate> TemplateOptions { get; } = [];
 
     /// <summary>The quote number for the paper: the existing one when editing, else the next.</summary>
     public string QuoteNumberDisplay
@@ -179,8 +119,7 @@ public partial class QuotesModalsViewModel : ViewModelBase
                 var existing = companyData.Quotes.FirstOrDefault(q => q.Id == _editingQuoteId);
                 if (existing != null) return existing.QuoteNumber;
             }
-            var next = companyData.IdCounters.Quote + 1;
-            return $"#QUO-{DateTime.UtcNow.Year}-{next:D5}";
+            return new IdGenerator(companyData).PeekNextQuoteNumber();
         }
     }
 
@@ -214,30 +153,8 @@ public partial class QuotesModalsViewModel : ViewModelBase
     /// <summary>True when the editor differs from what it opened with.</summary>
     public bool HasEditorChanges => IsEditMode && Capture() != _original;
 
-    partial void OnSelectedCustomerChanged(CustomerOption? value)
-    {
-        if (value != null && !string.IsNullOrEmpty(value.Id))
-            HasCustomerError = false;
-        RegeneratePaper();
-    }
-
-    partial void OnSelectedTemplateChanged(InvoiceTemplate? value) => RegeneratePaper();
     partial void OnIssueDateChanged(DateTimeOffset? value) => RegeneratePaper();
     partial void OnValidUntilChanged(DateTimeOffset? value) => RegeneratePaper();
-    // Tax, shipping, discount and fee amounts are typed straight into the paper, the same as a
-    // line's description or rate, so they must NOT re-render: rebuilding the page mid-keystroke
-    // recreates the field the caret is in and the next character goes nowhere. The paper keeps
-    // its own totals up to date as you type, and the figures are read back out of it on blur.
-    partial void OnTaxRateChanged(decimal value) { }
-    partial void OnShippingAmountChanged(decimal value) { }
-    partial void OnDiscountAmountChanged(decimal value) { }
-    partial void OnCustomFeeAmountChanged(decimal value) { }
-
-    // Percent against fixed is a click on the swap button, not typing, so a re-render is what
-    // puts the new symbol on the paper.
-    partial void OnTaxIsFixedChanged(bool value) => RegeneratePaper();
-    partial void OnDiscountIsPercentChanged(bool value) => RegeneratePaper();
-    partial void OnCustomFeeIsPercentChanged(bool value) => RegeneratePaper();
     partial void OnValidationMessageChanged(string value) => HasValidationMessage = !string.IsNullOrEmpty(value);
 
     // ---- Sending. The editor's preview step IS the send step: there is no second screen. ----
@@ -621,13 +538,13 @@ public partial class QuotesModalsViewModel : ViewModelBase
             $"Create quote '{quote.QuoteNumber}'",
             () =>
             {
-                companyData.Quotes.Remove(quote);
+                companyData.Quotes.RemoveRecord(quote);
                 companyData.MarkAsModified();
                 QuoteSaved?.Invoke(this, EventArgs.Empty);
             },
             () =>
             {
-                companyData.Quotes.Add(quote);
+                companyData.Quotes.RestoreRecord(quote);
                 companyData.MarkAsModified();
                 QuoteSaved?.Invoke(this, EventArgs.Empty);
             }));
@@ -783,7 +700,7 @@ public partial class QuotesModalsViewModel : ViewModelBase
         IsEditMode = false;
         _editingQuoteId = null;
         _original = null;
-        _paperLogo = null;
+        PaperLogo = null;
         SetEditorCurrency(null);
         SaveButtonText = "Save as draft";
         SendButtonText = "Send quote";
@@ -815,6 +732,21 @@ public partial class QuotesModalsViewModel : ViewModelBase
     }
 
     private void AddLineItem() => AddLine(new QuoteLineViewModel());
+
+    protected override void AddBlankLine() => AddLineItem();
+
+    protected override void RemoveLineAt(int index)
+    {
+        LineItems[index].PropertyChanged -= OnLinePropertyChanged;
+        LineItems.RemoveAt(index);
+    }
+
+    /// <summary>The paper gives its second date slot to the due date; on a quote that slot is the valid-until date.</summary>
+    protected override void ApplyPaperDate(string field, DateTimeOffset date)
+    {
+        if (field == "issueDate") IssueDate = date;
+        else if (field == "dueDate") ValidUntil = date;
+    }
 
     // Description, quantity and rate are typed straight into the page and must NOT re-render, that
     // would interrupt typing. Only a product pick (which rewrites two fields at once) re-renders,
@@ -855,32 +787,6 @@ public partial class QuotesModalsViewModel : ViewModelBase
         }
 
         RegeneratePaper();
-    }
-
-    private void LoadCustomerOptions() =>
-        OptionLoader.Fill(CustomerOptions,
-            OptionLoader.Customers(App.CompanyManager?.CompanyData).AsOptions<CustomerOption>());
-
-    private void LoadProductOptions()
-    {
-        ProductOptions.Clear();
-
-        var companyData = App.CompanyManager?.CompanyData;
-        if (companyData?.Products == null) return;
-
-        // Revenue products only: a quote offers something to a customer, not something bought.
-        foreach (var product in companyData.Products
-                     .Where(p => p.Type == CategoryType.Revenue)
-                     .OrderBy(p => p.Name))
-        {
-            ProductOptions.Add(new ProductOption
-            {
-                Id = product.Id,
-                Name = product.Name,
-                Description = product.Description,
-                UnitPrice = product.UnitPrice
-            });
-        }
     }
 
     private void LoadTemplateOptions()
@@ -926,7 +832,7 @@ public partial class QuotesModalsViewModel : ViewModelBase
     /// dates, template, totals modes, lines added or removed) call this. Text typed into a line or
     /// the notes must NOT, a reload would interrupt typing.
     /// </summary>
-    private void RegeneratePaper()
+    protected override void RegeneratePaper()
     {
         if (!IsEditorOpen) return;
 
@@ -980,87 +886,11 @@ public partial class QuotesModalsViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Applies a single edit made directly on the paper back into the editor state. Numbers parse
-    /// leniently, because the paper shows formatted, currency-prefixed values.
-    /// </summary>
-    public void ApplyPaperEdit(string field, int? index, string value)
-    {
-        switch (field)
-        {
-            case "notes":
-                // The paper falls back to the template's footer when the document has no notes of
-                // its own, so a commit handing that same text back is the fallback, not typing.
-                // Taking it would make an untouched document look edited and stop it following
-                // the template.
-                if (value != (SelectedTemplate?.FooterText ?? string.Empty))
-                    ModalNotes = value;
-                break;
-            case "description":
-                if (index is int di && di >= 0 && di < LineItems.Count)
-                    LineItems[di].Description = value;
-                break;
-            case "quantity":
-                if (index is int qi && qi >= 0 && qi < LineItems.Count && TryParsePaperNumber(value, out var q))
-                    LineItems[qi].Quantity = q;
-                break;
-            case "rate":
-                if (index is int ri && ri >= 0 && ri < LineItems.Count && TryParsePaperNumber(value, out var r))
-                    LineItems[ri].UnitPrice = r;
-                break;
-            // An empty box means the placeholder is showing, i.e. zero (not "leave unchanged").
-            case "taxValue":
-                if (string.IsNullOrWhiteSpace(value)) TaxRate = 0;
-                else if (TryParsePaperNumber(value, out var tax)) TaxRate = tax;
-                break;
-            case "shippingValue":
-                if (string.IsNullOrWhiteSpace(value)) ShippingAmount = 0;
-                else if (TryParsePaperNumber(value, out var ship)) ShippingAmount = ship;
-                break;
-            case "discountValue":
-                if (string.IsNullOrWhiteSpace(value)) DiscountAmount = 0;
-                else if (TryParsePaperNumber(value, out var disc)) DiscountAmount = disc;
-                break;
-            case "feeValue":
-                if (string.IsNullOrWhiteSpace(value)) CustomFeeAmount = 0;
-                else if (TryParsePaperNumber(value, out var fee)) CustomFeeAmount = fee;
-                break;
-        }
-    }
-
-    /// <summary>Toggles a totals field between percent and fixed from the paper's swap button.</summary>
-    public void ToggleTotalsMode(string which)
-    {
-        switch (which)
-        {
-            case "tax": TaxIsFixed = !TaxIsFixed; break;
-            case "discount": DiscountIsPercent = !DiscountIsPercent; break;
-            case "fee": CustomFeeIsPercent = !CustomFeeIsPercent; break;
-        }
-    }
-
-    // Pulls a number out of a value that may carry a currency symbol / thousands separators.
-    private static bool TryParsePaperNumber(string raw, out decimal result)
-    {
-        var cleaned = new string(raw.Where(c => char.IsDigit(c) || c == '.' || c == '-').ToArray());
-        return decimal.TryParse(cleaned, System.Globalization.NumberStyles.Number,
-            System.Globalization.CultureInfo.InvariantCulture, out result);
-    }
-
-    /// <summary>The product options, as JSON, for the line picker built inside the paper.</summary>
-    public string ProductsJson =>
-        System.Text.Json.JsonSerializer.Serialize(
-            ProductOptions.Select(p => new { id = p.Id, name = p.Name, price = p.UnitPrice }));
-
-    /// <summary>The customer options, as JSON, for the Bill To picker built inside the paper.</summary>
-    public string CustomersJson =>
-        System.Text.Json.JsonSerializer.Serialize(CustomerOptions.Select(c => new { id = c.Id, name = c.Name }));
-
-    /// <summary>
     /// Config the paper's live totals recompute needs. A quote asks for no money, so there is no
     /// deposit, nothing paid and no processing fee: the portal flags stay off and the amount-to-pay
     /// block the template would otherwise carry is not rendered at all.
     /// </summary>
-    public string TotalsConfigJson
+    public override string TotalsConfigJson
     {
         get
         {
@@ -1076,181 +906,6 @@ public partial class QuotesModalsViewModel : ViewModelBase
                 paid = 0m
             });
         }
-    }
-
-    /// <summary>Fills a line from the paper's product picker, then re-renders.</summary>
-    public void SelectProductForLine(int index, string productId)
-    {
-        if (index < 0 || index >= LineItems.Count) return;
-        var product = ProductOptions.FirstOrDefault(p => p.Id == productId);
-        if (product == null) return;
-        LineItems[index].SelectedProduct = product;
-        RegeneratePaper();
-    }
-
-    /// <summary>Opens the create-product modal from the paper picker's "create new".</summary>
-    public void CreateProductForLine(int index)
-    {
-        if (index < 0 || index >= LineItems.Count) return;
-        OpenCreateProduct(LineItems[index]);
-    }
-
-    /// <summary>Adds a blank line from the paper's "+ Add line item" and re-renders.</summary>
-    public void AddLineFromPaper()
-    {
-        AddLineItem();
-        RegeneratePaper();
-    }
-
-    /// <summary>Removes a line from the paper's "x" and re-renders (keeps at least one).</summary>
-    public void RemoveLineFromPaper(int index)
-    {
-        if (index < 0 || index >= LineItems.Count || LineItems.Count <= 1) return;
-        LineItems[index].PropertyChanged -= OnLinePropertyChanged;
-        LineItems.RemoveAt(index);
-        RegeneratePaper();
-    }
-
-    /// <summary>Selects a customer from the paper's Bill To picker; re-renders via the handler.</summary>
-    public void SelectCustomerFromPaper(string customerId)
-    {
-        var customer = CustomerOptions.FirstOrDefault(c => c.Id == customerId);
-        if (customer != null) SelectedCustomer = customer;
-    }
-
-    /// <summary>Opens the create-customer modal from the paper's Bill To picker.</summary>
-    public void CreateCustomerFromPaper() => OpenCreateCustomer();
-
-    /// <summary>
-    /// Sets a date from the paper's date editor (yyyy-MM-dd). The paper gives the second date slot
-    /// to the due date; on a quote that slot is the valid-until date.
-    /// </summary>
-    public void SetDateFromPaper(string field, string iso)
-    {
-        if (!DateTime.TryParse(iso, System.Globalization.CultureInfo.InvariantCulture,
-                System.Globalization.DateTimeStyles.None, out var date))
-            return;
-        var dto = new DateTimeOffset(date);
-        if (field == "issueDate") IssueDate = dto;
-        else if (field == "dueDate") ValidUntil = dto;
-    }
-
-    // The logo the user set on the paper this session. null = untouched; "" = explicitly removed.
-    private string? _paperLogo;
-
-    /// <summary>Sets the template's logo (raw base64) from the paper's logo click, re-rendering.</summary>
-    public void SetLogoFromPaper(string base64)
-    {
-        if (string.IsNullOrEmpty(base64)) return;
-        _paperLogo = base64;
-        ApplyPaperLogo();
-        RegeneratePaper();
-    }
-
-    /// <summary>Removes the logo when the user clicks the hover "x" on the paper, re-rendering.</summary>
-    public void DeleteLogoFromPaper()
-    {
-        _paperLogo = string.Empty;
-        ApplyPaperLogo();
-        RegeneratePaper();
-    }
-
-    // The logo is a single company-wide choice shared with invoices: apply it to every template so
-    // it shows on all of them and survives closing the editor, not just the selected one.
-    private void ApplyPaperLogo()
-    {
-        if (_paperLogo == null) return;
-        var remove = _paperLogo.Length == 0;
-        var companyData = App.CompanyManager?.CompanyData;
-        foreach (var template in TemplateOptions)
-        {
-            // Anything already sent under the outgoing logo keeps it.
-            if (companyData != null)
-                LogoHistory.RetireLogo(companyData, template, remove ? null : _paperLogo);
-
-            if (remove)
-            {
-                template.LogoBase64 = null;
-                template.ShowLogo = false;
-            }
-            else
-            {
-                template.LogoBase64 = _paperLogo;
-                template.LogoWidth = 150;
-                template.ShowLogo = true;
-            }
-        }
-        App.CompanyManager?.MarkAsChanged();
-    }
-
-    // One-shot handlers for the create-entity flows, detached before the next attempt so a
-    // cancelled create doesn't leak onto the singleton create-modal view models.
-    private EventHandler? _customerSavedHandler;
-    private EventHandler? _productSavedHandler;
-
-    // Hide the document control while a modal is open on top of it; restore when it closes. Only
-    // the named open flag is watched: opening a create modal resets its other fields first, and
-    // reacting to those would clear this before the modal is even shown.
-    private void HideWebViewWhileModalOpen(System.ComponentModel.INotifyPropertyChanged modalVm, string openFlagName, Func<bool> isOpen)
-    {
-        IsNestedModalOpen = true;
-        System.ComponentModel.PropertyChangedEventHandler? handler = null;
-        handler = (_, args) =>
-        {
-            if (args.PropertyName == openFlagName && !isOpen())
-            {
-                IsNestedModalOpen = false;
-                modalVm.PropertyChanged -= handler;
-            }
-        };
-        modalVm.PropertyChanged += handler;
-    }
-
-    [RelayCommand]
-    private void OpenCreateCustomer()
-    {
-        var customerModals = App.CustomerModalsViewModel;
-        if (customerModals == null) return;
-
-        CreateModalSubscription.RearmOnce(ref _customerSavedHandler,
-            h => customerModals.CustomerSaved += h,
-            h => customerModals.CustomerSaved -= h,
-            () =>
-            {
-                LoadCustomerOptions();
-                OnPropertyChanged(nameof(CustomersJson));
-
-                var newCustomer = CustomerOptions.FirstOrDefault(c => c.Id == customerModals.LastSavedCustomerId);
-                if (newCustomer != null)
-                    SelectedCustomer = newCustomer;
-            });
-        HideWebViewWhileModalOpen(customerModals, nameof(customerModals.IsAddModalOpen), () => customerModals.IsAddModalOpen);
-        customerModals.OpenAddModal();
-    }
-
-    private void OpenCreateProduct(QuoteLineViewModel? line)
-    {
-        var productModals = App.ProductModalsViewModel;
-        if (productModals == null) return;
-
-        CreateModalSubscription.RearmOnce(ref _productSavedHandler,
-            h => productModals.ProductSaved += h,
-            h => productModals.ProductSaved -= h,
-            () =>
-            {
-                LoadProductOptions();
-                OnPropertyChanged(nameof(ProductsJson));
-
-                if (line != null)
-                {
-                    var newProduct = ProductOptions.FirstOrDefault(p => p.Id == productModals.LastSavedProductId);
-                    if (newProduct != null)
-                        line.SelectedProduct = newProduct;
-                }
-                RegeneratePaper();
-            });
-        HideWebViewWhileModalOpen(productModals, nameof(productModals.IsAddModalOpen), () => productModals.IsAddModalOpen);
-        productModals.OpenAddModal();
     }
 
     #endregion
@@ -1321,7 +976,8 @@ public partial class QuotesModalsViewModel : ViewModelBase
         if (companyData == null) return;
 
         var recipient = SendRecipientEmail?.Trim() ?? string.Empty;
-        if (string.IsNullOrEmpty(recipient) || !recipient.Contains('@'))
+        var storedEmail = companyData.GetCustomer(SelectedCustomer?.Id ?? string.Empty)?.Email;
+        if (recipient.Length == 0 || !DataValidator.IsValidOrUnchangedEmail(recipient, storedEmail))
         {
             SendError = "Please enter a valid recipient email address.".Translate();
             return;
@@ -1464,7 +1120,7 @@ public partial class QuotesModalsViewModel : ViewModelBase
         var portalService = PortalSettings.IsConfigured ? App.PaymentPortalService : null;
         if (portalService == null)
         {
-            await App.ShowInfoMessageBoxAsync(
+            await App.ShowInfoDialogAsync(
                 "Payment portal not connected".Translate(),
                 "Connect the payment portal in Settings to send quotes.".Translate());
             return;
@@ -1474,7 +1130,7 @@ public partial class QuotesModalsViewModel : ViewModelBase
         var recipient = customer?.Email?.Trim() ?? string.Empty;
         if (string.IsNullOrWhiteSpace(recipient))
         {
-            await App.ShowErrorMessageBoxAsync(
+            await App.ShowErrorDialogAsync(
                 "No email address".Translate(),
                 "This quote's customer has no email address, so there is nowhere to send it.".Translate());
             return;
@@ -1506,14 +1162,14 @@ public partial class QuotesModalsViewModel : ViewModelBase
                     QuoteSaved?.Invoke(this, EventArgs.Empty);
                 }
 
-                await App.ShowErrorMessageBoxAsync(
+                await App.ShowErrorDialogAsync(
                     "Failed to resend quote".Translate(), SendFailureMessage(response));
                 return;
             }
 
             if (IsForeignAnswer(quote, response))
             {
-                await App.ShowErrorMessageBoxAsync(
+                await App.ShowErrorDialogAsync(
                     "Failed to resend quote".Translate(), ForeignAnswerMessage(quote));
                 return;
             }
@@ -1525,17 +1181,17 @@ public partial class QuotesModalsViewModel : ViewModelBase
 
             // ApplySendResult writes the wording, so a resend and a send from the editor say the
             // same thing, including when the server reports an answer instead of a send.
-            await App.ShowInfoMessageBoxAsync(SendSuccessTitle, SendSuccessDetail);
+            await App.ShowInfoDialogAsync(SendSuccessTitle, SendSuccessDetail);
         }
         catch (ServerRateLimitedException ex)
         {
             // The server's own wording says how long the wait is; a generic failure doesn't.
-            await App.ShowErrorMessageBoxAsync("Failed to resend quote".Translate(), ex.Message);
+            await App.ShowErrorDialogAsync("Failed to resend quote".Translate(), ex.Message);
         }
         catch (Exception ex)
         {
             App.ErrorLogger?.LogError(ex, ErrorCategory.Validation, "Quote.Resend");
-            await App.ShowErrorMessageBoxAsync("Failed to resend quote".Translate(), ex.Message);
+            await App.ShowErrorDialogAsync("Failed to resend quote".Translate(), ex.Message);
         }
         finally
         {
@@ -1791,9 +1447,13 @@ public partial class QuotesModalsViewModel : ViewModelBase
             CloseFilterModal();
     }
 
+    /// <summary>How many filters are applied, for the page's Filter button.</summary>
+    public int ActiveFilterCount { get; private set; }
+
     [RelayCommand]
     private void ApplyFilters()
     {
+        ActiveFilterCount = Filters.ActiveCount;
         FiltersApplied?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
     }
@@ -1802,6 +1462,7 @@ public partial class QuotesModalsViewModel : ViewModelBase
     private void ClearFilters()
     {
         Filters.Reset();
+        ActiveFilterCount = 0;
         FiltersCleared?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
     }
@@ -1819,7 +1480,7 @@ public partial class QuotesModalsViewModel : ViewModelBase
 /// A line on the quote paper. Quantity and price are nullable so a line the user has not touched
 /// renders as an empty box rather than a "0" they have to clear.
 /// </summary>
-public partial class QuoteLineViewModel : ObservableObject
+public partial class QuoteLineViewModel : ObservableObject, IPaperLine
 {
     /// <summary>The product this line came from, null when the line is typed freehand.</summary>
     [ObservableProperty]

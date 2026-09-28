@@ -28,7 +28,6 @@
     <Color x:Key="WarningLightColor">#FEF3C7</Color>
     <Color x:Key="WarningDarkColor">#D97706</Color>
     <Color x:Key="WarningTextColor">#000000</Color>
-    <Color x:Key="WarningTextLightColor">#A16207</Color>
 
     <!-- Semantic Colors - Error/Danger -->
     <Color x:Key="ErrorColor">#DC2626</Color>
@@ -43,7 +42,6 @@
     <Color x:Key="InfoTextColor">#0C4A6E</Color>
 
     <!-- Semantic Colors - Purple (for categories/special) -->
-    <Color x:Key="PurpleColor">#A855F7</Color>
     <Color x:Key="PurpleLightColor">#F3E8FF</Color>
     <Color x:Key="PurpleDarkColor">#9333EA</Color>
 
@@ -75,7 +73,6 @@
     <SolidColorBrush x:Key="WarningLightBrush" Color="{StaticResource WarningLightColor}" />
     <SolidColorBrush x:Key="WarningDarkBrush" Color="{StaticResource WarningDarkColor}" />
     <SolidColorBrush x:Key="WarningTextBrush" Color="{StaticResource WarningTextColor}" />
-    <SolidColorBrush x:Key="WarningTextLightBrush" Color="{StaticResource WarningTextLightColor}" />
 
     <SolidColorBrush x:Key="ErrorBrush" Color="{StaticResource ErrorColor}" />
     <SolidColorBrush x:Key="ErrorLightBrush" Color="{StaticResource ErrorLightColor}" />
@@ -84,7 +81,6 @@
 
     <!-- Danger aliases (same as Error) -->
     <SolidColorBrush x:Key="DangerBrush" Color="{StaticResource ErrorColor}" />
-    <SolidColorBrush x:Key="DangerLightBrush" Color="{StaticResource ErrorLightColor}" />
     <SolidColorBrush x:Key="DangerDarkBrush" Color="{StaticResource ErrorDarkColor}" />
 
     <SolidColorBrush x:Key="InfoBrush" Color="{StaticResource InfoColor}" />
@@ -93,7 +89,6 @@
     <SolidColorBrush x:Key="InfoTextBrush" Color="{StaticResource InfoTextColor}" />
 
     <!-- Purple Brushes -->
-    <SolidColorBrush x:Key="PurpleBrush" Color="{StaticResource PurpleColor}" />
     <SolidColorBrush x:Key="PurpleLightBrush" Color="{StaticResource PurpleLightColor}" />
     <SolidColorBrush x:Key="PurpleDarkBrush" Color="{StaticResource PurpleDarkColor}" />
 

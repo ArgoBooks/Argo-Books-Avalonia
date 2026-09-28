@@ -80,12 +80,13 @@ public class OperationTimingServiceTests : IDisposable
         // Seed receipt p50 is 9000; consistently ~18000 trains calibration toward ~2x.
         for (int i = 0; i < 30; i++)
             first.RecordResult(OperationKind.ReceiptScan, serverComputeMs: 18000, totalWallClockMs: 18500);
-        Assert.True(first.Estimator.UserCalibration > 1.5);
+        var trained = first.Estimate(OperationKind.ReceiptScan).ComputeMs;
+        Assert.True(trained > 9000 * 1.5);
 
         // A fresh instance over the same app-data dir loads the saved calibration on init.
         var second = new OperationTimingService(_platform, new HttpClient(new StubHandler(HttpStatusCode.OK, "{}")));
         await second.InitializeAsync();
-        Assert.InRange(second.Estimator.UserCalibration, first.Estimator.UserCalibration - 0.01, first.Estimator.UserCalibration + 0.01);
+        Assert.InRange(second.Estimate(OperationKind.ReceiptScan).ComputeMs, trained * 0.99, trained * 1.01);
     }
 
     [Fact]
@@ -116,9 +117,6 @@ public class OperationTimingServiceTests : IDisposable
         public void LogInfo(string message) { }
         public void LogDebug(string message) { }
         public IReadOnlyList<ErrorLogEntry> GetRecentErrors(int count = 50) => [];
-        public IReadOnlyList<ErrorLogEntry> GetAllErrors() => [];
-        public Task<string> ExportErrorLogAsync() => Task.FromResult(string.Empty);
-        public void ClearLogs() { }
         public event EventHandler<ErrorLogEntry>? ErrorLogged { add { } remove { } }
     }
 
@@ -139,8 +137,6 @@ public class OperationTimingServiceTests : IDisposable
         public PlatformType Platform => PlatformType.Linux;
         public string GetAppDataPath() => appDataPath;
         public string GetTempPath() => Path.Combine(appDataPath, "temp");
-        public string GetDefaultDocumentsPath() => Path.Combine(appDataPath, "docs");
-        public string GetLogsPath() => Path.Combine(appDataPath, "logs");
         public string GetCachePath() => Path.Combine(appDataPath, "cache");
         public void EnsureDirectoryExists(string path)
         {
@@ -161,7 +157,6 @@ public class OperationTimingServiceTests : IDisposable
         public string NormalizePath(string path) => path;
         public string CombinePaths(params string[] paths) => Path.Combine(paths);
         public string GetMachineId() => "test-machine-id";
-        public void RegisterFileTypeAssociations(string iconPath) { }
         public StringComparer PathComparer => StringComparer.Ordinal;
     }
 }

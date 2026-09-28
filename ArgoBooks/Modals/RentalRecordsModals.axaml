@@ -407,6 +407,7 @@
 
                             <!-- Mark as Paid -->
                             <CheckBox IsChecked="{Binding ReturnMarkAsPaid}"
+                                      IsVisible="{Binding !ReturnIsInvoiced}"
                                       Content="{loc:Loc 'Mark as Paid'}"
                                       FontSize="13"
                                       Margin="0,4,0,0" />

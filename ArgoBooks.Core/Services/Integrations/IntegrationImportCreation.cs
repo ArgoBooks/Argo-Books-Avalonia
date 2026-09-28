@@ -22,8 +22,8 @@ public abstract class IntegrationImportCreation
     public DateTime? PreviousSyncTime { get; set; }
     public DateTime? NewSyncTime { get; set; }
 
-    public CounterSnapshot Pre { get; set; }
-    public CounterSnapshot Post { get; set; }
+    public IdCounters Pre { get; set; } = new();
+    public IdCounters Post { get; set; } = new();
 
     public int RevenuesCreated => Revenues.Count;
     public int ExpensesCreated => Expenses.Count;
@@ -49,16 +49,16 @@ public abstract class IntegrationImportCreation
     public void Undo(CompanyData data)
     {
         InventoryStockService.Revert(data, StockChanges);
-        foreach (var r in Revenues) data.Revenues.Remove(r);
-        foreach (var e in Expenses) data.Expenses.Remove(e);
+        foreach (var r in Revenues) data.Revenues.RemoveRecord(r);
+        foreach (var e in Expenses) data.Expenses.RemoveRecord(e);
         foreach (var ent in Entities)
         {
-            if (ent is Customer c) data.Customers.Remove(c);
-            else if (ent is Supplier s) data.Suppliers.Remove(s);
-            else if (ent is Product p) data.Products.Remove(p);
-            else if (ent is Category cat) data.Categories.Remove(cat);
+            if (ent is Customer c) data.Customers.RemoveRecord(c);
+            else if (ent is Supplier s) data.Suppliers.RemoveRecord(s);
+            else if (ent is Product p) data.Products.RemoveRecord(p);
+            else if (ent is Category cat) data.Categories.RemoveRecord(cat);
         }
-        foreach (var ret in Returns) data.Returns.Remove(ret);
+        foreach (var ret in Returns) data.Returns.RemoveRecord(ret);
 
         // The rows are gone, so their queued currency conversions have nothing left
         // to convert. Nothing else prunes those: the reconcile pass only drops an
@@ -67,7 +67,7 @@ public abstract class IntegrationImportCreation
         ForgetPendingConversions(data);
         UndoIntegrationState(data);
 
-        Pre.RewindTo(data.IdCounters, Post);
+        data.IdCounters.RewindTo(Pre, Post);
         data.MarkAsModified();
     }
 
@@ -77,19 +77,23 @@ public abstract class IntegrationImportCreation
         // the other order would briefly leave dangling ids for anything watching.
         foreach (var ent in Entities)
         {
-            if (ent is Customer c && !data.Customers.Contains(c)) data.Customers.Add(c);
-            else if (ent is Supplier s && !data.Suppliers.Contains(s)) data.Suppliers.Add(s);
-            else if (ent is Product p && !data.Products.Contains(p)) data.Products.Add(p);
-            else if (ent is Category cat && !data.Categories.Contains(cat)) data.Categories.Add(cat);
+            if (ent is Customer c) data.Customers.RestoreRecord(c);
+            else if (ent is Supplier s) data.Suppliers.RestoreRecord(s);
+            else if (ent is Product p) data.Products.RestoreRecord(p);
+            else if (ent is Category cat) data.Categories.RestoreRecord(cat);
         }
-        foreach (var r in Revenues) if (!data.Revenues.Contains(r)) data.Revenues.Add(r);
-        foreach (var e in Expenses) if (!data.Expenses.Contains(e)) data.Expenses.Add(e);
+        foreach (var r in Revenues) data.Revenues.RestoreRecord(r);
+        foreach (var e in Expenses) data.Expenses.RestoreRecord(e);
+
+        // A row converted before the undo already has its USD figure, so only still-pending rows requeue.
+        foreach (var r in Revenues) UsdConversion.Requeue(data, r);
+        foreach (var e in Expenses) UsdConversion.Requeue(data, e);
         ApplyStock(data);
-        foreach (var ret in Returns) if (!data.Returns.Contains(ret)) data.Returns.Add(ret);
+        foreach (var ret in Returns) data.Returns.RestoreRecord(ret);
 
         RedoIntegrationState(data);
 
-        Post.RaiseTo(data.IdCounters);
+        data.IdCounters.RaiseTo(Post);
         data.MarkAsModified();
     }
 
@@ -100,45 +104,6 @@ public abstract class IntegrationImportCreation
     protected abstract void RedoIntegrationState(CompanyData data);
 
     /// <summary>
-    /// Snapshot of the id counters an integration import can bump, so undo/redo can put them back.
-    /// A counter an import never touches is the same before and after, so undo and redo leave it be.
-    /// </summary>
-    public readonly record struct CounterSnapshot(
-        int Revenue, int Expense, int Customer, int Supplier, int Product, int Category, int Return)
-    {
-        public static CounterSnapshot From(IdCounters c) =>
-            new(c.Revenue, c.Expense, c.Customer, c.Supplier, c.Product, c.Category, c.Return);
-
-        /// <summary>
-        /// Back to this snapshot, but only for a counter still where the import left it. One that
-        /// has moved on issued an id to a record the undo does not remove, and lowering it would
-        /// issue that id again.
-        /// </summary>
-        public void RewindTo(IdCounters c, CounterSnapshot post)
-        {
-            if (c.Revenue == post.Revenue) c.Revenue = Revenue;
-            if (c.Expense == post.Expense) c.Expense = Expense;
-            if (c.Customer == post.Customer) c.Customer = Customer;
-            if (c.Supplier == post.Supplier) c.Supplier = Supplier;
-            if (c.Product == post.Product) c.Product = Product;
-            if (c.Category == post.Category) c.Category = Category;
-            if (c.Return == post.Return) c.Return = Return;
-        }
-
-        /// <summary>Up to this snapshot, never down: an id issued while the import was undone stays issued.</summary>
-        public void RaiseTo(IdCounters c)
-        {
-            c.Revenue = Math.Max(c.Revenue, Revenue);
-            c.Expense = Math.Max(c.Expense, Expense);
-            c.Customer = Math.Max(c.Customer, Customer);
-            c.Supplier = Math.Max(c.Supplier, Supplier);
-            c.Product = Math.Max(c.Product, Product);
-            c.Category = Math.Max(c.Category, Category);
-            c.Return = Math.Max(c.Return, Return);
-        }
-    }
-
-    /// <summary>
     /// Withdraw the currency-conversion entries this import queued, from the company
     /// file and from the shared queue behind it. Both, because the service merges its
     /// own copy back into whichever company is open, so clearing one alone lets the
@@ -146,16 +111,9 @@ public abstract class IntegrationImportCreation
     /// </summary>
     private void ForgetPendingConversions(CompanyData data)
     {
-        var ids = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var r in Revenues) ids.Add(r.Id);
-        foreach (var e in Expenses) ids.Add(e.Id);
-        if (ids.Count == 0) return;
+        var keys = Revenues.Select(UsdConversion.KeyOf).Concat(Expenses.Select(UsdConversion.KeyOf)).ToList();
+        if (keys.Count == 0) return;
 
-        data.PendingConversions.RemoveAll(p => ids.Contains(p.TransactionId));
-
-        // Fire and forget: it only writes a cache file, and failing to prune it must
-        // never block an undo the user has already seen happen.
-        if (PendingConversionService.Instance is { } svc)
-            _ = svc.ForgetAsync(ids);
+        UsdConversion.Restore(data, keys, []);
     }
 }

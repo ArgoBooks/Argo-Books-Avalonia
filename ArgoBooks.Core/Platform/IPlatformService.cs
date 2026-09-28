@@ -25,16 +25,6 @@ public interface IPlatformService
     string GetTempPath();
 
     /// <summary>
-    /// Gets the default directory for saving new company files.
-    /// </summary>
-    string GetDefaultDocumentsPath();
-
-    /// <summary>
-    /// Gets the path for crash logs and diagnostics.
-    /// </summary>
-    string GetLogsPath();
-
-    /// <summary>
     /// Gets the path for cached data (can be cleared without data loss).
     /// </summary>
     string GetCachePath();
@@ -139,13 +129,6 @@ public interface IPlatformService
     /// </remarks>
     /// <returns>A stable machine identifier string.</returns>
     string GetMachineId();
-
-    /// <summary>
-    /// Registers file type associations for the platform.
-    /// On Windows, this sets up the .argo file extension with the app icon.
-    /// </summary>
-    /// <param name="iconPath">Path to the application icon file.</param>
-    void RegisterFileTypeAssociations(string iconPath);
 
     /// <summary>
     /// Gets the string comparer appropriate for file paths on this platform.

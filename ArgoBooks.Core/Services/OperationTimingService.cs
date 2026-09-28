@@ -30,9 +30,6 @@ public sealed class OperationTimingService
     /// <summary>Singleton instance, set on first construction.</summary>
     public static OperationTimingService? Instance { get; private set; }
 
-    /// <summary>The estimator used to produce progress estimates.</summary>
-    public OperationEstimator Estimator => _estimator;
-
     public OperationTimingService(IErrorLogger? errorLogger = null)
         : this(PlatformServiceFactory.GetPlatformService(), new HttpClient { Timeout = TimeSpan.FromSeconds(20) }, errorLogger)
     {

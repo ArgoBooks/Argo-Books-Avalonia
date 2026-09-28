@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
+using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Models.Payroll;
 using ArgoBooks.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -205,8 +206,9 @@ public partial class PayrollModalsViewModel : ViewModelBase
     /// </param>
     public PayrollModalsViewModel(Core.Services.PayrollRateService? rates = null)
     {
+        // The province list is filled when the employee modal opens, not here: reading it parses
+        // the payroll rate editions, which launch has no use for.
         _rates = rates ?? new Core.Services.PayrollRateService();
-        RefreshSupportedProvinces();
     }
 
     /// <summary>Event raised after a save, so the page can reload.</summary>
@@ -421,7 +423,7 @@ public partial class PayrollModalsViewModel : ViewModelBase
     {
         var employee = new Employee
         {
-            Id = NextId(data),
+            Id = new Core.Data.IdGenerator(data).NextEmployeeId(),
             CreatedAt = DateTime.UtcNow,
         };
 
@@ -432,13 +434,13 @@ public partial class PayrollModalsViewModel : ViewModelBase
             $"Add employee '{employee.Name}'",
             () =>
             {
-                data.Employees.Remove(employee);
+                data.Employees.RemoveRecord(employee);
                 App.CompanyManager?.MarkAsChanged();
                 EmployeeSaved?.Invoke(this, EventArgs.Empty);
             },
             () =>
             {
-                data.Employees.Add(employee);
+                data.Employees.RestoreRecord(employee);
                 App.CompanyManager?.MarkAsChanged();
                 EmployeeSaved?.Invoke(this, EventArgs.Empty);
             }));
@@ -657,9 +659,13 @@ public partial class PayrollModalsViewModel : ViewModelBase
 
     private void CloseFilterModal() => IsFilterModalOpen = false;
 
+    /// <summary>How many filters are applied, for the page's Filter button.</summary>
+    public int ActiveFilterCount { get; private set; }
+
     [RelayCommand]
     public void ApplyFilters()
     {
+        ActiveFilterCount = Filters.ActiveCount;
         FiltersApplied?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
     }
@@ -668,6 +674,7 @@ public partial class PayrollModalsViewModel : ViewModelBase
     public void ClearFilters()
     {
         Filters.Reset();
+        ActiveFilterCount = 0;
         FiltersCleared?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
     }
@@ -718,21 +725,6 @@ public partial class PayrollModalsViewModel : ViewModelBase
         {
             Province = SupportedProvinces[0];
         }
-    }
-
-    private static string NextId(Core.Data.CompanyData data)
-    {
-        int highest = 0;
-        foreach (Employee e in data.Employees)
-        {
-            if (e.Id.StartsWith("EMP-", StringComparison.OrdinalIgnoreCase)
-                && int.TryParse(e.Id[4..], out int n) && n > highest)
-            {
-                highest = n;
-            }
-        }
-
-        return $"EMP-{highest + 1:D3}";
     }
 
     /// <summary>Blank rather than "0.00", so an unset optional amount shows its placeholder.</summary>

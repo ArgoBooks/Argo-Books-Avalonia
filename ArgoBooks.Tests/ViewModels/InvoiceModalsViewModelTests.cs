@@ -169,17 +169,17 @@ public class InvoiceModalsViewModelTests : ModalViewModelTestBase
         var priorPortal = portal.GetValue(null);
         portal.SetValue(null, service);
 
-        var hadKey = DotEnv.HasValue(PortalSettings.ApiKeyEnvVar);
-        var priorKey = DotEnv.Get(PortalSettings.ApiKeyEnvVar);
-        DotEnv.SetInMemory(PortalSettings.ApiKeyEnvVar, "test-key");
+        var hadKey = PortalSettings.IsConfigured;
+        var priorKey = PortalSettings.ApiKey;
+        PortalSettings.SetActiveApiKey("test-key");
 
         return new Restore(() =>
         {
             portal.SetValue(null, priorPortal);
             if (hadKey)
-                DotEnv.SetInMemory(PortalSettings.ApiKeyEnvVar, priorKey);
+                PortalSettings.SetActiveApiKey(priorKey);
             else
-                DotEnv.Unset(PortalSettings.ApiKeyEnvVar);
+                PortalSettings.DeactivateApiKey();
             service.Dispose();
         });
     }

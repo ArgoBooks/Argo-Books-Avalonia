@@ -39,9 +39,23 @@ public class ArgoApiImporter
     private IReadOnlyDictionary<string, ArgoExternalRef> _external =
         new Dictionary<string, ArgoExternalRef>();
 
+    /// <summary>The ids taken for each record type, built once per import rather than once per record.</summary>
+    private sealed class TakenIds(CompanyData data)
+    {
+        public readonly HashSet<string> Customers = IdGenerator.TakenSet(data.Customers.Select(c => c.Id));
+        public readonly HashSet<string> Suppliers = IdGenerator.TakenSet(data.Suppliers.Select(s => s.Id));
+        public readonly HashSet<string> Products = IdGenerator.TakenSet(data.Products.Select(p => p.Id));
+        public readonly HashSet<string> Expenses = IdGenerator.TakenSet(data.Expenses.Select(e => e.Id));
+        public readonly HashSet<string> Revenues = IdGenerator.TakenSet(data.Revenues.Select(r => r.Id));
+        public readonly HashSet<string> Returns = IdGenerator.TakenSet(data.Returns.Select(r => r.Id));
+    }
+
+    private TakenIds _taken = null!;
+
     public void Import(CompanyData data, ArgoApiSyncPreview preview, ArgoApiImportCreation creation)
     {
         _external = preview.ExternalRefs;
+        _taken = new TakenIds(data);
 
         foreach (var c in preview.Categories) ImportCategory(data, c, creation);
         foreach (var c in preview.Customers) ImportCustomer(data, c, creation);
@@ -114,7 +128,7 @@ public class ArgoApiImporter
 
         var customer = new Customer
         {
-            Id = new IdGenerator(data).NextCustomerId(),
+            Id = new IdGenerator(data).NextCustomerId(_taken.Customers),
             Name = api.Name,
             Email = api.Email ?? string.Empty,
             Phone = api.Phone ?? string.Empty
@@ -138,7 +152,7 @@ public class ArgoApiImporter
 
         var supplier = new Supplier
         {
-            Id = new IdGenerator(data).NextSupplierId(),
+            Id = new IdGenerator(data).NextSupplierId(_taken.Suppliers),
             Name = api.Name,
             Email = api.Email ?? string.Empty,
             Phone = api.Phone ?? string.Empty,
@@ -171,7 +185,7 @@ public class ArgoApiImporter
 
         var product = new Product
         {
-            Id = new IdGenerator(data).NextProductId(),
+            Id = new IdGenerator(data).NextProductId(_taken.Products),
             Name = api.Name,
             CategoryId = categoryId,
             Type = productType,
@@ -193,14 +207,15 @@ public class ArgoApiImporter
 
         var expense = new Expense
         {
-            Id = new IdGenerator(data).NextExpenseId(date),
+            Id = new IdGenerator(data).NextExpenseId(date, _taken.Expenses),
             Date = date,
             Description = api.Description,
             SupplierId = ResolveRef(data, _suppliers, api.Supplier, MatchSupplier),
             Quantity = 1,
             UnitPrice = subtotal,
             Amount = subtotal,
-            TaxRate = subtotal > 0 ? tax / subtotal : 0m,
+            // Transaction.TaxRate is a percentage (8 for 8%).
+            TaxRate = subtotal > 0 ? tax / subtotal * 100m : 0m,
             TaxAmount = tax,
             Total = total,
             // The API id, so a repeat push of the same object is recognisable in
@@ -208,9 +223,10 @@ public class ArgoApiImporter
             ReferenceNumber = string.IsNullOrWhiteSpace(api.Reference) ? api.Id : api.Reference!,
             Notes = BuildNotes(api.Notes, api.Id),
             OriginalCurrency = currency,
-            LineItems = BuildLineItems(data, api.LineItems, currency, api.Description, subtotal, tax)
+            LineItems = BuildLineItems(data, api.LineItems, currency, api.Description, subtotal, tax, subtotal)
         };
-        IntegrationRates.ApplyUsdAmounts(expense, currency, data);
+        expense.OriginalCurrency = currency;
+        UsdConversion.Apply(data, expense, UsdConversion.CachedRate(currency, expense.Date));
 
         data.Expenses.Add(expense);
         creation.Expenses.Add(expense);
@@ -224,12 +240,15 @@ public class ArgoApiImporter
         var tax = ArgoMoney.ToDecimal(api.TaxAmount, currency);
         var discount = ArgoMoney.ToDecimal(api.DiscountAmount, currency);
         var fee = ArgoMoney.ToDecimal(api.FeeAmount, currency);
-        var subtotal = total - tax;
+        // Amount is what was charged after the discount. Subtotal is before it, as on every
+        // transaction (Total = Subtotal − Discount + Tax).
+        var subtotal = total - tax + discount;
+        var taxableBase = subtotal - discount;
         var date = ParseDate(api.OccurredOn);
 
         var revenue = new Revenue
         {
-            Id = new IdGenerator(data).NextRevenueId(date),
+            Id = new IdGenerator(data).NextRevenueId(date, _taken.Revenues),
             Date = date,
             Description = api.Description,
             CustomerId = ResolveRef(data, _customers, api.Customer, MatchCustomer) ?? string.Empty,
@@ -237,7 +256,7 @@ public class ArgoApiImporter
             UnitPrice = subtotal,
             Amount = subtotal,
             Subtotal = subtotal,
-            TaxRate = subtotal > 0 ? tax / subtotal : 0m,
+            TaxRate = taxableBase > 0 ? tax / taxableBase * 100m : 0m,
             TaxAmount = tax,
             Discount = discount,
             Total = total,
@@ -245,9 +264,10 @@ public class ArgoApiImporter
             Notes = BuildNotes(api.Notes, api.Id),
             OriginalCurrency = currency,
             PaymentStatus = RevenuePaymentStatus.Paid,
-            LineItems = BuildLineItems(data, api.LineItems, currency, api.Description, subtotal, tax)
+            LineItems = BuildLineItems(data, api.LineItems, currency, api.Description, subtotal, tax, taxableBase)
         };
-        IntegrationRates.ApplyUsdAmounts(revenue, currency, data);
+        revenue.OriginalCurrency = currency;
+        UsdConversion.Apply(data, revenue, UsdConversion.CachedRate(currency, revenue.Date));
 
         data.Revenues.Add(revenue);
         creation.Revenues.Add(revenue);
@@ -261,7 +281,7 @@ public class ArgoApiImporter
         {
             var feeExpense = new Expense
             {
-                Id = new IdGenerator(data).NextExpenseId(date),
+                Id = new IdGenerator(data).NextExpenseId(date, _taken.Expenses),
                 Date = date,
                 Description = "Processing fee",
                 Quantity = 1,
@@ -272,7 +292,8 @@ public class ArgoApiImporter
                 Notes = $"Processing fee for {revenue.Id} (Argo Books API {api.Id})",
                 OriginalCurrency = currency
             };
-            IntegrationRates.ApplyUsdAmounts(feeExpense, currency, data);
+            feeExpense.OriginalCurrency = currency;
+            UsdConversion.Apply(data, feeExpense, UsdConversion.CachedRate(currency, feeExpense.Date));
             data.Expenses.Add(feeExpense);
             creation.Expenses.Add(feeExpense);
         }
@@ -303,7 +324,7 @@ public class ArgoApiImporter
             var date = ParseDate(api.OccurredOn);
             var expense = new Expense
             {
-                Id = new IdGenerator(data).NextExpenseId(date),
+                Id = new IdGenerator(data).NextExpenseId(date, _taken.Expenses),
                 Date = date,
                 Description = string.IsNullOrWhiteSpace(api.Reason) ? "Refund" : $"Refund: {api.Reason}",
                 Quantity = 1,
@@ -314,17 +335,17 @@ public class ArgoApiImporter
                 Notes = $"Refund imported from the Argo Books API for {api.Revenue}, with no matching sale in this company.",
                 OriginalCurrency = currency
             };
-            IntegrationRates.ApplyUsdAmounts(expense, currency, data);
+            expense.OriginalCurrency = currency;
+            UsdConversion.Apply(data, expense, UsdConversion.CachedRate(currency, expense.Date));
             data.Expenses.Add(expense);
             creation.Expenses.Add(expense);
             Claim(creation, api.Id, expense.Id);
             return;
         }
 
-        data.IdCounters.Return++;
         var ret = new Return
         {
-            Id = $"RET-{data.IdCounters.Return:D3}",
+            Id = new IdGenerator(data).NextReturnId(_taken.Returns),
             OriginalTransactionId = revenue.Id,
             ReturnType = "Customer",
             CustomerId = revenue.CustomerId ?? string.Empty,
@@ -347,7 +368,7 @@ public class ArgoApiImporter
     /// </summary>
     private List<LineItem> BuildLineItems(
         CompanyData data, List<ArgoLineItem>? items, string currency, string fallbackDescription,
-        decimal subtotal, decimal tax)
+        decimal subtotal, decimal tax, decimal taxableBase)
     {
         if (items == null || items.Count == 0)
         {
@@ -358,7 +379,7 @@ public class ArgoApiImporter
                     Description = fallbackDescription,
                     Quantity = 1,
                     UnitPrice = subtotal,
-                    TaxRate = subtotal > 0 ? tax / subtotal : 0m
+                    TaxRate = taxableBase > 0 ? tax / taxableBase : 0m
                 }
             ];
         }

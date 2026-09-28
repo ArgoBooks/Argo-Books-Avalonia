@@ -294,7 +294,7 @@ public class SampleCompanyServiceTests
 
         Assert.NotNull(path);
         Assert.EndsWith(".argo", path);
-        Assert.Contains("SampleCompany", path);
+        Assert.Contains("Sample Company", path);
     }
 
     [Fact]

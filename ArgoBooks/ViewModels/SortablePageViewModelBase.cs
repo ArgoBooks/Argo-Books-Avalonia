@@ -111,6 +111,24 @@ public abstract partial class SortablePageViewModelBase : ViewModelBase, ICleanu
 
     #endregion
 
+    #region Filter indicator
+
+    /// <summary>
+    /// How many filters from the page's filter modal are applied, so the table can show that some
+    /// rows are hidden. Set from the modal when its filters are applied or cleared.
+    /// </summary>
+    [ObservableProperty]
+    private int _activeFilterCount;
+
+    private RelayCommand? _clearTableFiltersCommand;
+
+    /// <summary>The table's "clear filters" button: the same as Clear in the page's filter modal.</summary>
+    public ICommand ClearTableFiltersCommand => _clearTableFiltersCommand ??= new RelayCommand(ClearTableFilters);
+
+    protected virtual void ClearTableFilters() { }
+
+    #endregion
+
     #region Sorting
 
     [ObservableProperty]

@@ -60,6 +60,8 @@
                                  SearchQuery="{Binding SearchQuery, Mode=TwoWay}"
                                  SearchPlaceholder="{loc:Loc 'Search quotes...'}"
                                  FilterCommand="{Binding OpenFilterModalCommand}"
+                                 FilterCount="{Binding ActiveFilterCount}"
+                                 ClearFiltersCommand="{Binding ClearTableFiltersCommand}"
                                  AddCommand="{Binding OpenAddModalCommand}"
                                  AddButtonText="{loc:Loc 'New Quote'}"
                                  AddButtonTooltip="{loc:Loc 'New Quote'}"
@@ -94,7 +96,7 @@
 
                     <table:ArgoTable.HeaderContent>
                         <StackPanel Orientation="Horizontal">
-                            <table:ArgoTableHeader Header="{loc:Loc 'Quote #'}" ColumnName="QuoteNumber" SortProperty="QuoteNumber"
+                            <table:ArgoTableHeader Header="{loc:Loc 'Quote'}" ColumnName="QuoteNumber" SortProperty="QuoteNumber"
                                                    ColumnWidth="{Binding ColumnWidths.QuoteNumberColumnWidth}"
                                                    IsColumnVisible="{Binding ShowQuoteNumberColumn}"
                                                    SortColumn="{Binding SortColumn}" SortDirection="{Binding SortDirection}"
@@ -140,25 +142,17 @@
                         <ItemsControl Classes="table-rows" ItemsSource="{Binding Quotes}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate DataType="vm:QuoteDisplayItem">
-                                    <Border Padding="24,0"
+                                    <Border Padding="24,0,0,0"
                                             BorderBrush="{DynamicResource BorderBrush}"
                                             BorderThickness="0,0,0,1"
                                             Classes.highlighted-row="{Binding IsHighlighted}"
                                             MinHeight="52">
                                         <StackPanel Orientation="Horizontal">
                                             <!-- Quote Number -->
-                                            <table:ArgoTableCell ColumnWidth="{Binding $parent[ItemsControl].((vm:QuotesPageViewModel)DataContext).ColumnWidths.QuoteNumberColumnWidth}"
-                                                                 IsColumnVisible="{Binding $parent[ItemsControl].((vm:QuotesPageViewModel)DataContext).ShowQuoteNumberColumn}">
-                                                <table:ArgoTableCell.CellContent>
-                                                    <TextBlock Text="{Binding QuoteNumber}"
-                                                               FontSize="13"
-                                                               FontFamily="Consolas, monospace"
-                                                               FontWeight="Medium"
-                                                               Foreground="{DynamicResource TextPrimaryBrush}"
-                                                               VerticalAlignment="Center"
-                                                               TextTrimming="CharacterEllipsis" />
-                                                </table:ArgoTableCell.CellContent>
-                                            </table:ArgoTableCell>
+                                            <table:ArgoTableCell Text="{Binding QuoteNumber}"
+                                                                 ColumnWidth="{Binding $parent[ItemsControl].((vm:QuotesPageViewModel)DataContext).ColumnWidths.QuoteNumberColumnWidth}"
+                                                                 IsColumnVisible="{Binding $parent[ItemsControl].((vm:QuotesPageViewModel)DataContext).ShowQuoteNumberColumn}"
+                                                                 FontWeight="Medium" />
 
                                             <!-- Issue Date -->
                                             <table:ArgoTableCell Text="{Binding DateDisplay}"
@@ -166,40 +160,20 @@
                                                                  IsColumnVisible="{Binding $parent[ItemsControl].((vm:QuotesPageViewModel)DataContext).ShowDateColumn}" />
 
                                             <!-- Customer -->
-                                            <table:ArgoTableCell ColumnWidth="{Binding $parent[ItemsControl].((vm:QuotesPageViewModel)DataContext).ColumnWidths.CustomerColumnWidth}"
-                                                                 IsColumnVisible="{Binding $parent[ItemsControl].((vm:QuotesPageViewModel)DataContext).ShowCustomerColumn}">
-                                                <table:ArgoTableCell.CellContent>
-                                                    <TextBlock Text="{Binding CustomerName}"
-                                                               FontSize="14"
-                                                               FontWeight="Medium"
-                                                               Foreground="{DynamicResource TextPrimaryBrush}"
-                                                               VerticalAlignment="Center"
-                                                               TextTrimming="CharacterEllipsis" />
-                                                </table:ArgoTableCell.CellContent>
-                                            </table:ArgoTableCell>
+                                            <table:ArgoTableCell Text="{Binding CustomerName}"
+                                                                 ColumnWidth="{Binding $parent[ItemsControl].((vm:QuotesPageViewModel)DataContext).ColumnWidths.CustomerColumnWidth}"
+                                                                 IsColumnVisible="{Binding $parent[ItemsControl].((vm:QuotesPageViewModel)DataContext).ShowCustomerColumn}" />
 
                                             <!-- Valid Until -->
-                                            <table:ArgoTableCell ColumnWidth="{Binding $parent[ItemsControl].((vm:QuotesPageViewModel)DataContext).ColumnWidths.ValidUntilColumnWidth}"
-                                                                 IsColumnVisible="{Binding $parent[ItemsControl].((vm:QuotesPageViewModel)DataContext).ShowValidUntilColumn}">
-                                                <table:ArgoTableCell.CellContent>
-                                                    <TextBlock Text="{Binding ValidUntilDisplay}"
-                                                               FontSize="14"
-                                                               Foreground="{DynamicResource TextSecondaryBrush}"
-                                                               VerticalAlignment="Center" />
-                                                </table:ArgoTableCell.CellContent>
-                                            </table:ArgoTableCell>
+                                            <table:ArgoTableCell Text="{Binding ValidUntilDisplay}"
+                                                                 ColumnWidth="{Binding $parent[ItemsControl].((vm:QuotesPageViewModel)DataContext).ColumnWidths.ValidUntilColumnWidth}"
+                                                                 IsColumnVisible="{Binding $parent[ItemsControl].((vm:QuotesPageViewModel)DataContext).ShowValidUntilColumn}" />
 
                                             <!-- Total -->
-                                            <table:ArgoTableCell ColumnWidth="{Binding $parent[ItemsControl].((vm:QuotesPageViewModel)DataContext).ColumnWidths.TotalColumnWidth}"
-                                                                 IsColumnVisible="{Binding $parent[ItemsControl].((vm:QuotesPageViewModel)DataContext).ShowTotalColumn}">
-                                                <table:ArgoTableCell.CellContent>
-                                                    <TextBlock Text="{Binding TotalDisplay}"
-                                                               FontSize="14"
-                                                               FontWeight="SemiBold"
-                                                               Foreground="{DynamicResource TextPrimaryBrush}"
-                                                               VerticalAlignment="Center" />
-                                                </table:ArgoTableCell.CellContent>
-                                            </table:ArgoTableCell>
+                                            <table:ArgoTableCell Text="{Binding TotalDisplay}"
+                                                                 ColumnWidth="{Binding $parent[ItemsControl].((vm:QuotesPageViewModel)DataContext).ColumnWidths.TotalColumnWidth}"
+                                                                 IsColumnVisible="{Binding $parent[ItemsControl].((vm:QuotesPageViewModel)DataContext).ShowTotalColumn}"
+                                                                 FontWeight="Medium" />
 
                                             <!-- Status Badge -->
                                             <table:ArgoTableCell ColumnWidth="{Binding $parent[ItemsControl].((vm:QuotesPageViewModel)DataContext).ColumnWidths.StatusColumnWidth}"
@@ -310,7 +284,7 @@
                                        ResetCommand="{Binding ResetColumnVisibilityCommand}">
             <controls:ColumnVisibilityMenu.ColumnsContent>
                 <StackPanel Spacing="4">
-                    <CheckBox IsChecked="{Binding ShowQuoteNumberColumn}" Content="{loc:Loc 'Quote #'}" Classes="column-toggle" />
+                    <CheckBox IsChecked="{Binding ShowQuoteNumberColumn}" Content="{loc:Loc 'Quote'}" Classes="column-toggle" />
                     <CheckBox IsChecked="{Binding ShowDateColumn}" Content="{loc:Loc Date}" Classes="column-toggle" />
                     <CheckBox IsChecked="{Binding ShowCustomerColumn}" Content="{loc:Loc Customer}" Classes="column-toggle" />
                     <CheckBox IsChecked="{Binding ShowValidUntilColumn}" Content="{loc:Loc 'Valid Until'}" Classes="column-toggle" />

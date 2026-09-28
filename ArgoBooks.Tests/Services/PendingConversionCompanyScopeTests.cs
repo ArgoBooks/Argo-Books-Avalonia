@@ -24,30 +24,27 @@ public class PendingConversionCompanyScopeTests
     {
         // The services here know which company is open. Keep them from becoming the shared
         // instance the view model tests queue with, which knows nothing of these companies.
-        _ = PendingConversionService.Instance ?? new PendingConversionService(new TestPlatform(null));
+        _ = PendingConversionService.Instance ?? new PendingConversionService();
     }
 
     [Fact]
     public async Task SameIdInTwoCompanies_EachConvertsItsOwnAmount()
     {
-        var rates = new ExchangeRateService(new TestPlatform(null), new HttpClient(new EurHandler(0.9m)));
+        var rates = Rates();
         var a = CompanyWithPendingExpense();
         var b = CompanyWithPendingExpense();
         a.PendingConversions.Add(Entry(100m));
         b.PendingConversions.Add(Entry(300m));
         var open = a;
-        var service = new PendingConversionService(new TestPlatform(null), exchangeRateService: rates)
-        {
-            CurrentCompany = () => (open, open == a ? "A.argo" : "B.argo")
-        };
+        var service = new PendingConversionService(exchangeRateService: rates) { CurrentCompany = () => open };
 
         // A is open while offline, then B, then A again. Each open reconciles and then converts.
-        await service.ReconcileWithCompanyDataAsync(a);
+        service.ReconcileWithCompanyData(a);
         open = b;
-        await service.ReconcileWithCompanyDataAsync(b);
+        service.ReconcileWithCompanyData(b);
         await service.ProcessPendingConversionsAsync(b);
         open = a;
-        await service.ReconcileWithCompanyDataAsync(a);
+        service.ReconcileWithCompanyData(a);
         await service.ProcessPendingConversionsAsync(a);
 
         var rate = await rates.GetExchangeRateAsync("EUR", "USD", Date);
@@ -56,96 +53,58 @@ public class PendingConversionCompanyScopeTests
     }
 
     [Fact]
-    public async Task OpeningACompany_TakesInOnlyItsOwnEntries()
+    public void OpeningACompany_TakesInOnlyItsOwnEntries()
     {
         var a = CompanyWithPendingExpense();
         var b = CompanyWithPendingExpense();
         b.PendingConversions.Add(Entry(300m));
         var open = a;
-        var service = new PendingConversionService(new TestPlatform(null))
-        {
-            CurrentCompany = () => (open, open == a ? "A.argo" : "B.argo")
-        };
-        await service.AddPendingConversionAsync(Entry(100m));
+        var service = new PendingConversionService { CurrentCompany = () => open };
+        a.PendingConversions.Add(Entry(100m));
+        service.Mirror(a, [a.PendingConversions[0].Key]);
 
         open = b;
-        await service.ReconcileWithCompanyDataAsync(b);
+        service.ReconcileWithCompanyData(b);
 
         Assert.Equal(300m, Assert.Single(b.PendingConversions).Total);
+        Assert.Equal(1, service.PendingCount);
     }
 
+    // The queue used to be kept in a file of its own as well, written on every change, and opening
+    // a company preferred that file's entries. An edit made and then thrown away unsaved still had
+    // its entry there, so reopening the company converted the saved record with the discarded amounts.
     [Fact]
-    public async Task EachCompanysQueue_OutlivesTheSession_WithoutTheOthers()
+    public async Task ReopeningACompany_ConvertsTheAmountsItsFileSaved_NotAnUnsavedEdits()
     {
-        var appData = Directory.CreateTempSubdirectory("argo-queue-").FullName;
-        try
-        {
-            var pathA = Path.Combine(appData, "A.argo");
-            var pathB = Path.Combine(appData, "B.argo");
-            var a = CompanyWithPendingExpense();
-            var b = CompanyWithPendingExpense();
-            var open = a;
-            var first = new PendingConversionService(new TestPlatform(appData))
-            {
-                CurrentCompany = () => (open, open == a ? pathA : pathB)
-            };
-            await first.AddPendingConversionAsync(Entry(100m));
-            open = b;
-            await first.AddPendingConversionAsync(Entry(300m));
+        var rates = Rates();
+        var edited = CompanyWithPendingExpense();
+        edited.PendingConversions.Add(Entry(100m));
+        var open = edited;
+        var service = new PendingConversionService(exchangeRateService: rates) { CurrentCompany = () => open };
+        service.ReconcileWithCompanyData(edited);
 
-            // The next session opens A again, from a file saved before its entry was queued.
-            var reopened = CompanyWithPendingExpense();
-            var second = new PendingConversionService(new TestPlatform(appData))
-            {
-                CurrentCompany = () => (reopened, pathA)
-            };
-            await second.LoadAsync();
-            await second.ReconcileWithCompanyDataAsync(reopened);
+        // Edited offline, then closed without saving and opened again from its file.
+        edited.Expenses[0].Total = 300m;
+        UsdConversion.Set(edited, UsdConversion.KeyOf(edited.Expenses[0]), UsdConversion.EntryFor(edited.Expenses[0]));
+        service.Mirror(edited, [UsdConversion.KeyOf(edited.Expenses[0])]);
+        var reopened = CompanyWithPendingExpense();
+        reopened.PendingConversions.Add(Entry(100m));
+        open = reopened;
+        service.ReconcileWithCompanyData(reopened);
+        await service.ProcessPendingConversionsAsync(reopened);
 
-            Assert.Equal(100m, Assert.Single(reopened.PendingConversions).Total);
-        }
-        finally
-        {
-            Directory.Delete(appData, recursive: true);
-        }
+        var rate = await rates.GetExchangeRateAsync("EUR", "USD", Date);
+        Assert.Equal(100m * rate, reopened.Expenses[0].TotalUSD);
+        Assert.Empty(reopened.PendingConversions);
     }
 
-    [Fact]
-    public async Task SaveAs_TakesTheCompanysQueueToTheNewFile()
-    {
-        var appData = Directory.CreateTempSubdirectory("argo-queue-").FullName;
-        try
-        {
-            var company = CompanyWithPendingExpense();
-            var path = Path.Combine(appData, "A.argo");
-            var first = new PendingConversionService(new TestPlatform(appData))
-            {
-                CurrentCompany = () => (company, path)
-            };
-            await first.AddPendingConversionAsync(Entry(100m));
-
-            path = Path.Combine(appData, "A copy.argo");
-            Assert.True(first.HasPendingConversions);
-
-            var reopened = CompanyWithPendingExpense();
-            var second = new PendingConversionService(new TestPlatform(appData))
-            {
-                CurrentCompany = () => (reopened, path)
-            };
-            await second.ReconcileWithCompanyDataAsync(reopened);
-
-            Assert.Equal(100m, Assert.Single(reopened.PendingConversions).Total);
-        }
-        finally
-        {
-            Directory.Delete(appData, recursive: true);
-        }
-    }
+    private static ExchangeRateService Rates() =>
+        new(new TestPlatform(), new HttpClient(new EurHandler(0.9m)));
 
     private static CompanyData CompanyWithPendingExpense()
     {
         var data = new CompanyData();
-        data.Expenses.Add(new Expense { Id = Id, OriginalCurrency = "EUR", Date = Date, Total = 1m, IsPendingConversion = true });
+        data.Expenses.Add(new Expense { Id = Id, OriginalCurrency = "EUR", Date = Date, Total = 100m, IsPendingConversion = true });
         return data;
     }
 
@@ -170,17 +129,14 @@ public class PendingConversionCompanyScopeTests
         }
     }
 
-    /// <summary>Writes to <paramref name="appData"/> when given one, and nowhere otherwise.</summary>
-    private sealed class TestPlatform(string? appData) : IPlatformService
+    private sealed class TestPlatform : IPlatformService
     {
         public PlatformType Platform => PlatformType.Linux;
-        public string GetAppDataPath() => appData ?? Path.GetTempPath();
+        public string GetAppDataPath() => Path.GetTempPath();
         public string GetTempPath() => Path.GetTempPath();
-        public string GetDefaultDocumentsPath() => Path.GetTempPath();
-        public string GetLogsPath() => Path.GetTempPath();
         public string GetCachePath() => Path.GetTempPath();
-        public void EnsureDirectoryExists(string path) => Directory.CreateDirectory(path);
-        public bool SupportsFileSystem => appData != null;
+        public void EnsureDirectoryExists(string path) { }
+        public bool SupportsFileSystem => false;
         public bool SupportsNativeDialogs => false;
         public bool SupportsBiometrics => false;
         public Task<bool> IsBiometricAvailableAsync() => Task.FromResult(false);
@@ -194,7 +150,6 @@ public class PendingConversionCompanyScopeTests
         public string NormalizePath(string path) => path;
         public string CombinePaths(params string[] paths) => Path.Combine(paths);
         public string GetMachineId() => "test-machine-id";
-        public void RegisterFileTypeAssociations(string iconPath) { }
         public StringComparer PathComparer => StringComparer.Ordinal;
     }
 }

@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using ArgoBooks.Core.Services;
+using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Entities;
 using ArgoBooks.Core.Models.Inventory;
@@ -399,10 +400,9 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
         // Create stock adjustment record
         if (companyData != null)
         {
-            companyData.IdCounters.StockAdjustment++;
             var adjustmentRecord = new StockAdjustment
             {
-                Id = $"ADJ-{companyData.IdCounters.StockAdjustment:D5}",
+                Id = new Core.Data.IdGenerator(companyData).NextStockAdjustmentId(),
                 InventoryItemId = inventoryItem.Id,
                 AdjustmentType = AdjustmentType switch
                 {
@@ -435,7 +435,7 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
                     inventoryItem.InStock = oldInStock;
                     inventoryItem.Status = oldStatus;
                     App.CheckAndNotifyStockStatus(inventoryItem, newStock);
-                    companyData.StockAdjustments.Remove(adjustmentRecord);
+                    companyData.StockAdjustments.RemoveRecord(adjustmentRecord);
                     companyData.MarkAsModified();
                     ItemSaved?.Invoke(this, EventArgs.Empty);
                 },
@@ -444,7 +444,7 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
                     inventoryItem.InStock = newStock;
                     inventoryItem.Status = inventoryItem.CalculateStatus();
                     App.CheckAndNotifyStockStatus(inventoryItem, oldInStock);
-                    companyData.StockAdjustments.Add(adjustmentRecord);
+                    companyData.StockAdjustments.RestoreRecord(adjustmentRecord);
                     companyData.MarkAsModified();
                     ItemSaved?.Invoke(this, EventArgs.Empty);
                 }));
@@ -586,9 +586,13 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
     [RelayCommand]
     private void CloseAddItemModal()
     {
+        _addItemSession++;
         IsAddItemModalOpen = false;
         ClearAddItemFields();
     }
+
+    // Changes whenever the modal closes, so a save still waiting on the rate knows it was abandoned.
+    private int _addItemSession;
 
     /// <summary>
     /// Returns true if any data has been entered in the Add Item modal.
@@ -616,7 +620,7 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
     /// Saves a new inventory item.
     /// </summary>
     [RelayCommand]
-    private void SaveNewItem()
+    private async Task SaveNewItem()
     {
         AddItemError = null;
         AddItemProductError = null;
@@ -649,54 +653,65 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
         var companyData = App.CompanyManager?.CompanyData;
         if (companyData == null) return;
 
-        // Check if item already exists for this product/location
-        var existingItem = companyData.Inventory.FirstOrDefault(i =>
-            i.ProductId == SelectedProduct!.Id && i.LocationId == SelectedLocation!.Id);
+        // Read the form before the rate fetch below: closing the modal while it runs clears the fields.
+        var product = SelectedProduct!;
+        var location = SelectedLocation!;
+        var sku = AddItemSku.Trim();
+        decimal.TryParse(AddItemReorderPoint, out var reorderPoint);
+        decimal.TryParse(AddItemOverstockThreshold, out var overstockThreshold);
 
-        if (existingItem != null)
+        bool AlreadyStocked() => companyData.Inventory.Any(i => i.ProductId == product.Id && i.LocationId == location.Id);
+        if (AlreadyStocked())
         {
             AddItemError = "An inventory item already exists for this product and location.".Translate();
             return;
         }
 
-        // Generate new ID
-        companyData.IdCounters.InventoryItem++;
-        var newId = $"INV-ITM-{companyData.IdCounters.InventoryItem:D5}";
-
-        // Parse thresholds
-        decimal.TryParse(AddItemReorderPoint, out var reorderPoint);
-        decimal.TryParse(AddItemOverstockThreshold, out var overstockThreshold);
+        // The starting unit cost converts the product's cost price to USD at today's rate. The Add Item
+        // button stays disabled while this command runs, so the item can't be added twice.
+        var session = _addItemSession;
+        await CurrencyService.WarmRateForDateAsync(DateTime.Today);
+        if (session != _addItemSession || !IsAddItemModalOpen)
+            return;
+        if (AlreadyStocked())
+        {
+            AddItemError = "An inventory item already exists for this product and location.".Translate();
+            return;
+        }
 
         var newItem = new InventoryItem
         {
-            Id = newId,
-            ProductId = SelectedProduct!.Id,
-            Sku = AddItemSku.Trim(),
-            LocationId = SelectedLocation!.Id,
+            Id = new Core.Data.IdGenerator(companyData).NextInventoryItemId(),
+            ProductId = product.Id,
+            Sku = sku,
+            LocationId = location.Id,
             InStock = quantity,
             Reserved = 0,
             ReorderPoint = reorderPoint,
             OverstockThreshold = overstockThreshold,
-            UnitOfMeasure = SelectedProduct.UnitOfMeasure,
-            UnitCost = SelectedProduct.CostPrice,
+            UnitOfMeasure = product.UnitOfMeasure,
             LastUpdated = DateTime.UtcNow
         };
         newItem.Status = newItem.CalculateStatus();
 
         companyData.Inventory.Add(newItem);
+        InventoryStockService.StartAtCostPrice(companyData, newItem, product, DateTime.Today);
+        var pendingCost = UsdConversion.Queued(companyData, UsdConversion.KeyOf(newItem));
         companyData.MarkAsModified();
 
         App.UndoRedoManager.RecordAction(new DelegateAction(
-            $"Add inventory item for '{SelectedProduct.Name}'",
+            $"Add inventory item for '{product.Name}'",
             () =>
             {
-                companyData.Inventory.Remove(newItem);
+                companyData.Inventory.RemoveRecord(newItem);
+                UsdConversion.Set(companyData, UsdConversion.KeyOf(newItem), null);
                 companyData.MarkAsModified();
                 ItemSaved?.Invoke(this, EventArgs.Empty);
             },
             () =>
             {
-                companyData.Inventory.Add(newItem);
+                companyData.Inventory.RestoreRecord(newItem);
+                UsdConversion.Set(companyData, UsdConversion.KeyOf(newItem), newItem.IsPendingConversion ? pendingCost : null);
                 companyData.MarkAsModified();
                 ItemSaved?.Invoke(this, EventArgs.Empty);
             }));
@@ -811,12 +826,16 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
             CloseFilterModal();
     }
 
+    /// <summary>How many filters are applied, for the page's Filter button.</summary>
+    public int ActiveFilterCount { get; private set; }
+
     /// <summary>
     /// Applies the current filters.
     /// </summary>
     [RelayCommand]
     private void ApplyFilters()
     {
+        ActiveFilterCount = Filters.ActiveCount;
         FiltersApplied?.Invoke(this, new FilterAppliedEventArgs(FilterCategory, FilterLocation, FilterStatus));
         CloseFilterModal();
     }
@@ -828,6 +847,7 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
     private void ClearFilters()
     {
         Filters.Reset();
+        ActiveFilterCount = 0;
         FiltersCleared?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
     }

@@ -349,7 +349,7 @@ public class FileServiceEnvelopeTests : IDisposable
 
         var salt = _encryptionService.GenerateSalt();
         var iv = _encryptionService.GenerateIv();
-        var passwordHash = _encryptionService.HashPassword(password, salt);
+        var passwordHash = KeyDerivation.ComputePasswordHashBase64(password, salt);
 
         using var plaintext = new MemoryStream();
         gzip.Position = 0;

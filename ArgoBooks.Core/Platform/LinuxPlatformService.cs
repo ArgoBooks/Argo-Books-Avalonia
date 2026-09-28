@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using ArgoBooks.Core.Platform.Linux;
 
 namespace ArgoBooks.Core.Platform;
@@ -38,39 +37,6 @@ public class LinuxPlatformService : BasePlatformService
 
         var homeDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         return CombinePaths(homeDir, ".cache", ApplicationName);
-    }
-
-    /// <inheritdoc />
-    public override string GetLogsPath()
-    {
-        // $XDG_STATE_HOME/ArgoBooks/logs or ~/.local/state/ArgoBooks/logs
-        var xdgStateHome = Environment.GetEnvironmentVariable("XDG_STATE_HOME");
-        if (!string.IsNullOrEmpty(xdgStateHome))
-        {
-            return CombinePaths(xdgStateHome, ApplicationName, "logs");
-        }
-
-        var homeDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        return CombinePaths(homeDir, ".local", "state", ApplicationName, "logs");
-    }
-
-    /// <inheritdoc />
-    public override string GetDefaultDocumentsPath()
-    {
-        // $XDG_DOCUMENTS_DIR/ArgoBooks or ~/Documents/ArgoBooks
-        var xdgDocumentsDir = Environment.GetEnvironmentVariable("XDG_DOCUMENTS_DIR");
-        if (!string.IsNullOrEmpty(xdgDocumentsDir))
-        {
-            return CombinePaths(xdgDocumentsDir, ApplicationName);
-        }
-
-        var documentsPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-        if (string.IsNullOrEmpty(documentsPath))
-        {
-            var homeDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            documentsPath = CombinePaths(homeDir, "Documents");
-        }
-        return CombinePaths(documentsPath, ApplicationName);
     }
 
     /// <inheritdoc />
@@ -162,51 +128,5 @@ public class LinuxPlatformService : BasePlatformService
         }
 
         return base.GetMachineId();
-    }
-
-    /// <inheritdoc />
-    public override void RegisterFileTypeAssociations(string iconPath)
-    {
-        try
-        {
-            // Register MIME type for .argo files
-            var mimeXmlPath = Path.Combine(AppContext.BaseDirectory, "com.argobooks.ArgoBooks.xml");
-            if (File.Exists(mimeXmlPath))
-            {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = "xdg-mime",
-                    Arguments = $"install --novendor \"{mimeXmlPath}\"",
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                })?.WaitForExit(5000);
-            }
-
-            // Register desktop entry
-            var desktopPath = Path.Combine(AppContext.BaseDirectory, "com.argobooks.ArgoBooks.desktop");
-            if (File.Exists(desktopPath))
-            {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = "xdg-desktop-menu",
-                    Arguments = $"install --novendor \"{desktopPath}\"",
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                })?.WaitForExit(5000);
-            }
-
-            // Set default application for .argo files
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = "xdg-mime",
-                Arguments = "default com.argobooks.ArgoBooks.desktop application/x-argo",
-                UseShellExecute = false,
-                CreateNoWindow = true
-            })?.WaitForExit(5000);
-        }
-        catch
-        {
-            // File type registration is best-effort on Linux
-        }
     }
 }

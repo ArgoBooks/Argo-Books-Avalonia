@@ -5,20 +5,6 @@
              x:Class="ArgoBooks.Controls.Dashboard.Widgets.TopCustomersWidget"
              x:DataType="vm:TopCustomersWidgetViewModel">
 
-    <UserControl.Styles>
-        <!-- Table Row Style -->
-        <Style Selector="Border.table-row">
-            <Setter Property="Padding" Value="16,12" />
-            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
-            <Setter Property="BorderThickness" Value="0,0,0,1" />
-        </Style>
-
-        <!-- Remove bottom border from last row -->
-        <Style Selector="ItemsControl > ContentPresenter:nth-last-child(1) Border.table-row">
-            <Setter Property="BorderThickness" Value="0" />
-        </Style>
-    </UserControl.Styles>
-
     <Border Background="{DynamicResource SurfaceBrush}"
             BorderBrush="{DynamicResource BorderBrush}"
             BorderThickness="1"
@@ -119,7 +105,7 @@
             <Border Grid.Row="2"
                     Padding="40"
                     IsVisible="{Binding HasNoCustomers}">
-                <TextBlock Text="{loc:Loc 'No customer data yet'}"
+                <TextBlock Text="{loc:Loc 'No data available in the selected date range'}"
                            FontSize="14"
                            Foreground="{DynamicResource TextSecondaryBrush}"
                            HorizontalAlignment="Center"

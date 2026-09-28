@@ -23,7 +23,7 @@ public static class QuickCreate
         var category = ImportLookup.FindOrCreateCategory(data, type, name, out var created);
         if (created)
             Record(data, $"Add category '{category.Name}'", FeatureName.CategoryCreated,
-                () => data.Categories.Remove(category), () => data.Categories.Add(category));
+                () => data.Categories.RemoveRecord(category), () => data.Categories.RestoreRecord(category));
         return category;
     }
 
@@ -36,7 +36,7 @@ public static class QuickCreate
         var customer = ImportLookup.FindOrCreateCustomer(data, name, out var created);
         if (created)
             Record(data, $"Add customer '{customer.Name}'", FeatureName.CustomerCreated,
-                () => data.Customers.Remove(customer), () => data.Customers.Add(customer));
+                () => data.Customers.RemoveRecord(customer), () => data.Customers.RestoreRecord(customer));
         return customer;
     }
 
@@ -49,7 +49,7 @@ public static class QuickCreate
         var supplier = ImportLookup.FindOrCreateSupplier(data, name, out var created);
         if (created)
             Record(data, $"Add supplier '{supplier.Name}'", FeatureName.SupplierCreated,
-                () => data.Suppliers.Remove(supplier), () => data.Suppliers.Add(supplier));
+                () => data.Suppliers.RemoveRecord(supplier), () => data.Suppliers.RestoreRecord(supplier));
         return supplier;
     }
 

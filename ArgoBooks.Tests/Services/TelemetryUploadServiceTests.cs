@@ -37,9 +37,6 @@ public class TelemetryUploadServiceTests
         public Task MarkEventsUploadedAsync(IEnumerable<string> eventIds, CancellationToken cancellationToken = default)
             => Task.CompletedTask;
 
-        public Task<string> ExportToJsonAsync(CancellationToken cancellationToken = default)
-            => Task.FromResult("{}");
-
         public Task ClearAllDataAsync(CancellationToken cancellationToken = default)
             => Task.CompletedTask;
 

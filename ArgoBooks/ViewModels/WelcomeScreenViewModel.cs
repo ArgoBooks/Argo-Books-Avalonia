@@ -146,7 +146,6 @@ public partial class WelcomeScreenViewModel : ViewModelBase
     private void OpenHelp()
     {
         UrlHelper.SafeOpenUrl($"{ApiConfig.BaseUrl}/contact-us/");
-        OpenHelpRequested?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>
@@ -156,7 +155,6 @@ public partial class WelcomeScreenViewModel : ViewModelBase
     private void OpenWhatsNew()
     {
         UrlHelper.SafeOpenUrl($"{ApiConfig.BaseUrl}/whats-new/");
-        OpenWhatsNewRequested?.Invoke(this, EventArgs.Empty);
     }
 
     #endregion
@@ -169,8 +167,6 @@ public partial class WelcomeScreenViewModel : ViewModelBase
     public event EventHandler<RecentCompanyItem>? RemoveFromRecentRequested;
     public event EventHandler? ClearRecentRequested;
     public event EventHandler? OpenSampleCompanyRequested;
-    public event EventHandler? OpenHelpRequested;
-    public event EventHandler? OpenWhatsNewRequested;
 
     #endregion
 

@@ -28,27 +28,6 @@ public class MacPlatformService : BasePlatformService
     }
 
     /// <inheritdoc />
-    public override string GetLogsPath()
-    {
-        // ~/Library/Logs/ArgoBooks
-        var homeDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        return CombinePaths(homeDir, "Library", "Logs", ApplicationName);
-    }
-
-    /// <inheritdoc />
-    public override string GetDefaultDocumentsPath()
-    {
-        // ~/Documents/ArgoBooks
-        var documentsPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-        if (string.IsNullOrEmpty(documentsPath))
-        {
-            var homeDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            documentsPath = CombinePaths(homeDir, "Documents");
-        }
-        return CombinePaths(documentsPath, ApplicationName);
-    }
-
-    /// <inheritdoc />
     public override bool SupportsBiometrics => true;
 
     /// <inheritdoc />

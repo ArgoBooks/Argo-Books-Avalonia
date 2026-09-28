@@ -520,6 +520,7 @@ public class PayrollModalsSaveTests : ModalViewModelTestBase
         // because the employer can enter people before the new rates arrive; it is the pay run
         // that refuses, and this note is what tells them why in advance.
         var vm = new PayrollModalsViewModel(new NoEditionsRateService()) { Province = "AB" };
+        vm.OpenAddEmployeeModal();
 
         Assert.Equal(["AB"], vm.SupportedProvinces);
         Assert.Contains("cannot be calculated until the rates are updated", vm.ProvinceSupportNote,

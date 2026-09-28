@@ -8,7 +8,7 @@ namespace ArgoBooks.Tests.Services.Sync;
 
 /// <summary>
 /// A phone capture in a non-USD company needs its USD base like any other row, or it counts as
-/// $0 in every total for good (Calculations.md Rule 3a). With no rate for its date it must be
+/// $0 in every total for good (Calculations.md Rule 4). With no rate for its date it must be
 /// marked pending and queued, so it converts once the rate exists.
 /// </summary>
 [Collection("ExchangeRateSingleton")]

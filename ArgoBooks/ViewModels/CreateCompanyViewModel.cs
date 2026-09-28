@@ -275,16 +275,6 @@ public partial class CreateCompanyViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void GoToStep(int step)
-    {
-        if (step >= 1 && step <= TotalSteps)
-        {
-            CurrentStep = step;
-            UpdateStepProperties();
-        }
-    }
-
-    [RelayCommand]
     private void BrowseLogo()
     {
         // This will be handled by the view to open file picker

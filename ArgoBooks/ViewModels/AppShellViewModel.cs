@@ -127,8 +127,6 @@ public partial class AppShellViewModel : ViewModelBase
 
     public ExportAsModalViewModel ExportAsModalViewModel { get; }
 
-    public SwitchAccountModalViewModel SwitchAccountModalViewModel { get; }
-
     public PasswordPromptModalViewModel PasswordPromptModalViewModel { get; }
 
     public EditCompanyModalViewModel EditCompanyModalViewModel { get; }
@@ -691,8 +689,6 @@ public partial class AppShellViewModel : ViewModelBase
 
         ExportAsModalViewModel = new ExportAsModalViewModel();
 
-        SwitchAccountModalViewModel = new SwitchAccountModalViewModel();
-
         PasswordPromptModalViewModel = new PasswordPromptModalViewModel();
 
         EditCompanyModalViewModel = new EditCompanyModalViewModel();
@@ -708,12 +704,6 @@ public partial class AppShellViewModel : ViewModelBase
         {
             navService.RegisterNavigationGuard(CheckUnsavedChangesBeforeNavigation);
         }
-
-        // Wire up switch account modal's create account to open company wizard
-        SwitchAccountModalViewModel.CreateAccountRequested += (_, _) => CreateCompanyViewModel.OpenCommand.Execute(null);
-
-        // Wire up hamburger menu to toggle sidebar
-        HeaderViewModel.ToggleSidebarRequested += (_, _) => SidebarViewModel.IsCollapsed = !SidebarViewModel.IsCollapsed;
 
         // Wire up header's quick actions button to open the panel in dropdown mode. Re-sync the
         // query from the header searchbox first: closing the panel clears the panel's own
@@ -941,7 +931,7 @@ public partial class AppShellViewModel : ViewModelBase
     /// <returns>True if changes should be discarded, false to cancel.</returns>
     private async Task<bool> ConfirmDiscardReportChangesAsync()
     {
-        var result = await UnsavedChangesDialogViewModel.ShowSimpleAsync(
+        var result = await UnsavedChangesDialogViewModel.ShowAsync(
             "Unsaved Report Changes".Translate(),
             "You have unsaved changes in the layout designer. Would you like to save them?".Translate());
 
@@ -974,7 +964,7 @@ public partial class AppShellViewModel : ViewModelBase
         if (fromPage == "Dashboard" && CurrentPage is Control { DataContext: DashboardPageViewModel dashVm }
             && dashVm.LayoutViewModel.IsEditMode)
         {
-            var result = await UnsavedChangesDialogViewModel.ShowSimpleAsync(
+            var result = await UnsavedChangesDialogViewModel.ShowAsync(
                 "Unsaved Dashboard Changes".Translate(),
                 "You have unsaved changes to the dashboard layout. Would you like to save them before leaving?".Translate());
 
@@ -1005,7 +995,7 @@ public partial class AppShellViewModel : ViewModelBase
             return true; // No changes, allow navigation
         }
 
-        var result2 = await UnsavedChangesDialogViewModel.ShowSimpleAsync(
+        var result2 = await UnsavedChangesDialogViewModel.ShowAsync(
             "Unsaved Report Changes".Translate(),
             "You have unsaved changes in the report designer. Would you like to save them?".Translate());
 
@@ -1089,7 +1079,7 @@ public partial class AppShellViewModel : ViewModelBase
             return true;
         }
 
-        var result = await UnsavedChangesDialogViewModel.ShowSimpleAsync(
+        var result = await UnsavedChangesDialogViewModel.ShowAsync(
             "Unsaved Report Changes".Translate(),
             "You have unsaved changes in the report designer. Would you like to save them?".Translate());
 

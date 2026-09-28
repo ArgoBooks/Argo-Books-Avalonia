@@ -26,21 +26,6 @@ public class BrowserPlatformService : BasePlatformService
     }
 
     /// <inheritdoc />
-    public override string GetDefaultDocumentsPath()
-    {
-        // Browser downloads to user's download folder via File System Access API
-        // Return virtual path for internal use
-        return CombinePaths(VirtualRoot, "documents");
-    }
-
-    /// <inheritdoc />
-    public override string GetLogsPath()
-    {
-        // In-memory logs or console only
-        return CombinePaths(VirtualRoot, "logs");
-    }
-
-    /// <inheritdoc />
     public override string GetCachePath()
     {
         // Browser cache storage

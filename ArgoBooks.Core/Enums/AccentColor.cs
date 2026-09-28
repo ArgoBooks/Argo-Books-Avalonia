@@ -34,20 +34,4 @@ public static class AccentColorExtensions
             _ => null
         };
     }
-
-    /// <summary>
-    /// Gets all accent color names for UI options.
-    /// </summary>
-    public static string[] GetAllNames()
-    {
-        return
-        [
-            nameof(AccentColor.Blue),
-            nameof(AccentColor.Green),
-            nameof(AccentColor.Purple),
-            nameof(AccentColor.Pink),
-            nameof(AccentColor.Orange),
-            nameof(AccentColor.Teal)
-        ];
-    }
 }

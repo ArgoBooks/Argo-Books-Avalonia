@@ -1,3 +1,4 @@
+using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Enums;
 
 namespace ArgoBooks.Core.Models.Entities;
@@ -5,7 +6,7 @@ namespace ArgoBooks.Core.Models.Entities;
 /// <summary>
 /// Represents a category for organizing products.
 /// </summary>
-public class Category
+public class Category : IRecord
 {
     /// <summary>
     /// Unique identifier (e.g., CAT-REV-001; older files also hold CAT-SAL-001 and CAT-PUR-001).

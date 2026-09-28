@@ -262,9 +262,6 @@
         <modals:ExportAsModal DataContext="{Binding ExportAsModalViewModel}" />
         <modals:SendToAccountantModal DataContext="{Binding SendToAccountantModalViewModel}" />
 
-        <!-- Switch Account Modal -->
-        <modals:SwitchAccountModal DataContext="{Binding SwitchAccountModalViewModel}" />
-
         <!-- Note: PasswordPromptModal is now at MainWindow level to appear above WelcomeScreen -->
 
         <!-- Edit Company Modal -->

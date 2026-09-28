@@ -68,7 +68,7 @@ public class T4EmployerAddressTests
         return data;
     }
 
-    private static List<string> Problems(CompanyData data) =>
+    private static List<T4Problem> Problems(CompanyData data) =>
         T4Service.Validate(data, new T4Service().Build(data, 2026));
 
     [Fact]
@@ -86,7 +86,7 @@ public class T4EmployerAddressTests
         CompanyData data = Data();
         data.Settings.Company.ProvinceState = province;
 
-        Assert.Contains(Problems(data), p => p.Contains("company province", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(Problems(data), p => p.Message.Contains("company province", StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>
@@ -100,7 +100,7 @@ public class T4EmployerAddressTests
         data.Settings.Company.ProvinceState = "CA";
         data.Settings.Company.PostalCode = "94105";
 
-        Assert.DoesNotContain(Problems(data), p => p.Contains("company province", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(Problems(data), p => p.Message.Contains("company province", StringComparison.OrdinalIgnoreCase));
     }
 
     [Theory]
@@ -112,7 +112,7 @@ public class T4EmployerAddressTests
         CompanyData data = Data();
         data.Settings.Company.PostalCode = postalCode;
 
-        Assert.Contains(Problems(data), p => p.Contains("postal code", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(Problems(data), p => p.Message.Contains("postal code", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -121,6 +121,6 @@ public class T4EmployerAddressTests
         CompanyData data = Data();
         data.Settings.Company.Address = "1 Main Street, Suite #4";
 
-        Assert.Contains(Problems(data), p => p.Contains("company address", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(Problems(data), p => p.Message.Contains("company address", StringComparison.OrdinalIgnoreCase));
     }
 }

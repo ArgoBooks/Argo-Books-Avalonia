@@ -12,6 +12,8 @@ sealed class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        StartupTimeline.MarkMain();
+
         // Install crash handlers first so a failure anywhere in startup is captured.
         CrashReporter.InstallHandlers();
 

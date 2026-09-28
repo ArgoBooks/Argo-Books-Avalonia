@@ -79,8 +79,7 @@
             <Border Classes="modal-card import-modal"
                     Classes.loading="{Binding IsLoading}"
                     MaxHeight="700"
-                    HorizontalAlignment="Stretch"
-                    Margin="24">
+                    HorizontalAlignment="Stretch">
                 <Grid RowDefinitions="Auto,*,Auto">
 
                     <!-- Header -->
@@ -381,8 +380,7 @@
             <Border Background="{DynamicResource SurfaceBrush}"
                     BorderBrush="{DynamicResource BorderBrush}"
                     BorderThickness="1" CornerRadius="12"
-                    Width="420" VerticalAlignment="Center" HorizontalAlignment="Center"
-                    Margin="24">
+                    Width="420" VerticalAlignment="Center" HorizontalAlignment="Center">
                 <StackPanel Margin="24" Spacing="18">
                     <TextBlock Text="{loc:Loc 'Edit product'}" FontSize="18" FontWeight="SemiBold"
                                Foreground="{DynamicResource TextPrimaryBrush}" />

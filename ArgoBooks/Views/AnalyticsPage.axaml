@@ -872,7 +872,7 @@
                                 Margin="0,0,12,0">
                             <Panel>
                                 <!-- Pie Chart with custom legend -->
-                                <Grid RowDefinitions="Auto,*" IsVisible="{Binding HasCompaniesOfOriginData}">
+                                <Grid RowDefinitions="Auto,*" IsVisible="{Binding HasTopCustomersData}">
                                     <TextBlock Grid.Row="0"
                                                Text="{loc:Loc 'Top Customers by Revenue'}"
                                                HorizontalAlignment="Center"
@@ -885,12 +885,12 @@
                                                       Tag="{x:Static enums:ChartDataType.TopCustomersByRevenue}"
                                                       PointerPressed="OnChartPointerPressed"
                                                     PointerReleased="OnChartPointerReleased"
-                                                      Series="{Binding CompaniesOfOriginSeries}"
+                                                      Series="{Binding TopCustomersSeries}"
                                                       LegendPosition="Hidden" />
                                         <controls:PieChartLegend Grid.Column="1"
                                                                  PointerPressed="OnChartPointerPressed"
                                                     PointerReleased="OnChartPointerReleased"
-                                                                 Items="{Binding CompaniesOfOriginLegend}"
+                                                                 Items="{Binding TopCustomersLegend}"
                                                                  MaxHeightOverride="240"
                                                                  Width="200"
                                                                  Margin="8,0,0,0"
@@ -899,7 +899,7 @@
                                 </Grid>
                                 <!-- No data placeholder -->
                                 <controls:ChartEmptyState
-                                    IsVisible="{Binding !HasCompaniesOfOriginData}"
+                                    IsVisible="{Binding !HasTopCustomersData}"
                                     DefaultMessage="{loc:Loc 'No customer data available'}"
                                     ShowDateRangeMessage="{Binding ShowRevenueDateRangeMessage}" />
                             </Panel>
@@ -1974,7 +1974,7 @@
                                     <DataTemplate x:DataType="vm:RefundsMonthBucket">
                                         <Grid ColumnDefinitions="100,*,Auto" Margin="0,3">
                                             <TextBlock Grid.Column="0" Text="{Binding MonthLabel}" />
-                                            <TextBlock Grid.Column="2" Text="{Binding Amount, StringFormat={}{0:C}}" FontWeight="Medium" />
+                                            <TextBlock Grid.Column="2" Text="{Binding Amount}" FontWeight="Medium" />
                                         </Grid>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
@@ -1986,10 +1986,12 @@
             </Panel>
         </ScrollViewer>
 
-        <!-- Products Tab Content: bounded; table fills the left half, chart sits on the right -->
-        <Panel Grid.Row="2"
-               Background="{DynamicResource BackgroundSecondaryBrush}"
-               IsVisible="{Binding IsProductsTabSelected}">
+        <!-- Products Tab Content: the chart card stretches to fill the tab, and the tab scrolls once it can't fit -->
+        <ScrollViewer Grid.Row="2"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled"
+                      IsVisible="{Binding IsProductsTabSelected}"
+                      Background="{DynamicResource BackgroundSecondaryBrush}">
             <Grid Margin="24" RowDefinitions="Auto,Auto,*">
                     <!-- Statistics Cards Row -->
                     <controls:StatCardsRow Grid.Row="0" Margin="0,0,0,24">
@@ -2043,9 +2045,26 @@
                             BorderThickness="1"
                             CornerRadius="12"
                             Padding="20">
-                        <Grid RowDefinitions="*,Auto">
-                            <!-- Trend chart fills the card; product name/SKU float over its top-left -->
-                            <Panel Grid.Row="0" MinHeight="220">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" MinHeight="220" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <!-- Product name + SKU, on their own line so a narrow card can't run them into the chart -->
+                            <StackPanel Grid.Row="0" Spacing="2" Margin="0,0,0,8">
+                                <TextBlock Text="{Binding SelectedProduct.ProductName, FallbackValue=''}"
+                                           FontSize="16" FontWeight="SemiBold"
+                                           TextTrimming="CharacterEllipsis"
+                                           ToolTip.Tip="{Binding SelectedProduct.ProductName, FallbackValue=''}"
+                                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                                <TextBlock Text="{Binding SelectedProduct.Sku}"
+                                           IsVisible="{Binding SelectedProduct.HasSku, FallbackValue=False}"
+                                           TextTrimming="CharacterEllipsis"
+                                           FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
+                            </StackPanel>
+
+                            <Panel Grid.Row="1">
                                 <lvc:CartesianChart Tag="{x:Static enums:ChartDataType.ProductRevenueTrend}"
                                                     Title="{Binding ProductRevenueTrendTitle}"
                                                     PointerPressed="OnChartPointerPressed"
@@ -2059,135 +2078,31 @@
                                     IsVisible="{Binding !HasProductTrendData}"
                                     DefaultMessage="{loc:Loc 'No revenue data for this product in the selected period'}"
                                     ShowDateRangeMessage="{Binding ShowFinancialDateRangeMessage}" />
-
-                                <!-- Product name + SKU overlaid on the chart's top-left -->
-                                <StackPanel HorizontalAlignment="Left" VerticalAlignment="Top"
-                                            Spacing="2" IsHitTestVisible="False">
-                                    <TextBlock Text="{Binding SelectedProduct.ProductName, FallbackValue=''}"
-                                               FontSize="16" FontWeight="SemiBold"
-                                               Foreground="{DynamicResource TextPrimaryBrush}" />
-                                    <TextBlock Text="{Binding SelectedProduct.Sku}"
-                                               IsVisible="{Binding SelectedProduct.HasSku, FallbackValue=False}"
-                                               FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                </StackPanel>
                             </Panel>
 
                             <!-- Mini KPIs row -->
-                            <StackPanel Grid.Row="1" Margin="0,16,0,0">
+                            <StackPanel Grid.Row="2" Margin="0,16,0,0">
                                 <Border Height="1" Background="{DynamicResource BorderBrush}" Margin="0,0,0,16" />
-                                <Grid ColumnDefinitions="*,*,*">
+                                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="12">
                                     <StackPanel Grid.Column="0" Spacing="2">
-                                        <TextBlock Text="{loc:Loc 'Units sold'}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                        <TextBlock Text="{Binding SelectedProduct.UnitsDisplay}" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
+                                        <TextBlock Text="{loc:Loc 'Units sold'}" FontSize="12" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        <TextBlock Text="{Binding SelectedProduct.UnitsDisplay}" ToolTip.Tip="{Binding SelectedProduct.UnitsDisplay}" TextTrimming="CharacterEllipsis" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" Spacing="2">
-                                        <TextBlock Text="{loc:Loc Revenue}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                        <TextBlock Text="{Binding SelectedProduct.RevenueDisplay}" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
+                                        <TextBlock Text="{loc:Loc Revenue}" FontSize="12" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        <TextBlock Text="{Binding SelectedProduct.RevenueDisplay}" ToolTip.Tip="{Binding SelectedProduct.RevenueDisplay}" TextTrimming="CharacterEllipsis" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="2" Spacing="2">
-                                        <TextBlock Text="{loc:Loc 'Avg sale price'}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                        <TextBlock Text="{Binding SelectedProduct.AvgSalePriceDisplay}" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
+                                        <TextBlock Text="{loc:Loc 'Avg sale price'}" FontSize="12" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        <TextBlock Text="{Binding SelectedProduct.AvgSalePriceDisplay}" ToolTip.Tip="{Binding SelectedProduct.AvgSalePriceDisplay}" TextTrimming="CharacterEllipsis" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
                                     </StackPanel>
                                 </Grid>
                             </StackPanel>
                         </Grid>
                     </Border>
             </Grid>
-        </Panel>
+        </ScrollViewer>
     </Grid>
-
-    <!-- Customer Activity Info Modal -->
-    <Border Background="{DynamicResource OverlayBrush}"
-            IsVisible="{Binding IsCustomerActivityInfoOpen}"
-            IsHitTestVisible="True"
-            PointerPressed="CustomerActivityInfoBackdrop_PointerPressed">
-        <Border Background="{DynamicResource SurfaceBrush}"
-                BorderBrush="{DynamicResource BorderBrush}"
-                BorderThickness="1"
-                CornerRadius="12"
-                Width="450"
-                HorizontalAlignment="Center"
-                VerticalAlignment="Center"
-                BoxShadow="0 8 32 0 #40000000"
-                PointerPressed="CustomerActivityInfoModal_PointerPressed">
-            <Grid RowDefinitions="Auto,*,Auto">
-                <!-- Header -->
-                <Border Grid.Row="0"
-                        Padding="24,20"
-                        BorderBrush="{DynamicResource BorderBrush}"
-                        BorderThickness="0,0,0,1">
-                    <Grid ColumnDefinitions="*,Auto">
-                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12">
-                            <PathIcon Data="{x:Static icons:Icons.Info}"
-                                      Width="24" Height="24"
-                                      Foreground="{DynamicResource PrimaryBrush}" />
-                            <TextBlock Text="{loc:Loc 'Customer Activity'}"
-                                       FontSize="18"
-                                       FontWeight="SemiBold"
-                                       VerticalAlignment="Center"
-                                       Foreground="{DynamicResource TextPrimaryBrush}" />
-                        </StackPanel>
-                        <Button Grid.Column="1"
-                                Classes="info-button"
-                                Command="{Binding CloseCustomerActivityInfoCommand}">
-                            <PathIcon Data="{x:Static icons:Icons.Close}"
-                                      Width="18" Height="18" />
-                        </Button>
-                    </Grid>
-                </Border>
-
-                <!-- Body -->
-                <Border Grid.Row="1" Padding="24,20">
-                    <StackPanel Spacing="16">
-                        <TextBlock Text="{loc:Loc 'How is customer activity determined?'}"
-                                   FontSize="15"
-                                   FontWeight="SemiBold"
-                                   Foreground="{DynamicResource TextPrimaryBrush}" />
-
-                        <TextBlock Text="{loc:Loc 'A customer is considered active if they have made at least one purchase within the selected date range.'}"
-                                   TextWrapping="Wrap"
-                                   FontSize="14"
-                                   LineHeight="22"
-                                   Foreground="{DynamicResource TextSecondaryBrush}" />
-
-                        <TextBlock Text="{loc:Loc 'Customers with no purchases in this period are marked as inactive.'}"
-                                   TextWrapping="Wrap"
-                                   FontSize="14"
-                                   LineHeight="22"
-                                   Foreground="{DynamicResource TextSecondaryBrush}" />
-
-                        <Border Background="{DynamicResource SurfaceAltBrush}"
-                                CornerRadius="8"
-                                Padding="16"
-                                Margin="0,8,0,0">
-                            <StackPanel Spacing="8">
-                                <TextBlock Text="{loc:Loc Tip}"
-                                           FontSize="13"
-                                           FontWeight="SemiBold"
-                                           Foreground="{DynamicResource PrimaryBrush}" />
-                                <TextBlock Text="{loc:Loc 'Change the date range at the top of the page to see customer activity over different time periods. For example, select ''All Time'' to see lifetime activity.'}"
-                                           TextWrapping="Wrap"
-                                           FontSize="13"
-                                           LineHeight="20"
-                                           Foreground="{DynamicResource TextSecondaryBrush}" />
-                            </StackPanel>
-                        </Border>
-                    </StackPanel>
-                </Border>
-
-                <!-- Footer -->
-                <Border Grid.Row="2"
-                        Padding="24,16"
-                        BorderBrush="{DynamicResource BorderBrush}"
-                        BorderThickness="0,1,0,0">
-                    <Button Classes="primary-button"
-                            Content="{loc:Loc 'Got it'}"
-                            HorizontalAlignment="Right"
-                            Command="{Binding CloseCustomerActivityInfoCommand}" />
-                </Border>
-            </Grid>
-        </Border>
-    </Border>
 
     <!-- Global Chart Context Menu (rendered on top of everything) -->
     <controls:ChartContextMenu x:Name="ChartContextMenu"
@@ -2206,70 +2121,6 @@
     </Panel>
 
     <UserControl.Styles>
-        <!-- TabControl - page tabs styling -->
-        <Style Selector="TabControl.page-tabs">
-            <Setter Property="Background" Value="Transparent" />
-        </Style>
-        <Style Selector="TabControl.page-tabs /template/ ItemsPresenter#PART_ItemsPresenter">
-            <Setter Property="Margin" Value="24,0" />
-        </Style>
-        <Style Selector="TabControl.page-tabs /template/ Border#PART_InnerBorder">
-            <Setter Property="BorderThickness" Value="0" />
-        </Style>
-        <Style Selector="TabControl.page-tabs /template/ ContentPresenter#PART_SelectedContentHost">
-            <Setter Property="IsVisible" Value="False" />
-        </Style>
-
-        <!-- Tab Item Styling -->
-        <Style Selector="TabControl.page-tabs TabItem">
-            <Setter Property="FontSize" Value="14" />
-            <Setter Property="FontWeight" Value="Medium" />
-            <Setter Property="Padding" Value="4,12,4,10" />
-            <Setter Property="Margin" Value="8,0" />
-            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Cursor" Value="Hand" />
-        </Style>
-        <Style Selector="TabControl.page-tabs TabItem:pointerover">
-            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-        </Style>
-        <Style Selector="TabControl.page-tabs TabItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="TextBlock.Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-        </Style>
-        <Style Selector="TabControl.page-tabs TabItem:selected">
-            <Setter Property="Foreground" Value="{DynamicResource PrimaryBrush}" />
-        </Style>
-        <Style Selector="TabControl.page-tabs TabItem:selected /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="TextBlock.Foreground" Value="{DynamicResource PrimaryBrush}" />
-        </Style>
-        <Style Selector="TabControl.page-tabs TabItem:selected /template/ Border#PART_SelectedPipe">
-            <Setter Property="IsVisible" Value="True" />
-            <Setter Property="Background" Value="{DynamicResource PrimaryBrush}" />
-            <Setter Property="Height" Value="2" />
-            <Setter Property="VerticalAlignment" Value="Bottom" />
-            <Setter Property="Margin" Value="0,0,0,0" />
-            <Setter Property="CornerRadius" Value="1" />
-        </Style>
-
-        <!-- Chart Toggle Switch -->
-        <Style Selector="ToggleSwitch.chart-toggle">
-            <Setter Property="Width" Value="44" />
-            <Setter Property="Height" Value="24" />
-            <Setter Property="Padding" Value="0" />
-            <Setter Property="ClipToBounds" Value="False" />
-        </Style>
-        <Style Selector="ToggleSwitch.chart-toggle /template/ Grid">
-            <Setter Property="ClipToBounds" Value="False" />
-        </Style>
-        <Style Selector="ToggleSwitch.chart-toggle /template/ Border#SwitchKnobBounds">
-            <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
-            <Setter Property="CornerRadius" Value="12" />
-        </Style>
-        <Style Selector="ToggleSwitch.chart-toggle:checked /template/ Border#SwitchKnobBounds">
-            <Setter Property="Background" Value="{DynamicResource PrimaryBrush}" />
-        </Style>
-
         <!-- Segmented Button (RadioButton) -->
         <Style Selector="RadioButton.segmented-button">
             <Setter Property="Background" Value="Transparent" />
@@ -2297,27 +2148,6 @@
         </Style>
         <Style Selector="RadioButton.segmented-button:checked">
             <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
-            <Setter Property="Foreground" Value="{DynamicResource PrimaryBrush}" />
-        </Style>
-
-        <!-- Info Button -->
-        <Style Selector="Button.info-button">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Padding" Value="6" />
-            <Setter Property="CornerRadius" Value="6" />
-            <Setter Property="Cursor" Value="Hand" />
-        </Style>
-        <Style Selector="Button.info-button /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="Transparent" />
-        </Style>
-        <Style Selector="Button.info-button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
-        </Style>
-        <Style Selector="Button.info-button PathIcon">
-            <Setter Property="Foreground" Value="{DynamicResource TextTertiaryBrush}" />
-        </Style>
-        <Style Selector="Button.info-button:pointerover PathIcon">
             <Setter Property="Foreground" Value="{DynamicResource PrimaryBrush}" />
         </Style>
     </UserControl.Styles>

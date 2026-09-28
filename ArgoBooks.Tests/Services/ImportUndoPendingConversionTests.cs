@@ -99,6 +99,32 @@ public class ImportUndoPendingConversionTests
         Assert.Contains("REV-2026-09999", left);
     }
 
+    // Redo put the rows back without their queued conversions, so a row still waiting for its rate
+    // waited forever. One converted before the undo has its figure and needs no entry.
+    [Fact]
+    public void RedoingAnImport_QueuesAgainOnlyTheRowsStillWaiting()
+    {
+        var data = new CompanyData();
+        var waiting = new Revenue
+        {
+            Id = "REV-2026-00006", Date = new DateTime(2026, 6, 20), OriginalCurrency = "EUR", Total = 100m, IsPendingConversion = true
+        };
+        var converted = new Expense { Id = "PUR-2026-00006", OriginalCurrency = "EUR", Total = 24m, TotalUSD = 30m };
+        data.Revenues.Add(waiting);
+        data.Expenses.Add(converted);
+        data.PendingConversions.Add(Entry(waiting.Id));
+
+        var creation = new ArgoApiImportCreation();
+        creation.Revenues.Add(waiting);
+        creation.Expenses.Add(converted);
+
+        creation.Undo(data);
+        creation.Redo(data);
+
+        var entry = Assert.Single(data.PendingConversions);
+        Assert.Equal((waiting.Id, "Revenue", 100m), (entry.TransactionId, entry.TransactionType, entry.Total));
+    }
+
     [Fact]
     public void UndoWithNothingQueuedDoesNotThrow()
     {

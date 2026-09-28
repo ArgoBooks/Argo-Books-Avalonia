@@ -48,8 +48,4 @@ public partial class ArgoApiKeyRow : ObservableObject
 
     /// <summary>What the row shows when it has a name, falling back to the hint.</summary>
     public string DisplayName => string.IsNullOrWhiteSpace(Label) ? Hint : Label;
-
-    public bool CanRevoke => !IsRevoked;
-
-    partial void OnIsRevokedChanged(bool value) => OnPropertyChanged(nameof(CanRevoke));
 }

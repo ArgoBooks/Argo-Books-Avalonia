@@ -59,7 +59,7 @@ public class TypedLineItemTests : ModalViewModelTestBase
         line.ItemText = "Gadget";
         line.UnitPrice = 40m;
 
-        await vm.SaveExpenseCommand.ExecuteAsync(null);
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
 
         Assert.Equal("CAT-SUP", ProductNamed("Gadget").CategoryId);
         Assert.Equal("CAT-RENT", ProductNamed("Widget").CategoryId);
@@ -76,7 +76,7 @@ public class TypedLineItemTests : ModalViewModelTestBase
         Pick(vm, second, "P-WIDGET");
         first.CategoryText = "Supplies";
 
-        await vm.SaveExpenseCommand.ExecuteAsync(null);
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
         Assert.Equal("CAT-SUP", ProductNamed("Widget").CategoryId);
 
         Undo(); // the expense
@@ -101,7 +101,7 @@ public class TypedLineItemTests : ModalViewModelTestBase
         first.CategoryText = "Supplies";
         second.CategoryText = "Utilities";
 
-        await vm.SaveExpenseCommand.ExecuteAsync(null);
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
 
         Assert.Empty(Company.Expenses);
         Assert.True(vm.HasValidationMessage);
@@ -122,7 +122,7 @@ public class TypedLineItemTests : ModalViewModelTestBase
         second.CategoryText = "Supplies";
         second.UnitPrice = 5m;
 
-        await vm.SaveExpenseCommand.ExecuteAsync(null);
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
 
         Assert.Empty(Company.Expenses);
         Assert.True(vm.HasValidationMessage);
@@ -142,7 +142,7 @@ public class TypedLineItemTests : ModalViewModelTestBase
         second.CategoryText = "Supplies";
         second.UnitPrice = 5m;
 
-        await vm.SaveExpenseCommand.ExecuteAsync(null);
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
 
         var paper = Assert.Single(Company.Products, p => p.Name.Equals("Paper", StringComparison.OrdinalIgnoreCase));
         Assert.Equal("CAT-SUP", paper.CategoryId);
@@ -161,7 +161,7 @@ public class TypedLineItemTests : ModalViewModelTestBase
         line.CategoryText = "Rent";
         line.UnitPrice = 50m;
 
-        await vm.SaveExpenseCommand.ExecuteAsync(null);
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
 
         Assert.Empty(Company.Expenses);
         Assert.True(vm.HasValidationMessage);
@@ -189,7 +189,7 @@ public class TypedLineItemTests : ModalViewModelTestBase
 
         vm.OpenEditModal(new ExpenseDisplayItem { Id = "PUR-1" });
         vm.ModalNotes = "edited";
-        await vm.SaveExpenseCommand.ExecuteAsync(null);
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
 
         var expense = Assert.Single(Company.Expenses);
         Assert.False(vm.HasValidationMessage);
@@ -213,7 +213,7 @@ public class TypedLineItemTests : ModalViewModelTestBase
         var vm = NewVm();
         vm.LineItems[0].ItemText = "Gadget";
 
-        await vm.SaveExpenseCommand.ExecuteAsync(null);
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
 
         var expense = Assert.Single(Company.Expenses);
         Assert.Equal(expense.Total, expense.TotalUSD);
@@ -230,7 +230,7 @@ public class TypedLineItemTests : ModalViewModelTestBase
     {
         var vm = NewVm();
         Pick(vm, vm.LineItems[0], "P-WIDGET");
-        await vm.SaveExpenseCommand.ExecuteAsync(null);
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
 
         vm.OpenEditModal(new ExpenseDisplayItem { Id = Company.Expenses.Single().Id });
         Assert.False(vm.HasEditModalChanges);
@@ -245,7 +245,7 @@ public class TypedLineItemTests : ModalViewModelTestBase
     {
         var vm = NewVm();
         Pick(vm, vm.LineItems[0], "P-WIDGET");
-        await vm.SaveExpenseCommand.ExecuteAsync(null);
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
 
         vm.OpenEditModal(new ExpenseDisplayItem { Id = Company.Expenses.Single().Id });
         Assert.False(vm.HasEditModalChanges);

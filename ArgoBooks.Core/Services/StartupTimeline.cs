@@ -28,9 +28,12 @@ public static class StartupTimeline
 {
     private static readonly DateTime? ProcessStartUtc = ReadProcessStartUtc();
 
+    private static long? _toMainMs;
     private static long? _toFirstPaintMs;
     private static long? _toServicesReadyMs;
+    private static long? _toShellViewModelMs;
     private static long? _toViewModelsReadyMs;
+    private static long? _toWindowBuiltMs;
     private static bool _reported;
 
     /// <summary>
@@ -51,6 +54,20 @@ public static class StartupTimeline
     /// from "first launch of the day".
     /// </summary>
     private static readonly TimeSpan WarmWindow = TimeSpan.FromHours(4);
+
+    /// <summary>
+    /// Call first thing in Main. Everything before it is the runtime starting up and loading
+    /// our assemblies, which no code of ours can speed up. Ignores repeat calls.
+    /// </summary>
+    public static void MarkMain()
+    {
+        _toMainMs ??= ElapsedSinceProcessStartMs();
+    }
+
+    /// <summary>
+    /// Milliseconds from process start to Main running.
+    /// </summary>
+    public static long? ToMainMs => _toMainMs;
 
     /// <summary>
     /// Call the instant the splash window is actually on screen. Records the dead time the
@@ -82,6 +99,20 @@ public static class StartupTimeline
     public static long? ToServicesReadyMs => _toServicesReadyMs;
 
     /// <summary>
+    /// Call right after the app shell's view model is constructed. It builds most of the other
+    /// view models, so it is usually the largest share of the view model stage.
+    /// </summary>
+    public static void MarkShellViewModel()
+    {
+        _toShellViewModelMs ??= ElapsedSinceProcessStartMs();
+    }
+
+    /// <summary>
+    /// Milliseconds from process start to the app shell's view model existing.
+    /// </summary>
+    public static long? ToShellViewModelMs => _toShellViewModelMs;
+
+    /// <summary>
     /// Call once the view models exist, immediately before the main window is built.
     /// </summary>
     public static void MarkViewModelsReady()
@@ -93,6 +124,20 @@ public static class StartupTimeline
     /// Milliseconds from process start to the view models being ready.
     /// </summary>
     public static long? ToViewModelsReadyMs => _toViewModelsReadyMs;
+
+    /// <summary>
+    /// Call right after the main window is constructed, before it is shown. The gap from
+    /// <see cref="ToViewModelsReadyMs"/> is building the window's views from XAML.
+    /// </summary>
+    public static void MarkWindowBuilt()
+    {
+        _toWindowBuiltMs ??= ElapsedSinceProcessStartMs();
+    }
+
+    /// <summary>
+    /// Milliseconds from process start to the main window being constructed.
+    /// </summary>
+    public static long? ToWindowBuiltMs => _toWindowBuiltMs;
 
     /// <summary>
     /// Milliseconds from process start to now. Called when the main window opens, so it

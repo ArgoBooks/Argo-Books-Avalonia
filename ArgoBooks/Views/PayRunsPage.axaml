@@ -146,7 +146,7 @@
                     <ItemsControl Classes="table-rows" ItemsSource="{Binding PayRuns}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="vm:PayRunDisplayItem">
-                                <Border Padding="24,0"
+                                <Border Padding="24,0,0,0"
                                         BorderBrush="{DynamicResource BorderBrush}"
                                         BorderThickness="0,0,0,1"
                                         MinHeight="52">

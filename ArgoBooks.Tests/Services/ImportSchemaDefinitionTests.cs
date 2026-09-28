@@ -6,18 +6,23 @@ namespace ArgoBooks.Tests.Services;
 
 public class ImportSchemaDefinitionTests
 {
+    // Pay runs are exported to be read, not imported: an approved run's figures are frozen so a
+    // stub reprinted next year still matches the one the employee was handed, and taking them
+    // back from a sheet somebody could have edited would defeat that.
+    private static bool IsImportable(SpreadsheetSheetType type) =>
+        type is not (SpreadsheetSheetType.PayRuns or SpreadsheetSheetType.Unknown);
+
     [Fact]
     public void GetSchema_ContainsEveryImportableEntityType()
     {
         // Every sheet the importer will read has to say what its columns mean, otherwise the
         // mapper has nothing to map onto and the sheet silently imports as nothing. Export-only
-        // sheets are excluded by IsImportable rather than named here, so adding another one is
-        // a single edit in the enum.
+        // sheets are excluded by IsImportable rather than named here.
         var schema = ImportSchemaDefinition.GetSchema();
 
         foreach (var entityType in Enum.GetValues<SpreadsheetSheetType>())
         {
-            if (!entityType.IsImportable()) continue;
+            if (!IsImportable(entityType)) continue;
             Assert.True(schema.ContainsKey(entityType), $"Schema missing definition for {entityType}");
         }
     }
@@ -31,7 +36,7 @@ public class ImportSchemaDefinitionTests
 
         foreach (var entityType in Enum.GetValues<SpreadsheetSheetType>())
         {
-            if (entityType.IsImportable() || entityType == SpreadsheetSheetType.Unknown) continue;
+            if (IsImportable(entityType) || entityType == SpreadsheetSheetType.Unknown) continue;
             Assert.False(schema.ContainsKey(entityType), $"{entityType} is export only but has an import schema");
         }
     }
@@ -106,7 +111,7 @@ public class ImportSchemaDefinitionTests
 
         foreach (var entityType in allTypes)
         {
-            if (!entityType.IsImportable()) continue;
+            if (!IsImportable(entityType)) continue;
             Assert.Contains(entityType.ToString(), prompt);
         }
     }

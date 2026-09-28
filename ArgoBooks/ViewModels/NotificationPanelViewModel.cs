@@ -24,8 +24,6 @@ public partial class NotificationPanelViewModel : ViewModelBase
     /// </summary>
     public bool HasUnreadNotifications => _headerViewModel?.HasUnreadNotifications ?? false;
 
-    public int UnreadCount => _headerViewModel?.UnreadNotificationCount ?? 0;
-
     public ObservableCollection<NotificationItem> Notifications { get; }
 
     /// <summary>
@@ -74,7 +72,6 @@ public partial class NotificationPanelViewModel : ViewModelBase
         {
             OnPropertyChanged(nameof(HasNotifications));
             OnPropertyChanged(nameof(HasUnreadNotifications));
-            OnPropertyChanged(nameof(UnreadCount));
             UpdateIsLast();
         };
 
@@ -136,7 +133,6 @@ public partial class NotificationPanelViewModel : ViewModelBase
             _headerViewModel.HasUnreadNotifications = _headerViewModel.UnreadNotificationCount > 0;
         }
         OnPropertyChanged(nameof(HasUnreadNotifications));
-        OnPropertyChanged(nameof(UnreadCount));
     }
 
     /// <summary>
@@ -147,7 +143,6 @@ public partial class NotificationPanelViewModel : ViewModelBase
     {
         _headerViewModel?.MarkAllNotificationsAsRead();
         OnPropertyChanged(nameof(HasUnreadNotifications));
-        OnPropertyChanged(nameof(UnreadCount));
     }
 
     /// <summary>
@@ -167,7 +162,6 @@ public partial class NotificationPanelViewModel : ViewModelBase
         }
         OnPropertyChanged(nameof(HasNotifications));
         OnPropertyChanged(nameof(HasUnreadNotifications));
-        OnPropertyChanged(nameof(UnreadCount));
     }
 
     /// <summary>
@@ -179,7 +173,6 @@ public partial class NotificationPanelViewModel : ViewModelBase
         _headerViewModel?.ClearNotifications();
         OnPropertyChanged(nameof(HasNotifications));
         OnPropertyChanged(nameof(HasUnreadNotifications));
-        OnPropertyChanged(nameof(UnreadCount));
     }
 
     /// <summary>

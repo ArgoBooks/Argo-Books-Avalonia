@@ -14,7 +14,8 @@ public class Revenue : Transaction
     public string? CustomerId { get; set; }
 
     /// <summary>
-    /// Subtotal before tax.
+    /// The line items added up, before the transaction's discount, fees, shipping and tax
+    /// (docs/Calculations.md §1). Not the pre-tax amount, which is EffectiveSubtotalUSD.
     /// </summary>
     [JsonPropertyName("subtotal")]
     public decimal Subtotal { get; set; }

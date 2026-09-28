@@ -5,7 +5,7 @@ namespace ArgoBooks.Core.Models.Tracking;
 /// <summary>
 /// Represents a receipt attachment.
 /// </summary>
-public class Receipt
+public class Receipt : IRecord
 {
     /// <summary>
     /// Unique identifier (e.g., RCP-001).

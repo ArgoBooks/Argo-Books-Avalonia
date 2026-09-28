@@ -6,7 +6,7 @@ namespace ArgoBooks.Core.Models.Portal;
 /// Settings for the payment portal integration.
 /// Stored in company data (persisted in .argo file).
 /// The per-company API key is issued at portal registration and lives in that same
-/// file; on open it is copied into a process-level slot, not read from a .env file.
+/// file; on open it becomes the active key held in memory.
 /// </summary>
 public class PortalSettings
 {
@@ -15,51 +15,40 @@ public class PortalSettings
     /// </summary>
     public static readonly string ApiBaseUrl = $"{ApiConfig.BaseUrl}/api/portal";
 
-    /// <summary>
-    /// Environment variable name for the portal API key (per-company, obtained during registration).
-    /// </summary>
-    public const string ApiKeyEnvVar = "PAYMENT_PORTAL_API_KEY";
+    private static string _activeApiKey = string.Empty;
 
     /// <summary>
-    /// Gets the active portal API key (from DotEnv, which is loaded per-company).
+    /// The open company's portal API key, held in memory only, as set by <see cref="ActivateApiKey"/>.
     /// </summary>
     [JsonIgnore]
-    public static string ApiKey => DotEnv.Get(ApiKeyEnvVar);
+    public static string ApiKey => _activeApiKey;
 
     /// <summary>
     /// Whether the portal API is configured (API key is present).
     /// </summary>
     [JsonIgnore]
-    public static bool IsConfigured => DotEnv.HasValue(ApiKeyEnvVar);
+    public static bool IsConfigured => _activeApiKey.Length > 0;
 
     /// <summary>
-    /// Per-company API key persisted in the .argo file.
-    /// On company open this is loaded into DotEnv so that the static ApiKey property works.
+    /// Per-company API key persisted in the .argo file, made the active key on company open.
     /// </summary>
     [JsonPropertyName("apiKey")]
     public string? PersistedApiKey { get; set; }
 
     /// <summary>
-    /// Loads this company's API key into the process-level DotEnv cache.
-    /// Call on company open.
+    /// Makes this company's API key the active one. Call on company open.
     /// </summary>
-    public static void ActivateApiKey(PortalSettings? settings)
-    {
-        var key = settings?.PersistedApiKey;
-        if (!string.IsNullOrEmpty(key))
-            DotEnv.SetInMemory(ApiKeyEnvVar, key);
-        else
-            DotEnv.Unset(ApiKeyEnvVar);
-    }
+    public static void ActivateApiKey(PortalSettings? settings) => SetActiveApiKey(settings?.PersistedApiKey);
 
     /// <summary>
-    /// Clears the API key from the process-level DotEnv cache.
-    /// Call on company close.
+    /// Makes <paramref name="apiKey"/> the active key, or clears it when empty.
     /// </summary>
-    public static void DeactivateApiKey()
-    {
-        DotEnv.Unset(ApiKeyEnvVar);
-    }
+    public static void SetActiveApiKey(string? apiKey) => _activeApiKey = apiKey ?? string.Empty;
+
+    /// <summary>
+    /// Clears the active API key. Call on company close.
+    /// </summary>
+    public static void DeactivateApiKey() => _activeApiKey = string.Empty;
 
     /// <summary>
     /// Auto-sync interval in minutes. 0 = manual sync only.

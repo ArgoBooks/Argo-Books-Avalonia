@@ -144,12 +144,16 @@ public partial class LostDamagedPageViewModel : SortablePageViewModelBase
 
     private void OnFiltersApplied(object? sender, EventArgs e)
     {
+        ActiveFilterCount = App.LostDamagedModalsViewModel?.ActiveFilterCount ?? 0;
         CurrentPage = 1;
         FilterItems();
     }
 
+    protected override void ClearTableFilters() => App.LostDamagedModalsViewModel?.ClearFiltersCommand.Execute(null);
+
     private void OnFiltersCleared(object? sender, EventArgs e)
     {
+        ActiveFilterCount = 0;
         SearchQuery = null;
         CurrentPage = 1;
         FilterItems();
@@ -183,14 +187,13 @@ public partial class LostDamagedPageViewModel : SortablePageViewModelBase
         TotalLostDamaged = _allItems.Count;
         LostItems = _allItems.Count(item => item.Reason == LostDamagedReason.Lost || item.Reason == LostDamagedReason.Stolen);
         DamagedItems = _allItems.Count(item => item.Reason == LostDamagedReason.Damaged || item.Reason == LostDamagedReason.Expired);
-        var totalValue = _allItems.Sum(item => item.ValueLost);
-        TotalLossValue = CurrencyService.Format(totalValue);
-    }
-
-    [RelayCommand]
-    private void RefreshItems()
-    {
-        LoadItems();
+        // Each loss is in its sale's or purchase's currency (Calculations.md §10).
+        if (App.CompanyManager?.CompanyData is not { } companyData)
+            return;
+        var complete = DisplayCurrency.TrySumFromNative(
+            _allItems, l => l.ValueLost, l => ReturnLossAmounts.CurrencyOf(companyData, l), l => l.DateDiscovered,
+            CurrencyService.GetDisplayAmountFromNative, out var totalValue);
+        TotalLossValue = complete ? CurrencyService.Format(totalValue) : CurrencyService.PendingMarker;
     }
 
     private void FilterItems()
@@ -264,6 +267,11 @@ public partial class LostDamagedPageViewModel : SortablePageViewModelBase
     {
         var productName = GetProductName(item.ProductId);
         var itemType = GetItemType(item.Reason);
+        var companyData = App.CompanyManager?.CompanyData;
+        var value = companyData == null
+            ? item.ValueLost
+            : CurrencyService.GetDisplayAmountFromNative(
+                item.ValueLost, ReturnLossAmounts.CurrencyOf(companyData, item), item.DateDiscovered);
 
         return new LostDamagedDisplayItem
         {
@@ -273,7 +281,8 @@ public partial class LostDamagedPageViewModel : SortablePageViewModelBase
             ItemType = itemType,
             DateDiscovered = item.DateDiscovered,
             Reason = item.Reason.ToString(),
-            ValueLost = item.ValueLost,
+            ValueLost = value ?? 0m,
+            ValueLostFormatted = value.HasValue ? CurrencyService.Format(value.Value) : CurrencyService.PendingMarker,
             Notes = item.Notes,
             Quantity = item.Quantity,
             InsuranceClaim = item.InsuranceClaim
@@ -380,7 +389,7 @@ public partial class LostDamagedDisplayItem : ObservableObject
 
     // Computed properties for display
     public string DateFormatted => DateDiscovered.ToString("MMM d, yyyy");
-    public string ValueLostFormatted => CurrencyService.Format(ValueLost);
+    public string ValueLostFormatted { get; init; } = string.Empty;
     public string QuantityFormatted => $"{Quantity} unit(s)";
 
 }

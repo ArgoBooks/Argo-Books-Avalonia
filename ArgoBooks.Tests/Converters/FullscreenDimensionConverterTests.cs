@@ -64,16 +64,6 @@ public class FullscreenDimensionConverterTests
         Assert.True(double.IsNaN((double)result));
     }
 
-    [Fact]
-    public void Convert_Fullscreen_WithCommaSeparated_ReturnsFullscreenValue()
-    {
-        var converter = new FullscreenDimensionConverter(800);
-
-        var result = converter.Convert(true, typeof(double), "600,900", null!);
-
-        Assert.Equal(900.0, result);
-    }
-
     #endregion
 
     #region Edge Cases

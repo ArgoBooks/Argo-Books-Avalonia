@@ -1,5 +1,6 @@
 using System.Globalization;
 using ArgoBooks.Core.Data;
+using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Models.Inventory;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
@@ -8,11 +9,12 @@ using QuestPDF.Infrastructure;
 namespace ArgoBooks.Core.Services.PurchaseOrders;
 
 /// <summary>
-/// Renders a purchase order to a PDF byte array using QuestPDF.
+/// Renders a purchase order to a PDF byte array using QuestPDF, with its amounts in the order's own
+/// currency, as the email that carries it shows them.
 /// </summary>
 public static class PurchaseOrderPdfRenderer
 {
-    public static byte[] Render(PurchaseOrder order, CompanyData companyData, string currencySymbol = "$")
+    public static byte[] Render(PurchaseOrder order, CompanyData companyData)
     {
         QuestPDF.Settings.License = LicenseType.Community;
 
@@ -144,9 +146,9 @@ public static class PurchaseOrderPdfRenderer
                             table.Cell().BorderBottom(0.5f).BorderColor(Colors.Grey.Lighten2).Padding(6).AlignRight()
                                 .Text(li.Quantity.ToString(CultureInfo.InvariantCulture));
                             table.Cell().BorderBottom(0.5f).BorderColor(Colors.Grey.Lighten2).Padding(6).AlignRight()
-                                .Text($"{currencySymbol}{li.UnitCost:N2}");
+                                .Text($"{CurrencyInfo.FormatAmount(li.UnitCost, order.OriginalCurrency)}");
                             table.Cell().BorderBottom(0.5f).BorderColor(Colors.Grey.Lighten2).Padding(6).AlignRight()
-                                .Text($"{currencySymbol}{li.Total:N2}");
+                                .Text($"{CurrencyInfo.FormatAmount(li.Total, order.OriginalCurrency)}");
                         }
                     });
 
@@ -155,18 +157,18 @@ public static class PurchaseOrderPdfRenderer
                         t.Item().Row(r =>
                         {
                             r.RelativeItem().Text("Subtotal").FontColor(Colors.Grey.Darken2);
-                            r.ConstantItem(110).AlignRight().Text($"{currencySymbol}{order.Subtotal:N2}");
+                            r.ConstantItem(110).AlignRight().Text($"{CurrencyInfo.FormatAmount(order.Subtotal, order.OriginalCurrency)}");
                         });
                         t.Item().Row(r =>
                         {
                             r.RelativeItem().Text("Shipping").FontColor(Colors.Grey.Darken2);
-                            r.ConstantItem(110).AlignRight().Text($"{currencySymbol}{order.ShippingCost:N2}");
+                            r.ConstantItem(110).AlignRight().Text($"{CurrencyInfo.FormatAmount(order.ShippingCost, order.OriginalCurrency)}");
                         });
                         t.Item().PaddingVertical(4).LineHorizontal(0.5f).LineColor(Colors.Grey.Lighten1);
                         t.Item().Row(r =>
                         {
                             r.RelativeItem().Text("Total").SemiBold();
-                            r.ConstantItem(110).AlignRight().Text($"{currencySymbol}{order.Total:N2}").SemiBold();
+                            r.ConstantItem(110).AlignRight().Text($"{CurrencyInfo.FormatAmount(order.Total, order.OriginalCurrency)}").SemiBold();
                         });
                     });
 

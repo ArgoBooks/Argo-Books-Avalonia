@@ -74,19 +74,6 @@ public class LicenseServiceTests
     }
 
     [Fact]
-    public async Task SaveLicenseAsync_SetsLastValidationDate()
-    {
-        var beforeSave = DateTime.UtcNow;
-
-        await _licenseService.SaveLicenseAsync(true, "TEST-KEY");
-
-        var afterSave = DateTime.UtcNow;
-        Assert.NotNull(_settingsService.SavedSettings?.License.LastValidationDate);
-        Assert.True(_settingsService.SavedSettings.License.LastValidationDate >= beforeSave);
-        Assert.True(_settingsService.SavedSettings.License.LastValidationDate <= afterSave);
-    }
-
-    [Fact]
     public async Task SaveLicenseAsync_PremiumLicense_SavesCorrectly()
     {
         await _licenseService.SaveLicenseAsync(true, "PREMIUM-KEY");
@@ -276,7 +263,7 @@ public class LicenseServiceTests
         public string GenerateSalt() => Convert.ToBase64String(Guid.NewGuid().ToByteArray());
         public string GenerateIv() => Convert.ToBase64String(Guid.NewGuid().ToByteArray()[..12]);
 
-        public string HashPassword(string password, string salt) =>
+        private static string HashPassword(string password, string salt) =>
             Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(password + salt));
 
         public byte[] Encrypt(byte[] data, string password, string salt, string iv)
@@ -318,14 +305,6 @@ public class LicenseServiceTests
             throw new System.Security.Cryptography.CryptographicException("Data not found");
         }
 
-        public Task<MemoryStream> EncryptAsync(Stream inputStream, string password, string salt, string iv)
-        {
-            using var ms = new MemoryStream();
-            inputStream.CopyTo(ms);
-            var encrypted = Encrypt(ms.ToArray(), password, salt, iv);
-            return Task.FromResult(new MemoryStream(encrypted));
-        }
-
         public byte[] DecryptWithVerification(
             byte[] encryptedData, string password, string salt, string iv, string expectedPasswordHash)
         {
@@ -342,10 +321,6 @@ public class LicenseServiceTests
             var decrypted = DecryptWithVerification(ms.ToArray(), password, salt, iv, expectedPasswordHash);
             return Task.FromResult(new MemoryStream(decrypted));
         }
-
-        public bool IsPasswordValid(string password) => password.Length >= 8;
-        public string? GetPasswordValidationError(string password) =>
-            password.Length >= 8 ? null : "Password must be at least 8 characters";
     }
 
     private class MockGlobalSettingsService : IGlobalSettingsService
@@ -391,8 +366,6 @@ public class LicenseServiceTests
 
         public string GetAppDataPath() => "/mock/appdata";
         public string GetTempPath() => "/mock/temp";
-        public string GetDefaultDocumentsPath() => "/mock/documents";
-        public string GetLogsPath() => "/mock/logs";
         public string GetCachePath() => "/mock/cache";
         public string NormalizePath(string path) => path;
         public string CombinePaths(params string[] paths) => string.Join("/", paths);
@@ -413,7 +386,6 @@ public class LicenseServiceTests
         /// <summary>
         /// Mock implementation that does nothing.
         /// </summary>
-        public void RegisterFileTypeAssociations(string iconPath) { }
     }
 
     private class MockConnectivityService : IConnectivityService

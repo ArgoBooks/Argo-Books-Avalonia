@@ -114,26 +114,14 @@ public class TelemetryStorageService : ITelemetryStorageService
             _uploadState.LastUploadTime = DateTime.UtcNow;
             _uploadState.TotalEventsUploaded += newlyMarked;
 
+            // Nothing reads an uploaded event again; the running total above is what the stats
+            // keep. Kept, they made every recorded event rewrite a file thousands of events long.
+            _events.RemoveAll(e => e.Event.IsUploaded);
+
             await SaveEventsAsync(cancellationToken);
             await SaveUploadStateAsync(cancellationToken);
             return true;
         }, fallback: false, cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public async Task<string> ExportToJsonAsync(CancellationToken cancellationToken = default)
-    {
-        return await WithFreshStateAsync(() =>
-        {
-            var exportData = new TelemetryExport
-            {
-                ExportTime = DateTime.UtcNow,
-                TotalEvents = _events.Count,
-                Events = _events.Select(e => e.Event).OrderByDescending(e => e.Timestamp).ToList()
-            };
-
-            return Task.FromResult(JsonSerializer.Serialize(exportData, _jsonOptions));
-        }, fallback: string.Empty, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -497,13 +485,6 @@ public class TelemetryStorageService : ITelemetryStorageService
         public int TotalEventsUploaded { get; set; }
     }
 
-    private class TelemetryExport
-    {
-        public DateTime ExportTime { get; set; }
-        public int TotalEvents { get; set; }
-        public List<TelemetryEvent> Events { get; set; } = [];
-    }
-
     private class TelemetryBackup
     {
         public DateTime BackupTime { get; set; }
@@ -598,11 +579,6 @@ public interface ITelemetryStorageService
     /// Marks the specified events as uploaded.
     /// </summary>
     Task MarkEventsUploadedAsync(IEnumerable<string> dataIds, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Exports all telemetry data as a JSON string for user review.
-    /// </summary>
-    Task<string> ExportToJsonAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Clears all stored telemetry data.

@@ -57,15 +57,15 @@
                                 BorderBrush="{DynamicResource BorderBrush}"
                                 BorderThickness="0,0,0,1">
                             <StackPanel Orientation="Horizontal" Spacing="10">
-                                <TextBlock Text="{loc:Loc '1. Period'}" FontSize="13" Classes="step"
+                                <TextBlock Text="{loc:Loc '1. Period'}" FontSize="14" Classes="step"
                                            Classes.active="{Binding IsStep1}"
                                            Foreground="{DynamicResource TextPrimaryBrush}" />
                                 <TextBlock Text="&#x203A;" Foreground="{DynamicResource TextTertiaryBrush}" />
-                                <TextBlock Text="{loc:Loc '2. Amounts'}" FontSize="13" Classes="step"
+                                <TextBlock Text="{loc:Loc '2. Amounts'}" FontSize="14" Classes="step"
                                            Classes.active="{Binding IsStep2}"
                                            Foreground="{DynamicResource TextPrimaryBrush}" />
                                 <TextBlock Text="&#x203A;" Foreground="{DynamicResource TextTertiaryBrush}" />
-                                <TextBlock Text="{loc:Loc '3. Review'}" FontSize="13" Classes="step"
+                                <TextBlock Text="{loc:Loc '3. Review'}" FontSize="14" Classes="step"
                                            Classes.active="{Binding IsStep3}"
                                            Foreground="{DynamicResource TextPrimaryBrush}" />
                             </StackPanel>
@@ -80,21 +80,21 @@
 
                                     <Grid ColumnDefinitions="*,16,*,16,*">
                                         <StackPanel Grid.Column="0" Spacing="6">
-                                            <TextBlock Text="{loc:Loc 'Pay date'}" FontSize="13" FontWeight="Medium"
+                                            <TextBlock Text="{loc:Loc 'Pay date'}" FontSize="14" FontWeight="Medium"
                                                        Foreground="{DynamicResource TextSecondaryBrush}" />
                                             <DatePicker SelectedDate="{Binding PayDate, Mode=TwoWay}"
                                                         Classes="form-datepicker" MinWidth="0" HorizontalAlignment="Stretch" />
                                         </StackPanel>
 
                                         <StackPanel Grid.Column="2" Spacing="6">
-                                            <TextBlock Text="{loc:Loc 'Period from'}" FontSize="13" FontWeight="Medium"
+                                            <TextBlock Text="{loc:Loc 'Period from'}" FontSize="14" FontWeight="Medium"
                                                        Foreground="{DynamicResource TextSecondaryBrush}" />
                                             <DatePicker SelectedDate="{Binding PeriodStart, Mode=TwoWay}"
                                                         Classes="form-datepicker" MinWidth="0" HorizontalAlignment="Stretch" />
                                         </StackPanel>
 
                                         <StackPanel Grid.Column="4" Spacing="6">
-                                            <TextBlock Text="{loc:Loc 'Period to'}" FontSize="13" FontWeight="Medium"
+                                            <TextBlock Text="{loc:Loc 'Period to'}" FontSize="14" FontWeight="Medium"
                                                        Foreground="{DynamicResource TextSecondaryBrush}" />
                                             <DatePicker SelectedDate="{Binding PeriodEnd, Mode=TwoWay}"
                                                         Classes="form-datepicker" MinWidth="0" HorizontalAlignment="Stretch" />
@@ -102,7 +102,7 @@
                                                  soon as it is true, not on pressing Next: a backwards period
                                                  calculates happily and only reads as nonsense later, on a
                                                  stub and on a record of employment. -->
-                                            <TextBlock Text="{Binding PeriodError}" FontSize="12" TextWrapping="Wrap"
+                                            <TextBlock Text="{Binding PeriodError}" FontSize="14" TextWrapping="Wrap"
                                                        Foreground="{DynamicResource ErrorBrush}"
                                                        IsVisible="{Binding PeriodError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                         </StackPanel>
@@ -111,18 +111,18 @@
                                     <!-- The pay date decides which CRA edition applies, and some provinces
                                          carry different figures in each half of the year. Making the edition
                                          visible costs nothing and prevents a silent class of error. -->
-                                    <TextBlock Text="{Binding RateEditionNote}" FontSize="11"
+                                    <TextBlock Text="{Binding RateEditionNote}" FontSize="12"
                                                Foreground="{DynamicResource TextTertiaryBrush}"
                                                IsVisible="{Binding RateEditionNote, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
 
                                     <Border Background="{DynamicResource ErrorBrush}" Opacity="0.12" CornerRadius="8"
                                             IsVisible="{Binding BlockingError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                                    <TextBlock Text="{Binding BlockingError}" FontSize="12" TextWrapping="Wrap"
+                                    <TextBlock Text="{Binding BlockingError}" FontSize="14" TextWrapping="Wrap"
                                                Foreground="{DynamicResource ErrorBrush}"
                                                IsVisible="{Binding BlockingError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
 
                                     <StackPanel Spacing="8">
-                                        <TextBlock Text="{loc:Loc 'Who is being paid'}" FontSize="13" FontWeight="Medium"
+                                        <TextBlock Text="{loc:Loc 'Who is being paid'}" FontSize="14" FontWeight="Medium"
                                                    Foreground="{DynamicResource TextSecondaryBrush}" />
                                         <ItemsControl ItemsSource="{Binding SelectableEmployees}">
                                             <ItemsControl.ItemTemplate>
@@ -132,9 +132,9 @@
                                                             <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
                                                                       VerticalAlignment="Center" />
                                                             <StackPanel VerticalAlignment="Center">
-                                                                <TextBlock Text="{Binding Name}" FontSize="13"
+                                                                <TextBlock Text="{Binding Name}" FontSize="14"
                                                                            Foreground="{DynamicResource TextPrimaryBrush}" />
-                                                                <TextBlock Text="{Binding Detail}" FontSize="11"
+                                                                <TextBlock Text="{Binding Detail}" FontSize="12"
                                                                            Foreground="{DynamicResource TextTertiaryBrush}" />
                                                             </StackPanel>
                                                         </StackPanel>
@@ -149,7 +149,7 @@
                                         <Border Background="{DynamicResource SurfaceAltBrush}" CornerRadius="8"
                                                 Padding="16" IsVisible="{Binding HasNobodyToPay}">
                                             <TextBlock Text="{Binding NoEmployeesMessage, Converter={StaticResource TranslateConverter}}"
-                                                       FontSize="12" TextWrapping="Wrap"
+                                                       FontSize="14" TextWrapping="Wrap"
                                                        Foreground="{DynamicResource TextSecondaryBrush}" />
                                         </Border>
                                     </StackPanel>
@@ -159,15 +159,15 @@
                                 <StackPanel Spacing="12" IsVisible="{Binding IsStep2}">
 
                                     <Grid ColumnDefinitions="2*,1.2*,1.2*,1.2*,1.2*" Margin="0,0,0,4">
-                                        <TextBlock Grid.Column="0" Text="{loc:Loc Employee}" FontSize="12" FontWeight="SemiBold"
+                                        <TextBlock Grid.Column="0" Text="{loc:Loc Employee}" FontSize="14" FontWeight="SemiBold"
                                                    Foreground="{DynamicResource TextSecondaryBrush}" />
-                                        <TextBlock Grid.Column="1" Text="{loc:Loc 'Hours or pay'}" FontSize="12" FontWeight="SemiBold"
+                                        <TextBlock Grid.Column="1" Text="{loc:Loc 'Hours or pay'}" FontSize="14" FontWeight="SemiBold"
                                                    Foreground="{DynamicResource TextSecondaryBrush}" />
-                                        <TextBlock Grid.Column="2" Text="{loc:Loc Bonus}" FontSize="12" FontWeight="SemiBold"
+                                        <TextBlock Grid.Column="2" Text="{loc:Loc Bonus}" FontSize="14" FontWeight="SemiBold"
                                                    Foreground="{DynamicResource TextSecondaryBrush}" />
-                                        <TextBlock Grid.Column="3" Text="{loc:Loc 'Vacation pay'}" FontSize="12" FontWeight="SemiBold"
+                                        <TextBlock Grid.Column="3" Text="{loc:Loc 'Vacation pay'}" FontSize="14" FontWeight="SemiBold"
                                                    Foreground="{DynamicResource TextSecondaryBrush}" />
-                                        <TextBlock Grid.Column="4" Text="{loc:Loc Gross}" FontSize="12" FontWeight="SemiBold"
+                                        <TextBlock Grid.Column="4" Text="{loc:Loc Gross}" FontSize="14" FontWeight="SemiBold"
                                                    HorizontalAlignment="Right"
                                                    Foreground="{DynamicResource TextSecondaryBrush}" />
                                     </Grid>
@@ -181,7 +181,7 @@
                                                         <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,8,0">
                                                             <TextBlock Text="{Binding EmployeeName}" FontSize="14"
                                                                        Foreground="{DynamicResource TextPrimaryBrush}" />
-                                                            <TextBlock Text="{Binding RateNote}" FontSize="12"
+                                                            <TextBlock Text="{Binding RateNote}" FontSize="14"
                                                                        Foreground="{DynamicResource TextTertiaryBrush}" />
                                                         </StackPanel>
 
@@ -209,7 +209,7 @@
                                                                      MaxLength="13"
                                                                      IsVisible="{Binding !IsHourly}" />
                                                             <TextBlock Grid.Column="1" Text="{Binding UnitLabel}"
-                                                                       FontSize="12" Margin="6,0,0,0"
+                                                                       FontSize="14" Margin="6,0,0,0"
                                                                        VerticalAlignment="Center"
                                                                        Foreground="{DynamicResource TextTertiaryBrush}" />
                                                         </Grid>
@@ -227,7 +227,7 @@
                                                                  MaxLength="13" />
 
                                                         <TextBlock Grid.Column="4" Text="{Binding GrossDisplay}"
-                                                                   FontSize="13" HorizontalAlignment="Right"
+                                                                   FontSize="14" HorizontalAlignment="Right"
                                                                    VerticalAlignment="Center"
                                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
                                                     </Grid>
@@ -253,12 +253,12 @@
                                     <Border Background="{DynamicResource SurfaceAltBrush}" CornerRadius="8" Padding="14"
                                             IsVisible="{Binding HasWarnings}">
                                         <StackPanel Spacing="6">
-                                            <TextBlock Text="{loc:Loc 'Worth knowing'}" FontSize="12" FontWeight="SemiBold"
+                                            <TextBlock Text="{loc:Loc 'Worth knowing'}" FontSize="14" FontWeight="SemiBold"
                                                        Foreground="{DynamicResource WarningBrush}" />
                                             <ItemsControl ItemsSource="{Binding Warnings}">
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate>
-                                                        <TextBlock Text="{Binding}" FontSize="12" TextWrapping="Wrap"
+                                                        <TextBlock Text="{Binding}" FontSize="14" TextWrapping="Wrap"
                                                                    Foreground="{DynamicResource TextSecondaryBrush}" />
                                                     </DataTemplate>
                                                 </ItemsControl.ItemTemplate>
@@ -287,55 +287,55 @@
                                                                           Data="{x:Static icons:Icons.ChevronDownSmall}"
                                                                           Foreground="{DynamicResource TextTertiaryBrush}"
                                                                           IsVisible="{Binding IsExpanded}" />
-                                                                <TextBlock Grid.Column="1" Text="{Binding EmployeeName}" FontSize="13"
+                                                                <TextBlock Grid.Column="1" Text="{Binding EmployeeName}" FontSize="14"
                                                                            VerticalAlignment="Center"
                                                                            Foreground="{DynamicResource TextPrimaryBrush}" />
-                                                                <TextBlock Grid.Column="2" Text="{Binding NetPay}" FontSize="13"
+                                                                <TextBlock Grid.Column="2" Text="{Binding NetPay}" FontSize="14"
                                                                            FontWeight="SemiBold" VerticalAlignment="Center"
                                                                            Foreground="{DynamicResource TextPrimaryBrush}" />
                                                             </Grid>
                                                         </Button>
 
                                                         <StackPanel Margin="34,0,12,12" Spacing="4"
-                                                                    MaxWidth="360" HorizontalAlignment="Left"
+                                                                    MinWidth="220" MaxWidth="420" HorizontalAlignment="Left"
                                                                     IsVisible="{Binding IsExpanded}">
-                                                            <Grid ColumnDefinitions="*,Auto">
-                                                                <TextBlock Grid.Column="0" Text="{loc:Loc Gross}" FontSize="12"
+                                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                                                <TextBlock Grid.Column="0" Text="{loc:Loc Gross}" FontSize="14"
                                                                            Foreground="{DynamicResource TextSecondaryBrush}" />
-                                                                <TextBlock Grid.Column="1" Text="{Binding Gross}" FontSize="12"
+                                                                <TextBlock Grid.Column="1" Text="{Binding Gross}" FontSize="14"
                                                                            Foreground="{DynamicResource TextSecondaryBrush}" />
                                                             </Grid>
-                                                            <Grid ColumnDefinitions="*,Auto" Margin="12,0,0,0">
-                                                                <TextBlock Grid.Column="0" Text="{Binding CppLabel}" FontSize="12"
+                                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16" Margin="12,0,0,0">
+                                                                <TextBlock Grid.Column="0" Text="{Binding CppLabel}" FontSize="14"
                                                                            Foreground="{DynamicResource TextTertiaryBrush}" />
-                                                                <TextBlock Grid.Column="1" Text="{Binding Cpp}" FontSize="12"
+                                                                <TextBlock Grid.Column="1" Text="{Binding Cpp}" FontSize="14"
                                                                            Foreground="{DynamicResource TextTertiaryBrush}" />
                                                             </Grid>
-                                                            <Grid ColumnDefinitions="*,Auto" Margin="12,0,0,0">
-                                                                <TextBlock Grid.Column="0" Text="{loc:Loc EI}" FontSize="12"
+                                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16" Margin="12,0,0,0">
+                                                                <TextBlock Grid.Column="0" Text="{loc:Loc EI}" FontSize="14"
                                                                            Foreground="{DynamicResource TextTertiaryBrush}" />
-                                                                <TextBlock Grid.Column="1" Text="{Binding Ei}" FontSize="12"
+                                                                <TextBlock Grid.Column="1" Text="{Binding Ei}" FontSize="14"
                                                                            Foreground="{DynamicResource TextTertiaryBrush}" />
                                                             </Grid>
                                                             <!-- Quebec only. Without it the amounts below do not
                                                                  add up to the net pay above them. -->
-                                                            <Grid ColumnDefinitions="*,Auto" Margin="12,0,0,0"
+                                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16" Margin="12,0,0,0"
                                                                   IsVisible="{Binding HasQpip}">
-                                                                <TextBlock Grid.Column="0" Text="QPIP" FontSize="12"
+                                                                <TextBlock Grid.Column="0" Text="QPIP" FontSize="14"
                                                                            Foreground="{DynamicResource TextTertiaryBrush}" />
-                                                                <TextBlock Grid.Column="1" Text="{Binding Qpip}" FontSize="12"
-                                                                           Foreground="{DynamicResource TextTertiaryBrush}" />
-                                                            </Grid>
-                                                            <Grid ColumnDefinitions="*,Auto" Margin="12,0,0,0">
-                                                                <TextBlock Grid.Column="0" Text="{loc:Loc 'Federal tax'}" FontSize="12"
-                                                                           Foreground="{DynamicResource TextTertiaryBrush}" />
-                                                                <TextBlock Grid.Column="1" Text="{Binding FederalTax}" FontSize="12"
+                                                                <TextBlock Grid.Column="1" Text="{Binding Qpip}" FontSize="14"
                                                                            Foreground="{DynamicResource TextTertiaryBrush}" />
                                                             </Grid>
-                                                            <Grid ColumnDefinitions="*,Auto" Margin="12,0,0,0">
-                                                                <TextBlock Grid.Column="0" Text="{Binding ProvincialTaxLabel}" FontSize="12"
+                                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16" Margin="12,0,0,0">
+                                                                <TextBlock Grid.Column="0" Text="{loc:Loc 'Federal tax'}" FontSize="14"
                                                                            Foreground="{DynamicResource TextTertiaryBrush}" />
-                                                                <TextBlock Grid.Column="1" Text="{Binding ProvincialTax}" FontSize="12"
+                                                                <TextBlock Grid.Column="1" Text="{Binding FederalTax}" FontSize="14"
+                                                                           Foreground="{DynamicResource TextTertiaryBrush}" />
+                                                            </Grid>
+                                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16" Margin="12,0,0,0">
+                                                                <TextBlock Grid.Column="0" Text="{Binding ProvincialTaxLabel}" FontSize="14"
+                                                                           Foreground="{DynamicResource TextTertiaryBrush}" />
+                                                                <TextBlock Grid.Column="1" Text="{Binding ProvincialTax}" FontSize="14"
                                                                            Foreground="{DynamicResource TextTertiaryBrush}" />
                                                             </Grid>
                                                         </StackPanel>
@@ -352,7 +352,7 @@
                                                 <StackPanel Grid.Column="0">
                                                     <TextBlock Text="{loc:Loc 'Total net pay'}" FontSize="14" FontWeight="SemiBold"
                                                                Foreground="{DynamicResource TextPrimaryBrush}" />
-                                                    <TextBlock Text="{loc:Loc 'What leaves your bank'}" FontSize="11"
+                                                    <TextBlock Text="{loc:Loc 'What leaves your bank'}" FontSize="12"
                                                                Foreground="{DynamicResource TextTertiaryBrush}" />
                                                 </StackPanel>
                                                 <TextBlock Grid.Column="1" Text="{Binding TotalNetPay}" FontSize="16" FontWeight="SemiBold"
@@ -360,23 +360,41 @@
                                                            Foreground="{DynamicResource TextPrimaryBrush}" />
                                             </Grid>
 
-                                            <Grid ColumnDefinitions="*,Auto">
-                                                <StackPanel Grid.Column="0">
-                                                    <TextBlock Text="{loc:Loc 'Total to remit'}" FontSize="14" FontWeight="SemiBold"
+                                            <StackPanel Spacing="6">
+                                                <Grid ColumnDefinitions="*,Auto">
+                                                    <StackPanel Grid.Column="0">
+                                                        <TextBlock Text="{loc:Loc 'Total to remit'}" FontSize="14" FontWeight="SemiBold"
+                                                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                                                        <TextBlock Text="{Binding RemittanceDueNote}" FontSize="12"
+                                                                   Foreground="{DynamicResource TextTertiaryBrush}" />
+                                                    </StackPanel>
+                                                    <TextBlock Grid.Column="1" Text="{Binding TotalRemittance}" FontSize="16" FontWeight="SemiBold"
+                                                               VerticalAlignment="Center"
                                                                Foreground="{DynamicResource TextPrimaryBrush}" />
-                                                    <TextBlock Text="{Binding RemittanceDueNote}" FontSize="11"
-                                                               Foreground="{DynamicResource TextTertiaryBrush}" />
+                                                </Grid>
+                                                <!-- How the remittance adds up. Indented under it so the employer's share reads as part
+                                                     of this payment, not as a separate one. -->
+                                                <StackPanel Margin="12,0,0,0" Spacing="2" MinWidth="220" HorizontalAlignment="Left">
+                                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                                        <TextBlock Grid.Column="0" Text="{loc:Loc 'Deducted from pay'}" FontSize="12"
+                                                                   Foreground="{DynamicResource TextTertiaryBrush}" />
+                                                        <TextBlock Grid.Column="1" Text="{Binding TotalWithheld}" FontSize="12"
+                                                                   Foreground="{DynamicResource TextTertiaryBrush}" />
+                                                    </Grid>
+                                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                                        <TextBlock Grid.Column="0" Text="{loc:Loc 'Your CPP and EI share'}" FontSize="12"
+                                                                   Foreground="{DynamicResource TextTertiaryBrush}" />
+                                                        <TextBlock Grid.Column="1" Text="{Binding TotalEmployerShare}" FontSize="12"
+                                                                   Foreground="{DynamicResource TextTertiaryBrush}" />
+                                                    </Grid>
                                                 </StackPanel>
-                                                <TextBlock Grid.Column="1" Text="{Binding TotalRemittance}" FontSize="16" FontWeight="SemiBold"
-                                                           VerticalAlignment="Center"
-                                                           Foreground="{DynamicResource TextPrimaryBrush}" />
-                                            </Grid>
+                                            </StackPanel>
 
                                             <Grid ColumnDefinitions="*,Auto">
                                                 <StackPanel Grid.Column="0">
                                                     <TextBlock Text="{loc:Loc 'Total cost'}" FontSize="14" FontWeight="SemiBold"
                                                                Foreground="{DynamicResource TextPrimaryBrush}" />
-                                                    <TextBlock Text="{loc:Loc 'Gross plus your CPP and EI share'}" FontSize="11"
+                                                    <TextBlock Text="{loc:Loc 'Gross plus your CPP and EI share'}" FontSize="12"
                                                                Foreground="{DynamicResource TextTertiaryBrush}" />
                                                 </StackPanel>
                                                 <TextBlock Grid.Column="1" Text="{Binding TotalCost}" FontSize="16" FontWeight="SemiBold"
@@ -387,7 +405,7 @@
                                     </Border>
 
                                     <TextBlock Text="{loc:Loc 'Approving locks these figures and records one expense per employee at their net pay.'}"
-                                               FontSize="11" TextWrapping="Wrap"
+                                               FontSize="12" TextWrapping="Wrap"
                                                Foreground="{DynamicResource TextTertiaryBrush}" />
                                 </StackPanel>
                             </Panel>

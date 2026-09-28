@@ -61,8 +61,8 @@ public class StripeSyncServiceTests
         var preview = await MakeService().PreviewAsync(ConnectedData());
 
         Assert.Single(preview.Charges);
-        Assert.Equal(50.00m, preview.TotalRevenue);
-        Assert.Equal(1.75m, preview.TotalFees);
+        Assert.Equal(new IncomingAmount(50.00m, "USD", DateTimeOffset.FromUnixTimeSeconds(1700000000).LocalDateTime), Assert.Single(preview.Sales));
+        Assert.Equal(1.75m, Assert.Single(preview.Fees).Amount);
         Assert.Single(preview.NewPayouts);
         Assert.True(preview.HasActivity);
         Assert.Equal("ch_1", preview.NewCursor);

@@ -25,7 +25,7 @@ public partial class App
         SpreadsheetAnalysisService analysisService,
         SpreadsheetImportService importService,
         string originalFileName,
-        AiImportUsageService usageService)
+        UsageLimitService usageService)
     {
         using var rescueCts = new CancellationTokenSource();
         _mainWindowViewModel?.ShowLoading(
@@ -66,14 +66,13 @@ public partial class App
         // Nothing importable: show the vetted message for the resolved reason code (never raw AI text).
         if (rescue.Outcome == ImportRescueOutcome.Rejected)
         {
-            await ShowInfoMessageBoxAsync("Import".Translate(), ImportRescueMessages.ForReason(rescue.ReasonCode));
+            await ShowInfoDialogAsync("Import".Translate(), ImportRescueMessages.ForReason(rescue.ReasonCode));
             return;
         }
 
         // Commit extracted entities, mirroring the Tier-2 commit path.
         var importStopwatch = System.Diagnostics.Stopwatch.StartNew();
         var snapshot = CreateCompanyDataSnapshot(companyData);
-        var queuedBeforeImport = companyData.PendingConversions.ToHashSet();
         var importOptions = new ImportOptions();
 
         using var importCts = new CancellationTokenSource();
@@ -90,9 +89,6 @@ public partial class App
         await importService.AiCategorizeMissingProductsAsync(companyData, importCts.Token);
         await Task.Yield();
         _mainWindowViewModel?.HideLoading();
-
-        MirrorQueuedConversions(companyData, companyData.PendingConversions
-            .Where(p => !queuedBeforeImport.Contains(p)).Select(p => p.TransactionId));
 
         var importedSnapshot = CreateCompanyDataSnapshot(companyData);
         void RestoreImportSnapshotAndRefresh(string snapshotJson)

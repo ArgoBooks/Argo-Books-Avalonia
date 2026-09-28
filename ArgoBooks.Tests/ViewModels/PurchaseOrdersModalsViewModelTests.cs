@@ -141,6 +141,60 @@ public class PurchaseOrdersModalsViewModelTests : ModalViewModelTestBase
     }
 
     [Fact]
+    public void Receive_TwoLinesOfOneProduct_UndoRedoUndo_KeepsOneCombinedAdjustmentAndRestoresTheOrder()
+    {
+        Company.Settings.Localization.Currency = "USD";
+        Company.Products.Add(new Product { Id = "P1", Name = "Widget", TrackInventory = true });
+        var order = new PurchaseOrder
+        {
+            Id = "PO-1",
+            PoNumber = "PO-2026-001",
+            Status = PurchaseOrderStatus.OnOrder,
+            LineItems =
+            [
+                new() { ProductId = "P1", Quantity = 3, UnitCost = 10m },
+                new() { ProductId = "P1", Quantity = 4, UnitCost = 12m }
+            ]
+        };
+        Company.PurchaseOrders.Add(order);
+        var stock = new InventoryItem { Id = "INV-1", ProductId = "P1", InStock = 1 };
+        Company.Inventory.Add(stock);
+        var vm = new PurchaseOrdersModalsViewModel();
+
+        vm.OpenReceiveModal(new PurchaseOrderDisplayItem { Id = "PO-1" });
+        vm.ReceiveLineItems[0].ReceivingQuantity = "3";
+        vm.ReceiveLineItems[1].ReceivingQuantity = "4";
+        vm.ConfirmReceiveCommand.Execute(null);
+
+        void AssertReceived()
+        {
+            Assert.Equal(8, stock.InStock);
+            var adjustment = Assert.Single(Company.StockAdjustments);
+            Assert.Equal((AdjustmentType.Add, 7m, 1m, 8m),
+                (adjustment.AdjustmentType, adjustment.Quantity, adjustment.PreviousStock, adjustment.NewStock));
+            Assert.Equal([3m, 4m], order.LineItems.Select(l => l.QuantityReceived));
+            Assert.Equal(PurchaseOrderStatus.Received, order.Status);
+        }
+
+        void AssertNotReceived()
+        {
+            Assert.Equal(1, stock.InStock);
+            Assert.Empty(Company.StockAdjustments);
+            Assert.Equal([0m, 0m], order.LineItems.Select(l => l.QuantityReceived));
+            Assert.Equal(PurchaseOrderStatus.OnOrder, order.Status);
+        }
+
+        AssertReceived();
+        Undo();
+        AssertNotReceived();
+        Redo();
+        AssertReceived();
+        // The redo recorded fresh stock changes; undoing again must revert those, not the first ones.
+        Undo();
+        AssertNotReceived();
+    }
+
+    [Fact]
     public void Receive_ExistingInventoryRow_WritesLedgerEntry_UndoRestoresStockExactly()
     {
         SeedOrderToReceive(quantity: 5, alreadyReceived: 0);

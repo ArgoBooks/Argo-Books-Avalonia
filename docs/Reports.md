@@ -16,7 +16,7 @@ See [Calculations](Calculations.md) for the rules governing how the numbers in e
 - Expense Breakdown
 - Custom Report (blank starting point)
 
-**Accounting reports** follow accrual rules by default, with an optional cash-basis toggle on each report:
+**Accounting reports** count every sale in the date range, paid or not (the accrual basis), except the cash figures, which count only money actually received. There is no option to change this. Section 10 of [Calculations](Calculations.md) has the details. The accounting reports are:
 
 - Income Statement
 - Balance Sheet
@@ -46,11 +46,11 @@ Built-in templates themselves are read-only. Saving an edited built-in creates a
 
 Each template has a fixed page count, but the report can grow at render time:
 
-- If a transaction table doesn't fit on its page, it overflows to a continuation page automatically.
-- Continuation pages re-render only the overflowing table. The other elements on that page appear once, on the first effective page.
-- Headers and footers redraw on every page, including continuation pages.
-- Charts, labels, and images are not split across pages. If they don't fit, they are clipped.
+- If a transaction table doesn't fit on its page, the rest of it continues on an extra page.
+- The extra page shows only the rest of that table. Everything else on the original page appears once, on the original page.
+- Headers and footers appear on every page, extra pages included.
+- Charts, labels, and images are never split across pages. If they don't fit, they are cut off.
 
 ## Charts inside reports
 
-Charts in reports are drawn directly into the PDF rather than embedding the on-screen chart control. Bar, line, area, scatter, pie, and world-map charts all render with the same look as the analytics tab.
+Charts in reports are drawn straight into the PDF instead of copying the on-screen chart. Bar, line, area, scatter, pie, and world-map charts all look the same as on the Analytics tab.

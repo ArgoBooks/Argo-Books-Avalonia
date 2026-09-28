@@ -99,6 +99,12 @@ public partial class ArgoTable : UserControl, INotifyPropertyChanged
     public static readonly StyledProperty<ICommand?> FilterCommandProperty =
         AvaloniaProperty.Register<ArgoTable, ICommand?>(nameof(FilterCommand));
 
+    public static readonly StyledProperty<int> FilterCountProperty =
+        AvaloniaProperty.Register<ArgoTable, int>(nameof(FilterCount));
+
+    public static readonly StyledProperty<ICommand?> ClearFiltersCommandProperty =
+        AvaloniaProperty.Register<ArgoTable, ICommand?>(nameof(ClearFiltersCommand));
+
     // Extra Buttons Content (slot for additional buttons between Filter and Add)
     public static readonly StyledProperty<object?> ExtraButtonsContentProperty =
         AvaloniaProperty.Register<ArgoTable, object?>(nameof(ExtraButtonsContent));
@@ -319,6 +325,23 @@ public partial class ArgoTable : UserControl, INotifyPropertyChanged
     }
 
     /// <summary>
+    /// How many filters are applied. Above 0 the Filter button is highlighted with the count, a clear
+    /// button appears beside it, and an empty table says the filters are hiding the rows, so nobody
+    /// mistakes a filtered list for missing data.
+    /// </summary>
+    public int FilterCount
+    {
+        get => GetValue(FilterCountProperty);
+        set => SetValue(FilterCountProperty, value);
+    }
+
+    public ICommand? ClearFiltersCommand
+    {
+        get => GetValue(ClearFiltersCommandProperty);
+        set => SetValue(ClearFiltersCommandProperty, value);
+    }
+
+    /// <summary>
     /// Content slot for extra buttons between Filter and Add buttons.
     /// </summary>
     public object? ExtraButtonsContent
@@ -526,12 +549,7 @@ public partial class ArgoTable : UserControl, INotifyPropertyChanged
     #region Events
 
     /// <summary>
-    /// Raised when the table header is right-clicked (for column menu).
-    /// </summary>
-    public event EventHandler<PointerPressedEventArgs>? HeaderRightClicked;
-
-    /// <summary>
-    /// Raised when the table grid size changes (for column width calculation).
+    /// Raised when the width the table is shown in changes, after the columns have been refitted.
     /// </summary>
     public event EventHandler<SizeChangedEventArgs>? TableGridSizeChanged;
 
@@ -566,10 +584,28 @@ public partial class ArgoTable : UserControl, INotifyPropertyChanged
     /// </summary>
     private static readonly HashSet<string> ReportedEmptyPages = new(StringComparer.Ordinal);
 
+    /// <summary>
+    /// The page this table belongs to, captured on attach. By the time it detaches the navigation
+    /// service already names the page being moved to, which would credit the empty state to the
+    /// wrong one.
+    /// </summary>
+    private string? _attachedPage;
+
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
+        _attachedPage = App.NavigationService?.CurrentPageName;
+    }
+
+    /// <summary>
+    /// Reported as the page is left rather than while it is open: a table is empty for the frames
+    /// between attaching and its rows arriving, so anything asked earlier records every page as
+    /// empty. On the way out the answer is settled.
+    /// </summary>
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
         ReportEmptyStateIfNeeded();
+        base.OnDetachedFromVisualTree(e);
     }
 
     private void ReportEmptyStateIfNeeded()
@@ -578,7 +614,7 @@ public partial class ArgoTable : UserControl, INotifyPropertyChanged
         if (!IsEmpty || !string.IsNullOrWhiteSpace(SearchQuery))
             return;
 
-        var page = App.NavigationService?.CurrentPageName;
+        var page = _attachedPage;
         if (string.IsNullOrWhiteSpace(page) || !ReportedEmptyPages.Add(page))
             return;
 
@@ -592,7 +628,6 @@ public partial class ArgoTable : UserControl, INotifyPropertyChanged
         if (change.Property == ItemsSourceProperty)
         {
             RaisePropertyChanged(nameof(IsEmpty));
-            ReportEmptyStateIfNeeded();
 
             if (change.OldValue is INotifyCollectionChanged oldCollection)
                 oldCollection.CollectionChanged -= OnItemsCollectionChanged;
@@ -626,7 +661,6 @@ public partial class ArgoTable : UserControl, INotifyPropertyChanged
     private void OnItemsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         RaisePropertyChanged(nameof(IsEmpty));
-        ReportEmptyStateIfNeeded();
     }
 
     private void OnColumnWidthsPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -688,7 +722,6 @@ public partial class ArgoTable : UserControl, INotifyPropertyChanged
                 }
             }
 
-            HeaderRightClicked?.Invoke(this, e);
             ToggleColumnMenuCommand?.Execute(null);
         }
     }
@@ -712,7 +745,9 @@ public partial class ArgoTable : UserControl, INotifyPropertyChanged
         SetCurrentValue(SearchBoxMinHeightProperty, _responsiveHeader.SearchBoxMinHeight);
     }
 
-    private void OnTableGridSizeChanged(object? sender, SizeChangedEventArgs e)
+    // Measured from the scroll viewer, not the grid inside it: the grid widens to the columns'
+    // minimum once scrolling starts, so measuring it switched scrolling straight back off.
+    private void OnTableViewportSizeChanged(object? sender, SizeChangedEventArgs e)
     {
         if (e.WidthChanged)
         {

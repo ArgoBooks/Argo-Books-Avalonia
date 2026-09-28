@@ -32,6 +32,7 @@
                            Foreground="{DynamicResource SidebarTextMutedBrush}"
                            LetterSpacing="0.5"
                            VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis"
                            IsVisible="{Binding !IsCollapsed, RelativeSource={RelativeSource AncestorType=controls:SidebarSection}}" />
 
                 <!-- Divider line when collapsed -->

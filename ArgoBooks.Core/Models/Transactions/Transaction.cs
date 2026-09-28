@@ -6,7 +6,7 @@ namespace ArgoBooks.Core.Models.Transactions;
 /// <summary>
 /// Base class for financial transactions (purchases and sales).
 /// </summary>
-public abstract class Transaction
+public abstract class Transaction : IRecord
 {
     /// <summary>
     /// Unique identifier.
@@ -202,7 +202,7 @@ public abstract class Transaction
 
     /// <summary>
     /// Whether this transaction was saved offline and is awaiting USD conversion.
-    /// When true, all Effective*USD properties return 0 to prevent wrong cross-currency aggregation.
+    /// When true, all its USD amount properties (EffectiveTotalUSD and the others below) return 0 to prevent wrong cross-currency aggregation.
     /// </summary>
     [JsonPropertyName("isPendingConversion")]
     public bool IsPendingConversion { get; set; }

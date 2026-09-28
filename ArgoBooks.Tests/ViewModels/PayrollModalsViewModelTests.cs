@@ -103,6 +103,7 @@ public class PayrollModalsViewModelTests
         // it administers its own tax, pension plan and parental insurance, so building the list
         // from that block alone left a fully supported jurisdiction unselectable.
         var vm = new PayrollModalsViewModel();
+        vm.OpenAddEmployeeModal();
 
         Assert.Equal(13, vm.SupportedProvinces.Count);
         Assert.Contains("QC", vm.SupportedProvinces);
@@ -112,6 +113,7 @@ public class PayrollModalsViewModelTests
     public void WithRatesLoaded_ThereIsNoProvinceNote()
     {
         var vm = new PayrollModalsViewModel();
+        vm.OpenAddEmployeeModal();
 
         Assert.Empty(vm.ProvinceSupportNote);
     }
@@ -121,6 +123,7 @@ public class PayrollModalsViewModelTests
     {
         // An employee that no pay run could ever include must not be creatable.
         var vm = new PayrollModalsViewModel();
+        vm.OpenAddEmployeeModal();
 
         Assert.NotEmpty(vm.SupportedProvinces);
         Assert.Contains(vm.Province, vm.SupportedProvinces);

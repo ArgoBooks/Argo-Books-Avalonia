@@ -175,13 +175,17 @@ public partial class RentalInventoryPageViewModel : SortablePageViewModelBase
             FilterDailyRateMin = modals.FilterDailyRateMin;
             FilterDailyRateMax = modals.FilterDailyRateMax;
             FilterAvailability = modals.FilterAvailability;
+            ActiveFilterCount = modals.ActiveFilterCount;
         }
         CurrentPage = 1;
         FilterItems();
     }
 
+    protected override void ClearTableFilters() => App.RentalInventoryModalsViewModel?.ClearFiltersCommand.Execute(null);
+
     private void OnFiltersCleared(object? sender, EventArgs e)
     {
+        ActiveFilterCount = 0;
         FilterStatus = "All";
         FilterDailyRateMin = null;
         FilterDailyRateMax = null;
@@ -236,12 +240,6 @@ public partial class RentalInventoryPageViewModel : SortablePageViewModelBase
         AvailableItems = available;
         RentedOutItems = rentedOut;
         MaintenanceItems = maintenance;
-    }
-
-    [RelayCommand]
-    private void RefreshItems()
-    {
-        LoadItems();
     }
 
     private void FilterItems()

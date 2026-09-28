@@ -107,7 +107,7 @@
                                                                        Foreground="{DynamicResource TextSecondaryBrush}"
                                                                        IsVisible="{Binding Detail, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                                         </StackPanel>
-                                                        <TextBlock Grid.Column="2" Text="{Binding Amount, StringFormat={}{0:C}}"
+                                                        <TextBlock Grid.Column="2" Text="{Binding AmountDisplay}"
                                                                    FontWeight="Medium" VerticalAlignment="Center" />
                                                     </Grid>
                                                 </DataTemplate>
@@ -118,7 +118,7 @@
                                     <Border Background="{DynamicResource AltSurfaceBrush}" Padding="12" CornerRadius="6">
                                         <Grid ColumnDefinitions="*,Auto">
                                             <TextBlock Grid.Column="0" Text="Refund total" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                            <TextBlock Grid.Column="1" Text="{Binding RefundTotal, StringFormat={}{0:C}}"
+                                            <TextBlock Grid.Column="1" Text="{Binding RefundTotalDisplay}"
                                                        FontWeight="SemiBold" FontSize="16" VerticalAlignment="Center" />
                                         </Grid>
                                     </Border>
@@ -185,7 +185,7 @@
                                                         <TextBlock Grid.Row="0" Grid.Column="0"
                                                                    Text="{Binding DateDisplay}" FontWeight="Medium" />
                                                         <TextBlock Grid.Row="0" Grid.Column="1"
-                                                                   Text="{Binding Amount, StringFormat={}{0:C}}"
+                                                                   Text="{Binding AmountDisplay}"
                                                                    FontWeight="SemiBold" />
                                                         <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
                                                                    Text="{Binding ReasonDisplay}" FontSize="12"

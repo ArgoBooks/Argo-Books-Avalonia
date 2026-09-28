@@ -1,9 +1,11 @@
 using System.Collections.ObjectModel;
 using ArgoBooks.Controls.ColumnWidths;
+using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Portal;
 using ArgoBooks.Core.Models.Tracking;
 using ArgoBooks.Core.Services;
+using ArgoBooks.Core.Utilities;
 using ArgoBooks.Helpers;
 using ArgoBooks.Services;
 using ArgoBooks.Localization;
@@ -143,12 +145,6 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
     }
 
     [RelayCommand]
-    private void ToggleSelectionMode()
-    {
-        IsSelectionMode = !IsSelectionMode;
-    }
-
-    [RelayCommand]
     private void ExitSelectionMode()
     {
         IsSelectionMode = false;
@@ -269,7 +265,7 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
 
         if (validPaths.Count == 0)
         {
-            await App.ShowWarningMessageBoxAsync(
+            await App.ShowWarningDialogAsync(
                 Loc.Tr("Invalid File"),
                 Loc.Tr("Please drop {0} files.", FilePickerTypes.SupportedReceiptFormats));
             return;
@@ -329,12 +325,16 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
 
     private void OnFiltersApplied(object? sender, EventArgs e)
     {
+        ActiveFilterCount = App.ReceiptsModalsViewModel?.ActiveFilterCount ?? 0;
         CurrentPage = 1;
         FilterReceipts();
     }
 
+    protected override void ClearTableFilters() => App.ReceiptsModalsViewModel?.ClearFiltersCommand.Execute(null);
+
     private void OnFiltersCleared(object? sender, EventArgs e)
     {
+        ActiveFilterCount = 0;
         SearchQuery = null;
         CurrentPage = 1;
         FilterReceipts();
@@ -391,12 +391,12 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
         {
             // Disposed each time: this constructor builds its own HttpClient and owns it, so a
             // fresh one per refresh with no dispose leaks a socket handle per page load.
-            using var usageService = new ReceiptUsageService(App.LicenseService, App.ErrorLogger);
+            using var usageService = new UsageLimitService(UsageLimit.ReceiptScans, App.LicenseService, App.ErrorLogger);
             var usage = await usageService.CheckUsageAsync();
 
             if (usage.MonthlyLimit > 0)
             {
-                ScanUsage = "{0} of {1} scans used".TranslateFormat(usage.ScanCount, usage.MonthlyLimit);
+                ScanUsage = "{0} of {1} scans used".TranslateFormat(usage.Used, usage.MonthlyLimit);
                 return;
             }
 
@@ -755,8 +755,7 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
 
             // Create subfolder with company name and date
             var companyName = App.CompanyManager?.CurrentCompanyName ?? "Receipts";
-            var safeName = string.Join("_", companyName.Split(Path.GetInvalidFileNameChars()));
-            var exportFolderName = $"{safeName}_{DateTime.Now:yyyy-MM-dd}";
+            var exportFolderName = $"{SafeFileName.Create(companyName, "Receipts")}_{DateTime.Now:yyyy-MM-dd}";
             var exportFolder = Path.Combine(baseFolder, exportFolderName);
 
             Directory.CreateDirectory(exportFolder);
@@ -780,27 +779,16 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
             }
             else
             {
-                // Show error message box
-                if (mainWindow.MessageBoxService != null)
-                {
-                    await mainWindow.MessageBoxService.ShowWarningAsync(
-                        "Export Failed",
-                        "No receipts could be exported. Files may be missing.");
-                }
+                await App.ShowWarningDialogAsync(
+                    "Export Failed".Translate(),
+                    "No receipts could be exported. Files may be missing.".Translate());
             }
         }
         catch (Exception ex)
         {
-            var mainWindow = Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
-                ? desktop.MainWindow as MainWindow
-                : null;
-
-            if (mainWindow?.MessageBoxService != null)
-            {
-                await mainWindow.MessageBoxService.ShowErrorAsync(
-                    "Export Error",
-                    $"Failed to export receipts: {ex.Message}");
-            }
+            await App.ShowErrorDialogAsync(
+                "Export Error".Translate(),
+                "Failed to export receipts: {0}".TranslateFormat(ex.Message));
         }
     }
 
@@ -851,13 +839,9 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
         }
         catch (Exception ex)
         {
-            await (App.ConfirmationDialog?.ShowAsync(new ConfirmationDialogOptions
-            {
-                Title = "Error",
-                Message = $"Failed to save receipt: {ex.Message}",
-                PrimaryButtonText = "OK",
-                CancelButtonText = null
-            }) ?? Task.CompletedTask);
+            await App.ShowErrorDialogAsync(
+                "Error",
+                $"Failed to save receipt: {ex.Message}");
         }
     }
 
@@ -945,16 +929,6 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
     }
 
     [RelayCommand]
-    private void DeselectAll()
-    {
-        foreach (var receipt in Receipts)
-        {
-            receipt.IsSelected = false;
-        }
-        UpdateSelectionState();
-    }
-
-    [RelayCommand]
     private async Task DeleteSelected()
     {
         var selectedReceipts = Receipts.Where(r => r.IsSelected).ToList();
@@ -989,7 +963,7 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
             {
                 foreach (var receipt in receiptsToDelete)
                 {
-                    companyData.Receipts.Remove(receipt);
+                    companyData.Receipts.RemoveRecord(receipt);
                     if (!string.IsNullOrEmpty(receipt.TransactionId))
                         SetTransactionReceiptId(companyData, receipt.TransactionType, receipt.TransactionId, null);
                 }
@@ -999,7 +973,7 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
             {
                 foreach (var receipt in receiptsToDelete)
                 {
-                    companyData.Receipts.Add(receipt);
+                    companyData.Receipts.RestoreRecord(receipt);
                     if (!string.IsNullOrEmpty(receipt.TransactionId))
                         SetTransactionReceiptId(companyData, receipt.TransactionType, receipt.TransactionId, receipt.Id);
                 }

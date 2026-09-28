@@ -27,22 +27,6 @@ public static class StringExtensions
         }
 
         /// <summary>
-        /// Translates the string using a specific language.
-        /// </summary>
-        /// <param name="isoCode">The target language ISO code (e.g., "fr", "de").</param>
-        /// <returns>The translated text, or original if no translation found.</returns>
-        /// <example>
-        /// var frenchMessage = "Save".Translate("fr");
-        /// </example>
-        public string Translate(string isoCode)
-        {
-            if (string.IsNullOrEmpty(text))
-                return text;
-
-            return LanguageService.Instance.Translate(text, isoCode);
-        }
-
-        /// <summary>
         /// Translates the string and formats it with arguments.
         /// </summary>
         /// <param name="args">Format arguments.</param>
@@ -80,18 +64,5 @@ public static class StringExtensions
                 return text;
             return string.Format(LanguageService.Instance.Translate(text), arg1, arg2, arg3);
         }
-
-        /// <summary>
-        /// Checks if a translation exists for the string in the current language.
-        /// </summary>
-        /// <returns>True if a translation exists.</returns>
-        public bool HasTranslation()
-        {
-            if (string.IsNullOrEmpty(text))
-                return false;
-
-            return LanguageService.Instance.HasTranslation(text);
-        }
-
     }
 }

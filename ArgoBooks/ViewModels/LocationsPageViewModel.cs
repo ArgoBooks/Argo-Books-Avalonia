@@ -5,6 +5,7 @@ using ArgoBooks.Core;
 using ArgoBooks.Core.Models.Entities;
 using ArgoBooks.Core.Services;
 using ArgoBooks.Helpers;
+using ArgoBooks.Services;
 using ArgoBooks.Utilities;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -169,12 +170,16 @@ public partial class LocationsPageViewModel : SortablePageViewModelBase
     {
         FilterType = e.Type;
         FilterStatus = e.Status;
+        ActiveFilterCount = App.LocationsModalsViewModel?.ActiveFilterCount ?? 0;
         CurrentPage = 1;
         FilterLocations();
     }
 
+    protected override void ClearTableFilters() => App.LocationsModalsViewModel?.ClearFiltersCommand.Execute(null);
+
     private void OnFiltersCleared(object? sender, EventArgs e)
     {
+        ActiveFilterCount = 0;
         FilterType = "All";
         FilterStatus = "All";
         CurrentPage = 1;
@@ -231,9 +236,7 @@ public partial class LocationsPageViewModel : SortablePageViewModelBase
         var inventory = companyData?.Inventory ?? [];
         TotalStockItems = inventory.Sum(i => i.InStock);
 
-        // Calculate total inventory value
-        var totalValue = inventory.Sum(i => i.InStock * i.UnitCost);
-        TotalInventoryValue = $"${totalValue:N0}";
+        TotalInventoryValue = CurrencyService.FormatStockValue(inventory);
 
         // Calculate average capacity used
         if (_allLocations.Count > 0)
@@ -247,15 +250,6 @@ public partial class LocationsPageViewModel : SortablePageViewModelBase
         {
             AverageCapacityUsed = "0%";
         }
-    }
-
-    /// <summary>
-    /// Refreshes the locations from the data source.
-    /// </summary>
-    [RelayCommand]
-    private void RefreshLocations()
-    {
-        LoadLocations();
     }
 
     /// <summary>
@@ -276,7 +270,6 @@ public partial class LocationsPageViewModel : SortablePageViewModelBase
         // Apply type filter (using metadata or naming convention)
         if (FilterType != "All")
         {
-            // For now, filter by name pattern until we add a Type field to Location
             filtered = filtered.Where(l => GetLocationType(l) == FilterType).ToList();
         }
 
@@ -314,7 +307,7 @@ public partial class LocationsPageViewModel : SortablePageViewModelBase
                 Capacity = location.Capacity,
                 CurrentUtilization = location.CurrentUtilization,
                 UtilizationPercentage = location.UtilizationPercentage,
-                IsActive = true, // All locations are active for now
+                IsActive = true,
                 CreatedAt = location.CreatedAt
             };
         }).ToList();

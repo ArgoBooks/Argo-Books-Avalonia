@@ -134,7 +134,7 @@
                         Background="{DynamicResource BackgroundSecondaryBrush}">
                     <Grid ColumnDefinitions="*,Auto">
                         <Button Grid.Column="0"
-                                Classes="text-button"
+                                Classes="text-button lg"
                                 Content="Skip for now"
                                 Command="{Binding SkipTutorialCommand}"
                                 HorizontalAlignment="Left" />
@@ -156,21 +156,4 @@
             </Grid>
         </Border>
     </Panel>
-
-    <UserControl.Styles>
-        <Style Selector="Button.text-button">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
-            <Setter Property="Padding" Value="16,10" />
-            <Setter Property="FontSize" Value="14" />
-            <Setter Property="Cursor" Value="Hand" />
-        </Style>
-        <Style Selector="Button.text-button /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="Transparent" />
-        </Style>
-        <Style Selector="Button.text-button:pointerover">
-            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-        </Style>
-    </UserControl.Styles>
 </UserControl>

@@ -20,18 +20,41 @@
         <Setter Property="BorderThickness" Value="0" />
     </Style>
 
-    <!-- Page Tabs (TabControl) -->
+    <!-- Page Tabs (TabControl). The strip scrolls sideways instead of wrapping onto a second row
+         when the tabs do not fit. The content hosts stay in the template, hidden, because the
+         TabControl looks them up by name; page tabs never show content of their own. -->
     <Style Selector="TabControl.page-tabs">
         <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Name="PART_InnerBorder"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="{TemplateBinding CornerRadius}"
+                        Padding="{TemplateBinding Padding}">
+                    <Panel>
+                        <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                                      VerticalScrollBarVisibility="Disabled">
+                            <ItemsPresenter Name="PART_ItemsPresenter"
+                                            ItemsPanel="{TemplateBinding ItemsPanel}" />
+                        </ScrollViewer>
+                        <ContentPresenter Name="PART_SelectedContentHost"
+                                          IsVisible="False"
+                                          Content="{TemplateBinding SelectedContent}"
+                                          ContentTemplate="{TemplateBinding SelectedContentTemplate}" />
+                        <ContentPresenter Name="PART_SelectedContentHost2"
+                                          IsVisible="False" />
+                    </Panel>
+                </Border>
+            </ControlTemplate>
+        </Setter>
     </Style>
     <Style Selector="TabControl.page-tabs /template/ ItemsPresenter#PART_ItemsPresenter">
         <Setter Property="Margin" Value="24,0" />
     </Style>
     <Style Selector="TabControl.page-tabs /template/ Border#PART_InnerBorder">
         <Setter Property="BorderThickness" Value="0" />
-    </Style>
-    <Style Selector="TabControl.page-tabs /template/ ContentPresenter#PART_SelectedContentHost">
-        <Setter Property="IsVisible" Value="False" />
     </Style>
 
     <!-- Tab Item Styling -->
@@ -140,6 +163,31 @@
                 <VirtualizingStackPanel />
             </ItemsPanelTemplate>
         </Setter>
+    </Style>
+
+    <!-- Dashboard widget list rows. A row wrapped in a table-row-button opens something, so only
+         those highlight on hover. The last row drops its divider. -->
+    <Style Selector="Border.table-row">
+        <Setter Property="Padding" Value="16,12" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+        <Setter Property="BorderThickness" Value="0,0,0,1" />
+    </Style>
+    <Style Selector="ItemsControl > ContentPresenter:nth-last-child(1) Border.table-row">
+        <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="Button.table-row-button">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.table-row-button:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Button.table-row-button:pointerover Border.table-row">
+        <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
     </Style>
 
 </Styles>

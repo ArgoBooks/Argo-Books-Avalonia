@@ -264,7 +264,7 @@ public partial class DashboardPageViewModel : ChartContextMenuViewModelBase, ICl
     /// Gets the welcome subtitle text, which changes based on whether this is a sample company.
     /// </summary>
     public string WelcomeSubtitle => _companyManager?.IsSampleCompany == true
-        ? "You're exploring TechFlow Solutions - a sample company. Feel free to experiment!".Translate()
+        ? "You're exploring a sample company. Feel free to experiment!".Translate()
         : "Welcome back! Here is an overview of your business.".Translate();
 
     /// <summary>
@@ -392,13 +392,6 @@ public partial class DashboardPageViewModel : ChartContextMenuViewModelBase, ICl
         TutorialService.Instance.RequestShowSourceSurvey();
     }
 
-    [RelayCommand]
-    private void DismissSourceSurveyBanner()
-    {
-        TutorialService.Instance.MarkSourceSurveyDismissed();
-        ShowSourceSurveyBanner = false;
-    }
-
     #endregion
 
     #region Update Email Banner
@@ -510,6 +503,10 @@ public partial class DashboardPageViewModel : ChartContextMenuViewModelBase, ICl
     /// </summary>
     public void Initialize(CompanyManager companyManager)
     {
+        // The page factory reuses this view model and calls Initialize on every visit, so
+        // subscribing without removing first would reload the dashboard once per past visit.
+        if (_companyManager != null)
+            _companyManager.CompanyDataChanged -= OnCompanyDataChanged;
         _companyManager = companyManager;
 
         // Initialize the widget layout system
@@ -524,12 +521,20 @@ public partial class DashboardPageViewModel : ChartContextMenuViewModelBase, ICl
         // Notify properties that depend on company manager
         RefreshSampleCompanyState();
 
-        // Subscribe to data change events
+        _companyManager.CompanyDataChanged -= OnCompanyDataChanged;
         _companyManager.CompanyDataChanged += OnCompanyDataChanged;
 
         // Subscribe to language changes to refresh translated chart titles
+        LanguageService.Instance.LanguageChanged -= OnLanguageChanged;
         LanguageService.Instance.LanguageChanged += OnLanguageChanged;
     }
+
+    /// <summary>
+    /// Whether the dashboard is the page on screen. Changes made while it isn't skip the reload:
+    /// the page factory calls <see cref="Initialize"/> on every visit, which reloads it anyway.
+    /// </summary>
+    private static bool IsOnScreen =>
+        App.NavigationService is not { } navigation || navigation.CurrentPageName == PageNames.Dashboard;
 
     /// <summary>
     /// Cleans up event subscriptions.
@@ -556,6 +561,9 @@ public partial class DashboardPageViewModel : ChartContextMenuViewModelBase, ICl
         // Unsubscribe from tutorial / source-survey events
         TutorialService.Instance.SourceSurveyVisibilityChanged -= OnSourceSurveyVisibilityChanged;
         TutorialService.Instance.TutorialStateChanged -= OnTutorialStateChanged;
+
+        if (App.UpdateEmailModalViewModel is { } updateEmailModal)
+            updateEmailModal.Subscribed -= OnUpdateEmailSubscribed;
 
         // Cleanup widget layout
         LayoutViewModel.Cleanup();
@@ -607,7 +615,7 @@ public partial class DashboardPageViewModel : ChartContextMenuViewModelBase, ICl
     public void LoadDashboardData()
     {
         var data = _companyManager?.CompanyData;
-        if (data == null) return;
+        if (data == null || !IsOnScreen) return;
 
         // Correct rental statuses before displaying
         CorrectRentalStatuses(data);
@@ -761,18 +769,9 @@ public partial class DashboardPageViewModel : ChartContextMenuViewModelBase, ICl
 
                 if (!browserOpened)
                 {
-                    var dialog = App.ConfirmationDialog;
-                    if (dialog != null)
-                    {
-                        await dialog.ShowAsync(new ConfirmationDialogOptions
-                        {
-                            Title = "Browser Error".Translate(),
-                            Message = "The spreadsheet was created but could not open in your browser. You can access it at:\n\n{0}".TranslateFormat(url),
-                            PrimaryButtonText = "OK".Translate(),
-                            SecondaryButtonText = null,
-                            CancelButtonText = null
-                        });
-                    }
+                    await App.ShowWarningDialogAsync(
+                        "Browser Error".Translate(),
+                        "The spreadsheet was created but could not open in your browser. You can access it at:\n\n{0}".TranslateFormat(url));
                 }
             }
             else

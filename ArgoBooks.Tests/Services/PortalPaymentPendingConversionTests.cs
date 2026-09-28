@@ -14,7 +14,7 @@ namespace ArgoBooks.Tests.Services;
 /// <summary>
 /// An online payment on an invoice still waiting for its exchange rate took a USD amount of 0 and
 /// was never queued. Once the invoice converted it read as paid with its whole USD balance still
-/// owing, and the payment added nothing to cash (Calculations.md Rule 3a).
+/// owing, and the payment added nothing to cash (Calculations.md Rule 4).
 /// </summary>
 public class PortalPaymentPendingConversionTests : ModalViewModelTestBase
 {
@@ -59,8 +59,8 @@ public class PortalPaymentPendingConversionTests : ModalViewModelTestBase
 
         // The rates arrive, and the queue converts the invoice and the payment.
         var rates = new ExchangeRateService(new NoDiskPlatform(), new HttpClient(new EurHandler(0.9m)));
-        var queue = new PendingConversionService(new NoDiskPlatform(), exchangeRateService: rates);
-        await queue.ReconcileWithCompanyDataAsync(data);
+        var queue = new PendingConversionService(exchangeRateService: rates);
+        queue.ReconcileWithCompanyData(data);
         await queue.ProcessPendingConversionsAsync(data);
 
         Assert.False(payment.IsPendingConversion);
@@ -85,8 +85,6 @@ public class PortalPaymentPendingConversionTests : ModalViewModelTestBase
         public PlatformType Platform => PlatformType.Linux;
         public string GetAppDataPath() => Path.GetTempPath();
         public string GetTempPath() => Path.GetTempPath();
-        public string GetDefaultDocumentsPath() => Path.GetTempPath();
-        public string GetLogsPath() => Path.GetTempPath();
         public string GetCachePath() => Path.GetTempPath();
         public void EnsureDirectoryExists(string path) { }
         public bool SupportsFileSystem => false;
@@ -103,7 +101,6 @@ public class PortalPaymentPendingConversionTests : ModalViewModelTestBase
         public string NormalizePath(string path) => path;
         public string CombinePaths(params string[] paths) => Path.Combine(paths);
         public string GetMachineId() => "test-machine-id";
-        public void RegisterFileTypeAssociations(string iconPath) { }
         public StringComparer PathComparer => StringComparer.Ordinal;
     }
 }

@@ -5,6 +5,7 @@
              xmlns:vm="using:ArgoBooks.ViewModels"
              xmlns:controls="using:ArgoBooks.Controls"
              xmlns:loc="using:ArgoBooks.Localization"
+             xmlns:converters="using:ArgoBooks.Converters"
              xmlns:bm="using:ArgoBooks.Core.Models.BankMatching"
              xmlns:local="using:ArgoBooks"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
@@ -48,7 +49,7 @@
                                                                        Text="{Binding RecordType}" />
                                                         </StackPanel>
                                                         <StackPanel Grid.Column="1" Spacing="2" HorizontalAlignment="Right">
-                                                            <TextBlock Text="{Binding RecordAmount, StringFormat=C2}" FontWeight="SemiBold" />
+                                                            <TextBlock Text="{Binding RecordAmount, Converter={x:Static converters:Converters.Money}}" FontWeight="SemiBold" />
                                                             <TextBlock Text="{Binding Confidence, StringFormat='{}{0:P0} match'}"
                                                                        FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}" />
                                                         </StackPanel>
@@ -85,7 +86,7 @@
                                                                        Text="{Binding RecordDate, StringFormat='MMM dd, yyyy'}" />
                                                         </StackPanel>
                                                     </StackPanel>
-                                                    <TextBlock Grid.Column="1" Text="{Binding RecordAmount, StringFormat=C2}"
+                                                    <TextBlock Grid.Column="1" Text="{Binding RecordAmount, Converter={x:Static converters:Converters.Money}}"
                                                                FontWeight="SemiBold" VerticalAlignment="Center" />
                                                 </Grid>
                                             </Button>

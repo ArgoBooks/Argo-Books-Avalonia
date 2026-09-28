@@ -3,6 +3,7 @@ using System.Text;
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Models.Payroll;
 using ArgoBooks.Core.Services.Payroll;
+using ArgoBooks.Core.Utilities;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
 using ArgoBooks.Shared.Telemetry;
@@ -227,9 +228,42 @@ public partial class YearEndModalViewModel : ViewModelBase
     /// anything has been typed is nagging rather than help.
     /// </summary>
     public string AccountNumberError =>
-        string.IsNullOrWhiteSpace(AccountNumber) || T4Service.IsPayrollAccountNumber(AccountNumber)
-            ? string.Empty
-            : "Nine digits, then RP, then four: 000000000RP0000.";
+        !string.IsNullOrWhiteSpace(AccountNumber) && !T4Service.IsPayrollAccountNumber(AccountNumber)
+            ? "Nine digits, then RP, then four: 000000000RP0000."
+            : FieldProblem(T4ProblemField.PayrollAccountNumber);
+
+    public string ContactNameError => FieldProblem(T4ProblemField.ContactName);
+
+    public string ContactPhoneError => FieldProblem(T4ProblemField.ContactPhone);
+
+
+    /// <summary>
+    /// What validation said about one box, held back until Export for filing has been pressed.
+    /// Marking a box red before anything has been typed is nagging, but once filing has been
+    /// asked for, saying which boxes stopped it beats a panel of prose above them.
+    /// </summary>
+    private string FieldProblem(T4ProblemField field) =>
+        _fileAttempted && _fieldProblems.TryGetValue(field, out string? message) ? message : string.Empty;
+
+    private readonly Dictionary<T4ProblemField, string> _fieldProblems = [];
+
+    private bool _fileAttempted;
+
+    /// <summary>
+    /// Whether the footer's "enter all required fields" line shows, on the same reasoning as
+    /// the other modals: derived from the field errors rather than stored, so it cannot be
+    /// left behind once the boxes are filled in.
+    /// </summary>
+    public bool HasValidationMessage => _fileAttempted && _fieldProblems.Count > 0;
+
+    private void RefreshFieldErrors()
+    {
+        OnPropertyChanged(nameof(HasValidationMessage));
+        OnPropertyChanged(nameof(AccountNumberError));
+        OnPropertyChanged(nameof(ContactNameError));
+        OnPropertyChanged(nameof(ContactPhoneError));
+        OnPropertyChanged(nameof(ContactEmailError));
+    }
 
     [ObservableProperty]
     private string _contactName = string.Empty;
@@ -251,9 +285,9 @@ public partial class YearEndModalViewModel : ViewModelBase
     /// wrong.
     /// </summary>
     public string ContactEmailError =>
-        string.IsNullOrWhiteSpace(ContactEmail) || T4Service.IsEmailAddress(ContactEmail)
-            ? string.Empty
-            : "That does not look like an email address.";
+        !string.IsNullOrWhiteSpace(ContactEmail) && !T4Service.IsEmailAddress(ContactEmail)
+            ? "That does not look like an email address."
+            : FieldProblem(T4ProblemField.ContactEmail);
 
     /// <summary>
     /// How often CRA wants the deductions. Not a filing detail, but this is the only screen that
@@ -279,11 +313,23 @@ public partial class YearEndModalViewModel : ViewModelBase
 
     partial void OnAccountNumberChanged(string value) => SaveDetails();
 
-    partial void OnContactNameChanged(string value) => SaveDetails();
+    partial void OnContactNameChanged(string value)
+    {
+        SaveDetails();
+        OnPropertyChanged(nameof(ContactNameError));
+    }
 
-    partial void OnContactPhoneChanged(string value) => SaveDetails();
+    partial void OnContactPhoneChanged(string value)
+    {
+        SaveDetails();
+        OnPropertyChanged(nameof(ContactPhoneError));
+    }
 
-    partial void OnContactEmailChanged(string value) => SaveDetails();
+    partial void OnContactEmailChanged(string value)
+    {
+        SaveDetails();
+        OnPropertyChanged(nameof(ContactEmailError));
+    }
 
     partial void OnRemitterTypeChanged(RemitterType value)
     {
@@ -372,6 +418,8 @@ public partial class YearEndModalViewModel : ViewModelBase
         QuebecIdentificationNumber = data?.Settings.Company.QuebecIdentificationNumber ?? string.Empty;
         _loading = false;
 
+        _detailsOnOpen = CurrentDetails();
+
         // Reselect before lifting the guard, so the whole refill produces exactly one rebuild
         // here rather than one from the setter and another from this call.
         //
@@ -388,7 +436,62 @@ public partial class YearEndModalViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void Close() => IsOpen = false;
+    private void Close()
+    {
+        RecordDetailsEdit();
+        IsOpen = false;
+    }
+
+    /// <summary>
+    /// The filing details as they stand, for comparing what a visit to this modal changed.
+    /// </summary>
+    private sealed record FilingDetails(
+        string AccountNumber, string ContactName, string ContactPhone, string ContactEmail,
+        string QuebecIdentificationNumber, RemitterType RemitterType);
+
+    private FilingDetails? _detailsOnOpen;
+
+    private FilingDetails CurrentDetails() => new(
+        AccountNumber, ContactName, ContactPhone, ContactEmail,
+        QuebecIdentificationNumber, RemitterType);
+
+    /// <summary>
+    /// One undo entry for the whole visit, not one per keystroke. Each box saves as it is typed
+    /// in, which is what keeps the figures on screen right, so the alternative was a stack of
+    /// single-character actions to step back through.
+    /// </summary>
+    private void RecordDetailsEdit()
+    {
+        if (_detailsOnOpen is not { } before || App.CompanyManager?.CompanyData is not { } data)
+        {
+            return;
+        }
+
+        FilingDetails after = CurrentDetails();
+        _detailsOnOpen = null;
+
+        if (after == before)
+        {
+            return;
+        }
+
+        void Apply(FilingDetails details)
+        {
+            var company = data.Settings.Company;
+            company.PayrollAccountNumber = details.AccountNumber;
+            company.PayrollContactName = details.ContactName;
+            company.PayrollContactPhone = details.ContactPhone;
+            company.PayrollContactEmail = details.ContactEmail;
+            company.QuebecIdentificationNumber = details.QuebecIdentificationNumber;
+            company.RemitterType = details.RemitterType;
+            App.CompanyManager?.MarkAsChanged();
+        }
+
+        App.UndoRedoManager.RecordAction(new DelegateAction(
+            "Edit payroll filing details",
+            () => Apply(before),
+            () => Apply(after)));
+    }
 
     private void Rebuild()
     {
@@ -429,10 +532,19 @@ public partial class YearEndModalViewModel : ViewModelBase
             });
         }
 
-        foreach (string problem in T4Service.Validate(data, _return))
+        _fieldProblems.Clear();
+        foreach (T4Problem problem in T4Service.Validate(data, _return))
         {
-            Problems.Add(problem);
+            if (problem.Field == T4ProblemField.None)
+            {
+                Problems.Add(problem.Message);
+            }
+            else
+            {
+                _fieldProblems[problem.Field] = problem.Message;
+            }
         }
+        RefreshFieldErrors();
 
         foreach (string warning in T4Service.Warnings(_return))
         {
@@ -468,7 +580,6 @@ public partial class YearEndModalViewModel : ViewModelBase
             _quebecReturn = null;
             QuebecTotalRemitted = CurrencyService.Format(0m);
             OnPropertyChanged(nameof(HasQuebecProblems));
-            OnPropertyChanged(nameof(CanFileQuebec));
             return;
         }
 
@@ -482,11 +593,7 @@ public partial class YearEndModalViewModel : ViewModelBase
         QuebecTotalRemitted = CurrencyService.Format(_quebecReturn.TotalRemittable);
 
         OnPropertyChanged(nameof(HasQuebecProblems));
-        OnPropertyChanged(nameof(CanFileQuebec));
     }
-
-    /// <summary>Mirrors <see cref="CanFile"/>: the slips print regardless, filing is what blocks.</summary>
-    public bool CanFileQuebec => HasQuebec && QuebecProblems.Count == 0 && _quebecReturn?.Slips.Count > 0;
 
     /// <summary>An employee who changed province during the year has a T4 for each.</summary>
     private static bool HasSeveralSlips(T4Return t4, T4Slip slip) =>
@@ -523,7 +630,7 @@ public partial class YearEndModalViewModel : ViewModelBase
                 string who = HasSeveralSlips(t4, slip)
                     ? $"{slip.GivenName} {slip.Surname} {slip.ProvinceOfEmployment}"
                     : $"{slip.GivenName} {slip.Surname}";
-                string name = $"T4-{t4.TaxYear}-{ExportFolderHelper.Sanitize(who)}.pdf";
+                string name = $"T4-{t4.TaxYear}-{SafeFileName.Create(who, "export", replaceSpaces: true)}.pdf";
                 await File.WriteAllBytesAsync(Path.Combine(directory, name), bytes);
             }
 
@@ -583,7 +690,7 @@ public partial class YearEndModalViewModel : ViewModelBase
             foreach (Rl1Slip slip in rl1.Slips)
             {
                 byte[] bytes = await Task.Run(() => Rl1PdfRenderer.RenderSlip(rl1, slip));
-                string name = $"RL1-{rl1.TaxYear}-{ExportFolderHelper.Sanitize($"{slip.GivenName} {slip.Surname}")}.pdf";
+                string name = $"RL1-{rl1.TaxYear}-{SafeFileName.Create($"{slip.GivenName} {slip.Surname}", "export", replaceSpaces: true)}.pdf";
                 await File.WriteAllBytesAsync(Path.Combine(directory, name), bytes);
             }
 
@@ -606,7 +713,10 @@ public partial class YearEndModalViewModel : ViewModelBase
     [RelayCommand]
     private async Task ExportXmlAsync()
     {
-        if (_return == null || !CanFile)
+        _fileAttempted = true;
+        RefreshFieldErrors();
+
+        if (_return == null || _fieldProblems.Count > 0 || !CanFile)
         {
             return;
         }

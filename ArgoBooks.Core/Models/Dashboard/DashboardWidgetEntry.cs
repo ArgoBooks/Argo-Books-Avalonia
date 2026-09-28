@@ -6,9 +6,6 @@ public class DashboardWidgetEntry
     public WidgetType WidgetType { get; set; }
     public WidgetSize Size { get; set; }
 
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public bool StartsNewRow { get; set; }
-
     public Dictionary<string, string> Config { get; set; } = new();
 
     public DashboardWidgetEntry() { }
@@ -24,7 +21,6 @@ public class DashboardWidgetEntry
         Id = Id,
         WidgetType = WidgetType,
         Size = Size,
-        StartsNewRow = StartsNewRow,
         Config = new Dictionary<string, string>(Config)
     };
 }

@@ -312,7 +312,6 @@ public partial class InsightsPageViewModel : ViewModelBase, ICleanupViewModel
 
         OnPropertyChanged(nameof(HasNoRevenueTrends));
         OnPropertyChanged(nameof(HasNoAnomalies));
-        OnPropertyChanged(nameof(HasNoForecasts));
         OnPropertyChanged(nameof(HasNoRecommendations));
     }
 
@@ -719,11 +718,6 @@ public partial class InsightsPageViewModel : ViewModelBase, ICleanupViewModel
     public bool HasNoAnomalies => Anomalies.Count == 0;
 
     /// <summary>
-    /// Indicates if the Forecasts collection is empty.
-    /// </summary>
-    public bool HasNoForecasts => Forecasts.Count == 0;
-
-    /// <summary>
     /// Indicates if the Recommendations collection is empty.
     /// </summary>
     public bool HasNoRecommendations => Recommendations.Count == 0;
@@ -1126,7 +1120,6 @@ public partial class InsightsPageViewModel : ViewModelBase, ICleanupViewModel
         // Notify empty state properties
         OnPropertyChanged(nameof(HasNoRevenueTrends));
         OnPropertyChanged(nameof(HasNoAnomalies));
-        OnPropertyChanged(nameof(HasNoForecasts));
         OnPropertyChanged(nameof(HasNoRecommendations));
     }
 
@@ -1195,7 +1188,6 @@ public partial class InsightsPageViewModel : ViewModelBase, ICleanupViewModel
         // Notify empty state properties
         OnPropertyChanged(nameof(HasNoRevenueTrends));
         OnPropertyChanged(nameof(HasNoAnomalies));
-        OnPropertyChanged(nameof(HasNoForecasts));
         OnPropertyChanged(nameof(HasNoRecommendations));
     }
 }

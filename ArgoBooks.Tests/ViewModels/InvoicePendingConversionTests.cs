@@ -12,7 +12,7 @@ namespace ArgoBooks.Tests.ViewModels;
 /// <summary>
 /// An invoice in another currency with no rate for its issue date (future dated, or saved
 /// offline) kept a USD total of 0, or a stale one, and was never queued, so it dropped out of
-/// Outstanding Invoices for good. It waits for its own date's rate instead (Rule 3a).
+/// Outstanding Invoices for good. It waits for its own date's rate instead (Rule 4).
 /// </summary>
 public class InvoicePendingConversionTests : ModalViewModelTestBase
 {

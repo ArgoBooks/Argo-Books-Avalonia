@@ -431,7 +431,6 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
         customerModals.OpenAddModal();
     }
 
-    [RelayCommand]
     public void SaveNewItem()
     {
         if (!ValidateModal())
@@ -441,8 +440,7 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
         if (companyData == null)
             return;
 
-        companyData.IdCounters.RentalItem++;
-        var newId = $"RNT-ITM-{companyData.IdCounters.RentalItem:D3}";
+        var newId = new IdGenerator(companyData).NextRentalItemId();
 
         var newItem = new RentalItem
         {
@@ -470,13 +468,13 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
             $"Add rental item '{itemName}'",
             () =>
             {
-                companyData.RentalInventory.Remove(itemToUndo);
+                companyData.RentalInventory.RemoveRecord(itemToUndo);
                 companyData.MarkAsModified();
                 ItemSaved?.Invoke(this, EventArgs.Empty);
             },
             () =>
             {
-                companyData.RentalInventory.Add(itemToUndo);
+                companyData.RentalInventory.RestoreRecord(itemToUndo);
                 companyData.MarkAsModified();
                 ItemSaved?.Invoke(this, EventArgs.Empty);
             }));
@@ -517,7 +515,6 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
         IsEditModalOpen = true;
     }
 
-    [RelayCommand]
     public void CloseEditModal()
     {
         IsEditModalOpen = false;
@@ -525,7 +522,6 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
         ClearModalFields();
     }
 
-    [RelayCommand]
     public async Task RequestCloseEditModalAsync()
     {
         if (HasEditModalChanges)
@@ -537,7 +533,6 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
         CloseEditModal();
     }
 
-    [RelayCommand]
     public void SaveEditedItem()
     {
         if (!ValidateModal() || _editingItem == null)
@@ -706,9 +701,13 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
             CloseFilterModal();
     }
 
+    /// <summary>How many filters are applied, for the page's Filter button.</summary>
+    public int ActiveFilterCount { get; private set; }
+
     [RelayCommand]
     public void ApplyFilters()
     {
+        ActiveFilterCount = Filters.ActiveCount;
         FiltersApplied?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
     }
@@ -717,6 +716,7 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
     public void ClearFilters()
     {
         Filters.Reset();
+        ActiveFilterCount = 0;
         FiltersCleared?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
     }

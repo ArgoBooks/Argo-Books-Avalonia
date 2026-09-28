@@ -32,7 +32,7 @@ public class ReceiptsModalsViewModelTests : ModalViewModelTestBase
     };
 
     // With no exchange rate service, a JPY receipt has no exact-date rate and is saved pending
-    // (Calculations.md Rule 3a).
+    // (Calculations.md Rule 4).
     private void UseCurrencyWithNoRate()
     {
         Company.Settings.Localization.Currency = "JPY";
@@ -276,7 +276,7 @@ public class ReceiptsModalsViewModelTests : ModalViewModelTestBase
     }
 
     // A CAD company's EUR 120 hotel receipt is EUR 120, not CAD 120. With no exact-date rate it
-    // saves pending in EUR and is queued to convert later (Calculations.md Rule 3a).
+    // saves pending in EUR and is queued to convert later (Calculations.md Rule 4).
     [Fact]
     public async Task SingleScan_DetectedForeignCurrency_SavesInThatCurrency()
     {

@@ -6,7 +6,7 @@ namespace ArgoBooks.Core.Models.Tracking;
 /// <summary>
 /// Represents a product return.
 /// </summary>
-public class Return
+public class Return : IRecord
 {
     /// <summary>
     /// Unique identifier (e.g., RET-001).

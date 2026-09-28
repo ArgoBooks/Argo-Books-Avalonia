@@ -165,7 +165,7 @@ public class ExchangeRateService
     /// (or when <paramref name="from"/> == <paramref name="to"/>); otherwise returns
     /// <see langword="false"/> and <paramref name="result"/> = 0. This is the strict chokepoint for
     /// all money conversion: it never substitutes a different date's rate, so a caller treats a
-    /// false result as "pending", not as a number. See docs/Calculations.md (Rule 3a).
+    /// false result as "pending", not as a number. See docs/Calculations.md (Rule 4).
     /// </summary>
     public bool TryConvertExact(decimal amount, string from, string to, DateTime date, out decimal result)
     {
@@ -218,50 +218,6 @@ public class ExchangeRateService
     /// <summary>Exact-date USD-&gt;target conversion. See <see cref="TryConvertExact"/>.</summary>
     public bool TryConvertFromUSD(decimal amountUSD, string toCurrency, DateTime date, out decimal result)
         => TryConvertExact(amountUSD, BaseCurrency, toCurrency, date, out result);
-
-    /// <summary>
-    /// Converts an amount from one currency to another.
-    /// </summary>
-    /// <param name="amount">The amount to convert.</param>
-    /// <param name="fromCurrency">Source currency code.</param>
-    /// <param name="toCurrency">Target currency code.</param>
-    /// <param name="date">The date for the exchange rate.</param>
-    /// <returns>The converted amount, or the original amount if conversion fails.</returns>
-    public async Task<decimal> ConvertAsync(decimal amount, string fromCurrency, string toCurrency, DateTime date)
-    {
-        var rate = await GetExchangeRateAsync(fromCurrency, toCurrency, date);
-        if (rate <= 0)
-        {
-            return amount; // Return original if conversion fails
-        }
-
-        return Math.Round(amount * rate, 2);
-    }
-
-    /// <summary>
-    /// Converts an amount to USD.
-    /// </summary>
-    /// <param name="amount">The amount in the source currency.</param>
-    /// <param name="fromCurrency">Source currency code.</param>
-    /// <param name="date">The date for the exchange rate.</param>
-    /// <returns>The amount in USD.</returns>
-    public async Task<decimal> ConvertToUSDAsync(decimal amount, string fromCurrency, DateTime date)
-    {
-        if (string.Equals(fromCurrency, BaseCurrency, StringComparison.OrdinalIgnoreCase))
-        {
-            return amount;
-        }
-
-        var rate = await GetExchangeRateAsync(fromCurrency, BaseCurrency, date);
-        if (rate <= 0)
-        {
-            return amount; // conversion unavailable; the caller handles the pending state
-        }
-
-        // The USD base is stored at full precision (no 2dp round), unlike display conversion. See
-        // TryConvertToUsdBase and docs/Calculations.md Rule 3.
-        return amount * rate;
-    }
 
     /// <summary>
     /// Preloads exchange rates for a range of dates.

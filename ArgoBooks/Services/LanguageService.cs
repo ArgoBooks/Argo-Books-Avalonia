@@ -118,9 +118,6 @@ public partial class LanguageService
     {
         try
         {
-            // Migrate legacy monolithic translations.json to per-language files
-            MigrateLegacyTranslationsFile();
-
             // Load English translations
             LoadLanguageFile("en", ref _englishCache);
 
@@ -171,48 +168,6 @@ public partial class LanguageService
         LoadLanguageFile(isoCode, ref cache);
         _currentLanguageCache = cache;
         _currentLoadedIsoCode = isoCode;
-    }
-
-    /// <summary>
-    /// Migrates the legacy monolithic translations.json file to individual per-language files.
-    /// </summary>
-    private void MigrateLegacyTranslationsFile()
-    {
-        var legacyPath = Path.Combine(_cacheDirectory, "translations.json");
-        if (!File.Exists(legacyPath))
-            return;
-
-        try
-        {
-            var content = File.ReadAllText(legacyPath);
-            if (string.IsNullOrWhiteSpace(content))
-                return;
-
-            var allTranslations = JsonSerializer.Deserialize<Dictionary<string, Dictionary<string, string>>>(content);
-            if (allTranslations == null)
-                return;
-
-            var options = new JsonSerializerOptions { WriteIndented = true };
-            foreach (var (isoCode, translations) in allTranslations)
-            {
-                var filePath = GetLanguageFilePath(isoCode);
-                if (!File.Exists(filePath)) // Don't overwrite existing per-language files
-                {
-                    var sorted = translations
-                        .OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase)
-                        .ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.OrdinalIgnoreCase);
-                    File.WriteAllText(filePath, JsonSerializer.Serialize(sorted, options));
-                }
-            }
-
-            // Remove the legacy file after successful migration
-            File.Delete(legacyPath);
-            App.ErrorLogger?.LogDebug($"LanguageService: Migrated {allTranslations.Count} languages from legacy translations.json");
-        }
-        catch (Exception ex)
-        {
-            App.ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to migrate legacy translations.json");
-        }
     }
 
     /// <summary>
@@ -270,6 +225,31 @@ public partial class LanguageService
             }
         }
 
+        ApplyLanguage(languageName, isoCode, previousLanguage, previousIsoCode);
+        return true;
+    }
+
+    /// <summary>
+    /// Switches to a language whose translations are already on disk, synchronously and without
+    /// touching the network. Startup uses it so the first window is built in the saved language.
+    /// Returns false when that language has no cached file, which only <see cref="SetLanguageAsync"/>
+    /// can fix.
+    /// </summary>
+    public bool TrySetCachedLanguage(string languageName)
+    {
+        if (string.IsNullOrEmpty(languageName) || !Languages.IsValidLanguage(languageName))
+            return false;
+
+        var isoCode = Languages.GetIsoCode(languageName);
+        if (isoCode != "en" && !File.Exists(GetLanguageFilePath(isoCode)))
+            return false;
+
+        ApplyLanguage(languageName, isoCode, CurrentLanguage, CurrentIsoCode);
+        return true;
+    }
+
+    private void ApplyLanguage(string languageName, string isoCode, string previousLanguage, string previousIsoCode)
+    {
         // Load the language into memory
         EnsureLanguageLoaded(isoCode);
 
@@ -283,7 +263,6 @@ public partial class LanguageService
         }
 
         App.ErrorLogger?.LogDebug($"LanguageService: Language changed to {languageName} ({isoCode})");
-        return true;
     }
 
     /// <summary>
@@ -525,33 +504,6 @@ public partial class LanguageService
     }
 
     /// <summary>
-    /// Translates a string using a specific language.
-    /// </summary>
-    /// <param name="text">The English text to translate.</param>
-    /// <param name="isoCode">The target language ISO code.</param>
-    /// <returns>The translated text, or the original if no translation is found.</returns>
-    public string Translate(string text, string isoCode)
-    {
-        if (string.IsNullOrEmpty(text))
-            return text;
-
-        if (isoCode == "en")
-            return DecodeHtmlEntities(text);
-
-        var key = GetStringKey(text);
-        var result = GetCachedTranslationByKey(isoCode, key);
-
-        // Log missing translations to console
-        if (result == null && text.Length < 100)
-        {
-            Console.WriteLine($"[TRANSLATE] Missing: '{DecodeHtmlEntities(text)}' (key: {key}) for {isoCode}");
-            return DecodeHtmlEntities(text);
-        }
-
-        return result ?? DecodeHtmlEntities(text);
-    }
-
-    /// <summary>
     /// Decodes common HTML/XML entities that may come from XAML markup extensions.
     /// </summary>
     private static string DecodeHtmlEntities(string text)
@@ -598,21 +550,6 @@ public partial class LanguageService
         }
 
         return $"str_{cleanText}";
-    }
-
-    /// <summary>
-    /// Checks if a translation exists for the given text in the current language.
-    /// </summary>
-    /// <param name="text">The English text to check.</param>
-    /// <returns>True if a translation exists.</returns>
-    public bool HasTranslation(string text)
-    {
-        if (string.IsNullOrEmpty(text) || CurrentIsoCode == "en")
-            return true;
-
-        var textKey = GetStringKey(text);
-        EnsureLanguageLoaded(CurrentIsoCode);
-        return _currentLanguageCache.ContainsKey(textKey);
     }
 
 }

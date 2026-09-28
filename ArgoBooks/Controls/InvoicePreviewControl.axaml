@@ -10,9 +10,8 @@
     <Grid RowDefinitions="*,Auto">
         <!-- Main content panel -->
         <Panel x:Name="RootPanel" Grid.Row="0">
-            <!-- Cross-platform WebView for HTML/PDF rendering -->
-            <NativeWebView x:Name="WebView"
-                           IsVisible="False" />
+            <!-- The NativeWebView is added here in code the first time the preview shows, because
+                 attaching one starts the browser engine even while it is hidden. -->
 
             <!-- Linux Fallback (NativeWebView doesn't embed inline on Linux) -->
             <Border x:Name="FallbackPanel"

@@ -82,6 +82,8 @@
                                 SearchQuery="{Binding SearchQuery, Mode=TwoWay}"
                                 SearchPlaceholder="{loc:Loc 'Search expenses...'}"
                                 FilterCommand="{Binding OpenFilterModalCommand}"
+                                FilterCount="{Binding ActiveFilterCount}"
+                                ClearFiltersCommand="{Binding ClearTableFiltersCommand}"
                                 AddCommand="{Binding OpenAddModalCommand}"
                                 AddButtonText="{loc:Loc 'Add Expense'}"
                                 AddButtonTooltip="{loc:Loc 'Add Expense'}"
@@ -237,7 +239,7 @@
                     <ItemsControl Classes="table-rows" ItemsSource="{Binding Expenses}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="vm:ExpenseDisplayItem">
-                                <Border Padding="24,0"
+                                <Border Padding="24,0,0,0"
                                         MinHeight="52"
                                         BorderBrush="{DynamicResource BorderBrush}"
                                         BorderThickness="0,0,0,1"
@@ -411,6 +413,13 @@
                                                             Command="{Binding $parent[ItemsControl].((vm:ExpensesPageViewModel)DataContext).OpenEditModalCommand}"
                                                             CommandParameter="{Binding}">
                                                         <PathIcon Data="{x:Static icons:Icons.Edit}"
+                                                                  Width="16" Height="16" />
+                                                    </Button>
+                                                    <Button Classes="icon-button"
+                                                            ToolTip.Tip="{loc:Loc Duplicate}"
+                                                            Command="{Binding $parent[ItemsControl].((vm:ExpensesPageViewModel)DataContext).DuplicateCommand}"
+                                                            CommandParameter="{Binding}">
+                                                        <PathIcon Data="{x:Static icons:Icons.Copy}"
                                                                   Width="16" Height="16" />
                                                     </Button>
                                                     <!-- Mark as Lost/Damaged (shown when not already marked) -->

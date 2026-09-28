@@ -600,6 +600,11 @@ public class SpreadsheetExportService
         var filtered = data.Rentals.Where(r => IsInDateRange(r.StartDate, startDate, endDate));
         var rows = new List<object[]>();
 
+        // An invoiced rental records no revenue of its own, so its invoice being paid is what
+        // settles it. Same rule as the Paid column on the rentals page.
+        string RentalPaidText(Models.Rentals.RentalRecord rental) =>
+            rental.Paid || RentalBookings.SettledByInvoice(data, rental) ? "Yes" : "No";
+
         foreach (var r in filtered)
         {
             var lines = r.EffectiveLineItems();
@@ -612,7 +617,7 @@ public class SpreadsheetExportService
                         r.Id, r.CustomerId, li.RentalItemId, li.Quantity,
                         li.RateType.ToString(), li.RateAmount, li.SecurityDeposit,
                         r.StartDate, r.DueDate, r.ReturnDate ?? DateTime.MinValue,
-                        r.TotalCost ?? 0m, r.Status.ToString(), r.Paid ? "Yes" : "No"
+                        r.TotalCost ?? 0m, r.Status.ToString(), RentalPaidText(r)
                     ]);
                 }
             }
@@ -623,7 +628,7 @@ public class SpreadsheetExportService
                     r.Id, r.CustomerId, r.RentalItemId, r.Quantity,
                     r.RateType.ToString(), r.RateAmount, r.SecurityDeposit,
                     r.StartDate, r.DueDate, r.ReturnDate ?? DateTime.MinValue,
-                    r.TotalCost ?? 0m, r.Status.ToString(), r.Paid ? "Yes" : "No"
+                    r.TotalCost ?? 0m, r.Status.ToString(), RentalPaidText(r)
                 ]);
             }
         }

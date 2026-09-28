@@ -86,6 +86,11 @@ public static class TimeZones
     private static List<TimeZoneItem>? _priorityTimeZones;
 
     /// <summary>
+    /// The UTC option, available without reading the system's timezone list.
+    /// </summary>
+    public static TimeZoneItem Utc { get; } = new("UTC", "(UTC+00:00) UTC", TimeSpan.Zero);
+
+    /// <summary>
     /// Gets all available system timezones, sorted by UTC offset then by name.
     /// </summary>
     public static IReadOnlyList<TimeZoneItem> All
@@ -124,9 +129,8 @@ public static class TimeZones
         var priorityZones = new List<TimeZoneItem>();
 
         // Add UTC first as a special case
-        var utcItem = new TimeZoneItem("UTC", "(UTC+00:00) UTC", TimeSpan.Zero);
-        allZones.Add(utcItem);
-        priorityZones.Add(utcItem);
+        allZones.Add(Utc);
+        priorityZones.Add(Utc);
 
         // Get all system timezones
         foreach (var tz in TimeZoneInfo.GetSystemTimeZones())
@@ -186,10 +190,10 @@ public static class TimeZones
     public static TimeZoneItem FindById(string? id)
     {
         if (string.IsNullOrEmpty(id) || id == "UTC")
-            return All.First(tz => tz.Id == "UTC");
+            return Utc;
 
         return All.FirstOrDefault(tz => tz.Id.Equals(id, StringComparison.OrdinalIgnoreCase))
-               ?? All.First(tz => tz.Id == "UTC");
+               ?? Utc;
     }
 
     /// <summary>

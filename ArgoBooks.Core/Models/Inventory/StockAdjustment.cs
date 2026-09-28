@@ -1,3 +1,4 @@
+using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Enums;
 
 namespace ArgoBooks.Core.Models.Inventory;
@@ -5,7 +6,7 @@ namespace ArgoBooks.Core.Models.Inventory;
 /// <summary>
 /// Represents an adjustment to inventory stock levels.
 /// </summary>
-public class StockAdjustment
+public class StockAdjustment : IRecord
 {
     /// <summary>
     /// Unique identifier (e.g., ADJ-001).

@@ -233,6 +233,8 @@
                                 SearchQuery="{Binding SearchQuery, Mode=TwoWay}"
                                 SearchPlaceholder="{loc:Loc 'Search invoices...'}"
                                 FilterCommand="{Binding OpenFilterModalCommand}"
+                                FilterCount="{Binding ActiveFilterCount}"
+                                ClearFiltersCommand="{Binding ClearTableFiltersCommand}"
                                 AddCommand="{Binding OpenCreateModalCommand}"
                                 AddButtonText="{loc:Loc 'Create Invoice'}"
                                 AddButtonTooltip="{loc:Loc 'Create Invoice'}"
@@ -399,7 +401,7 @@
                     <ItemsControl Classes="table-rows" ItemsSource="{Binding Invoices}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="vm:InvoiceDisplayItem">
-                                <Border Padding="24,0"
+                                <Border Padding="24,0,0,0"
                                         BorderBrush="{DynamicResource BorderBrush}"
                                         BorderThickness="0,0,0,1"
                                         Classes.highlighted-row="{Binding IsHighlighted}"
@@ -497,6 +499,14 @@
                                                             Command="{Binding $parent[ItemsControl].((vm:InvoicesPageViewModel)DataContext).ContinueDraftInvoiceCommand}"
                                                             CommandParameter="{Binding}">
                                                         <PathIcon Data="{x:Static icons:Icons.Play}"
+                                                                  Width="16" Height="16" />
+                                                    </Button>
+                                                    <Button Classes="icon-button"
+                                                            ToolTip.Tip="{loc:Loc Duplicate}"
+                                                            AutomationProperties.Name="Duplicate"
+                                                            Command="{Binding $parent[ItemsControl].((vm:InvoicesPageViewModel)DataContext).DuplicateInvoiceCommand}"
+                                                            CommandParameter="{Binding}">
+                                                        <PathIcon Data="{x:Static icons:Icons.Copy}"
                                                                   Width="16" Height="16" />
                                                     </Button>
                                                     <Button Classes="icon-button"
@@ -653,7 +663,7 @@
                     <ItemsControl Classes="table-rows" ItemsSource="{Binding Schedules}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="vm:RecurringScheduleDisplayItem">
-                                <Border Padding="24,0"
+                                <Border Padding="24,0,0,0"
                                         BorderBrush="{DynamicResource BorderBrush}"
                                         BorderThickness="0,0,0,1"
                                         MinHeight="56">

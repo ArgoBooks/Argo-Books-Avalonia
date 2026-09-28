@@ -1,9 +1,11 @@
+using ArgoBooks.Core.Models.Common;
+
 namespace ArgoBooks.Core.Models.Invoices;
 
 /// <summary>
 /// Represents a customizable invoice template.
 /// </summary>
-public class InvoiceTemplate
+public class InvoiceTemplate : IRecord
 {
     /// <summary>
     /// Unique identifier for this template.

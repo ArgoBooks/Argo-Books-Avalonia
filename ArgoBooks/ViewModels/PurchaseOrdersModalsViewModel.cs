@@ -5,6 +5,8 @@ using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Entities;
 using ArgoBooks.Core.Models.Inventory;
 using ArgoBooks.Core.Services.PurchaseOrders;
+using ArgoBooks.Core.Utilities;
+using ArgoBooks.Core.Validation;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
 using Avalonia;
@@ -218,9 +220,6 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool _isDeleteConfirmOpen;
-
-    [ObservableProperty]
-    private PurchaseOrderDisplayItem? _deletingOrder;
 
     #endregion
 
@@ -514,10 +513,9 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
 
     private string SaveNewOrder(CompanyData companyData, decimal shipping)
     {
-        // Generate ID
-        companyData.IdCounters.PurchaseOrder++;
-        var orderId = $"PO-{companyData.IdCounters.PurchaseOrder:D5}";
-        var poNumber = $"#PO-{DateTime.Now.Year}-{companyData.IdCounters.PurchaseOrder:D3}";
+        var ids = new IdGenerator(companyData);
+        var orderId = ids.NextPurchaseOrderId();
+        var poNumber = ids.NextPurchaseOrderNumber();
 
         var lineItems = LineItems.Select(li => new PurchaseOrderLineItem
         {
@@ -557,13 +555,15 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
             $"Create order '{poNumber}'",
             () =>
             {
-                companyData.PurchaseOrders.Remove(order);
+                companyData.PurchaseOrders.RemoveRecord(order);
+                Core.Services.UsdConversion.Set(companyData, Core.Services.UsdConversion.KeyOf(order), null);
                 companyData.MarkAsModified();
                 OrderSaved?.Invoke(this, EventArgs.Empty);
             },
             () =>
             {
-                companyData.PurchaseOrders.Add(order);
+                companyData.PurchaseOrders.RestoreRecord(order);
+                Core.Services.UsdConversion.Requeue(companyData, order);
                 companyData.MarkAsModified();
                 OrderSaved?.Invoke(this, EventArgs.Empty);
             }));
@@ -573,46 +573,15 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
 
     /// <summary>
     /// Tags a purchase order with the company's display currency and its USD total, so a non-USD
-    /// company's PO rows show the amount instead of "Pending". Converts at the order date when the
-    /// exact-date rate is cached; otherwise marks it pending and queues it for the self-heal. The
-    /// display is correct immediately because the original currency matches the display currency.
+    /// company's PO rows show the amount instead of "Pending". Converts at the order date when that
+    /// rate is held; otherwise it is pending and queued until it is. The display is right straight
+    /// away because the order's currency is the display currency.
     /// </summary>
     private static void ApplyDisplayCurrency(CompanyData companyData, PurchaseOrder order)
     {
-        var currency = CurrencyService.CurrentCurrencyCode;
-        order.OriginalCurrency = currency;
-
-        if (string.Equals(currency, "USD", StringComparison.OrdinalIgnoreCase))
-        {
-            order.TotalUSD = order.Total;
-            order.IsPendingConversion = false;
-            return;
-        }
-
-        var rates = Core.Services.ExchangeRateService.Instance;
-        if (rates != null && rates.TryConvertToUsdBase(order.Total, currency, order.OrderDate, out var usd))
-        {
-            order.TotalUSD = usd;
-            order.IsPendingConversion = false;
-            return;
-        }
-
-        // Exact-date rate not cached: the display is already correct (original currency == display
-        // currency); defer the USD total to the self-heal queue.
-        order.IsPendingConversion = true;
-        var entry = new Core.Models.Common.PendingConversion
-        {
-            TransactionId = order.Id,
-            TransactionType = "PurchaseOrder",
-            OriginalCurrency = currency,
-            TransactionDate = order.OrderDate,
-            Total = order.Total
-        };
-        // Drop any earlier pending entry for this order first, so re-editing an offline/future-dated
-        // PO doesn't accumulate duplicates in the saved file (matches the manual edit path).
-        companyData.PendingConversions.RemoveAll(p => p.TransactionId == order.Id);
-        companyData.PendingConversions.Add(entry);
-        _ = Core.Services.PendingConversionService.Instance?.AddPendingConversionAsync(entry);
+        order.OriginalCurrency = CurrencyService.CurrentCurrencyCode;
+        Core.Services.UsdConversion.Apply(companyData, order,
+            Core.Services.UsdConversion.CachedRate(order.OriginalCurrency, order.OrderDate));
     }
 
     private string? SaveEditedOrder(CompanyData companyData, decimal shipping)
@@ -629,13 +598,11 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
         var oldShipping = order.ShippingCost;
         var oldTotal = order.Total;
         var oldNotes = order.Notes;
-        // Currency-conversion fields are mutated by ApplyDisplayCurrency below (and it may add a
-        // PendingConversions entry). Capture them so undo/redo restore them symmetrically instead of
-        // leaving a stale USD total / pending flag and an orphaned self-heal entry.
+        // Currency-conversion fields are changed by ApplyDisplayCurrency below, which also queues or
+        // unqueues the order, so undo and redo put them back and queue the order to match.
         var oldOriginalCurrency = order.OriginalCurrency;
         var oldTotalUSD = order.TotalUSD;
         var oldIsPendingConversion = order.IsPendingConversion;
-        var oldPending = companyData.PendingConversions.Where(p => p.TransactionId == order.Id).ToList();
 
         // Update order
         order.SupplierId = SelectedSupplier!.Id;
@@ -670,7 +637,6 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
         var newOriginalCurrency = order.OriginalCurrency;
         var newTotalUSD = order.TotalUSD;
         var newIsPendingConversion = order.IsPendingConversion;
-        var newPending = companyData.PendingConversions.Where(p => p.TransactionId == order.Id).ToList();
         App.UndoRedoManager.RecordAction(new DelegateAction(
             $"Edit order '{order.PoNumber}'",
             () =>
@@ -686,8 +652,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
                 editedOrder.OriginalCurrency = oldOriginalCurrency;
                 editedOrder.TotalUSD = oldTotalUSD;
                 editedOrder.IsPendingConversion = oldIsPendingConversion;
-                companyData.PendingConversions.RemoveAll(p => p.TransactionId == editedOrder.Id);
-                companyData.PendingConversions.AddRange(oldPending);
+                Core.Services.UsdConversion.Requeue(companyData, editedOrder);
                 companyData.MarkAsModified();
                 OrderSaved?.Invoke(this, EventArgs.Empty);
             },
@@ -704,8 +669,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
                 editedOrder.OriginalCurrency = newOriginalCurrency;
                 editedOrder.TotalUSD = newTotalUSD;
                 editedOrder.IsPendingConversion = newIsPendingConversion;
-                companyData.PendingConversions.RemoveAll(p => p.TransactionId == editedOrder.Id);
-                companyData.PendingConversions.AddRange(newPending);
+                Core.Services.UsdConversion.Requeue(companyData, editedOrder);
                 companyData.MarkAsModified();
                 OrderSaved?.Invoke(this, EventArgs.Empty);
             }));
@@ -863,20 +827,18 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
         // Store old values for undo
         var oldLineItemReceived = order.LineItems.Select(li => li.QuantityReceived).ToList();
         var oldStatus = order.Status;
-        var stockChanges = new List<ReceivedStockChange>();
 
         // Apply received quantities
+        var received = new List<(PurchaseOrderLineItem Line, decimal Quantity)>();
         for (var i = 0; i < ReceiveLineItems.Count && i < order.LineItems.Count; i++)
         {
             if (decimal.TryParse(ReceiveLineItems[i].ReceivingQuantity, out var qty) && qty > 0)
             {
                 order.LineItems[i].QuantityReceived += qty;
-
-                var change = ReceiveIntoStock(companyData, order.LineItems[i], qty, order.PoNumber);
-                if (change != null)
-                    stockChanges.Add(change);
+                received.Add((order.LineItems[i], qty));
             }
         }
+        var stockChanges = InventoryStockService.ReceivePurchaseOrder(companyData, order, received);
 
         // Update order status
         if (order.IsFullyReceived)
@@ -903,19 +865,12 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
                 for (var i = 0; i < receivedOrder.LineItems.Count; i++)
                     receivedOrder.LineItems[i].QuantityReceived = oldLineItemReceived[i];
 
-                // Newest first, so an item received on two lines ends at its original stock
-                for (var i = stockChanges.Count - 1; i >= 0; i--)
+                var stockBeforeUndo = stockChanges.Select(c => c.Item.InStock).ToList();
+                InventoryStockService.Revert(companyData, stockChanges);
+                for (var i = 0; i < stockChanges.Count; i++)
                 {
-                    var change = stockChanges[i];
-                    var stockBeforeUndo = change.Item.InStock;
-                    change.Item.InStock = change.OldStock;
-                    change.Item.Status = change.Item.CalculateStatus();
-                    change.Item.LastUpdated = DateTime.UtcNow;
-                    if (change.WasCreated)
-                        companyData.Inventory.Remove(change.Item);
-                    else
-                        App.CheckAndNotifyStockStatus(change.Item, stockBeforeUndo);
-                    companyData.StockAdjustments.Remove(change.Adjustment);
+                    if (!stockChanges[i].WasCreated)
+                        App.CheckAndNotifyStockStatus(stockChanges[i].Item, stockBeforeUndo[i]);
                 }
                 receivedOrder.Status = oldStatus;
                 companyData.MarkAsModified();
@@ -926,15 +881,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
                 for (var i = 0; i < receivedOrder.LineItems.Count; i++)
                     receivedOrder.LineItems[i].QuantityReceived = newLineItemReceived[i];
 
-                foreach (var change in stockChanges)
-                {
-                    if (change.WasCreated)
-                        companyData.Inventory.Add(change.Item);
-                    change.Item.InStock += change.Adjustment.Quantity;
-                    change.Item.Status = change.Item.CalculateStatus();
-                    change.Item.LastUpdated = DateTime.UtcNow;
-                    companyData.StockAdjustments.Add(change.Adjustment);
-                }
+                stockChanges = InventoryStockService.ReceivePurchaseOrder(companyData, receivedOrder, received);
                 receivedOrder.Status = newStatus;
                 companyData.MarkAsModified();
                 OrderSaved?.Invoke(this, EventArgs.Empty);
@@ -942,60 +889,6 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
 
         OrderSaved?.Invoke(this, EventArgs.Empty);
         CloseReceiveModal();
-    }
-
-    private sealed record ReceivedStockChange(InventoryItem Item, decimal OldStock, StockAdjustment Adjustment, bool WasCreated);
-
-    /// <summary>
-    /// Adds received units to stock and records them in the stock ledger, which historical inventory
-    /// valuations roll back from. A tracked product with no inventory row gets one, as an expense does.
-    /// </summary>
-    private static ReceivedStockChange? ReceiveIntoStock(CompanyData companyData, PurchaseOrderLineItem line, decimal qty, string reference)
-    {
-        var inventoryItem = InventoryStockService.FindStockItem(companyData, line.ProductId, null);
-        var wasCreated = false;
-        if (inventoryItem == null)
-        {
-            var product = companyData.Products.FirstOrDefault(p => p.Id == line.ProductId);
-            if (product is not { TrackInventory: true }) return null;
-
-            companyData.IdCounters.InventoryItem++;
-            inventoryItem = new InventoryItem
-            {
-                Id = $"INV-ITM-{companyData.IdCounters.InventoryItem:D5}",
-                ProductId = product.Id,
-                Sku = product.Sku,
-                LocationId = InventoryStockService.EnsureLocationId(companyData),
-                UnitOfMeasure = product.UnitOfMeasure,
-                UnitCost = line.UnitCost,
-                LastUpdated = DateTime.UtcNow
-            };
-            companyData.Inventory.Add(inventoryItem);
-            wasCreated = true;
-        }
-
-        var oldStock = inventoryItem.InStock;
-        inventoryItem.InStock += qty;
-        inventoryItem.Status = inventoryItem.CalculateStatus();
-        inventoryItem.LastUpdated = DateTime.UtcNow;
-
-        companyData.IdCounters.StockAdjustment++;
-        var adjustment = new StockAdjustment
-        {
-            Id = $"ADJ-{companyData.IdCounters.StockAdjustment:D5}",
-            InventoryItemId = inventoryItem.Id,
-            AdjustmentType = AdjustmentType.Add,
-            Quantity = qty,
-            PreviousStock = oldStock,
-            NewStock = inventoryItem.InStock,
-            Reason = "Purchase order received",
-            ReferenceNumber = reference,
-            Timestamp = DateTime.UtcNow,
-            IsAutoGenerated = true
-        };
-        companyData.StockAdjustments.Add(adjustment);
-
-        return new ReceivedStockChange(inventoryItem, oldStock, adjustment, wasCreated);
     }
 
     private void LoadReceiveLineItems(string orderId)
@@ -1042,7 +935,9 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
             if (companyData == null || order == null) return;
 
             RemoveWithUndo(companyData, companyData.PurchaseOrders, order, $"Delete order '{item.PoNumber}'",
-                () => OrderDeleted?.Invoke(this, EventArgs.Empty));
+                () => OrderDeleted?.Invoke(this, EventArgs.Empty),
+                onRemove: () => Core.Services.UsdConversion.Set(companyData, Core.Services.UsdConversion.KeyOf(order), null),
+                onRestore: () => Core.Services.UsdConversion.Requeue(companyData, order));
         }
         catch (Exception ex)
         {
@@ -1183,15 +1078,14 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
         IsSendCcBccExpanded = false;
 
         var settings = companyData.Settings.PurchaseOrderEmail;
-        var symbol = CurrencyService.CurrentSymbol;
 
         var supplier = companyData.GetSupplier(order.SupplierId);
         SendRecipientEmail = supplier?.Email ?? string.Empty;
         SendCcEmail = string.Empty;
         SendBccEmail = settings.BccEmail;
-        SendSubject = PurchaseOrderEmailService.FillTemplate(settings.SubjectTemplate, order, companyData, symbol);
-        SendBody = PurchaseOrderEmailService.FillTemplate(settings.BodyTemplate, order, companyData, symbol);
-        SendPdfFilename = $"{SanitizePoFilename(order.PoNumber)}.pdf";
+        SendSubject = PurchaseOrderEmailService.FillTemplate(settings.SubjectTemplate, order, companyData);
+        SendBody = PurchaseOrderEmailService.FillTemplate(settings.BodyTemplate, order, companyData);
+        SendPdfFilename = $"{SafeFileName.Create(order.PoNumber, "PurchaseOrder", replaceSpaces: true)}.pdf";
 
         SendPdfPreview?.Dispose();
         SendPdfPreview = null;
@@ -1199,7 +1093,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
 
         IsSendModalOpen = true;
 
-        _ = GenerateSendPreviewAsync(order, companyData, symbol);
+        _ = GenerateSendPreviewAsync(order, companyData);
     }
 
     [RelayCommand]
@@ -1251,7 +1145,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
             var companyData = App.CompanyManager?.CompanyData;
             if (companyData == null) return;
 
-            _sendPdfBytes ??= PurchaseOrderPdfRenderer.Render(SendingOrder, companyData, CurrencyService.CurrentSymbol);
+            _sendPdfBytes ??= PurchaseOrderPdfRenderer.Render(SendingOrder, companyData);
 
             var topLevel = Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
                 ? desktop.MainWindow
@@ -1292,7 +1186,8 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
         if (companyData == null) return;
 
         var recipient = SendRecipientEmail?.Trim() ?? string.Empty;
-        if (string.IsNullOrEmpty(recipient) || !recipient.Contains('@'))
+        var storedEmail = companyData.GetSupplier(SendingOrder.SupplierId)?.Email;
+        if (recipient.Length == 0 || !DataValidator.IsValidOrUnchangedEmail(recipient, storedEmail))
         {
             SendError = "Please enter a valid recipient email address.".Translate();
             return;
@@ -1342,7 +1237,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
         {
             try
             {
-                _sendPdfBytes = PurchaseOrderPdfRenderer.Render(SendingOrder, companyData, CurrencyService.CurrentSymbol);
+                _sendPdfBytes = PurchaseOrderPdfRenderer.Render(SendingOrder, companyData);
             }
             catch (Exception ex)
             {
@@ -1379,7 +1274,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
 
             if (!response.Success)
             {
-                SendError = response.Message;
+                SendError = response.Message.Translate();
                 return;
             }
 
@@ -1441,11 +1336,11 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
         }
     }
 
-    private async Task GenerateSendPreviewAsync(PurchaseOrder order, CompanyData companyData, string symbol)
+    private async Task GenerateSendPreviewAsync(PurchaseOrder order, CompanyData companyData)
     {
         try
         {
-            var bytes = await Task.Run(() => PurchaseOrderPdfRenderer.Render(order, companyData, symbol));
+            var bytes = await Task.Run(() => PurchaseOrderPdfRenderer.Render(order, companyData));
             _sendPdfBytes = bytes;
 
             var rendered = await PdfThumbnailService.Instance.RenderPdfFirstPageAsync(bytes);
@@ -1469,15 +1364,6 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
         {
             App.ErrorLogger?.LogError(ex, ErrorCategory.Validation, "PurchaseOrder.GenerateSendPreview");
         }
-    }
-
-    private static string SanitizePoFilename(string poNumber)
-    {
-        if (string.IsNullOrWhiteSpace(poNumber)) return "PurchaseOrder";
-        var invalid = Path.GetInvalidFileNameChars();
-        var chars = poNumber.Select(c => invalid.Contains(c) || c == ' ' ? '-' : c).ToArray();
-        var result = new string(chars).Trim('-');
-        return string.IsNullOrEmpty(result) ? "PurchaseOrder" : result;
     }
 
     #endregion
@@ -1549,12 +1435,16 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
             CloseFilterModal();
     }
 
+    /// <summary>How many filters are applied, for the page's Filter button.</summary>
+    public int ActiveFilterCount { get; private set; }
+
     /// <summary>
     /// Applies the current filters.
     /// </summary>
     [RelayCommand]
     private void ApplyFilters()
     {
+        ActiveFilterCount = Filters.ActiveCount;
         FiltersApplied?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
     }
@@ -1566,6 +1456,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
     private void ClearFilters()
     {
         Filters.Reset();
+        ActiveFilterCount = 0;
         FiltersCleared?.Invoke(this, EventArgs.Empty);
         CloseFilterModal();
     }

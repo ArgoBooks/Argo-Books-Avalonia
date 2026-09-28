@@ -28,11 +28,11 @@ public record TransactionDraft(
 
 public static class TransactionFactory
 {
-    public static Expense CreateExpense(CompanyData data, TransactionDraft draft)
+    public static Expense CreateExpense(CompanyData data, TransactionDraft draft, ISet<string>? takenIds = null)
     {
         return new Expense
         {
-            Id = new IdGenerator(data).NextExpenseId(draft.Date),
+            Id = new IdGenerator(data).NextExpenseId(draft.Date, takenIds),
             Date = draft.Date,
             SupplierId = draft.CounterpartyId,
             Description = draft.Description,
@@ -48,11 +48,11 @@ public static class TransactionFactory
         };
     }
 
-    public static Revenue CreateRevenue(CompanyData data, TransactionDraft draft)
+    public static Revenue CreateRevenue(CompanyData data, TransactionDraft draft, ISet<string>? takenIds = null)
     {
         return new Revenue
         {
-            Id = new IdGenerator(data).NextRevenueId(draft.Date),
+            Id = new IdGenerator(data).NextRevenueId(draft.Date, takenIds),
             Date = draft.Date,
             CustomerId = draft.CounterpartyId,
             Description = draft.Description,

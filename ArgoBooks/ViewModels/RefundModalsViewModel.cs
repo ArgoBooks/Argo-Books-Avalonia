@@ -39,7 +39,7 @@ public partial class RefundModalsViewModel : ObservableObject
     {
         if (string.IsNullOrWhiteSpace(companyData.Settings.Company.Email))
         {
-            await App.ShowWarningMessageBoxAsync(
+            await App.ShowWarningDialogAsync(
                 "Owner email required",
                 "You need to set your portal owner email before issuing a refund. The verification code is sent to that address.\n\nOpen Settings → Payment Portal and set your owner email, then try again.");
             return;

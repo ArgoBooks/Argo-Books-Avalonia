@@ -57,7 +57,9 @@ public class ForecastAccuracyService : IForecastAccuracyService
         companyData.MarkAsModified();
     }
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Validates past forecasts by comparing them to actual values.
+    /// </summary>
     public void ValidatePastForecasts(CompanyData companyData)
     {
         var today = DateTime.Today;
@@ -116,71 +118,6 @@ public class ForecastAccuracyService : IForecastAccuracyService
         accuracyData.CalculateStatistics();
 
         return accuracyData;
-    }
-
-    /// <inheritdoc />
-    public (double RevenueAccuracy, double ExpenseAccuracy)? GetRecentAccuracy(CompanyData companyData, int recentCount = 6)
-    {
-        var validatedRecords = companyData.ForecastRecords
-            .Where(r => r.IsValidated)
-            .OrderByDescending(r => r.PeriodEndDate)
-            .Take(recentCount)
-            .ToList();
-
-        if (validatedRecords.Count == 0)
-            return null;
-
-        var revenueAccuracies = validatedRecords
-            .Where(r => r.RevenueAccuracyPercent.HasValue)
-            .Select(r => r.RevenueAccuracyPercent!.Value)
-            .ToList();
-
-        var expenseAccuracies = validatedRecords
-            .Where(r => r.ExpensesAccuracyPercent.HasValue)
-            .Select(r => r.ExpensesAccuracyPercent!.Value)
-            .ToList();
-
-        if (!revenueAccuracies.Any() && !expenseAccuracies.Any())
-            return null;
-
-        return (
-            revenueAccuracies.Any() ? revenueAccuracies.Average() : 0,
-            expenseAccuracies.Any() ? expenseAccuracies.Average() : 0
-        );
-    }
-
-    /// <inheritdoc />
-    public string GetAccuracySummary(CompanyData companyData)
-    {
-        var recentAccuracy = GetRecentAccuracy(companyData);
-        if (!recentAccuracy.HasValue)
-        {
-            return "No validated forecasts yet. Check back after the current forecast period ends.";
-        }
-
-        var validatedCount = companyData.ForecastRecords.Count(r => r.IsValidated);
-        var avgAccuracy = (recentAccuracy.Value.RevenueAccuracy + recentAccuracy.Value.ExpenseAccuracy) / 2;
-        var errorMargin = 100 - avgAccuracy;
-
-        return $"Based on {validatedCount} validated {(validatedCount == 1 ? "forecast" : "forecasts")}, predictions were within ±{errorMargin:F0}% of actual values on average.";
-    }
-
-    /// <inheritdoc />
-    public void CleanupOldRecords(CompanyData companyData, int maxRecords = 24)
-    {
-        // Keep only the most recent records, validated ones get priority
-        var toKeep = companyData.ForecastRecords
-            .OrderByDescending(r => r.IsValidated ? 1 : 0)
-            .ThenByDescending(r => r.PeriodStartDate)
-            .Take(maxRecords)
-            .ToList();
-
-        if (companyData.ForecastRecords.Count > toKeep.Count)
-        {
-            companyData.ForecastRecords.Clear();
-            companyData.ForecastRecords.AddRange(toKeep);
-            companyData.MarkAsModified();
-        }
     }
 
     /// <inheritdoc />
@@ -518,40 +455,11 @@ public interface IForecastAccuracyService
     void SaveForecast(CompanyData companyData, ForecastData forecast, AnalysisDateRange forecastPeriod);
 
     /// <summary>
-    /// Validates past forecasts by comparing them to actual values.
-    /// Called automatically when generating new insights.
-    /// </summary>
-    /// <param name="companyData">The company data containing forecasts and actuals.</param>
-    void ValidatePastForecasts(CompanyData companyData);
-
-    /// <summary>
     /// Gets the complete forecast accuracy data including historical records and statistics.
     /// </summary>
     /// <param name="companyData">The company data to analyze.</param>
     /// <returns>Complete accuracy data with statistics.</returns>
     ForecastAccuracyData GetAccuracyData(CompanyData companyData);
-
-    /// <summary>
-    /// Gets recent forecast accuracy as a tuple.
-    /// </summary>
-    /// <param name="companyData">The company data to analyze.</param>
-    /// <param name="recentCount">Number of recent forecasts to include.</param>
-    /// <returns>Tuple of (RevenueAccuracy, ExpenseAccuracy) or null if no data.</returns>
-    (double RevenueAccuracy, double ExpenseAccuracy)? GetRecentAccuracy(CompanyData companyData, int recentCount = 6);
-
-    /// <summary>
-    /// Gets a human-readable summary of forecast accuracy.
-    /// </summary>
-    /// <param name="companyData">The company data to analyze.</param>
-    /// <returns>A description of forecast accuracy performance.</returns>
-    string GetAccuracySummary(CompanyData companyData);
-
-    /// <summary>
-    /// Removes old forecast records beyond the maximum limit.
-    /// </summary>
-    /// <param name="companyData">The company data to clean up.</param>
-    /// <param name="maxRecords">Maximum number of records to keep.</param>
-    void CleanupOldRecords(CompanyData companyData, int maxRecords = 24);
 
     /// <summary>
     /// Determines if a backtest should be run based on available data and previous runs.
@@ -644,11 +552,4 @@ public class MethodAccuracyData
     /// Whether there's enough data to use adaptive weights.
     /// </summary>
     public bool HasSufficientData => SSACount + HoltWintersCount + CombinedCount >= 3;
-
-    /// <summary>
-    /// Description of the adaptive weighting for display.
-    /// </summary>
-    public string WeightingDescription => HasSufficientData
-        ? $"Methods weighted by historical accuracy: SSA {SSAWeight:P0}, Holt-Winters {HoltWintersWeight:P0}"
-        : "Default equal weighting (insufficient historical data)";
 }

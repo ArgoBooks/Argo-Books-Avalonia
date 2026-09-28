@@ -2,7 +2,6 @@ using System.Windows.Input;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
-using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using ArgoBooks.ViewModels;
 
@@ -56,27 +55,6 @@ public partial class Header : UserControl
 
     public static readonly StyledProperty<bool> ShowSettingsProperty =
         AvaloniaProperty.Register<Header, bool>(nameof(ShowSettings), true);
-
-    public static readonly StyledProperty<bool> ShowUserMenuProperty =
-        AvaloniaProperty.Register<Header, bool>(nameof(ShowUserMenu), true);
-
-    public static readonly StyledProperty<string?> UserDisplayNameProperty =
-        AvaloniaProperty.Register<Header, string?>(nameof(UserDisplayName));
-
-    public static readonly StyledProperty<string?> UserInitialsProperty =
-        AvaloniaProperty.Register<Header, string?>(nameof(UserInitials));
-
-    public static readonly StyledProperty<bool> ShowUserNameProperty =
-        AvaloniaProperty.Register<Header, bool>(nameof(ShowUserName));
-
-    public static readonly StyledProperty<bool> ShowUserInitialsProperty =
-        AvaloniaProperty.Register<Header, bool>(nameof(ShowUserInitials));
-
-    public static readonly StyledProperty<bool> HasUserAvatarProperty =
-        AvaloniaProperty.Register<Header, bool>(nameof(HasUserAvatar));
-
-    public static readonly StyledProperty<Bitmap?> UserAvatarSourceProperty =
-        AvaloniaProperty.Register<Header, Bitmap?>(nameof(UserAvatarSource));
 
     public static readonly StyledProperty<ICommand?> SearchCommandProperty =
         AvaloniaProperty.Register<Header, ICommand?>(nameof(SearchCommand));
@@ -214,60 +192,6 @@ public partial class Header : UserControl
         set => SetValue(ShowSettingsProperty, value);
     }
 
-    public bool ShowUserMenu
-    {
-        get => GetValue(ShowUserMenuProperty);
-        set => SetValue(ShowUserMenuProperty, value);
-    }
-
-    public string? UserDisplayName
-    {
-        get => GetValue(UserDisplayNameProperty);
-        set => SetValue(UserDisplayNameProperty, value);
-    }
-
-    public string? UserInitials
-    {
-        get => GetValue(UserInitialsProperty);
-        set => SetValue(UserInitialsProperty, value);
-    }
-
-    /// <summary>
-    /// Gets or sets whether to show the user name next to avatar.
-    /// </summary>
-    public bool ShowUserName
-    {
-        get => GetValue(ShowUserNameProperty);
-        set => SetValue(ShowUserNameProperty, value);
-    }
-
-    /// <summary>
-    /// Gets or sets whether to show user initials in avatar.
-    /// </summary>
-    public bool ShowUserInitials
-    {
-        get => GetValue(ShowUserInitialsProperty);
-        set => SetValue(ShowUserInitialsProperty, value);
-    }
-
-    /// <summary>
-    /// Gets or sets whether the user has an avatar image.
-    /// </summary>
-    public bool HasUserAvatar
-    {
-        get => GetValue(HasUserAvatarProperty);
-        set => SetValue(HasUserAvatarProperty, value);
-    }
-
-    /// <summary>
-    /// Gets or sets the user avatar image source.
-    /// </summary>
-    public Bitmap? UserAvatarSource
-    {
-        get => GetValue(UserAvatarSourceProperty);
-        set => SetValue(UserAvatarSourceProperty, value);
-    }
-
     public ICommand? SearchCommand
     {
         get => GetValue(SearchCommandProperty);
@@ -305,11 +229,41 @@ public partial class Header : UserControl
     private bool _isInitialized;
     private HeaderViewModel? _subscribedVm;
 
+    private const double MaxSearchWidth = 280;
+    private const double SearchGap = 12;
+    private const double SearchHintMinWidth = 240;
+
     public Header()
     {
         InitializeComponent();
         _saveButtonContainer = this.FindControl<StackPanel>("SaveButtonContainer");
         Loaded += OnLoaded;
+
+        // The right group changes width when the Upgrade button shows or hides.
+        HeaderLayout.SizeChanged += (_, _) => UpdateSearchBoxLayout();
+        LeftGroup.SizeChanged += (_, _) => UpdateSearchBoxLayout();
+        RightGroup.SizeChanged += (_, _) => UpdateSearchBoxLayout();
+    }
+
+    /// <summary>
+    /// Centres the search box on the whole header while the gap between the button groups allows,
+    /// and otherwise narrows it and slides it off-centre rather than letting it run under them.
+    /// </summary>
+    private void UpdateSearchBoxLayout()
+    {
+        var total = HeaderLayout.Bounds.Width;
+        var left = LeftGroup.Bounds.Width;
+        var cell = total - left - RightGroup.Bounds.Width;
+        if (total <= 0 || cell <= 0)
+            return;
+
+        var width = Math.Clamp(cell - 2 * SearchGap, 0, MaxSearchWidth);
+        var centredOffset = (total - width) / 2 - left;
+        var offset = Math.Clamp(centredOffset, SearchGap, Math.Max(SearchGap, cell - SearchGap - width));
+
+        SearchBox.Width = width;
+        SearchBox.Margin = new Thickness(offset, 0, 0, 0);
+        SearchHint.IsVisible = width >= SearchHintMinWidth;
     }
 
     private async void OnLoaded(object? sender, Avalonia.Interactivity.RoutedEventArgs e)

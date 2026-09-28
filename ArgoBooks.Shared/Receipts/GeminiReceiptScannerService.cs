@@ -228,32 +228,6 @@ Rules:
         }
     }
 
-    /// <inheritdoc />
-    public async Task<ReceiptScanResult> ScanReceiptFromFileAsync(string filePath, CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            if (!File.Exists(filePath))
-            {
-                return ReceiptScanResult.Failed("File not found.");
-            }
-
-            var imageData = await SharedFileReader.ReadAllBytesAsync(filePath, cancellationToken);
-            var fileName = Path.GetFileName(filePath);
-            return await ScanReceiptAsync(imageData, fileName, cancellationToken);
-        }
-        catch (IOException ex)
-        {
-            return ReceiptScanResult.Failed($"Failed to read file: {ex.Message}");
-        }
-    }
-
-    /// <inheritdoc />
-    public Task<bool> ValidateConfigurationAsync()
-    {
-        return Task.FromResult(IsConfigured);
-    }
-
     private const string VerificationPrompt = @"You previously extracted these line items from a receipt image. Look at the receipt again carefully and check if ANY items were missed.
 
 Extracted items:

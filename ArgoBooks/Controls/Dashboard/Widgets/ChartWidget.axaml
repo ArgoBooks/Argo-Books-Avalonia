@@ -43,7 +43,8 @@
                                Foreground="{DynamicResource TextPrimaryBrush}" />
                 </Border>
 
-                <lvc:PieChart Grid.Row="1"
+                <lvc:PieChart x:Name="DistributionChart"
+                              Grid.Row="1"
                               Series="{Binding PieSeries}"
                               Tag="{Binding ChartDataType}"
                               LegendPosition="Right"

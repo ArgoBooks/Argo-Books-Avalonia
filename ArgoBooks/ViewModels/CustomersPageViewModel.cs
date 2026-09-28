@@ -199,16 +199,20 @@ public partial class CustomersPageViewModel : SortablePageViewModelBase
             FilterOutstandingMax = modals.FilterOutstandingMax;
             FilterLastRentalFrom = modals.FilterLastRentalFrom;
             FilterLastRentalTo = modals.FilterLastRentalTo;
+            ActiveFilterCount = modals.ActiveFilterCount;
         }
         CurrentPage = 1;
         FilterCustomers();
     }
+
+    protected override void ClearTableFilters() => App.CustomerModalsViewModel?.ClearFiltersCommand.Execute(null);
 
     /// <summary>
     /// Handles filters cleared event from modals.
     /// </summary>
     internal void OnFiltersCleared(object? sender, EventArgs e)
     {
+        ActiveFilterCount = 0;
         FilterPaymentStatus = "All";
         FilterCustomerStatus = "All";
         FilterCountry = "All";
@@ -324,8 +328,6 @@ public partial class CustomersPageViewModel : SortablePageViewModelBase
                 addressParts.Add(customer.Address.State);
             var addressString = addressParts.Count > 0 ? string.Join(", ", addressParts) : "-";
 
-            var avatarBitmap = AvatarBitmapLoader.LoadCustomer(customer);
-
             return new CustomerDisplayItem
             {
                 Id = customer.Id,
@@ -335,9 +337,7 @@ public partial class CustomersPageViewModel : SortablePageViewModelBase
                 Address = addressString,
                 Country = string.IsNullOrWhiteSpace(customer.Address.Country) ? "-" : customer.Address.Country,
                 Status = customer.Status,
-                IsHighlighted = customer.Id == HighlightTransactionId,
-                AvatarBitmap = avatarBitmap,
-                HasAvatar = avatarBitmap != null
+                IsHighlighted = customer.Id == HighlightTransactionId
             };
         }).ToList();
 
@@ -361,6 +361,15 @@ public partial class CustomersPageViewModel : SortablePageViewModelBase
 
         var pagedCustomers = Paginate(displayItems, "customer");
 
+        // Avatars are read from disk, so only the rows on this page load theirs.
+        var companyData = App.CompanyManager?.CompanyData;
+        foreach (var item in pagedCustomers)
+        {
+            var avatar = AvatarBitmapLoader.LoadCustomer(companyData?.GetCustomer(item.Id));
+            item.AvatarBitmap = avatar;
+            item.HasAvatar = avatar != null;
+        }
+
         Customers.ReplaceAll(pagedCustomers);
     }
 
@@ -380,7 +389,7 @@ public partial class CustomersPageViewModel : SortablePageViewModelBase
             .GroupBy(i => i.CustomerId)
             .ToDictionary(g => g.Key, g => new PaymentStanding(
                 g.Sum(i => i.EffectiveBalanceUSD),
-                g.Where(i => i.IsOverdue || i.Status == InvoiceStatus.Overdue)
+                g.Where(i => i.IsOverdue)
                     .Select(i => Math.Max(1, (today.Date - i.DueDate.Date).Days))
                     .DefaultIfEmpty(0)
                     .Max()));

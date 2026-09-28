@@ -5,7 +5,9 @@ using ArgoBooks.Core.Models.Payroll;
 using ArgoBooks.Core.Services;
 using ArgoBooks.Utilities;
 using ArgoBooks.Core.Services.Payroll;
+using ArgoBooks.Core.Utilities;
 using ArgoBooks.Localization;
+using ArgoBooks.Services;
 using ArgoBooks.Shared.Telemetry;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -135,6 +137,37 @@ public partial class RoeModalViewModel : ViewModelBase
     [ObservableProperty]
     private IReadOnlyList<string> _problems = [];
 
+    /// <summary>
+    /// What validation said about one box, held back until Save has been pressed, on the same
+    /// reasoning as the year end screen: marking boxes red before anything is typed is nagging.
+    /// </summary>
+    private readonly Dictionary<RoeProblemField, string> _fieldProblems = [];
+
+    private bool _saveAttempted;
+
+    public string ReasonError => FieldProblem(RoeProblemField.Reason);
+
+    public string RecallDateError => FieldProblem(RoeProblemField.RecallDate);
+
+    public string ContactNameError => FieldProblem(RoeProblemField.ContactName);
+
+    public string ContactPhoneError => FieldProblem(RoeProblemField.ContactPhone);
+
+    /// <summary>Whether the footer's "enter all required fields" line shows.</summary>
+    public bool HasValidationMessage => _saveAttempted && _fieldProblems.Count > 0;
+
+    private string FieldProblem(RoeProblemField field) =>
+        _saveAttempted && _fieldProblems.TryGetValue(field, out string? message) ? message : string.Empty;
+
+    private void RefreshFieldErrors()
+    {
+        OnPropertyChanged(nameof(HasValidationMessage));
+        OnPropertyChanged(nameof(ReasonError));
+        OnPropertyChanged(nameof(RecallDateError));
+        OnPropertyChanged(nameof(ContactNameError));
+        OnPropertyChanged(nameof(ContactPhoneError));
+    }
+
     [ObservableProperty]
     private bool _canExport;
 
@@ -175,7 +208,7 @@ public partial class RoeModalViewModel : ViewModelBase
         HoursUnavailableReason = sheet.HoursUnavailableReason ?? string.Empty;
 
         InsurableHours = sheet.TotalInsurableHours?.ToString("0.##", CultureInfo.CurrentCulture) ?? string.Empty;
-        InsurableEarnings = sheet.TotalInsurableEarnings.ToString("C", CultureInfo.CurrentCulture);
+        InsurableEarnings = CurrencyService.Format(sheet.TotalInsurableEarnings);
         PeriodSummary = "{0} pay period(s), most recent first".TranslateFormat(sheet.Periods.Count);
 
         // Seeded from the payroll contact already held for the T4, so it is confirmed rather
@@ -194,7 +227,7 @@ public partial class RoeModalViewModel : ViewModelBase
         VacationPayOnLeaving = string.Empty;
         VacationPayHint = sheet.VacationPay > 0
             ? "The final pay run included {0} of vacation pay. Enter it here only if it was paid because they left, not vacation pay added to every cheque."
-                .TranslateFormat(sheet.VacationPay.ToString("C", CultureInfo.CurrentCulture))
+                .TranslateFormat(CurrencyService.Format(sheet.VacationPay))
             : string.Empty;
         Comments = string.Empty;
         StatusMessage = string.Empty;
@@ -237,7 +270,19 @@ public partial class RoeModalViewModel : ViewModelBase
 
         Apply();
 
-        List<string> found = RoeXmlWriter.Validate(_sheet).Select(p => p.Translate()).ToList();
+        IReadOnlyList<RoeProblem> validated = RoeXmlWriter.Validate(_sheet);
+
+        _fieldProblems.Clear();
+        foreach (RoeProblem problem in validated.Where(p => p.Field != RoeProblemField.None))
+        {
+            _fieldProblems[problem.Field] = problem.Message.Translate();
+        }
+        RefreshFieldErrors();
+
+        List<string> found = validated
+            .Where(p => p.Field == RoeProblemField.None)
+            .Select(p => p.Message.Translate())
+            .ToList();
 
         // Assigning an equal list still raises a change and rebuilds the items, so it is worth
         // the comparison: most keystrokes do not alter what is missing.
@@ -246,7 +291,7 @@ public partial class RoeModalViewModel : ViewModelBase
             Problems = found;
         }
 
-        CanExport = found.Count == 0;
+        CanExport = found.Count == 0 && _fieldProblems.Count == 0;
     }
 
     private void Apply()
@@ -298,7 +343,7 @@ public partial class RoeModalViewModel : ViewModelBase
             App.ReceiptViewerModal?.ShowDocument(
                 "Record of Employment: {0}".TranslateFormat(_sheet.EmployeeName),
                 bytes,
-                $"ROE-worksheet-{ExportFolderHelper.Sanitize(_sheet.EmployeeName)}.pdf");
+                $"ROE-worksheet-{SafeFileName.Create(_sheet.EmployeeName, "export", replaceSpaces: true)}.pdf");
 
             _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.RoeWorksheetGenerated);
         }
@@ -326,11 +371,11 @@ public partial class RoeModalViewModel : ViewModelBase
             return;
         }
 
+        _saveAttempted = true;
         Revalidate();
 
         if (!CanExport)
         {
-            StatusMessage = "Fill in what is listed above first.".Translate();
             return;
         }
 
@@ -345,7 +390,7 @@ public partial class RoeModalViewModel : ViewModelBase
 
         try
         {
-            string name = ExportFolderHelper.Sanitize(_sheet.EmployeeName);
+            string name = SafeFileName.Create(_sheet.EmployeeName, "export", replaceSpaces: true);
 
             IStorageFile? file = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
             {

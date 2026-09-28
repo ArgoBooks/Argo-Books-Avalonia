@@ -45,17 +45,6 @@ public enum SpreadsheetSheetType
 /// </summary>
 public static class SpreadsheetSheetTypeExtensions
 {
-    /// <summary>
-    /// Whether a sheet of this type can be read back in.
-    ///
-    /// Nearly all of them can. <see cref="SpreadsheetSheetType.PayRuns"/> is exported to be read
-    /// and not imported, because an approved run's figures are frozen so that a stub reprinted
-    /// next year still matches the one the employee was handed; taking them back from a sheet
-    /// somebody could have edited would defeat that. Employees, being an ordinary list rather
-    /// than a record of what was paid, do import.
-    /// </summary>
-    public static bool IsImportable(this SpreadsheetSheetType type) =>
-        type is not (SpreadsheetSheetType.PayRuns or SpreadsheetSheetType.Unknown);
 
     /// <summary>
     /// Parses a worksheet name string to a SpreadsheetSheetType enum value.

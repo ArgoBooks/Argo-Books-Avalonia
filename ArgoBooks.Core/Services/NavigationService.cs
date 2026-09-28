@@ -1,12 +1,10 @@
 namespace ArgoBooks.Core.Services;
 
 /// <summary>
-/// Implementation of INavigationService providing page navigation with history support.
+/// Implementation of INavigationService providing page navigation.
 /// </summary>
 public class NavigationService : INavigationService
 {
-    private readonly Stack<NavigationEntry> _backStack = new();
-    private readonly Stack<NavigationEntry> _forwardStack = new();
     private NavigationEntry? _currentEntry;
 
     private readonly Dictionary<string, Func<object?, object>> _pageFactories = new();
@@ -15,12 +13,6 @@ public class NavigationService : INavigationService
 
     /// <inheritdoc />
     public string CurrentPageName => _currentEntry?.PageName ?? string.Empty;
-
-    /// <inheritdoc />
-    public bool CanGoBack => _backStack.Count > 0;
-
-    /// <inheritdoc />
-    public bool CanGoForward => _forwardStack.Count > 0;
 
     /// <inheritdoc />
     public event EventHandler<NavigationEventArgs>? Navigated;
@@ -61,16 +53,6 @@ public class NavigationService : INavigationService
             return;
 
         var previousPageName = _currentEntry?.PageName;
-
-        // Push current entry to back stack
-        if (_currentEntry != null)
-        {
-            _backStack.Push(_currentEntry);
-        }
-
-        // Clear forward stack on new navigation
-        _forwardStack.Clear();
-
         _currentEntry = new NavigationEntry(pageName, parameter);
 
         // Navigate and notify
@@ -109,64 +91,8 @@ public class NavigationService : INavigationService
         }
     }
 
-    /// <inheritdoc />
-    public void UnregisterNavigationGuard(NavigationGuardCallback guard)
-    {
-        _navigationGuards.Remove(guard);
-    }
-
-    /// <inheritdoc />
-    public bool GoBack()
-    {
-        if (!CanGoBack)
-            return false;
-
-        var previousPageName = _currentEntry?.PageName;
-
-        // Push current to forward stack
-        if (_currentEntry != null)
-        {
-            _forwardStack.Push(_currentEntry);
-        }
-
-        _currentEntry = _backStack.Pop();
-
-        // Navigate and notify
-        PerformNavigation(previousPageName);
-        return true;
-    }
-
-    /// <inheritdoc />
-    public bool GoForward()
-    {
-        if (!CanGoForward)
-            return false;
-
-        var previousPageName = _currentEntry?.PageName;
-
-        // Push current to back stack
-        if (_currentEntry != null)
-        {
-            _backStack.Push(_currentEntry);
-        }
-
-        _currentEntry = _forwardStack.Pop();
-
-        // Navigate and notify
-        PerformNavigation(previousPageName);
-        return true;
-    }
-
-    /// <inheritdoc />
-    public void ClearHistory()
-    {
-        _backStack.Clear();
-        _forwardStack.Clear();
-    }
-
     /// <summary>
     /// Re-creates the current page to refresh its content from CompanyData.
-    /// Does not affect the back/forward navigation stacks.
     /// </summary>
     public void RefreshCurrentPage()
     {
@@ -201,32 +127,10 @@ public class NavigationService : INavigationService
             previousPageName,
             _currentEntry.Parameter));
     }
-
-    /// <summary>
-    /// Gets the parameter for the current page (if any).
-    /// </summary>
-    public object? GetCurrentParameter() => _currentEntry?.Parameter;
-
-    /// <summary>
-    /// Gets the navigation history (page names only).
-    /// </summary>
-    public IReadOnlyList<string> GetHistory()
-    {
-        var history = new List<string>();
-        foreach (var entry in _backStack.Reverse())
-        {
-            history.Add(entry.PageName);
-        }
-        if (_currentEntry != null)
-        {
-            history.Add(_currentEntry.PageName);
-        }
-        return history;
-    }
 }
 
 /// <summary>
-/// Represents a navigation history entry.
+/// Represents the current navigation entry.
 /// </summary>
 internal class NavigationEntry(string pageName, object? parameter = null)
 {

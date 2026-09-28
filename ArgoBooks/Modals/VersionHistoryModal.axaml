@@ -23,7 +23,9 @@
             <controls:ModalOverlay.ModalContent>
                 <Border Classes="modal-card"
                         Width="650"
-                        Height="700">
+                        Height="700"
+                        MaxWidth="{Binding $parent[controls:ModalOverlay].AvailableWidth}"
+                        MaxHeight="{Binding $parent[controls:ModalOverlay].AvailableHeight}">
 
                     <Grid RowDefinitions="Auto,Auto,*,Auto">
                         <!-- Header -->

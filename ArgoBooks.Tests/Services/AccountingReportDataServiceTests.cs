@@ -404,6 +404,31 @@ public class AccountingReportDataServiceTests
         Assert.Contains("5", subtotals[1].Values[0]);   // tax paid = $5
     }
 
+    // An invoice's revenue copies each line's own rate, but its tax comes from the invoice rate. The
+    // summary totals the recorded tax, as the Balance Sheet does, split across the line rates.
+    [Fact]
+    public void GetReportData_TaxSummary_TotalsTheRecordedTax_SplitByLineRate()
+    {
+        var data = new CompanyData();
+        data.Revenues.Add(new Revenue
+        {
+            Id = "REV-2024-00001", Date = new DateTime(2024, 6, 1), OriginalCurrency = "USD",
+            TaxRate = 13m, TaxAmount = 26m, TaxAmountUSD = 26m, Total = 226m, TotalUSD = 226m,
+            LineItems =
+            [
+                new LineItem { Description = "A", Quantity = 1, UnitPrice = 100m, TaxRate = 0.05m },
+                new LineItem { Description = "B", Quantity = 1, UnitPrice = 100m, TaxRate = 0.15m }
+            ]
+        });
+
+        var result = new AccountingReportDataService(data, CreateDefaultFilters())
+            .GetReportData(AccountingReportType.TaxSummary);
+
+        var collected = result.Rows.First(r => r.RowType == AccountingRowType.SubtotalRow);
+        Assert.Contains("26", collected.Values[0]);
+        Assert.Equal(26m, AmountOf(result, "NET TAX LIABILITY"));
+    }
+
     // docs/Calculations.md §8: $86.91 + $32.09 tax = $119, paid Mar 1 and refunded in full Mar 10.
     private static CompanyData RefundedSale()
     {

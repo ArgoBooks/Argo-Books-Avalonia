@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using ArgoBooks.Core.Security;
 using ArgoBooks.Core.Services;
 using Xunit;
 
@@ -53,35 +54,6 @@ public class EncryptionServiceTests
         var iv2 = _encryptionService.GenerateIv();
 
         Assert.NotEqual(iv1, iv2);
-    }
-
-    #endregion
-
-    #region Password Hashing Tests
-
-    [Fact]
-    public void HashPassword_ReturnsDeterministicHash()
-    {
-        var password = "TestPassword123";
-        var salt = _encryptionService.GenerateSalt();
-
-        var hash1 = _encryptionService.HashPassword(password, salt);
-        var hash2 = _encryptionService.HashPassword(password, salt);
-
-        Assert.Equal(hash1, hash2);
-    }
-
-    [Fact]
-    public void HashPassword_DifferentSaltProducesDifferentHash()
-    {
-        var password = "TestPassword123";
-        var salt1 = _encryptionService.GenerateSalt();
-        var salt2 = _encryptionService.GenerateSalt();
-
-        var hash1 = _encryptionService.HashPassword(password, salt1);
-        var hash2 = _encryptionService.HashPassword(password, salt2);
-
-        Assert.NotEqual(hash1, hash2);
     }
 
     #endregion
@@ -232,78 +204,6 @@ public class EncryptionServiceTests
 
     #endregion
 
-    #region Async Encryption/Decryption Tests
-
-    [Fact]
-    public async Task EncryptAsync_RoundTrip_RestoresOriginalData()
-    {
-        var originalData = "Hello, Async World!"u8.ToArray();
-        var password = "TestPassword123";
-        var salt = _encryptionService.GenerateSalt();
-        var iv = _encryptionService.GenerateIv();
-
-        using var inputStream = new MemoryStream(originalData);
-        using var encryptedStream = await _encryptionService.EncryptAsync(inputStream, password, salt, iv);
-        var decryptedData = _encryptionService.Decrypt(encryptedStream.ToArray(), password, salt, iv);
-
-        Assert.True(originalData.SequenceEqual(decryptedData));
-    }
-
-    [Fact]
-    public async Task EncryptAsync_ThrowsOnNullStream()
-    {
-        var salt = _encryptionService.GenerateSalt();
-        var iv = _encryptionService.GenerateIv();
-
-        await Assert.ThrowsAsync<ArgumentNullException>(() =>
-            _encryptionService.EncryptAsync(null!, "password", salt, iv));
-    }
-
-    [Fact]
-    public async Task EncryptAsync_ReturnsStreamAtPositionZero()
-    {
-        var originalData = "Test data"u8.ToArray();
-        var password = "TestPassword123";
-        var salt = _encryptionService.GenerateSalt();
-        var iv = _encryptionService.GenerateIv();
-
-        using var inputStream = new MemoryStream(originalData);
-        using var encryptedStream = await _encryptionService.EncryptAsync(inputStream, password, salt, iv);
-
-        Assert.Equal(0, encryptedStream.Position);
-    }
-
-    #endregion
-
-    #region Password Validation Tests
-
-    [Fact]
-    public void IsPasswordValid_ReturnsTrueForValidPassword()
-    {
-        Assert.True(_encryptionService.IsPasswordValid("Password123"));
-    }
-
-    [Fact]
-    public void IsPasswordValid_ReturnsFalseForInvalidPassword()
-    {
-        Assert.False(_encryptionService.IsPasswordValid("weak"));
-    }
-
-    [Fact]
-    public void GetPasswordValidationError_ReturnsNullForValidPassword()
-    {
-        Assert.Null(_encryptionService.GetPasswordValidationError("Password123"));
-    }
-
-    [Fact]
-    public void GetPasswordValidationError_ReturnsErrorForInvalidPassword()
-    {
-        var error = _encryptionService.GetPasswordValidationError("weak");
-        Assert.NotNull(error);
-    }
-
-    #endregion
-
     #region Integration Tests
 
     [Fact]
@@ -315,7 +215,7 @@ public class EncryptionServiceTests
 
         // Step 1: Generate salt and hash password for storage
         var salt = _encryptionService.GenerateSalt();
-        var passwordHash = _encryptionService.HashPassword(password, salt);
+        var passwordHash = KeyDerivation.ComputePasswordHashBase64(password, salt);
 
         // Step 2: Generate IV and encrypt file
         var iv = _encryptionService.GenerateIv();
@@ -355,7 +255,7 @@ public class EncryptionServiceTests
     {
         var salt = _encryptionService.GenerateSalt();
         var iv = _encryptionService.GenerateIv();
-        var hash = _encryptionService.HashPassword("pw-correct", salt);
+        var hash = KeyDerivation.ComputePasswordHashBase64("pw-correct", salt);
         var plaintext = "hello argo"u8.ToArray();
         var encrypted = _encryptionService.Encrypt(plaintext, "pw-correct", salt, iv);
 
@@ -370,7 +270,7 @@ public class EncryptionServiceTests
     {
         var salt = _encryptionService.GenerateSalt();
         var iv = _encryptionService.GenerateIv();
-        var hash = _encryptionService.HashPassword("pw", salt);
+        var hash = KeyDerivation.ComputePasswordHashBase64("pw", salt);
         var plaintext = "some longer confidential content for the file"u8.ToArray();
         var encrypted = _encryptionService.Encrypt(plaintext, "pw", salt, iv);
 
@@ -385,7 +285,7 @@ public class EncryptionServiceTests
     {
         var salt = _encryptionService.GenerateSalt();
         var iv = _encryptionService.GenerateIv();
-        var hash = _encryptionService.HashPassword("pw-correct", salt);
+        var hash = KeyDerivation.ComputePasswordHashBase64("pw-correct", salt);
         var encrypted = _encryptionService.Encrypt("hello"u8.ToArray(), "pw-correct", salt, iv);
 
         Assert.Throws<UnauthorizedAccessException>(() =>
@@ -397,7 +297,7 @@ public class EncryptionServiceTests
     {
         var salt = _encryptionService.GenerateSalt();
         var iv = _encryptionService.GenerateIv();
-        var hash = _encryptionService.HashPassword("pw", salt);
+        var hash = KeyDerivation.ComputePasswordHashBase64("pw", salt);
         var plaintext = "stream content"u8.ToArray();
         var encrypted = _encryptionService.Encrypt(plaintext, "pw", salt, iv);
 

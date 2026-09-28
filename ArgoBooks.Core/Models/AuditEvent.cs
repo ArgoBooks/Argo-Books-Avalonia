@@ -1,3 +1,5 @@
+using ArgoBooks.Core.Models.Common;
+
 namespace ArgoBooks.Core.Models;
 
 /// <summary>
@@ -11,7 +13,7 @@ namespace ArgoBooks.Core.Models;
 /// accountant and show per-user activity. The server-side sync layer can use these fields to merge
 /// event streams from multiple clients and detect conflicts (e.g., two accountants editing the same entity).
 /// </remarks>
-public class AuditEvent
+public class AuditEvent : IRecord
 {
     /// <summary>
     /// Unique identifier for this event.

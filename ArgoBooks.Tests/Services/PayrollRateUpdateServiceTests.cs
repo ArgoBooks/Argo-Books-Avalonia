@@ -222,8 +222,6 @@ public class PayrollRateUpdateServiceTests : IDisposable
         public PlatformType Platform => PlatformType.Linux;
         public string GetAppDataPath() => cachePath;
         public string GetTempPath() => Path.GetTempPath();
-        public string GetDefaultDocumentsPath() => Path.GetTempPath();
-        public string GetLogsPath() => cachePath;
         public string GetCachePath() => cachePath;
         public void EnsureDirectoryExists(string path) => Directory.CreateDirectory(path);
         public bool SupportsFileSystem => true;
@@ -240,7 +238,6 @@ public class PayrollRateUpdateServiceTests : IDisposable
         public string NormalizePath(string path) => path;
         public string CombinePaths(params string[] paths) => Path.Combine(paths);
         public string GetMachineId() => "test-machine-id";
-        public void RegisterFileTypeAssociations(string iconPath) { }
         public StringComparer PathComparer => StringComparer.Ordinal;
     }
 }

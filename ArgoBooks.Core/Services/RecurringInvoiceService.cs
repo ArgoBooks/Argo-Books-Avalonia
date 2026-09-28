@@ -166,6 +166,9 @@ public static class RecurringInvoiceService
         // Totals stay in sync; with no matching payments this keeps Balance == Total and leaves
         // the lifecycle status (Draft) untouched.
         InvoiceTotalsService.Recalculate(invoice, data.Payments);
+
+        // The template's USD amounts are another day's, so the copy converts at its own issue date.
+        UsdConversion.Apply(data, invoice, UsdConversion.CachedRate(invoice.OriginalCurrency, invoice.IssueDate));
         return invoice;
     }
 

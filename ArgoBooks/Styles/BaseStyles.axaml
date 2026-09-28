@@ -8,48 +8,19 @@
     -->
 
     <Styles.Resources>
-        <!-- Spacing -->
-        <x:Double x:Key="SpacingXs">4</x:Double>
-        <x:Double x:Key="SpacingSm">8</x:Double>
-        <x:Double x:Key="SpacingMd">16</x:Double>
-        <x:Double x:Key="SpacingLg">24</x:Double>
-        <x:Double x:Key="SpacingXl">32</x:Double>
-        <x:Double x:Key="SpacingXxl">48</x:Double>
-
         <!-- Border Radius -->
-        <CornerRadius x:Key="RadiusNone">0</CornerRadius>
-        <CornerRadius x:Key="RadiusSm">4</CornerRadius>
         <CornerRadius x:Key="RadiusMd">8</CornerRadius>
         <CornerRadius x:Key="RadiusLg">12</CornerRadius>
-        <CornerRadius x:Key="RadiusXl">16</CornerRadius>
         <CornerRadius x:Key="RadiusFull">9999</CornerRadius>
 
         <!-- Font Sizes -->
         <x:Double x:Key="FontSizeXs">10</x:Double>
         <x:Double x:Key="FontSizeSm">12</x:Double>
         <x:Double x:Key="FontSizeMd">14</x:Double>
-        <x:Double x:Key="FontSizeLg">16</x:Double>
         <x:Double x:Key="FontSizeXl">20</x:Double>
-        <x:Double x:Key="FontSizeXxl">24</x:Double>
-        <x:Double x:Key="FontSizeXxxl">32</x:Double>
 
         <!-- Icon Sizes -->
-        <x:Double x:Key="IconSizeSm">16</x:Double>
         <x:Double x:Key="IconSizeMd">20</x:Double>
-        <x:Double x:Key="IconSizeLg">24</x:Double>
-        <x:Double x:Key="IconSizeXl">32</x:Double>
-
-        <!-- Thickness Values (Padding/Margin) -->
-        <Thickness x:Key="PaddingXs">4</Thickness>
-        <Thickness x:Key="PaddingSm">8</Thickness>
-        <Thickness x:Key="PaddingMd">16</Thickness>
-        <Thickness x:Key="PaddingLg">24</Thickness>
-        <Thickness x:Key="PaddingXl">32</Thickness>
-
-        <!-- Border Thickness -->
-        <Thickness x:Key="BorderThin">1</Thickness>
-        <Thickness x:Key="BorderMedium">2</Thickness>
-        <Thickness x:Key="BorderThick">3</Thickness>
 
         <!-- Form Control Heights -->
         <x:Double x:Key="FormControlHeight">40</x:Double>
@@ -345,27 +316,8 @@
         <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}" />
     </Style>
 
-    <!-- Compact Form ComboBox (for line items) -->
-    <Style Selector="ComboBox.form-combobox-compact">
-        <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
-        <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="{StaticResource FormControlCornerRadius}" />
-        <Setter Property="Padding" Value="8,6" />
-        <Setter Property="FontSize" Value="14" />
-        <Setter Property="HorizontalAlignment" Value="Stretch" />
-        <Setter Property="MinHeight" Value="{StaticResource FormControlHeightCompact}" />
-    </Style>
-
     <!-- Standard Form NumericUpDown (matches form-input class naming) -->
     <Style Selector="NumericUpDown.form-input">
-        <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
-        <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="{StaticResource FormControlCornerRadius}" />
-        <Setter Property="MinHeight" Value="{StaticResource FormControlHeight}" />
-    </Style>
-    <Style Selector="NumericUpDown.form-numericupdown">
         <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />

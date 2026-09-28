@@ -15,6 +15,7 @@ public partial class ModalOverlay : UserControl
 {
     private Panel? _overlayPanel;
     private ContentPresenter? _modalContentPresenter;
+    private bool _contentPresented;
 
     #region Styled Properties
 
@@ -32,6 +33,12 @@ public partial class ModalOverlay : UserControl
 
     public static readonly StyledProperty<ICommand?> ClosingCommandProperty =
         AvaloniaProperty.Register<ModalOverlay, ICommand?>(nameof(ClosingCommand));
+
+    public static readonly StyledProperty<double> AvailableWidthProperty =
+        AvaloniaProperty.Register<ModalOverlay, double>(nameof(AvailableWidth), double.PositiveInfinity);
+
+    public static readonly StyledProperty<double> AvailableHeightProperty =
+        AvaloniaProperty.Register<ModalOverlay, double>(nameof(AvailableHeight), double.PositiveInfinity);
 
     #endregion
 
@@ -75,6 +82,24 @@ public partial class ModalOverlay : UserControl
         set => SetValue(ClosingCommandProperty, value);
     }
 
+    /// <summary>
+    /// The room inside the content presenter, which already keeps the edge gap from the window. A
+    /// modal with a fixed Width or Height binds its MaxWidth/MaxHeight to these so it shrinks instead
+    /// of running off a window made smaller than it.
+    /// </summary>
+    public double AvailableWidth
+    {
+        get => GetValue(AvailableWidthProperty);
+        private set => SetValue(AvailableWidthProperty, value);
+    }
+
+    /// <inheritdoc cref="AvailableWidth"/>
+    public double AvailableHeight
+    {
+        get => GetValue(AvailableHeightProperty);
+        private set => SetValue(AvailableHeightProperty, value);
+    }
+
     #endregion
 
     #region Events
@@ -96,14 +121,25 @@ public partial class ModalOverlay : UserControl
     {
         base.OnAttachedToVisualTree(e);
 
-        if (_modalContentPresenter != null)
-            _modalContentPresenter.Content = ModalContent;
+        if (IsOpen)
+            PresentContent();
 
         if (_overlayPanel != null)
-        {
-            _overlayPanel.Opacity = IsOpen ? 1 : 0;
-            _overlayPanel.IsHitTestVisible = IsOpen;
-        }
+            _overlayPanel.IsVisible = IsOpen;
+    }
+
+    /// <summary>
+    /// Hands the content to the presenter the first time the modal opens, and keeps it there after,
+    /// so reopening is instant and keeps its state. Until then the content is outside the visual
+    /// tree, which spares launch from styling and laying out every modal the app declares.
+    /// </summary>
+    private void PresentContent()
+    {
+        if (_contentPresented || _modalContentPresenter == null)
+            return;
+
+        _contentPresented = true;
+        _modalContentPresenter.Content = ModalContent;
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -114,9 +150,15 @@ public partial class ModalOverlay : UserControl
         {
             OnIsOpenChanged(IsOpen);
         }
-        else if (change.Property == ModalContentProperty && _modalContentPresenter != null)
+        else if (change.Property == ModalContentProperty && _contentPresented && _modalContentPresenter != null)
         {
             _modalContentPresenter.Content = ModalContent;
+        }
+        else if (change.Property == BoundsProperty)
+        {
+            var gap = _modalContentPresenter?.Margin ?? default;
+            AvailableWidth = Math.Max(0, Bounds.Width - gap.Left - gap.Right);
+            AvailableHeight = Math.Max(0, Bounds.Height - gap.Top - gap.Bottom);
         }
     }
 
@@ -133,11 +175,11 @@ public partial class ModalOverlay : UserControl
 
     private void OnIsOpenChanged(bool isOpen)
     {
+        if (isOpen)
+            PresentContent();
+
         if (_overlayPanel != null)
-        {
-            _overlayPanel.Opacity = isOpen ? 1 : 0;
-            _overlayPanel.IsHitTestVisible = isOpen;
-        }
+            _overlayPanel.IsVisible = isOpen;
 
         if (isOpen)
         {

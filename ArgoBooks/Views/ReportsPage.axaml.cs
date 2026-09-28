@@ -30,18 +30,58 @@ public partial class ReportsPage : UserControl
     private Vector _panStartOffset;
     private bool _toolbarScrollbarVisible;
 
-    // Element panel collapse animation
-    private Border? _elementToolbox;
-
     // Preview zoom level
     private double _previewZoomLevel = 1.0;
 
     // Rubberband overscroll effect for preview
     private OverscrollHelper? _previewOverscrollHelper;
 
+    private const double SendButtonTextMinWidth = 480;
+    private const double NarrowDesignerThreshold = 900;
+    private bool _isNarrowDesigner;
+    private bool _toolboxAutoCollapsed;
+
     public ReportsPage()
     {
         InitializeComponent();
+
+        Step1TabHeader.SizeChanged += (_, e) =>
+        {
+            if (e.WidthChanged)
+                SendToAccountantText.IsVisible = e.NewSize.Width >= SendButtonTextMinWidth;
+        };
+        DesignerLayout.SizeChanged += OnDesignerLayoutSizeChanged;
+    }
+
+    /// <summary>
+    /// Closes the element toolbox when the designer gets narrow and reopens it when it widens, but
+    /// only when the width crosses the threshold, so a toggle made at the current size stands.
+    /// </summary>
+    private void OnDesignerLayoutSizeChanged(object? sender, SizeChangedEventArgs e)
+    {
+        if (!e.WidthChanged || DataContext is not ReportsPageViewModel vm)
+            return;
+
+        var isNarrow = e.NewSize.Width < NarrowDesignerThreshold;
+        if (isNarrow == _isNarrowDesigner)
+            return;
+        _isNarrowDesigner = isNarrow;
+
+        if (isNarrow && vm.IsElementPanelExpanded)
+        {
+            _toolboxAutoCollapsed = true;
+            vm.SetElementPanelExpandedForWidth(false);
+            AnimateElementToolbox(false);
+        }
+        else if (!isNarrow && _toolboxAutoCollapsed)
+        {
+            _toolboxAutoCollapsed = false;
+            if (!vm.IsElementPanelExpanded)
+            {
+                vm.SetElementPanelExpandedForWidth(true);
+                AnimateElementToolbox(true);
+            }
+        }
     }
 
     protected override void OnLoaded(RoutedEventArgs e)
@@ -62,7 +102,6 @@ public partial class ReportsPage : UserControl
         _saveButtonContainer = this.FindControl<Grid>("SaveButtonContainer");
         _saveConfirmationBorder = this.FindControl<Border>("SaveConfirmationBorder");
         _noChangesBorder = this.FindControl<Border>("NoChangesBorder");
-        _elementToolbox = this.FindControl<Border>("ElementToolbox");
 
         // Wire up toolbar scrollbar visibility detection
         if (_toolbarScrollViewer != null)
@@ -861,18 +900,25 @@ public partial class ReportsPage : UserControl
     /// <summary>
     /// Handles the element panel collapse/expand toggle.
     /// </summary>
-    private async void OnToggleElementPanelClick(object? sender, RoutedEventArgs e)
+    private void OnToggleElementPanelClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ReportsPageViewModel vm) return;
+
+        _toolboxAutoCollapsed = false;
+        vm.IsElementPanelExpanded = !vm.IsElementPanelExpanded;
+        AnimateElementToolbox(vm.IsElementPanelExpanded);
+    }
+
+    private async void AnimateElementToolbox(bool expanded)
     {
         try
         {
-            if (DataContext is not ReportsPageViewModel vm || _elementToolbox == null) return;
-
-            vm.IsElementPanelExpanded = !vm.IsElementPanelExpanded;
+            var toolbox = ElementToolbox;
 
             // Animate width
-            var targetWidth = vm.IsElementPanelExpanded ? 160.0 : 40.0;
-            var startWidth = _elementToolbox.Width;
-            if (double.IsNaN(startWidth)) startWidth = vm.IsElementPanelExpanded ? 40.0 : 160.0;
+            var targetWidth = expanded ? 160.0 : 40.0;
+            var startWidth = toolbox.Width;
+            if (double.IsNaN(startWidth)) startWidth = expanded ? 40.0 : 160.0;
 
             const int steps = 10;
             const int delayMs = 16;
@@ -881,16 +927,16 @@ public partial class ReportsPage : UserControl
             {
                 double t = i / (double)steps;
                 double easeOut = 1 - Math.Pow(1 - t, 3);
-                _elementToolbox.Width = startWidth + (targetWidth - startWidth) * easeOut;
+                toolbox.Width = startWidth + (targetWidth - startWidth) * easeOut;
                 await Task.Delay(delayMs);
             }
 
             // Ensure final state
-            _elementToolbox.Width = targetWidth;
+            toolbox.Width = targetWidth;
         }
         catch (Exception ex)
         {
-            App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.UI, "OnToggleElementPanelClick");
+            App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.UI, "AnimateElementToolbox");
         }
     }
 }

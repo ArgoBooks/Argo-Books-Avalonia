@@ -1,149 +1,108 @@
 # License Key
 
-Argo Books uses a license key system to manage access to premium features. License keys are validated both locally and online, stored with machine-specific encryption, and tied to a specific device.
+A license key unlocks the premium features. The key is checked with the server, tied to one device, and saved on that device in encrypted form.
 
-## Key Format
+## Key format
 
-License keys follow the format `XXXX-XXXX-XXXX-XXXX-XXXX` (20 alphanumeric characters separated by 4 dashes, 24 characters total). Keys are case-insensitive and normalized to uppercase before processing.
+Keys look like `XXXX-XXXX-XXXX-XXXX-XXXX`: 20 letters and digits in groups of four, 24 characters with the dashes. Capitals don't matter; keys are turned into capitals before use.
 
-## License Validation Flow
+## Checking a key
 
 ![License Validation Flow](diagrams/license-key/license-validation-flow.svg)
 
-### Activation (Redemption)
+### Activating
 
-When a user enters a license key in the upgrade modal:
+When the user enters a key in the upgrade modal:
 
-1. **Format validation** - the key is checked for the correct `XXXX-XXXX-XXXX-XXXX-XXXX` format (24 characters including dashes)
-2. **Server redemption** - the key and a hashed device ID are sent to the redemption API (`/api/license/redeem.php`)
-3. **Device binding** - the server marks the key as used and binds it to the device
-4. **Local storage** - on success, the license data (premium status, key, activation date) is encrypted and saved locally
-5. **Feature unlock** - premium features become available immediately
+1. The app checks the key has the right format.
+2. It sends the key and the device ID to the server (`/api/license/redeem.php`).
+3. The server marks the key as used and ties it to that device.
+4. The app saves the license, encrypted, on the device.
+5. Premium features unlock straight away.
 
-### Online Validation
+### Checking again later
 
-Stored licenses can be re-validated against the server to check ongoing subscription status:
+The app sends the saved key and device ID to `/api/license/validate.php` to check the subscription is still active. The answer is one of:
 
-1. The stored license key and device ID are sent to the validation API (`/api/license/validate.php`)
-2. The server returns one of the following statuses:
-   - `Valid` - license is active and matches the device
-   - `InvalidKey` - the key is not recognized
-   - `ExpiredSubscription` - the subscription has lapsed
-   - `WrongDevice` - the key is bound to a different device
-   - `NetworkError` - the server could not be reached
+- `Valid`: active, and tied to this device
+- `InvalidKey`: the server doesn't recognize the key
+- `ExpiredSubscription`: the subscription has ended
+- `WrongDevice`: the key is now tied to a different device
+- `NetworkError`: the server couldn't be reached
 
-## Local Storage and Encryption
+### Moving to a new device
 
-License data is stored locally in global settings, encrypted with a machine-specific key so it cannot be transferred between devices.
+Entering the key on a new device works at any time. The server moves the key to the new device straight away, and nothing has to be done on the old one first.
 
-### What Gets Stored
+The next time the old device starts, the check returns `WrongDevice`. The app removes the saved license there and tells the user: *"Your license key has been activated on a different device."*
 
-| Field                | Description                                      |
-|----------------------|--------------------------------------------------|
-| `LicenseData`        | Encrypted JSON containing premium status, license key, and activation date |
-| `Salt`               | Salt used for the encryption key derivation       |
-| `Iv`                 | Initialization vector for AES-GCM encryption      |
-| `LastValidationDate` | Timestamp of the most recent online validation     |
+## How the license is saved
 
-### Machine-Specific Encryption
+The license is saved in the app's global settings file, encrypted so it only works on the computer it was activated on:
 
-The license data is encrypted using AES-256-GCM with a key derived from:
+| Field | What it holds |
+|-------|---------------|
+| `LicenseData` | The encrypted license: premium status, key and activation date |
+| `Salt` | A random salt used when making the encryption key |
+| `Iv` | The random IV for AES-256-GCM |
 
-1. **Machine ID** - a stable, platform-specific hardware identifier obtained via `IPlatformService.GetMachineId()`
-2. **Application salt** - a static string (`ArgoBooks_License_v2`) appended to the machine ID
-3. **SHA-256 hash** - the combined value is hashed to produce a fixed-length encryption key
+The encryption password is made from the computer's own ID (`IPlatformService.GetMachineId()`) plus the fixed text `ArgoBooks_License_v2`, hashed with SHA-256. The encryption service turns that and the salt into an AES-256-GCM key. Because the machine ID is part of it, the license can't be copied to another computer. If it can't be decrypted, for example because the machine ID changed, the app treats it as missing and goes back to the free plan.
 
-This ensures license data is bound to the machine it was activated on and cannot be copied to another device.
+The **device ID** sent to the server is that same SHA-256 hash. It stays the same across restarts and is different on every computer. The server uses it to stop one key being used on several devices, and to record which device activated each key.
 
-### Encryption Process
+## Buying and cancelling
 
-1. License data (`HasPremium`, `LicenseKey`, `ActivationDate`) is serialized to JSON
-2. A random salt and IV are generated
-3. The JSON is encrypted using AES-256-GCM with the machine-derived key
-4. The encrypted data, salt, and IV are stored in global settings
+The upgrade modal gets current prices from `/api/pricing/plans.php`. Users buy a subscription at `argorobots.com/pricing/premium/`, enter the key they receive in the upgrade modal, and cancel at `argorobots.com/community/users/subscription.php`.
 
-### Decryption Process
+## Usage limits
 
-1. The encrypted data, salt, and IV are loaded from global settings
-2. The machine key is re-derived from the current machine ID
-3. AES-256-GCM decryption is performed
-4. The JSON is deserialized back to license data
+Receipt scans, AI imports (spreadsheet and bank statement) and, on the free plan, invoice sends each have a monthly limit that depends on the plan. The server keeps the count for each license key, or for the device when there is no key. One service, `UsageLimitService`, handles all of them the same way; each limit only differs in the server address it calls and the names the server gives its fields.
 
-If decryption fails (e.g., because the machine ID has changed), the license is treated as absent and the user is returned to free-tier status.
+Before each scan, import or send, the app decides whether it may go ahead:
 
-## Device Identification
+- **A recent answer is reused.** An answer from the server less than 5 minutes old is used again, to save calls.
+- **Limit reached:** the server says no more are left this month, so it is blocked and the user sees the date the count resets (the first of next month).
+- **The server refuses the check:** the server's own usage endpoint answers with a 4xx status and a JSON body that says why (an `error`, `message` or `errorCode` field). It is blocked, and the user sees a short message. A refusal is an answer about this request, not a sign the server is down, and letting it through would give unlimited uncounted uses. This matters most for invoice sends on the free plan, which only the app enforces. The refusals the server gives are:
+  - *Too many requests* (429, from the server's per-address rate limit): the user is asked to try again in a few minutes.
+  - *License not recognised* (401): the key isn't known, or, for AI imports only, it is a Premium key whose subscription has ended (the other two limits fall back to the device's free count for an ended key). The message asks the user to restart, because the check at startup removes an ended license and the app then uses the free plan's count.
+  - *Any other refusal*, such as a bad request (400): the user is told the server refused the check. The server's reason goes to the error log, because it is written for developers and can't be translated.
+- **The count server is unavailable:** anything that isn't a readable answer from the endpoint. That is a server error (a 5xx status), a body that isn't the endpoint's JSON whatever the status (for example the hosting layer's HTML page for a firewall 403, a 404 during a deploy, or a 408), a failure with a 2xx status that carries no counts, a 4xx whose JSON gives no reason, or no answer at all while the internet works. It goes ahead, uncounted. The scan, import or send makes its own call to the server, which fails with its own message if the server is really down.
+- **No internet:** it is blocked with a message saying the internet is down, because the scan, import or send can't work without it.
+- **No license key and no device ID:** it is blocked, because the server has nothing to count against.
 
-Each device generates a hashed identifier used for:
+After a successful one, the app tells the server to add one to the count. If the server can't be reached at that moment, the result is still kept; it just isn't counted. Cancelling this call is not treated as a network problem.
 
-- **License binding** - preventing a single key from being used on multiple devices
-- **Server-side tracking** - the server records which device redeemed each key
+The server's answer includes:
 
-The device ID is computed the same way as the machine encryption key (SHA-256 of machine ID + application salt), so it is consistent across app restarts but unique per device.
+| Field | Meaning |
+|-------|---------|
+| `can_scan`, `can_import`, `can_send` | Whether one more may go ahead (the name depends on the limit) |
+| `scan_count`, `import_count`, `send_count` | Used this month |
+| `monthly_limit` | The limit for the plan, or -1 when there is no limit |
+| `remaining` | Left this month |
+| `tier` | The plan's name |
+| `resets_at` | When the count resets |
 
-## Premium Plans and Pricing
+## Connection problems
 
-The upgrade modal fetches current pricing from the pricing API (`/api/pricing/plans.php`).
+When a license or usage call fails, the app checks whether the internet works, then whether `argorobots.com` can be reached, and shows the matching message: no internet connection, Argo Books servers unreachable, or a general failure.
 
-Users can:
+License calls time out after 30 seconds; usage calls after 15 seconds.
 
-- **Purchase a subscription** via the web portal at `argorobots.com/pricing/premium/`
-- **Enter a license key** received after purchase to activate premium features
-- **Cancel a subscription** through the community portal at `argorobots.com/community/users/subscription.php`
+## Where the code is
 
-## Receipt Scan Usage Tracking
+| Service | File | What it does |
+|---------|------|--------------|
+| `LicenseService` | `ArgoBooks.Core/Services/LicenseService.cs` | Saving, encrypting and loading the license, checking it online, the device ID |
+| `UsageLimitService` | `ArgoBooks.Core/Services/UsageLimitService.cs` | Receipt scan, AI import and invoice send limits |
+| `UpgradeModalViewModel` | `ArgoBooks/ViewModels/UpgradeModalViewModel.cs` | The upgrade modal: entering and activating a key, prices |
 
-Premium license keys also govern receipt scanning limits. The `ReceiptUsageService` tracks usage per license key:
+## Clearing a license
 
-- **Check usage** - queries the server (`/api/receipt/usage.php`) for current scan count, monthly limit, remaining scans, and tier
-- **Increment usage** - reports each successful scan to the server
-- **Caching** - usage data is cached locally for 5 minutes to reduce API calls
-- **Offline fallback** - if the server is unreachable, cached data is used to allow scanning; increments are accepted optimistically
+Deleting the global settings file removes the license from the device. It also removes every other app setting, so to remove only the license, delete the license fields from the file instead.
 
-### Usage Data
-
-| Field          | Description                                  |
-|----------------|----------------------------------------------|
-| `ScanCount`    | Number of scans used this month              |
-| `MonthlyLimit` | Maximum scans allowed for the current tier   |
-| `Remaining`    | Scans remaining this month                   |
-| `Tier`         | Subscription tier name                       |
-| `ResetsAt`     | Date when the usage counter resets (first of next month) |
-
-## Error Handling and Connectivity
-
-All license and usage API calls include layered connectivity diagnostics:
-
-1. **Internet check** - verifies general internet access
-2. **Host check** - verifies that `argorobots.com` is reachable
-3. **Specific error messages** - the user sees a targeted message depending on where connectivity fails:
-   - No internet connection
-   - Argo Books servers unreachable
-   - Generic validation/verification failure
-
-API requests have a 30-second timeout for license operations and a 15-second timeout for usage tracking.
-
-## Key Services
-
-| Service                | File                                              | Responsibility                                      |
-|------------------------|---------------------------------------------------|-----------------------------------------------------|
-| `LicenseService`       | `ArgoBooks.Core/Services/LicenseService.cs`       | License storage, encryption, loading, online validation, device ID |
-| `ReceiptUsageService`  | `ArgoBooks.Core/Services/ReceiptUsageService.cs`  | Receipt scan usage tracking and limit enforcement    |
-| `UpgradeModalViewModel`| `ArgoBooks/ViewModels/UpgradeModalViewModel.cs`   | UI logic for upgrade modal, key entry, redemption, pricing |
-
-## Activating on a New Device
-
-A license key can be activated on a new device at any time by entering it in the upgrade modal. The server rebinds the key to the new device immediately - no manual deactivation on the old device is required.
-
-The next time the old device opens the app, the startup license validation detects that the key is now bound to a different device (`WrongDevice` status). The app automatically clears the local license data and shows a message: *"Your license key has been activated on a different device."*
-
-## Clearing a License
-
-You can manually delete the global settings file to remove all stored license data from the device:
-
-| Platform | Settings file path |
-|----------|-------------------|
+| Platform | Settings file |
+|----------|---------------|
 | **Windows** | `%APPDATA%\ArgoBooks\settings.json` |
 | **macOS** | `~/Library/Application Support/ArgoBooks/settings.json` |
 | **Linux** | `$XDG_CONFIG_HOME/ArgoBooks/settings.json` (or `~/.config/ArgoBooks/settings.json`) |
-
-Deleting `settings.json` removes all application settings, not just the license data. Alternatively, you could remove only the license key data from the json.

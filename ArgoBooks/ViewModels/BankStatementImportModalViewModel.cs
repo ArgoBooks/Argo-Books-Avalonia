@@ -121,19 +121,31 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
         else
         {
             var parser = new BankStatementImportService(App.ErrorLogger);
+            var isCsv = ext == ".csv";
             try
             {
-                lines = ext == ".csv"
+                lines = isCsv
                     ? await parser.ParseCsvAsync(filePath)
                     : await parser.ParseExcelAsync(filePath);
             }
             catch (UnreadableStatementFileException)
             {
                 _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, $"bank:unreadable:{ext.TrimStart('.')}");
-                await App.ShowInfoMessageBoxAsync(
+                await App.ShowInfoDialogAsync(
                     "Import Bank Statement".Translate(),
                     ImportRescueMessages.UnreadableFile);
                 return;
+            }
+
+            // Local header detection only knows English column names, so a statement in any other
+            // language reaches here with nothing wrong with it. Same backup the Bank Matching page
+            // import uses: null means the user is out of bank imports and has been told so.
+            if (lines.Count == 0)
+            {
+                var aiLines = await App.TryAiParseBankStatementAsync(filePath, isCsv, parser);
+                App.MainWindowViewModel?.HideLoading();
+                if (aiLines == null) return;
+                lines = aiLines;
             }
 
             // Don't fail silently when the file isn't a recognizable bank statement (e.g. the user
@@ -141,7 +153,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
             if (lines.Count == 0)
             {
                 _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, $"bank:no-rows:{ext.TrimStart('.')}");
-                await App.ShowInfoMessageBoxAsync(
+                await App.ShowInfoDialogAsync(
                     "Import Bank Statement".Translate(),
                     "No transactions were found in this file. Make sure it's a bank statement with Date, Description and Amount (or Debit/Credit) columns.".Translate());
                 return;
@@ -224,20 +236,19 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
         }).ToList();
 
         // Snapshot id counters before CreateFromLines bumps them.
-        var preCounters = new IdCounterSnapshot(data.IdCounters);
+        var preCounters = data.IdCounters.Clone();
 
         // linkToBankLine: false -> plain transactions, no bank-match flag.
         var creation = new BankLineImportService().CreateFromLines(data, resolutions, linkToBankLine: false);
-        creation.MirrorPendingConversions(data);
 
         // Learn a rule per line (merchant -> product + counterparty) so the next import is pre-filled.
         var ruleCaptures = LearnRules(data, resolutions);
 
-        var postCounters = new IdCounterSnapshot(data.IdCounters);
+        var postCounters = data.IdCounters.Clone();
 
         App.UndoRedoManager.RecordAction(new DelegateAction(
             "Import bank statement".Translate(),
-            () => UndoImport(data, creation, ruleCaptures, preCounters),
+            () => UndoImport(data, creation, ruleCaptures, preCounters, postCounters),
             () => RedoImport(data, creation, ruleCaptures, postCounters)));
 
         App.CompanyManager?.MarkAsChanged();
@@ -322,7 +333,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
 
         try
         {
-            using var usage = new AiImportUsageService(App.LicenseService, App.ErrorLogger, importType: "bank");
+            using var usage = new UsageLimitService(UsageLimit.AiImports("bank"), App.LicenseService, App.ErrorLogger);
             // PDF imports already paid their single bank-import credit at extraction, so they neither
             // re-check the limit nor charge again here. CSV/Excel imports pay their one credit at this
             // step, so they check availability first.
@@ -330,10 +341,12 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
             {
                 var check = await usage.CheckUsageAsync();
                 // No AI imports available (or offline): leave blanks for the user. The import still works.
-                if (!check.CanImport)
+                if (!check.Allowed)
                 {
                     SetAiUnavailable(!string.IsNullOrEmpty(check.ErrorMessage)
-                        ? "AI categorization is unavailable: couldn't reach the server.".Translate()
+                        ? ConnectivityMessage.IsConnectivityMessage(check.ErrorMessage)
+                            ? "AI categorization is unavailable: couldn't reach the server.".Translate()
+                            : "AI categorization is unavailable: {0}".TranslateFormat(check.ErrorMessage.Translate())
                         : check.MonthlyLimit > 0
                             ? "AI categorization is off: you've used all {0} AI imports this month.".TranslateFormat(check.MonthlyLimit)
                             : "AI categorization needs a registered company.".Translate());
@@ -500,7 +513,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
     // -----------------------------------------------------------------------
 
     private void UndoImport(CompanyData data, BankImportCreation creation,
-        List<RuleLearningCapture> ruleCaptures, IdCounterSnapshot preCounters)
+        List<RuleLearningCapture> ruleCaptures, IdCounters preCounters, IdCounters postCounters)
     {
         creation.Undo(data);
 
@@ -511,7 +524,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
             var cap = ruleCaptures[i];
             if (cap.Prior == null)
             {
-                data.BankCategoryRules.Remove(cap.Rule);
+                data.BankCategoryRules.RemoveRecord(cap.Rule);
             }
             else
             {
@@ -524,13 +537,13 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
             }
         }
 
-        preCounters.RestoreTo(data.IdCounters);
+        data.IdCounters.RewindTo(preCounters, postCounters);
         data.MarkAsModified();
         App.CompanyManager?.MarkAsChanged();
     }
 
     private void RedoImport(CompanyData data, BankImportCreation creation,
-        List<RuleLearningCapture> ruleCaptures, IdCounterSnapshot postCounters)
+        List<RuleLearningCapture> ruleCaptures, IdCounters postCounters)
     {
         creation.Redo(data);
 
@@ -538,8 +551,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
         {
             if (cap.Prior == null)
             {
-                if (!data.BankCategoryRules.Contains(cap.Rule))
-                    data.BankCategoryRules.Add(cap.Rule);
+                data.BankCategoryRules.RestoreRecord(cap.Rule);
             }
             else
             {
@@ -552,7 +564,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
             }
         }
 
-        postCounters.RestoreTo(data.IdCounters);
+        data.IdCounters.RaiseTo(postCounters);
         data.MarkAsModified();
         App.CompanyManager?.MarkAsChanged();
     }
@@ -872,87 +884,56 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// PDF bank statement import. The usage check runs first (as a dialog); on success the import
-    /// modal opens and the PDF is read INSIDE it, driving the modal's progress bar, so the whole
-    /// import uses one consistent UI rather than a separate floating overlay.
+    /// PDF bank statement import through <see cref="App.ReadBankPdfStatementAsync"/>. The usage check
+    /// runs first (as a dialog); on success the import modal opens and the PDF is read INSIDE it,
+    /// driving the modal's progress bar, so the whole import uses one consistent UI.
     /// </summary>
     private async Task<List<BankStatementLine>> ImportPdfStatementAsync(string filePath)
     {
-        // Usage check runs before the modal opens, so a limit failure shows its prompt without
-        // briefly flashing the import modal. A PDF consumes one "bank" AI import, charged at
-        // extraction (below); the follow-up AI categorization skips its own charge for PDFs
-        // (see _pdfExtractionCharged).
-        using var usage = await App.TryBeginBankPdfImportAsync();
-        if (usage == null) return [];
-        if (App.PdfStatementExtractor == null) return [];
-
-        // Open the import modal and read the PDF inside it (driving the modal's progress bar).
-        LoadingMessage = "Reading PDF statement...".Translate();
-        CategorizeProgress = 0;
-        ShowCategorizeProgress = true;
-        IsLoading = true;
-        IsOpen = true;
-
-        var bytes = await SharedFileReader.ReadAllBytesAsync(filePath);
-        List<BankStatementLine> extracted;
-        // Reading fills the first 60% of the bar; the categorize phase fills the rest, so the whole
-        // import reads as one continuous bar.
-        using (var ticker = new EstimatedProgressTicker(
-            OperationKind.BankPdfExtract, pct => CategorizeProgress = pct * 0.6, uploadBytes: bytes.Length))
-        {
-            ticker.Start();
-            try
+        EstimatedProgressTicker? ticker = null;
+        var extracted = await App.ReadBankPdfStatementAsync(filePath, new App.BankPdfReadProgress(
+            Begin: size =>
             {
-                extracted = await App.PdfStatementExtractor.ExtractAsync(bytes, Path.GetFileName(filePath));
-            }
-            catch (ServerRateLimitedException ex)
+                LoadingMessage = "Reading PDF statement...".Translate();
+                CategorizeProgress = 0;
+                ShowCategorizeProgress = true;
+                IsLoading = true;
+                IsOpen = true;
+                // Reading fills the first 60% of the bar; the categorize phase fills the rest, so the
+                // whole import reads as one continuous bar.
+                ticker = new EstimatedProgressTicker(
+                    OperationKind.BankPdfExtract, pct => CategorizeProgress = pct * 0.6, uploadBytes: size);
+                ticker.Start();
+            },
+            End: succeeded =>
             {
-                // Nothing was read, so nothing is charged; the file itself may be fine.
-                if (IsOpen)
+                if (succeeded)
+                {
+                    ticker?.Complete();
+                    _categorizeProgressFloor = 60;
+                }
+                ticker?.Dispose();
+                if (!succeeded && IsOpen)
                 {
                     IsOpen = false;
                     IsLoading = false;
-                    await App.ShowInfoMessageBoxAsync("Import Bank Statement".Translate(), ex.Message);
                 }
-                return [];
-            }
-            ticker.Complete();
-        }
-        _categorizeProgressFloor = 60;
+            },
+            StillWanted: () => IsOpen));
 
         if (extracted.Count == 0)
-        {
-            // The extractor returns nothing both when the PDF has no recognizable transactions and when
-            // the server couldn't process it. Don't charge a credit for a no-result extraction; only
-            // surface the message if the modal is still open.
-            if (IsOpen)
-            {
-                IsOpen = false;
-                IsLoading = false;
-                await App.ShowInfoMessageBoxAsync(
-                    "Import Bank Statement".Translate(),
-                    "We couldn't read any transactions from that PDF. It may not be a recognizable bank statement, or the server couldn't process it. Try again, or import a CSV or Excel export instead.".Translate());
-            }
             return [];
-        }
-
-        // Extraction succeeded and cost a credit, so consume it even if the user has since closed the
-        // modal. Skipping it on close would let a start/cancel loop extract PDFs without ever consuming
-        // quota. (The server's per-identity rate limit still caps the absolute number of calls.)
-        await usage.IncrementUsageAsync();
 
         // This PDF import has now paid its single bank-import credit, so the AI categorization pass
         // that runs next must not charge again.
         _pdfExtractionCharged = true;
 
         // Closed during the read: the credit is counted, but don't hand rows to a modal nobody's viewing.
-        if (!IsOpen) return [];
-
-        return extracted;
+        return IsOpen ? extracted : [];
     }
 
     // -----------------------------------------------------------------------
-    // Nested helper types (rule capture, id-counter snapshot)
+    // Nested helper types (rule capture)
     // -----------------------------------------------------------------------
 
     private sealed record RulePriorState(
@@ -975,36 +956,6 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
         BankCategoryRule Rule,
         RulePriorState? Prior,
         RulePostState Post);
-
-    private sealed class IdCounterSnapshot
-    {
-        private readonly int _expense;
-        private readonly int _revenue;
-        private readonly int _supplier;
-        private readonly int _customer;
-        private readonly int _category;
-        private readonly int _product;
-
-        public IdCounterSnapshot(IdCounters counters)
-        {
-            _expense = counters.Expense;
-            _revenue = counters.Revenue;
-            _supplier = counters.Supplier;
-            _customer = counters.Customer;
-            _category = counters.Category;
-            _product = counters.Product;
-        }
-
-        public void RestoreTo(IdCounters counters)
-        {
-            counters.Expense = _expense;
-            counters.Revenue = _revenue;
-            counters.Supplier = _supplier;
-            counters.Customer = _customer;
-            counters.Category = _category;
-            counters.Product = _product;
-        }
-    }
 }
 
 /// <summary>

@@ -64,14 +64,4 @@ public static class DateFormatService
     /// Useful for chart axis labelers.
     /// </summary>
     public static string GetCurrentDotNetFormat() => GetDotNetFormat(CurrentFormat);
-
-    /// <summary>
-    /// Formats a month/year for chart labels (always uses "MMM yyyy" format).
-    /// </summary>
-    /// <param name="date">The date to format.</param>
-    /// <returns>The formatted month/year string.</returns>
-    public static string FormatMonthYear(DateTime date)
-    {
-        return date.ToString("MMM yyyy");
-    }
 }

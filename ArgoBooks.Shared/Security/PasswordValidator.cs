@@ -53,36 +53,6 @@ public static class PasswordValidator
     }
 
     /// <summary>
-    /// Gets all validation errors for a password.
-    /// </summary>
-    /// <param name="password">Password to validate.</param>
-    /// <returns>List of error messages.</returns>
-    public static List<string> GetAllValidationErrors(string? password)
-    {
-        var errors = new List<string>();
-
-        if (string.IsNullOrEmpty(password))
-        {
-            errors.Add("Password is required.");
-            return errors;
-        }
-
-        if (password.Length < MinLength)
-            errors.Add($"Password must be at least {MinLength} characters long.");
-
-        if (password.Length > MaxLength)
-            errors.Add($"Password must be no more than {MaxLength} characters long.");
-
-        if (!password.Any(char.IsLetter))
-            errors.Add("Password must contain at least one letter.");
-
-        if (!password.Any(char.IsDigit))
-            errors.Add("Password must contain at least one number.");
-
-        return errors;
-    }
-
-    /// <summary>
     /// Calculates a password strength score (0-100).
     /// </summary>
     /// <param name="password">Password to evaluate.</param>

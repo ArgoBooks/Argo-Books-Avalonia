@@ -220,13 +220,17 @@ public partial class ProductsPageViewModel : SortablePageViewModelBase
             FilterItemType = modals.FilterItemType;
             FilterCategoryId = modals.FilterCategory?.Id;
             FilterSupplierId = modals.FilterSupplier?.Id;
+            ActiveFilterCount = modals.ActiveFilterCount;
         }
         CurrentPage = 1;
         FilterProducts();
     }
 
+    protected override void ClearTableFilters() => App.ProductModalsViewModel?.ClearFiltersCommand.Execute(null);
+
     private void OnFiltersCleared(object? sender, EventArgs e)
     {
+        ActiveFilterCount = 0;
         FilterItemType = "All";
         FilterCategoryId = null;
         FilterSupplierId = null;
@@ -308,8 +312,8 @@ public partial class ProductsPageViewModel : SortablePageViewModelBase
 
         var displayItems = filtered.Select(product =>
         {
-            var category = companyData.Categories.FirstOrDefault(c => c.Id == product.CategoryId);
-            var supplier = companyData.Suppliers.FirstOrDefault(s => s.Id == product.SupplierId);
+            var category = companyData.GetCategory(product.CategoryId ?? "");
+            var supplier = companyData.GetSupplier(product.SupplierId ?? "");
 
             return new ProductDisplayItem
             {

@@ -56,6 +56,28 @@ public static class CostOfGoodsAggregator
         Func<decimal, DateTime, decimal> toDisplay) =>
         InRange(revenues, start, end, collectedOnly).Sum(r => toDisplay(CostOfGoodsSoldUSD(r), r.Date));
 
+    /// <summary>
+    /// Whether a sale dated in the range is still waiting for its stock's cost (docs/Calculations.md
+    /// §14). Its cost of goods sold counts as 0 until then, so a profit figure that subtracts it
+    /// isn't known yet and shows Pending, as a figure waiting on an exchange rate does.
+    /// </summary>
+    public static bool IsCostOfGoodsPending(
+        IEnumerable<Revenue> revenues, DateTime start, DateTime end, bool collectedOnly) =>
+        IsCostOfGoodsPending(InRange(revenues, start, end, collectedOnly));
+
+    /// <summary>
+    /// Whether the change in profit against the previous period can't be worked out yet: a paid sale
+    /// in either period is still waiting for its stock's cost, so that period's profit reads high.
+    /// </summary>
+    public static bool IsProfitChangePending(
+        IEnumerable<Revenue> revenues, DateTime start, DateTime end, DateTime previousStart, DateTime previousEnd) =>
+        IsCostOfGoodsPending(revenues, start, end, collectedOnly: true)
+        || IsCostOfGoodsPending(revenues, previousStart, previousEnd, collectedOnly: true);
+
+    /// <inheritdoc cref="IsCostOfGoodsPending(IEnumerable{Revenue}, DateTime, DateTime, bool)"/>
+    public static bool IsCostOfGoodsPending(IEnumerable<Revenue> sales) =>
+        sales.Any(r => r.LineItems.Any(li => li.IsCostOfGoodsPending));
+
     private static IEnumerable<Revenue> InRange(
         IEnumerable<Revenue> revenues, DateTime start, DateTime end, bool collectedOnly)
     {

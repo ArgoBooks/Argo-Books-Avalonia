@@ -642,15 +642,7 @@ public partial class EditCompanyModalViewModel : ViewModelBase
         // Preload exchange rates for all transaction dates so conversions are ready
         try
         {
-            var dates = new List<DateTime> { today };
-            if (companyData != null)
-            {
-                dates.AddRange(companyData.Expenses.Select(e => e.Date));
-                dates.AddRange(companyData.Revenues.Select(r => r.Date));
-                dates.AddRange(companyData.Invoices.Select(i => i.IssueDate));
-                dates.AddRange(companyData.Payments.Select(p => p.Date));
-                dates.AddRange(companyData.PurchaseOrders.Select(o => o.OrderDate));
-            }
+            var dates = companyData != null ? DisplayCurrency.ReportDates(companyData, today) : [today];
             // Map PreloadRatesAsync progress (0-100) into our 30-100 range
             var progress = new Progress<int>(p => CurrencyLoadingProgress = 30 + (p * 70 / 100));
             await exchangeService.PreloadRatesAsync(dates, progress, cancellationToken);

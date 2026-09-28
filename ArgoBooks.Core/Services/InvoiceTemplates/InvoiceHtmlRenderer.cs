@@ -274,8 +274,8 @@ public partial class InvoiceHtmlRenderer
         labels ??= DocumentLabels.Invoice;
         // The logo the document went out with, which is not always the one on the template today.
         var logo = LogoHistory.LogoFor(invoice.LogoId, companySettings, template);
-        var isOverdue = invoice.DueDate.Date < DateTime.UtcNow.Date &&
-                        invoice.Balance > 0;
+        // A quote renders as a draft, which is never overdue.
+        var isOverdue = invoice.IsOverdue;
         var decimals = DecimalsFor(invoice);
 
         // Processing-fee row logic:
