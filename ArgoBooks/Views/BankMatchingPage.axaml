@@ -27,7 +27,7 @@
             <TextBlock Text="{loc:Loc 'Match your books against your bank'}"
                        FontSize="20" FontWeight="SemiBold" HorizontalAlignment="Center"
                        Foreground="{DynamicResource TextPrimaryBrush}" />
-            <TextBlock Text="{loc:Loc 'Import a bank statement (CSV or Excel) and we will match each line to your recorded expenses and revenue, so you can catch anything missing or duplicated.'}"
+            <TextBlock Text="{loc:Loc 'Import a bank statement (CSV, Excel or PDF) and we will match each line to your recorded expenses and revenue, so you can catch anything missing or duplicated.'}"
                        TextWrapping="Wrap" TextAlignment="Center"
                        Foreground="{DynamicResource TextSecondaryBrush}" />
             <Button Classes="primary-button" HorizontalAlignment="Center"
