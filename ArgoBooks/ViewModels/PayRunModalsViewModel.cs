@@ -146,6 +146,12 @@ public partial class PayRunModalsViewModel : ViewModelBase
     private string _totalRemittance = "$0.00";
 
     [ObservableProperty]
+    private string _totalWithheld = "$0.00";
+
+    [ObservableProperty]
+    private string _totalEmployerShare = "$0.00";
+
+    [ObservableProperty]
     private string _totalCost = "$0.00";
 
     /// <summary>
@@ -467,6 +473,8 @@ public partial class PayRunModalsViewModel : ViewModelBase
         TotalGross = CurrencyService.Format(0m);
         TotalNetPay = CurrencyService.Format(0m);
         TotalRemittance = CurrencyService.Format(0m);
+        TotalWithheld = CurrencyService.Format(0m);
+        TotalEmployerShare = CurrencyService.Format(0m);
         TotalCost = CurrencyService.Format(0m);
         RemittanceDueNote = string.Empty;
     }
@@ -640,6 +648,8 @@ public partial class PayRunModalsViewModel : ViewModelBase
 
         TotalNetPay = CurrencyService.Format(_draft.TotalNetPay);
         TotalRemittance = CurrencyService.Format(_draft.TotalRemittance);
+        TotalWithheld = CurrencyService.Format(_draft.TotalWithheld);
+        TotalEmployerShare = CurrencyService.Format(_draft.TotalEmployerShare);
         TotalCost = CurrencyService.Format(_draft.TotalCost);
 
         // CRA runs four schedules, so this follows the employer's assigned type rather than

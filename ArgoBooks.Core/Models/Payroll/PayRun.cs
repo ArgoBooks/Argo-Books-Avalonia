@@ -72,6 +72,14 @@ public class PayRun : IRecord
     [JsonIgnore]
     public decimal QuebecRemittance => Lines.Sum(l => l.QuebecRemittance);
 
+    /// <summary>The employer's own CPP, EI (and QPIP) contributions, paid on top of wages.</summary>
+    [JsonIgnore]
+    public decimal TotalEmployerShare => Lines.Sum(l => l.EmployerShare);
+
+    /// <summary>The part of the remittance taken out of employees' pay.</summary>
+    [JsonIgnore]
+    public decimal TotalWithheld => TotalRemittance - TotalEmployerShare;
+
     /// <summary>What the payroll actually costs: gross plus employer contributions.</summary>
     public decimal TotalCost => Lines.Sum(l => l.TotalCost);
 
@@ -190,5 +198,8 @@ public class PayRunLine
     [JsonIgnore]
     public decimal CraRemittance => TotalRemittance - QuebecRemittance;
 
-    public decimal TotalCost => GrossPay + CppEmployer + Cpp2Employer + EiEmployer + QpipEmployer;
+    [JsonIgnore]
+    public decimal EmployerShare => CppEmployer + Cpp2Employer + EiEmployer + QpipEmployer;
+
+    public decimal TotalCost => GrossPay + EmployerShare;
 }
