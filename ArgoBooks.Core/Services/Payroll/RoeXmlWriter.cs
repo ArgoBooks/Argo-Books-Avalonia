@@ -223,7 +223,7 @@ public static partial class RoeXmlWriter
 
     private static XElement BuildRoe(RoeWorksheet sheet, bool draft)
     {
-        IReadOnlyList<string> problems = Validate(sheet);
+        IReadOnlyList<RoeProblem> problems = Validate(sheet);
         if (problems.Count > 0)
         {
             throw new InvalidOperationException(
