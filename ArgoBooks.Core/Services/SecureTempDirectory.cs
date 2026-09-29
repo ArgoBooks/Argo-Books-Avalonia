@@ -23,4 +23,38 @@ internal static class SecureTempDirectory
         }
         return tempPath;
     }
+
+    /// <summary>
+    /// The marker file that keeps an open company's directory from being deleted underneath it.
+    /// Excluded from the archive by <see cref="CompressionService"/>, so it never reaches a
+    /// <c>.argo</c> file.
+    /// </summary>
+    public const string InUseFileName = ".inuse";
+
+    /// <summary>
+    /// Marks <paramref name="directory"/> as belonging to an open company by holding an exclusive
+    /// handle on a marker file inside it. Windows refuses to delete a directory containing an open
+    /// file, so the cleanup tools that empty the temp folder skip this one instead of taking a
+    /// company out from under the person editing it. The handle deletes the marker when it closes,
+    /// so nothing is left behind, and on Unix, where an open handle does not prevent unlinking,
+    /// this is merely inert. Returns null when the marker cannot be taken; callers carry on, since
+    /// the directory is still usable.
+    /// </summary>
+    public static FileStream? Hold(string directory)
+    {
+        try
+        {
+            return new FileStream(
+                Path.Combine(directory, InUseFileName),
+                FileMode.Create,
+                FileAccess.ReadWrite,
+                FileShare.None,
+                bufferSize: 1,
+                FileOptions.DeleteOnClose);
+        }
+        catch
+        {
+            return null;
+        }
+    }
 }
