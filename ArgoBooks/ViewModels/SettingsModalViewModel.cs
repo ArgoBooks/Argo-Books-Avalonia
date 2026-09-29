@@ -1822,6 +1822,7 @@ public partial class SettingsModalViewModel : ViewModelBase
     private string? _argoApiPendingSummary;
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(CreateArgoApiKeyCommand))]
     private string _newArgoApiKeyLabel = string.Empty;
 
     /// <summary>The base URL a developer points their integration at.</summary>
@@ -2072,13 +2073,17 @@ public partial class SettingsModalViewModel : ViewModelBase
         => ArgoApiKeys.Any(k => k.Id != exceptId
                                 && string.Equals(k.Label.Trim(), label, StringComparison.OrdinalIgnoreCase));
 
-    [RelayCommand]
+    // The name is the only thing telling keys apart in the list, so an unnamed one would be a
+    // mystery the day it needs revoking.
+    private bool CanCreateArgoApiKey() => !string.IsNullOrWhiteSpace(NewArgoApiKeyLabel);
+
+    [RelayCommand(CanExecute = nameof(CanCreateArgoApiKey))]
     private async Task CreateArgoApiKeyAsync()
     {
         var api = App.CompanyManager?.CompanyData?.Settings.Integrations.ArgoApi;
         if (api?.CompanyUid == null || App.SharedHttpClient == null) return;
 
-        var label = string.IsNullOrWhiteSpace(NewArgoApiKeyLabel) ? "Untitled key" : NewArgoApiKeyLabel.Trim();
+        var label = NewArgoApiKeyLabel.Trim();
 
         if (ArgoApiKeyNameTaken(label))
         {
