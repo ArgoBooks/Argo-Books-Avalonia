@@ -73,7 +73,7 @@ public sealed class NetSparkleUpdateService : IUpdateService, IDisposable
     public event EventHandler<int>? DownloadProgressChanged;
 
     /// <inheritdoc />
-    public event EventHandler? ApplyingUpdate;
+    public event EventHandler<ApplyingUpdateEventArgs>? ApplyingUpdate;
 
     /// <summary>
     /// Creates a new NetSparkleUpdateService.
@@ -276,8 +276,16 @@ public sealed class NetSparkleUpdateService : IUpdateService, IDisposable
         if (!File.Exists(InstallerPath))
             throw new FileNotFoundException("Downloaded installer not found.", InstallerPath);
 
-        // Notify subscribers to save their data before we exit
-        ApplyingUpdate?.Invoke(this, EventArgs.Empty);
+        // Notify subscribers to save their data before we exit. One that could not is refusing on
+        // the user's behalf: the installer restarts the app, so continuing would discard whatever
+        // it failed to write. The state is left ready so they can retry once they have saved.
+        var applying = new ApplyingUpdateEventArgs();
+        ApplyingUpdate?.Invoke(this, applying);
+        if (applying.Cancel)
+        {
+            _errorLogger?.LogWarning("Update not applied: unsaved work could not be saved first.", "AutoUpdate");
+            return;
+        }
 
         try
         {

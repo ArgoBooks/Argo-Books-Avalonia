@@ -1330,6 +1330,20 @@ public partial class App : Application
     public static void SuppressNextSavedFeedback() => _suppressSavedFeedback = true;
 
     /// <summary>
+    /// Reports a save that failed behind an invoice action. The work is still in memory and the
+    /// unsaved flag is still set, so closing will prompt, but the user has just been told the
+    /// action succeeded and would otherwise have no reason to think anything was wrong.
+    /// </summary>
+    public static void ReportInvoiceSaveFailure(Exception ex)
+    {
+        ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Save after an invoice action failed");
+        _appShellViewModel?.AddNotification(
+            "Not saved yet".Translate(),
+            "Your invoice is recorded but could not be written to the company file. Use Save to try again.".Translate(),
+            NotificationType.Warning);
+    }
+
+    /// <summary>
     /// Gets the confirmation dialog ViewModel for showing confirmation dialogs from anywhere.
     /// </summary>
     public static ConfirmationDialogViewModel? ConfirmationDialog { get; private set; }
@@ -2129,7 +2143,7 @@ public partial class App : Application
             return;
 
         // Wire the ApplyingUpdate event to save user data before the app exits
-        UpdateService.ApplyingUpdate += (_, _) =>
+        UpdateService.ApplyingUpdate += (_, applying) =>
         {
             try
             {
@@ -2155,7 +2169,14 @@ public partial class App : Application
             }
             catch (Exception ex)
             {
-                ErrorLogger?.LogWarning($"Failed to save data before update: {ex.Message}", "AutoUpdate");
+                // The installer restarts the app, so going ahead would throw away whatever did not
+                // get written. Refuse, the same as the close, auto-lock and tutorial-restart paths.
+                applying.Cancel = true;
+                ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to save data before update");
+                _appShellViewModel?.AddNotification(
+                    "Update postponed".Translate(),
+                    "Your changes could not be saved, so the update was not installed. Save manually, then update again.".Translate(),
+                    NotificationType.Warning);
             }
         };
 
