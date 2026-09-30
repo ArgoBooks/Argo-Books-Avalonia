@@ -147,12 +147,14 @@ A refund never changes the payment it gives money back on. The original payment 
 | `Pending` | Ready but not sent yet. | Only by a spreadsheet import. |
 | `Sent` | Sent to the customer, waiting for payment. | When the invoice is sent. |
 | `Viewed` | The customer opened it. | Only by a spreadsheet import. |
-| `Partial` | The customer paid some and still owes the rest. | `0 < AmountPaid < Total`. |
-| `Paid` | Paid in full (`AmountPaid >= Total`). | When a payment covers the balance. |
-| `Overdue` | Past its due date and still owed (`Balance > 0`), and not a Draft, Paid, Refunded or Cancelled invoice. | Always worked out when shown (`Invoice.IsOverdue`), never saved. A spreadsheet import reads a sheet's Overdue as Sent. An old file can still hold a saved Overdue; it counts for nothing, and the invoice shows as Sent until it really is overdue. |
+| `Partial` | The customer paid some and still owes the rest. | Some paid, but not paid in full. |
+| `Paid` | Paid in full (`Invoice.IsPaidInFull`). | When a payment covers the balance. |
+| `Overdue` | Past its due date and still owed (not paid in full, and `Balance > 0`), and not a Draft, Paid, Refunded or Cancelled invoice. | Always worked out when shown (`Invoice.IsOverdue`), never saved. A spreadsheet import reads a sheet's Overdue as Sent. An old file can still hold a saved Overdue; it counts for nothing, and the invoice shows as Sent until it really is overdue. |
 | `Cancelled` | The invoice was voided. | Only by a spreadsheet import. |
 | `PartiallyRefunded` | Paid, then refunded less than `Total`, or refunded in full and then paid again. | The refund status rule below. |
 | `Refunded` | Paid, then refunded in full with no later payment. | The refund status rule below. |
+
+**Paid in full** is `AmountPaid + 0.01 >= Total`, not `AmountPaid >= Total` (`Invoice.IsPaidInFull`). Totals are stored at full precision and only the displayed figure is rounded (§2, Rule 3), so a percentage tax, discount or fee routinely leaves a total like 37.6629 on an invoice that reads $37.66. The customer pays what it reads, and the third of a cent left over would otherwise keep the invoice owing, and eventually overdue, while the revenue linked to it already counted as collected. Every question about whether an invoice is settled goes through `Invoice.IsPaidInFull`: the status above, `Invoice.IsOverdue` (§6), and the payment status of the revenue it is linked to (`SyncLinkedRevenueStatus`, §7).
 
 `InvoiceTotalsService.RecalculateStatus` sets the four payment statuses: Paid, Partial, PartiallyRefunded and Refunded. An invoice keeps any other status until its first payment or refund arrives, and that earlier status is saved in `Invoice.StatusBeforePayment`. If every payment is later removed (deleted, undone, or moved to another invoice), the invoice goes back to that status, so it is owed again and can become overdue. A spreadsheet import saves the earlier status the same way when it works an invoice's status out from its amounts (below): the status the sheet gives (for one that says Paid or Partial, the invoice's own earlier status, or Sent) is kept in `StatusBeforePayment` as the amount paid moves the invoice on. Only a payment status set with no amounts, as by a sheet that updates just the Status column, leaves an invoice without an earlier status unless it already had one, and such an invoice keeps the status it has.
 

@@ -248,8 +248,27 @@ public partial class Invoice : ObservableObject, IRecord
     [JsonIgnore]
     public bool IsOverdue => Status is not (InvoiceStatus.Draft or InvoiceStatus.Paid
                                  or InvoiceStatus.Cancelled or InvoiceStatus.Refunded) &&
+                             !IsPaidInFull &&
                              Balance > 0 &&
                              DateTime.Today > DueDate.Date;
+
+    /// <summary>
+    /// How far short of <see cref="Total"/> the payments may fall and still have paid it off.
+    ///
+    /// Totals are stored at full precision and only the displayed figure is rounded
+    /// (docs/Calculations.md §2, Rule 3), so a percentage tax, discount or fee routinely leaves a
+    /// total like 37.6629 against an invoice that reads $37.66. The customer pays what it reads,
+    /// and without this the third of a cent left over keeps the invoice owing.
+    /// </summary>
+    public const decimal PaidInFullTolerance = 0.01m;
+
+    /// <summary>
+    /// Whether the customer has paid the whole invoice (docs/Calculations.md §6). Refunds don't undo
+    /// it: a refund is subtracted from revenue on its own date (§8), so the revenue it refunds has
+    /// to stay counted.
+    /// </summary>
+    [JsonIgnore]
+    public bool IsPaidInFull => Total > 0 && AmountPaid + PaidInFullTolerance >= Total;
 
     #region Currency Support
 

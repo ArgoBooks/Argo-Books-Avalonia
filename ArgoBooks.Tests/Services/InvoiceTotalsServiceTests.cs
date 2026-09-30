@@ -12,6 +12,68 @@ namespace ArgoBooks.Tests.Services;
 public class InvoiceTotalsServiceTests
 {
     [Fact]
+    public void FractionalCentTotal_PaidAtTheDisplayedAmount_IsPaidAndNotOverdue()
+    {
+        // 13% tax on a subtotal of 33.33 stores a total of 37.6629 on an invoice that reads
+        // $37.66. The customer pays what it reads, leaving a third of a cent that used to keep
+        // the invoice Partial, and then Overdue, while its revenue already counted as collected.
+        var invoice = new Invoice
+        {
+            Id = "INV-1",
+            Total = 37.6629m,
+            Status = InvoiceStatus.Sent,
+            DueDate = DateTime.Today.AddDays(-30),
+            OriginalCurrency = "USD"
+        };
+        var payments = new[]
+        {
+            new Payment { InvoiceId = "INV-1", Amount = 37.66m, OriginalCurrency = "USD" }
+        };
+
+        InvoiceTotalsService.RecalculateFromPayments(invoice, payments);
+        InvoiceTotalsService.RecalculateStatus(invoice);
+
+        Assert.True(invoice.IsPaidInFull);
+        Assert.Equal(InvoiceStatus.Paid, invoice.Status);
+        Assert.False(invoice.IsOverdue);
+    }
+
+    [Fact]
+    public void FractionalCentTotal_PaidAtTheDisplayedAmount_MarksTheLinkedRevenuePaid()
+    {
+        var invoice = new Invoice { Id = "INV-1", Total = 37.6629m, OriginalCurrency = "USD" };
+        var payments = new[]
+        {
+            new Payment { InvoiceId = "INV-1", Amount = 37.66m, OriginalCurrency = "USD" }
+        };
+        var revenues = new[] { new Revenue { Id = "REV-1", InvoiceId = "INV-1" } };
+
+        InvoiceTotalsService.RecalculateFromPayments(invoice, payments);
+        InvoiceTotalsService.RecalculateStatus(invoice);
+        InvoiceTotalsService.SyncLinkedRevenueStatus(invoice, revenues);
+
+        // The two used to disagree: the revenue said collected, the invoice said Partial.
+        Assert.Equal(InvoiceStatus.Paid, invoice.Status);
+        Assert.Equal(RevenuePaymentStatus.Paid, revenues[0].PaymentStatus);
+    }
+
+    [Fact]
+    public void ShortByMoreThanACent_IsStillPartial()
+    {
+        var invoice = new Invoice { Id = "INV-1", Total = 100m, Status = InvoiceStatus.Sent, OriginalCurrency = "USD" };
+        var payments = new[]
+        {
+            new Payment { InvoiceId = "INV-1", Amount = 99.97m, OriginalCurrency = "USD" }
+        };
+
+        InvoiceTotalsService.RecalculateFromPayments(invoice, payments);
+        InvoiceTotalsService.RecalculateStatus(invoice);
+
+        Assert.False(invoice.IsPaidInFull);
+        Assert.Equal(InvoiceStatus.Partial, invoice.Status);
+    }
+
+    [Fact]
     public void RecalculateFromPayments_PartialPayment_LeavesBalance()
     {
         var invoice = new Invoice

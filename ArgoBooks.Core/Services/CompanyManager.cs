@@ -1033,7 +1033,7 @@ public class CompanyManager : IDisposable
             if (string.IsNullOrEmpty(revenue.InvoiceId) || RevenueAggregator.IsCollected(revenue))
                 continue;
 
-            if (data.GetInvoice(revenue.InvoiceId) is { } invoice && InvoiceTotalsService.IsPaidInFull(invoice))
+            if (data.GetInvoice(revenue.InvoiceId) is { } invoice && invoice.IsPaidInFull)
             {
                 revenue.PaymentStatus = RevenuePaymentStatus.Paid;
                 healed = true;
