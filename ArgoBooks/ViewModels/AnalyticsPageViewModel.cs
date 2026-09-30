@@ -351,38 +351,6 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
     public string DateRangeDisplayText => ChartSettingsShared.DateRangeDisplayText;
 
     /// <summary>
-    /// Gets or sets the start date as DateTimeOffset for DatePicker binding.
-    /// </summary>
-    public DateTimeOffset? StartDateOffset
-    {
-        get => new DateTimeOffset(StartDate);
-        set
-        {
-            if (value.HasValue)
-            {
-                StartDate = value.Value.DateTime;
-                ReloadCharts();
-            }
-        }
-    }
-
-    /// <summary>
-    /// Gets or sets the end date as DateTimeOffset for DatePicker binding.
-    /// </summary>
-    public DateTimeOffset? EndDateOffset
-    {
-        get => new DateTimeOffset(EndDate);
-        set
-        {
-            if (value.HasValue)
-            {
-                EndDate = value.Value.DateTime;
-                ReloadCharts();
-            }
-        }
-    }
-
-    /// <summary>
     /// Gets whether the custom date range option is selected.
     /// </summary>
     public bool IsCustomDateRange => SelectedDateRange == DateRangePreset.CustomRange.GetDisplayName();
