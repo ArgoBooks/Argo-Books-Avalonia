@@ -25,8 +25,9 @@ public class FooterService
     /// <returns>The file footer, or null if invalid.</returns>
     public async Task<FileFooter?> ReadFooterAsync(string filePath, CancellationToken cancellationToken = default)
     {
-        await using var fileStream = new FileStream(
-            filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true);
+        // The first read of the company file, and the one most likely to meet a scanner still
+        // holding a file that has just appeared.
+        await using var fileStream = await AtomicFile.OpenReadAsync(filePath, cancellationToken: cancellationToken);
 
         return await ReadFooterFromStreamAsync(fileStream, cancellationToken);
     }
@@ -135,8 +136,7 @@ public class FooterService
     /// <returns>Memory stream containing the content.</returns>
     public async Task<MemoryStream> ReadContentAsync(string filePath, CancellationToken cancellationToken = default)
     {
-        await using var fileStream = new FileStream(
-            filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true);
+        await using var fileStream = await AtomicFile.OpenReadAsync(filePath, cancellationToken: cancellationToken);
 
         var contentLength = await GetContentLengthFromStreamAsync(fileStream, cancellationToken);
         if (contentLength < 0)
