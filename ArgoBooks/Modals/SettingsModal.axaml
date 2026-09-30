@@ -821,6 +821,218 @@
                         </ScrollViewer>
                     </TabItem>
 
+                    <!-- Backups Tab -->
+                    <TabItem Header="{loc:Loc Backups}">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" AllowAutoHide="False" Margin="24,20,16,20" Padding="0,0,8,0">
+                            <StackPanel Spacing="16">
+                                <controls:SampleCompanyNotice IsVisible="{Binding IsSampleCompany}" />
+
+                                <TextBlock Text="{loc:Loc 'Argo Books can keep dated copies of this company, so you can go back to how it looked before an import, a mistake, or a damaged file.'}"
+                                           FontSize="13"
+                                           Foreground="{DynamicResource TextTertiaryBrush}"
+                                           TextWrapping="Wrap" />
+
+                                <!-- The decision the tab exists for, on its own above the settings it governs. -->
+                                <Border Classes="settings-row last" IsEnabled="{Binding !IsSampleCompany}">
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16" MinHeight="40">
+                                        <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                            <TextBlock Text="{loc:Loc 'Back up automatically'}"
+                                                       FontSize="14"
+                                                       FontWeight="Medium"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}" />
+                                            <TextBlock Text="{loc:Loc 'Off by default. Nothing is copied anywhere until you turn this on.'}"
+                                                       FontSize="12"
+                                                       Foreground="{DynamicResource TextTertiaryBrush}"
+                                                       TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <ToggleSwitch Grid.Column="1"
+                                                      IsChecked="{Binding BackupsEnabled}"
+                                                      VerticalAlignment="Center" />
+                                    </Grid>
+                                </Border>
+
+                                <!-- Disabled rather than hidden while off, so the shape of what you are
+                                     turning on is visible before you commit to it. -->
+                                <Border Classes="settings-group" IsEnabled="{Binding BackupsEnabled}">
+                                    <StackPanel>
+                                        <Border Classes="settings-row">
+                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16" MinHeight="40">
+                                                <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                                    <TextBlock Text="{loc:Loc 'How often'}"
+                                                               FontSize="14"
+                                                               FontWeight="Medium"
+                                                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                                                    <TextBlock Text="{loc:Loc 'A copy is made after a save, when one is due.'}"
+                                                               FontSize="12"
+                                                               Foreground="{DynamicResource TextTertiaryBrush}"
+                                                               TextWrapping="Wrap" />
+                                                </StackPanel>
+                                                <ComboBox Grid.Column="1"
+                                                          ItemsSource="{Binding BackupFrequencies}"
+                                                          SelectedItem="{Binding SelectedBackupFrequency}"
+                                                          Classes="form-combobox"
+                                                          MinWidth="200"
+                                                          VerticalAlignment="Center">
+                                                    <ComboBox.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <TextBlock Text="{Binding Converter={StaticResource TranslateConverter}}" />
+                                                        </DataTemplate>
+                                                    </ComboBox.ItemTemplate>
+                                                </ComboBox>
+                                            </Grid>
+                                        </Border>
+
+                                        <Border Classes="settings-row">
+                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16" MinHeight="40">
+                                                <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                                    <TextBlock Text="{loc:Loc 'Copies to keep'}"
+                                                               FontSize="14"
+                                                               FontWeight="Medium"
+                                                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                                                    <TextBlock Text="{loc:Loc 'Older copies are removed once a newer one has been written.'}"
+                                                               FontSize="12"
+                                                               Foreground="{DynamicResource TextTertiaryBrush}"
+                                                               TextWrapping="Wrap" />
+                                                    <TextBlock Text="{Binding BackupSpaceEstimate}"
+                                                               FontSize="12"
+                                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                                               TextWrapping="Wrap"
+                                                               IsVisible="{Binding HasBackupSpaceEstimate}" />
+                                                </StackPanel>
+                                                <ComboBox Grid.Column="1"
+                                                          ItemsSource="{Binding BackupCopiesToKeep}"
+                                                          SelectedItem="{Binding SelectedBackupCopiesToKeep}"
+                                                          Classes="form-combobox"
+                                                          MinWidth="200"
+                                                          VerticalAlignment="Center">
+                                                    <ComboBox.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <TextBlock Text="{Binding Converter={StaticResource TranslateConverter}}" />
+                                                        </DataTemplate>
+                                                    </ComboBox.ItemTemplate>
+                                                </ComboBox>
+                                            </Grid>
+                                        </Border>
+
+                                        <Border Classes="settings-row last">
+                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16" MinHeight="40">
+                                                <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                                    <TextBlock Text="{loc:Loc 'Copy before imports'}"
+                                                               FontSize="14"
+                                                               FontWeight="Medium"
+                                                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                                                    <TextBlock Text="{loc:Loc 'Take an extra copy before an import or a restore, so a bad one can be undone.'}"
+                                                               FontSize="12"
+                                                               Foreground="{DynamicResource TextTertiaryBrush}"
+                                                               TextWrapping="Wrap" />
+                                                </StackPanel>
+                                                <ToggleSwitch Grid.Column="1"
+                                                              IsChecked="{Binding BackupBeforeImports}"
+                                                              VerticalAlignment="Center" />
+                                            </Grid>
+                                        </Border>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Where -->
+                                <StackPanel Spacing="6" IsEnabled="{Binding BackupsEnabled}">
+                                    <TextBlock Text="{loc:Loc 'Where to keep them'}"
+                                               FontSize="13"
+                                               FontWeight="Medium"
+                                               Foreground="{DynamicResource TextSecondaryBrush}" />
+                                    <Grid ColumnDefinitions="*,12,Auto">
+                                        <TextBlock Grid.Column="0"
+                                                   Text="{Binding BackupFolder}"
+                                                   ToolTip.Tip="{Binding BackupFolder}"
+                                                   FontSize="13"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   VerticalAlignment="Center" />
+                                        <Button Grid.Column="2"
+                                                Classes="secondary-button"
+                                                Content="{loc:Loc 'Choose folder'}"
+                                                Command="{Binding ChooseBackupFolderCommand}"
+                                                VerticalAlignment="Center" />
+                                    </Grid>
+                                    <!-- Plain text, not a warning colour: this is true of the default,
+                                         so flagging it in amber would mean every install opens on what
+                                         looks like a fault. -->
+                                    <TextBlock Text="{loc:Loc 'This folder is on the same drive as your company file. Copies here survive a mistake or a damaged file, but not a failed drive. Somewhere on a second drive protects against more.'}"
+                                               FontSize="12"
+                                               Foreground="{DynamicResource TextTertiaryBrush}"
+                                               TextWrapping="Wrap"
+                                               IsVisible="{Binding BackupFolderIsOnCompanyDrive}" />
+                                    <TextBlock Text="{loc:Loc 'Pick a folder before copies can be made.'}"
+                                               FontSize="12"
+                                               Foreground="{DynamicResource WarningBrush}"
+                                               TextWrapping="Wrap"
+                                               IsVisible="{Binding !HasBackupFolder}" />
+                                </StackPanel>
+
+                                <!-- Kept. The actions live on this heading rather than in a panel of
+                                     their own: the empty state below already says there is nothing yet,
+                                     and saying it twice made the tab look like it had a status to
+                                     report when it did not. -->
+                                <StackPanel Spacing="6">
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                        <TextBlock Grid.Column="0"
+                                                   Text="{loc:Loc 'Copies you have'}"
+                                                   FontSize="13"
+                                                   FontWeight="Medium"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                                   VerticalAlignment="Center" />
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                                            <Button Classes="secondary-button"
+                                                    Content="{loc:Loc 'Open folder'}"
+                                                    Command="{Binding OpenBackupFolderCommand}"
+                                                    Padding="12,6"
+                                                    MinHeight="0" />
+                                            <Button Classes="primary-button"
+                                                    Content="{loc:Loc 'Back up now'}"
+                                                    Command="{Binding BackUpNowCommand}"
+                                                    IsEnabled="{Binding !IsSampleCompany}"
+                                                    Padding="12,6"
+                                                    MinHeight="0" />
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <ItemsControl ItemsSource="{Binding Backups}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:BackupFileRow">
+                                                <Border Background="{DynamicResource SurfaceAltBrush}"
+                                                        CornerRadius="8"
+                                                        Padding="12,10"
+                                                        Margin="0,0,0,4">
+                                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                                        <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding TakenAt}"
+                                                                       FontSize="14"
+                                                                       Foreground="{DynamicResource TextPrimaryBrush}" />
+                                                            <TextBlock Text="{Binding Detail}"
+                                                                       FontSize="12"
+                                                                       Foreground="{DynamicResource TextTertiaryBrush}" />
+                                                        </StackPanel>
+                                                        <Button Grid.Column="1"
+                                                                Classes="secondary-button"
+                                                                Content="{loc:Loc 'Restore'}"
+                                                                Command="{Binding $parent[ItemsControl].((vm:SettingsModalViewModel)DataContext).RestoreBackupCommand}"
+                                                                CommandParameter="{Binding}"
+                                                                VerticalAlignment="Center" />
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <Border Classes="empty-state"
+                                            IsVisible="{Binding Backups.Count, Converter={x:Static local:IntConverters.IsZero}}">
+                                        <TextBlock Text="{loc:Loc 'No copies yet. One appears here after the first backup runs, or as soon as you use Back up now.'}" />
+                                    </Border>
+                                </StackPanel>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+
                     <!-- Payment Portal Tab -->
                     <TabItem Header="{loc:Loc 'Payment Portal'}">
                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" AllowAutoHide="False" Margin="24,20,16,20" Padding="0,0,8,0">
@@ -1273,8 +1485,8 @@
                     </TabItem>
 
                     <!-- Mobile App Tab -->
-                    <!-- This is tab index 7 (0-based, count TabItems above: General, Features,
-                         Notifications, Appearance, Security, Payment Portal, Bank import rules).
+                    <!-- This is tab index 8 (0-based, count TabItems above: General, Features,
+                         Notifications, Appearance, Security, Backups, Payment Portal, Bank import rules).
                          Integrations is kept last. Must match SettingsModalViewModel.MobileAppTabIndex,
                          which gates the pairing poll loop's visibility check - if this tab is ever
                          reordered, update SettingsTab too. -->

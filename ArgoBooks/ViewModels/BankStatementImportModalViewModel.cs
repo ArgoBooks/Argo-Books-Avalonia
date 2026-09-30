@@ -217,6 +217,9 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
                 return;
         }
 
+        // Past every gate, so this is the last moment the books look the way they did before.
+        await App.BackUpBeforeRiskyChangeAsync();
+
         var resolutions = toImport.Select(r => new BankLineResolution
         {
             Line = new BankStatementLine

@@ -16,6 +16,7 @@ public class GlobalSettings
     public ReportExportSettings ReportExport { get; set; } = new();
     public TutorialSettings Tutorial { get; set; } = new();
     public UpdateEmailSettings UpdateEmail { get; set; } = new();
+    public BackupSettings Backups { get; set; } = new();
 
     /// <summary>
     /// Set once the per-user file type registrations written by 2.0.13 and earlier have been

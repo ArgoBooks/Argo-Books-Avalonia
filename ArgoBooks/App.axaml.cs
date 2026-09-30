@@ -1828,6 +1828,9 @@ public partial class App : Application
             // Process pending conversions when window is activated (e.g., user returns after going offline)
             desktop.MainWindow.Activated += async (_, _) =>
             {
+                // Coming back from a file manager is exactly when a backup may have been deleted
+                // behind the settings modal's back.
+                _appShellViewModel?.SettingsModalViewModel.RefreshBackupsIfShowing();
                 await TryProcessPendingConversionsAsync();
             };
 
@@ -3274,6 +3277,7 @@ public partial class App : Application
                 try { await timerTask; } catch (OperationCanceledException) { }
 
                 // Phase B: Import sequentially (CompanyData mutation is not thread-safe)
+                await BackUpBeforeRiskyChangeAsync();
                 _mainWindowViewModel?.ShowLoading(
                     "Importing data...".Translate(),
                     progress: 90,
@@ -3453,7 +3457,18 @@ public partial class App : Application
 
         if (files.Count == 0) return;
 
-        var backupPath = files[0].Path.LocalPath;
+        await RestoreFromBackupFileAsync(files[0].Path.LocalPath);
+    }
+
+    /// <summary>
+    /// Restores a known backup file, asking only where to put the restored company. Shared by the
+    /// File menu, which picks the file first, and the Backups tab, which already knows which copy
+    /// the user chose.
+    /// </summary>
+    public static async Task RestoreFromBackupFileAsync(string backupPath)
+    {
+        if (CompanyManager == null || _appShellViewModel == null) return;
+        if (Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop) return;
 
         // Suggest a name based on the backup filename (strip .argobk, add .argo)
         var suggestedName = Path.GetFileNameWithoutExtension(backupPath);
@@ -3501,6 +3516,58 @@ public partial class App : Application
             ErrorLogger?.LogError(ex, ErrorCategory.Import, "Failed to restore from backup");
             await ShowErrorDialogAsync("Restore Failed".Translate(), "Failed to restore from backup: {0}".TranslateFormat(ex.Message));
         }
+    }
+
+    /// <summary>
+    /// A copy taken before a change the user may want to reverse, if they asked for one. Awaited
+    /// rather than fired off, because the point is to capture the state before the change lands.
+    /// Never throws: a backup that fails must not stop the import it was protecting.
+    /// </summary>
+    internal static async Task BackUpBeforeRiskyChangeAsync()
+    {
+        if (SettingsService?.GlobalSettings.Backups is not { Enabled: true, BeforeImports: true } settings) return;
+        if (CompanyManager is not { IsCompanyOpen: true } manager || manager.IsSampleCompany) return;
+
+        if (await new BackupService(ErrorLogger).CreateAsync(manager, settings) != null && SettingsService != null)
+            await SettingsService.SaveGlobalSettingsAsync();
+    }
+
+    /// <summary>
+    /// Asks where backups should be kept. Returns null if the picker was dismissed.
+    /// </summary>
+    public static async Task<string?> PickBackupFolderAsync()
+    {
+        if (Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop) return null;
+
+        var folders = await desktop.MainWindow!.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = "Where to keep backups".Translate(),
+            AllowMultiple = false
+        });
+
+        return folders.Count == 0 ? null : folders[0].Path.LocalPath;
+    }
+
+    /// <summary>
+    /// Writes a backup after a save when one is due, if the user turned backups on. Fire and forget
+    /// on purpose: it runs off the CompanySaved handler, which still holds the save lock that
+    /// ExportBackupAsync waits on, and a copy that fails is not lost work. CreateAsync logs its own
+    /// failures rather than throwing.
+    /// </summary>
+    internal static void BackUpAfterSaveIfDue()
+    {
+        if (SettingsService?.GlobalSettings.Backups is not { } settings) return;
+        if (CompanyManager is not { IsCompanyOpen: true } manager || manager.IsSampleCompany) return;
+        if (!BackupService.IsDue(settings, DateTime.UtcNow)) return;
+
+        _ = Task.Run(async () =>
+        {
+            if (await new BackupService(ErrorLogger).CreateAsync(manager, settings) != null
+                && SettingsService != null)
+            {
+                await SettingsService.SaveGlobalSettingsAsync();
+            }
+        });
     }
 
     /// <summary>

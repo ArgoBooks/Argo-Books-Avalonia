@@ -333,6 +333,8 @@ public partial class App
             // Mark undo/redo state as saved so IsAtSavedState returns true
             UndoRedoManager.MarkSaved(_saveUndoPoint);
 
+            BackUpAfterSaveIfDue();
+
             // The UI stays usable while a save writes, and an edit made meanwhile that has no undo
             // entry is not in the file either.
             if (CompanyManager.HasUnsavedChanges)

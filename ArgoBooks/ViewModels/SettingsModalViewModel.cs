@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Globalization;
 using System.Text.Json;
 using ArgoBooks.Core;
 using ArgoBooks.Core.Data;
@@ -2463,6 +2464,279 @@ public partial class SettingsModalViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isRefreshingDevices;
 
+    #region Backups
+
+    private static BackupSettings BackupConfig =>
+        App.SettingsService?.GlobalSettings.Backups ?? new BackupSettings();
+
+    private static readonly string[] BackupFrequencyLabels =
+        ["Every time I save", "Once a day", "Once a week"];
+
+    private static readonly string[] BackupCopyLabels = ["Keep 3", "Keep 5", "Keep 10", "Keep 25"];
+    private static readonly int[] BackupCopyValues = [3, 5, 10, 25];
+
+    [ObservableProperty]
+    private bool _backupsEnabled;
+
+    [ObservableProperty]
+    private bool _backupBeforeImports = true;
+
+    public string[] BackupFrequencies { get; } = BackupFrequencyLabels;
+
+    [ObservableProperty]
+    private string _selectedBackupFrequency = BackupFrequencyLabels[(int)BackupFrequency.Daily];
+
+    // No unbounded option. Paired with a copy on every save it would grow without a ceiling, and the
+    // person who picks it is the one least likely to notice the disk filling up.
+    public string[] BackupCopiesToKeep { get; } = BackupCopyLabels;
+
+    [ObservableProperty]
+    private string _selectedBackupCopiesToKeep = "Keep 5";
+
+    private int SelectedCopyCount
+    {
+        get
+        {
+            var i = Array.IndexOf(BackupCopyLabels, SelectedBackupCopiesToKeep);
+            return i >= 0 ? BackupCopyValues[i] : 5;
+        }
+    }
+
+    // Only set once the user picks a folder; until then BackupFolder answers with the default, which
+    // follows whichever company is open.
+    [ObservableProperty]
+    private string? _chosenBackupFolder;
+
+    /// <summary>
+    /// Never blank. Left empty, turning backups on would appear to work and quietly do nothing until
+    /// the person found a folder picker they had no reason to look for.
+    /// </summary>
+    public string BackupFolder =>
+        ChosenBackupFolder ?? BackupService.DefaultFolder(App.CompanyManager?.CurrentFilePath);
+
+    public bool HasBackupFolder => !string.IsNullOrWhiteSpace(BackupFolder);
+
+    /// <summary>
+    /// Drives the note explaining that copies beside the company file do not survive a failed drive.
+    /// </summary>
+    public bool BackupFolderIsOnCompanyDrive
+    {
+        get
+        {
+            try
+            {
+                var company = App.CompanyManager?.CurrentFilePath;
+                if (string.IsNullOrEmpty(company) || string.IsNullOrEmpty(BackupFolder))
+                    return false;
+
+                var companyRoot = Path.GetPathRoot(Path.GetFullPath(company));
+                var backupRoot = Path.GetPathRoot(Path.GetFullPath(BackupFolder));
+                return !string.IsNullOrEmpty(companyRoot)
+                    && string.Equals(companyRoot, backupRoot, StringComparison.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+    }
+
+    public ObservableCollection<BackupFileRow> Backups { get; } = [];
+
+    /// <summary>
+    /// What the chosen number of copies will actually cost, worked out from this company's own file
+    /// size. Backups are invisible until the disk is full, so the price is shown while it is being
+    /// chosen rather than discovered later.
+    /// </summary>
+    public string BackupSpaceEstimate
+    {
+        get
+        {
+            var size = CurrentCompanyFileSize();
+            return size <= 0
+                ? string.Empty
+                : "Around {0} of disk once all {1} copies exist.".TranslateFormat(
+                    FormatBackupSize(size * SelectedCopyCount), SelectedCopyCount);
+        }
+    }
+
+    public bool HasBackupSpaceEstimate => BackupSpaceEstimate.Length > 0;
+
+    private static long CurrentCompanyFileSize()
+    {
+        try
+        {
+            var path = App.CompanyManager?.CurrentFilePath;
+            return !string.IsNullOrEmpty(path) && File.Exists(path) ? new FileInfo(path).Length : 0;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    private static string FormatBackupSize(long bytes) =>
+        bytes >= 1024 * 1024
+            ? (bytes / 1024d / 1024d).ToString("0.#", CultureInfo.CurrentCulture) + " MB"
+            : Math.Max(1, bytes / 1024).ToString(CultureInfo.CurrentCulture) + " KB";
+
+    /// <summary>Fills the tab from the stored settings. Called when the modal opens.</summary>
+    private bool _loadingBackupSettings;
+
+    private void LoadBackupSettings()
+    {
+        var s = BackupConfig;
+
+        // Writing each property fires its change handler, which saves. Guarded, or opening the tab
+        // would write the settings straight back over themselves.
+        _loadingBackupSettings = true;
+        try
+        {
+            BackupsEnabled = s.Enabled;
+            BackupBeforeImports = s.BeforeImports;
+            SelectedBackupFrequency = BackupFrequencyLabels[Math.Clamp((int)s.Frequency, 0, BackupFrequencyLabels.Length - 1)];
+            var copyIndex = Array.IndexOf(BackupCopyValues, s.CopiesToKeep);
+            SelectedBackupCopiesToKeep = BackupCopyLabels[copyIndex >= 0 ? copyIndex : 1];
+            ChosenBackupFolder = s.Folder;
+        }
+        finally
+        {
+            _loadingBackupSettings = false;
+        }
+
+        RefreshBackupFolderState();
+        RefreshBackupList();
+    }
+
+    private void SaveBackupSettings()
+    {
+        if (_loadingBackupSettings || App.SettingsService is not { } settings) return;
+
+        var s = settings.GlobalSettings.Backups;
+        s.Enabled = BackupsEnabled;
+        s.BeforeImports = BackupBeforeImports;
+        s.Frequency = (BackupFrequency)Math.Max(0, Array.IndexOf(BackupFrequencyLabels, SelectedBackupFrequency));
+        s.CopiesToKeep = SelectedCopyCount;
+        s.Folder = ChosenBackupFolder;
+        _ = settings.SaveGlobalSettingsAsync();
+    }
+
+    private void RefreshBackupFolderState()
+    {
+        OnPropertyChanged(nameof(BackupFolder));
+        OnPropertyChanged(nameof(HasBackupFolder));
+        OnPropertyChanged(nameof(BackupFolderIsOnCompanyDrive));
+        OnPropertyChanged(nameof(BackupSpaceEstimate));
+        OnPropertyChanged(nameof(HasBackupSpaceEstimate));
+    }
+
+    /// <summary>
+    /// Re-reads the folder. Copies can be deleted or added in a file manager while this tab is
+    /// open, so the list is rebuilt from what is actually there rather than trusted once, the same
+    /// way the recent companies list drops files that have gone.
+    /// </summary>
+    private void RefreshBackupList()
+    {
+        var found = new BackupService(App.ErrorLogger)
+            .List(BackupFolder, App.CompanyManager?.CurrentCompanyName);
+
+        // Rebuilding an unchanged list resets the scroll position, and this runs whenever the app
+        // comes back to the front.
+        if (found.Count == Backups.Count && !found.Where((b, i) => b.Path != Backups[i].Path).Any())
+            return;
+
+        Backups.Clear();
+        foreach (var b in found)
+        {
+            Backups.Add(new BackupFileRow(
+                b.TakenAtUtc.ToLocalTime().ToString("f", CultureInfo.CurrentCulture),
+                FormatBackupSize(b.SizeBytes),
+                b.Path));
+        }
+    }
+
+    /// <summary>
+    /// Called when the app is brought back to the front, so copies deleted in a file manager while
+    /// this tab was on screen do not linger.
+    /// </summary>
+    public void RefreshBackupsIfShowing()
+    {
+        if (IsOpen && SelectedTabIndex == (int)SettingsTab.Backups)
+            RefreshBackupList();
+    }
+
+    partial void OnBackupsEnabledChanged(bool value) => SaveBackupSettings();
+
+    partial void OnBackupBeforeImportsChanged(bool value) => SaveBackupSettings();
+
+    partial void OnSelectedBackupFrequencyChanged(string value) => SaveBackupSettings();
+
+    partial void OnSelectedBackupCopiesToKeepChanged(string value)
+    {
+        OnPropertyChanged(nameof(BackupSpaceEstimate));
+        OnPropertyChanged(nameof(HasBackupSpaceEstimate));
+        SaveBackupSettings();
+    }
+
+    partial void OnChosenBackupFolderChanged(string? value)
+    {
+        RefreshBackupFolderState();
+        RefreshBackupList();
+        SaveBackupSettings();
+    }
+
+    [RelayCommand]
+    private async Task ChooseBackupFolder()
+    {
+        var picked = await App.PickBackupFolderAsync();
+        if (!string.IsNullOrWhiteSpace(picked))
+            ChosenBackupFolder = picked;
+    }
+
+    [RelayCommand]
+    private void OpenBackupFolder()
+    {
+        try
+        {
+            if (!HasBackupFolder) return;
+            Directory.CreateDirectory(BackupFolder);
+            UrlHelper.SafeOpenUrl(new Uri(BackupFolder).AbsoluteUri);
+        }
+        catch (Exception ex)
+        {
+            App.ErrorLogger?.LogWarning($"Could not open the backup folder: {ex.Message}", "Backup");
+        }
+    }
+
+    [RelayCommand]
+    private async Task BackUpNow()
+    {
+        if (App.CompanyManager is not { IsCompanyOpen: true } manager || IsSampleCompany)
+            return;
+
+        var written = await new BackupService(App.ErrorLogger).CreateAsync(manager, BackupConfig);
+        if (App.SettingsService != null)
+            await App.SettingsService.SaveGlobalSettingsAsync();
+
+        RefreshBackupList();
+
+        if (written == null)
+        {
+            await App.ShowErrorDialogAsync(
+                "Backup".Translate(),
+                "That copy could not be written. Check the folder still exists and that you can write to it.".Translate());
+        }
+    }
+
+    [RelayCommand]
+    private async Task RestoreBackup(BackupFileRow? row)
+    {
+        if (row == null) return;
+        await App.RestoreFromBackupFileAsync(row.Path);
+    }
+
+    #endregion
+
     /// <summary>
     /// The tab index of the "Mobile app" tab, used to cancel the pairing poll loop as soon as the
     /// user navigates away from it. Derived from <see cref="SettingsTab"/> so the position lives in
@@ -2522,6 +2796,9 @@ public partial class SettingsModalViewModel : ViewModelBase
     {
         if (value != MobileAppTabIndex)
             CancelPairingPoll();
+
+        if (value == (int)SettingsTab.Backups)
+            RefreshBackupList();
     }
 
     /// <summary>
@@ -3025,6 +3302,10 @@ public partial class SettingsModalViewModel : ViewModelBase
         // Not part of the save/cancel cycle: signing up hits the server when the modal's button
         // is pressed, so there is nothing here to revert.
         UpdateEmailSubmitted = App.SettingsService?.GlobalSettings.UpdateEmail.Submitted == true;
+
+        // Also outside the save/cancel cycle: each backup setting is written as it is changed, so
+        // the schedule cannot end up different from what the tab shows.
+        LoadBackupSettings();
 
         SelectedTabIndex = tabIndex;
         IsOpen = true;
@@ -4128,4 +4409,14 @@ public class BankCategoryRuleRow : ObservableObject
 
     private string? _categoryError;
     public string? CategoryError { get => _categoryError; set => SetProperty(ref _categoryError, value); }
+}
+
+/// <summary>
+/// One kept copy of the company, as the Backups tab lists it.
+/// </summary>
+public class BackupFileRow(string takenAt, string detail, string path)
+{
+    public string TakenAt { get; } = takenAt;
+    public string Detail { get; } = detail;
+    public string Path { get; } = path;
 }

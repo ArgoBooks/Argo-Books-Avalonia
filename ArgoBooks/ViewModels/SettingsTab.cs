@@ -17,6 +17,7 @@ internal enum SettingsTab
     Notifications,
     Appearance,
     Security,
+    Backups,
     PaymentPortal,
     BankImportRules,
     MobileApp,
