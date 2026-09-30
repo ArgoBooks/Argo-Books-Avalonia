@@ -58,7 +58,7 @@ public static class IntegrationImportFlow
             var confirmed = await ConfirmAsync(new ConfirmationDialogOptions
             {
                 Title = "Import from Stripe".Translate(),
-                Message = "Import your Stripe activity: {0} in sales and {1} in fees?"
+                Message = "Import your Stripe activity: {0} in revenue and {1} in fees?"
                     .TranslateFormat(Total(preview.Sales), Total(preview.Fees)),
                 PrimaryButtonText = "Import".Translate(),
                 CancelButtonText = "Cancel".Translate()
@@ -76,7 +76,7 @@ public static class IntegrationImportFlow
             Changed(host);
 
             await host.Inform(title.Translate(),
-                "Imported {0} sales and {1} expense entries from Stripe.".TranslateFormat(creation.RevenuesCreated, creation.ExpensesCreated));
+                "Imported {0} revenue and {1} expense entries from Stripe.".TranslateFormat(creation.RevenuesCreated, creation.ExpensesCreated));
             if (host.AfterQueueChange != null) await host.AfterQueueChange();
             return new IntegrationImportResult(IntegrationImportOutcome.Imported);
         }
@@ -151,7 +151,7 @@ public static class IntegrationImportFlow
             Changed(host);
 
             await host.Inform(title.Translate(),
-                "Imported {0} sales and {1} expense entries.".TranslateFormat(creation.RevenuesCreated, creation.ExpensesCreated));
+                "Imported {0} revenue and {1} expense entries.".TranslateFormat(creation.RevenuesCreated, creation.ExpensesCreated));
             if (host.AfterQueueChange != null) await host.AfterQueueChange();
             return new IntegrationImportResult(IntegrationImportOutcome.Imported);
         }

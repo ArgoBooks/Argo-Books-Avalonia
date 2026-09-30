@@ -1814,7 +1814,7 @@
                                 <StackPanel Spacing="8">
                                     <TextBlock Text="{loc:Loc 'Argo Books API'}" FontSize="18" FontWeight="SemiBold"
                                                Foreground="{DynamicResource TextPrimaryBrush}" />
-                                    <TextBlock Text="{loc:Loc 'Let other apps send sales, expenses, customers and suppliers straight into this company. Nothing they send reaches your books until you review and import it.'}"
+                                    <TextBlock Text="{loc:Loc 'Let other apps send revenue, expenses, customers and suppliers straight into this company. Nothing they send reaches your books until you review and import it.'}"
                                                FontSize="12" TextWrapping="Wrap"
                                                Foreground="{DynamicResource TextTertiaryBrush}" />
 
