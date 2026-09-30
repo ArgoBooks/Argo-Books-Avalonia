@@ -169,7 +169,7 @@
                                                            FontSize="12"
                                                            Foreground="{DynamicResource TextTertiaryBrush}"
                                                            TextWrapping="Wrap" />
-                                                <TextBlock Text="{loc:Loc 'Your transactions, customers, suppliers and documents are never sent.'}"
+                                                <TextBlock Text="{loc:Loc 'Your transactions, customers and suppliers are never sent.'}"
                                                            FontSize="12"
                                                            Foreground="{DynamicResource TextTertiaryBrush}"
                                                            TextWrapping="Wrap" />
