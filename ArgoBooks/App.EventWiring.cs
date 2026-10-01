@@ -1675,6 +1675,23 @@ public partial class App
                 return;
             }
 
+            if (!await ConfirmImportFileAsync(new ImportFilePromptOptions
+            {
+                Title = "Import a spreadsheet".Translate(),
+                Description = "Argo Books reads the file and works out what each column means, so it does not need tidying up first.".Translate(),
+                Points =
+                [
+                    "Excel or CSV, in almost any layout.".Translate(),
+                    "Customers, suppliers, products, invoices, expenses and revenue can all come in this way.".Translate(),
+                    "Nothing is saved until you have looked over what was found.".Translate()
+                ],
+                ChooseButtonText = "Choose spreadsheet".Translate()
+            }))
+            {
+                _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportAbandoned, "spreadsheet:prompt");
+                return;
+            }
+
             // Show open file dialog: support both .xlsx and .csv
             var file = await desktop.MainWindow!.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
             {

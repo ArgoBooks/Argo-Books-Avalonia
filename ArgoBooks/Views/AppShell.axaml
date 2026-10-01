@@ -244,6 +244,9 @@
         <!-- QuickBooks Import Modal -->
         <modals:QuickBooksImportModal DataContext="{Binding QuickBooksImportModalViewModel}" />
 
+        <!-- Asks for the right file before any import opens a picker -->
+        <modals:ImportFilePromptModal DataContext="{Binding ImportFilePromptModalViewModel}" />
+
         <modals:UpdateEmailModal DataContext="{Binding UpdateEmailModalViewModel}" />
 
         <!-- Import Validation Dialog -->

@@ -107,6 +107,8 @@ public partial class AppShellViewModel : ViewModelBase
 
     public QuickBooksImportModalViewModel QuickBooksImportModalViewModel { get; }
 
+    public ImportFilePromptModalViewModel ImportFilePromptModalViewModel { get; }
+
     public UpdateEmailModalViewModel UpdateEmailModalViewModel { get; }
 
     public ImportValidationDialogViewModel ImportValidationDialogViewModel { get; }
@@ -681,6 +683,7 @@ public partial class AppShellViewModel : ViewModelBase
 
         ImportModalViewModel = new ImportModalViewModel();
         QuickBooksImportModalViewModel = new QuickBooksImportModalViewModel();
+        ImportFilePromptModalViewModel = new ImportFilePromptModalViewModel();
         UpdateEmailModalViewModel = new UpdateEmailModalViewModel();
 
         ImportValidationDialogViewModel = new ImportValidationDialogViewModel();

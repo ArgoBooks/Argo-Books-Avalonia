@@ -3575,12 +3575,39 @@ public partial class App : Application
     /// the BankStatementImportModal without navigating to the Bank Matching page first.
     /// Called from the Expenses/Revenue "Import bank statement" menu item.
     /// </summary>
+    /// <summary>
+    /// Shows the import prompt and reports whether to carry on to the file picker.
+    /// Returns true when the prompt is unavailable, so an import is never blocked by it.
+    /// </summary>
+    private static async Task<bool> ConfirmImportFileAsync(ImportFilePromptOptions options)
+    {
+        var prompt = _appShellViewModel?.ImportFilePromptModalViewModel;
+        return prompt == null || await prompt.ShowAsync(options);
+    }
+
     public static async Task OpenBankStatementImportAsync()
     {
         if (BankStatementImportModalViewModel == null) return;
         if (Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop) return;
 
         _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportOpened, "bank");
+
+        if (!await ConfirmImportFileAsync(new ImportFilePromptOptions
+        {
+            Title = "Import a bank statement".Translate(),
+            Description = "Argo Books reads the statement and creates the expenses and revenue from it.".Translate(),
+            Points =
+            [
+                "Download a statement from your bank's website, covering the period you want to bring in.".Translate(),
+                "CSV or Excel reads best. A PDF statement works too.".Translate(),
+                "There is no bank login, and nothing is connected to your account.".Translate()
+            ],
+            ChooseButtonText = "Choose statement".Translate()
+        }))
+        {
+            _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportAbandoned, "bank:prompt");
+            return;
+        }
 
         var file = await desktop.MainWindow!.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
@@ -3614,6 +3641,23 @@ public partial class App : Application
         }
 
         _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportOpened, "bank-matching");
+
+        if (!await ConfirmImportFileAsync(new ImportFilePromptOptions
+        {
+            Title = "Check a statement against your books".Translate(),
+            Description = "Argo Books compares the statement to what you have already recorded, so you can see what is missing or recorded twice.".Translate(),
+            Points =
+            [
+                "Download a statement from your bank's website, covering the period you want to check.".Translate(),
+                "CSV or Excel reads best. A PDF statement works too.".Translate(),
+                "Nothing is created or changed until you decide what to do with each line.".Translate()
+            ],
+            ChooseButtonText = "Choose statement".Translate()
+        }))
+        {
+            _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportAbandoned, "bank-matching:prompt");
+            return;
+        }
 
         var file = await desktop.MainWindow!.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {

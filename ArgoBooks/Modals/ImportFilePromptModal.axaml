@@ -1,0 +1,68 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:ArgoBooks.ViewModels"
+             xmlns:controls="using:ArgoBooks.Controls"
+             xmlns:loc="using:ArgoBooks.Localization"
+             xmlns:icons="using:ArgoBooks"
+             mc:Ignorable="d" d:DesignWidth="520" d:DesignHeight="420"
+             x:Class="ArgoBooks.Modals.ImportFilePromptModal"
+             x:DataType="vm:ImportFilePromptModalViewModel">
+
+    <Design.DataContext>
+        <vm:ImportFilePromptModalViewModel />
+    </Design.DataContext>
+
+    <controls:ModalOverlay IsOpen="{Binding IsOpen}">
+        <controls:ModalOverlay.ModalContent>
+            <Border Classes="modal-card" Width="520">
+                <Grid RowDefinitions="Auto,*,Auto">
+
+                    <controls:ModalHeader Grid.Row="0"
+                                          Title="{Binding Title}"
+                                          Subtitle="{Binding Description}"
+                                          CloseCommand="{Binding CancelCommand}" />
+
+                    <StackPanel Grid.Row="1" Margin="24,20" Spacing="14">
+                        <ItemsControl ItemsSource="{Binding Points}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Spacing="14" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="x:String">
+                                    <Grid ColumnDefinitions="Auto,*">
+                                        <PathIcon Grid.Column="0"
+                                                  Data="{x:Static icons:Icons.Check}"
+                                                  Width="14" Height="14"
+                                                  Margin="0,3,12,0"
+                                                  VerticalAlignment="Top"
+                                                  Foreground="{DynamicResource SuccessBrush}" />
+                                        <TextBlock Grid.Column="1"
+                                                   Text="{Binding}"
+                                                   FontSize="13"
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+
+                    <Border Classes="modal-footer" Grid.Row="2">
+                        <StackPanel Classes="modal-actions">
+                            <Button Classes="secondary-button"
+                                    Content="{loc:Loc Cancel}"
+                                    Command="{Binding CancelCommand}" />
+                            <Button Classes="primary-button"
+                                    Content="{Binding ChooseButtonText}"
+                                    Command="{Binding ChooseCommand}" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+        </controls:ModalOverlay.ModalContent>
+    </controls:ModalOverlay>
+</UserControl>
