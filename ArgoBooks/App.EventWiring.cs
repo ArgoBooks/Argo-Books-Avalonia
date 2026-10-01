@@ -1661,6 +1661,12 @@ public partial class App
                 return;
             }
 
+            if (format.ToUpperInvariant() == "QUICKBOOKS")
+            {
+                _appShellViewModel.QuickBooksImportModalViewModel.OpenCommand.Execute(null);
+                return;
+            }
+
             // Excel and CSV import supported
             if (format.ToUpperInvariant() != "EXCEL")
             {
@@ -1703,6 +1709,75 @@ public partial class App
 
             // Use AI import flow
             await PerformAiImportAsync(filePath, companyData, isCsv);
+        };
+
+        WireQuickBooksImportEvents(desktop);
+    }
+
+    /// <summary>
+    /// Wires the QuickBooks import modal. A QuickBooks migration is several exported
+    /// reports rather than one file, so the modal collects them and then hands each to
+    /// the spreadsheet import flow in turn.
+    /// </summary>
+    private static void WireQuickBooksImportEvents(IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        if (_appShellViewModel == null)
+            return;
+
+        var quickBooks = _appShellViewModel.QuickBooksImportModalViewModel;
+
+        quickBooks.FilesRequested += async (_, _) =>
+        {
+            var files = await desktop.MainWindow!.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = "Add QuickBooks exports".Translate(),
+                AllowMultiple = true,
+                FileTypeFilter =
+                [
+                    new FilePickerFileType("QuickBooks exports")
+                    {
+                        Patterns = ["*.xlsx", "*.xls", "*.csv"]
+                    },
+                    new FilePickerFileType("Excel Workbook")
+                    {
+                        Patterns = ["*.xlsx", "*.xls"]
+                    },
+                    new FilePickerFileType("CSV File")
+                    {
+                        Patterns = ["*.csv"]
+                    }
+                ]
+            });
+
+            foreach (var file in files)
+            {
+                quickBooks.AddFile(file.Path.LocalPath);
+            }
+        };
+
+        quickBooks.ImportRequested += async (_, _) =>
+        {
+            if (CompanyManager?.CompanyData == null)
+            {
+                await ShowErrorDialogAsync("Error".Translate(), "No company is currently open.".Translate());
+                return;
+            }
+
+            var paths = quickBooks.Files.Select(f => f.Path).ToList();
+            quickBooks.CloseCommand.Execute(null);
+
+            if (paths.Count == 0)
+                return;
+
+            _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportOpened, $"quickbooks:{paths.Count}");
+
+            // One at a time. Each export is a different report with its own columns, so
+            // they are analysed and reviewed separately rather than merged beforehand.
+            foreach (var path in paths)
+            {
+                var isCsv = path.EndsWith(".csv", StringComparison.OrdinalIgnoreCase);
+                await PerformAiImportAsync(path, CompanyManager.CompanyData, isCsv);
+            }
         };
     }
 

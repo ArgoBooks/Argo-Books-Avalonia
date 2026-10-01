@@ -55,6 +55,7 @@
                                                Foreground="{DynamicResource TextPrimaryBrush}" />
                                     <TextBlock Text="{loc:Loc 'Open a previously exported backup as a new company'}"
                                                FontSize="12"
+                                               TextWrapping="Wrap"
                                                Foreground="{DynamicResource TextTertiaryBrush}" />
                                 </StackPanel>
                                 <PathIcon Grid.Column="2"
@@ -86,6 +87,7 @@
                                                Foreground="{DynamicResource TextPrimaryBrush}" />
                                     <TextBlock Text="{loc:Loc 'Import data from Excel workbooks or CSV files'}"
                                                FontSize="12"
+                                               TextWrapping="Wrap"
                                                Foreground="{DynamicResource TextTertiaryBrush}" />
                                 </StackPanel>
                                 <PathIcon Grid.Column="2"
@@ -117,6 +119,39 @@
                                                Foreground="{DynamicResource TextPrimaryBrush}" />
                                     <TextBlock Text="{loc:Loc 'Match a bank statement against recorded transactions'}"
                                                FontSize="12"
+                                               TextWrapping="Wrap"
+                                               Foreground="{DynamicResource TextTertiaryBrush}" />
+                                </StackPanel>
+                                <PathIcon Grid.Column="2"
+                                          Data="{x:Static local:Icons.ChevronRightNav}"
+                                          Width="16" Height="16"
+                                          Foreground="{DynamicResource TextTertiaryBrush}"
+                                          VerticalAlignment="Center" />
+                            </Grid>
+                        </Button>
+
+                        <!-- QuickBooks -->
+                        <Button Classes="import-option"
+                                Command="{Binding SelectFormatCommand}"
+                                CommandParameter="QuickBooks">
+                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                <Border Grid.Column="0"
+                                        Width="40" Height="40"
+                                        CornerRadius="8"
+                                        Background="{DynamicResource PrimaryIconBgBrush}"
+                                        Margin="0,0,16,0">
+                                    <PathIcon Data="{x:Static icons:Icons.SwapType}"
+                                              Width="20" Height="20"
+                                              Foreground="{DynamicResource PrimaryBrush}" />
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                    <TextBlock Text="{loc:Loc 'QuickBooks'}"
+                                               FontSize="14"
+                                               FontWeight="Medium"
+                                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                                    <TextBlock Text="{loc:Loc 'Bring your lists and transactions across'}"
+                                               FontSize="12"
+                                               TextWrapping="Wrap"
                                                Foreground="{DynamicResource TextTertiaryBrush}" />
                                 </StackPanel>
                                 <PathIcon Grid.Column="2"

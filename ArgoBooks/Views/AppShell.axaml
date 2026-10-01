@@ -241,6 +241,9 @@
         <!-- Import Modal -->
         <modals:ImportModal DataContext="{Binding ImportModalViewModel}" />
 
+        <!-- QuickBooks Import Modal -->
+        <modals:QuickBooksImportModal DataContext="{Binding QuickBooksImportModalViewModel}" />
+
         <modals:UpdateEmailModal DataContext="{Binding UpdateEmailModalViewModel}" />
 
         <!-- Import Validation Dialog -->
