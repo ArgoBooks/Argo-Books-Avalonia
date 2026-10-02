@@ -624,9 +624,8 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         ModalDate = DateTimeOffset.Now;
         ReceiptFilePath = null;
         ReceiptFileName = "No receipt attached";
-        // The copy has no stored total of its own to disagree with.
-        HasTotalMismatchWarning = false;
-        TotalMismatchWarningMessage = string.Empty;
+        // The mismatch warning stays. The copy is saved at what its lines add up to, so when the
+        // original's total was something else, this is the only sign the two will differ.
         IsAddEditModalOpen = true;
     }
 
