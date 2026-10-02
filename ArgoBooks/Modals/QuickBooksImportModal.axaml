@@ -202,7 +202,7 @@
                             </StackPanel>
 
                             <!-- Drop zone -->
-                            <Border Classes="drop-zone">
+                            <Border x:Name="DropZone" Classes="drop-zone" DragDrop.AllowDrop="True">
                                 <StackPanel Spacing="10" HorizontalAlignment="Center">
                                     <PathIcon Data="{x:Static icons:Icons.CloudUpload}"
                                               Width="28" Height="28"

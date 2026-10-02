@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.IO.Compression;
 using ArgoBooks.Localization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -7,11 +8,8 @@ using CommunityToolkit.Mvvm.Input;
 namespace ArgoBooks.ViewModels;
 
 /// <summary>
-/// ViewModel for the QuickBooks import modal.
-///
-/// User interface only for the moment. Choosing files and continuing raise
-/// events that nothing listens to yet, so the modal can be opened and looked
-/// at without an importer behind it.
+/// ViewModel for the QuickBooks import modal. It collects the exported reports;
+/// App.EventWiring hands each one to the spreadsheet importer.
 /// </summary>
 public partial class QuickBooksImportModalViewModel : ViewModelBase
 {
@@ -53,9 +51,38 @@ public partial class QuickBooksImportModalViewModel : ViewModelBase
     private void OnFilesChanged(object? sender, NotifyCollectionChangedEventArgs e)
         => FileCount = Files.Count;
 
+    /// <summary>Where zips were unpacked, so the copies can be removed once they are done with.</summary>
+    private readonly List<string> _unpacked = [];
+
+    private static readonly string[] ReportExtensions = [".xlsx", ".xls", ".csv"];
+
+    public static bool IsAccepted(string? path) =>
+        !string.IsNullOrWhiteSpace(path)
+        && (path.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)
+            || ReportExtensions.Any(e => path.EndsWith(e, StringComparison.OrdinalIgnoreCase)));
+
+    /// <summary>Deletes the reports unpacked from zips. Call once the import has finished with them.</summary>
+    public void DiscardUnpacked()
+    {
+        foreach (var folder in _unpacked)
+        {
+            try
+            {
+                Directory.Delete(folder, recursive: true);
+            }
+            catch (Exception)
+            {
+                // Left for the system's temp cleanup.
+            }
+        }
+
+        _unpacked.Clear();
+    }
+
     [RelayCommand]
     private void Open()
     {
+        DiscardUnpacked();
         Files.Clear();
         IsOnlineSelected = true;
         IsOpen = true;
@@ -79,7 +106,14 @@ public partial class QuickBooksImportModalViewModel : ViewModelBase
     /// </summary>
     public void AddFile(string path)
     {
-        if (string.IsNullOrWhiteSpace(path)) return;
+        if (!IsAccepted(path)) return;
+
+        // QuickBooks Online hands over its lists as one zip, so take the reports out of it.
+        if (path.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+        {
+            AddZip(path);
+            return;
+        }
 
         if (Files.Any(f => string.Equals(f.Path, path, StringComparison.OrdinalIgnoreCase)))
         {
@@ -87,6 +121,33 @@ public partial class QuickBooksImportModalViewModel : ViewModelBase
         }
 
         Files.Add(new QuickBooksFileRow(System.IO.Path.GetFileName(path), Describe(path), path));
+    }
+
+    private void AddZip(string zipPath)
+    {
+        try
+        {
+            var folder = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "ArgoBooks-quickbooks-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(folder);
+            _unpacked.Add(folder);
+
+            using var zip = ZipFile.OpenRead(zipPath);
+            foreach (var entry in zip.Entries)
+            {
+                // Name only, so an entry cannot write outside the folder.
+                var name = System.IO.Path.GetFileName(entry.FullName);
+                if (!ReportExtensions.Any(e => name.EndsWith(e, StringComparison.OrdinalIgnoreCase)))
+                    continue;
+
+                var target = System.IO.Path.Combine(folder, name);
+                entry.ExtractToFile(target, overwrite: true);
+                AddFile(target);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
+        {
+            App.ErrorLogger?.LogWarning($"Could not open a QuickBooks zip: {ex.Message}", "Import");
+        }
     }
 
     /// <summary>
@@ -132,10 +193,10 @@ public partial class QuickBooksImportModalViewModel : ViewModelBase
 
     #region Events
 
-    /// <summary>Raised when the person asks to pick files. Not handled yet.</summary>
+    /// <summary>Raised when the person asks to pick files.</summary>
     public event EventHandler? FilesRequested;
 
-    /// <summary>Raised when the person is ready to import. Not handled yet.</summary>
+    /// <summary>Raised when the person is ready to import.</summary>
     public event EventHandler? ImportRequested;
 
     #endregion

@@ -1754,7 +1754,7 @@ public partial class App
                 [
                     new FilePickerFileType("QuickBooks exports")
                     {
-                        Patterns = ["*.xlsx", "*.xls", "*.csv"]
+                        Patterns = ["*.xlsx", "*.xls", "*.csv", "*.zip"]
                     },
                     new FilePickerFileType("Excel Workbook")
                     {
@@ -1791,10 +1791,17 @@ public partial class App
 
             // One at a time. Each export is a different report with its own columns, so
             // they are analysed and reviewed separately rather than merged beforehand.
-            foreach (var path in paths)
+            try
             {
-                var isCsv = path.EndsWith(".csv", StringComparison.OrdinalIgnoreCase);
-                await PerformAiImportAsync(path, CompanyManager.CompanyData, isCsv);
+                foreach (var path in paths)
+                {
+                    var isCsv = path.EndsWith(".csv", StringComparison.OrdinalIgnoreCase);
+                    await PerformAiImportAsync(path, CompanyManager.CompanyData, isCsv);
+                }
+            }
+            finally
+            {
+                quickBooks.DiscardUnpacked();
             }
         };
     }
