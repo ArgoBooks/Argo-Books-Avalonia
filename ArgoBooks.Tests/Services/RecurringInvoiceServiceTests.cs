@@ -1,3 +1,4 @@
+using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Transactions;
@@ -250,5 +251,29 @@ public class RecurringInvoiceServiceTests
         var generated = RecurringInvoiceService.GenerateDueInvoices(data, new DateTime(2026, 6, 1));
 
         Assert.Empty(generated);
+    }
+
+    // The first invoice was made from a sale. Each copy is a new sale: carrying the link made
+    // sending a copy take the original revenue over instead of recording its own.
+    [Fact]
+    public void CloneInvoiceFrom_DropsTheLinksToTheRecordsTheFirstInvoiceWasMadeFrom()
+    {
+        var data = new CompanyData();
+        var schedule = MakeSchedule(new DateTime(2026, 3, 1));
+        schedule.Template!.OriginalCurrency = "USD";
+        schedule.Template.Total = 150m;
+        schedule.Template.SecurityDeposit = 50m;
+        schedule.Template.LineItems =
+        [
+            new LineItem { Description = "Sale", Quantity = 1, UnitPrice = 60m, RevenueRecordId = "REV-10" },
+            new LineItem { Description = "Rental", Quantity = 1, UnitPrice = 40m, RentalRecordId = "RNT-1" }
+        ];
+
+        var invoice = RecurringInvoiceService.CloneInvoiceFrom(schedule, new DateTime(2026, 3, 1), data, new IdGenerator(data));
+
+        Assert.All(invoice.LineItems, li => Assert.True(li.RevenueRecordId == null && li.RentalRecordId == null));
+        // The deposit on a rental is taken once, on the first invoice.
+        Assert.Equal(0m, invoice.SecurityDeposit);
+        Assert.Equal(100m, invoice.Total);
     }
 }
