@@ -26,9 +26,6 @@ public class BackupSettings
 
     /// <summary>Null until the user chooses one, so the default can follow whichever company is open.</summary>
     public string? Folder { get; set; }
-
-    /// <summary>When the last copy was written, which is what <see cref="BackupFrequency"/> is measured from.</summary>
-    public DateTime? LastBackupUtc { get; set; }
 }
 
 public enum BackupFrequency

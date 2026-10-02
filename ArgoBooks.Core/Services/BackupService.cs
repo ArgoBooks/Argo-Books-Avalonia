@@ -27,13 +27,15 @@ public sealed class BackupService(IErrorLogger? errorLogger = null)
     private static readonly Regex Stamp = new(@"^\d{8}-\d{6}$", RegexOptions.Compiled);
 
     /// <summary>
-    /// Whether enough time has passed for the chosen frequency. Measured from the last copy actually
-    /// written rather than from the app starting, so saving twice in a minute does not produce two.
+    /// Whether enough time has passed for the chosen frequency. Measured from this company's newest
+    /// copy on disk rather than from the app starting, so saving twice in a minute does not produce
+    /// two, and a copy of one company does not use up another's turn.
     /// </summary>
-    public static bool IsDue(BackupSettings settings, DateTime utcNow)
+    public bool IsDue(BackupSettings settings, string? companyFilePath, string? companyName, DateTime utcNow)
     {
         if (!settings.Enabled) return false;
-        if (settings.LastBackupUtc is not { } last) return true;
+        if (List(FolderFor(settings, companyFilePath), companyName).FirstOrDefault() is not { TakenAtUtc: var last })
+            return true;
 
         return settings.Frequency switch
         {
@@ -97,8 +99,6 @@ public sealed class BackupService(IErrorLogger? errorLogger = null)
                 $"{CompanyManager.ToCompanyFileName(companyName)}{Marker}{DateTime.Now:yyyyMMdd-HHmmss}{Extension}");
 
             await companyManager.ExportBackupAsync(path, cancellationToken);
-
-            settings.LastBackupUtc = DateTime.UtcNow;
 
             // Only after the new copy exists, so a failed write never costs an older good one.
             Prune(folder, companyName, settings.CopiesToKeep);

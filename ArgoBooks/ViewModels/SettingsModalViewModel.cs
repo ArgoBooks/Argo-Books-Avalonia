@@ -2715,8 +2715,6 @@ public partial class SettingsModalViewModel : ViewModelBase
             return;
 
         var written = await new BackupService(App.ErrorLogger).CreateAsync(manager, BackupConfig);
-        if (App.SettingsService != null)
-            await App.SettingsService.SaveGlobalSettingsAsync();
 
         RefreshBackupList();
 

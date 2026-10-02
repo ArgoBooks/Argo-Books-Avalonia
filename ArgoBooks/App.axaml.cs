@@ -3533,8 +3533,7 @@ public partial class App : Application
         if (SettingsService?.GlobalSettings.Backups is not { Enabled: true, BeforeImports: true } settings) return;
         if (CompanyManager is not { IsCompanyOpen: true } manager || manager.IsSampleCompany) return;
 
-        if (await new BackupService(ErrorLogger).CreateAsync(manager, settings) != null && SettingsService != null)
-            await SettingsService.SaveGlobalSettingsAsync();
+        await new BackupService(ErrorLogger).CreateAsync(manager, settings);
     }
 
     /// <summary>
@@ -3558,20 +3557,23 @@ public partial class App : Application
     /// on purpose: it runs off the CompanySaved handler, which still holds the save lock that
     /// ExportBackupAsync waits on, and a copy that fails is not lost work. CreateAsync logs its own
     /// failures rather than throwing.
+    ///
+    /// Posted to the UI thread rather than run on the pool: the copy serializes the open company,
+    /// which is only safe on the thread that edits it.
     /// </summary>
     internal static void BackUpAfterSaveIfDue()
     {
-        if (SettingsService?.GlobalSettings.Backups is not { } settings) return;
+        if (SettingsService?.GlobalSettings.Backups is not { Enabled: true } settings) return;
         if (CompanyManager is not { IsCompanyOpen: true } manager || manager.IsSampleCompany) return;
-        if (!BackupService.IsDue(settings, DateTime.UtcNow)) return;
 
-        _ = Task.Run(async () =>
+        Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
         {
-            if (await new BackupService(ErrorLogger).CreateAsync(manager, settings) != null
-                && SettingsService != null)
-            {
-                await SettingsService.SaveGlobalSettingsAsync();
-            }
+            var backups = new BackupService(ErrorLogger);
+            if (!manager.IsCompanyOpen
+                || !backups.IsDue(settings, manager.CurrentFilePath, manager.CurrentCompanyName, DateTime.UtcNow))
+                return;
+
+            await backups.CreateAsync(manager, settings);
         });
     }
 

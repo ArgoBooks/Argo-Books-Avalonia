@@ -5,7 +5,8 @@ using Xunit;
 namespace ArgoBooks.Tests.Services;
 
 /// <summary>
-/// Which copies belong to a company. Getting it wrong prunes another company's copies.
+/// Which copies belong to a company, and when its next one is due. Getting the first wrong prunes
+/// another company's copies; getting the second wrong leaves a company with none.
 /// </summary>
 public class BackupServiceTests : IDisposable
 {
@@ -33,6 +34,18 @@ public class BackupServiceTests : IDisposable
         var copies = _service.List(_folder, "Acme");
 
         Assert.Equal("Acme--backup-20260930-143200.argobk", Path.GetFileName(Assert.Single(copies).Path));
+    }
+
+    [Fact]
+    public void IsDue_IsMeasuredFromThisCompanysOwnNewestCopy()
+    {
+        var settings = new BackupSettings { Enabled = true, Frequency = BackupFrequency.Daily, Folder = _folder };
+        var now = DateTime.UtcNow;
+        Copy("Acme--backup-20260930-143200.argobk", now.AddHours(-1));
+
+        Assert.False(_service.IsDue(settings, null, "Acme", now));
+        // Acme's copy an hour ago does not use up the other company's turn.
+        Assert.True(_service.IsDue(settings, null, "Borealis", now));
     }
 
     [Fact]
