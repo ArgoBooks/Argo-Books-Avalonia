@@ -143,10 +143,25 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
                                                                 && IsOnOrBeforeEndDate(i.IssueDate)))
         {
             var payments = paymentsByInvoice[invoice.Id].ToList();
-            var balanceUSD = payments.Count == 0
-                ? (invoice.Status == InvoiceStatus.Paid ? 0m : invoice.EffectiveBalanceUSD)
-                : Math.Max(0m, invoice.EffectiveTotalUSD
-                               - payments.Where(p => IsOnOrBeforeEndDate(p.Date)).Sum(p => p.EffectiveAmountUSD));
+            var paidByEnd = payments.Where(p => IsOnOrBeforeEndDate(p.Date)).ToList();
+            decimal balanceUSD;
+            if (payments.Count == 0)
+            {
+                balanceUSD = invoice.Status == InvoiceStatus.Paid ? 0m : invoice.EffectiveBalanceUSD;
+            }
+            else if (invoice.Total > 0 && paidByEnd.All(p =>
+                         string.Equals(p.OriginalCurrency, invoice.OriginalCurrency, StringComparison.OrdinalIgnoreCase)))
+            {
+                // The share still owed in the invoice's own currency, valued at the invoice's
+                // rate. Subtracting the payments' USD instead left a balance on a fully paid
+                // invoice whenever a payment was converted at a different day's rate.
+                var owed = Math.Round(invoice.Total - paidByEnd.Sum(p => p.Amount), 2, MidpointRounding.AwayFromZero);
+                balanceUSD = owed <= 0 ? 0m : invoice.EffectiveTotalUSD * Math.Min(1m, owed / invoice.Total);
+            }
+            else
+            {
+                balanceUSD = Math.Max(0m, invoice.EffectiveTotalUSD - paidByEnd.Sum(p => p.EffectiveAmountUSD));
+            }
 
             if (Math.Round(balanceUSD, 2) > 0)
                 receivables.Add((invoice, balanceUSD));
@@ -511,11 +526,12 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         var totalCurrentAssets = cash + accountsReceivable + inventoryValue;
         var totalAssets = totalCurrentAssets;
 
-        // Accounts Payable = purchase orders not received and not cancelled, each converted at the
-        // order date.
+        // Accounts Payable = purchase orders placed but not received or cancelled, each converted at
+        // the order date. A draft has not been sent to a supplier, so nothing is owed on it yet.
         var accountsPayable = companyData.PurchaseOrders
             .Where(po => po.Status != PurchaseOrderStatus.Received
                          && po.Status != PurchaseOrderStatus.Cancelled
+                         && po.Status != PurchaseOrderStatus.Draft
                          && IsOnOrBeforeEndDate(po.OrderDate))
             .Sum(po => ToDisplay(po.EffectiveTotalUSD, po.OrderDate));
 
