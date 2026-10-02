@@ -491,19 +491,39 @@ public partial class RefundModalViewModel : ObservableObject
 
     private void RecomputeTotals()
     {
-        // Refunding half the taxed rows gives back half the tax; the whole of it only when
-        // every taxed row is ticked. At face value a partial refund returned all the tax.
+        SelectedPaymentsRefundable = Payments.Where(p => p.IsSelected).Sum(p => p.Refundable);
+
+        // Refunding half the taxed rows gives back half the tax. At face value a partial refund
+        // returned all of it.
         if (LineRows.FirstOrDefault(r => r.Kind == "tax") is { } taxRow)
         {
             var taxedAll = LineRows.Where(IsTaxed).Sum(r => r.Amount);
             var taxedTicked = Math.Max(0m, LineRows.Where(r => IsTaxed(r) && r.IsSelected).Sum(r => r.Amount));
-            taxRow.Amount = taxedAll > 0
-                ? Math.Round(_invoice.TaxAmount * Math.Min(1m, taxedTicked / taxedAll), 2, MidpointRounding.AwayFromZero)
-                : _invoice.TaxAmount;
+            var anyTaxedTicked = LineRows.Any(r => IsTaxed(r) && r.IsSelected);
+
+            if (!anyTaxedTicked)
+            {
+                // Tax ticked alone is a refund of the tax itself: a customer who should not
+                // have been charged it, or what an earlier part refund left behind.
+                taxRow.Amount = SelectedPaymentsRefundable > 0
+                    ? Math.Min(_invoice.TaxAmount, SelectedPaymentsRefundable)
+                    : _invoice.TaxAmount;
+            }
+            else if (taxedAll <= 0 || taxedTicked >= taxedAll)
+            {
+                // Everything taxed is ticked, so the tax goes back exactly as stored. Rounding
+                // it here would put a full refund a fraction over what was paid.
+                taxRow.Amount = _invoice.TaxAmount;
+            }
+            else
+            {
+                taxRow.Amount = Math.Round(_invoice.TaxAmount * (taxedTicked / taxedAll), 2, MidpointRounding.AwayFromZero);
+            }
         }
 
-        RefundTotal = LineRows.Where(r => r.IsSelected).Sum(r => r.Amount);
-        SelectedPaymentsRefundable = Payments.Where(p => p.IsSelected).Sum(p => p.Refundable);
+        // To the cent, which is what is sent. A percent discount or fee leaves the rows summing to
+        // a fraction that would otherwise read as over the refundable amount.
+        RefundTotal = Math.Round(LineRows.Where(r => r.IsSelected).Sum(r => r.Amount), 2, MidpointRounding.AwayFromZero);
 
         var selectedPaymentCount = Payments.Count(p => p.IsSelected);
         if (selectedPaymentCount == 0)

@@ -100,4 +100,44 @@ public class RefundModalShippingTests
 
         Assert.DoesNotContain(vm.LineRows, r => r.Kind == "shipping");
     }
+
+    [Fact]
+    public void FullRefund_WithAPercentDiscount_IsNotRefusedOverAFractionOfACent()
+    {
+        // 33.33 less 15% is 28.3305, plus 8% tax is 30.59694. The customer paid the 30.60 it reads.
+        var invoice = new Invoice
+        {
+            Id = "INV-5", InvoiceNumber = "INV-5", Subtotal = 33.33m, DiscountAmount = 15m, DiscountIsPercent = true,
+            TaxAmount = 2.26644m, Total = 30.59694m,
+            LineItems = { new LineItem { Description = "Part", Quantity = 1, UnitPrice = 33.33m } }
+        };
+        var payment = new Payment
+        {
+            Id = "PAY-5", InvoiceId = "INV-5", Amount = 30.60m, Source = PaymentSource.Online, ProviderPaymentId = "pi_5"
+        };
+
+        var vm = new RefundModalViewModel(null!, invoice, [payment], "Bob");
+
+        Assert.Equal(30.60m, vm.RefundTotal);
+        Assert.True(vm.CanContinueFromLineItems);
+    }
+
+    [Fact]
+    public void TaxTickedAlone_RefundsTheTax()
+    {
+        var invoice = new Invoice
+        {
+            Id = "INV-6", InvoiceNumber = "INV-6", Subtotal = 100m, TaxAmount = 10m, Total = 110m,
+            LineItems = { new LineItem { Description = "Desk", Quantity = 1, UnitPrice = 100m } }
+        };
+        var payment = new Payment
+        {
+            Id = "PAY-6", InvoiceId = "INV-6", Amount = 110m, Source = PaymentSource.Online, ProviderPaymentId = "pi_6"
+        };
+
+        var vm = new RefundModalViewModel(null!, invoice, [payment], "Bob");
+        vm.LineRows.First(r => r.Kind == "lineItem").IsSelected = false;
+
+        Assert.Equal(10m, vm.RefundTotal);
+    }
 }
