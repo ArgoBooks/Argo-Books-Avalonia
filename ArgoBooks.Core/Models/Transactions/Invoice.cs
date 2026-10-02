@@ -261,11 +261,20 @@ public partial class Invoice : ObservableObject, IRecord
     /// displayed figure is rounded (§2, Rule 3), so a percentage tax, discount or fee routinely
     /// leaves a total like 37.6629 against an invoice that reads $37.66. The customer pays what it
     /// reads, and comparing the stored figures would keep it owing a third of a cent. A payment
-    /// that is a displayed cent short has not paid it.
+    /// that is a displayed cent short has not paid it. A currency shown without cents, such as
+    /// the yen, is compared without them.
     /// </summary>
     [JsonIgnore]
-    public bool IsPaidInFull => Total > 0
-        && Math.Round(AmountPaid, 2, MidpointRounding.AwayFromZero) >= Math.Round(Total, 2, MidpointRounding.AwayFromZero);
+    public bool IsPaidInFull
+    {
+        get
+        {
+            if (Total <= 0) return false;
+            var places = CurrencyInfo.GetByCode(OriginalCurrency).DecimalPlaces;
+            return Math.Round(AmountPaid, places, MidpointRounding.AwayFromZero)
+                   >= Math.Round(Total, places, MidpointRounding.AwayFromZero);
+        }
+    }
 
     #region Currency Support
 
