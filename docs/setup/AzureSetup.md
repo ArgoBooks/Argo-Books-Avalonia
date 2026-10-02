@@ -174,7 +174,7 @@ Then:
 
 ```powershell
 az login
- ```
+```
 
 So Advanced Installer can pick up your credentials.
 

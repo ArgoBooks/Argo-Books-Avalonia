@@ -65,10 +65,7 @@ File-based. Company data lives in encrypted `.argo` files (AES-256). `CompanyMan
 - **Platform abstraction** via `PlatformServiceFactory` with platform-specific implementations (Windows Hello, etc.)
 - **Central package versioning** in `Directory.Packages.props`; app version in `Directory.Build.props`
 - **Conditional compilation:** `WINDOWS` constant defined when targeting `net10.0-windows`
-- **Web views are cross-platform.** `Avalonia.Controls.WebView` backs the invoice preview and PDF
-  rendering on every desktop. On macOS it registers no `WKScriptMessageHandler`, so nothing the page
-  posts arrives; both callers answer through `WebViewOutbox` instead, and new page code must post via
-  `window.__argoPost` rather than `postMessage` directly
+- **Web views are cross-platform.** `Avalonia.Controls.WebView` backs the invoice preview and PDF rendering on every desktop. On macOS it registers no `WKScriptMessageHandler`, so nothing the page posts arrives; both callers answer through `WebViewOutbox` instead, and new page code must post via `window.__argoPost` rather than `postMessage` directly
 
 ### Service Layer
 

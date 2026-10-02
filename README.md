@@ -45,8 +45,7 @@ See [Publishing](docs/Publishing.md) for platform-specific build and packaging i
 
 ## Documentation
 
-Reference docs live in [docs/](docs/). Start with [Architecture](docs/Architecture.md) for a map
-of the codebase.
+Reference docs live in [docs/](docs/). Start with [Architecture](docs/Architecture.md) for a map of the codebase.
 
 ### Architecture and data
 
