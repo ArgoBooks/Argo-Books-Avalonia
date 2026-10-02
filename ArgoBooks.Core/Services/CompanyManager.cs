@@ -2059,7 +2059,20 @@ public class CompanyManager : IDisposable
             settings.BacktestVersion = onDisk?.BacktestVersion;
             settings.LastBacktestedMonth = onDisk?.LastBacktestedMonth;
 
-            await _fileService.WriteJsonAsync(companyDir, "appSettings.json", settings, cancellationToken);
+            if (onDisk == null)
+            {
+                // The working copy has lost its files (GetCompanyDirectory rebuilds a deleted
+                // directory empty), so packing it with only the settings would replace the
+                // company file with one that holds nothing else. Write every file instead.
+                await EnsureReceiptsLoadedAsync();
+                if (CompanyData == null || CurrentFilePath == null || _currentTempDirectory == null)
+                    return;
+                await _fileService.SaveCompanyDataAsync(companyDir, CompanyData, cancellationToken);
+            }
+            else
+            {
+                await _fileService.WriteJsonAsync(companyDir, "appSettings.json", settings, cancellationToken);
+            }
 
             ReleaseFileLock();
             try

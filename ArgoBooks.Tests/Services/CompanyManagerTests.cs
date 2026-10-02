@@ -267,6 +267,43 @@ public class CompanyManagerTests : IDisposable
     }
 
     [Fact]
+    public async Task SaveSettingsOnlyAsync_WorkingDirectoryDeleted_KeepsTheRecords()
+    {
+        // The rebuilt directory is empty, so packing it with only the settings would replace the
+        // company file with one that has no records in it.
+        var filePath = Path.Combine(Path.GetTempPath(), $"argo-cm-{Guid.NewGuid():N}.argo");
+        try
+        {
+            await _manager.CreateCompanyAsync(filePath, "Acme");
+            _manager.CompanyData!.Categories.Add(new Category
+            {
+                Id = "CAT-1",
+                Name = "Rent",
+                Type = CategoryType.Expense
+            });
+            await _manager.SaveCompanyAsync();
+
+            var lockField = typeof(CompanyManager).GetField("_workingDirectoryLock", BindingFlags.NonPublic | BindingFlags.Instance)!;
+            ((IDisposable?)lockField.GetValue(_manager))?.Dispose();
+            lockField.SetValue(_manager, null);
+
+            var tempField = typeof(CompanyManager).GetField("_currentTempDirectory", BindingFlags.NonPublic | BindingFlags.Instance)!;
+            Directory.Delete((string)tempField.GetValue(_manager)!, recursive: true);
+
+            await _manager.SaveSettingsOnlyAsync();
+            await _manager.CloseCompanyAsync();
+
+            await _manager.OpenCompanyAsync(filePath);
+            Assert.Contains(_manager.CompanyData!.Categories, c => c.Name == "Rent");
+        }
+        finally
+        {
+            await _manager.CloseCompanyAsync();
+            if (File.Exists(filePath)) File.Delete(filePath);
+        }
+    }
+
+    [Fact]
     public async Task Save_ImmediatelyAfterOpen_DoesNotDropDeferredReceipts()
     {
         // The critical data-safety case: a save that runs before receipts finish loading
