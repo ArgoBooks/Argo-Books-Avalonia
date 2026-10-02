@@ -35,6 +35,42 @@ public class PayrollServiceTests
         },
     };
 
+
+    // A run added late with an earlier pay date. The annual maximums are for the whole year, so
+    // the calculation has to see what later runs already withheld; a pay stub still wants the
+    // figures as they stood at its own pay date.
+    [Fact]
+    public void YearToDate_ForACalculation_CountsRunsDatedAfterTheDraft()
+    {
+        CompanyData data = DataWithEmployee();
+        data.PayRuns.Add(ApprovedRun("PR-0001", new DateTime(2026, 1, 16), "EMP-001", 2000m, 110.99m, 32.60m));
+        data.PayRuns.Add(ApprovedRun("PR-0002", new DateTime(2026, 6, 12), "EMP-001", 2000m, 110.99m, 32.60m));
+        PayRun backDated = ApprovedRun("PR-0003", new DateTime(2026, 3, 13), "EMP-001", 5000m, 0m, 0m);
+        backDated.Status = PayRunStatus.Draft;
+        data.PayRuns.Add(backDated);
+        var payroll = new PayrollService();
+
+        Assert.Equal(110.99m, payroll.YearToDateFor(data, "EMP-001", backDated).CppEmployee);
+        Assert.Equal(221.98m, payroll.YearToDateFor(data, "EMP-001", backDated, includeLaterRuns: true).CppEmployee);
+    }
+
+    [Fact]
+    public void YearToDate_KeepsEiWithheldInQuebecApart()
+    {
+        CompanyData data = DataWithEmployee();
+        PayRun ontario = ApprovedRun("PR-0001", new DateTime(2026, 1, 16), "EMP-001", 2000m, 110.99m, 32.60m);
+        ontario.Lines[0].Province = "ON";
+        PayRun quebec = ApprovedRun("PR-0002", new DateTime(2026, 1, 30), "EMP-001", 2000m, 110.99m, 26.00m);
+        quebec.Lines[0].Province = "QC";
+        data.PayRuns.Add(ontario);
+        data.PayRuns.Add(quebec);
+
+        PayrollYearToDate ytd = new PayrollService().YearToDateFor(data, "EMP-001");
+
+        Assert.Equal(58.60m, ytd.EiEmployee);
+        Assert.Equal(26.00m, ytd.EiEmployeeQuebec);
+    }
+
     private static PayRun ApprovedRun(string id, DateTime payDate, string employeeId, decimal gross,
                                       decimal cpp, decimal ei) => new()
     {

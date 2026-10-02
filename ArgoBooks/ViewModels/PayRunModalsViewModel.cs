@@ -760,7 +760,7 @@ public partial class PayRunModalsViewModel : ViewModelBase
             return;
         }
 
-        PayrollYearToDate ytd = _payroll.YearToDateFor(data, employee.Id, _draft);
+        PayrollYearToDate ytd = _payroll.YearToDateFor(data, employee.Id, _draft, includeLaterRuns: true);
 
         // Quebec runs its own plans at its own maximums, so the figure to compare against is not
         // the federal one. Checking a Quebec employee against CPP's ceiling announces the
