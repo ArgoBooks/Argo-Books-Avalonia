@@ -451,6 +451,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
             Quantity = totalQuantity,
             UnitPrice = averageUnitPrice,
             Amount = Subtotal,
+            Subtotal = Subtotal,
             TaxRate = Subtotal > 0 ? (TaxAmount / Subtotal) * 100 : 0,
             TaxAmount = TaxAmount,
             ShippingCost = ModalShipping,
@@ -538,6 +539,9 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
         revenue.Quantity = totalQuantity;
         revenue.UnitPrice = averageUnitPrice;
         revenue.Amount = Subtotal;
+        // A return or a loss reads Subtotal first, so an edit that left it alone recorded the
+        // amount from before the edit.
+        revenue.Subtotal = Subtotal;
         revenue.TaxRate = Subtotal > 0 ? (TaxAmount / Subtotal) * 100 : 0;
         revenue.TaxAmount = TaxAmount;
         revenue.ShippingCost = ModalShipping;
@@ -669,6 +673,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
             Quantity = revenue.Quantity,
             UnitPrice = revenue.UnitPrice,
             Amount = revenue.Amount,
+            Subtotal = revenue.Subtotal,
             TaxRate = revenue.TaxRate,
             TaxAmount = revenue.TaxAmount,
             ShippingCost = revenue.ShippingCost,
@@ -700,6 +705,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
         revenue.Quantity = state.Quantity;
         revenue.UnitPrice = state.UnitPrice;
         revenue.Amount = state.Amount;
+        revenue.Subtotal = state.Subtotal;
         revenue.TaxRate = state.TaxRate;
         revenue.TaxAmount = state.TaxAmount;
         revenue.ShippingCost = state.ShippingCost;
