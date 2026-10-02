@@ -1046,7 +1046,11 @@ public partial class App : Application
     public static void OpenUpgradeModal(string source = "unknown")
     {
         _ = TelemetryManager?.TrackFeatureAsync(FeatureName.UpgradeModalOpened, source);
-        _appShellViewModel?.UpgradeModalViewModel.OpenCommand.Execute(null);
+        if (_appShellViewModel?.UpgradeModalViewModel is { } upgrade)
+        {
+            upgrade.OpenedFrom = source;
+            upgrade.OpenCommand.Execute(null);
+        }
     }
 
     #endregion

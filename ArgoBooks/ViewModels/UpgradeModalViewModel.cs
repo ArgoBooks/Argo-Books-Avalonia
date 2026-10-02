@@ -452,10 +452,19 @@ public partial class UpgradeModalViewModel : ViewModelBase
         SuccessMessage = null;
     }
 
+    /// <summary>
+    /// What opened the modal, carried onto the pricing URL as ?source=app-&lt;this&gt;. The website
+    /// files the visit under that source and attaches it to the subscription if they buy, which
+    /// is the only way a sale can be traced back to the limit that prompted it.
+    /// </summary>
+    public string OpenedFrom { get; set; } = "unknown";
+
     [RelayCommand]
     private void SelectPremium()
     {
-        OpenUrl(PremiumUpgradeUrl);
+        // track_referral.php accepts [A-Za-z0-9_-] and ignores a source holding anything else.
+        var source = new string(OpenedFrom.Where(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_').ToArray());
+        OpenUrl($"{PremiumUpgradeUrl}?source=app-{(source.Length == 0 ? "unknown" : source)}");
         Close();
     }
 
