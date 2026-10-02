@@ -58,6 +58,22 @@ public class InvoiceTotalsServiceTests
     }
 
     [Fact]
+    public void ShortByOneCent_IsStillPartial()
+    {
+        var invoice = new Invoice { Id = "INV-1", Total = 100m, Status = InvoiceStatus.Sent, OriginalCurrency = "USD" };
+        var payments = new[]
+        {
+            new Payment { InvoiceId = "INV-1", Amount = 99.99m, OriginalCurrency = "USD" }
+        };
+
+        InvoiceTotalsService.RecalculateFromPayments(invoice, payments);
+        InvoiceTotalsService.RecalculateStatus(invoice);
+
+        Assert.False(invoice.IsPaidInFull);
+        Assert.Equal(InvoiceStatus.Partial, invoice.Status);
+    }
+
+    [Fact]
     public void ShortByMoreThanACent_IsStillPartial()
     {
         var invoice = new Invoice { Id = "INV-1", Total = 100m, Status = InvoiceStatus.Sent, OriginalCurrency = "USD" };
