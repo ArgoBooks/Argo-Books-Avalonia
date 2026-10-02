@@ -54,6 +54,9 @@ public partial class QuickBooksImportModalViewModel : ViewModelBase
     /// <summary>Where zips were unpacked, so the copies can be removed once they are done with.</summary>
     private readonly List<string> _unpacked = [];
 
+    /// <summary>Zips already unpacked, so adding one twice does not list its reports twice.</summary>
+    private readonly HashSet<string> _zips = new(StringComparer.OrdinalIgnoreCase);
+
     private static readonly string[] ReportExtensions = [".xlsx", ".xls", ".csv"];
 
     public static bool IsAccepted(string? path) =>
@@ -77,6 +80,7 @@ public partial class QuickBooksImportModalViewModel : ViewModelBase
         }
 
         _unpacked.Clear();
+        _zips.Clear();
     }
 
     [RelayCommand]
@@ -125,6 +129,8 @@ public partial class QuickBooksImportModalViewModel : ViewModelBase
 
     private void AddZip(string zipPath)
     {
+        if (!_zips.Add(System.IO.Path.GetFullPath(zipPath))) return;
+
         try
         {
             var folder = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "ArgoBooks-quickbooks-" + Guid.NewGuid().ToString("N"));
@@ -139,8 +145,14 @@ public partial class QuickBooksImportModalViewModel : ViewModelBase
                 if (!ReportExtensions.Any(e => name.EndsWith(e, StringComparison.OrdinalIgnoreCase)))
                     continue;
 
+                // Two folders in the zip can hold a report of the same name.
                 var target = System.IO.Path.Combine(folder, name);
-                entry.ExtractToFile(target, overwrite: true);
+                for (var n = 2; File.Exists(target); n++)
+                {
+                    target = System.IO.Path.Combine(folder,
+                        $"{System.IO.Path.GetFileNameWithoutExtension(name)} ({n}){System.IO.Path.GetExtension(name)}");
+                }
+                entry.ExtractToFile(target);
                 AddFile(target);
             }
         }

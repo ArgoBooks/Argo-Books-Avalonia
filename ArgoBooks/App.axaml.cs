@@ -3524,12 +3524,19 @@ public partial class App : Application
     }
 
     /// <summary>
+    /// Set while several files are imported as one job, after the copy for the whole job is taken.
+    /// A copy per file would prune away the one from before the job started.
+    /// </summary>
+    private static bool _importBatchBackedUp;
+
+    /// <summary>
     /// A copy taken before a change the user may want to reverse, if they asked for one. Awaited
     /// rather than fired off, because the point is to capture the state before the change lands.
     /// Never throws: a backup that fails must not stop the import it was protecting.
     /// </summary>
     internal static async Task BackUpBeforeRiskyChangeAsync()
     {
+        if (_importBatchBackedUp) return;
         if (SettingsService?.GlobalSettings.Backups is not { Enabled: true, BeforeImports: true } settings) return;
         if (CompanyManager is not { IsCompanyOpen: true } manager || manager.IsSampleCompany) return;
 

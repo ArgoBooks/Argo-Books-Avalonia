@@ -1791,6 +1791,8 @@ public partial class App
 
             // One at a time. Each export is a different report with its own columns, so
             // they are analysed and reviewed separately rather than merged beforehand.
+            await BackUpBeforeRiskyChangeAsync();
+            _importBatchBackedUp = true;
             try
             {
                 foreach (var path in paths)
@@ -1801,6 +1803,7 @@ public partial class App
             }
             finally
             {
+                _importBatchBackedUp = false;
                 quickBooks.DiscardUnpacked();
             }
         };
