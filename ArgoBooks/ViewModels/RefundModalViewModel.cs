@@ -329,7 +329,9 @@ public partial class RefundModalViewModel : ObservableObject
                     Currency = Currency,
                     Label = string.IsNullOrEmpty(li.Description) ? "(unnamed item)" : li.Description,
                     Detail = li.Quantity > 1 ? $"{li.Quantity} × {Money(li.UnitPrice)}" : "",
-                    Amount = li.Amount,
+                    // Before tax: an imported line can carry a tax rate of its own, and the Tax
+                    // row below already holds the invoice's whole tax.
+                    Amount = li.Subtotal,
                     IsSelected = true,
                     Kind = "lineItem",
                 };
@@ -338,7 +340,7 @@ public partial class RefundModalViewModel : ObservableObject
             }
         }
 
-        // Tax (treat as one toggleable row at face value, not recomputed)
+        // Tax is one row. RecomputeTotals scales it to the taxed rows still ticked.
         if (_invoice.TaxAmount > 0)
         {
             var row = new RefundableLineRow
@@ -484,8 +486,22 @@ public partial class RefundModalViewModel : ObservableObject
         }
     }
 
+    /// <summary>The rows tax was charged on (InvoiceMath.TaxableBase). The deposit is untaxed.</summary>
+    private static bool IsTaxed(RefundableLineRow row) => row.Kind is "lineItem" or "fee" or "shipping" or "discount";
+
     private void RecomputeTotals()
     {
+        // Refunding half the taxed rows gives back half the tax; the whole of it only when
+        // every taxed row is ticked. At face value a partial refund returned all the tax.
+        if (LineRows.FirstOrDefault(r => r.Kind == "tax") is { } taxRow)
+        {
+            var taxedAll = LineRows.Where(IsTaxed).Sum(r => r.Amount);
+            var taxedTicked = Math.Max(0m, LineRows.Where(r => IsTaxed(r) && r.IsSelected).Sum(r => r.Amount));
+            taxRow.Amount = taxedAll > 0
+                ? Math.Round(_invoice.TaxAmount * Math.Min(1m, taxedTicked / taxedAll), 2, MidpointRounding.AwayFromZero)
+                : _invoice.TaxAmount;
+        }
+
         RefundTotal = LineRows.Where(r => r.IsSelected).Sum(r => r.Amount);
         SelectedPaymentsRefundable = Payments.Where(p => p.IsSelected).Sum(p => p.Refundable);
 
@@ -875,7 +891,10 @@ public partial class RefundableLineRow : ObservableObject
 {
     public string Label { get; set; } = string.Empty;
     public string Detail { get; set; } = string.Empty;
-    public decimal Amount { get; set; }
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AmountDisplay))]
+    private decimal _amount;
+
     public string Currency { get; set; } = "USD";
     public string AmountDisplay => CurrencyInfo.FormatAmount(Amount, Currency);
     public string Kind { get; set; } = "lineItem"; // lineItem | tax | fee | shipping | deposit | discount | processingFee

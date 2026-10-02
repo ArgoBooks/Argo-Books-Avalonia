@@ -35,6 +35,55 @@ public class RefundModalShippingTests
     }
 
     [Fact]
+    public void PartialRefund_GivesBackOnlyTheTaxOnWhatIsRefunded()
+    {
+        // 100 + 50 of items at 10% = 15 tax. Refunding only the 50 item returns 5 of it, not all 15.
+        var invoice = new Invoice
+        {
+            Id = "INV-3", InvoiceNumber = "INV-3", Subtotal = 150m, TaxAmount = 15m, Total = 165m,
+            LineItems =
+            {
+                new LineItem { Description = "Desk", Quantity = 1, UnitPrice = 100m },
+                new LineItem { Description = "Lamp", Quantity = 1, UnitPrice = 50m }
+            }
+        };
+        var payment = new Payment
+        {
+            Id = "PAY-3", InvoiceId = "INV-3", Amount = 165m, Source = PaymentSource.Online, ProviderPaymentId = "pi_3"
+        };
+
+        var vm = new RefundModalViewModel(null!, invoice, [payment], "Bob");
+        Assert.Equal(165m, vm.RefundTotal);
+
+        vm.LineRows.First(r => r.Label == "Desk").IsSelected = false;
+
+        Assert.Equal(55m, vm.RefundTotal);
+    }
+
+    [Fact]
+    public void LineWithItsOwnTaxRate_IsNotTaxedTwice()
+    {
+        // Imported lines can carry a tax rate. Two lines of 100 at 10% is 220 in total, not 240.
+        var invoice = new Invoice
+        {
+            Id = "INV-4", InvoiceNumber = "INV-4", Subtotal = 200m, TaxAmount = 20m, Total = 220m,
+            LineItems =
+            {
+                new LineItem { Description = "A", Quantity = 1, UnitPrice = 100m, TaxRate = 0.10m },
+                new LineItem { Description = "B", Quantity = 1, UnitPrice = 100m, TaxRate = 0.10m }
+            }
+        };
+        var payment = new Payment
+        {
+            Id = "PAY-4", InvoiceId = "INV-4", Amount = 220m, Source = PaymentSource.Online, ProviderPaymentId = "pi_4"
+        };
+
+        var vm = new RefundModalViewModel(null!, invoice, [payment], "Bob");
+
+        Assert.Equal(220m, vm.RefundTotal);
+    }
+
+    [Fact]
     public void NoShipping_NoShippingRow()
     {
         var invoice = new Invoice
