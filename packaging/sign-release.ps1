@@ -3,7 +3,7 @@
     Signs the four Argo Books release files and writes the signatures into the website appcast.
 
 .DESCRIPTION
-    Replaces steps 1 and 2 of "Sign the Release Files" in docs/Publishing.md. It finds the
+    Replaces step 1 of "Going Live" in docs/Publishing.md. It finds the
     installer, AppImage and both macOS zips in a release folder, signs each with the NetSparkle
     Ed25519 key, and writes each signature onto the matching <enclosure> in avalonia-update.xml,
     along with the real file size, the release version and today's date.
