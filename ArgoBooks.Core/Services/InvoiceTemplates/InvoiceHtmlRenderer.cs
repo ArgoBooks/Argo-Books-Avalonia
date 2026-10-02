@@ -304,7 +304,9 @@ public partial class InvoiceHtmlRenderer
         // Passing the fee to the customer is a per-invoice setting, defaulting to on.
         var passProcessingFee = invoice.PassProcessingFee ?? true;
         var feesActive = portalConfigured && passProcessingFee;
-        var hasUnpaidBalance = invoice.Balance > 0;
+        // IsPaidInFull, not Balance alone: a paid invoice can keep a fraction of a cent of balance,
+        // and the fee's fixed part would turn that into a charge.
+        var hasUnpaidBalance = invoice.Balance > 0 && !invoice.IsPaidInFull;
         var estimatedProcessingFee = hasUnpaidBalance && feesActive
             ? CalculateProcessingFee(invoice.Balance)
             : 0m;
