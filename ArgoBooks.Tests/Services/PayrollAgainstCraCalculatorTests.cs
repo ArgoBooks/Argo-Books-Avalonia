@@ -36,7 +36,7 @@ namespace ArgoBooks.Tests.Services;
 /// away. Do not edit an expected value to make a test pass.
 ///
 /// Recapture these when the January rate edition lands. They are dated, so a stale row is
-/// visible rather than silently wrong. See docs/Payroll rate updates.md.
+/// visible rather than silently wrong. See docs/PayrollRateUpdates.md.
 /// </summary>
 public class PayrollAgainstCraCalculatorTests
 {

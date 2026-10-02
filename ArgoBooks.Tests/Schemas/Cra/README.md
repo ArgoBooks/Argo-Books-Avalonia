@@ -8,7 +8,7 @@ Committed rather than downloaded so `T4XmlSchemaTests` runs offline and determin
 
 ## Updating, once a year
 
-CRA publishes the new package in January, and it is listed in `docs/Payroll rate updates.md` under "What else needs a look each year".
+CRA publishes the new package in January, and it is listed in `docs/PayrollRateUpdates.md` under "What else needs a look each year".
 
 1. Download the current package from CRA's XML specifications page.
 2. Delete the `.xsd` files here and drop in the new ones. Do not edit them.
