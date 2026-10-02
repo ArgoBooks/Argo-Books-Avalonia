@@ -14,7 +14,10 @@
         <vm:ImportFilePromptModalViewModel />
     </Design.DataContext>
 
-    <controls:ModalOverlay IsOpen="{Binding IsOpen}">
+    <!-- Escape and a backdrop click have to answer the caller waiting in ShowAsync, or it
+         waits forever and every later import is refused. -->
+    <controls:ModalOverlay IsOpen="{Binding IsOpen}"
+                           ClosingCommand="{Binding CancelCommand}">
         <controls:ModalOverlay.ModalContent>
             <Border Classes="modal-card" Width="520">
                 <Grid RowDefinitions="Auto,*,Auto">
