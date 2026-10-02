@@ -70,7 +70,7 @@
                              ToggleColumnMenuCommand="{Binding ToggleColumnMenuCommand}"
                              EmptyIcon="{x:Static icons:Icons.Payments}"
                              EmptyTitle="{loc:Loc 'No pay runs yet'}"
-                             EmptyMessage="{loc:Loc 'Run payroll to work out deductions, produce pay stubs and record the wages.'}">
+                             EmptyMessage="{loc:Loc 'Run payroll to work out deductions, produce pay stubs and record the wages. Payroll is Canada only: it uses CRA rates for every province and territory.'}">
 
                 <table:ArgoTable.ExtraButtonsContent>
                     <Button Classes="secondary-button"
