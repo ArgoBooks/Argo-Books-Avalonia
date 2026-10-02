@@ -4400,7 +4400,8 @@ public partial class App : Application
             catch (Exception ex) when (FileAccessHelper.IsLikelySecurityBlock(ex))
             {
                 _suppressSavedFeedback = false;
-                ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Save As blocked by security software");
+                ErrorLogger?.LogWarning("Save As blocked, offered retry or another folder",
+                    "SaveAs", ErrorCategory.FileSystem, ex.GetType().Name);
                 switch (await ShowSaveBlockedDialogAsync(filePath))
                 {
                     case SaveBlockedChoice.Retry:
@@ -4497,7 +4498,8 @@ public partial class App : Application
             }
             catch (Exception ex) when (FileAccessHelper.IsLikelySecurityBlock(ex))
             {
-                ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Company save blocked by security software");
+                ErrorLogger?.LogWarning("Company save blocked, offered retry or another folder",
+                    "Save", ErrorCategory.FileSystem, ex.GetType().Name);
                 switch (await ShowSaveBlockedDialogAsync(CompanyManager.CurrentFilePath))
                 {
                     case SaveBlockedChoice.Retry:

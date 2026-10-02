@@ -765,7 +765,10 @@ public class CompanyManager : IDisposable
         {
             // Clean up on failure
             _instanceLock.Release();
-            _errorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to create company");
+            // A security block is recoverable and the caller logs which outcome the user
+            // chose, so logging here as well recorded every blocked create twice.
+            if (!FileAccessHelper.IsLikelySecurityBlock(ex))
+                _errorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to create company");
             DeleteTempDirectoryAfterFailure();
             CompanyData = null;
             throw;

@@ -655,7 +655,8 @@ public partial class App
                 catch (Exception ex) when (FileAccessHelper.IsLikelySecurityBlock(ex))
                 {
                     _mainWindowViewModel?.HideLoading();
-                    ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Company create blocked by security software");
+                    ErrorLogger?.LogWarning("Company create blocked, offered retry or another folder",
+                        "CompanyCreate", ErrorCategory.FileSystem, ex.GetType().Name);
                     switch (await ShowSaveBlockedDialogAsync(filePath))
                     {
                         case SaveBlockedChoice.Retry:
