@@ -77,17 +77,7 @@ The `.ico` is the same file `ArgoBooks.Desktop.csproj` sets as its
 built exe can never drift apart.
 
 **Both dialog logos must be square.** The AppInstaller theme draws the logo into
-a fixed 70x70 box and stretches whatever it is given to fill it, without
-preserving proportions, so a wide image comes out visibly stretched vertically.
-The masters in the brand library are 480x355, which is why the light-theme file
-here is a separate 590x590 version with the artwork centered on a transparent
-square. It matches the proportions of the dark-theme file, so the logo is the
-same size in both themes.
-
-These are copies of files in the brand library at
-`Desktop\Argo Books assets\Third\Logo\`, which is not version controlled. The
-repo copies are what ship, so treat them as authoritative and re-copy
-deliberately if the artwork changes.
+a fixed 70x70 box and stretches whatever it is given to fill it, without preserving proportions.
 
 ## Step 2: Create the project
 
