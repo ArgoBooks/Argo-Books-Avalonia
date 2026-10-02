@@ -153,6 +153,8 @@ public class PayrollService(PayrollRateService? rateService = null)
                 ytd,
                 rates);
 
+            line.CppExempt = employee.IsCppExempt;
+            line.EiExempt = employee.IsEiExempt;
             line.GrossPay = d.GrossPay;
             line.CppEmployee = d.CppEmployee;
             line.CppEmployer = d.CppEmployer;
@@ -533,6 +535,8 @@ public class PayrollService(PayrollRateService? rateService = null)
                 CppEmployer = -line.CppEmployer,
                 Cpp2Employee = -line.Cpp2Employee,
                 Cpp2Employer = -line.Cpp2Employer,
+                CppExempt = line.CppExempt,
+                EiExempt = line.EiExempt,
                 EiEmployee = -line.EiEmployee,
                 EiEmployer = -line.EiEmployer,
                 QpipEmployee = -line.QpipEmployee,

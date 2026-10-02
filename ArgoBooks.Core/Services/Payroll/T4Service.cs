@@ -75,15 +75,18 @@ public class T4Service
             // province it was earned in; the employee's own province is only where they work now.
             // Earlier slips take their share of the year's ceilings first, because contributions
             // stop at one annual maximum however many slips the year is split across.
-            decimal earnedBefore = 0m;
+            decimal pensionableBefore = 0m;
+            decimal insurableBefore = 0m;
 
             foreach (var province in group
                          .GroupBy(x => ProvinceOf(x.Line, employee))
                          .OrderBy(p => p.Min(x => x.PayDate)))
             {
-                T4Slip slip = BuildSlip(employee, province.Key, province.Select(x => x.Line).ToList(),
-                                        ceilings, earnedBefore);
-                earnedBefore += slip.EmploymentIncome;
+                var provinceLines = province.Select(x => x.Line).ToList();
+                T4Slip slip = BuildSlip(employee, province.Key, provinceLines,
+                                        ceilings, pensionableBefore, insurableBefore);
+                pensionableBefore += provinceLines.Where(l => !l.CppExempt).Sum(l => l.GrossPay);
+                insurableBefore += provinceLines.Where(l => !l.EiExempt).Sum(l => l.GrossPay);
 
                 // A slip whose every figure nets to zero is one whose runs were all voided. There
                 // is nothing to report and CRA has no element that means "nil year".
@@ -114,7 +117,7 @@ public class T4Service
         .ToUpperInvariant();
 
     private static T4Slip BuildSlip(Employee employee, string province, List<PayRunLine> lines,
-                                    EarningsCeilings ceilings, decimal earnedBefore)
+                                    EarningsCeilings ceilings, decimal pensionableBefore, decimal insurableBefore)
     {
         (string surname, string given, string initial) = SplitName(employee.Name);
 
@@ -132,6 +135,13 @@ public class T4Service
 
         bool cppExemptAllYear = employee.IsCppExempt && cppWithheld == 0m;
         bool eiExemptAllYear = employee.IsEiExempt && eiWithheld == 0m;
+
+        // Exempt for PART of the year: only the pay earned while contributing is pensionable or
+        // insurable. Counting the exempt months too reports earnings CRA expects contributions
+        // on, which its PIER review then flags as a shortfall. A line saved before the exemption
+        // was recorded on it counts as contributing, as it always did.
+        decimal pensionableGross = lines.Where(l => !l.CppExempt).Sum(l => l.GrossPay);
+        decimal insurableGross = lines.Where(l => !l.EiExempt).Sum(l => l.GrossPay);
 
         return new T4Slip
         {
@@ -166,10 +176,12 @@ public class T4Service
             // way through the year, and reporting their whole salary here would have CRA expect
             // contributions on money that was never pensionable or insurable. The figure looks
             // right either way, which is exactly why it needs pinning.
-            InsurableEarnings = eiExemptAllYear ? 0m : ceilings.CapEi(earnedBefore + gross) - ceilings.CapEi(earnedBefore),
+            InsurableEarnings = eiExemptAllYear
+                ? 0m
+                : ceilings.CapEi(insurableBefore + insurableGross) - ceilings.CapEi(insurableBefore),
             PensionableEarnings = cppExemptAllYear
                 ? 0m
-                : ceilings.CapPensionable(earnedBefore + gross) - ceilings.CapPensionable(earnedBefore),
+                : ceilings.CapPensionable(pensionableBefore + pensionableGross) - ceilings.CapPensionable(pensionableBefore),
 
             QpipPremiums = qpip,
 
