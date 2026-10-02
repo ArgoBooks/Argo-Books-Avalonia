@@ -1324,19 +1324,34 @@ public class SpreadsheetImportService
     }
 
     /// <summary>
-    /// Creates the linked Revenue for a paid/partially-paid imported invoice (so it shows on the
-    /// dashboard and analytics). When the invoice's USD value is not yet known (future-dated, or a
+    /// Creates the linked Revenue for an imported invoice that has been issued, as sending one
+    /// from the app does. An unpaid one gets an unpaid revenue: recording a payment later only
+    /// updates the revenue that is already there, so without one the invoice could be paid in
+    /// full and never count as income. When the invoice's USD value is not yet known (future-dated, or a
     /// rate the gate missed), the Revenue is created pending and enqueued so it converts at the
     /// exact date later, instead of storing the native amount as if it were USD.
     /// </summary>
     private static void AddAutoRevenueForInvoice(CompanyData data, Invoice invoice)
     {
+        var isPaid = invoice.Status == InvoiceStatus.Paid || invoice.Balance <= 0;
+
         // A kept deposit is linked to the invoice too, but it is not the invoice's revenue.
-        if (invoice.AmountPaid <= 0 || data.Revenues.Any(r => r.InvoiceId == invoice.Id && !r.IsKeptDeposit))
+        var existing = data.Revenues.Where(r => r.InvoiceId == invoice.Id && !r.IsKeptDeposit).ToList();
+        if (existing.Count > 0)
+        {
+            // Imported unpaid earlier and paid in this file.
+            if (isPaid && invoice.AmountPaid > 0)
+            {
+                foreach (var linked in existing)
+                    linked.PaymentStatus = RevenuePaymentStatus.Paid;
+            }
+            return;
+        }
+
+        if (invoice.AmountPaid <= 0 && invoice.Status is InvoiceStatus.Draft or InvoiceStatus.Cancelled)
             return;
 
         var revenueId = new IdGenerator(data).NextRevenueId(invoice.IssueDate);
-        var isPaid = invoice.Status == InvoiceStatus.Paid || invoice.Balance <= 0;
 
         var revenue = new Revenue
         {
@@ -1353,7 +1368,9 @@ public class SpreadsheetImportService
             TaxAmount = invoice.TaxAmount,
             Total = invoice.Total,
             PaymentMethod = PaymentMethod.Other,
-            PaymentStatus = isPaid ? RevenuePaymentStatus.Paid : RevenuePaymentStatus.Partial,
+            PaymentStatus = isPaid && invoice.AmountPaid > 0 ? RevenuePaymentStatus.Paid
+                : invoice.AmountPaid > 0 ? RevenuePaymentStatus.Partial
+                : RevenuePaymentStatus.Unpaid,
             Notes = $"Auto-created from imported invoice {invoice.InvoiceNumber}",
             InvoiceId = invoice.Id,
             ReferenceNumber = invoice.InvoiceNumber,
