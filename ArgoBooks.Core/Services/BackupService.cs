@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using ArgoBooks.Core.Models;
 using ArgoBooks.Core.Models.Telemetry;
 
@@ -21,6 +22,9 @@ public sealed class BackupService(IErrorLogger? errorLogger = null)
     /// folder shared with others: <c>Acme--backup-20260930-1432.argobk</c>.
     /// </summary>
     private const string Marker = "--backup-";
+
+    /// <summary>The date and time that follow <see cref="Marker"/> in a copy's file name.</summary>
+    private static readonly Regex Stamp = new(@"^\d{8}-\d{6}$", RegexOptions.Compiled);
 
     /// <summary>
     /// Whether enough time has passed for the chosen frequency. Measured from the last copy actually
@@ -115,10 +119,14 @@ public sealed class BackupService(IErrorLogger? errorLogger = null)
 
         try
         {
+            // The whole name has to be this company's, not merely start with it: a company called
+            // "Acme--backup-20260930-143200" writes copies that begin with Acme's prefix, and listing
+            // those as Acme's would offer them for restore and prune them alongside Acme's own.
             var prefix = CompanyManager.ToCompanyFileName(companyName) + Marker;
             return [.. new DirectoryInfo(folder)
                 .EnumerateFiles("*" + Extension)
-                .Where(f => f.Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                .Where(f => f.Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+                            && Stamp.IsMatch(System.IO.Path.GetFileNameWithoutExtension(f.Name)[prefix.Length..]))
                 .Select(f => new BackupFile(f.FullName, f.LastWriteTimeUtc, f.Length))
                 .OrderByDescending(b => b.TakenAtUtc)];
         }
@@ -127,6 +135,17 @@ public sealed class BackupService(IErrorLogger? errorLogger = null)
             errorLogger?.LogWarning($"Could not list backups in {folder}: {ex.Message}", "Backup");
             return [];
         }
+    }
+
+    /// <summary>
+    /// The company a copy was taken of, from its file name. A file that was not named by
+    /// <see cref="CreateAsync"/> is returned as it is.
+    /// </summary>
+    public static string CompanyNameOf(string backupPath)
+    {
+        var name = System.IO.Path.GetFileNameWithoutExtension(backupPath);
+        var at = name.LastIndexOf(Marker, StringComparison.OrdinalIgnoreCase);
+        return at > 0 && Stamp.IsMatch(name[(at + Marker.Length)..]) ? name[..at] : name;
     }
 
     private void Prune(string folder, string companyName, int keep)

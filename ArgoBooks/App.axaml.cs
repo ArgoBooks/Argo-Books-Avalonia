@@ -3473,8 +3473,10 @@ public partial class App : Application
         if (CompanyManager == null || _appShellViewModel == null) return;
         if (Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop) return;
 
-        // Suggest a name based on the backup filename (strip .argobk, add .argo)
-        var suggestedName = Path.GetFileNameWithoutExtension(backupPath);
+        // The company's own name, not the copy's file name: the company is named after its file
+        // when it opens, so restoring as "Acme--backup-20260930-143200" would put that on its
+        // invoices. Marked as restored so the suggestion does not land on the original.
+        var suggestedName = $"{BackupService.CompanyNameOf(backupPath)} (restored)";
 
         // Show save dialog to choose where to restore the company file
         var saveFile = await desktop.MainWindow!.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
