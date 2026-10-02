@@ -3165,6 +3165,7 @@ public partial class App : Application
                 }
 
                 // Import Tier 1 data
+                await BackUpBeforeRiskyChangeAsync();
                 var importCts = new CancellationTokenSource();
                 _mainWindowViewModel?.ShowLoading("Importing data...".Translate(), cts: importCts, cancelConfirmation: ConfirmCancelAsync);
 
@@ -3276,8 +3277,10 @@ public partial class App : Application
                 estimateTimerCts.Cancel();
                 try { await timerTask; } catch (OperationCanceledException) { }
 
-                // Phase B: Import sequentially (CompanyData mutation is not thread-safe)
-                await BackUpBeforeRiskyChangeAsync();
+                // Phase B: Import sequentially (CompanyData mutation is not thread-safe).
+                // With mapped sheets too, the copy was taken before those went in.
+                if (tier1Sheets.Count == 0)
+                    await BackUpBeforeRiskyChangeAsync();
                 _mainWindowViewModel?.ShowLoading(
                     "Importing data...".Translate(),
                     progress: 90,
