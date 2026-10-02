@@ -3732,8 +3732,17 @@ public partial class App : Application
                 return;
             }
 
-            // Snapshot before mutation so the import can be undone in one step.
-            var snapshot = CreateCompanyDataSnapshot(companyData);
+            // A statement that overlaps one already imported, or the same file twice, would
+            // double those lines: the second copy matches some other record of the same amount
+            // or shows as missing from the books.
+            var readCount = lines.Count;
+            lines = BankStatementImportService.WithoutAlreadyImported(lines, companyData.BankImportSessions);
+            if (lines.Count == 0)
+            {
+                await ShowInfoDialogAsync("Bank Matching".Translate(),
+                    "Every transaction in this statement has already been imported.".Translate());
+                return;
+            }
 
             var session = new Core.Models.BankMatching.BankImportSession
             {
@@ -3745,11 +3754,28 @@ public partial class App : Application
             companyData.BankImportSessions.Add(session);
             companyData.MarkAsModified();
 
-            var importedSnapshot = CreateCompanyDataSnapshot(companyData);
+            // Undo takes this statement back out and nothing else. Restoring a snapshot of the
+            // whole company removed every invoice, sale and payment made since the import that
+            // had no undo step of its own, and rewound the counters so their numbers were reused.
             UndoRedoManager.RecordAction(new DelegateAction(
                 "Import bank statement".Translate(),
-                () => { RestoreCompanyDataFromSnapshot(companyData, snapshot); CompanyManager.MarkAsChanged(); _bankMatchingPageViewModel?.Reload(); },
-                () => { RestoreCompanyDataFromSnapshot(companyData, importedSnapshot); CompanyManager.MarkAsChanged(); _bankMatchingPageViewModel?.Reload(); }
+                () =>
+                {
+                    var matcher = new BankMatchingService();
+                    foreach (var line in session.Lines)
+                        matcher.UnlinkMatch(line, companyData);
+                    companyData.BankImportSessions.Remove(session);
+                    companyData.MarkAsModified();
+                    CompanyManager.MarkAsChanged();
+                    _bankMatchingPageViewModel?.Reload();
+                },
+                () =>
+                {
+                    companyData.BankImportSessions.Add(session);
+                    companyData.MarkAsModified();
+                    CompanyManager.MarkAsChanged();
+                    _bankMatchingPageViewModel?.Reload();
+                }
             ));
 
             CompanyManager.MarkAsChanged();
@@ -3762,7 +3788,10 @@ public partial class App : Application
 
             await ShowInfoDialogAsync(
                 "Bank Matching".Translate(),
-                "Imported {0} transactions from {1}.".TranslateFormat(lines.Count, Path.GetFileName(filePath)));
+                readCount == lines.Count
+                    ? "Imported {0} transactions from {1}.".TranslateFormat(lines.Count, Path.GetFileName(filePath))
+                    : "Imported {0} transactions from {1}. {2} were already imported and were left out."
+                        .TranslateFormat(lines.Count, Path.GetFileName(filePath), readCount - lines.Count));
         }
         catch (OperationCanceledException)
         {

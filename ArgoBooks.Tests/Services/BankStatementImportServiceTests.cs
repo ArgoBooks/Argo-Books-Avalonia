@@ -1,3 +1,4 @@
+using ArgoBooks.Core.Models.BankMatching;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.AI;
 using ArgoBooks.Core.Services;
@@ -167,5 +168,26 @@ public class BankStatementImportServiceTests
             Assert.Equal(new DateTime(2024, 3, 15), lines[1].Date);
         }
         finally { File.Delete(path); }
+    }
+
+    // The same statement twice, or one that overlaps an earlier one, must not double its lines.
+    // Counted, so two identical purchases on one day are both kept.
+    [Fact]
+    public void WithoutAlreadyImported_LeavesOutOnlyAsManyAsAreAlreadyHeld()
+    {
+        static BankStatementLine L(int day, decimal amount, string text) =>
+            new() { Id = Guid.NewGuid().ToString("N"), Date = new DateTime(2026, 3, day), Amount = amount, Description = text };
+
+        var held = new BankImportSession { Lines = [L(1, -4.50m, "COFFEE"), L(2, -80m, "FUEL")] };
+        var incoming = new List<BankStatementLine>
+        {
+            L(1, -4.50m, "coffee "), L(1, -4.50m, "COFFEE"), L(2, -80m, "FUEL"), L(3, 500m, "DEPOSIT")
+        };
+
+        var fresh = BankStatementImportService.WithoutAlreadyImported(incoming, [held]);
+
+        Assert.Equal(2, fresh.Count);
+        Assert.Contains(fresh, l => l.Description == "COFFEE");
+        Assert.Contains(fresh, l => l.Description == "DEPOSIT");
     }
 }
