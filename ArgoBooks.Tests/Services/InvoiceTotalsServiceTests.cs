@@ -1,3 +1,4 @@
+using System.Globalization;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Transactions;
 using ArgoBooks.Core.Services;
@@ -11,6 +12,38 @@ namespace ArgoBooks.Tests.Services;
 /// </summary>
 public class InvoiceTotalsServiceTests
 {
+    // IsPaidInFull rounds at the currency's own decimals, not a fixed two. The yen has none, so a
+    // total carrying a fraction is settled by the whole-yen figure the customer is shown and pays.
+    // Rounded to two places that fraction survived, and the invoice stayed unpaid forever.
+    [Theory]
+    [InlineData("JPY", "1000.4", "1000", true)]
+    [InlineData("JPY", "1000.5", "1001", true)]
+    [InlineData("JPY", "1000", "999", false)]
+    [InlineData("USD", "37.6629", "37.66", true)]
+    [InlineData("USD", "37.66", "37.65", false)]
+    public void IsPaidInFull_RoundsAtTheCurrencysOwnDecimals(string currency, string total, string paid, bool expected)
+    {
+        var invoice = new Invoice
+        {
+            Id = "INV-1",
+            Total = decimal.Parse(total, CultureInfo.InvariantCulture),
+            AmountPaid = decimal.Parse(paid, CultureInfo.InvariantCulture),
+            Status = InvoiceStatus.Sent,
+            OriginalCurrency = currency
+        };
+
+        Assert.Equal(expected, invoice.IsPaidInFull);
+    }
+
+    // Nothing is owed on an invoice with no total, so it is not "paid in full" either.
+    [Fact]
+    public void IsPaidInFull_IsFalseWhenThereIsNoTotal()
+    {
+        var invoice = new Invoice { Id = "INV-1", Total = 0m, AmountPaid = 0m, OriginalCurrency = "JPY" };
+
+        Assert.False(invoice.IsPaidInFull);
+    }
+
     [Fact]
     public void FractionalCentTotal_PaidAtTheDisplayedAmount_IsPaidAndNotOverdue()
     {
