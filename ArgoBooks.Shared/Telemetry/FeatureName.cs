@@ -77,6 +77,7 @@ public enum FeatureName
     ImportPreviewShown,
     ImportAbandoned,
     ImportFailed,
+    ImportDiagnosticSent,
     ReceiptScanFailed,
 
     // The paywall. Shown is the wall someone hit, opened is them acting on it; the limit or

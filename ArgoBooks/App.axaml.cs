@@ -3731,6 +3731,7 @@ public partial class App : Application
             if (lines.Count == 0)
             {
                 _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, $"bank-matching:no-rows:{ext.TrimStart('.')}");
+                _ = Services.ImportDiagnosticOffer.SendAsync(filePath, $"bank-matching:no-rows:{ext.TrimStart('.')}");
                 await ShowInfoDialogAsync("Info".Translate(),
                     "No transactions were found. Make sure the file has Date, Description and Amount (or Debit/Credit) columns.".Translate());
                 return;
@@ -3806,6 +3807,7 @@ public partial class App : Application
         {
             _mainWindowViewModel?.HideLoading();
             _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, $"bank-matching:unreadable:{ext.TrimStart('.')}");
+            _ = Services.ImportDiagnosticOffer.SendAsync(filePath, $"bank-matching:unreadable:{ext.TrimStart('.')}");
             await ShowInfoDialogAsync("Import Bank Statement".Translate(), ImportRescueMessages.UnreadableFile);
         }
         catch (Exception ex)
@@ -3930,6 +3932,9 @@ public partial class App : Application
             // Don't fail silently: the extractor returns nothing both when the PDF has no
             // recognizable transactions and when the server couldn't process it. Nothing is charged.
             _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, "bank-pdf:extract-empty");
+            // Sent whether or not the screen is still open: the extraction failed either way,
+            // and the file is the open question either way.
+            _ = Services.ImportDiagnosticOffer.SendAsync(filePath, "bank-pdf:extract-empty");
             if (stillWanted)
                 await ShowInfoDialogAsync(
                     "Import Bank Statement".Translate(),

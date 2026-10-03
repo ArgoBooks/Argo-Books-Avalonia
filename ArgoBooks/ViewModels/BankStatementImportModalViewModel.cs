@@ -131,6 +131,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
                 await App.ShowInfoDialogAsync(
                     "Import Bank Statement".Translate(),
                     ImportRescueMessages.UnreadableFile);
+                _ = Services.ImportDiagnosticOffer.SendAsync(filePath, $"bank:unreadable:{ext.TrimStart('.')}");
                 return;
             }
 
@@ -153,6 +154,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
                 await App.ShowInfoDialogAsync(
                     "Import Bank Statement".Translate(),
                     "No transactions were found in this file. Make sure it's a bank statement with Date, Description and Amount (or Debit/Credit) columns.".Translate());
+                _ = Services.ImportDiagnosticOffer.SendAsync(filePath, $"bank:no-rows:{ext.TrimStart('.')}");
                 return;
             }
         }
