@@ -163,6 +163,22 @@ public static class RecurringInvoiceService
         invoice.BankMatchedDate = null;
         invoice.BankMatchedLineId = null;
 
+        // The first invoice was made from a sale or a rental, and each copy is a new sale. Left
+        // in, the links make sending a copy take the original record over instead of creating
+        // revenue of its own, so every month after the first goes unrecorded. A rental's deposit
+        // is taken once, not on every copy. Done here as well as in the template so schedules
+        // saved before this are covered.
+        if (invoice.LineItems.Any(li => !string.IsNullOrEmpty(li.RentalRecordId)) && invoice.SecurityDeposit > 0)
+        {
+            invoice.Total -= invoice.SecurityDeposit;
+            invoice.SecurityDeposit = 0;
+        }
+        foreach (var line in invoice.LineItems)
+        {
+            line.RentalRecordId = null;
+            line.RevenueRecordId = null;
+        }
+
         // Totals stay in sync; with no matching payments this keeps Balance == Total and leaves
         // the lifecycle status (Draft) untouched.
         InvoiceTotalsService.Recalculate(invoice, data.Payments);

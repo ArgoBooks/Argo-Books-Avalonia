@@ -1,7 +1,6 @@
 # Translation Tool
 
-Finds every translatable string in the app and builds the language files, sending anything new
-to Azure Translator.
+Finds every translatable string in the app and builds the language files, sending anything new to Azure Translator.
 
 ## Setup
 ```powershell

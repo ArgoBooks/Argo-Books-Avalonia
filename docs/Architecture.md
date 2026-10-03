@@ -1,7 +1,6 @@
 # Architecture Overview
 
-Argo Books is a desktop accounting app for Windows, macOS and Linux, built with .NET, with an
-Android companion app for capturing receipts away from the desk.
+Argo Books is a desktop accounting app for Windows, macOS and Linux, built with .NET, with an Android companion app for capturing receipts away from the desk.
 
 ## Technology Stack
 
@@ -35,12 +34,9 @@ The app uses the [Model-View-ViewModel (MVVM)](https://docs.avaloniaui.net/docs/
 | **ArgoBooks.Mobile** | Android companion app: receipt capture, scan review, read-only snapshot viewing |
 | **ArgoBooks.Tests** | Unit tests (xUnit) |
 
-`ArgoBooks.Shared` is referenced by `ArgoBooks.Core`, and its types use the `ArgoBooks.Core.*`
-namespaces even though they sit in a separate project. Anything the phone and the desktop both
-need, especially the encryption used on company files, goes there rather than in Core.
+`ArgoBooks.Shared` is referenced by `ArgoBooks.Core`, and its types use the `ArgoBooks.Core.*` namespaces even though they sit in a separate project. Anything the phone and the desktop both need, especially the encryption used on company files, goes there rather than in Core.
 
-The developer tools in `tools/` are deliberately **outside** the solution, so the app can't depend
-on them and they are never built into or shipped with a release.
+The developer tools in `tools/` are deliberately **outside** the solution, so the app can't depend on them and they are never built into or shipped with a release.
 
 ## Design principles
 

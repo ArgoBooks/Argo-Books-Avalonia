@@ -174,7 +174,7 @@ Then:
 
 ```powershell
 az login
- ```
+```
 
 So Advanced Installer can pick up your credentials.
 
@@ -208,7 +208,7 @@ None of these values are secrets. The real authentication happens via your `az l
 
 ### Step 14: Configure Advanced Installer and verify the signed build
 
-The Advanced Installer signing config and the end-to-end verification live in this repo, alongside the project file at `packaging/windows/Argo Books.aip`. See [Advanced Installer project setup.md](Advanced%20Installer%20project%20setup.md), specifically the **Digital Signature** step and the **Verify a build** step.
+The Advanced Installer signing config and the end-to-end verification live in this repo, alongside the project file at `packaging/windows/Argo Books.aip`. See [Advanced Installer project setup](AdvancedInstallerProjectSetup.md), specifically the **Digital Signature** step and the **Verify a build** step.
 
 For the full publishing workflow (Windows, macOS, and Linux), see [Publishing.md](../Publishing.md).
 

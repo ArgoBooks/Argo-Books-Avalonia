@@ -122,7 +122,7 @@ public class PayrollService(PayrollRateService? rateService = null)
 
             decimal gross = line.BasePay + line.Bonus + line.VacationPay;
 
-            PayrollYearToDate ytd = YearToDateFor(data, employee.Id, run);
+            PayrollYearToDate ytd = YearToDateFor(data, employee.Id, run, includeLaterRuns: true);
 
             PayrollDeductions d = PayrollCalculator.Calculate(
                 new PayrollInput
@@ -153,6 +153,8 @@ public class PayrollService(PayrollRateService? rateService = null)
                 ytd,
                 rates);
 
+            line.CppExempt = employee.IsCppExempt;
+            line.EiExempt = employee.IsEiExempt;
             line.GrossPay = d.GrossPay;
             line.CppEmployee = d.CppEmployee;
             line.CppEmployer = d.CppEmployer;
@@ -209,9 +211,16 @@ public class PayrollService(PayrollRateService? rateService = null)
     /// the year-to-date below where it was before the run ever existed, so every later run
     /// would over-deduct against a ceiling that had already moved.
     /// </summary>
-    public PayrollYearToDate YearToDateFor(CompanyData data, string employeeId, PayRun? excluding = null)
+    /// <param name="includeLaterRuns">
+    /// False gives the figures as they stood at <paramref name="excluding"/>'s pay date, which is
+    /// what a pay stub prints. True counts the whole year, which is what a calculation needs: the
+    /// CPP, EI and QPIP maximums are annual, so a run added late with an earlier pay date still
+    /// has to see what later runs already withheld, or the year goes over the maximum.
+    /// </param>
+    public PayrollYearToDate YearToDateFor(
+        CompanyData data, string employeeId, PayRun? excluding = null, bool includeLaterRuns = false)
     {
-        var ytd = new PayrollYearToDate();
+        var ytd = new PayrollYearToDate { EiEmployeeQuebec = 0m };
         int year = (excluding?.PayDate ?? DateTime.Today).Year;
 
         foreach (PayRun run in data.PayRuns)
@@ -219,7 +228,7 @@ public class PayrollService(PayrollRateService? rateService = null)
             if (run.Status == PayRunStatus.Draft
                 || run.PayDate.Year != year
                 || (excluding != null && run.Id == excluding.Id)
-                || (excluding != null && run.PayDate > excluding.PayDate))
+                || (excluding != null && !includeLaterRuns && run.PayDate > excluding.PayDate))
             {
                 continue;
             }
@@ -231,6 +240,8 @@ public class PayrollService(PayrollRateService? rateService = null)
                 ytd.CppEmployee += line.CppEmployee;
                 ytd.Cpp2Employee += line.Cpp2Employee;
                 ytd.EiEmployee += line.EiEmployee;
+                if (string.Equals(line.Province.Trim(), "QC", StringComparison.OrdinalIgnoreCase))
+                    ytd.EiEmployeeQuebec += line.EiEmployee;
                 ytd.QpipEmployee += line.QpipEmployee;
                 ytd.QpipEmployer += line.QpipEmployer;
 
@@ -524,6 +535,8 @@ public class PayrollService(PayrollRateService? rateService = null)
                 EmployeeName = line.EmployeeName,
                 Province = line.Province,
                 PayPeriodsPerYear = line.PayPeriodsPerYear,
+                CppExempt = line.CppExempt,
+                EiExempt = line.EiExempt,
                 HoursWorked = -line.HoursWorked,
                 BasePay = -line.BasePay,
                 Bonus = -line.Bonus,

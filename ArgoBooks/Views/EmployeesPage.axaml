@@ -58,7 +58,7 @@
                              ToggleColumnMenuCommand="{Binding ToggleColumnMenuCommand}"
                              EmptyIcon="{x:Static icons:Icons.Customers}"
                              EmptyTitle="{loc:Loc 'No employees yet'}"
-                             EmptyMessage="{loc:Loc 'Add the people you pay, then run payroll to work out their deductions.'}">
+                             EmptyMessage="{loc:Loc 'Add the people you pay, then run payroll to work out their deductions. Payroll is Canada only: it uses CRA rates for every province and territory.'}">
 
                 <table:ArgoTable.HeaderContent>
                     <StackPanel Orientation="Horizontal">

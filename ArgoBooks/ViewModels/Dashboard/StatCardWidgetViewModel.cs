@@ -213,7 +213,9 @@ public partial class StatCardWidgetViewModel : WidgetViewModelBase
         var unpaid = data.Invoices
             .Where(i => i.Status != InvoiceStatus.Paid
                      && i.Status != InvoiceStatus.Cancelled
-                     && i.Status != InvoiceStatus.Draft)
+                     && i.Status != InvoiceStatus.Draft
+                     // A refunded invoice is not Paid by status but owes nothing.
+                     && Math.Round(i.Balance, 2, MidpointRounding.AwayFromZero) > 0)
             .ToList();
         // Convert each invoice balance at its OWN issue date before summing (Calculations.md Rule 4).
         Value = CurrencyService.FormatSumDisplayFromUSD(

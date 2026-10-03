@@ -132,7 +132,13 @@ public class Rl1Service(PayrollRateService? rates = null)
             // someone earning above one stopped contributing part way through the year, and
             // reporting their whole salary would have Revenu Quebec expect contributions on
             // money that was never pensionable or eligible.
-            QppPensionableSalary = employee.IsCppExempt ? 0m : ceilings.CapPensionable(gross),
+            //
+            // From what was actually withheld, as the T4 does: the employee's flag only says they
+            // are exempt now, and zeroing the salary on it alone reported contributions against
+            // no pensionable salary for someone exempt from part way through the year.
+            QppPensionableSalary = employee.IsCppExempt && lines.Sum(l => l.CppEmployee + l.Cpp2Employee) == 0m
+                ? 0m
+                : ceilings.CapPensionable(lines.Where(l => !l.CppExempt).Sum(l => l.GrossPay)),
             QpipPremium = qpip,
 
             // Revenu Quebec is explicit that box I takes "0" when there is none rather than

@@ -50,7 +50,9 @@ public static class DashboardCalculations
     public static double? CalculatePercentageChange(decimal previous, decimal current)
     {
         if (previous == 0) return null;
-        return (double)((current - previous) / previous * 100);
+        // Over the size of the previous figure, as Analytics and the reports do. Dividing by a
+        // loss flipped the sign, so going from -100 to +50 showed as a fall.
+        return (double)((current - previous) / Math.Abs(previous) * 100);
     }
 
     public static string? FormatPercentageChange(double? change)

@@ -110,13 +110,10 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
         if (ext == ".pdf")
         {
             lines = await ImportPdfStatementAsync(filePath);
-            // The PDF path shows its own messaging (usage limit, cancel, extraction failure),
-            // so just bail quietly when it returns nothing.
+            // The PDF path shows its own messaging (usage limit, cancel, extraction failure)
+            // and reports which of them it was, so just bail quietly when it returns nothing.
             if (lines.Count == 0)
-            {
-                _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, "bank:no-rows:pdf");
                 return;
-            }
         }
         else
         {
@@ -134,6 +131,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
                 await App.ShowInfoDialogAsync(
                     "Import Bank Statement".Translate(),
                     ImportRescueMessages.UnreadableFile);
+                _ = Services.ImportDiagnosticOffer.SendAsync(filePath, $"bank:unreadable:{ext.TrimStart('.')}");
                 return;
             }
 
@@ -156,6 +154,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
                 await App.ShowInfoDialogAsync(
                     "Import Bank Statement".Translate(),
                     "No transactions were found in this file. Make sure it's a bank statement with Date, Description and Amount (or Debit/Credit) columns.".Translate());
+                _ = Services.ImportDiagnosticOffer.SendAsync(filePath, $"bank:no-rows:{ext.TrimStart('.')}");
                 return;
             }
         }
@@ -216,6 +215,9 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
             if (result != ConfirmationResult.Primary)
                 return;
         }
+
+        // Past every gate, so this is the last moment the books look the way they did before.
+        await App.BackUpBeforeRiskyChangeAsync();
 
         var resolutions = toImport.Select(r => new BankLineResolution
         {
@@ -928,8 +930,14 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
         // that runs next must not charge again.
         _pdfExtractionCharged = true;
 
-        // Closed during the read: the credit is counted, but don't hand rows to a modal nobody's viewing.
-        return IsOpen ? extracted : [];
+        // Closed during the read: the credit is counted, but don't hand rows to a modal nobody's
+        // viewing. Reported so walking away mid-read is not read as the extractor finding nothing.
+        if (!IsOpen)
+        {
+            _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, "bank-pdf:cancelled");
+            return [];
+        }
+        return extracted;
     }
 
     // -----------------------------------------------------------------------

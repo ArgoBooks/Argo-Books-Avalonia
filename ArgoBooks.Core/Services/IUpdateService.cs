@@ -114,7 +114,21 @@ public interface IUpdateService
 
     /// <summary>
     /// Raised before the update is applied and the application exits.
-    /// Subscribers should save any unsaved data.
+    /// Subscribers should save any unsaved data, and set
+    /// <see cref="ApplyingUpdateEventArgs.Cancel"/> if they could not.
     /// </summary>
-    event EventHandler? ApplyingUpdate;
+    event EventHandler<ApplyingUpdateEventArgs>? ApplyingUpdate;
+}
+
+/// <summary>
+/// Carries a subscriber's refusal back to the updater.
+/// </summary>
+public sealed class ApplyingUpdateEventArgs : EventArgs
+{
+    /// <summary>
+    /// Set by a subscriber that could not get the user's work onto disk. Restarting over unsaved
+    /// changes would discard them with nothing said, so the update is abandoned instead and the
+    /// user can retry once they have saved.
+    /// </summary>
+    public bool Cancel { get; set; }
 }

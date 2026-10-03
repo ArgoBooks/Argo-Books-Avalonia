@@ -1,0 +1,286 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:ArgoBooks.ViewModels"
+             xmlns:controls="using:ArgoBooks.Controls"
+             xmlns:loc="using:ArgoBooks.Localization"
+             xmlns:local="using:ArgoBooks"
+             xmlns:icons="using:ArgoBooks"
+             mc:Ignorable="d" d:DesignWidth="640" d:DesignHeight="700"
+             x:Class="ArgoBooks.Modals.QuickBooksImportModal"
+             x:DataType="vm:QuickBooksImportModalViewModel">
+
+    <Design.DataContext>
+        <vm:QuickBooksImportModalViewModel />
+    </Design.DataContext>
+
+    <UserControl.Styles>
+        <!-- Source toggle, mirroring the type-toggle-button pair on the bank
+             statement modal so the two import screens feel like one product. -->
+        <Style Selector="Button.source-toggle">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="14,7" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+        </Style>
+        <Style Selector="Button.source-toggle /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Button.source-toggle:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+        </Style>
+        <Style Selector="Button.source-toggle.selected">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        </Style>
+        <Style Selector="Button.source-toggle.selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+        </Style>
+
+        <!-- Step number badge. -->
+        <Style Selector="Border.step-number">
+            <Setter Property="Width" Value="22" />
+            <Setter Property="Height" Value="22" />
+            <Setter Property="CornerRadius" Value="11" />
+            <Setter Property="Background" Value="{DynamicResource PrimaryIconBgBrush}" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+        </Style>
+        <Style Selector="Border.step-number TextBlock">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryBrush}" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <!-- Drop zone. Dashed so it reads as a target rather than a panel. -->
+        <Style Selector="Border.drop-zone">
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1.5" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+            <Setter Property="Padding" Value="24" />
+        </Style>
+
+        <!-- One chosen file. -->
+        <Style Selector="Border.file-row">
+            <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="12,10" />
+        </Style>
+    </UserControl.Styles>
+
+    <controls:ModalOverlay IsOpen="{Binding IsOpen}">
+        <controls:ModalOverlay.ModalContent>
+            <Border Classes="modal-card"
+                    Width="640"
+                    MaxHeight="700">
+
+                <Grid RowDefinitions="Auto,*,Auto">
+
+                    <controls:ModalHeader Grid.Row="0"
+                                          Title="{loc:Loc 'Import from QuickBooks'}"
+                                          Subtitle="{loc:Loc 'Export these reports from QuickBooks, then bring them over together'}"
+                                          CloseCommand="{Binding CloseCommand}" />
+
+                    <ScrollViewer Grid.Row="1"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Margin="24,20" Spacing="20">
+
+                            <!-- Which QuickBooks -->
+                            <Border Background="{DynamicResource SurfaceAltBrush}"
+                                    CornerRadius="8"
+                                    Padding="4"
+                                    HorizontalAlignment="Left">
+                                <StackPanel Orientation="Horizontal" Spacing="2">
+                                    <Button Classes="source-toggle"
+                                            Classes.selected="{Binding IsOnlineSelected}"
+                                            Content="{loc:Loc 'QuickBooks Online'}"
+                                            Command="{Binding ShowOnlineCommand}" />
+                                    <Button Classes="source-toggle"
+                                            Classes.selected="{Binding IsDesktopSelected}"
+                                            Content="{loc:Loc 'QuickBooks Desktop'}"
+                                            Command="{Binding ShowDesktopCommand}" />
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Steps: QuickBooks Online -->
+                            <StackPanel Spacing="16" IsVisible="{Binding IsOnlineSelected}">
+
+                                <Grid ColumnDefinitions="Auto,*">
+                                    <Border Grid.Column="0" Classes="step-number" Margin="0,0,12,0">
+                                        <TextBlock Text="1" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1" Spacing="3">
+                                        <TextBlock Text="{loc:Loc 'Export your lists'}"
+                                                   FontSize="14" FontWeight="Medium"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                                        <TextBlock Text="{loc:Loc 'Settings, then Export data under Tools, then Export to Excel. This gives you one zip holding your customers, suppliers and employees.'}"
+                                                   FontSize="13" TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource TextTertiaryBrush}" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <Grid ColumnDefinitions="Auto,*">
+                                    <Border Grid.Column="0" Classes="step-number" Margin="0,0,12,0">
+                                        <TextBlock Text="2" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1" Spacing="3">
+                                        <TextBlock Text="{loc:Loc 'Export your products'}"
+                                                   FontSize="14" FontWeight="Medium"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                                        <TextBlock Text="{loc:Loc 'Products and services, then Run reports, then Export. This one is not in the zip above.'}"
+                                                   FontSize="13" TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource TextTertiaryBrush}" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <Grid ColumnDefinitions="Auto,*">
+                                    <Border Grid.Column="0" Classes="step-number" Margin="0,0,12,0">
+                                        <TextBlock Text="3" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1" Spacing="3">
+                                        <TextBlock Text="{loc:Loc 'Export your transactions'}"
+                                                   FontSize="14" FontWeight="Medium"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                                        <TextBlock Text="{loc:Loc 'Your open invoices, and a sales or expense detail report covering the period you are bringing across.'}"
+                                                   FontSize="13" TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource TextTertiaryBrush}" />
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+
+                            <!-- Steps: QuickBooks Desktop -->
+                            <StackPanel Spacing="16" IsVisible="{Binding IsDesktopSelected}">
+
+                                <Grid ColumnDefinitions="Auto,*">
+                                    <Border Grid.Column="0" Classes="step-number" Margin="0,0,12,0">
+                                        <TextBlock Text="1" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1" Spacing="3">
+                                        <TextBlock Text="{loc:Loc 'Export your lists'}"
+                                                   FontSize="14" FontWeight="Medium"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                                        <TextBlock Text="{loc:Loc 'Run the customer and supplier contact lists, and the item listing, then export each one to Excel.'}"
+                                                   FontSize="13" TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource TextTertiaryBrush}" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <Grid ColumnDefinitions="Auto,*">
+                                    <Border Grid.Column="0" Classes="step-number" Margin="0,0,12,0">
+                                        <TextBlock Text="2" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1" Spacing="3">
+                                        <TextBlock Text="{loc:Loc 'Export your transactions'}"
+                                                   FontSize="14" FontWeight="Medium"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                                        <TextBlock Text="{loc:Loc 'Your open invoices, and a sales or transaction detail report covering the period you are bringing across.'}"
+                                                   FontSize="13" TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource TextTertiaryBrush}" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <Grid ColumnDefinitions="Auto,*">
+                                    <Border Grid.Column="0" Classes="step-number" Margin="0,0,12,0">
+                                        <TextBlock Text="3" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1" Spacing="3">
+                                        <TextBlock Text="{loc:Loc 'Save them somewhere together'}"
+                                                   FontSize="14" FontWeight="Medium"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                                        <TextBlock Text="{loc:Loc 'One folder is easiest, since you can then pick them all at once below.'}"
+                                                   FontSize="13" TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource TextTertiaryBrush}" />
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+
+                            <!-- Drop zone -->
+                            <Border x:Name="DropZone" Classes="drop-zone" DragDrop.AllowDrop="True">
+                                <StackPanel Spacing="10" HorizontalAlignment="Center">
+                                    <PathIcon Data="{x:Static icons:Icons.CloudUpload}"
+                                              Width="28" Height="28"
+                                              HorizontalAlignment="Center"
+                                              Foreground="{DynamicResource TextTertiaryBrush}" />
+                                    <TextBlock Text="{loc:Loc 'Drop your QuickBooks exports here'}"
+                                               FontSize="15" FontWeight="Medium"
+                                               HorizontalAlignment="Center"
+                                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                                    <TextBlock Text="{loc:Loc 'Add as many as you have. Export them as Excel rather than CSV, and Argo Books works out the rest, so the files do not need tidying first.'}"
+                                               FontSize="13" TextWrapping="Wrap"
+                                               TextAlignment="Center" MaxWidth="400"
+                                               HorizontalAlignment="Center"
+                                               Foreground="{DynamicResource TextTertiaryBrush}" />
+                                    <Button Classes="secondary-button compact"
+                                            Content="{loc:Loc 'Choose files'}"
+                                            HorizontalAlignment="Center"
+                                            Command="{Binding ChooseFilesCommand}" />
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Chosen files -->
+                            <StackPanel Spacing="8" IsVisible="{Binding HasFiles}">
+                                <TextBlock Text="{Binding FileSummary}"
+                                           FontSize="13" FontWeight="Medium"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                                <ItemsControl ItemsSource="{Binding Files}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Spacing="8" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:QuickBooksFileRow">
+                                            <Border Classes="file-row">
+                                                <Grid ColumnDefinitions="Auto,*,Auto">
+                                                    <PathIcon Grid.Column="0"
+                                                              Data="{x:Static icons:Icons.DocumentText}"
+                                                              Width="16" Height="16"
+                                                              Margin="0,0,12,0"
+                                                              VerticalAlignment="Center"
+                                                              Foreground="{DynamicResource TextTertiaryBrush}" />
+                                                    <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding Name}"
+                                                                   FontSize="13"
+                                                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                                                        <TextBlock Text="{Binding Detail}"
+                                                                   FontSize="12"
+                                                                   Foreground="{DynamicResource TextTertiaryBrush}" />
+                                                    </StackPanel>
+                                                    <Button Grid.Column="2"
+                                                            Classes="secondary-button compact"
+                                                            Content="{loc:Loc Remove}"
+                                                            VerticalAlignment="Center"
+                                                            Command="{Binding $parent[ItemsControl].((vm:QuickBooksImportModalViewModel)DataContext).RemoveFileCommand}"
+                                                            CommandParameter="{Binding}" />
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <Border Classes="modal-footer" Grid.Row="2">
+                        <StackPanel Classes="modal-actions">
+                            <Button Classes="secondary-button"
+                                    Content="{loc:Loc Cancel}"
+                                    Command="{Binding CloseCommand}" />
+                            <Button Classes="primary-button"
+                                    Content="{loc:Loc Continue}"
+                                    IsEnabled="{Binding HasFiles}"
+                                    Command="{Binding ContinueCommand}" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+        </controls:ModalOverlay.ModalContent>
+    </controls:ModalOverlay>
+</UserControl>

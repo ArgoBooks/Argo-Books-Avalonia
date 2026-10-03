@@ -318,8 +318,16 @@ public static class PayrollCalculator
         decimal premium = Round(gross * rates.Ei.RateEmployee);
         uncapped = premium;
 
-        decimal remaining = Math.Max(0, rates.Ei.MaxPremiumEmployee - ytd.EiEmployee);
-        return Math.Min(premium, remaining);
+        // Premiums paid in Quebec were at Quebec's lower rate, so they count here for what the
+        // same earnings would have cost at this rate. Counted at face value they left room that
+        // was already used, and the year's premiums went over the maximum.
+        decimal quebecPart = ytd.EiEmployeeQuebec ?? 0m;
+        decimal paidHere = ytd.EiEmployee - quebecPart;
+        decimal paidInQuebec = rates.Ei.QuebecRateEmployee > 0
+            ? quebecPart * rates.Ei.RateEmployee / rates.Ei.QuebecRateEmployee
+            : quebecPart;
+        decimal remaining = Math.Max(0, rates.Ei.MaxPremiumEmployee - paidHere - paidInQuebec);
+        return Math.Min(premium, Round(remaining));
     }
 
     /// <summary>
@@ -544,6 +552,14 @@ public class PayrollYearToDate
     public decimal Cpp2Employee { get; set; }
 
     public decimal EiEmployee { get; set; }
+
+    /// <summary>
+    /// The part of <see cref="EiEmployee"/> withheld on Quebec lines, at Quebec's lower rate. Kept
+    /// apart so an employee who moved between Quebec and another province mid-year is capped on
+    /// the same insurable earnings either way. Null when the split is not known, which reads as
+    /// all of it having been withheld in the province being calculated.
+    /// </summary>
+    public decimal? EiEmployeeQuebec { get; set; }
 
     /// <summary>Quebec only. Needed because QPIP stops at its own annual maximum.</summary>
     public decimal QpipEmployee { get; set; }

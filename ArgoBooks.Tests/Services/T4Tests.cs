@@ -1042,4 +1042,23 @@ public class T4Tests
     }
 
     #endregion
+
+    // Turned 70 in July: contributed January to June, exempt from then on. Only the months they
+    // contributed in are pensionable, or CRA expects contributions on the rest.
+    [Fact]
+    public void ExemptFromPartWayThroughTheYear_ReportsOnlyTheContributingMonthsAsPensionable()
+    {
+        Employee employee = Person();
+        employee.IsCppExempt = true;
+        CompanyData data = Data(employee);
+        data.PayRuns.Add(Run("PR-0001", new DateTime(2026, 3, 13), employee.Id, 30000m, cpp: 1680.88m));
+        PayRun exempt = Run("PR-0002", new DateTime(2026, 9, 11), employee.Id, 30000m, cpp: 0m);
+        exempt.Lines[0].CppExempt = true;
+        data.PayRuns.Add(exempt);
+
+        T4Slip slip = Assert.Single(BuiltReturn(data).Slips);
+
+        Assert.Equal(60000m, slip.EmploymentIncome);
+        Assert.Equal(30000m, slip.PensionableEarnings);
+    }
 }

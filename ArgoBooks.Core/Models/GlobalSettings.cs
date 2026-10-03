@@ -16,6 +16,18 @@ public class GlobalSettings
     public ReportExportSettings ReportExport { get; set; } = new();
     public TutorialSettings Tutorial { get; set; } = new();
     public UpdateEmailSettings UpdateEmail { get; set; } = new();
+    public BackupSettings Backups { get; set; } = new();
+
+    /// <summary>
+    /// Send a bank statement or spreadsheet that would not import, so the reason can be
+    /// found and fixed. On by default: an import that fails for nobody's benefit is the
+    /// thing this exists to stop. Off here means nothing is ever sent.
+    ///
+    /// Declared rather than asked about each time, so it is in Settings and in the privacy
+    /// policy instead of in a dialog. Sending a person's bank statement without telling them
+    /// at all is not something a setting can make acceptable.
+    /// </summary>
+    public bool SendFailedImportsForDiagnosis { get; set; } = true;
 
     /// <summary>
     /// Set once the per-user file type registrations written by 2.0.13 and earlier have been

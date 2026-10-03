@@ -624,9 +624,8 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         ModalDate = DateTimeOffset.Now;
         ReceiptFilePath = null;
         ReceiptFileName = "No receipt attached";
-        // The copy has no stored total of its own to disagree with.
-        HasTotalMismatchWarning = false;
-        TotalMismatchWarningMessage = string.Empty;
+        // The mismatch warning stays. The copy is saved at what its lines add up to, so when the
+        // original's total was something else, this is the only sign the two will differ.
         IsAddEditModalOpen = true;
     }
 
@@ -886,7 +885,6 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
 
         if (LineItems.Count == 0)
         {
-            ReportValidationBlock("no-line-items");
             ValidationMessage = "Please add at least one line item.".Translate();
             HasValidationMessage = true;
             return;
@@ -924,7 +922,6 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
 
         if (hasProductErrors || hasCategoryErrors)
         {
-            ReportValidationBlock(hasProductErrors ? "line-item-missing-product" : "line-item-missing-category");
             ValidationMessage = AllowsTypedItems
                 ? "Each line needs an item and a category".Translate()
                 : "Please select a product for all line items".Translate();
@@ -942,7 +939,6 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
             typedLines = PlanTypedItems(companyData, out var typedProblem);
             if (typedLines == null)
             {
-                ReportValidationBlock("line-item-typed-conflict");
                 ValidationMessage = typedProblem;
                 HasValidationMessage = true;
                 ScrollToLineItemsRequested?.Invoke(this, EventArgs.Empty);
@@ -1326,9 +1322,9 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     }
 
     /// <summary>
-    /// Records a save the app refused. Warning rather than Error because the server keeps the
-    /// message on a warning and drops it on an error, and the rule that fired is the point.
-    /// Carries the rule, never the value that failed it.
+    /// Records a save the app refused for a reason the user cannot correct. The ordinary
+    /// validation rules are not reported: a blank line is someone filling in a form, not a fault.
+    /// Warning rather than Error because the server drops an error's message.
     /// </summary>
     private void ReportValidationBlock(string reason)
     {

@@ -117,6 +117,20 @@ public class PayRunLine
     [JsonPropertyName("payPeriodsPerYear")]
     public int PayPeriodsPerYear { get; set; }
 
+    /// <summary>
+    /// Whether the employee was exempt from CPP or EI when this line was calculated. Kept on the
+    /// line because the employee's own flag only says what is true now: someone who turns 70 in
+    /// July is exempt from then on, and the year-end slips have to leave those months out of
+    /// pensionable earnings while keeping January to June in.
+    /// </summary>
+    [JsonPropertyName("cppExempt")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool CppExempt { get; set; }
+
+    [JsonPropertyName("eiExempt")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool EiExempt { get; set; }
+
     #region Inputs
 
     [JsonPropertyName("hoursWorked")]

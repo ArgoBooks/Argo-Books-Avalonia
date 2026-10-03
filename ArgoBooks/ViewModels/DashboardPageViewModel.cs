@@ -141,38 +141,6 @@ public partial class DashboardPageViewModel : ChartContextMenuViewModelBase, ICl
     public string DateRangeDisplayText => ChartSettings.DateRangeDisplayText;
 
     /// <summary>
-    /// Gets or sets the start date as DateTimeOffset for DatePicker binding.
-    /// </summary>
-    public DateTimeOffset? StartDateOffset
-    {
-        get => new DateTimeOffset(StartDate);
-        set
-        {
-            if (value.HasValue)
-            {
-                StartDate = value.Value.DateTime;
-                LoadDashboardData();
-            }
-        }
-    }
-
-    /// <summary>
-    /// Gets or sets the end date as DateTimeOffset for DatePicker binding.
-    /// </summary>
-    public DateTimeOffset? EndDateOffset
-    {
-        get => new DateTimeOffset(EndDate);
-        set
-        {
-            if (value.HasValue)
-            {
-                EndDate = value.Value.DateTime;
-                LoadDashboardData();
-            }
-        }
-    }
-
-    /// <summary>
     /// Gets whether the custom date range option is selected.
     /// </summary>
     public bool IsCustomDateRange => SelectedDateRange == DateRangePreset.CustomRange.GetDisplayName();
@@ -600,12 +568,6 @@ public partial class DashboardPageViewModel : ChartContextMenuViewModelBase, ICl
 
     private void OnCompanyDataChanged(object? sender, EventArgs e)
     {
-        // When "All Time" is selected, recalculate the date range to include any new data
-        if (SelectedDateRange == DateRangePreset.AllTime.GetDisplayName())
-        {
-            ChartSettings.UpdateDateRangeFromSelection();
-        }
-
         LoadDashboardData();
     }
 
@@ -616,6 +578,11 @@ public partial class DashboardPageViewModel : ChartContextMenuViewModelBase, ICl
     {
         var data = _companyManager?.CompanyData;
         if (data == null || !IsOnScreen) return;
+
+        // A preset's dates are worked out when it is picked. Left open overnight, "This Month"
+        // still ended yesterday and "Today" was yesterday, so today's sales were left out until
+        // the preset was picked again. Also what lets "All Time" take in newly added data.
+        ChartSettings.UpdateDateRangeFromSelection();
 
         // Correct rental statuses before displaying
         CorrectRentalStatuses(data);

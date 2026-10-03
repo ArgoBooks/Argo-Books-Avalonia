@@ -8,6 +8,7 @@ using ArgoBooks.Core.Services;
 using ArgoBooks.Core.Validation;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
+using ArgoBooks.Shared.Telemetry;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -452,10 +453,19 @@ public partial class UpgradeModalViewModel : ViewModelBase
         SuccessMessage = null;
     }
 
+    /// <summary>
+    /// What opened the modal, carried onto the pricing URL as ?source=app-&lt;this&gt;. The website
+    /// files the visit under that source and attaches it to the subscription if they buy, which
+    /// is the only way a sale can be traced back to the limit that prompted it.
+    /// </summary>
+    public string OpenedFrom { get; set; } = "unknown";
+
     [RelayCommand]
     private void SelectPremium()
     {
-        OpenUrl(PremiumUpgradeUrl);
+        // track_referral.php accepts [A-Za-z0-9_-] and ignores a source holding anything else.
+        var source = new string(OpenedFrom.Where(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_').ToArray());
+        OpenUrl($"{PremiumUpgradeUrl}?source=app-{(source.Length == 0 ? "unknown" : source)}");
         Close();
     }
 
@@ -566,6 +576,7 @@ public partial class UpgradeModalViewModel : ViewModelBase
         // Format: XXXX-XXXX-XXXX-XXXX-XXXX (24 chars with dashes)
         if (key.Length != 24)
         {
+            _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.LicenseKeyRedeemed, "bad-format");
             VerificationError = "License key must be in format XXXX-XXXX-XXXX-XXXX-XXXX";
             return;
         }
@@ -586,6 +597,8 @@ public partial class UpgradeModalViewModel : ViewModelBase
 
                 // Ask for an address only when the server has none. Anyone who bought through
                 // the website goes straight to the success panel, unchanged.
+                _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.LicenseKeyRedeemed, response.NeedsEmail ? "ok-needs-email" : "ok");
+
                 if (response.NeedsEmail)
                 {
                     IsEmailCaptureStep = true;
@@ -607,6 +620,7 @@ public partial class UpgradeModalViewModel : ViewModelBase
                     }
                     catch (Exception ex)
                     {
+                        _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.LicenseKeyRedeemed, "save-failed");
                         App.ErrorLogger?.LogError(ex, ErrorCategory.License, "Failed to save license after verification");
                         await App.ShowWarningDialogAsync(
                             "Warning".Translate(),
@@ -618,6 +632,7 @@ public partial class UpgradeModalViewModel : ViewModelBase
             }
             else
             {
+                _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.LicenseKeyRedeemed, "rejected");
                 VerificationError = response?.Message ?? "Invalid license key";
             }
         }
@@ -626,11 +641,13 @@ public partial class UpgradeModalViewModel : ViewModelBase
             // Someone trying to redeem a licence and failing is the most expensive network
             // failure in the app, so it is worth knowing whether it was their connection or
             // ours. The probe was already running to choose the message.
+            _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.LicenseKeyRedeemed, "network");
             VerificationError = (await NetworkFailure.ResolveAndReportAsync(
                 App.ErrorLogger, ex, "License redemption network error", _connectivityService)).Translate();
         }
         catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException || ex.CancellationToken != default)
         {
+            _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.LicenseKeyRedeemed, "timeout");
             VerificationError = (await NetworkFailure.ResolveAndReportAsync(
                 App.ErrorLogger, ex, "License redemption timeout", _connectivityService)).Translate();
         }
@@ -640,6 +657,7 @@ public partial class UpgradeModalViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
+            _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.LicenseKeyRedeemed, "error");
             App.ErrorLogger?.LogError(ex, ErrorCategory.Network, "License redemption request failed");
             VerificationError = "Verification failed: {0}".TranslateFormat(ex.Message);
         }

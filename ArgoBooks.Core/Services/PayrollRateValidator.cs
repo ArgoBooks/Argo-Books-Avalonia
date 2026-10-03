@@ -12,7 +12,7 @@ namespace ArgoBooks.Core.Services;
 /// ordinary on a pay stub and is wrong by a few dollars a period for a real person, and there
 /// is nothing downstream that would question it.
 ///
-/// The checks are the ones docs/Payroll rate updates.md already tells a human to run by hand
+/// The checks are the ones docs/PayrollRateUpdates.md already tells a human to run by hand
 /// before trusting a new edition. Both are arithmetic on the file's own contents, so nothing
 /// here needs to know what the correct 2027 figures are: a table that contradicts itself is
 /// wrong whatever the source, and one that does not at least cannot be quietly truncated,

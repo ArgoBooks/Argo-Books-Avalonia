@@ -391,10 +391,13 @@ public class FileService(
             return default;
 
         // Streamed, because receipts.json holds every receipt's bytes as base64 and the
-        // intermediate string is twice that again in UTF-16.
-        await using var stream = new FileStream(
-            filePath, FileMode.Open, FileAccess.Read, FileShare.Read,
-            bufferSize: 64 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
+        // intermediate string is twice that again in UTF-16. Retried on a lock: these files were
+        // written moments ago by the extractor, which is when a scanner looks at them.
+        await using var stream = await AtomicFile.OpenReadAsync(
+            filePath,
+            bufferSize: 64 * 1024,
+            options: FileOptions.Asynchronous | FileOptions.SequentialScan,
+            cancellationToken: cancellationToken);
         return await JsonSerializer.DeserializeAsync<T>(stream, JsonOptions, cancellationToken);
     }
 

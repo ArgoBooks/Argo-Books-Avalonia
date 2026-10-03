@@ -255,12 +255,18 @@ public sealed class FirstRunReporter
     }
 
     /// <summary>
-    /// Returns a stable per-machine UUID for dedup. Generated lazily and
-    /// persisted to the app data directory so the same machine returns the
-    /// same UUID across runs.
+    /// Returns a stable per-machine UUID for dedup, still cached in the app data directory so an
+    /// install that already has one keeps it.
+    ///
+    /// The file sits in %LOCALAPPDATA%, which is what disk cleaners are pointed at. A random UUID
+    /// therefore did not survive one: the server dedupes first runs on this value, so losing the
+    /// file made an existing install report itself as a new one and inflated the install count.
+    /// Deriving it from the machine means the same value comes back and the report is recognised
+    /// as the duplicate it is.
     /// </summary>
     private string GetOrCreateMachineUuid()
     {
+        var derived = DeriveMachineUuid();
         try
         {
             var path = Path.Combine(_appDataDir, "machine_uuid.txt");
@@ -272,14 +278,39 @@ public sealed class FirstRunReporter
                     return raw;
                 }
             }
-            var uuid = Guid.NewGuid().ToString();
-            File.WriteAllText(path, uuid);
-            return uuid;
+            Directory.CreateDirectory(_appDataDir);
+            File.WriteAllText(path, derived);
+            return derived;
         }
         catch
         {
-            return Guid.NewGuid().ToString();
+            return derived;
         }
+    }
+
+    /// <summary>
+    /// A UUID-shaped value derived from the machine's own stable identifier, so it is the same on
+    /// every run whether or not the cached file survived.
+    /// </summary>
+    private static string DeriveMachineUuid()
+    {
+        try
+        {
+            var machineId = PlatformServiceFactory.GetPlatformService().GetMachineId();
+            if (!string.IsNullOrWhiteSpace(machineId))
+            {
+                var hash = System.Security.Cryptography.SHA256.HashData(
+                    System.Text.Encoding.UTF8.GetBytes("ArgoBooks machine-uuid v1|" + machineId));
+                return new Guid(hash.AsSpan(0, 16)).ToString();
+            }
+        }
+        catch
+        {
+            // No stable machine id available; a random one still works, it just cannot survive the
+            // cached file being deleted.
+        }
+
+        return Guid.NewGuid().ToString();
     }
 
     private static int ReadAttemptCount(string path)

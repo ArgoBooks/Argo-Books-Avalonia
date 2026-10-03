@@ -14,7 +14,7 @@ namespace ArgoBooks.Core.Services.Payroll;
 /// T4 gained a validation that the account number on the slip and on the summary must match.
 /// Re-read the "What's new" section of both when preparing a January rate edition, and update
 /// the version named here so the next person can tell whether anyone has. See
-/// docs/Payroll rate updates.md, "What else needs a look each year".
+/// docs/PayrollRateUpdates.md, "What else needs a look each year".
 ///
 /// Two of CRA's rules shape almost every decision here:
 ///
