@@ -329,7 +329,9 @@ public partial class RefundModalViewModel : ObservableObject
                     Currency = Currency,
                     Label = string.IsNullOrEmpty(li.Description) ? "(unnamed item)" : li.Description,
                     Detail = li.Quantity > 1 ? $"{li.Quantity} × {Money(li.UnitPrice)}" : "",
-                    Amount = li.Amount,
+                    // Before tax: an imported line can carry a tax rate of its own, and the Tax
+                    // row below already holds the invoice's whole tax.
+                    Amount = li.Subtotal,
                     IsSelected = true,
                     Kind = "lineItem",
                 };
@@ -338,7 +340,7 @@ public partial class RefundModalViewModel : ObservableObject
             }
         }
 
-        // Tax (treat as one toggleable row at face value, not recomputed)
+        // Tax is one row. RecomputeTotals scales it to the taxed rows still ticked.
         if (_invoice.TaxAmount > 0)
         {
             var row = new RefundableLineRow
@@ -484,10 +486,44 @@ public partial class RefundModalViewModel : ObservableObject
         }
     }
 
+    /// <summary>The rows tax was charged on (InvoiceMath.TaxableBase). The deposit is untaxed.</summary>
+    private static bool IsTaxed(RefundableLineRow row) => row.Kind is "lineItem" or "fee" or "shipping" or "discount";
+
     private void RecomputeTotals()
     {
-        RefundTotal = LineRows.Where(r => r.IsSelected).Sum(r => r.Amount);
         SelectedPaymentsRefundable = Payments.Where(p => p.IsSelected).Sum(p => p.Refundable);
+
+        // Refunding half the taxed rows gives back half the tax. At face value a partial refund
+        // returned all of it.
+        if (LineRows.FirstOrDefault(r => r.Kind == "tax") is { } taxRow)
+        {
+            var taxedAll = LineRows.Where(IsTaxed).Sum(r => r.Amount);
+            var taxedTicked = Math.Max(0m, LineRows.Where(r => IsTaxed(r) && r.IsSelected).Sum(r => r.Amount));
+            var anyTaxedTicked = LineRows.Any(r => IsTaxed(r) && r.IsSelected);
+
+            if (!anyTaxedTicked)
+            {
+                // Tax ticked alone is a refund of the tax itself: a customer who should not
+                // have been charged it, or what an earlier part refund left behind.
+                taxRow.Amount = SelectedPaymentsRefundable > 0
+                    ? Math.Min(_invoice.TaxAmount, SelectedPaymentsRefundable)
+                    : _invoice.TaxAmount;
+            }
+            else if (taxedAll <= 0 || taxedTicked >= taxedAll)
+            {
+                // Everything taxed is ticked, so the tax goes back exactly as stored. Rounding
+                // it here would put a full refund a fraction over what was paid.
+                taxRow.Amount = _invoice.TaxAmount;
+            }
+            else
+            {
+                taxRow.Amount = Math.Round(_invoice.TaxAmount * (taxedTicked / taxedAll), 2, MidpointRounding.AwayFromZero);
+            }
+        }
+
+        // To the cent, which is what is sent. A percent discount or fee leaves the rows summing to
+        // a fraction that would otherwise read as over the refundable amount.
+        RefundTotal = Math.Round(LineRows.Where(r => r.IsSelected).Sum(r => r.Amount), 2, MidpointRounding.AwayFromZero);
 
         var selectedPaymentCount = Payments.Count(p => p.IsSelected);
         if (selectedPaymentCount == 0)
@@ -875,7 +911,10 @@ public partial class RefundableLineRow : ObservableObject
 {
     public string Label { get; set; } = string.Empty;
     public string Detail { get; set; } = string.Empty;
-    public decimal Amount { get; set; }
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AmountDisplay))]
+    private decimal _amount;
+
     public string Currency { get; set; } = "USD";
     public string AmountDisplay => CurrencyInfo.FormatAmount(Amount, Currency);
     public string Kind { get; set; } = "lineItem"; // lineItem | tax | fee | shipping | deposit | discount | processingFee

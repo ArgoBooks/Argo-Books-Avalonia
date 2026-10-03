@@ -706,6 +706,7 @@ internal class TransactionState
     public decimal Quantity { get; set; }
     public decimal UnitPrice { get; set; }
     public decimal Amount { get; set; }
+    public decimal Subtotal { get; set; }
     public decimal TaxRate { get; set; }
     public decimal TaxAmount { get; set; }
     public decimal ShippingCost { get; set; }

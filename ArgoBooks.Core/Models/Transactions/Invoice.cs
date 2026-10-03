@@ -248,8 +248,33 @@ public partial class Invoice : ObservableObject, IRecord
     [JsonIgnore]
     public bool IsOverdue => Status is not (InvoiceStatus.Draft or InvoiceStatus.Paid
                                  or InvoiceStatus.Cancelled or InvoiceStatus.Refunded) &&
+                             !IsPaidInFull &&
                              Balance > 0 &&
                              DateTime.Today > DueDate.Date;
+
+    /// <summary>
+    /// Whether the customer has paid the whole invoice (docs/Calculations.md §6). Refunds don't undo
+    /// it: a refund is subtracted from revenue on its own date (§8), so the revenue it refunds has
+    /// to stay counted.
+    ///
+    /// Compared as the invoice reads, to the cent. Totals are stored at full precision and only the
+    /// displayed figure is rounded (§2, Rule 3), so a percentage tax, discount or fee routinely
+    /// leaves a total like 37.6629 against an invoice that reads $37.66. The customer pays what it
+    /// reads, and comparing the stored figures would keep it owing a third of a cent. A payment
+    /// that is a displayed cent short has not paid it. A currency shown without cents, such as
+    /// the yen, is compared without them.
+    /// </summary>
+    [JsonIgnore]
+    public bool IsPaidInFull
+    {
+        get
+        {
+            if (Total <= 0) return false;
+            var places = CurrencyInfo.GetByCode(OriginalCurrency).DecimalPlaces;
+            return Math.Round(AmountPaid, places, MidpointRounding.AwayFromZero)
+                   >= Math.Round(Total, places, MidpointRounding.AwayFromZero);
+        }
+    }
 
     #region Currency Support
 

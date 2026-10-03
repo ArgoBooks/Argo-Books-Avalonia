@@ -635,6 +635,32 @@ public class AccountingReportDataServiceTests
         return data;
     }
 
+
+    // A CAD invoice converted at its issue date, paid in full later at another day's rate.
+    // Subtracting the payment's USD from the invoice's left a balance on an invoice that owes nothing.
+    [Fact]
+    public void GetReportData_BalanceSheet_APaidForeignInvoiceLeavesNoReceivable()
+    {
+        var data = new CompanyData();
+        var invoice = new Invoice
+        {
+            Id = "INV-1", InvoiceNumber = "INV-1", CustomerId = "C1", OriginalCurrency = "CAD",
+            IssueDate = new DateTime(2024, 1, 5), DueDate = new DateTime(2024, 2, 4),
+            Subtotal = 1000m, Total = 1000m, TotalUSD = 730m, Status = InvoiceStatus.Sent
+        };
+        data.Invoices.Add(invoice);
+        data.Payments.Add(new Payment
+        {
+            Id = "PAY-1", InvoiceId = "INV-1", CustomerId = "C1", OriginalCurrency = "CAD",
+            Date = new DateTime(2024, 1, 25, 11, 0, 0), Amount = 1000m, AmountUSD = 720m
+        });
+        InvoiceTotalsService.Recalculate(invoice, data.Payments);
+
+        var result = new AccountingReportDataService(data, January2024).GetReportData(AccountingReportType.BalanceSheet);
+
+        Assert.Equal(0m, AmountOf(result, "Accounts Receivable"));
+    }
+
     [Fact]
     public void GetReportData_BalanceSheet_ReceivablesAreWhatWasOwedAtTheEndDate()
     {

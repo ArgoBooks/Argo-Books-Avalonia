@@ -47,6 +47,42 @@ public static class AtomicFile
     }
 
     /// <summary>
+    /// Opens a file for reading, retrying the same way <see cref="ReplaceAsync"/> does when it is
+    /// transiently locked.
+    /// <para>
+    /// The lock that matters is the scanner's, not ours: antivirus opens a file it has not seen
+    /// before with no sharing while it scans, and our open fails outright whatever FileShare we
+    /// ask for. It is most likely on a file that has just appeared, which is exactly what opening
+    /// a downloaded company or one restored from a backup does.
+    /// </para>
+    /// <para>
+    /// Only the open is retried. A lock that outlasts the attempts rethrows, so a genuinely
+    /// in-use file still surfaces as an error rather than hanging.
+    /// </para>
+    /// </summary>
+    public static async Task<FileStream> OpenReadAsync(
+        string path,
+        int bufferSize = 4096,
+        FileOptions options = FileOptions.Asynchronous,
+        CancellationToken cancellationToken = default)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                return new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize, options);
+            }
+            catch (Exception ex) when ((ex is IOException or UnauthorizedAccessException)
+                                       && ex is not FileNotFoundException
+                                       && ex is not DirectoryNotFoundException
+                                       && attempt < MaxAttempts)
+            {
+                await Task.Delay(50 * attempt, cancellationToken);
+            }
+        }
+    }
+
+    /// <summary>
     /// Moves <paramref name="tempPath"/> onto <paramref name="finalPath"/>, retrying with a
     /// short async backoff when the destination is transiently locked, then giving up and
     /// rethrowing if the lock persists.

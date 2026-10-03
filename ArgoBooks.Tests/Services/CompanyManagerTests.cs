@@ -7,6 +7,7 @@ using ArgoBooks.Core.Models.Tracking;
 using ArgoBooks.Core.Models.Transactions;
 using ArgoBooks.Core.Platform;
 using ArgoBooks.Core.Services;
+using System.Reflection;
 using Xunit;
 
 namespace ArgoBooks.Tests.Services;
@@ -219,6 +220,81 @@ public class CompanyManagerTests : IDisposable
 
             Assert.Equal("EUR", currencyAtOpen);
             Assert.Equal("EUR", _manager.CompanyData!.Settings.Localization.Currency);
+        }
+        finally
+        {
+            await _manager.CloseCompanyAsync();
+            if (File.Exists(filePath)) File.Delete(filePath);
+        }
+    }
+
+    [Fact]
+    public async Task SaveCompanyAsync_WorkingDirectoryDeleted_StillWritesTheRecords()
+    {
+        // A disk cleaner or antivirus can take the working directory while the company is open.
+        // Everything is in memory, so the save has to rebuild and write rather than give up.
+        var filePath = Path.Combine(Path.GetTempPath(), $"argo-cm-{Guid.NewGuid():N}.argo");
+        try
+        {
+            await _manager.CreateCompanyAsync(filePath, "Acme");
+            _manager.CompanyData!.Categories.Add(new Category
+            {
+                Id = "CAT-1",
+                Name = "Rent",
+                Type = CategoryType.Expense
+            });
+
+            // The marker file holds the directory open on Windows, which is the point of it, so it
+            // has to be released before the deletion this test is simulating can happen at all.
+            var lockField = typeof(CompanyManager).GetField("_workingDirectoryLock", BindingFlags.NonPublic | BindingFlags.Instance)!;
+            ((IDisposable?)lockField.GetValue(_manager))?.Dispose();
+            lockField.SetValue(_manager, null);
+
+            var tempField = typeof(CompanyManager).GetField("_currentTempDirectory", BindingFlags.NonPublic | BindingFlags.Instance)!;
+            Directory.Delete((string)tempField.GetValue(_manager)!, recursive: true);
+
+            await _manager.SaveCompanyAsync();
+            await _manager.CloseCompanyAsync();
+
+            await _manager.OpenCompanyAsync(filePath);
+            Assert.Contains(_manager.CompanyData!.Categories, c => c.Name == "Rent");
+        }
+        finally
+        {
+            await _manager.CloseCompanyAsync();
+            if (File.Exists(filePath)) File.Delete(filePath);
+        }
+    }
+
+    [Fact]
+    public async Task SaveSettingsOnlyAsync_WorkingDirectoryDeleted_KeepsTheRecords()
+    {
+        // The rebuilt directory is empty, so packing it with only the settings would replace the
+        // company file with one that has no records in it.
+        var filePath = Path.Combine(Path.GetTempPath(), $"argo-cm-{Guid.NewGuid():N}.argo");
+        try
+        {
+            await _manager.CreateCompanyAsync(filePath, "Acme");
+            _manager.CompanyData!.Categories.Add(new Category
+            {
+                Id = "CAT-1",
+                Name = "Rent",
+                Type = CategoryType.Expense
+            });
+            await _manager.SaveCompanyAsync();
+
+            var lockField = typeof(CompanyManager).GetField("_workingDirectoryLock", BindingFlags.NonPublic | BindingFlags.Instance)!;
+            ((IDisposable?)lockField.GetValue(_manager))?.Dispose();
+            lockField.SetValue(_manager, null);
+
+            var tempField = typeof(CompanyManager).GetField("_currentTempDirectory", BindingFlags.NonPublic | BindingFlags.Instance)!;
+            Directory.Delete((string)tempField.GetValue(_manager)!, recursive: true);
+
+            await _manager.SaveSettingsOnlyAsync();
+            await _manager.CloseCompanyAsync();
+
+            await _manager.OpenCompanyAsync(filePath);
+            Assert.Contains(_manager.CompanyData!.Categories, c => c.Name == "Rent");
         }
         finally
         {

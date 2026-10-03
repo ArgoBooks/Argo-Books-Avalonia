@@ -52,6 +52,11 @@ public class CompressionService
         {
             cancellationToken.ThrowIfCancellationRequested();
 
+            // Held open exclusively for as long as the company is, so it would fail the read below
+            // as well as being meaningless inside a saved file.
+            if (Path.GetFileName(filePath) == SecureTempDirectory.InUseFileName)
+                continue;
+
             var entryName = Path.GetRelativePath(basePath, filePath).Replace('\\', '/');
             // PaxTarEntry does not own its DataStream, so dispose it ourselves. Use try/finally:
             // if WriteEntryAsync throws (cancellation, I/O error) the stream must still be closed,

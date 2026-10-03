@@ -35,12 +35,22 @@ public class PdfStatementExtractor(IErrorLogger? errorLogger = null) : IPdfState
             wallClock.Stop();
             if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
                 throw ServerRateLimitedException.FromBody(body);
+            // Anything else the server refused is not an empty statement. ParseRows reads a
+            // failure body as no rows, which is indistinguishable from a file we read and
+            // found nothing in, and that is how a 401 came to mean "unreadable statement".
+            if (!response.IsSuccessStatusCode)
+                throw StatementExtractionException.FromBody(body);
             RecordTiming(body, wallClock.Elapsed.TotalMilliseconds, pdfData.Length);
             return ParseRows(body);
         }
         catch (ServerRateLimitedException)
         {
             // Not a failure to read the file: the caller tells the user to wait instead.
+            throw;
+        }
+        catch (StatementExtractionException)
+        {
+            // Same reason: the caller says what the server said, rather than blaming the file.
             throw;
         }
         catch (Exception ex)

@@ -15,6 +15,10 @@ public enum FeatureName
     DataImported,
     BackupCreated,
     BackupRestored,
+    // Backups ship switched off, so whether people turn them on is the measure of the feature.
+    // BackupCreated lags and cannot tell "never enabled" from "enabled, nothing has triggered
+    // yet". On or off in the context.
+    BackupSettingsChanged,
 
     // Transactions
     InvoiceCreated,
@@ -73,12 +77,17 @@ public enum FeatureName
     ImportPreviewShown,
     ImportAbandoned,
     ImportFailed,
+    ImportDiagnosticSent,
     ReceiptScanFailed,
 
     // The paywall. Shown is the wall someone hit, opened is them acting on it; the limit or
     // entry point is in the context on both, so the pair divides into a conversion rate.
     UpgradePromptShown,
     UpgradeModalOpened,
+    // The end of the paywall: a key typed into the app, with the outcome in the context. The
+    // failures are the point. Somebody who has paid and cannot activate is being charged while
+    // still on the free tier, and nothing else says so.
+    LicenseKeyRedeemed,
 
     // A page rendered with nothing in it, with the page in the context.
     EmptyStateShown,

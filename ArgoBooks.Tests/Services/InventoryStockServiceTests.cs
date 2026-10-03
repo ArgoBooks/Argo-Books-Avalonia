@@ -332,4 +332,45 @@ public class InventoryStockServiceTests
         Assert.Empty(data.StockTransfers);
         Assert.Empty(data.StockAdjustments);
     }
+
+    // Revenue made from an invoice moves no stock, so correcting its description must not either.
+    [Fact]
+    public void Edit_OfRevenueCreatedFromAnInvoice_LeavesStockAlone()
+    {
+        var data = Company(Shop);
+        var item = Stock(data, inStock: 20, unitCost: 2m);
+        var sale = Sale(Line("PRD-1", 5, 10m));
+        sale.InvoiceId = "INV-1";
+        var edited = new List<LineItem> { Line("PRD-1", 5, 10m) };
+
+        InventoryStockService.ApplyEdit(data, sale.LineItems, edited, sale, isPurchase: false, "Revenue edited");
+
+        Assert.Equal(20m, item.InStock);
+        Assert.Null(edited[0].CostOfGoodsUSD);
+    }
+
+    // Stock is costed at its last purchase. Fixing a note on the January purchase must not put
+    // its price back over the one from March.
+    [Fact]
+    public void Edit_OfAnEarlierPurchase_KeepsTheCostALaterPurchaseSet()
+    {
+        var data = Company(Shop);
+        var january = Purchase(Line("PRD-1", 10, 5m));
+        InventoryStockService.Apply(data, january.LineItems, january, isPurchase: true);
+        data.Expenses.Add(january);
+        var march = new Expense
+        {
+            Id = "PUR-2", Date = new DateTime(2026, 3, 5), OriginalCurrency = "USD", Total = 80m, Amount = 80m,
+            LineItems = [Line("PRD-1", 10, 8m)]
+        };
+        InventoryStockService.Apply(data, march.LineItems, march, isPurchase: true);
+        data.Expenses.Add(march);
+        var item = data.Inventory.Single();
+        Assert.Equal(8m, item.UnitCost);
+
+        InventoryStockService.ApplyEdit(data, january.LineItems, [Line("PRD-1", 10, 5m)], january, isPurchase: true, "Expense edited");
+
+        Assert.Equal(8m, item.UnitCost);
+        Assert.Equal(20m, item.InStock);
+    }
 }

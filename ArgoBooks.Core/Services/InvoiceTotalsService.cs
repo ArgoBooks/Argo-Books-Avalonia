@@ -64,14 +64,6 @@ public static class InvoiceTotalsService
     }
 
     /// <summary>
-    /// Whether the customer has paid the whole invoice. Refunds don't undo it: a refund is
-    /// subtracted from revenue on its own date (docs/Calculations.md §8), so the revenue it
-    /// refunds has to stay counted.
-    /// </summary>
-    public static bool IsPaidInFull(Invoice invoice) =>
-        invoice.Total > 0 && invoice.AmountPaid + 0.01m >= invoice.Total;
-
-    /// <summary>
     /// Counts an invoice's revenue as collected once the invoice is paid in full, and not before
     /// (docs/Calculations.md §7). Called after <see cref="Recalculate"/> by every path that
     /// records or removes a payment on an invoice, so one paid by hand counts the same as one
@@ -79,7 +71,7 @@ public static class InvoiceTotalsService
     /// </summary>
     public static void SyncLinkedRevenueStatus(Invoice invoice, IEnumerable<Revenue> revenues)
     {
-        var status = IsPaidInFull(invoice) ? RevenuePaymentStatus.Paid : RevenuePaymentStatus.Unpaid;
+        var status = invoice.IsPaidInFull ? RevenuePaymentStatus.Paid : RevenuePaymentStatus.Unpaid;
         foreach (var revenue in revenues.Where(r => r.InvoiceId == invoice.Id))
             revenue.PaymentStatus = status;
     }
@@ -122,7 +114,10 @@ public static class InvoiceTotalsService
             return;
         }
 
-        if (invoice.Balance <= 0 && invoice.AmountPaid > 0)
+        // Invoice.IsPaidInFull, not Balance <= 0: a total carrying a fraction of a cent leaves a
+        // balance that reads $0.00 but is not zero, and the invoice stayed Partial, and eventually
+        // Overdue, while the revenue it is linked to already counted as collected.
+        if (invoice.IsPaidInFull && invoice.AmountPaid > 0)
         {
             invoice.Status = InvoiceStatus.Paid;
             return;

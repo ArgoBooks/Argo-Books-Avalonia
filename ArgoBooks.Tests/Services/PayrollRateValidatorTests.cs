@@ -13,7 +13,7 @@ namespace ArgoBooks.Tests.Services;
 /// comes off a real person's pay, and a plausible-looking wrong number produces a plausible
 /// -looking wrong deduction that nothing downstream questions.
 ///
-/// The checks are the ones docs/Payroll rate updates.md already tells a human to run by hand:
+/// The checks are the ones docs/PayrollRateUpdates.md already tells a human to run by hand:
 /// every derived maximum has to reproduce from its own rate, and the bracket constants have to
 /// be continuous at each boundary. Both are arithmetic on the file's own contents, so a table
 /// that fails either one is self-contradictory and no amount of trusting the source fixes it.

@@ -23,7 +23,7 @@ A Rider Release build is still fine for local testing, it just won't have the st
 
 ### Package
 
-The Windows `.exe` installer is built using [Advanced Installer Professional Edition](https://www.advancedinstaller.com/).
+The Windows `.exe` installer is built using [Advanced Installer Professional Edition](https://www.advancedinstaller.com/). How the project is configured, and how to rebuild it if the `.aip` is ever lost, is in [Advanced Installer project setup](setup/AdvancedInstallerProjectSetup.md).
 
 1. Open `packaging/windows/Argo Books.aip` in Advanced Installer.
 2. In the **Product Details** tab, update the version number.
@@ -38,9 +38,9 @@ The publish output is roughly 100MB larger than a plain build (about 508MB versu
 
 ## Linux
 
-The Linux distribution is packaged as an [AppImage](https://appimage.org/). The build runs in the cloud via GitHub Actions, so no Linux VM is needed.
+The Linux distribution is packaged as an [AppImage](https://appimage.org/). The build runs in the cloud via GitHub Actions.
 
-### Build and package (GitHub Actions, recommended)
+### Build and package
 
 1. Make sure the version branch with your changes is pushed to GitHub.
 2. Go to the repo's **Actions** tab on github.com and select **Build Linux AppImage** in the left sidebar.
@@ -54,45 +54,7 @@ The Linux distribution is packaged as an [AppImage](https://appimage.org/). The 
 
    Without this, double-clicking does nothing (silently). This only affects local testing; end users always have to mark downloaded AppImages executable regardless of how we build them, since browser downloads never preserve the executable bit.
 
-### Manual build (reference only)
-
-The commands below are what the workflow runs. Use them only if you need to build without GitHub Actions.
-
-#### Step 1: Build (on Windows)
-
-.NET cross-compiles, so this produces Linux binaries without needing a Linux machine:
-
-```bash
-dotnet publish ArgoBooks.Desktop -c Release -f net10.0 -r linux-x64 --self-contained -o publish/linux-x64
-```
-
-#### Step 2: Copy to Linux VM
-
-Copy these to your Linux VM (e.g. via shared folder, Google Drive, or USB):
-- The `publish/linux-x64/` folder (the build output)
-- The `packaging/linux/` folder (desktop entry, MIME type, build script)
-
-#### Step 3: Package as AppImage (on Linux VM)
-
-One-time setup: install FUSE (required to run AppImage tools) and [appimagetool](https://github.com/AppImage/appimagetool):
-
-```bash
-sudo apt install libfuse2
-wget https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
-chmod +x appimagetool-x86_64.AppImage
-sudo mv appimagetool-x86_64.AppImage /usr/local/bin/appimagetool
-```
-
-Then `cd` into the folder that contains both `publish/` and `packaging/`, and run the script with the version number from `Directory.Build.props`:
-
-```bash
-cd ~/Downloads
-chmod +x packaging/linux/build-appimage.sh
-sed -i 's/\r$//' packaging/linux/*.sh packaging/linux/*.desktop packaging/linux/*.xml
-./packaging/linux/build-appimage.sh 2.0.8
-```
-
-This produces `publish/ArgoBooks-2.0.8-linux-x64.AppImage`.
+To build it by hand instead, see [Linux manual build](setup/LinuxManualBuild.md).
 
 ### Linux runtime dependencies
 
@@ -106,32 +68,9 @@ sudo apt install libgtk-3-0 libwebkit2gtk-4.0-37 libsecret-tools policykit-1
 
 ## macOS
 
-**Everything in this section runs on the Mac itself, both the setup and the build.** Unlike Linux, none of it cross-compiles from Windows: the bundle, the icon, the signature and the notarization all need macOS-only tools (`iconutil`, `sips`, `codesign`, `notarytool`). Clone the repo on the Mac and work there.
+Signing and notarizing needs setting up once first, see [One-time release setup](setup/OneTimeReleaseSetup.md).
 
-### One-time setup
-
-Requires an **Apple Developer Program membership** ($99 USD per year). Without it macOS rejects a downloaded copy with "Argo Books is damaged and can't be opened", so this is not skippable for a public release.
-
-1. Install the .NET 10 SDK (arm64) and the Xcode Command Line Tools:
-
-   ```bash
-   xcode-select --install
-   ```
-
-2. In the Apple Developer portal, create a **Developer ID Application** certificate and install it into the login keychain. Confirm it's there:
-
-   ```bash
-   security find-identity -v -p codesigning
-   ```
-
-   The full string it prints, `Developer ID Application: Your Name (TEAMID)`, is what the build script needs.
-
-3. Create an app-specific password at appleid.apple.com, then store the notarization credentials once. They are saved in the keychain, so this is not repeated per release:
-
-   ```bash
-   xcrun notarytool store-credentials "argo-notary" \
-     --apple-id you@example.com --team-id TEAMID --password <app-specific-password>
-   ```
+**This whole section has to be done on a Mac.** The tools it needs only exist there, so none of it can be done from Windows the way the Linux build can. Clone the repo on the Mac and work there.
 
 ### Build and package
 
@@ -177,17 +116,11 @@ The exact names `ArgoBooks-{version}-osx-arm64.zip` and `ArgoBooks-{version}-osx
 - **Every nested native library is signed individually.** `codesign --deep` silently misses them.
 - **The bundle name and `CFBundleExecutable` must both stay `Argo Books`.** The updater walks up from the running executable looking for a `.app` parent, and falls back to `/Applications/Argo Books.app`.
 
-## Sign the Release Files
+## Going Live
 
-The app verifies an Ed25519 signature on every update it downloads, and refuses to install files that are unsigned or don't match. Every file referenced by the appcast must therefore be signed with our private key.
+Everything here happens once all four files are built, in this order.
 
-### One-time setup
-
-- The signing key pair needs to be added to `C:\Users\evand\AppData\Local\netsparkle`. **Back this folder up**. If the private key is lost, shipped versions of the app can't verify future updates; if it leaks, someone who also compromised the website could forge updates. It must never be committed to a repo.
-- The matching public key is embedded in the app at `NetSparkleUpdateService.UpdatePublicKey`.
-- Intall the signing tool: `dotnet tool install --global NetSparkleUpdater.Tools.AppCastGenerator`
-
-### Each release
+The app verifies an Ed25519 signature on every update it downloads, and refuses to install files that are unsigned or don't match, which is what step 1 is for. The signing key and tool need setting up once first, see [One-time release setup](setup/OneTimeReleaseSetup.md).
 
 1. Put the **final** `.exe`, `.AppImage` and both `.zip` files together in one folder, then run the signing script:
 
@@ -195,17 +128,11 @@ The app verifies an Ed25519 signature on every update it downloads, and refuses 
    powershell -File "C:\Users\evand\Desktop\Argo-Books-Avalonia\packaging\sign-release.ps1" "C:\Users\evand\Desktop\Argo Books versions\2.0.16" "C:\laragon\www\argo-books-website\avalonia-update.xml"
    ```
 
-   The first path is the folder holding the four files, the second is the website repo's `avalonia-update.xml`. Both are arguments, so the folder can live anywhere. Setting an `ARGO_APPCAST` environment variable to the appcast's full path lets you leave the second argument off.
+   The first path is the folder holding the four files, the second is the website repo's `avalonia-update.xml`. The script signs each file and updates the appcast: signatures, version, file sizes and publication date. It reads the version from the filenames, and stops without touching the appcast if anything is missing or inconsistent.
 
-   The script signs each file, writes each signature onto the enclosure for that platform, replaces the version throughout the file, fills in the real file sizes and sets the publication date. It reads the version from the filenames, so there is nothing to type twice. It does not commit, push or upload.
+   Use the stapled macOS zips that `build-app.sh` produced last. Re-zipping a bundle afterwards changes its bytes and invalidates the signature.
 
-   It stops without touching the appcast if a file is missing, if the folder mixes versions because a file is left over from an earlier build, if a platform has no `<item>` in the appcast, or if it is pointed at `avalonia-update-dev.xml`, which is signed with the separate sandbox key. Afterwards it re-reads the file and checks that each enclosure holds the signature generated for it.
-
-   The summary it prints lists each file's size and build time. Read those: the script cannot tell a correct build from a stale one, only that all four claim the same version.
-
-   For the macOS zips the files must be the stapled archives that `build-app.sh` produced last. Re-zipping a bundle afterwards changes its bytes and invalidates the signature.
-
-   Then review the change with `git diff` before moving on.
+   Check the file sizes and build times it prints, because it cannot tell a stale build from a fresh one, only that all four claim the same version. Then review the appcast with `git diff`.
 
 2. Regenerate the translations for the new version's strings (see `tools/ArgoBooks.Translations/README.md`):
 
@@ -232,11 +159,46 @@ The app verifies an Ed25519 signature on every update it downloads, and refuses 
    - `ArgoBooks-<version>-osx-x64.zip`
    - a `languages/` subfolder holding the JSON files from step 2
 
-   The filenames matter: `get_avalonia_installer.php` builds the download links from those exact patterns, and the app fetches translations from `/resources/downloads/{version}/languages/{iso}.json` (`LanguageService.DownloadUrlTemplate`).
+   The filenames matter: `get_avalonia_installer.php` builds the download links from those exact patterns, and the app fetches translations from `/resources/downloads/{version}/languages/{iso}.json`.
 
 7. Check the website repo's **Verify release signatures** workflow on GitHub. The push in step 5 starts it, and it keeps rechecking for 45 minutes while the upload finishes. It downloads each file in `avalonia-update.xml` and fails if a file is missing or its signature doesn't match, which is what would make the app refuse the update.
 
 The release is now live. The website download buttons serve the new version, and existing installs will show the "A new version is available" banner the next time they check for updates. Test the auto-update by opening the previous version of the app and letting it update, then confirm that the old version was uninstalled and the new one is installed. Once that works, the release is done.
+
+## After the Release: The Stores
+
+Neither store builds the app. Both point at the files already uploaded in step 6, so these only work once the release is live.
+
+### Microsoft Store
+
+The [listing](https://apps.microsoft.com/detail/xpdmdvrxj0xs0m?cid=PCCongratsBnr&hl=en-US&gl=CA) carries a URL to one specific installer, not a "latest" link, so every release needs it repointed.
+
+1. Open the app in Partner Center and go to **Packages**.
+2. Click the package ID in the list, then find the **Package URL** field, and point it at the new version.
+
+   `https://argorobots.com/resources/downloads/<version>/Argo Books Installer V.<version>.exe`
+
+   It has to be the static file and it has to name a version. The malware scan, the signing check and package validation all run against one specific binary, so a URL that moved would mean customers get a file Microsoft never reviewed. That is why there is no way to have it follow the newest build, and why this step exists.
+3. Run **Package validation**. Silent install, the Add/Remove Programs entry and bundleware always come back "could not identify", because the installer is per-machine and raises a UAC prompt their sandbox cannot click. Not a failure, and Microsoft's own docs say UAC prompts are allowed. Malware and code signing are the two that must pass.
+4. Submit. Review has run in under a day in practice against a stated three business days.
+
+### Homebrew
+
+The cask lives on GitHub in [Homebrew's own repo](https://github.com/Homebrew/homebrew-cask/blob/main/Casks/a/argo-books.rb) and pins the version and the SHA256 of both macOS archives, so a release needs a pull request. This has to be done from a Mac.
+
+```
+brew bump-cask-pr --version <version> argo-books
+```
+
+That reads the new archives, computes both hashes, commits and opens the PR by itself.
+
+The cask file itself is not kept in this repo, because Homebrew's repo owns it and `brew bump-cask-pr` edits their clone, not ours. A second copy here would only drift.
+
+Three things before touching it:
+
+- `livecheck` uses a regex over `avalonia-update.xml`, not the `:sparkle` strategy. Sparkle expects `sparkle:os="macos"` and the appcast says `macos-arm64` and `macos-x64`, which is what NetSparkle writes and the app's updater needs. Leave it alone.
+- Each push to a cask PR runs three macOS CI jobs that install and launch the app, so three phantom macOS devices appear in telemetry.
+- The `zap trash:` list mirrors the app's own data locations. Renaming `ApplicationName` in `ArgoBooks.Core/Platform/MacPlatformService.cs`, or changing the bundle ID, means the cask needs a pull request of its own, separate from a version bump.
 
 ## Once a Year: Province and State Flags
 

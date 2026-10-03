@@ -77,7 +77,7 @@
                       VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled"
                       Background="{DynamicResource BackgroundSecondaryBrush}">
-            <StackPanel Margin="24" Spacing="24">
+            <StackPanel Margin="24,14,24,24" Spacing="16">
                 <!-- Page Header -->
                 <Grid ColumnDefinitions="*,Auto,Auto,Auto">
                     <!-- Right margin keeps the wrapped subtitle off the Edit Dashboard button. -->

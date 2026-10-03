@@ -742,7 +742,7 @@ public RevenuePageViewModel()
     [ObservableProperty]
     private int _stripePendingCount;
 
-    public string StripeBannerText => "Stripe: new sales are ready to sync.".Translate();
+    public string StripeBannerText => "Stripe: new revenue is ready to sync.".Translate();
 
     partial void OnStripePendingCountChanged(int value) => OnPropertyChanged(nameof(StripeBannerText));
 
@@ -774,7 +774,7 @@ public RevenuePageViewModel()
                 _lastNotifiedStripePending = count;
                 App.AddNotification(
                     "Stripe".Translate(),
-                    "New Stripe sales are ready to sync.".Translate(),
+                    "New Stripe revenue is ready to sync.".Translate(),
                     NotificationType.Info,
                     () => App.NavigationService?.NavigateTo(PageNames.Revenue));
             }

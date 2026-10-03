@@ -32,6 +32,9 @@ public class CompanyManager : IDisposable
     private string? _currentTempDirectory;
     private string? _currentPassword;
     private FileStream? _fileLock;
+    // Keeps the open company's working directory from being deleted underneath it; see
+    // SecureTempDirectory.Hold.
+    private FileStream? _workingDirectoryLock;
     // Cross-instance guard: prevents the same company being opened in a second running instance,
     // which would race auto-saves and corrupt the .argo file.
     private readonly CompanyInstanceLock _instanceLock = new();
@@ -703,6 +706,7 @@ public class CompanyManager : IDisposable
 
         // Create temporary directory for the new company
         _currentTempDirectory = SecureTempDirectory.Create();
+        _workingDirectoryLock = SecureTempDirectory.Hold(_currentTempDirectory);
 
         try
         {
@@ -761,7 +765,10 @@ public class CompanyManager : IDisposable
         {
             // Clean up on failure
             _instanceLock.Release();
-            _errorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to create company");
+            // A security block is recoverable and the caller logs which outcome the user
+            // chose, so logging here as well recorded every blocked create twice.
+            if (!FileAccessHelper.IsLikelySecurityBlock(ex))
+                _errorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to create company");
             DeleteTempDirectoryAfterFailure();
             CompanyData = null;
             throw;
@@ -872,6 +879,7 @@ public class CompanyManager : IDisposable
             var tempDirectory = await Task.Run(
                 () => _fileService.OpenCompanyAsync(filePath, password, cancellationToken));
             _currentTempDirectory = tempDirectory;
+            _workingDirectoryLock = SecureTempDirectory.Hold(tempDirectory);
 
             // Load company data, but defer receipts (they carry base64 image data and
             // aren't needed to show the dashboard). They load in the background and are
@@ -953,6 +961,8 @@ public class CompanyManager : IDisposable
     {
         var tempDirectory = _currentTempDirectory;
         _currentTempDirectory = null;
+        _workingDirectoryLock?.Dispose();
+        _workingDirectoryLock = null;
         if (tempDirectory == null)
             return;
 
@@ -1026,7 +1036,7 @@ public class CompanyManager : IDisposable
             if (string.IsNullOrEmpty(revenue.InvoiceId) || RevenueAggregator.IsCollected(revenue))
                 continue;
 
-            if (data.GetInvoice(revenue.InvoiceId) is { } invoice && InvoiceTotalsService.IsPaidInFull(invoice))
+            if (data.GetInvoice(revenue.InvoiceId) is { } invoice && invoice.IsPaidInFull)
             {
                 revenue.PaymentStatus = RevenuePaymentStatus.Paid;
                 healed = true;
@@ -1458,6 +1468,8 @@ public class CompanyManager : IDisposable
 
             if (_currentTempDirectory != null)
             {
+                _workingDirectoryLock?.Dispose();
+                _workingDirectoryLock = null;
                 await _fileService.CloseCompanyAsync(_currentTempDirectory);
                 _currentTempDirectory = null;
             }
@@ -2047,7 +2059,20 @@ public class CompanyManager : IDisposable
             settings.BacktestVersion = onDisk?.BacktestVersion;
             settings.LastBacktestedMonth = onDisk?.LastBacktestedMonth;
 
-            await _fileService.WriteJsonAsync(companyDir, "appSettings.json", settings, cancellationToken);
+            if (onDisk == null)
+            {
+                // The working copy has lost its files (GetCompanyDirectory rebuilds a deleted
+                // directory empty), so packing it with only the settings would replace the
+                // company file with one that holds nothing else. Write every file instead.
+                await EnsureReceiptsLoadedAsync();
+                if (CompanyData == null || CurrentFilePath == null || _currentTempDirectory == null)
+                    return;
+                await _fileService.SaveCompanyDataAsync(companyDir, CompanyData, cancellationToken);
+            }
+            else
+            {
+                await _fileService.WriteJsonAsync(companyDir, "appSettings.json", settings, cancellationToken);
+            }
 
             ReleaseFileLock();
             try
@@ -2133,8 +2158,24 @@ public class CompanyManager : IDisposable
             () => _fileService.SaveCompanyAsync(filePath, tempDirectory, password, cancellationToken), cancellationToken);
     }
 
-    private static string GetCompanyDirectory(string tempDirectory)
+    private string GetCompanyDirectory(string tempDirectory)
     {
+        // A disk cleaner or antivirus can delete the working directory while the company is open.
+        // Every record is held in memory and rewritten by the save that follows, receipt images
+        // included, so rebuilding the layout costs only the logo and avatar files that lived
+        // nowhere else. Throwing here instead loses the whole session's work.
+        if (!Directory.Exists(tempDirectory))
+        {
+            var rebuilt = Path.Combine(
+                tempDirectory,
+                ToCompanyFileName(CompanyData?.Settings.Company.Name ?? string.Empty));
+            Directory.CreateDirectory(rebuilt);
+            _errorLogger?.LogWarning(
+                $"The open company's working directory was gone and has been rebuilt: {tempDirectory}",
+                "CompanyManager");
+            return rebuilt;
+        }
+
         var subdirs = Directory.GetDirectories(tempDirectory);
         if (subdirs.Length == 0) return tempDirectory;
         if (subdirs.Length == 1) return subdirs[0];
@@ -2157,6 +2198,9 @@ public class CompanyManager : IDisposable
         _instanceLock.Dispose();
         _saveLock.Dispose();
         _currentPassword = null;
+
+        _workingDirectoryLock?.Dispose();
+        _workingDirectoryLock = null;
 
         // Clean up temp directory
         if (_currentTempDirectory != null && Directory.Exists(_currentTempDirectory))

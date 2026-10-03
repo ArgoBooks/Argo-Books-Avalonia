@@ -211,8 +211,10 @@ internal static class SpreadsheetRowReader
     /// <summary>
     /// Decides once for a whole column whether its numeric dates are day-first or month-first. A
     /// first field over 12 can only be a day, and so can a second field over 12, so one such value
-    /// settles the column. Unknown when nothing settles it (every field is 12 or under) or the
-    /// column contradicts itself; those values keep the per-value parse, which reads month-first.
+    /// settles the column. When nothing in the file settles it (every field is 12 or under), the
+    /// computer's own regional date order decides, so a British or Canadian statement covering the
+    /// 1st to the 12th is not read as twelve different months. Unknown when the column contradicts
+    /// itself; those values keep the per-value parse, which reads month-first.
     /// </summary>
     public static DateOrder DetectDateOrder(List<List<object?>> rows, List<string> headers, string columnName)
     {
@@ -235,8 +237,17 @@ internal static class SpreadsheetRowReader
             if (second > 12) monthFirst = true;
         }
 
-        if (dayFirst == monthFirst) return DateOrder.Unknown;
+        if (dayFirst && monthFirst) return DateOrder.Unknown;
+        if (!dayFirst && !monthFirst) return RegionIsDayFirst() ? DateOrder.DayFirst : DateOrder.Unknown;
         return dayFirst ? DateOrder.DayFirst : DateOrder.MonthFirst;
+    }
+
+    private static bool RegionIsDayFirst()
+    {
+        var pattern = CultureInfo.CurrentCulture.DateTimeFormat.ShortDatePattern;
+        var day = pattern.IndexOf('d');
+        var month = pattern.IndexOf('M');
+        return day >= 0 && month >= 0 && day < month;
     }
 
     // Day-first formats, e.g. UK/EU "15/03/2023" or "15.03.2023". Unless the column is known to be

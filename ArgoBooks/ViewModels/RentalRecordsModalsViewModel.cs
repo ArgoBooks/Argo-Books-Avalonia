@@ -949,7 +949,7 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
             Amount = amount,
             Total = amount,
             PaymentMethod = PaymentMethod.Other,
-            PaymentStatus = InvoiceTotalsService.IsPaidInFull(invoice) ? RevenuePaymentStatus.Paid : RevenuePaymentStatus.Unpaid,
+            PaymentStatus = invoice.IsPaidInFull ? RevenuePaymentStatus.Paid : RevenuePaymentStatus.Unpaid,
             InvoiceId = invoice.Id,
             ReferenceNumber = invoice.InvoiceNumber,
             IsKeptDeposit = true,

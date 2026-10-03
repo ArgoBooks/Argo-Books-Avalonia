@@ -1117,7 +1117,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
             if (App.CompanyManager != null)
             {
                 try { await App.CompanyManager.SaveCompanyAsync(); }
-                catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Save failed: {ex.Message}"); }
+                catch (Exception ex) { App.ReportInvoiceSaveFailure(ex); }
             }
         }
         catch (Exception ex)
@@ -1790,7 +1790,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
         {
             App.SuppressNextSavedFeedback();
             try { await App.CompanyManager.SaveCompanyAsync(); }
-            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Save failed: {ex.Message}"); }
+            catch (Exception ex) { App.ReportInvoiceSaveFailure(ex); }
         }
 
         // Show success animation instead of closing immediately
@@ -2175,7 +2175,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
         {
             App.SuppressNextSavedFeedback();
             try { await App.CompanyManager.SaveCompanyAsync(); }
-            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Save failed: {ex.Message}"); }
+            catch (Exception ex) { App.ReportInvoiceSaveFailure(ex); }
         }
     }
 

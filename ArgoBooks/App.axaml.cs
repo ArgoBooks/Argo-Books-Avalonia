@@ -1046,7 +1046,11 @@ public partial class App : Application
     public static void OpenUpgradeModal(string source = "unknown")
     {
         _ = TelemetryManager?.TrackFeatureAsync(FeatureName.UpgradeModalOpened, source);
-        _appShellViewModel?.UpgradeModalViewModel.OpenCommand.Execute(null);
+        if (_appShellViewModel?.UpgradeModalViewModel is { } upgrade)
+        {
+            upgrade.OpenedFrom = source;
+            upgrade.OpenCommand.Execute(null);
+        }
     }
 
     #endregion
@@ -1328,6 +1332,20 @@ public partial class App : Application
     /// Suppresses the "Saved" feedback label for the next save operation.
     /// </summary>
     public static void SuppressNextSavedFeedback() => _suppressSavedFeedback = true;
+
+    /// <summary>
+    /// Reports a save that failed behind an invoice action. The work is still in memory and the
+    /// unsaved flag is still set, so closing will prompt, but the user has just been told the
+    /// action succeeded and would otherwise have no reason to think anything was wrong.
+    /// </summary>
+    public static void ReportInvoiceSaveFailure(Exception ex)
+    {
+        ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Save after an invoice action failed");
+        _appShellViewModel?.AddNotification(
+            "Not saved yet".Translate(),
+            "Your invoice is recorded but could not be written to the company file. Use Save to try again.".Translate(),
+            NotificationType.Warning);
+    }
 
     /// <summary>
     /// Gets the confirmation dialog ViewModel for showing confirmation dialogs from anywhere.
@@ -1814,6 +1832,9 @@ public partial class App : Application
             // Process pending conversions when window is activated (e.g., user returns after going offline)
             desktop.MainWindow.Activated += async (_, _) =>
             {
+                // Coming back from a file manager is exactly when a backup may have been deleted
+                // behind the settings modal's back.
+                _appShellViewModel?.SettingsModalViewModel.RefreshBackupsIfShowing();
                 await TryProcessPendingConversionsAsync();
             };
 
@@ -2129,7 +2150,7 @@ public partial class App : Application
             return;
 
         // Wire the ApplyingUpdate event to save user data before the app exits
-        UpdateService.ApplyingUpdate += (_, _) =>
+        UpdateService.ApplyingUpdate += (_, applying) =>
         {
             try
             {
@@ -2155,7 +2176,14 @@ public partial class App : Application
             }
             catch (Exception ex)
             {
-                ErrorLogger?.LogWarning($"Failed to save data before update: {ex.Message}", "AutoUpdate");
+                // The installer restarts the app, so going ahead would throw away whatever did not
+                // get written. Refuse, the same as the close, auto-lock and tutorial-restart paths.
+                applying.Cancel = true;
+                ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to save data before update");
+                _appShellViewModel?.AddNotification(
+                    "Update postponed".Translate(),
+                    "Your changes could not be saved, so the update was not installed. Save manually, then update again.".Translate(),
+                    NotificationType.Warning);
             }
         };
 
@@ -3141,6 +3169,7 @@ public partial class App : Application
                 }
 
                 // Import Tier 1 data
+                await BackUpBeforeRiskyChangeAsync();
                 var importCts = new CancellationTokenSource();
                 _mainWindowViewModel?.ShowLoading("Importing data...".Translate(), cts: importCts, cancelConfirmation: ConfirmCancelAsync);
 
@@ -3252,7 +3281,10 @@ public partial class App : Application
                 estimateTimerCts.Cancel();
                 try { await timerTask; } catch (OperationCanceledException) { }
 
-                // Phase B: Import sequentially (CompanyData mutation is not thread-safe)
+                // Phase B: Import sequentially (CompanyData mutation is not thread-safe).
+                // With mapped sheets too, the copy was taken before those went in.
+                if (tier1Sheets.Count == 0)
+                    await BackUpBeforeRiskyChangeAsync();
                 _mainWindowViewModel?.ShowLoading(
                     "Importing data...".Translate(),
                     progress: 90,
@@ -3432,10 +3464,23 @@ public partial class App : Application
 
         if (files.Count == 0) return;
 
-        var backupPath = files[0].Path.LocalPath;
+        await RestoreFromBackupFileAsync(files[0].Path.LocalPath);
+    }
 
-        // Suggest a name based on the backup filename (strip .argobk, add .argo)
-        var suggestedName = Path.GetFileNameWithoutExtension(backupPath);
+    /// <summary>
+    /// Restores a known backup file, asking only where to put the restored company. Shared by the
+    /// File menu, which picks the file first, and the Backups tab, which already knows which copy
+    /// the user chose.
+    /// </summary>
+    public static async Task RestoreFromBackupFileAsync(string backupPath)
+    {
+        if (CompanyManager == null || _appShellViewModel == null) return;
+        if (Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop) return;
+
+        // The company's own name, not the copy's file name: the company is named after its file
+        // when it opens, so restoring as "Acme--backup-20260930-143200" would put that on its
+        // invoices. Marked as restored so the suggestion does not land on the original.
+        var suggestedName = $"{BackupService.CompanyNameOf(backupPath)} (restored)";
 
         // Show save dialog to choose where to restore the company file
         var saveFile = await desktop.MainWindow!.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
@@ -3483,16 +3528,104 @@ public partial class App : Application
     }
 
     /// <summary>
+    /// Set while several files are imported as one job, after the copy for the whole job is taken.
+    /// A copy per file would prune away the one from before the job started.
+    /// </summary>
+    private static bool _importBatchBackedUp;
+
+    /// <summary>
+    /// A copy taken before a change the user may want to reverse, if they asked for one. Awaited
+    /// rather than fired off, because the point is to capture the state before the change lands.
+    /// Never throws: a backup that fails must not stop the import it was protecting.
+    /// </summary>
+    internal static async Task BackUpBeforeRiskyChangeAsync()
+    {
+        if (_importBatchBackedUp) return;
+        if (SettingsService?.GlobalSettings.Backups is not { Enabled: true, BeforeImports: true } settings) return;
+        if (CompanyManager is not { IsCompanyOpen: true } manager || manager.IsSampleCompany) return;
+
+        await new BackupService(ErrorLogger).CreateAsync(manager, settings);
+    }
+
+    /// <summary>
+    /// Asks where backups should be kept. Returns null if the picker was dismissed.
+    /// </summary>
+    public static async Task<string?> PickBackupFolderAsync()
+    {
+        if (Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop) return null;
+
+        var folders = await desktop.MainWindow!.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = "Where to keep backups".Translate(),
+            AllowMultiple = false
+        });
+
+        return folders.Count == 0 ? null : folders[0].Path.LocalPath;
+    }
+
+    /// <summary>
+    /// Writes a backup after a save when one is due, if the user turned backups on. Fire and forget
+    /// on purpose: it runs off the CompanySaved handler, which still holds the save lock that
+    /// ExportBackupAsync waits on, and a copy that fails is not lost work. CreateAsync logs its own
+    /// failures rather than throwing.
+    ///
+    /// Posted to the UI thread rather than run on the pool: the copy serializes the open company,
+    /// which is only safe on the thread that edits it.
+    /// </summary>
+    internal static void BackUpAfterSaveIfDue()
+    {
+        if (SettingsService?.GlobalSettings.Backups is not { Enabled: true } settings) return;
+        if (CompanyManager is not { IsCompanyOpen: true } manager || manager.IsSampleCompany) return;
+
+        Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
+        {
+            var backups = new BackupService(ErrorLogger);
+            if (!manager.IsCompanyOpen
+                || !backups.IsDue(settings, manager.CurrentFilePath, manager.CurrentCompanyName, DateTime.UtcNow))
+                return;
+
+            await backups.CreateAsync(manager, settings);
+        });
+    }
+
+    /// <summary>
     /// Opens a file picker for a bank statement and passes the chosen file directly to
     /// the BankStatementImportModal without navigating to the Bank Matching page first.
     /// Called from the Expenses/Revenue "Import bank statement" menu item.
     /// </summary>
+    /// <summary>
+    /// Shows the import prompt and reports whether to carry on to the file picker.
+    /// Returns true when the prompt is unavailable, so an import is never blocked by it.
+    /// </summary>
+    private static async Task<bool> ConfirmImportFileAsync(ImportFilePromptOptions options)
+    {
+        var prompt = _appShellViewModel?.ImportFilePromptModalViewModel;
+        return prompt == null || await prompt.ShowAsync(options);
+    }
+
     public static async Task OpenBankStatementImportAsync()
     {
         if (BankStatementImportModalViewModel == null) return;
         if (Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop) return;
 
         _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportOpened, "bank");
+
+        if (!await ConfirmImportFileAsync(new ImportFilePromptOptions
+        {
+            Title = "Import a bank statement".Translate(),
+            Description = "Argo Books reads the statement and creates the expenses and revenue from it.".Translate(),
+            Points =
+            [
+                "Download a statement from your bank's website, covering the period you want to bring in.".Translate(),
+                "CSV or Excel reads best. A PDF statement works too.".Translate(),
+                "There is no bank login, and nothing is connected to your account.".Translate()
+            ],
+            ChooseButtonText = "Choose statement".Translate()
+        }))
+        {
+            _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportAbandoned, "bank:prompt");
+            return;
+        }
 
         var file = await desktop.MainWindow!.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
@@ -3526,6 +3659,23 @@ public partial class App : Application
         }
 
         _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportOpened, "bank-matching");
+
+        if (!await ConfirmImportFileAsync(new ImportFilePromptOptions
+        {
+            Title = "Check a statement against your books".Translate(),
+            Description = "Argo Books compares the statement to what you have already recorded, so you can see what is missing or recorded twice.".Translate(),
+            Points =
+            [
+                "Download a statement from your bank's website, covering the period you want to check.".Translate(),
+                "CSV or Excel reads best. A PDF statement works too.".Translate(),
+                "Nothing is created or changed until you decide what to do with each line.".Translate()
+            ],
+            ChooseButtonText = "Choose statement".Translate()
+        }))
+        {
+            _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportAbandoned, "bank-matching:prompt");
+            return;
+        }
 
         var file = await desktop.MainWindow!.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
@@ -3581,13 +3731,23 @@ public partial class App : Application
             if (lines.Count == 0)
             {
                 _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, $"bank-matching:no-rows:{ext.TrimStart('.')}");
+                _ = Services.ImportDiagnosticOffer.SendAsync(filePath, $"bank-matching:no-rows:{ext.TrimStart('.')}");
                 await ShowInfoDialogAsync("Info".Translate(),
                     "No transactions were found. Make sure the file has Date, Description and Amount (or Debit/Credit) columns.".Translate());
                 return;
             }
 
-            // Snapshot before mutation so the import can be undone in one step.
-            var snapshot = CreateCompanyDataSnapshot(companyData);
+            // A statement that overlaps one already imported, or the same file twice, would
+            // double those lines: the second copy matches some other record of the same amount
+            // or shows as missing from the books.
+            var readCount = lines.Count;
+            lines = BankStatementImportService.WithoutAlreadyImported(lines, companyData.BankImportSessions);
+            if (lines.Count == 0)
+            {
+                await ShowInfoDialogAsync("Bank Matching".Translate(),
+                    "Every transaction in this statement has already been imported.".Translate());
+                return;
+            }
 
             var session = new Core.Models.BankMatching.BankImportSession
             {
@@ -3599,11 +3759,28 @@ public partial class App : Application
             companyData.BankImportSessions.Add(session);
             companyData.MarkAsModified();
 
-            var importedSnapshot = CreateCompanyDataSnapshot(companyData);
+            // Undo takes this statement back out and nothing else. Restoring a snapshot of the
+            // whole company removed every invoice, sale and payment made since the import that
+            // had no undo step of its own, and rewound the counters so their numbers were reused.
             UndoRedoManager.RecordAction(new DelegateAction(
                 "Import bank statement".Translate(),
-                () => { RestoreCompanyDataFromSnapshot(companyData, snapshot); CompanyManager.MarkAsChanged(); _bankMatchingPageViewModel?.Reload(); },
-                () => { RestoreCompanyDataFromSnapshot(companyData, importedSnapshot); CompanyManager.MarkAsChanged(); _bankMatchingPageViewModel?.Reload(); }
+                () =>
+                {
+                    var matcher = new BankMatchingService();
+                    foreach (var line in session.Lines)
+                        matcher.UnlinkMatch(line, companyData);
+                    companyData.BankImportSessions.Remove(session);
+                    companyData.MarkAsModified();
+                    CompanyManager.MarkAsChanged();
+                    _bankMatchingPageViewModel?.Reload();
+                },
+                () =>
+                {
+                    companyData.BankImportSessions.Add(session);
+                    companyData.MarkAsModified();
+                    CompanyManager.MarkAsChanged();
+                    _bankMatchingPageViewModel?.Reload();
+                }
             ));
 
             CompanyManager.MarkAsChanged();
@@ -3616,7 +3793,10 @@ public partial class App : Application
 
             await ShowInfoDialogAsync(
                 "Bank Matching".Translate(),
-                "Imported {0} transactions from {1}.".TranslateFormat(lines.Count, Path.GetFileName(filePath)));
+                readCount == lines.Count
+                    ? "Imported {0} transactions from {1}.".TranslateFormat(lines.Count, Path.GetFileName(filePath))
+                    : "Imported {0} transactions from {1}. {2} were already imported and were left out."
+                        .TranslateFormat(lines.Count, Path.GetFileName(filePath), readCount - lines.Count));
         }
         catch (OperationCanceledException)
         {
@@ -3627,6 +3807,7 @@ public partial class App : Application
         {
             _mainWindowViewModel?.HideLoading();
             _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, $"bank-matching:unreadable:{ext.TrimStart('.')}");
+            _ = Services.ImportDiagnosticOffer.SendAsync(filePath, $"bank-matching:unreadable:{ext.TrimStart('.')}");
             await ShowInfoDialogAsync("Import Bank Statement".Translate(), ImportRescueMessages.UnreadableFile);
         }
         catch (Exception ex)
@@ -3690,6 +3871,10 @@ public partial class App : Application
         if (check.Allowed) return usage;
 
         usage.Dispose();
+        // Out of imports is a paywall; a failed check is ours. They produced the same empty
+        // result and so used to be indistinguishable afterwards.
+        _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, 
+            check.ErrorMessage != null ? "bank-pdf:check-failed" : "bank-pdf:limit");
         if (check.ErrorMessage != null)
             await UpgradePromptHelper.ShowUsageCheckFailedAsync(check.ErrorMessage);
         else
@@ -3713,7 +3898,12 @@ public partial class App : Application
         string filePath, BankPdfReadProgress progress)
     {
         using var usage = await TryBeginBankPdfImportAsync();
-        if (usage == null || PdfStatementExtractor == null) return [];
+        if (usage == null) return [];   // already reported, with which refusal it was
+        if (PdfStatementExtractor == null)
+        {
+            _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, "bank-pdf:no-extractor");
+            return [];
+        }
 
         progress.Begin(new FileInfo(filePath).Length);
         List<Core.Models.BankMatching.BankStatementLine> extracted;
@@ -3725,6 +3915,16 @@ public partial class App : Application
         catch (ServerRateLimitedException ex)
         {
             // Nothing was read, so nothing is charged; the file itself may be fine.
+            _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, "bank-pdf:server-busy");
+            if (EndRead(progress, false))
+                await ShowInfoDialogAsync("Import Bank Statement".Translate(), ex.Message);
+            return [];
+        }
+        catch (StatementExtractionException ex)
+        {
+            // The server refused or failed. Nothing was read, so nothing is charged, and the
+            // file is not offered for diagnosis: there is nothing wrong with it to look at.
+            _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, "bank-pdf:server-error");
             if (EndRead(progress, false))
                 await ShowInfoDialogAsync("Import Bank Statement".Translate(), ex.Message);
             return [];
@@ -3740,6 +3940,10 @@ public partial class App : Application
         {
             // Don't fail silently: the extractor returns nothing both when the PDF has no
             // recognizable transactions and when the server couldn't process it. Nothing is charged.
+            _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, "bank-pdf:extract-empty");
+            // Sent whether or not the screen is still open: the extraction failed either way,
+            // and the file is the open question either way.
+            _ = Services.ImportDiagnosticOffer.SendAsync(filePath, "bank-pdf:extract-empty");
             if (stillWanted)
                 await ShowInfoDialogAsync(
                     "Import Bank Statement".Translate(),
@@ -4268,7 +4472,8 @@ public partial class App : Application
             catch (Exception ex) when (FileAccessHelper.IsLikelySecurityBlock(ex))
             {
                 _suppressSavedFeedback = false;
-                ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Save As blocked by security software");
+                ErrorLogger?.LogWarning("Save As blocked, offered retry or another folder",
+                    "SaveAs", ErrorCategory.FileSystem, ex.GetType().Name);
                 switch (await ShowSaveBlockedDialogAsync(filePath))
                 {
                     case SaveBlockedChoice.Retry:
@@ -4365,7 +4570,8 @@ public partial class App : Application
             }
             catch (Exception ex) when (FileAccessHelper.IsLikelySecurityBlock(ex))
             {
-                ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Company save blocked by security software");
+                ErrorLogger?.LogWarning("Company save blocked, offered retry or another folder",
+                    "Save", ErrorCategory.FileSystem, ex.GetType().Name);
                 switch (await ShowSaveBlockedDialogAsync(CompanyManager.CurrentFilePath))
                 {
                     case SaveBlockedChoice.Retry:

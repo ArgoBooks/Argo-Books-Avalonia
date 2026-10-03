@@ -387,4 +387,23 @@ public class QuebecPayrollCalculatorTests
     }
 
     #endregion
+
+    // Moved to Quebec part way through the year. The premiums paid in Ontario were at the higher
+    // rate, so at face value they used up room that the lower Quebec rate had not: EI stopped
+    // early and the year came up short.
+    [Fact]
+    public void EiPaidInAnotherProvince_CountsAtTheQuebecRate()
+    {
+        PayrollRateTable rates = Rates();
+        var ytd = new PayrollYearToDate { EiEmployee = 782.40m, EiEmployeeQuebec = 0m };
+        decimal premium = Math.Round(20000m * rates.Ei.QuebecRateEmployee, 2, MidpointRounding.AwayFromZero);
+        decimal room = Math.Round(
+            rates.Quebec!.EiMaxPremiumEmployee - 782.40m * rates.Ei.QuebecRateEmployee / rates.Ei.RateEmployee,
+            2, MidpointRounding.AwayFromZero);
+
+        decimal ei = Calc(20000m, periods: 12, ytd: ytd).EiEmployee;
+
+        Assert.Equal(Math.Min(premium, room), ei);
+        Assert.True(ei > rates.Quebec.EiMaxPremiumEmployee - 782.40m);
+    }
 }

@@ -268,4 +268,32 @@ public class BankStatementImportService(IErrorLogger? errorLogger = null)
 
         return result;
     }
+
+    /// <summary>
+    /// The lines of a newly read statement that are not in one already imported. Counted rather
+    /// than simply matched, so two identical purchases on one day both survive: a line is left
+    /// out only as many times as it is already held.
+    /// </summary>
+    public static List<BankStatementLine> WithoutAlreadyImported(
+        IReadOnlyList<BankStatementLine> lines, IEnumerable<BankImportSession> existing)
+    {
+        static (DateTime, decimal, string) Key(BankStatementLine l) =>
+            (l.Date.Date, l.Amount, l.Description.Trim().ToUpperInvariant());
+
+        var held = existing.SelectMany(s => s.Lines)
+            .GroupBy(Key)
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        var fresh = new List<BankStatementLine>();
+        foreach (var line in lines)
+        {
+            var key = Key(line);
+            if (held.TryGetValue(key, out var count) && count > 0)
+                held[key] = count - 1;
+            else
+                fresh.Add(line);
+        }
+
+        return fresh;
+    }
 }
