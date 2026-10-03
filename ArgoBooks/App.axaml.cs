@@ -3920,6 +3920,15 @@ public partial class App : Application
                 await ShowInfoDialogAsync("Import Bank Statement".Translate(), ex.Message);
             return [];
         }
+        catch (StatementExtractionException ex)
+        {
+            // The server refused or failed. Nothing was read, so nothing is charged, and the
+            // file is not offered for diagnosis: there is nothing wrong with it to look at.
+            _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, "bank-pdf:server-error");
+            if (EndRead(progress, false))
+                await ShowInfoDialogAsync("Import Bank Statement".Translate(), ex.Message);
+            return [];
+        }
         catch
         {
             progress.End(false);
