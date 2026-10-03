@@ -3869,6 +3869,10 @@ public partial class App : Application
         if (check.Allowed) return usage;
 
         usage.Dispose();
+        // Out of imports is a paywall; a failed check is ours. They produced the same empty
+        // result and so used to be indistinguishable afterwards.
+        _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, 
+            check.ErrorMessage != null ? "bank-pdf:check-failed" : "bank-pdf:limit");
         if (check.ErrorMessage != null)
             await UpgradePromptHelper.ShowUsageCheckFailedAsync(check.ErrorMessage);
         else
@@ -3892,7 +3896,12 @@ public partial class App : Application
         string filePath, BankPdfReadProgress progress)
     {
         using var usage = await TryBeginBankPdfImportAsync();
-        if (usage == null || PdfStatementExtractor == null) return [];
+        if (usage == null) return [];   // already reported, with which refusal it was
+        if (PdfStatementExtractor == null)
+        {
+            _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, "bank-pdf:no-extractor");
+            return [];
+        }
 
         progress.Begin(new FileInfo(filePath).Length);
         List<Core.Models.BankMatching.BankStatementLine> extracted;
@@ -3904,6 +3913,7 @@ public partial class App : Application
         catch (ServerRateLimitedException ex)
         {
             // Nothing was read, so nothing is charged; the file itself may be fine.
+            _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, "bank-pdf:server-busy");
             if (EndRead(progress, false))
                 await ShowInfoDialogAsync("Import Bank Statement".Translate(), ex.Message);
             return [];
@@ -3919,6 +3929,7 @@ public partial class App : Application
         {
             // Don't fail silently: the extractor returns nothing both when the PDF has no
             // recognizable transactions and when the server couldn't process it. Nothing is charged.
+            _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, "bank-pdf:extract-empty");
             if (stillWanted)
                 await ShowInfoDialogAsync(
                     "Import Bank Statement".Translate(),

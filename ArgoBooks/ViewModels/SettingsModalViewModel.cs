@@ -2665,7 +2665,14 @@ public partial class SettingsModalViewModel : ViewModelBase
             RefreshBackupList();
     }
 
-    partial void OnBackupsEnabledChanged(bool value) => SaveBackupSettings();
+    partial void OnBackupsEnabledChanged(bool value)
+    {
+        // Guarded like SaveBackupSettings: loading the saved settings sets this too, and that
+        // is not the user turning anything on.
+        if (!_loadingBackupSettings)
+            _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.BackupSettingsChanged, value ? "on" : "off");
+        SaveBackupSettings();
+    }
 
     partial void OnBackupBeforeImportsChanged(bool value) => SaveBackupSettings();
 
