@@ -39,6 +39,7 @@ public sealed class SourceSurveyOptionsService
         new SurveyOption("capterra",    "Capterra",     false),
         new SurveyOption("producthunt", "Product Hunt", false),
         new SurveyOption("microsoftstore", "Microsoft Store", false),
+        new SurveyOption("homebrew",    "Homebrew",      false),
         new SurveyOption("other",       "Other",        true),
     };
 
