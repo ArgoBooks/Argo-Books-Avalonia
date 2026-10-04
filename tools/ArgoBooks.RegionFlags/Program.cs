@@ -135,9 +135,9 @@ async Task<Dictionary<string, List<(string Kind, string File)>>> WikidataImagesA
                 "{ ?item wdt:P41 ?file BIND(\"flag\" AS ?kind) } UNION " +
                 "{ ?item wdt:P94 ?file BIND(\"arms\" AS ?kind) } UNION " +
                 "{ ?item wdt:P154 ?file BIND(\"logo\" AS ?kind) } }";
-    var url = "https://query.wikidata.org/sparql?query=" + Uri.EscapeDataString(query);
-
-    using var json = JsonDocument.Parse(await FetchAsync(url, "application/sparql-results+json"));
+    // Posted, not put in the address: with every region listed the query is longer than a URL may be.
+    using var json = JsonDocument.Parse(
+        await FetchAsync("https://query.wikidata.org/sparql", "application/sparql-results+json", query));
     var result = new Dictionary<string, List<(string Kind, string File)>>();
     foreach (var row in json.RootElement.GetProperty("results").GetProperty("bindings").EnumerateArray())
     {
@@ -153,13 +153,15 @@ async Task<Dictionary<string, List<(string Kind, string File)>>> WikidataImagesA
     return result;
 }
 
-async Task<byte[]> FetchAsync(string url, string? accept = null)
+async Task<byte[]> FetchAsync(string url, string? accept = null, string? sparql = null)
 {
     for (var attempt = 1; ; attempt++)
     {
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            using var request = new HttpRequestMessage(sparql == null ? HttpMethod.Get : HttpMethod.Post, url);
+            if (sparql != null)
+                request.Content = new FormUrlEncodedContent([new("query", sparql)]);
             if (accept != null)
                 request.Headers.Accept.ParseAdd(accept);
             using var response = await http.SendAsync(request);

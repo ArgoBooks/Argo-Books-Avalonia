@@ -8,7 +8,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <!-- SkiaSharp comes through this reference, at the version the app itself resolves. -->
         <ProjectReference Include="..\..\ArgoBooks\ArgoBooks.csproj" />
-        <PackageReference Include="SkiaSharp" />
     </ItemGroup>
 </Project>
