@@ -373,7 +373,10 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         // A picked product brings its category into the line's category box.
         if (e.PropertyName == nameof(TransactionLineItemBase.SelectedProduct) &&
             sender is TLineItem { SelectedProduct: { } product } lineItem)
+        {
             lineItem.SelectedCategory = CategoryOptionFor(product);
+            DefaultCounterpartyFromProduct(product);
+        }
 
         if (e.PropertyName == nameof(TransactionLineItemBase.SelectedProduct) && sender is TLineItem changedLine)
         {
@@ -382,6 +385,21 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         }
 
         UpdateTotals();
+    }
+
+    /// <summary>
+    /// Fills an empty supplier box from the product just picked, the way the category box is
+    /// filled. Only when it is still empty, so it never overwrites a choice, and only on an
+    /// expense: the product's supplier is who we usually buy from, which says nothing about
+    /// who a sale went to. It stays editable, because the usual supplier and the one actually
+    /// paid are not always the same.
+    /// </summary>
+    private void DefaultCounterpartyFromProduct(ProductOption product)
+    {
+        if (CounterpartyName != "Supplier" || SelectedCounterparty != null) return;
+        if (string.IsNullOrEmpty(product.SupplierId)) return;
+
+        SelectedCounterparty = CounterpartyOptions.FirstOrDefault(c => c.Id == product.SupplierId);
     }
 
     protected void UpdateTotals()
