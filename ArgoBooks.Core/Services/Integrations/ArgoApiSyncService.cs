@@ -298,8 +298,7 @@ public class ArgoApiSyncService
         try
         {
             var batch = await _client.CreateImportBatchAsync(
-                api.DesktopKey!, creation.ClaimedObjectIds, creation.LocalRefs,
-                ClaimKey("claim", creation.ClaimedObjectIds), ct);
+                api.DesktopKey!, creation.ClaimedObjectIds, creation.LocalRefs, NewClaimKey(), ct);
 
             creation.BatchId = batch?.Id;
         }
@@ -338,22 +337,19 @@ public class ArgoApiSyncService
     }
 
     /// <summary>
-    /// An idempotency key that is the same for every retry of one logical claim and
-    /// different for a deliberately new one.
+    /// The idempotency key for one claim: new every time.
     ///
-    /// It used to be a fresh Guid per call, which meant the server's replay cache
-    /// could never fire: a retry looked like a brand new request, found the objects
-    /// no longer pending, and failed with object_not_claimable.
+    /// It used to be worked out from the object ids, so that a repeat of the same claim got the
+    /// server's stored answer. But the server keeps that answer for a day, and the same objects
+    /// are claimed again whenever an import is undone and run again. The second claim was then
+    /// answered with the first one's batch, which the undo had already released, and nothing was
+    /// claimed: the objects stayed in the queue and the next sync imported them a second time. A
+    /// stored refusal was replayed the same way, so one failed claim blocked the import for a day.
+    ///
+    /// Nothing here sends a claim twice. A claim whose answer goes missing is settled by asking
+    /// the server what happened (<see cref="TryAdoptCommittedClaimAsync"/>), not by repeating it.
     /// </summary>
-    private static string ClaimKey(string purpose, IReadOnlyList<string> objectIds)
-    {
-        // Sorted, so the same set of objects in a different order is the same claim.
-        var ordered = objectIds.OrderBy(id => id, StringComparer.Ordinal);
-        var material = purpose + "|" + string.Join(",", ordered);
-        var hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(material));
-
-        return Convert.ToHexString(hash)[..32].ToLowerInvariant();
-    }
+    private static string NewClaimKey() => Guid.NewGuid().ToString("N");
 
     /// <summary>
     /// Did the claim actually land before the response went missing?
@@ -429,8 +425,7 @@ public class ArgoApiSyncService
         try
         {
             var batch = await _client.CreateImportBatchAsync(
-                api.DesktopKey!, creation.ClaimedObjectIds, creation.LocalRefs,
-                ClaimKey("reclaim-" + (creation.BatchId ?? "none"), creation.ClaimedObjectIds), ct);
+                api.DesktopKey!, creation.ClaimedObjectIds, creation.LocalRefs, NewClaimKey(), ct);
 
             if (batch?.Id == null) return false;
 

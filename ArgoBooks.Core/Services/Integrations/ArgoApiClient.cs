@@ -220,9 +220,8 @@ public class ArgoApiClient
     /// object locally, so a developer can see where their data ended up.
     /// </summary>
     /// <param name="idempotencyKey">
-    /// Must be stable for retries of the SAME logical claim and different for a
-    /// deliberately new one. A fresh random key per call defeated the server's replay
-    /// cache entirely, which is the whole reason the header exists.
+    /// The server requires one and answers a repeated key with what it answered the first time,
+    /// for a day. So a claim that is meant to happen again must not reuse a key.
     /// </param>
     public async Task<ArgoBatch?> CreateImportBatchAsync(
         string key,
