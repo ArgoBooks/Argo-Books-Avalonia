@@ -275,6 +275,8 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     /// product changes only the box's text, and that text is what the save acts on. It is
     /// compared trimmed.
     /// </summary>
+    // These two records are only ever compared, so their properties are read through Equals.
+    // ReSharper disable NotAccessedPositionalProperty.Local
     private sealed record LineState(
         string? ProductId, string? CategoryId, string Description, decimal? Quantity, decimal? UnitPrice,
         string ItemText, string CategoryText);
@@ -282,6 +284,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     private sealed record EditState(
         DateTimeOffset? Date, string? CounterpartyId, string? CategoryId, decimal TaxAmount, decimal Shipping,
         decimal Discount, decimal Fee, string PaymentMethod, string Notes, Helpers.EquatableArray<LineState> LineItems);
+    // ReSharper restore NotAccessedPositionalProperty.Local
 
     // The form as the edit modal opened, for change detection.
     private EditState? _original;
@@ -1545,7 +1548,6 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         {
             Title = "Select Receipt",
             AllowMultiple = false,
-            // The same formats the receipt scanner takes, HEIC included, from the one list.
             FileTypeFilter =
             [
                 FilePickerTypes.AllSupportedTypes,
