@@ -90,21 +90,7 @@ public partial class App
         await Task.Yield();
         _mainWindowViewModel?.HideLoading();
 
-        var importedSnapshot = CreateCompanyDataSnapshot(companyData);
-        void RestoreImportSnapshotAndRefresh(string snapshotJson)
-        {
-            RestoreCompanyDataFromSnapshot(companyData, snapshotJson);
-            CompanyManager?.MarkAsChanged();
-            _bankMatchingPageViewModel?.Reload();
-            Avalonia.Threading.Dispatcher.UIThread.Post(
-                () => NavigationService?.RefreshCurrentPage(),
-                Avalonia.Threading.DispatcherPriority.Background);
-        }
-
-        UndoRedoManager.RecordAction(new DelegateAction(
-            "AI import spreadsheet data".Translate(),
-            () => RestoreImportSnapshotAndRefresh(snapshot),
-            () => RestoreImportSnapshotAndRefresh(importedSnapshot)));
+        RecordImportUndoStep(companyData, snapshot, CreateCompanyDataSnapshot(companyData));
 
         CompanyManager?.MarkAsChanged();
         ChartSettingsService.Instance.SelectedDateRange = "All Time";

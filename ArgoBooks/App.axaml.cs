@@ -2844,6 +2844,10 @@ public partial class App : Application
     {
         if (_appShellViewModel == null) return;
 
+        // The company as it was before the import began writing to it, until the import has
+        // finished. A cancel or a failure part way puts it back.
+        string? rollbackSnapshot = null;
+
         // The name the user actually picked. filePath may later be swapped for a temp file
         // (legacy .xls conversion, or experimental layout normalization), so capture the
         // display name up front and use it in all user-facing UI instead of the temp path.
@@ -3015,6 +3019,7 @@ public partial class App : Application
 
             // Create snapshot for undo
             var snapshot = CreateCompanyDataSnapshot(companyData);
+            rollbackSnapshot = snapshot;
 
             // Step 3: Split sheets by processing tier
             // Respect the AI's tier recommendation for both Excel and CSV files.
@@ -3328,26 +3333,8 @@ public partial class App : Application
             // Create snapshot for redo
             var importedSnapshot = CreateCompanyDataSnapshot(companyData);
 
-            // Record undo action. Besides restoring the data, each direction must refresh the UI
-            // the same way the import itself does: reload the Bank Matching page (a workbook may
-            // have routed bank rows into a BankImportSession) and rebuild the current page so its
-            // charts/widgets repaint with the restored data. Without the page rebuild the charts
-            // stay stale after undo/redo until the user navigates away and back.
-            void RestoreImportSnapshotAndRefresh(string snapshotJson)
-            {
-                RestoreCompanyDataFromSnapshot(companyData, snapshotJson);
-                CompanyManager?.MarkAsChanged();
-                _bankMatchingPageViewModel?.Reload();
-                Avalonia.Threading.Dispatcher.UIThread.Post(
-                    () => NavigationService?.RefreshCurrentPage(),
-                    Avalonia.Threading.DispatcherPriority.Background);
-            }
-
-            UndoRedoManager.RecordAction(new DelegateAction(
-                "AI import spreadsheet data".Translate(),
-                () => RestoreImportSnapshotAndRefresh(snapshot),
-                () => RestoreImportSnapshotAndRefresh(importedSnapshot)
-            ));
+            RecordImportUndoStep(companyData, snapshot, importedSnapshot);
+            rollbackSnapshot = null;
 
             CompanyManager.MarkAsChanged();
 
@@ -3426,11 +3413,13 @@ public partial class App : Application
         catch (OperationCanceledException)
         {
             _mainWindowViewModel?.HideLoading();
+            RollBackUnfinishedImport(companyData, rollbackSnapshot);
             _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportAbandoned, "cancelled");
         }
         catch (Exception ex)
         {
             _mainWindowViewModel?.HideLoading();
+            RollBackUnfinishedImport(companyData, rollbackSnapshot);
             _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, "exception");
             ErrorLogger?.LogError(ex, ErrorCategory.Import, "Failed to perform AI import");
             await ShowErrorDialogAsync(
@@ -4008,6 +3997,120 @@ public partial class App : Application
             data.PendingConversions
         };
         return System.Text.Json.JsonSerializer.Serialize(snapshot);
+    }
+
+    /// <summary>
+    /// Takes back whatever an import wrote before it was cancelled or failed. Without this the
+    /// sheets that had already gone in stayed in the company with no undo step, and the next save
+    /// wrote the half import to disk.
+    /// </summary>
+    private static void RollBackUnfinishedImport(CompanyData companyData, string? snapshotJson)
+    {
+        if (snapshotJson == null) return;
+
+        try
+        {
+            RestoreCompanyDataFromSnapshot(companyData, snapshotJson);
+            _bankMatchingPageViewModel?.Reload();
+            Avalonia.Threading.Dispatcher.UIThread.Post(
+                () => NavigationService?.RefreshCurrentPage(),
+                Avalonia.Threading.DispatcherPriority.Background);
+        }
+        catch (Exception ex)
+        {
+            ErrorLogger?.LogError(ex, ErrorCategory.Import, "Could not roll back an unfinished import");
+        }
+    }
+
+    /// <summary>
+    /// Records the undo step for an import. Undo and redo put the whole company back to how it was
+    /// before or after the import, so they only run while nothing has been added since. A record
+    /// added afterwards with no undo step of its own (an invoice sent, a payment synced, a receipt
+    /// from the phone) would be wiped by the restore, and its number given out again.
+    ///
+    /// Each direction also refreshes the UI the way the import does: the Bank Matching page (a
+    /// workbook may have routed bank rows into a session) and the current page, whose charts
+    /// otherwise stay stale until the user navigates away and back.
+    /// </summary>
+    internal static void RecordImportUndoStep(CompanyData companyData, string beforeImport, string afterImport)
+    {
+        var undone = false;
+
+        bool Restore(string target, string current)
+        {
+            if (HasRecordsAddedSince(companyData, current))
+            {
+                AddNotification(
+                    "Import".Translate(),
+                    "This import can no longer be undone, because records were added after it. Undoing it would remove them too. Restore a backup to go back.".Translate(),
+                    NotificationType.Warning);
+                return false;
+            }
+
+            RestoreCompanyDataFromSnapshot(companyData, target);
+            CompanyManager?.MarkAsChanged();
+            _bankMatchingPageViewModel?.Reload();
+            Avalonia.Threading.Dispatcher.UIThread.Post(
+                () => NavigationService?.RefreshCurrentPage(),
+                Avalonia.Threading.DispatcherPriority.Background);
+            return true;
+        }
+
+        UndoRedoManager?.RecordAction(new DelegateAction(
+            "AI import spreadsheet data".Translate(),
+            () => { if (Restore(beforeImport, afterImport)) undone = true; },
+            () => { if (undone && Restore(afterImport, beforeImport)) undone = false; }));
+    }
+
+    /// <summary>
+    /// Whether the company holds any record the snapshot does not. The event log is left out: a
+    /// save adds to it, and that is not a record anyone made.
+    /// </summary>
+    internal static bool HasRecordsAddedSince(CompanyData data, string snapshotJson)
+    {
+        using var doc = System.Text.Json.JsonDocument.Parse(snapshotJson);
+        var root = doc.RootElement;
+
+        bool AnyNew(string propertyName, IEnumerable<string> currentIds)
+        {
+            var known = new HashSet<string>(StringComparer.Ordinal);
+            if (root.TryGetProperty(propertyName, out var list) && list.ValueKind == System.Text.Json.JsonValueKind.Array)
+            {
+                foreach (var item in list.EnumerateArray())
+                {
+                    if (item.ValueKind == System.Text.Json.JsonValueKind.Object
+                        && (item.TryGetProperty("id", out var id) || item.TryGetProperty("Id", out id))
+                        && id.GetString() is { } value)
+                        known.Add(value);
+                }
+            }
+
+            return currentIds.Any(i => !known.Contains(i));
+        }
+
+        return AnyNew("Customers", data.Customers.Select(r => r.Id))
+               || AnyNew("Products", data.Products.Select(r => r.Id))
+               || AnyNew("Suppliers", data.Suppliers.Select(r => r.Id))
+               || AnyNew("Categories", data.Categories.Select(r => r.Id))
+               || AnyNew("Locations", data.Locations.Select(r => r.Id))
+               || AnyNew("Revenues", data.Revenues.Select(r => r.Id))
+               || AnyNew("Expenses", data.Expenses.Select(r => r.Id))
+               || AnyNew("Invoices", data.Invoices.Select(r => r.Id))
+               || AnyNew("Quotes", data.Quotes.Select(r => r.Id))
+               || AnyNew("Payments", data.Payments.Select(r => r.Id))
+               || AnyNew("RecurringInvoices", data.RecurringInvoices.Select(r => r.Id))
+               || AnyNew("RecurringTransactions", data.RecurringTransactions.Select(r => r.Id))
+               || AnyNew("Inventory", data.Inventory.Select(r => r.Id))
+               || AnyNew("StockAdjustments", data.StockAdjustments.Select(r => r.Id))
+               || AnyNew("StockTransfers", data.StockTransfers.Select(r => r.Id))
+               || AnyNew("PurchaseOrders", data.PurchaseOrders.Select(r => r.Id))
+               || AnyNew("RentalInventory", data.RentalInventory.Select(r => r.Id))
+               || AnyNew("Rentals", data.Rentals.Select(r => r.Id))
+               || AnyNew("Returns", data.Returns.Select(r => r.Id))
+               || AnyNew("LostDamaged", data.LostDamaged.Select(r => r.Id))
+               || AnyNew("Receipts", data.Receipts.Select(r => r.Id))
+               || AnyNew("BankImportSessions", data.BankImportSessions.Select(r => r.Id))
+               || AnyNew("Employees", data.Employees.Select(r => r.Id));
     }
 
     /// <summary>
