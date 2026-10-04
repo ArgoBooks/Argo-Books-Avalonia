@@ -384,7 +384,7 @@ public partial class App
                 companyName, filePath, biometricAvailable);
 
             // Handle biometric login success - retrieve stored password
-            if (password == "__BIOMETRIC__")
+            if (_appShellViewModel.PasswordPromptModalViewModel.IsBiometricAnswer(password))
             {
                 var fileId = GetBiometricFileId(filePath);
                 password = platformService.GetPasswordForBiometric(fileId);
@@ -1355,7 +1355,7 @@ public partial class App
                 return false;
             }
 
-            if (password == "__BIOMETRIC__")
+            if (passwordModal.IsBiometricAnswer(password))
             {
                 // biometric login succeeded, retrieve stored password and verify
                 var fileId = GetBiometricFileId(filePath);
@@ -1388,7 +1388,7 @@ public partial class App
                     return false;
 
                 // Handle biometric login retry
-                if (password == "__BIOMETRIC__")
+                if (passwordModal.IsBiometricAnswer(password))
                 {
                     var fileId = GetBiometricFileId(filePath);
                     var storedPassword = platformService.GetPasswordForBiometric(fileId);
