@@ -458,7 +458,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
             Discount = ModalDiscount,
             Fee = ModalFee,
             Total = Total,
-            PaymentMethod = Enum.TryParse<PaymentMethod>(SelectedPaymentMethod.Replace(" ", ""), out var pm) ? pm : PaymentMethod.Cash,
+            PaymentMethod = PaymentMethodExtensions.ParseDisplayName(SelectedPaymentMethod),
             PaymentStatus = ModalPaid ? RevenuePaymentStatus.Paid : RevenuePaymentStatus.Unpaid,
             Notes = ModalNotes,
             ReferenceNumber = string.Empty,
@@ -548,7 +548,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
         revenue.Discount = ModalDiscount;
         revenue.Fee = ModalFee;
         revenue.Total = Total;
-        revenue.PaymentMethod = Enum.TryParse<PaymentMethod>(SelectedPaymentMethod.Replace(" ", ""), out var pm) ? pm : PaymentMethod.Cash;
+        revenue.PaymentMethod = PaymentMethodExtensions.ParseDisplayName(SelectedPaymentMethod);
         // Only a change to the Paid box changes the status, so an edit keeps Complete, Partial,
         // Pending or Overdue as they were.
         if (ModalPaid != RevenueAggregator.IsCollected(revenue))

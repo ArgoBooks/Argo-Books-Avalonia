@@ -424,7 +424,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
             Discount = ModalDiscount,
             Fee = ModalFee,
             Total = Total,
-            PaymentMethod = Enum.TryParse<PaymentMethod>(SelectedPaymentMethod.Replace(" ", ""), out var pm) ? pm : PaymentMethod.Cash,
+            PaymentMethod = PaymentMethodExtensions.ParseDisplayName(SelectedPaymentMethod),
             Notes = ModalNotes,
             ReferenceNumber = string.Empty,
             CreatedAt = DateTime.UtcNow,
@@ -510,7 +510,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
         expense.Discount = ModalDiscount;
         expense.Fee = ModalFee;
         expense.Total = Total;
-        expense.PaymentMethod = Enum.TryParse<PaymentMethod>(SelectedPaymentMethod.Replace(" ", ""), out var pm) ? pm : PaymentMethod.Cash;
+        expense.PaymentMethod = PaymentMethodExtensions.ParseDisplayName(SelectedPaymentMethod);
         expense.Notes = ModalNotes;
         expense.UpdatedAt = DateTime.UtcNow;
         expense.OriginalCurrency = SaveCurrency;

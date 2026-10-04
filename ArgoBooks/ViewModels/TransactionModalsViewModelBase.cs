@@ -658,7 +658,10 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         ModalDiscount = transaction.Discount;
         ModalFee = transaction.Fee;
 
-        SelectedPaymentMethod = transaction.PaymentMethod.ToString();
+        // GetDisplayName, not ToString: the dropdown lists "Bank Transfer" and ToString
+        // gives "BankTransfer", which is not in the list, so the box cleared itself and
+        // wrote null back. Only the multi-word methods were affected.
+        SelectedPaymentMethod = transaction.PaymentMethod.GetDisplayName();
         ModalNotes = transaction.Notes;
 
         LineItems.Clear();
