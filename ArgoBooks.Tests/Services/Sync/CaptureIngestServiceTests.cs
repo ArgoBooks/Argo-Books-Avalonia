@@ -124,19 +124,23 @@ public class CaptureIngestServiceTests
         Assert.Empty(data.Receipts);
     }
 
+    // The scan often reads a total and no items. The receipt must still arrive: a refusal is
+    // taken for an unreadable capture and deleted from the phone's queue.
     [Fact]
-    public void Ingest_WithNoLineItems_ThrowsArgumentException()
+    public void Ingest_WithNoLineItems_KeepsTheReceiptAsOneLineForTheWholeAmount()
     {
         var data = NewCompany();
         var tx = NewExpenseDto();
         tx.LineItems = [];
 
-        var ex = Assert.Throws<ArgumentException>(() => CaptureIngestService.Ingest(data, tx));
-        Assert.Equal("tx", ex.ParamName);
-        Assert.StartsWith("Captured transaction must have at least one line item.", ex.Message);
+        CaptureIngestService.Ingest(data, tx);
 
-        Assert.Empty(data.Expenses);
-        Assert.Empty(data.Receipts);
+        var expense = Assert.Single(data.Expenses);
+        Assert.Equal(54.00m, expense.Total);
+        var line = Assert.Single(expense.LineItems);
+        Assert.Equal("Office Depot", line.Description);
+        Assert.Equal(50.00m, line.UnitPrice);
+        Assert.NotNull(Assert.Single(data.Receipts).FileData);
     }
 
     [Fact]

@@ -3110,6 +3110,10 @@ public partial class SettingsModalViewModel : ViewModelBase
         var syncService = App.SyncService;
         if (string.IsNullOrEmpty(companyUid) || syncService == null) return;
 
+        // Revoking the last phone makes the server delete what it is holding for this company,
+        // including receipts the phone sent that have not been brought in yet. Bring them in first.
+        await App.AutoMobileSyncAsync();
+
         try
         {
             await syncService.RevokeDeviceAsync(companyUid, device.ServerDeviceId, CancellationToken.None);
