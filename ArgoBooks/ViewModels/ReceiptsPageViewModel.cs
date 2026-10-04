@@ -621,8 +621,10 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
                 return (pdfPreviewPath, rendered.Value.PageCount);
             }
 
+            // Null for a file that is not an image the app can draw; a HEIC photo is converted.
+            if (ReceiptImageHelper.ToDisplayable(bytes) is not { } output)
+                return (string.Empty, 1);
             var tempPath = ReceiptPageRenderer.ImagePath(receipt);
-            var output = ReceiptImageHelper.FixOrientation(bytes);
             File.WriteAllBytes(tempPath, output);
             return (tempPath, 1);
         }

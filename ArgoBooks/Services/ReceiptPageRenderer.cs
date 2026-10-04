@@ -40,6 +40,27 @@ public static class ReceiptPageRenderer
     public static string ImagePath(Receipt receipt)
         => Path.Combine(TempDir, CacheKey(receipt) + Path.GetExtension(receipt.FileName));
 
+    /// <summary>
+    /// A HEIC receipt cached by an earlier version, which wrote the photo out as it was. That
+    /// file cannot be drawn, so it is replaced with the converted one instead of being reused.
+    /// </summary>
+    private static bool IsUnconvertedHeic(string cachedPath)
+    {
+        if (Path.GetExtension(cachedPath).ToLowerInvariant() is not (".heic" or ".heif"))
+            return false;
+
+        try
+        {
+            using var file = File.OpenRead(cachedPath);
+            // A converted one is a JPEG, which starts FF D8.
+            return file.ReadByte() != 0xFF || file.ReadByte() != 0xD8;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+    }
+
     /// <summary>Ensures the receipt temp directory exists.</summary>
     public static void EnsureTempDir() => Directory.CreateDirectory(TempDir);
 
@@ -119,8 +140,14 @@ public static class ReceiptPageRenderer
             if (!isPdf)
             {
                 var imgPath = ImagePath(receipt);
-                if (!File.Exists(imgPath))
-                    await File.WriteAllBytesAsync(imgPath, ReceiptImageHelper.FixOrientation(bytes));
+                if (!File.Exists(imgPath) || IsUnconvertedHeic(imgPath))
+                {
+                    // No page, so the viewer says the file cannot be previewed. Handing it a
+                    // file it cannot draw showed an empty viewer with no explanation.
+                    if (ReceiptImageHelper.ToDisplayable(bytes) is not { } image)
+                        return [];
+                    await File.WriteAllBytesAsync(imgPath, image);
+                }
                 onPage?.Report((0, imgPath));
                 return [imgPath];
             }
