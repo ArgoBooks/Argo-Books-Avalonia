@@ -1,4 +1,4 @@
-using System.Xml.Linq;
+﻿using System.Xml.Linq;
 using System.Xml.Schema;
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Models.Payroll;
@@ -310,7 +310,7 @@ public class RoeXmlTests
         // validator rejects without saying why.
         XDocument xml = RoeXmlWriter.Build(Sheet(), Version);
 
-        Assert.Empty(xml.Descendants().Where(e => !e.HasElements && string.IsNullOrEmpty(e.Value)));
+        Assert.DoesNotContain(xml.Descendants(), e => !e.HasElements && string.IsNullOrEmpty(e.Value));
     }
 
     [Fact]
