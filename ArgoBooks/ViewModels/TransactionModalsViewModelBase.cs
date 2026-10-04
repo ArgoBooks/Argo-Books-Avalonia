@@ -587,7 +587,8 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
                 Name = product.Name,
                 Description = product.Description,
                 UnitPrice = UseCostPrice ? product.CostPrice : product.UnitPrice,
-                CategoryId = product.CategoryId
+                CategoryId = product.CategoryId,
+                SupplierId = product.SupplierId
             });
         }
     }

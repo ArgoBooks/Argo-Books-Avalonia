@@ -50,6 +50,19 @@ public class ExpenseModalsViewModelTests : ModalViewModelTestBase
     }
 
     [Fact]
+    public void PickingAProduct_FillsAnEmptySupplierBoxWithItsSupplier()
+    {
+        Company.Suppliers.Add(new Supplier { Id = "S1", Name = "Mill & Co" });
+        Company.Products.Add(new Product { Id = "P2", Name = "Flour", CostPrice = 20m, SupplierId = "S1" });
+        var vm = new ExpenseModalsViewModel();
+        vm.OpenAddModal();
+
+        vm.LineItems.First().SelectedProduct = vm.ProductOptions.First(p => p.Id == "P2");
+
+        Assert.Equal("S1", vm.SelectedSupplier?.Id);
+    }
+
+    [Fact]
     public async Task AddExpense_CreatesExpenseWithAmountAndNotes()
     {
         var vm = NewExpenseVmWithProduct();
