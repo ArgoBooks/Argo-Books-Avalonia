@@ -243,6 +243,8 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
         IsAddModalOpen = true;
     }
 
+    private const string FullAmountFormat = "0.00########";
+
     /// <summary>
     /// Opens the edit purchase order modal.
     /// </summary>
@@ -263,7 +265,9 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
         SelectedSupplier = AvailableSuppliers.FirstOrDefault(s => s.Id == order.SupplierId);
         OrderDate = new DateTimeOffset(order.OrderDate);
         ExpectedDeliveryDate = new DateTimeOffset(order.ExpectedDeliveryDate);
-        ShippingCost = order.ShippingCost.ToString("F2");
+        // Shown in full. Rounded to cents here, an edit that touched nothing else saved the
+        // rounded figure back over a unit cost such as 0.125.
+        ShippingCost = order.ShippingCost.ToString(FullAmountFormat);
         Notes = order.Notes;
 
         // Populate line items
@@ -276,7 +280,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
                 ProductId = lineItem.ProductId,
                 ProductName = product?.Name ?? "Unknown Product",
                 Quantity = lineItem.Quantity.ToString(),
-                UnitCost = lineItem.UnitCost.ToString("F2")
+                UnitCost = lineItem.UnitCost.ToString(FullAmountFormat)
             };
             vm.PropertyChanged += OnOrderLineItemPropertyChanged;
             LineItems.Add(vm);
@@ -1518,7 +1522,7 @@ public partial class OrderLineItemViewModel : ObservableObject
                 ProductId = value.Id;
                 ProductName = value.Name;
                 if (string.IsNullOrEmpty(UnitCost) || UnitCost == "0.00")
-                    UnitCost = value.CostPrice.ToString("F2");
+                    UnitCost = value.CostPrice.ToString("0.00########");
                 HasProductError = false;
                 OnPropertyChanged();
             }
