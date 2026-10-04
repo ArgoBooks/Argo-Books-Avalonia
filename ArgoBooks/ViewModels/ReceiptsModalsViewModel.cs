@@ -216,6 +216,13 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
     private string? _currentFileName;
     private bool _suppressAiSuggestions;
 
+    /// <summary>
+    /// True while the review form is being filled from another receipt in a bulk scan. The form
+    /// still holds the previous receipt's values until that finishes, so nothing may be written
+    /// back to a receipt from it in the meantime.
+    /// </summary>
+    private bool _isLoadingBulkItem;
+
     // Track entities created during receipt flow for undo. A bulk review creates suppliers for
     // several receipts, so every one is kept, not just the latest.
     private readonly List<Supplier> _createdSuppliersForUndo = new();
@@ -1253,7 +1260,15 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         CurrentBulkItem = succeeded[index];
         CurrentBulkItem.IsActive = true;
 
-        PopulateScanResultsForBulkItem(CurrentBulkItem);
+        _isLoadingBulkItem = true;
+        try
+        {
+            PopulateScanResultsForBulkItem(CurrentBulkItem);
+        }
+        finally
+        {
+            _isLoadingBulkItem = false;
+        }
         ValidateCurrentBulkItem();
     }
 
@@ -1279,6 +1294,11 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             _ = LoadPreviewPagesAsync(item.PreprocessedData, item.FileName, isPdf: true, "BulkScanPreview");
         else
             SetScanPreview(item.PreviewImagePath);
+
+        // The supplier box belongs to the receipt being left. Cleared so it cannot carry over:
+        // the next receipt either gets its own match below or starts empty, which is what makes
+        // "supplier required" stop a receipt being saved under the previous one's supplier.
+        SelectedSupplier = null;
 
         // Only suppress AI suggestions if they've already run for this item.
         // On first visit, let them run so supplier matching/suggestion works.
@@ -1389,10 +1409,16 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         item.ScanResult.TransactionDate = ExtractedDate?.DateTime;
 
         if (decimal.TryParse(ExtractedSubtotal, out var sub)) item.ScanResult.Subtotal = sub;
-        if (decimal.TryParse(ExtractedTax, out var tax)) item.ScanResult.TaxAmount = tax;
         if (decimal.TryParse(ExtractedTotal, out var tot)) item.ScanResult.TotalAmount = tot;
-        if (decimal.TryParse(ExtractedDiscount, out var disc)) item.ScanResult.Discount = disc;
-        if (decimal.TryParse(ExtractedShipping, out var ship)) item.ScanResult.Shipping = ship;
+
+        // A cleared box means none, as it does when one receipt is scanned on its own. Keeping
+        // the scanned figure put back the tax or discount the user had just removed.
+        decimal.TryParse(ExtractedTax, out var tax);
+        decimal.TryParse(ExtractedDiscount, out var disc);
+        decimal.TryParse(ExtractedShipping, out var ship);
+        item.ScanResult.TaxAmount = tax;
+        item.ScanResult.Discount = disc;
+        item.ScanResult.Shipping = ship;
 
         item.ScanResult.PaymentMethod = SelectedPaymentMethod;
 
@@ -3015,6 +3041,11 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
     /// </summary>
     private void ValidateCurrentBulkItem()
     {
+        // Filling the form sets its fields one at a time, and each change lands here. Writing
+        // the half-filled form to the receipt just selected put the previous receipt's supplier
+        // and expense/revenue choice on it.
+        if (_isLoadingBulkItem) return;
+
         if (!IsBulkReviewOpen || CurrentBulkItem == null || !CurrentBulkItem.IsApproved)
         {
             HasBulkIncompleteWarning = false;
