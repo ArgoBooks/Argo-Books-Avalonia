@@ -82,4 +82,49 @@ public class SpreadsheetImportDateOrderTests : IDisposable
         Assert.Contains(new DateTime(2026, 3, 5), dates);
         Assert.DoesNotContain(new DateTime(2026, 5, 3), dates);
     }
+
+    // A row with nothing readable in its date cell used to be imported dated 0001-01-01.
+    [Fact]
+    public async Task MappedImport_LeavesOutANewRowWhoseDateCannotBeRead()
+    {
+        using (var wb = new XLWorkbook())
+        {
+            var ws = wb.AddWorksheet("Revenue");
+            ws.Cell(1, 1).Value = "ID"; ws.Cell(1, 2).Value = "Date"; ws.Cell(1, 3).Value = "Total";
+            ws.Cell(2, 1).Value = "R1"; ws.Cell(2, 2).Value = "15/03/2026"; ws.Cell(2, 3).Value = 10;
+            ws.Cell(3, 1).Value = "R2"; ws.Cell(3, 2).Value = "Q1 2026"; ws.Cell(3, 3).Value = 20;
+            wb.SaveAs(_path);
+        }
+        var data = new CompanyData();
+
+        await new SpreadsheetImportService().ImportWithMappingsAsync(_path, data, RevenueAnalysis(), new ImportOptions());
+
+        Assert.Equal("R1", Assert.Single(data.Revenues).Id);
+    }
+
+    // The order is the file's, not each column's: an undecided column takes it from one that is.
+    [Fact]
+    public void AnUndecidedColumn_TakesItsOrderFromAnotherDateColumnInTheSheet()
+    {
+        var headers = new List<string> { "Issue Date", "Due Date" };
+        var rows = new List<List<object?>>
+        {
+            new() { "01/05/2026", "01/25/2026" },
+            new() { "02/03/2026", "03/04/2026" }
+        };
+
+        Assert.Equal(SpreadsheetRowReader.DateOrder.MonthFirst,
+            SpreadsheetRowReader.DetectDateOrder(rows, headers, "Issue Date"));
+    }
+
+    // Written as digits, which is far outside Excel's serial range and used to stop the import.
+    [Fact]
+    public void ADateWrittenAsDigits_IsRead()
+    {
+        var headers = new List<string> { "Date" };
+        var row = new List<object?> { 20240315d };
+
+        Assert.Equal(new DateTime(2024, 3, 15),
+            SpreadsheetRowReader.GetDateTime(row, headers, "Date", SpreadsheetRowReader.DateOrder.Unknown));
+    }
 }
