@@ -90,7 +90,7 @@
                             <!-- Plan Cards (only shown when loaded successfully).
                                  Layout mirrors the website's pricing cards (partials/pricing-cards.php):
                                  chip + "Plan", pitch, price block, CTA, list lead-in, features. -->
-                            <StackPanel Margin="24,16,24,24" Spacing="20" IsVisible="{Binding ShowPlans}">
+                            <StackPanel Margin="24,16,24,20" Spacing="16" IsVisible="{Binding ShowPlans}">
 
                                 <!-- Billing cycle toggle (above both cards, centered) -->
                                 <Border Classes="cycle-toggle" HorizontalAlignment="Center">
@@ -534,7 +534,7 @@
             <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
             <Setter Property="BorderThickness" Value="2" />
             <Setter Property="CornerRadius" Value="12" />
-            <Setter Property="Padding" Value="20" />
+            <Setter Property="Padding" Value="20,18" />
         </Style>
 
         <!-- Premium card: accented border, no fill -->
@@ -598,7 +598,7 @@
         <!-- Price block: amount row, struck-out reference price, billing note -->
         <Style Selector="StackPanel.price-block">
             <Setter Property="Spacing" Value="2" />
-            <Setter Property="Margin" Value="0,14,0,18" />
+            <Setter Property="Margin" Value="0,12,0,16" />
         </Style>
         <Style Selector="TextBlock.price-currency">
             <Setter Property="FontSize" Value="18" />
@@ -665,8 +665,8 @@
         <Style Selector="Border.plan-plus">
             <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
             <Setter Property="BorderThickness" Value="0,1,0,0" />
-            <Setter Property="Margin" Value="0,22,0,0" />
-            <Setter Property="Padding" Value="0,18,0,0" />
+            <Setter Property="Margin" Value="0,18,0,0" />
+            <Setter Property="Padding" Value="0,14,0,0" />
         </Style>
         <Style Selector="Border.plan-plus-premium">
             <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}" />
@@ -749,7 +749,7 @@
 
         <!-- Feature Item -->
         <Style Selector="Border.feature-item">
-            <Setter Property="Padding" Value="0,7" />
+            <Setter Property="Padding" Value="0,6" />
         </Style>
         <Style Selector="Border.feature-item TextBlock">
             <Setter Property="FontSize" Value="13" />
