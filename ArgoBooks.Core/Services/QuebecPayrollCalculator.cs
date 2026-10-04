@@ -342,15 +342,8 @@ public static class QuebecPayrollCalculator
         decimal premium = Round(gross * rates.Ei.QuebecRateEmployee);
         uncapped = premium;
 
-        // Premiums paid outside Quebec were at the higher rate, so they count here for what the
-        // same earnings would have cost at Quebec's. Counted at face value they used up room
-        // that was still there, and EI stopped well short of the year's maximum.
-        decimal quebecPart = ytd.EiEmployeeQuebec ?? ytd.EiEmployee;
-        decimal paidElsewhere = ytd.EiEmployee - quebecPart;
-        decimal paidElsewhereAtQuebecRate = rates.Ei.RateEmployee > 0
-            ? paidElsewhere * rates.Ei.QuebecRateEmployee / rates.Ei.RateEmployee
-            : paidElsewhere;
-        decimal remaining = Math.Max(0, qc.EiMaxPremiumEmployee - quebecPart - paidElsewhereAtQuebecRate);
+        decimal paid = ytd.EiCountedIn(quebec: true, rates.Ei.RateEmployee, rates.Ei.QuebecRateEmployee);
+        decimal remaining = Math.Max(0, qc.EiMaxPremiumEmployee - paid);
         return Math.Min(premium, Round(remaining));
     }
 

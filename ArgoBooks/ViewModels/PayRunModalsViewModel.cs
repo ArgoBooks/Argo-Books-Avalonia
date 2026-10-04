@@ -776,7 +776,10 @@ public partial class PayRunModalsViewModel : ViewModelBase
             Warnings.Add($"{employee.Name} has reached the {(quebec ? "QPP" : "CPP")} maximum for the year.");
         }
 
-        if (!employee.IsEiExempt && ytd.EiEmployee + line.EiEmployee >= eiMax)
+        // Counted the way the calculation counts it, or someone who moved into or out of Quebec
+        // this year is told too early, or never.
+        decimal eiSoFar = ytd.EiCountedIn(quebec, rates.Ei.RateEmployee, rates.Ei.QuebecRateEmployee);
+        if (!employee.IsEiExempt && Math.Round(eiSoFar + line.EiEmployee, 2, MidpointRounding.AwayFromZero) >= eiMax)
         {
             Warnings.Add($"{employee.Name} has reached the EI maximum for the year.");
         }

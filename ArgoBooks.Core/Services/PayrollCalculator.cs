@@ -318,15 +318,8 @@ public static class PayrollCalculator
         decimal premium = Round(gross * rates.Ei.RateEmployee);
         uncapped = premium;
 
-        // Premiums paid in Quebec were at Quebec's lower rate, so they count here for what the
-        // same earnings would have cost at this rate. Counted at face value they left room that
-        // was already used, and the year's premiums went over the maximum.
-        decimal quebecPart = ytd.EiEmployeeQuebec ?? 0m;
-        decimal paidHere = ytd.EiEmployee - quebecPart;
-        decimal paidInQuebec = rates.Ei.QuebecRateEmployee > 0
-            ? quebecPart * rates.Ei.RateEmployee / rates.Ei.QuebecRateEmployee
-            : quebecPart;
-        decimal remaining = Math.Max(0, rates.Ei.MaxPremiumEmployee - paidHere - paidInQuebec);
+        decimal paid = ytd.EiCountedIn(quebec: false, rates.Ei.RateEmployee, rates.Ei.QuebecRateEmployee);
+        decimal remaining = Math.Max(0, rates.Ei.MaxPremiumEmployee - paid);
         return Math.Min(premium, Round(remaining));
     }
 
@@ -560,6 +553,25 @@ public class PayrollYearToDate
     /// all of it having been withheld in the province being calculated.
     /// </summary>
     public decimal? EiEmployeeQuebec { get; set; }
+
+    /// <summary>
+    /// The year's EI so far, counted at the rate of the province being calculated. Premiums paid
+    /// under the other rate are converted, so what is compared with a maximum is what the same
+    /// earnings would have cost here. Counted at face value, a move into Quebec stopped EI early
+    /// and a move out took it over the maximum.
+    /// </summary>
+    public decimal EiCountedIn(bool quebec, decimal rate, decimal quebecRate)
+    {
+        decimal quebecPart = EiEmployeeQuebec ?? (quebec ? EiEmployee : 0m);
+        decimal elsewhere = EiEmployee - quebecPart;
+
+        if (rate <= 0 || quebecRate <= 0)
+            return EiEmployee;
+
+        return quebec
+            ? quebecPart + elsewhere * quebecRate / rate
+            : elsewhere + quebecPart * rate / quebecRate;
+    }
 
     /// <summary>Quebec only. Needed because QPIP stops at its own annual maximum.</summary>
     public decimal QpipEmployee { get; set; }
