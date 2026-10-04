@@ -8,7 +8,8 @@ public record StripeSyncPreview(
     string? NewCursor,
     IReadOnlyList<StripePayoutSummary> NewPayouts,
     IReadOnlyList<StripeRefund> LaterRefunds,
-    string? NewRefundCursor)
+    string? NewRefundCursor,
+    IReadOnlyList<string> PendingChargeIds)
 {
     /// <summary>True when there's anything to import: new revenue/fees, refunds on earlier sales, or new payouts to remember.</summary>
     public bool HasActivity => Charges.Count > 0 || NewPayouts.Count > 0 || LaterRefunds.Count > 0;
@@ -56,11 +57,32 @@ public class StripeSyncService(StripeApiClient client)
         var fetched = await client.FetchNewChargesAsync(stripe.ApiKey!, stripe.LastSyncCursor, ct);
         var newCursor = fetched.Cursor;
 
-        // A charge already in the books is read again after a disconnect and reconnect, which
-        // clears the cursor, and while an older charge is still pending. It is not imported twice.
+        // Charges that were pending at an earlier sync now sit behind the cursor, so the list
+        // above no longer reaches them. Each is asked about by id until it succeeds or fails.
+        var settled = new List<StripeChargeDetail>();
+        var stillPending = new List<string>(fetched.PendingIds);
+        foreach (var id in stripe.PendingChargeIds.Except(fetched.PendingIds).ToList())
+        {
+            try
+            {
+                var (status, charge) = await client.FetchChargeAsync(stripe.ApiKey!, id, ct);
+                if (charge != null) settled.Add(charge);
+                else if (status == "pending") stillPending.Add(id);
+            }
+            catch (HttpRequestException)
+            {
+                stillPending.Add(id);
+            }
+        }
+
+        // Disconnecting clears the cursor, so reconnecting reads every charge again. One already
+        // in the books is not imported twice.
         var inBooks = new HashSet<string>(
             data.Revenues.Select(r => r.ReferenceNumber).Where(r => !string.IsNullOrEmpty(r)), StringComparer.Ordinal);
-        var rawCharges = fetched.Charges.Where(c => !inBooks.Contains(c.ChargeId)).ToList();
+        var rawCharges = fetched.Charges.Concat(settled)
+            .Where(c => !inBooks.Contains(c.ChargeId))
+            .DistinctBy(c => c.ChargeId)
+            .ToList();
 
         // A charge's own expanded balance_transaction can silently yield a zero fee, so fill fees
         // from the balance-transactions list (the reliable source), keyed by charge id.
@@ -84,7 +106,7 @@ public class StripeSyncService(StripeApiClient client)
             .Where(r => StripeDetailImporter.SaleAwaiting(data, r) != null)
             .ToList();
 
-        return new StripeSyncPreview(charges, newCursor, newPayouts, laterRefunds, refunds.Cursor);
+        return new StripeSyncPreview(charges, newCursor, newPayouts, laterRefunds, refunds.Cursor, stillPending);
     }
 
     /// <summary>
@@ -139,6 +161,7 @@ public class StripeSyncService(StripeApiClient client)
         {
             PreviousCursor = stripe.LastSyncCursor,
             PreviousRefundCursor = stripe.LastRefundCursor,
+            PreviousPendingChargeIds = [.. stripe.PendingChargeIds],
             PreviousSyncTime = stripe.LastSyncTime,
             Pre = data.IdCounters.Clone()
         };
@@ -169,6 +192,7 @@ public class StripeSyncService(StripeApiClient client)
             stripe.LastSyncCursor = preview.NewCursor;
         if (!string.IsNullOrEmpty(preview.NewRefundCursor))
             stripe.LastRefundCursor = preview.NewRefundCursor;
+        stripe.PendingChargeIds = [.. preview.PendingChargeIds];
 
         if (preview.HasActivity)
         {
@@ -187,11 +211,12 @@ public class StripeSyncService(StripeApiClient client)
         creation.Payouts.AddRange(stripe.ImportedPayouts.Skip(payBefore));
         creation.NewCursor = stripe.LastSyncCursor;
         creation.NewRefundCursor = stripe.LastRefundCursor;
+        creation.NewPendingChargeIds = [.. stripe.PendingChargeIds];
         creation.NewSyncTime = stripe.LastSyncTime;
         creation.Post = data.IdCounters.Clone();
         return creation;
     }
 
     private static StripeSyncPreview Empty()
-        => new([], null, [], [], null);
+        => new([], null, [], [], null, []);
 }

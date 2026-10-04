@@ -1,6 +1,10 @@
 using System.Net;
 using System.Text;
+using System.Text.Json;
+using System.Text.RegularExpressions;
 using ArgoBooks.Core.Data;
+using ArgoBooks.Core.Models.Common;
+using ArgoBooks.Core.Models.Tracking;
 using ArgoBooks.Core.Services.Integrations;
 using Xunit;
 
@@ -25,6 +29,17 @@ public class StripeLaterActivityTests
             if (url.Contains("/v1/refunds") && RefundsForbidden)
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Forbidden)
                 { Content = new StringContent("{}", Encoding.UTF8, "application/json") });
+
+            // One charge asked for by id, as the sync does for a charge that was pending.
+            var single = Regex.Match(url, @"/v1/charges/(ch_\w+)");
+            if (single.Success)
+            {
+                using var all = JsonDocument.Parse($"[{Charges}]");
+                var charge = all.RootElement.EnumerateArray()
+                    .First(c => c.GetProperty("id").GetString() == single.Groups[1].Value);
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+                { Content = new StringContent(charge.GetRawText(), Encoding.UTF8, "application/json") });
+            }
 
             var items = url.Contains("/v1/refunds") ? Refunds
                 : url.Contains("/v1/charges") ? Charges
@@ -113,6 +128,47 @@ public class StripeLaterActivityTests
         Assert.Equal(50.00m, Assert.Single(data.Returns).RefundAmount);
     }
 
+    // Marked returned in the app on Monday, refunded in Stripe on Tuesday. It is one refund.
+    [Fact]
+    public async Task ARefundAlreadyEnteredByHand_IsNotRecordedAgain_WhateverItsDate()
+    {
+        var stub = new StripeStub();
+        var svc = new StripeSyncService(new StripeApiClient(new HttpClient(stub)));
+        var data = ConnectedData();
+        await SyncAsync(svc, data);
+
+        data.Returns.Add(new Return
+        {
+            Id = "RET-1",
+            OriginalTransactionId = data.Revenues.Single().Id,
+            ReturnDate = new DateTime(2023, 11, 14),
+            RefundAmount = 50m,
+            Items = [new ReturnItem { ProductId = "PRD-1", Quantity = 1 }]
+        });
+
+        stub.Refunds = Refund("re_1", "ch_1", 5000, 1700090000);
+        await SyncAsync(svc, data);
+
+        Assert.Single(data.Returns);
+    }
+
+    // The sale arrives part refunded, and is refunded again later the same day.
+    [Fact]
+    public async Task ARefundMadeAfterTheSaleArrivedPartRefunded_IsRecorded_EvenTheSameDay()
+    {
+        var stub = new StripeStub { Charges = Charge("ch_1", "succeeded", 5000, 2000) };
+        var svc = new StripeSyncService(new StripeApiClient(new HttpClient(stub)));
+        var data = ConnectedData();
+        await SyncAsync(svc, data);
+        Assert.Equal(20.00m, Assert.Single(data.Returns).RefundAmount);
+
+        var inAMinute = DateTimeOffset.UtcNow.ToUnixTimeSeconds() + 60;
+        stub.Refunds = Refund("re_2", "ch_1", 1000, inAMinute) + "," + Refund("re_1", "ch_1", 2000, 1700000500);
+        await SyncAsync(svc, data);
+
+        Assert.Equal([20.00m, 10.00m], data.Returns.Select(r => r.RefundAmount));
+    }
+
     [Fact]
     public async Task AKeyThatCannotReadRefunds_StillImportsTheSales()
     {
@@ -137,10 +193,18 @@ public class StripeLaterActivityTests
         await SyncAsync(svc, data);
         Assert.Equal(2, data.Revenues.Count);
 
+        // A sale deleted from the books meanwhile stays deleted: waiting on the pending charge
+        // must not bring back the charges around it.
+        data.Revenues.RemoveAll(r => r.ReferenceNumber == "ch_3");
+
         stub.Charges = Charge("ch_3", "succeeded", 3000, 0) + "," + Charge("ch_2", "succeeded", 2000, 0) + "," + Charge("ch_1", "succeeded", 1000, 0);
         await SyncAsync(svc, data);
 
-        Assert.Equal(["ch_1", "ch_2", "ch_3"], data.Revenues.Select(r => r.ReferenceNumber).Order());
+        Assert.Equal(["ch_1", "ch_2"], data.Revenues.Select(r => r.ReferenceNumber).Order());
+        Assert.Empty(data.Settings.Integrations.Stripe.PendingChargeIds);
+
+        await SyncAsync(svc, data);
+        Assert.Equal(2, data.Revenues.Count);
     }
 
     // Disconnecting clears the cursor, so reconnecting reads every charge again.

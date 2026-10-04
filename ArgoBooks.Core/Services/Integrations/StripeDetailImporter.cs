@@ -256,24 +256,33 @@ public class StripeDetailImporter
     /// The sale a refund still has to be recorded against, or null when the sale is not in the
     /// books or the refund is already covered.
     ///
-    /// A return made from the refund list names its refund, so it covers that one refund. Any
-    /// other return covers every refund made up to its date: the sync that imported the sale
-    /// recorded all that had been refunded by then, and a return entered by hand since is taken
-    /// to be this refund.
+    /// Three kinds of return can already be on the sale:
+    /// one made from the refund list names its refund, and covers that one refund;
+    /// one made by the sync that imported the sale recorded everything refunded up to that
+    /// moment, and covers the refunds made before it;
+    /// one entered by hand covers the refund whatever its date. Someone who marks a sale
+    /// returned and refunds it in Stripe the next day has recorded this refund, and a second
+    /// return would take the money off twice.
     /// </summary>
     public static Revenue? SaleAwaiting(CompanyData data, StripeRefund refund)
     {
         var rev = data.Revenues.FirstOrDefault(r => r.ReferenceNumber == refund.ChargeId);
         if (rev == null) return null;
 
-        var made = RefundDate(refund).Date;
+        var made = RefundDate(refund);
         var covered = data.Returns.Any(rt => rt.OriginalTransactionId == rev.Id
-            && (rt.Notes.StartsWith(RefundNote, StringComparison.Ordinal)
-                ? rt.Notes == RefundNote + refund.Id
-                : rt.ReturnDate.Date >= made));
+            && (rt.Notes.StartsWith(RefundNote, StringComparison.Ordinal) ? rt.Notes == RefundNote + refund.Id
+                : IsFromImport(rt) ? rt.ReturnDate >= made
+                : true));
 
         return covered ? null : rev;
     }
+
+    /// <summary>
+    /// A return <see cref="ApplyRefunds"/> made: no items and no note. One entered in the app
+    /// always lists the item returned.
+    /// </summary>
+    private static bool IsFromImport(Return rt) => rt.Items.Count == 0 && string.IsNullOrEmpty(rt.Notes);
 
     private static DateTime RefundDate(StripeRefund refund) =>
         DateTimeOffset.FromUnixTimeSeconds(refund.CreatedUnix).LocalDateTime;

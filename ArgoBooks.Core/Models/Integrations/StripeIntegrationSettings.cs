@@ -23,6 +23,13 @@ public class StripeIntegrationSettings
     [JsonPropertyName("lastSyncCursor")]
     public string? LastSyncCursor { get; set; }
 
+    /// <summary>
+    /// Charges that had not gone through when they were last seen. Each is asked about by id at
+    /// the next sync and imported once it succeeds.
+    /// </summary>
+    [JsonPropertyName("pendingChargeIds")]
+    public List<string> PendingChargeIds { get; set; } = new();
+
     /// <summary>The newest Stripe refund seen at the last sync. Refunds are read back to it.</summary>
     [JsonPropertyName("lastRefundCursor")]
     public string? LastRefundCursor { get; set; }

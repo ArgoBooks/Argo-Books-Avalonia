@@ -15,8 +15,12 @@ public record StripePayoutSummary(string Id, long AmountCents, long DateUnix, st
 /// <summary>A charge's processing fee, in the balance transaction's (settlement) currency.</summary>
 public record StripeFee(long Cents, string? Currency);
 
-/// <summary>The charges that are new since the last sync, and the charge to stop at next time.</summary>
-public record StripeChargeFetch(IReadOnlyList<StripeChargeDetail> Charges, string? Cursor);
+/// <summary>
+/// The charges that are new since the last sync, the charge to stop at next time, and the ones
+/// seen that have not gone through yet.
+/// </summary>
+public record StripeChargeFetch(
+    IReadOnlyList<StripeChargeDetail> Charges, string? Cursor, IReadOnlyList<string> PendingIds);
 
 /// <summary>A refund made on a charge. AmountCents is in the currency's smallest unit.</summary>
 public record StripeRefund(string Id, string ChargeId, long AmountCents, string Currency, long CreatedUnix);
@@ -141,17 +145,18 @@ public class StripeApiClient
         => (await FetchNewChargesAsync(apiKey, watermarkChargeId, ct)).Charges;
 
     /// <summary>
-    /// As <see cref="FetchChargesUntilAsync"/>, with the charge the next sync should stop at.
+    /// As <see cref="FetchChargesUntilAsync"/>, with the charge the next sync should stop at and
+    /// the charges that are still pending.
     ///
-    /// That is the newest charge with nothing still pending below it. A bank debit takes days to
-    /// succeed, and the charges made meanwhile are imported without it. Stopping at the newest
-    /// charge would put the pending one behind the cursor for good, so the cursor waits beneath
-    /// it and the next sync reads it again.
+    /// A bank debit takes days to succeed, and the charges made meanwhile are imported without
+    /// it. The cursor then sits above it, so the list is never read that far back again. The
+    /// caller keeps the pending ids and asks about each one by id until it settles.
     /// </summary>
     public async Task<StripeChargeFetch> FetchNewChargesAsync(
         string apiKey, string? watermarkChargeId, CancellationToken ct = default)
     {
         var results = new List<StripeChargeDetail>();
+        var pending = new List<string>();
         string? after = null;
         string? cursor = null;
         const string expand = "&expand[]=data.customer&expand[]=data.invoice&expand[]=data.balance_transaction";
@@ -173,15 +178,16 @@ public class StripeApiClient
                 {
                     var id = PropStr(el, "id");
                     if (!string.IsNullOrEmpty(watermarkChargeId) && id == watermarkChargeId)
-                        return new StripeChargeFetch(results, cursor ?? watermarkChargeId); // reached the last-synced watermark
+                        return new StripeChargeFetch(results, cursor ?? watermarkChargeId, pending); // reached the last-synced watermark
                     lastId = id;
                     pageCount++;
 
-                    var status = PropStr(el, "status");
-                    if (status == "pending")
-                        cursor = null;
-                    else if (cursor == null && !string.IsNullOrEmpty(id))
+                    if (cursor == null && !string.IsNullOrEmpty(id))
                         cursor = id;
+
+                    var status = PropStr(el, "status");
+                    if (status == "pending" && !string.IsNullOrEmpty(id))
+                        pending.Add(id);
 
                     var isPaid = el.TryGetProperty("paid", out var p) && p.ValueKind == JsonValueKind.True;
                     if (status != "succeeded" || !isPaid) continue;
@@ -194,7 +200,24 @@ public class StripeApiClient
             after = lastId;
         }
 
-        return new StripeChargeFetch(results, cursor ?? watermarkChargeId);
+        return new StripeChargeFetch(results, cursor ?? watermarkChargeId, pending);
+    }
+
+    /// <summary>
+    /// Reads one charge by id, for a charge that was pending at an earlier sync. Returns its
+    /// status, and the charge itself once it has succeeded and been paid.
+    /// </summary>
+    public async Task<(string Status, StripeChargeDetail? Charge)> FetchChargeAsync(
+        string apiKey, string chargeId, CancellationToken ct = default)
+    {
+        var url = $"{ChargesUrl}/{Uri.EscapeDataString(chargeId)}" +
+                  "?expand[]=customer&expand[]=invoice&expand[]=balance_transaction";
+        using var doc = await GetJsonAsync(apiKey, url, ct);
+        var el = doc.RootElement;
+
+        var status = PropStr(el, "status");
+        var isPaid = el.TryGetProperty("paid", out var p) && p.ValueKind == JsonValueKind.True;
+        return (status, status == "succeeded" && isPaid ? ParseCharge(el) : null);
     }
 
     /// <summary>
