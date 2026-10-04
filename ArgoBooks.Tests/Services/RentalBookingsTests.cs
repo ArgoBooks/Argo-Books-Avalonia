@@ -120,6 +120,23 @@ public class RentalBookingsTests
         Assert.False(RentalBookings.SettledByInvoice(data, rental));
     }
 
+    // Paid in full online, then the deposit given back. The invoice reads PartiallyRefunded, and
+    // the rental is still paid.
+    [Fact]
+    public void SettledByInvoice_StaysTrue_AfterTheDepositIsRefunded()
+    {
+        var rental = Rental("R-1", RentalStatus.Returned, -5, -1);
+        rental.InvoiceIds.Add("INV-1");
+        var invoice = Inv("INV-1", InvoiceStatus.PartiallyRefunded);
+        invoice.Total = 150m;
+        invoice.AmountPaid = 150m;
+        invoice.AmountRefunded = 100m;
+        invoice.OriginalCurrency = "USD";
+        var data = WithInvoices(rental, invoice);
+
+        Assert.True(RentalBookings.SettledByInvoice(data, rental));
+    }
+
     [Fact]
     public void SettledByInvoice_IsFalse_WhileAnySecondInvoiceIsOutstanding()
     {
