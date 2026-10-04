@@ -477,10 +477,14 @@ public class SpreadsheetImportService
                     if (sheetAnalysis != null)
                         ApplyColumnMapping(headers, sheetAnalysis);
 
-                    // Validation uses the mapped headers
+                    // Validation uses the mapped headers, and for a sheet the import reads by
+                    // them, the type it was recognised as rather than whatever it is called.
                     var rows = GetDataRows(worksheet, headers.Count);
                     if (rows.Count == 0) continue;
-                    ValidateWorksheetData(worksheet.Name, headers, rows, companyData, importedIds, result);
+                    var readByMapping = sheetAnalysis is { IsIncluded: true, Tier: ProcessingTier.Tier1_Mapping };
+                    ValidateWorksheetData(
+                        readByMapping ? ValidationName(worksheet, sheetAnalysis) : worksheet.Name,
+                        headers, rows, companyData, importedIds, result);
                 }
             }
             catch (Exception ex)
@@ -967,6 +971,7 @@ public class SpreadsheetImportService
         // financial builders for the duration of this sheet import, then clear it.
         _currentSheetRowCurrency = options?.RowCurrencyBySheet is { } bySheet
             && bySheet.TryGetValue(sheetName, out var rowMap) ? rowMap : null;
+        _undatedRows = 0;
         try
         {
             BeginSheet(rows);
@@ -1019,7 +1024,14 @@ public class SpreadsheetImportService
             if (unaccounted > 0)
             {
                 result.Skipped += unaccounted;
-                result.SkipReasons.Add($"{unaccounted} rows with missing or empty required fields");
+
+                // Said by name, because a row left out for its date takes anything that refers
+                // to it with it: a payment naming a skipped invoice comes in with no invoice.
+                var undated = Math.Min(_undatedRows, unaccounted);
+                if (undated > 0)
+                    result.SkipReasons.Add($"{undated} rows with a blank or unreadable date");
+                if (unaccounted > undated)
+                    result.SkipReasons.Add($"{unaccounted - undated} rows with missing or empty required fields");
             }
         }
 
@@ -1164,8 +1176,17 @@ public class SpreadsheetImportService
     /// that converts currency, could never be given a rate. It is left out instead, and counted
     /// with the rows that have missing fields. A sheet with no date column at all is unchanged.
     /// </summary>
-    private static bool IsUndatedNewRow(List<string> headers, string dateColumn, DateTime date, bool exists) =>
-        !exists && date == DateTime.MinValue && headers.Contains(dateColumn);
+    private bool IsUndatedNewRow(List<string> headers, string dateColumn, DateTime date, bool exists)
+    {
+        if (exists || date != DateTime.MinValue || !headers.Contains(dateColumn))
+            return false;
+
+        _undatedRows++;
+        return true;
+    }
+
+    /// <summary>How many rows of the sheet being imported were left out for having no readable date.</summary>
+    private int _undatedRows;
 
     private void BeginSheet(List<List<object?>> rows)
     {
@@ -1985,8 +2006,18 @@ public class SpreadsheetImportService
         SpreadsheetSheetType.PurchaseOrders => "Purchase Orders",
         SpreadsheetSheetType.Expenses => "Expenses",
         SpreadsheetSheetType.Revenue => "Revenue",
+        SpreadsheetSheetType.Payments => "Payments",
+        SpreadsheetSheetType.RentalRecords => "Rental Records",
         _ => null
     };
+
+    /// <summary>
+    /// The name to check a sheet's references under. The check works from the sheet's name, so a
+    /// sheet the analysis recognised as invoices but called "Sales Invoices" was not checked at
+    /// all, and its missing customers were neither reported nor created.
+    /// </summary>
+    private static string ValidationName(IXLWorksheet worksheet, SheetAnalysis? sheetAnalysis) =>
+        (sheetAnalysis == null ? null : CanonicalSheetName(sheetAnalysis.DetectedType)) ?? worksheet.Name;
 
     /// <summary>
     /// A sheet's headers as the import will read them: with the analysis's column mapping applied
@@ -2087,13 +2118,18 @@ public class SpreadsheetImportService
         ImportValidationResult result,
         SpreadsheetAnalysisResult? analysis = null)
     {
-        var headers = MappedHeaders(worksheet, analysis, out _);
+        var headers = MappedHeaders(worksheet, analysis, out var sheetAnalysis);
         if (headers.Count == 0) return;
+
+        // A sheet the AI converts row by row is not read by its mapped columns, and resolves the
+        // names in it itself. Checking it here created placeholders named after those names,
+        // which then stopped them being matched to the customers that already exist.
+        if (sheetAnalysis is { Tier: ProcessingTier.Tier2_LlmProcessing }) return;
 
         var rows = GetDataRows(worksheet, headers.Count);
         if (rows.Count == 0) return;
 
-        ValidateWorksheetData(worksheet.Name, headers, rows, data, importedIds, result);
+        ValidateWorksheetData(ValidationName(worksheet, sheetAnalysis), headers, rows, data, importedIds, result);
     }
 
     private void ValidateWorksheetData(
