@@ -118,6 +118,14 @@ public static class CurrencyCellDetector
             cleaned = cleaned[1..^1].Trim();
         }
 
+        // A sign written before the symbol, "-$45.00". The symbol is only stripped from the very
+        // start, so the sign in front of it left the whole amount unreadable and it came in as 0.
+        if (cleaned.Length > 1 && cleaned[0] is '-' or '+' or '−' && !char.IsDigit(cleaned[1]) && cleaned[1] != '.' && cleaned[1] != ',')
+        {
+            if (cleaned[0] != '+') negative = !negative;
+            cleaned = cleaned[1..].Trim();
+        }
+
         // Strip currency symbols/codes only where they actually decorate the amount: at the
         // start or end of the string. A blind Replace anywhere in the string would corrupt a
         // non-money value that happens to contain a token substring (e.g. an ISO code embedded

@@ -134,4 +134,18 @@ public class CurrencyCellDetectorTests
     {
         Assert.Equal((decimal)expected, CurrencyCellDetector.ParseAmount(cell));
     }
+
+    // A sign written before the currency symbol came in as 0, so the expense or refund imported
+    // with no amount and no warning.
+    [Theory]
+    [InlineData("-$45.00", -45.00)]
+    [InlineData("+$45.00", 45.00)]
+    [InlineData("-£45.00", -45.00)]
+    [InlineData("- $1,250.50", -1250.50)]
+    [InlineData("-45.00", -45.00)]
+    [InlineData("($45.00)", -45.00)]
+    public void ParseAmount_ReadsASignBeforeTheSymbol(string text, double expected)
+    {
+        Assert.Equal((decimal)expected, CurrencyCellDetector.ParseAmount(text));
+    }
 }
