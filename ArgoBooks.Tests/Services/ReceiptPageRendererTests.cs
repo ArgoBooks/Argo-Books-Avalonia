@@ -1,5 +1,6 @@
 using ArgoBooks.Core.Models.Tracking;
 using ArgoBooks.Services;
+using SkiaSharp;
 using Xunit;
 
 namespace ArgoBooks.Tests.Services;
@@ -19,18 +20,32 @@ public class ReceiptPageRendererTests
         FileData = Convert.ToBase64String(bytes)
     };
 
+    /// <summary>
+    /// A real encoded image, because the renderer writes nothing it cannot decode. The colour
+    /// makes each one's bytes different, which is what the cache key is meant to tell apart.
+    /// </summary>
+    private static byte[] JpegBytes(byte red)
+    {
+        using var bitmap = new SKBitmap(2, 2);
+        bitmap.Erase(new SKColor(red, 0, 0));
+        using var image = SKImage.FromBitmap(bitmap);
+        using var encoded = image.Encode(SKEncodedImageFormat.Jpeg, 90);
+        return encoded.ToArray();
+    }
+
     [Fact]
     public async Task GetPagePaths_TwoReceiptsWithTheSameFileName_EachGetsItsOwnImage()
     {
         var sharedName = $"IMG_{Guid.NewGuid():N}.jpg";
-        var first = ImageReceipt($"RCP-{Guid.NewGuid():N}", sharedName, [1, 1, 1]);
-        var second = ImageReceipt($"RCP-{Guid.NewGuid():N}", sharedName, [2, 2, 2]);
+        byte[] firstBytes = JpegBytes(10), secondBytes = JpegBytes(200);
+        var first = ImageReceipt($"RCP-{Guid.NewGuid():N}", sharedName, firstBytes);
+        var second = ImageReceipt($"RCP-{Guid.NewGuid():N}", sharedName, secondBytes);
 
         var firstPath = Assert.Single(await ReceiptPageRenderer.GetPagePathsAsync(first));
         var secondPath = Assert.Single(await ReceiptPageRenderer.GetPagePathsAsync(second));
 
         Assert.NotEqual(firstPath, secondPath);
-        Assert.Equal(new byte[] { 2, 2, 2 }, await File.ReadAllBytesAsync(secondPath));
+        Assert.Equal(secondBytes, await File.ReadAllBytesAsync(secondPath));
     }
 
     /// <summary>Receipt ids are per-company counters, so every company has an RCP-2026-00001.</summary>
@@ -38,13 +53,14 @@ public class ReceiptPageRendererTests
     public async Task GetPagePaths_SameReceiptIdInAnotherCompany_DoesNotReuseItsImage()
     {
         var id = $"RCP-{Guid.NewGuid():N}";
-        var companyA = ImageReceipt(id, "receipt.jpg", [1, 1, 1]);
-        var companyB = ImageReceipt(id, "receipt.jpg", [2, 2, 2]);
+        byte[] bytesA = JpegBytes(10), bytesB = JpegBytes(200);
+        var companyA = ImageReceipt(id, "receipt.jpg", bytesA);
+        var companyB = ImageReceipt(id, "receipt.jpg", bytesB);
 
         await ReceiptPageRenderer.GetPagePathsAsync(companyA);
         var companyBPath = Assert.Single(await ReceiptPageRenderer.GetPagePathsAsync(companyB));
 
-        Assert.Equal(new byte[] { 2, 2, 2 }, await File.ReadAllBytesAsync(companyBPath));
+        Assert.Equal(bytesB, await File.ReadAllBytesAsync(companyBPath));
     }
 
     [Fact]
