@@ -1770,7 +1770,10 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
         // Auto-create a Revenue transaction if this invoice isn't already linked to one.
         // Path A (Revenue → Invoice): revenue already exists, LinkInvoiceToRevenue linked it above.
         // Path B (Invoice → Revenue): no revenue exists yet, so create one automatically.
-        var hasLinkedRevenue = companyData.Revenues.Any(r => r.InvoiceId == invoice.Id);
+        // A kept deposit is linked to the invoice too, but it is not the invoice's revenue. Counted
+        // here, a deposit kept while the invoice was still a draft stopped the rental charge
+        // itself from ever being recorded.
+        var hasLinkedRevenue = companyData.Revenues.Any(r => r.InvoiceId == invoice.Id && !r.IsKeptDeposit);
         if (!hasLinkedRevenue)
         {
             CreateRevenueFromInvoice(invoice, companyData);
