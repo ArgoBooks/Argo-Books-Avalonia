@@ -625,24 +625,27 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
     {
         if (string.IsNullOrEmpty(ReceiptFilePath)) return null;
 
-        var receiptId = new IdGenerator(companyData).NextReceiptId();
         var fileInfo = new FileInfo(ReceiptFilePath);
         var fileType = GetFileType(ReceiptFilePath);
 
-        string? fileData = null;
-        if (fileInfo.Exists)
+        // A receipt is only worth keeping with its file in it. A file that has gone since it was
+        // picked (an online-only cloud file, a phone or network drive that dropped) used to be
+        // attached empty with no warning, and then opened blank.
+        string fileData;
+        try
         {
-            try
-            {
-                var bytes = SharedFileReader.ReadAllBytes(ReceiptFilePath);
-                fileData = Convert.ToBase64String(bytes);
-            }
-            catch (Exception ex)
-            {
-                App.ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to read receipt file");
-                App.AddNotification("Warning".Translate(), "Could not attach receipt file: {0}".TranslateFormat(ex.Message), NotificationType.Warning);
-            }
+            if (!fileInfo.Exists)
+                throw new FileNotFoundException("The file could not be found.".Translate(), ReceiptFilePath);
+            fileData = Convert.ToBase64String(SharedFileReader.ReadAllBytes(ReceiptFilePath));
         }
+        catch (Exception ex)
+        {
+            App.ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to read receipt file");
+            App.AddNotification("Warning".Translate(), "Could not attach receipt file: {0}".TranslateFormat(ex.Message), NotificationType.Warning);
+            return null;
+        }
+
+        var receiptId = new IdGenerator(companyData).NextReceiptId();
 
         return new Receipt
         {
@@ -651,7 +654,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
             TransactionType = transactionType,
             FileName = fileInfo.Name,
             FileType = fileType,
-            FileSize = fileInfo.Exists ? fileInfo.Length : 0,
+            FileSize = fileInfo.Length,
             FileData = fileData,
             OriginalFilePath = ReceiptFilePath,
             Amount = Total,

@@ -49,6 +49,21 @@ public class ExpenseModalsViewModelTests : ModalViewModelTestBase
         line.UnitPrice = unitPrice;
     }
 
+    // An online-only cloud file, or a phone or network drive that dropped, is gone by the time
+    // the expense is saved. Attaching it anyway left a receipt with nothing in it.
+    [Fact]
+    public async Task AddExpense_WithAReceiptFileThatHasGone_AttachesNoReceipt()
+    {
+        var vm = NewExpenseVmWithProduct();
+        FillLineItem(vm, 100m);
+        vm.PickReceiptFile(Path.Combine(Path.GetTempPath(), "ArgoBooksTests", Guid.NewGuid().ToString("N"), "gone.pdf"));
+
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
+
+        Assert.Null(Assert.Single(Company.Expenses).ReceiptId);
+        Assert.Empty(Company.Receipts);
+    }
+
     [Fact]
     public void PickingAProduct_FillsAnEmptySupplierBoxWithItsSupplier()
     {
