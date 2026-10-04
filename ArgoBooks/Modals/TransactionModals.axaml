@@ -89,6 +89,7 @@
                                            Text="{loc:Loc 'Customer'}" />
                                 <controls:SearchableDropdown ItemsSource="{Binding CounterpartyOptions}"
                                                             SelectedItem="{Binding SelectedCounterparty}"
+                                                            SearchText="{Binding CounterpartyText, Mode=TwoWay}"
                                                             DisplayMemberPath="Name"
                                                             SearchMemberPath="Id"
                                                             Placeholder="{loc:Loc 'Search for a customer...'}"
@@ -109,6 +110,7 @@
                                            Text="{loc:Loc 'Supplier'}" />
                                 <controls:SearchableDropdown ItemsSource="{Binding CounterpartyOptions}"
                                                             SelectedItem="{Binding SelectedCounterparty}"
+                                                            SearchText="{Binding CounterpartyText, Mode=TwoWay}"
                                                             DisplayMemberPath="Name"
                                                             SearchMemberPath="Id"
                                                             Placeholder="{loc:Loc 'Search for a supplier...'}"

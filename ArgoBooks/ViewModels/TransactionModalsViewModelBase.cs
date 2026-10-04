@@ -152,6 +152,10 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     [ObservableProperty]
     private CounterpartyOption? _selectedCounterparty;
 
+    /// <summary>What is typed into the counterparty box, picked from the list or not.</summary>
+    [ObservableProperty]
+    private string? _counterpartyText;
+
     // Called when SelectedCounterparty changes - allows derived classes to notify alias properties
     partial void OnSelectedCounterpartyChanged(CounterpartyOption? value)
     {
@@ -390,9 +394,9 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     /// <summary>
     /// Fills an empty supplier box from the product just picked, the way the category box is
     /// filled. Only when it is still empty, so it never overwrites a choice, and only on an
-    /// expense: the product's supplier is who we usually buy from, which says nothing about
-    /// who a sale went to. It stays editable, because the usual supplier and the one actually
-    /// paid are not always the same.
+    /// expense: a product's supplier is who we usually buy from, which says nothing about who a
+    /// sale went to. It stays editable, because the usual supplier and the one actually paid are
+    /// not always the same.
     /// </summary>
     private void DefaultCounterpartyFromProduct(ProductOption product)
     {
@@ -676,9 +680,8 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         ModalDiscount = transaction.Discount;
         ModalFee = transaction.Fee;
 
-        // GetDisplayName, not ToString: the dropdown lists "Bank Transfer" and ToString
-        // gives "BankTransfer", which is not in the list, so the box cleared itself and
-        // wrote null back. Only the multi-word methods were affected.
+        // GetDisplayName, not ToString: the dropdown holds display names, and only a value
+        // that is in that list can be selected.
         SelectedPaymentMethod = transaction.PaymentMethod.GetDisplayName();
         ModalNotes = transaction.Notes;
 
@@ -900,6 +903,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     [RelayCommand]
     protected async Task SaveTransactionAsync()
     {
+        EnsureTypedCounterparty();
         ClearValidationErrors();
         HasSaveError = false;
         SaveErrorMessage = string.Empty;
@@ -1321,6 +1325,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         SetEntryCurrency(null);
         ModalDate = DateTimeOffset.Now;
         SelectedCounterparty = null;
+        CounterpartyText = null;
         SelectedCategory = null;
         ModalDescription = string.Empty;
         ModalQuantity = 1;
@@ -1421,6 +1426,24 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     /// <summary>
     /// Selects the counterparty option with the given id, if present, after the options reload.
     /// </summary>
+    /// <summary>
+    /// Creates the counterparty the user typed but never picked, and selects it. QuickCreate reuses
+    /// an existing record of the same name, so typing one that already exists selects that one.
+    /// </summary>
+    private void EnsureTypedCounterparty()
+    {
+        if (SelectedCounterparty != null || string.IsNullOrWhiteSpace(CounterpartyText)) return;
+
+        var data = App.CompanyManager?.CompanyData;
+        var id = CounterpartyName == "Supplier"
+            ? QuickCreate.EnsureSupplier(data, CounterpartyText)?.Id
+            : QuickCreate.EnsureCustomer(data, CounterpartyText)?.Id;
+        if (id == null) return;
+
+        LoadCounterpartyOptions();
+        SelectCounterparty(id);
+    }
+
     private void SelectCounterparty(string? counterpartyId)
     {
         if (string.IsNullOrEmpty(counterpartyId)) return;
