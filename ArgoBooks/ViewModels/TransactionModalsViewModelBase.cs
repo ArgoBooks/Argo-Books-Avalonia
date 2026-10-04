@@ -10,6 +10,7 @@ using ArgoBooks.Core.Services;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
 using ArgoBooks.Shared.Telemetry;
+using ArgoBooks.Utilities;
 using Avalonia;
 using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -1544,11 +1545,10 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         {
             Title = "Select Receipt",
             AllowMultiple = false,
+            // The same formats the receipt scanner takes, HEIC included, from the one list.
             FileTypeFilter =
             [
-                new FilePickerFileType("Images") { Patterns = ["*.png", "*.jpg", "*.jpeg", "*.webp", "*.pdf"
-                    ]
-                },
+                FilePickerTypes.AllSupportedTypes,
                 new FilePickerFileType("All Files") { Patterns = ["*.*"] }
             ]
         });
@@ -1563,15 +1563,8 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
 
     protected static string GetFileType(string filePath)
     {
-        return Path.GetExtension(filePath).ToLowerInvariant() switch
-        {
-            ".pdf" => "application/pdf",
-            ".png" => "image/png",
-            ".jpg" or ".jpeg" => "image/jpeg",
-            ".webp" => "image/webp",
-            ".gif" => "image/gif",
-            _ => "application/octet-stream"
-        };
+        return FilePickerTypes.GetReceiptContentType(filePath)
+               ?? (Path.GetExtension(filePath).ToLowerInvariant() == ".gif" ? "image/gif" : "application/octet-stream");
     }
 
     #endregion
