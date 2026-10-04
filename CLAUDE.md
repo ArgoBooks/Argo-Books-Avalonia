@@ -6,6 +6,7 @@
 - **Do NOT amend commits or force push** unless explicitly told to. Always create new commits.
 - **Do NOT update the language files** in `tools/ArgoBooks.Translations/languages/`.
 - **Do NOT commit plan or spec markdown files** (e.g. anything under `docs/superpowers/`). These are local planning artifacts; keep them untracked.
+- **Do NOT write comments that explain how the code used to behave.** A comment describes what the code does now and why it is this way. "used to", "previously", "the box cleared itself" and the rest of the bug's story belong in the commit message, which is where someone goes when they want the history.
 
 ## Project Overview
 

@@ -75,8 +75,8 @@ public class BankStatementImportService(IErrorLogger? errorLogger = null)
 
     private List<BankStatementLine> ParseExcelCore(string filePath, Action<List<string>> normalize, bool requireEssentials, CancellationToken cancellationToken)
     {
-        // ClosedXML cannot open a legacy .xls, so one arrived as "unreadable file". Done
-        // here rather than at the two call sites, which is why the temp file is deleted below.
+        // ClosedXML reads .xlsx only, so a legacy .xls is converted first. Done here rather
+        // than at the two call sites, which is why the temp file is deleted below.
         string? tempXlsx = null;
         try
         {
