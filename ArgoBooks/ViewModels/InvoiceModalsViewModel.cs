@@ -1657,8 +1657,9 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
             await ShowSendErrorAsync(message);
         }
 
-        // Publish and send: portal handles both publishing and email delivery via sendEmail: true.
-        // When portal is not configured, fall back to desktop email sending.
+        // The portal publishes the invoice and sends the email, via sendEmail: true. Reaching
+        // here without one is impossible: CreateAndSendInvoice returns early when the portal is
+        // not configured, and it is this method's only caller.
         if (PortalSettings.IsConfigured)
         {
             try
@@ -1704,35 +1705,6 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
                 await SendFailedAsync(
                     $"{"Failed to publish invoice to payment portal:".Translate()} {ex.Message}",
                     mayHavePublished: true);
-                return;
-            }
-        }
-        else
-        {
-            // No portal configured - send email directly from the desktop app
-            try
-            {
-                var emailService = new InvoiceEmailService();
-                var emailSettings = companyData.Settings.InvoiceEmail;
-                // Email goes to the customer in the invoice's issued currency.
-                var currencySymbol = CurrencyService.GetSymbol(invoice.OriginalCurrency);
-
-                var response = await emailService.SendInvoiceAsync(
-                    invoice,
-                    selectedTemplate,
-                    companyData,
-                    emailSettings,
-                    currencySymbol);
-
-                if (!response.Success)
-                {
-                    await SendFailedAsync(response.Message.Translate(), mayHavePublished: false);
-                    return;
-                }
-            }
-            catch (Exception ex)
-            {
-                await SendFailedAsync($"{"Failed to send invoice:".Translate()} {ex.Message}", mayHavePublished: true);
                 return;
             }
         }
