@@ -663,7 +663,11 @@ IMPORTANT:
         sb.AppendLine("Rules:");
         sb.AppendLine("- Output a JSON array of objects using the exact JSON property names listed above");
         sb.AppendLine("- Output only the fields the source row has a value for. Leave a field out when its cell is empty or the sheet has no column for it: never invent a value, and never write 0, false or an empty string in place of a missing one. A field left out keeps the value an existing record already has");
-        sb.AppendLine("- Generate reasonable IDs if none exist (e.g., CUS-001, INV-2024-001)");
+        // Not "make one up". Each batch of rows is converted on its own, so invented ids started
+        // again at 001 in every batch and rows overwrote each other, and an id made up in the
+        // app's own format (CUS-001) landed on a customer that already existed. A row with no id
+        // gets a deterministic one from its own contents when it is imported.
+        sb.AppendLine("- Use a row's ID only when the sheet gives one. When it gives none, leave the id field out, even where it is marked REQUIRED: never make one up");
         sb.AppendLine("- Parse dates to ISO 8601 format (yyyy-MM-dd or yyyy-MM-ddTHH:mm:ss)");
         sb.AppendLine("- Parse decimal amounts (remove currency symbols, handle comma/dot separators)");
         sb.AppendLine("- Skip rows that are clearly subtotals, headers, or empty");

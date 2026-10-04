@@ -71,7 +71,7 @@ Used when renaming columns isn't enough:
 
 Every row is read and split into batches of 100. Up to 10 batches go to the AI at once, and it turns each one into records in Argo Books' format. It is told to:
 
-- Make up sensible IDs when the file has none
+- Use a row's ID only when the file gives one, and leave it out otherwise. A row with no ID is given one worked out from its own contents when it is imported, so the same file imported twice lands on the same records. Made-up IDs used to start again at 001 in every batch, so rows overwrote each other
 - Write dates in ISO 8601 format
 - Read amounts correctly, removing currency symbols and handling each region's separators
 - Skip subtotal rows, repeated headers and empty rows
