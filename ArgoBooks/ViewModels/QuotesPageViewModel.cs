@@ -569,34 +569,31 @@ public partial class QuotesPageViewModel : SortablePageViewModelBase
         // Sending the draft records no undo step of its own, so this one can still be on top of
         // the stack after the invoice has gone to the customer. Undoing the conversion then would
         // delete a sent invoice and leave its revenue and payments pointing at nothing.
-        var undone = false;
-        App.UndoRedoManager.RecordAction(new DelegateAction(
+        App.UndoRedoManager.RecordAction(new GuardedDelegateAction(
             $"Convert quote '{item.QuoteNumber}' to invoice",
             () =>
             {
                 if (invoice.Status != InvoiceStatus.Draft
                     || companyData.Payments.Any(p => p.InvoiceId == invoice.Id))
-                    return;
+                    return false;
 
-                undone = true;
                 companyData.Invoices.RemoveRecord(invoice);
                 UsdConversion.Set(companyData, UsdConversion.KeyOf(invoice), null);
                 quote.Status = oldStatus;
                 quote.ConvertedInvoiceId = oldConvertedId;
                 companyData.MarkAsModified();
                 LoadQuotes();
+                return true;
             },
             () =>
             {
-                if (!undone) return;
-
-                undone = false;
                 companyData.Invoices.RestoreRecord(invoice);
                 UsdConversion.Requeue(companyData, invoice);
                 quote.Status = QuoteStatus.Converted;
                 quote.ConvertedInvoiceId = invoice.Id;
                 companyData.MarkAsModified();
                 LoadQuotes();
+                return true;
             }));
 
         LoadQuotes();

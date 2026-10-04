@@ -569,29 +569,26 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
         // Returning a rental records no undo step, so this one can still be on top of the stack
         // after the items are back. Undoing it then would put the units into stock a second time
         // and remove a rental whose payment and kept deposit are already in the books.
-        var createUndone = false;
-        App.UndoRedoManager.RecordAction(new DelegateAction(
+        App.UndoRedoManager.RecordAction(new GuardedDelegateAction(
             $"Create rental '{rental.Id}'",
             () =>
             {
-                if (rental.Status == RentalStatus.Returned) return;
+                if (rental.Status == RentalStatus.Returned) return false;
 
-                createUndone = true;
                 companyData.Rentals.RemoveRecord(rental);
                 ReplayStock(companyData, adjustments, undo: true);
                 companyData.MarkAsModified();
                 changed();
+                return true;
             },
             () =>
             {
-                if (!createUndone) return;
-
-                createUndone = false;
                 companyData.Rentals.RestoreRecord(rental);
                 ReplayStock(companyData, adjustments, undo: false);
                 companyData.MarkAsModified();
                 changed();
                 App.CheckAndNotifyRentalOverdue(rental);
+                return true;
             }));
 
         App.CheckAndNotifyRentalOverdue(rental);
@@ -690,29 +687,30 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
         companyData.MarkAsModified();
 
         // Not once the rental has been returned (see the create step).
-        var editUndone = false;
-        App.UndoRedoManager.RecordAction(new DelegateAction(
+        App.UndoRedoManager.RecordAction(new GuardedDelegateAction(
             $"Edit rental '{rental.Id}'",
             () =>
             {
-                if (rental.Status == RentalStatus.Returned) return;
+                if (rental.Status == RentalStatus.Returned) return false;
 
-                editUndone = true;
                 Apply(rental, before);
                 ReplayStock(companyData, adjustments, undo: true);
                 companyData.MarkAsModified();
                 RecordSaved?.Invoke(this, EventArgs.Empty);
+                return true;
             },
             () =>
             {
-                if (!editUndone) return;
+                // An edit undone and then the rental returned: redoing it would rewrite the
+                // returned rental's lines and take its units out of stock again.
+                if (rental.Status == RentalStatus.Returned) return false;
 
-                editUndone = false;
                 Apply(rental, after);
                 ReplayStock(companyData, adjustments, undo: false);
                 companyData.MarkAsModified();
                 RecordSaved?.Invoke(this, EventArgs.Empty);
                 App.CheckAndNotifyRentalOverdue(rental);
+                return true;
             }));
 
         RecordSaved?.Invoke(this, EventArgs.Empty);
@@ -1082,30 +1080,27 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
 
         // Not once the rental has been returned (see the create step): it would flip a returned
         // rental back to Reserved and add its units to stock again.
-        var checkOutUndone = false;
-        App.UndoRedoManager.RecordAction(new DelegateAction(
+        App.UndoRedoManager.RecordAction(new GuardedDelegateAction(
             $"Check out rental '{rental.Id}'",
             () =>
             {
-                if (rental.Status == RentalStatus.Returned) return;
+                if (rental.Status == RentalStatus.Returned) return false;
 
-                checkOutUndone = true;
                 rental.Status = RentalStatus.Reserved;
                 rental.StartDate = oldStart;
                 ReplayStock(companyData, adjustments, undo: true);
                 companyData.MarkAsModified();
                 RecordSaved?.Invoke(this, EventArgs.Empty);
+                return true;
             },
             () =>
             {
-                if (!checkOutUndone) return;
-
-                checkOutUndone = false;
                 rental.Status = RentalStatus.Active;
                 rental.StartDate = start;
                 ReplayStock(companyData, adjustments, undo: false);
                 companyData.MarkAsModified();
                 RecordSaved?.Invoke(this, EventArgs.Empty);
+                return true;
             }));
 
         RecordSaved?.Invoke(this, EventArgs.Empty);

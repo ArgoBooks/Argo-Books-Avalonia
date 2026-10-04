@@ -4050,8 +4050,6 @@ public partial class App : Application
     /// </summary>
     internal static void RecordImportUndoStep(CompanyData companyData, string beforeImport, string afterImport)
     {
-        var undone = false;
-
         bool Restore(string target, string current)
         {
             if (HasRecordsAddedSince(companyData, current))
@@ -4072,10 +4070,10 @@ public partial class App : Application
             return true;
         }
 
-        UndoRedoManager?.RecordAction(new DelegateAction(
+        UndoRedoManager?.RecordAction(new GuardedDelegateAction(
             "AI import spreadsheet data".Translate(),
-            () => { if (Restore(beforeImport, afterImport)) undone = true; },
-            () => { if (undone && Restore(afterImport, beforeImport)) undone = false; }));
+            () => Restore(beforeImport, afterImport),
+            () => Restore(afterImport, beforeImport)));
     }
 
     /// <summary>

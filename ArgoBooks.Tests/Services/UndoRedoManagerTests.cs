@@ -364,4 +364,42 @@ public class UndoRedoManagerTests
     }
 
     #endregion
+
+    #region Steps that can no longer be undone
+
+    // A step that refuses changed nothing, so it must not be reported as undone, must not turn up
+    // on the redo stack, and must not use up the step before it.
+    [Fact]
+    public void Undo_OfAStepThatRefuses_DropsItAndLeavesTheEarlierStep()
+    {
+        var earlierUndone = false;
+        _manager.RecordAction(new DelegateAction("earlier", () => earlierUndone = true, () => { }));
+        _manager.RecordAction(new GuardedDelegateAction("stale", () => false, () => true));
+        var reported = 0;
+        _manager.ActionUndone += (_, _) => reported++;
+
+        Assert.False(_manager.Undo());
+
+        Assert.False(earlierUndone);
+        Assert.Equal(0, reported);
+        Assert.False(_manager.CanRedo);
+        Assert.True(_manager.CanUndo);
+
+        Assert.True(_manager.Undo());
+        Assert.True(earlierUndone);
+    }
+
+    [Fact]
+    public void Undo_OfASavedStepThatRefuses_LeavesTheCompanySaved()
+    {
+        _manager.RecordAction(new DelegateAction("earlier", () => { }, () => { }));
+        _manager.RecordAction(new GuardedDelegateAction("stale", () => false, () => true));
+        _manager.MarkSaved();
+
+        _manager.Undo();
+
+        Assert.True(_manager.IsAtSavedState);
+    }
+
+    #endregion
 }
