@@ -588,7 +588,9 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
                 ? ReceiptPageRenderer.PagePath(receipt, 0)
                 : ReceiptPageRenderer.ImagePath(receipt);
 
-            return File.Exists(path) ? path : string.Empty;
+            // A HEIC preview cached by an earlier version cannot be drawn, so it counts as missing
+            // and is generated again.
+            return File.Exists(path) && !ReceiptPageRenderer.IsUnconvertedHeic(path) ? path : string.Empty;
         }
         catch
         {

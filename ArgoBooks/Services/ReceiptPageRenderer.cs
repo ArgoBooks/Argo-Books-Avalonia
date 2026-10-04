@@ -44,7 +44,7 @@ public static class ReceiptPageRenderer
     /// A HEIC receipt cached by an earlier version, which wrote the photo out as it was. That
     /// file cannot be drawn, so it is replaced with the converted one instead of being reused.
     /// </summary>
-    private static bool IsUnconvertedHeic(string cachedPath)
+    internal static bool IsUnconvertedHeic(string cachedPath)
     {
         if (Path.GetExtension(cachedPath).ToLowerInvariant() is not (".heic" or ".heif"))
             return false;
