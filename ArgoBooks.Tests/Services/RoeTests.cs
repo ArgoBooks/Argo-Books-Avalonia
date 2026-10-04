@@ -300,6 +300,22 @@ public class RoeTests
         Assert.Equal(0m, sheet.Periods[0].InsurableEarnings);
     }
 
+    // Exempt from now on, but the earlier periods were insurable: EI was withheld on the oldest
+    // and the maximum had been reached on the next. Only the period calculated as exempt is left out.
+    [Fact]
+    public void AnEmployeeWhoBecameExempt_KeepsTheEarlierPeriodsInsurable()
+    {
+        Employee person = Person();
+        person.IsEiExempt = true;
+
+        CompanyData data = Data(person);
+        AddRuns(data, 3, gross: 2000m);
+        data.PayRuns[2].Lines[0].EiEmployee = 32.60m;
+        data.PayRuns[0].Lines[0].EiExempt = true;
+
+        Assert.Equal(4000m, Built(data).TotalInsurableEarnings);
+    }
+
     [Fact]
     public void AnEiExemptEmployee_HasNoInsurableEarnings()
     {
