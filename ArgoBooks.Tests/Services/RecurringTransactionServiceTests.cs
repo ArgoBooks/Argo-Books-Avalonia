@@ -510,6 +510,38 @@ public class RecurringTransactionServiceTests
     #endregion
 
     [Fact]
+    public void GenerateDue_ForAStockedProduct_MovesStockLikeAHandEnteredSale()
+    {
+        var data = new CompanyData();
+        data.Locations.Add(new ArgoBooks.Core.Models.Entities.Location { Id = "LOC-1", Name = "Shop" });
+        data.Products.Add(new ArgoBooks.Core.Models.Entities.Product { Id = "PRD-1", Name = "Flour", TrackInventory = true, CostPrice = 2m });
+        var stock = new ArgoBooks.Core.Models.Inventory.InventoryItem
+        {
+            Id = "INV-1", ProductId = "PRD-1", LocationId = "LOC-1", InStock = 10m, UnitCost = 2m
+        };
+        data.Inventory.Add(stock);
+        data.RecurringTransactions.Add(new RecurringTransaction
+        {
+            Id = "REC-TXN-00001",
+            Type = CategoryType.Revenue,
+            Frequency = Frequency.Monthly,
+            StartDate = new DateTime(2026, 1, 1),
+            NextDate = new DateTime(2026, 1, 1),
+            RevenueTemplate = new Revenue
+            {
+                Description = "Standing order", Amount = 15m, Total = 15m, OriginalCurrency = "USD",
+                PaymentStatus = RevenuePaymentStatus.Paid,
+                LineItems = [new LineItem { ProductId = "PRD-1", Quantity = 3, UnitPrice = 5m }]
+            }
+        });
+
+        RecurringTransactionService.GenerateDue(data, new DateTime(2026, 2, 15));
+
+        Assert.Equal(2, data.Revenues.Count);
+        Assert.Equal(4m, stock.InStock);
+    }
+
+    [Fact]
     public void GenerateDue_CatchUp_GivesEachOccurrenceItsOwnId_PastOneTypedByHand()
     {
         var (data, _) = WithMonthlyRent(new DateTime(2026, 1, 1));

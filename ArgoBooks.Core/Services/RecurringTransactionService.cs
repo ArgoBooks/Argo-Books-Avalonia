@@ -143,8 +143,13 @@ public static class RecurringTransactionService
     /// this does not have to reach for the exchange rate singleton, which is set once per process
     /// and cannot be controlled by a caller.
     /// </summary>
+    /// <param name="stockChanges">
+    /// Filled with what each generated entry did to stock, for a caller that can undo the
+    /// generation and has to put the stock back.
+    /// </param>
     public static IReadOnlyList<Transaction> GenerateDue(
-        CompanyData data, DateTime today, UsdRateSource? rates = null)
+        CompanyData data, DateTime today, UsdRateSource? rates = null,
+        Dictionary<Transaction, List<StockChange>>? stockChanges = null)
     {
         var generated = new List<Transaction>();
         var asOfDate = today.Date;
@@ -171,7 +176,14 @@ public static class RecurringTransactionService
                 var skipped = schedule.SkippedDates.Any(d => d.Date == occurrence);
                 if (!skipped && !AlreadyGenerated(data, schedule, occurrence))
                 {
-                    generated.Add(CloneFor(schedule, occurrence, data, rates, takenIds.Value));
+                    var entry = CloneFor(schedule, occurrence, data, rates, takenIds.Value);
+                    generated.Add(entry);
+
+                    // A generated entry is a real purchase or sale, so it moves stock as one saved
+                    // by hand does. Without this a schedule for a stocked product left the stock
+                    // count and the cost of goods sold untouched, however many times it ran.
+                    var moved = InventoryStockService.Apply(data, entry.LineItems, entry, isPurchase: entry is Expense);
+                    if (stockChanges != null) stockChanges[entry] = moved;
                     schedule.LastGeneratedAt = DateTime.UtcNow;
                 }
 
