@@ -106,6 +106,27 @@ public class RefundModalShippingTests
         Assert.Equal(103.20m, vm.RefundTotal);
     }
 
+    [Fact]
+    public void TaxAndTheCardFee_CanBeRefundedTogether()
+    {
+        var invoice = new Invoice
+        {
+            Id = "INV-9", InvoiceNumber = "INV-9", Subtotal = 100m, TaxAmount = 10m, Total = 110m,
+            LineItems = { new LineItem { Description = "Desk", Quantity = 1, UnitPrice = 100m } }
+        };
+        var payment = new Payment
+        {
+            Id = "PAY-9", InvoiceId = "INV-9", Amount = 113.50m, ProcessingFee = 3.50m,
+            Source = PaymentSource.Online, ProviderPaymentId = "pi_9"
+        };
+
+        var vm = new RefundModalViewModel(null!, invoice, [payment], "Bob");
+        vm.LineRows.First(r => r.Kind == "lineItem").IsSelected = false;
+        vm.LineRows.First(r => r.Kind == "processingFee").IsSelected = true;
+
+        Assert.Equal(13.50m, vm.RefundTotal);
+    }
+
     // Refunding only the deposit, with the Tax box left ticked from the default. The deposit was
     // not taxed, so no tax goes back with it.
     [Fact]

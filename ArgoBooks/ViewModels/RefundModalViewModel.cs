@@ -516,7 +516,8 @@ public partial class RefundModalViewModel : ObservableObject
             var taxedAll = LineRows.Where(IsTaxed).Sum(r => r.Amount);
             var taxedTicked = Math.Max(0m, LineRows.Where(r => IsTaxed(r) && r.IsSelected).Sum(r => r.Amount));
             var anyChargeTicked = LineRows.Any(r => IsCharge(r) && r.IsSelected);
-            var taxIsAllThatIsTicked = !LineRows.Any(r => r.IsSelected && r.Kind is not ("tax" or "discount"));
+            // The card fee may go back with the tax; the deposit is what makes it a deposit refund.
+            var taxIsAllThatIsTicked = !LineRows.Any(r => r.IsSelected && r.Kind is not ("tax" or "discount" or "processingFee"));
 
             if (!anyChargeTicked && taxIsAllThatIsTicked)
             {
@@ -528,8 +529,8 @@ public partial class RefundModalViewModel : ObservableObject
             }
             else if (!anyChargeTicked)
             {
-                // Only the deposit or the card fee is being refunded. Neither was taxed, so a
-                // Tax box left ticked gives nothing back.
+                // The deposit is being refunded. It was not taxed, so a Tax box left ticked
+                // gives nothing back.
                 taxRow.Amount = 0m;
             }
             else if (taxedAll <= 0 || taxedTicked >= taxedAll)
