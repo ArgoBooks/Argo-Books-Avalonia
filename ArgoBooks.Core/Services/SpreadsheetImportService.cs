@@ -225,7 +225,7 @@ public class SpreadsheetImportService
             }
             catch (Exception ex)
             {
-                _errorLogger?.LogError(ex, ErrorCategory.Import, $"Failed to validate import file: {Path.GetFileName(filePath)}");
+                _errorLogger?.LogError(ex, ErrorCategory.Import, $"Failed to validate import file ({Path.GetExtension(filePath)})");
                 result.Errors.Add($"Failed to read file: {ex.Message}");
             }
 
@@ -283,7 +283,7 @@ public class SpreadsheetImportService
         }
         catch (Exception ex)
         {
-            _errorLogger?.LogError(ex, ErrorCategory.Import, $"Failed to import from: {Path.GetFileName(filePath)}");
+            _errorLogger?.LogError(ex, ErrorCategory.Import, $"Failed to import ({Path.GetExtension(filePath)})");
             throw;
         }
     }
@@ -347,7 +347,7 @@ public class SpreadsheetImportService
         }
         catch (Exception ex)
         {
-            _errorLogger?.LogError(ex, ErrorCategory.Import, $"Failed AI-mapped import from: {Path.GetFileName(filePath)}");
+            _errorLogger?.LogError(ex, ErrorCategory.Import, $"Failed AI-mapped import ({Path.GetExtension(filePath)})");
             throw;
         }
 
@@ -434,7 +434,7 @@ public class SpreadsheetImportService
         }
         catch (Exception ex)
         {
-            _errorLogger?.LogError(ex, ErrorCategory.Import, $"Failed AI-mapped CSV import from: {Path.GetFileName(filePath)}");
+            _errorLogger?.LogError(ex, ErrorCategory.Import, "Failed AI-mapped CSV import");
             throw;
         }
 
@@ -485,7 +485,7 @@ public class SpreadsheetImportService
             }
             catch (Exception ex)
             {
-                _errorLogger?.LogError(ex, ErrorCategory.Import, $"Failed to validate AI-mapped import file: {Path.GetFileName(filePath)}");
+                _errorLogger?.LogError(ex, ErrorCategory.Import, $"Failed to validate AI-mapped import file ({Path.GetExtension(filePath)})");
                 result.Errors.Add($"Failed to read file: {ex.Message}");
             }
 
