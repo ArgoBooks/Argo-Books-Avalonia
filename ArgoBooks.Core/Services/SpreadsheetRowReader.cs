@@ -243,12 +243,12 @@ internal static class SpreadsheetRowReader
 
         // Nothing in this column settles it, so look at the sheet's other date columns before the
         // computer's region. One file is written one way: an Issue Date column of 01/05 beside a
-        // Due Date column holding a 25 is month-first in both.
+        // Due Date column holding a 25 is month-first in both. Only columns headed as dates:
+        // an invoice number like 26-01-0007 or a phone number has the same shape and is not one.
         bool anyDayFirst = false, anyMonthFirst = false;
-        var width = rows.Count == 0 ? 0 : rows.Max(r => r.Count);
-        for (var column = 0; column < width; column++)
+        for (var column = 0; column < headers.Count; column++)
         {
-            if (column == index) continue;
+            if (column == index || !headers[column].Contains("date", StringComparison.OrdinalIgnoreCase)) continue;
             var (d, m) = OrderEvidence(rows, column);
             anyDayFirst |= d;
             anyMonthFirst |= m;

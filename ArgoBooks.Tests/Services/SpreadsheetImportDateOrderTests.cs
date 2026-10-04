@@ -117,6 +117,30 @@ public class SpreadsheetImportDateOrderTests : IDisposable
             SpreadsheetRowReader.DetectDateOrder(rows, headers, "Issue Date"));
     }
 
+    // An invoice number shaped like a date is not evidence of how the dates are written.
+    [Fact]
+    public void AColumnThatIsNotADate_DoesNotDecideTheOrder()
+    {
+        var saved = System.Globalization.CultureInfo.CurrentCulture;
+        System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureInfo.GetCultureInfo("en-US");
+        try
+        {
+            var headers = new List<string> { "Invoice #", "Issue Date" };
+            var rows = new List<List<object?>>
+            {
+                new() { "26-01-0007", "01/05/2026" },
+                new() { "26-01-0008", "02/03/2026" }
+            };
+
+            Assert.NotEqual(SpreadsheetRowReader.DateOrder.DayFirst,
+                SpreadsheetRowReader.DetectDateOrder(rows, headers, "Issue Date"));
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentCulture = saved;
+        }
+    }
+
     // Written as digits, which is far outside Excel's serial range and used to stop the import.
     [Fact]
     public void ADateWrittenAsDigits_IsRead()
