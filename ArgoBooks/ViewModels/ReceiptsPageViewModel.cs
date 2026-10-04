@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using ArgoBooks.Controls.ColumnWidths;
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
@@ -1076,11 +1076,4 @@ public partial class ReceiptDisplayItem : ObservableObject
                          FileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase);
 
     public bool HasImage => !string.IsNullOrEmpty(ImagePath);
-
-    private static string FormatFileSize(long bytes)
-    {
-        if (bytes < 1024) return $"{bytes} B";
-        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
-        return $"{bytes / (1024.0 * 1024.0):F1} MB";
-    }
 }
