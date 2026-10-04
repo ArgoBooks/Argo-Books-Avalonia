@@ -328,7 +328,7 @@ public class SpreadsheetImportService
                 if (options.AutoCreateMissingReferences || options.AutoCreateTypes.Count > 0)
                 {
                     progress?.Report(("Creating missing references...", -1));
-                    CreateMissingReferences(workbook, companyData, options);
+                    CreateMissingReferences(workbook, companyData, options, analysis);
                 }
 
                 var totalSteps = worksheets.Count;
@@ -462,7 +462,7 @@ public class SpreadsheetImportService
                 using var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
                 using var workbook = new XLWorkbook(fileStream);
 
-                var importedIds = CollectImportedIds(workbook);
+                var importedIds = CollectImportedIds(workbook, analysis);
 
                 foreach (var worksheet in workbook.Worksheets)
                 {
@@ -1968,17 +1968,53 @@ public class SpreadsheetImportService
 
     #region Validation
 
-    private Dictionary<string, HashSet<string>> CollectImportedIds(XLWorkbook workbook)
+    /// <summary>
+    /// The name the import knows a sheet type by, for a sheet the analysis recognised under some
+    /// other name ("Client List" for Customers).
+    /// </summary>
+    private static string? CanonicalSheetName(SpreadsheetSheetType type) => type switch
+    {
+        SpreadsheetSheetType.Customers => "Customers",
+        SpreadsheetSheetType.Suppliers => "Suppliers",
+        SpreadsheetSheetType.Products => "Products",
+        SpreadsheetSheetType.Categories => "Categories",
+        SpreadsheetSheetType.Locations => "Locations",
+        SpreadsheetSheetType.Invoices => "Invoices",
+        SpreadsheetSheetType.Inventory => "Inventory",
+        SpreadsheetSheetType.RentalInventory => "Rental Inventory",
+        SpreadsheetSheetType.PurchaseOrders => "Purchase Orders",
+        SpreadsheetSheetType.Expenses => "Expenses",
+        SpreadsheetSheetType.Revenue => "Revenue",
+        _ => null
+    };
+
+    /// <summary>
+    /// A sheet's headers as the import will read them: with the analysis's column mapping applied
+    /// when there is one. Validation that read the raw headers could not see a "Customer ID"
+    /// column the mapping had turned into "ID", so it took every customer the file defined for a
+    /// missing one, created a placeholder named after the id, and the real row was then skipped
+    /// as already existing.
+    /// </summary>
+    private static List<string> MappedHeaders(IXLWorksheet worksheet, SpreadsheetAnalysisResult? analysis, out SheetAnalysis? sheetAnalysis)
+    {
+        var headers = GetHeaders(worksheet);
+        sheetAnalysis = analysis?.Sheets.FirstOrDefault(s => s.SourceSheetName == worksheet.Name && s.IsIncluded);
+        if (sheetAnalysis != null && headers.Count > 0)
+            ApplyColumnMapping(headers, sheetAnalysis);
+        return headers;
+    }
+
+    private Dictionary<string, HashSet<string>> CollectImportedIds(XLWorkbook workbook, SpreadsheetAnalysisResult? analysis = null)
     {
         var ids = new Dictionary<string, HashSet<string>>();
 
         foreach (var worksheet in workbook.Worksheets)
         {
-            var headers = GetHeaders(worksheet);
+            var headers = MappedHeaders(worksheet, analysis, out var sheetAnalysis);
             if (headers.Count == 0) continue;
 
             var rows = GetDataRows(worksheet, headers.Count);
-            var sheetName = worksheet.Name;
+            var sheetName = (sheetAnalysis == null ? null : CanonicalSheetName(sheetAnalysis.DetectedType)) ?? worksheet.Name;
 
             // The Invoices sheet exports both "ID" (INV-2026-00001) and "Invoice #"
             // (#INV-2026-00001), and the line item and payment sheets reference the ID, so that
@@ -2048,9 +2084,10 @@ public class SpreadsheetImportService
         IXLWorksheet worksheet,
         CompanyData data,
         Dictionary<string, HashSet<string>> importedIds,
-        ImportValidationResult result)
+        ImportValidationResult result,
+        SpreadsheetAnalysisResult? analysis = null)
     {
-        var headers = GetHeaders(worksheet);
+        var headers = MappedHeaders(worksheet, analysis, out _);
         if (headers.Count == 0) return;
 
         var rows = GetDataRows(worksheet, headers.Count);
@@ -2748,14 +2785,15 @@ public class SpreadsheetImportService
 
     #region Auto-Create Missing References
 
-    private void CreateMissingReferences(XLWorkbook workbook, CompanyData data, ImportOptions options)
+    private void CreateMissingReferences(XLWorkbook workbook, CompanyData data, ImportOptions options,
+        SpreadsheetAnalysisResult? analysis = null)
     {
         var result = new ImportValidationResult();
-        var importedIds = CollectImportedIds(workbook);
+        var importedIds = CollectImportedIds(workbook, analysis);
 
         foreach (var worksheet in workbook.Worksheets)
         {
-            ValidateWorksheet(worksheet, data, importedIds, result);
+            ValidateWorksheet(worksheet, data, importedIds, result, analysis);
         }
 
         foreach (var (refType, ids) in result.MissingReferences)
