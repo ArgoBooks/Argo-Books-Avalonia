@@ -1790,6 +1790,13 @@ public partial class App : Application
             };
             StartupTimeline.MarkWindowBuilt();
 
+            // Exiting does not close the company, so its decrypted copy is removed here.
+            desktop.Exit += (_, _) =>
+            {
+                CompanyManager?.DeleteWorkingDirectoryOnExit();
+                ReceiptTempCleanup.ClearProtected();
+            };
+
             // Close the splash only once the main window is actually on screen. ShutdownMode
             // is left at its default of OnLastWindowClose, so closing the splash while the
             // main window is still unshown would leave zero windows open and exit the app.
@@ -2000,6 +2007,9 @@ public partial class App : Application
 
             // Remove stale cached receipt preview/render files from temp (fire-and-forget).
             _ = ReceiptTempCleanup.CleanOldFilesAsync();
+
+            // Company folders a crash or a forced shutdown left in temp.
+            _ = Task.Run(() => CompanyManager.DeleteAbandonedWorkingDirectories());
 
             // Initialize language service for localization
             LanguageService.Instance.Initialize();
