@@ -1,4 +1,4 @@
-using Avalonia;
+﻿using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -52,6 +52,7 @@ public partial class MainWindow : Window
         Opened += OnWindowOpened;
         Closing += OnWindowClosing;
         PositionChanged += OnPositionChanged;
+        SizeChanged += OnWindowSizeChanged;
 
         // Update maximize/restore icon whenever the window state changes (e.g., drag-to-restore)
         PropertyChanged += (_, e) =>
@@ -241,6 +242,7 @@ public partial class MainWindow : Window
             // Loaded again, not only before the window was built: showing it centers it, and
             // OnPositionChanged can record that over the saved position before this runs.
             viewModel.LoadWindowState();
+            RecordNormalSize(viewModel);
 
             // Apply saved position if valid
             if (viewModel is { WindowLeft: >= 0, WindowTop: >= 0 })
@@ -436,6 +438,56 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Puts back the saved size. Runs before the window is shown so it opens at that size rather
+    /// than resizing in front of the user.
+    ///
+    /// A maximized window is left to take its size from the screen. Avalonia treats an explicit
+    /// Width as a layout constraint rather than a hint, so a width saved on a wider screen would
+    /// lay the page out to that width inside a narrower window, and everything past the window's
+    /// edge would be cut off until something forced a fresh layout. The size is clamped to the
+    /// screen for the same reason.
+    /// </summary>
+    private void ApplyRestoredSize(MainWindowViewModel viewModel)
+    {
+        if (viewModel.WindowState == WindowState.Maximized)
+            return;
+
+        var screen = viewModel is { WindowLeft: >= 0, WindowTop: >= 0 }
+            ? Screens.ScreenFromPoint(new PixelPoint((int)viewModel.WindowLeft, (int)viewModel.WindowTop))
+            : null;
+        screen ??= Screens.Primary;
+
+        var maxWidth = screen != null
+            ? Math.Max(MinWidth, screen.WorkingArea.Width / screen.Scaling)
+            : double.PositiveInfinity;
+        var maxHeight = screen != null
+            ? Math.Max(MinHeight, screen.WorkingArea.Height / screen.Scaling)
+            : double.PositiveInfinity;
+
+        Width = Math.Clamp(viewModel.WindowWidth, MinWidth, maxWidth);
+        Height = Math.Clamp(viewModel.WindowHeight, MinHeight, maxHeight);
+    }
+
+    private void OnWindowSizeChanged(object? sender, SizeChangedEventArgs e) =>
+        RecordNormalSize(DataContext as MainWindowViewModel);
+
+    /// <summary>
+    /// Keeps the size the window has while it is not maximized, which is the one worth restoring.
+    /// Recording a maximized window's size would make it the size the next start asks for.
+    /// </summary>
+    private void RecordNormalSize(MainWindowViewModel? viewModel)
+    {
+        if (viewModel == null || WindowState != WindowState.Normal)
+            return;
+
+        if (ClientSize.Width > 0 && ClientSize.Height > 0)
+        {
+            viewModel.WindowWidth = ClientSize.Width;
+            viewModel.WindowHeight = ClientSize.Height;
+        }
+    }
+
     private void OnPositionChanged(object? sender, PixelPointEventArgs e)
     {
         // Update position in view model when window moves (if not maximized)
@@ -451,6 +503,8 @@ public partial class MainWindow : Window
         // Manually set the content when DataContext changes to work around binding timing issues
         if (DataContext is MainWindowViewModel viewModel)
         {
+            ApplyRestoredSize(viewModel);
+
             // Subscribe to property changes to update content when CurrentView changes
             viewModel.PropertyChanged += OnViewModelPropertyChanged;
 
