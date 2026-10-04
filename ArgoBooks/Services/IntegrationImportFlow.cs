@@ -59,7 +59,10 @@ public static class IntegrationImportFlow
             {
                 Title = "Import from Stripe".Translate(),
                 Message = "Import your Stripe activity: {0} in revenue and {1} in fees?"
-                    .TranslateFormat(Total(preview.Sales), Total(preview.Fees)),
+                    .TranslateFormat(Total(preview.Sales), Total(preview.Fees))
+                    + (preview.LaterRefunds.Count > 0
+                        ? "\n\n" + "Refunds on earlier sales to record: {0}".TranslateFormat(preview.LaterRefunds.Count)
+                        : string.Empty),
                 PrimaryButtonText = "Import".Translate(),
                 CancelButtonText = "Cancel".Translate()
             });

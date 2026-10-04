@@ -216,6 +216,68 @@ public class StripeDetailImporter
         return made;
     }
 
+    /// <summary>
+    /// Records refunds made on sales that are already in the books, each as its own return dated
+    /// when the refund was made. A refund on a sale that is not in the books is left out: there
+    /// is no sale to take it off.
+    /// </summary>
+    public int ApplyLaterRefunds(CompanyData data, IReadOnlyList<StripeRefund> refunds)
+    {
+        var made = 0;
+        var ids = new IdGenerator(data);
+        var returnIds = IdGenerator.TakenSet(data.Returns.Select(r => r.Id));
+
+        foreach (var refund in refunds.OrderBy(r => r.CreatedUnix))
+        {
+            if (SaleAwaiting(data, refund) is not { } rev) continue;
+
+            var currency = ImportLookup.NormalizeCurrency(refund.Currency, fallback: rev.OriginalCurrency);
+            data.Returns.Add(new Return
+            {
+                Id = ids.NextReturnId(returnIds),
+                OriginalTransactionId = rev.Id,
+                ReturnType = "Customer",
+                CustomerId = rev.CustomerId ?? string.Empty,
+                ReturnDate = RefundDate(refund),
+                RefundAmount = ArgoMoney.ToDecimal(refund.AmountCents, currency),
+                Status = ReturnStatus.Completed,
+                Notes = RefundNote + refund.Id
+            });
+            made++;
+        }
+
+        if (made > 0) data.MarkAsModified();
+        return made;
+    }
+
+    private const string RefundNote = "Stripe refund ";
+
+    /// <summary>
+    /// The sale a refund still has to be recorded against, or null when the sale is not in the
+    /// books or the refund is already covered.
+    ///
+    /// A return made from the refund list names its refund, so it covers that one refund. Any
+    /// other return covers every refund made up to its date: the sync that imported the sale
+    /// recorded all that had been refunded by then, and a return entered by hand since is taken
+    /// to be this refund.
+    /// </summary>
+    public static Revenue? SaleAwaiting(CompanyData data, StripeRefund refund)
+    {
+        var rev = data.Revenues.FirstOrDefault(r => r.ReferenceNumber == refund.ChargeId);
+        if (rev == null) return null;
+
+        var made = RefundDate(refund).Date;
+        var covered = data.Returns.Any(rt => rt.OriginalTransactionId == rev.Id
+            && (rt.Notes.StartsWith(RefundNote, StringComparison.Ordinal)
+                ? rt.Notes == RefundNote + refund.Id
+                : rt.ReturnDate.Date >= made));
+
+        return covered ? null : rev;
+    }
+
+    private static DateTime RefundDate(StripeRefund refund) =>
+        DateTimeOffset.FromUnixTimeSeconds(refund.CreatedUnix).LocalDateTime;
+
     private string ResolveStripeCategory(CompanyData data)
     {
         if (_stripeCategoryId != null) return _stripeCategoryId;

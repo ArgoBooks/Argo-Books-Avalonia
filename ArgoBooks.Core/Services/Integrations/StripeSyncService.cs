@@ -6,10 +6,12 @@ namespace ArgoBooks.Core.Services.Integrations;
 public record StripeSyncPreview(
     IReadOnlyList<StripeChargeDetail> Charges,
     string? NewCursor,
-    IReadOnlyList<StripePayoutSummary> NewPayouts)
+    IReadOnlyList<StripePayoutSummary> NewPayouts,
+    IReadOnlyList<StripeRefund> LaterRefunds,
+    string? NewRefundCursor)
 {
-    /// <summary>True when there's anything to import: new revenue/fees, or new payouts to remember.</summary>
-    public bool HasActivity => Charges.Count > 0 || NewPayouts.Count > 0;
+    /// <summary>True when there's anything to import: new revenue/fees, refunds on earlier sales, or new payouts to remember.</summary>
+    public bool HasActivity => Charges.Count > 0 || NewPayouts.Count > 0 || LaterRefunds.Count > 0;
 
     /// <summary>Each charge's gross, in its own currency, as the import records it.</summary>
     public IReadOnlyList<IncomingAmount> Sales => Charges
@@ -51,8 +53,14 @@ public class StripeSyncService(StripeApiClient client)
         if (string.IsNullOrWhiteSpace(stripe.ApiKey))
             return Empty();
 
-        var rawCharges = await client.FetchChargesUntilAsync(stripe.ApiKey!, stripe.LastSyncCursor, ct);
-        var newCursor = rawCharges.Count > 0 ? rawCharges[0].ChargeId : stripe.LastSyncCursor;
+        var fetched = await client.FetchNewChargesAsync(stripe.ApiKey!, stripe.LastSyncCursor, ct);
+        var newCursor = fetched.Cursor;
+
+        // A charge already in the books is read again after a disconnect and reconnect, which
+        // clears the cursor, and while an older charge is still pending. It is not imported twice.
+        var inBooks = new HashSet<string>(
+            data.Revenues.Select(r => r.ReferenceNumber).Where(r => !string.IsNullOrEmpty(r)), StringComparer.Ordinal);
+        var rawCharges = fetched.Charges.Where(c => !inBooks.Contains(c.ChargeId)).ToList();
 
         // A charge's own expanded balance_transaction can silently yield a zero fee, so fill fees
         // from the balance-transactions list (the reliable source), keyed by charge id.
@@ -71,7 +79,29 @@ public class StripeSyncService(StripeApiClient client)
             .Where(p => !known.Contains(p.Id) && p.Status is not ("canceled" or "failed"))
             .ToList();
 
-        return new StripeSyncPreview(charges, newCursor, newPayouts);
+        var refunds = await FetchRefundsAsync(stripe, ct);
+        var laterRefunds = refunds.Refunds
+            .Where(r => StripeDetailImporter.SaleAwaiting(data, r) != null)
+            .ToList();
+
+        return new StripeSyncPreview(charges, newCursor, newPayouts, laterRefunds, refunds.Cursor);
+    }
+
+    /// <summary>
+    /// The refunds made since the last sync. The charge list is only read back to the last sync,
+    /// so a refund made afterwards on an older sale never appears there. A key without access to
+    /// refunds does not stop the sync; it carries on without them.
+    /// </summary>
+    private async Task<StripeRefundFetch> FetchRefundsAsync(StripeIntegrationSettings stripe, CancellationToken ct)
+    {
+        try
+        {
+            return await client.FetchNewRefundsAsync(stripe.ApiKey!, stripe.LastRefundCursor, ct);
+        }
+        catch (HttpRequestException)
+        {
+            return new StripeRefundFetch([], stripe.LastRefundCursor);
+        }
     }
 
     /// <summary>
@@ -108,6 +138,7 @@ public class StripeSyncService(StripeApiClient client)
         var creation = new StripeImportCreation
         {
             PreviousCursor = stripe.LastSyncCursor,
+            PreviousRefundCursor = stripe.LastRefundCursor,
             PreviousSyncTime = stripe.LastSyncTime,
             Pre = data.IdCounters.Clone()
         };
@@ -120,6 +151,7 @@ public class StripeSyncService(StripeApiClient client)
         var importer = new StripeDetailImporter();
         importer.ImportCharges(data, preview.Charges);
         importer.ApplyRefunds(data, preview.Charges);
+        importer.ApplyLaterRefunds(data, preview.LaterRefunds);
 
         // Remember each new payout so a later bank import auto-ignores the matching deposit.
         foreach (var p in preview.NewPayouts)
@@ -135,6 +167,8 @@ public class StripeSyncService(StripeApiClient client)
 
         if (!string.IsNullOrEmpty(preview.NewCursor))
             stripe.LastSyncCursor = preview.NewCursor;
+        if (!string.IsNullOrEmpty(preview.NewRefundCursor))
+            stripe.LastRefundCursor = preview.NewRefundCursor;
 
         if (preview.HasActivity)
         {
@@ -152,11 +186,12 @@ public class StripeSyncService(StripeApiClient client)
         creation.Returns.AddRange(data.Returns.Skip(retBefore));
         creation.Payouts.AddRange(stripe.ImportedPayouts.Skip(payBefore));
         creation.NewCursor = stripe.LastSyncCursor;
+        creation.NewRefundCursor = stripe.LastRefundCursor;
         creation.NewSyncTime = stripe.LastSyncTime;
         creation.Post = data.IdCounters.Clone();
         return creation;
     }
 
     private static StripeSyncPreview Empty()
-        => new(Array.Empty<StripeChargeDetail>(), null, Array.Empty<StripePayoutSummary>());
+        => new([], null, [], [], null);
 }

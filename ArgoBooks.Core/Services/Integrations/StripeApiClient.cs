@@ -15,6 +15,15 @@ public record StripePayoutSummary(string Id, long AmountCents, long DateUnix, st
 /// <summary>A charge's processing fee, in the balance transaction's (settlement) currency.</summary>
 public record StripeFee(long Cents, string? Currency);
 
+/// <summary>The charges that are new since the last sync, and the charge to stop at next time.</summary>
+public record StripeChargeFetch(IReadOnlyList<StripeChargeDetail> Charges, string? Cursor);
+
+/// <summary>A refund made on a charge. AmountCents is in the currency's smallest unit.</summary>
+public record StripeRefund(string Id, string ChargeId, long AmountCents, string Currency, long CreatedUnix);
+
+/// <summary>The refunds that are new since the last sync, and the refund to stop at next time.</summary>
+public record StripeRefundFetch(IReadOnlyList<StripeRefund> Refunds, string? Cursor);
+
 /// <summary>
 /// Minimal Stripe REST client. Validates a key by reading balance transactions
 /// (the same data the sync uses) and fetches balance transactions for import.
@@ -24,6 +33,7 @@ public class StripeApiClient
     private const string BalanceTxUrl = "https://api.stripe.com/v1/balance_transactions";
     private const string PayoutsUrl = "https://api.stripe.com/v1/payouts";
     private const string ChargesUrl = "https://api.stripe.com/v1/charges";
+    private const string RefundsUrl = "https://api.stripe.com/v1/refunds";
     private const int MaxPages = 20;
     private readonly HttpClient _http;
 
@@ -128,9 +138,22 @@ public class StripeApiClient
     /// </summary>
     public async Task<IReadOnlyList<StripeChargeDetail>> FetchChargesUntilAsync(
         string apiKey, string? watermarkChargeId, CancellationToken ct = default)
+        => (await FetchNewChargesAsync(apiKey, watermarkChargeId, ct)).Charges;
+
+    /// <summary>
+    /// As <see cref="FetchChargesUntilAsync"/>, with the charge the next sync should stop at.
+    ///
+    /// That is the newest charge with nothing still pending below it. A bank debit takes days to
+    /// succeed, and the charges made meanwhile are imported without it. Stopping at the newest
+    /// charge would put the pending one behind the cursor for good, so the cursor waits beneath
+    /// it and the next sync reads it again.
+    /// </summary>
+    public async Task<StripeChargeFetch> FetchNewChargesAsync(
+        string apiKey, string? watermarkChargeId, CancellationToken ct = default)
     {
         var results = new List<StripeChargeDetail>();
         string? after = null;
+        string? cursor = null;
         const string expand = "&expand[]=data.customer&expand[]=data.invoice&expand[]=data.balance_transaction";
 
         for (var page = 0; page < MaxPages; page++)
@@ -150,12 +173,18 @@ public class StripeApiClient
                 {
                     var id = PropStr(el, "id");
                     if (!string.IsNullOrEmpty(watermarkChargeId) && id == watermarkChargeId)
-                        return results; // reached the last-synced watermark
+                        return new StripeChargeFetch(results, cursor ?? watermarkChargeId); // reached the last-synced watermark
                     lastId = id;
                     pageCount++;
 
+                    var status = PropStr(el, "status");
+                    if (status == "pending")
+                        cursor = null;
+                    else if (cursor == null && !string.IsNullOrEmpty(id))
+                        cursor = id;
+
                     var isPaid = el.TryGetProperty("paid", out var p) && p.ValueKind == JsonValueKind.True;
-                    if (PropStr(el, "status") != "succeeded" || !isPaid) continue;
+                    if (status != "succeeded" || !isPaid) continue;
                     results.Add(ParseCharge(el));
                 }
             }
@@ -165,7 +194,60 @@ public class StripeApiClient
             after = lastId;
         }
 
-        return results;
+        return new StripeChargeFetch(results, cursor ?? watermarkChargeId);
+    }
+
+    /// <summary>
+    /// Fetches refunds newest-first, stopping at the watermark refund id. Only refunds that went
+    /// through are included. The cursor waits beneath one still in progress, as for charges.
+    /// </summary>
+    public async Task<StripeRefundFetch> FetchNewRefundsAsync(
+        string apiKey, string? watermarkRefundId, CancellationToken ct = default)
+    {
+        var results = new List<StripeRefund>();
+        string? after = null;
+        string? cursor = null;
+
+        for (var page = 0; page < MaxPages; page++)
+        {
+            var url = $"{RefundsUrl}?limit=100";
+            if (!string.IsNullOrEmpty(after))
+                url += $"&starting_after={Uri.EscapeDataString(after)}";
+
+            using var doc = await GetJsonAsync(apiKey, url, ct);
+            var root = doc.RootElement;
+
+            var pageCount = 0;
+            string? lastId = null;
+            if (root.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var el in data.EnumerateArray())
+                {
+                    var id = PropStr(el, "id");
+                    if (!string.IsNullOrEmpty(watermarkRefundId) && id == watermarkRefundId)
+                        return new StripeRefundFetch(results, cursor ?? watermarkRefundId);
+                    lastId = id;
+                    pageCount++;
+
+                    var status = PropStr(el, "status");
+                    if (status is "pending" or "requires_action")
+                        cursor = null;
+                    else if (cursor == null && !string.IsNullOrEmpty(id))
+                        cursor = id;
+
+                    var chargeId = PropStr(el, "charge");
+                    if (status != "succeeded" || string.IsNullOrEmpty(chargeId)) continue;
+                    results.Add(new StripeRefund(
+                        id, chargeId, PropNum(el, "amount"), PropStr(el, "currency"), PropNum(el, "created")));
+                }
+            }
+
+            var hasMore = root.TryGetProperty("has_more", out var hm) && hm.ValueKind == JsonValueKind.True;
+            if (!hasMore || pageCount == 0 || lastId == null) break;
+            after = lastId;
+        }
+
+        return new StripeRefundFetch(results, cursor ?? watermarkRefundId);
     }
 
     private static StripeChargeDetail ParseCharge(JsonElement el)

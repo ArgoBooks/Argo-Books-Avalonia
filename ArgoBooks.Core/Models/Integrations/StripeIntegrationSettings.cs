@@ -23,6 +23,10 @@ public class StripeIntegrationSettings
     [JsonPropertyName("lastSyncCursor")]
     public string? LastSyncCursor { get; set; }
 
+    /// <summary>The newest Stripe refund seen at the last sync. Refunds are read back to it.</summary>
+    [JsonPropertyName("lastRefundCursor")]
+    public string? LastRefundCursor { get; set; }
+
     /// <summary>Timestamp of the last successful sync.</summary>
     [JsonPropertyName("lastSyncTime")]
     public DateTime? LastSyncTime { get; set; }

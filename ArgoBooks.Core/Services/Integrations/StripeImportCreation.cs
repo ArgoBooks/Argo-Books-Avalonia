@@ -16,6 +16,9 @@ public class StripeImportCreation : IntegrationImportCreation
     public string? PreviousCursor { get; set; }
     public string? NewCursor { get; set; }
 
+    public string? PreviousRefundCursor { get; set; }
+    public string? NewRefundCursor { get; set; }
+
     /// <summary>True when the sync actually created or remembered anything (so an undo is worth recording).</summary>
     public override bool AnyCreated => base.AnyCreated || Payouts.Count > 0;
 
@@ -24,6 +27,7 @@ public class StripeImportCreation : IntegrationImportCreation
         var stripe = data.Settings.Integrations.Stripe;
         foreach (var po in Payouts) stripe.ImportedPayouts.Remove(po);
         stripe.LastSyncCursor = PreviousCursor;
+        stripe.LastRefundCursor = PreviousRefundCursor;
         stripe.LastSyncTime = PreviousSyncTime;
     }
 
@@ -32,6 +36,7 @@ public class StripeImportCreation : IntegrationImportCreation
         var stripe = data.Settings.Integrations.Stripe;
         foreach (var po in Payouts) if (!stripe.ImportedPayouts.Contains(po)) stripe.ImportedPayouts.Add(po);
         stripe.LastSyncCursor = NewCursor;
+        stripe.LastRefundCursor = NewRefundCursor;
         stripe.LastSyncTime = NewSyncTime;
     }
 }

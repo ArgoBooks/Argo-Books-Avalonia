@@ -1725,6 +1725,7 @@ public partial class SettingsModalViewModel : ViewModelBase
         stripe.Connected = false;
         stripe.AccountLabel = null;
         stripe.LastSyncCursor = null;
+        stripe.LastRefundCursor = null;
         stripe.LastSyncTime = null;
 
         StripeIntegrationConnected = false;
