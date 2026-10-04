@@ -1158,6 +1158,15 @@ public class SpreadsheetImportService
     private List<List<object?>>? _sheetRows;
     private readonly Dictionary<string, SpreadsheetRowReader.DateOrder> _sheetDateOrders = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// A new record whose sheet has a date column but whose own date is blank or unreadable. It
+    /// used to be imported dated 0001-01-01, where it sat outside every year and, in a company
+    /// that converts currency, could never be given a rate. It is left out instead, and counted
+    /// with the rows that have missing fields. A sheet with no date column at all is unchanged.
+    /// </summary>
+    private static bool IsUndatedNewRow(List<string> headers, string dateColumn, DateTime date, bool exists) =>
+        !exists && date == DateTime.MinValue && headers.Contains(dateColumn);
+
     private void BeginSheet(List<List<object?>> rows)
     {
         _sheetRows = rows;
@@ -3461,6 +3470,10 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             if (string.IsNullOrWhiteSpace(invoiceNumber))
                 invoiceNumber = invoiceId;
 
+            if (IsUndatedNewRow(headers, "Issue Date", issueDate,
+                    !string.IsNullOrWhiteSpace(invoiceId) && data.Invoices.Any(i => i.Id == invoiceId)))
+                continue;
+
             // Blank on both: mint a unique one so distinct rows aren't collapsed into a single record.
             if (string.IsNullOrWhiteSpace(invoiceId))
             {
@@ -3482,7 +3495,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
                 invoice.InvoiceNumber = invoiceNumber;
             if (Set("Customer ID"))
                 invoice.CustomerId = customerId;
-            if (Set("Issue Date"))
+            if (Set("Issue Date") && (existing == null || issueDate != DateTime.MinValue))
                 invoice.IssueDate = issueDate;
             if (Set("Due Date"))
                 invoice.DueDate = GetDateTime(row, headers, "Due Date");
@@ -3549,6 +3562,10 @@ Respond with ONLY a JSON array, one entry per product in the same order:
                 && string.IsNullOrWhiteSpace(description) && string.IsNullOrWhiteSpace(supplierId))
                 continue;
 
+            if (IsUndatedNewRow(headers, "Date", date,
+                    !string.IsNullOrWhiteSpace(id) && data.Expenses.Any(p => p.Id == id)))
+                continue;
+
             // No ID column (or a blank ID): mint a unique one so distinct rows aren't collapsed into a
             // single record (or skipped as "already exists") when the sheet has no identifier. Without
             // this, an ID-less sheet imports only its first row.
@@ -3565,7 +3582,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             bool Set(params string[] columns) => existing == null || columns.Any(headers.Contains);
 
             purchase.Id = id;
-            if (Set("Date"))
+            if (Set("Date") && (existing == null || date != DateTime.MinValue))
                 purchase.Date = date;
             if (Set("Supplier ID"))
                 purchase.SupplierId = supplierId;
@@ -3823,6 +3840,10 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             // No ID column (or a blank ID): mint a unique one so distinct rows aren't collapsed into a
             // single record (or skipped as "already exists") when the sheet has no identifier. Without
             // this, an ID-less sheet imports only its first row. (Mirrors ImportPurchases.)
+            if (IsUndatedNewRow(headers, "Date", date,
+                    !string.IsNullOrWhiteSpace(id) && data.Payments.Any(p => p.Id == id)))
+                continue;
+
             if (string.IsNullOrWhiteSpace(id))
                 id = new IdGenerator(data).NextPaymentId(takenIds);
 
@@ -3840,7 +3861,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
                     ? invoiceId : "";
             if (Set("Customer ID"))
                 payment.CustomerId = customerId;
-            if (Set("Date"))
+            if (Set("Date") && (existing == null || date != DateTime.MinValue))
                 payment.Date = date;
             if (Set("Amount"))
                 payment.Amount = amount;
@@ -4109,6 +4130,10 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             // No ID column (or a blank ID): mint a unique one so distinct rows aren't collapsed into a
             // single record (or skipped as "already exists") when the sheet has no identifier. Without
             // this, an ID-less sheet imports only its first row. (Mirrors ImportPurchases.)
+            if (IsUndatedNewRow(headers, "Date", date,
+                    !string.IsNullOrWhiteSpace(id) && data.Revenues.Any(s => s.Id == id)))
+                continue;
+
             if (string.IsNullOrWhiteSpace(id))
                 id = new IdGenerator(data).NextRevenueId(date, takenIds);
 
@@ -4123,7 +4148,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             bool Set(params string[] columns) => existing == null || columns.Any(headers.Contains);
 
             revenue.Id = id;
-            if (Set("Date"))
+            if (Set("Date") && (existing == null || date != DateTime.MinValue))
                 revenue.Date = date;
             if (Set("Customer ID"))
                 revenue.CustomerId = customerId;

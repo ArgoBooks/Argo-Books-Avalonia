@@ -202,10 +202,26 @@ internal static class SpreadsheetRowReader
         return value switch
         {
             DateTime dt => dt,
-            double d => DateTime.FromOADate(d),
+            double d => FromNumber(d),
             string s => ParseDateString(s, order),
             _ => DateTime.MinValue
         };
+    }
+
+    /// <summary>
+    /// A date held as a number. Normally Excel's own serial date, but some exports write the date
+    /// as the digits 20240315, which is far outside the serial range: FromOADate threw on it and
+    /// the whole import stopped part way.
+    /// </summary>
+    private static DateTime FromNumber(double value)
+    {
+        if (value is >= 19000101 and <= 22001231 && value == Math.Floor(value)
+            && DateTime.TryParseExact(((long)value).ToString(CultureInfo.InvariantCulture), "yyyyMMdd",
+                CultureInfo.InvariantCulture, DateTimeStyles.None, out var fromDigits))
+            return fromDigits;
+
+        // The range FromOADate accepts.
+        return value is > -657435 and < 2958466 ? DateTime.FromOADate(value) : DateTime.MinValue;
     }
 
     /// <summary>
