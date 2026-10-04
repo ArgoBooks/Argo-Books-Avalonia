@@ -283,7 +283,7 @@ public class UndoRedoManager : ObservableObject, IUndoRedoManager
             {
                 if (!guarded.TryUndo())
                 {
-                    Drop(action);
+                    DropRefusedUndo(action);
                     return false;
                 }
             }
@@ -319,7 +319,7 @@ public class UndoRedoManager : ObservableObject, IUndoRedoManager
             {
                 if (!guarded.TryRedo())
                 {
-                    Drop(action);
+                    DropRefusedRedo();
                     return false;
                 }
             }
@@ -343,10 +343,27 @@ public class UndoRedoManager : ObservableObject, IUndoRedoManager
     /// both stacks and no "Undo:" entry is logged for it. Left on a stack, it would be moved to
     /// the other one and reported as done.
     /// </summary>
-    private void Drop(IUndoableAction action)
+    private void DropRefusedUndo(IUndoableAction action)
     {
+        // The step stays done. If the save included it, what is left on the stack is still the
+        // saved company. If not, its change now sits unsaved on top of every earlier point, so
+        // going back to one of them is no longer going back to the file. A save point ahead, on
+        // the redo stack, is still reached by redoing up to it.
         if (ReferenceEquals(_savedState, action))
             _savedState = SavePoint;
+        else if (_savedState == null || !_redoStack.Contains(_savedState))
+            _savedState = NoSavedState.Instance;
+        OnStateChanged();
+    }
+
+    /// <summary>
+    /// As <see cref="DropRefusedUndo"/>, for a redo. The step stays undone, so a save that
+    /// included it, or any step after it, can no longer be reached.
+    /// </summary>
+    private void DropRefusedRedo()
+    {
+        if (_savedState != null && !_undoStack.Contains(_savedState))
+            _savedState = NoSavedState.Instance;
         OnStateChanged();
     }
 

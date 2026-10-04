@@ -389,6 +389,33 @@ public class UndoRedoManagerTests
         Assert.True(earlierUndone);
     }
 
+    // Its change is still in the company and was never saved, so closing has to ask.
+    [Fact]
+    public void Undo_OfAnUnsavedStepThatRefuses_LeavesTheCompanyUnsaved()
+    {
+        _manager.RecordAction(new DelegateAction("earlier", () => { }, () => { }));
+        _manager.MarkSaved();
+        _manager.RecordAction(new GuardedDelegateAction("stale", () => false, () => true));
+
+        _manager.Undo();
+
+        Assert.False(_manager.IsAtSavedState);
+    }
+
+    // The file was saved with the step done. It is now undone and cannot be redone.
+    [Fact]
+    public void Redo_OfASavedStepThatRefuses_LeavesTheCompanyUnsaved()
+    {
+        _manager.RecordAction(new DelegateAction("earlier", () => { }, () => { }));
+        _manager.RecordAction(new GuardedDelegateAction("stale", () => true, () => false));
+        _manager.MarkSaved();
+        _manager.Undo();
+
+        _manager.Redo();
+
+        Assert.False(_manager.IsAtSavedState);
+    }
+
     [Fact]
     public void Undo_OfASavedStepThatRefuses_LeavesTheCompanySaved()
     {
