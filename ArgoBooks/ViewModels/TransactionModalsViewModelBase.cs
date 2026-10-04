@@ -908,7 +908,6 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     [RelayCommand]
     protected async Task SaveTransactionAsync()
     {
-        EnsureTypedCounterparty();
         ClearValidationErrors();
         HasSaveError = false;
         SaveErrorMessage = string.Empty;
@@ -996,6 +995,10 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
             // Fetched if it isn't held. Without it the transaction saves pending and converts later.
             SaveCurrency = currentCurrency;
             SaveRate = await UsdConversion.FetchRateAsync(currentCurrency, transactionDate);
+
+            // Only now that the save is going ahead. Created before validation, a typed supplier or
+            // customer was added to the company even when the save was refused or then cancelled.
+            EnsureTypedCounterparty();
 
             if (typedLines != null)
                 ResolveTypedItems(companyData, typedLines);

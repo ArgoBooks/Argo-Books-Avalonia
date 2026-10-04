@@ -451,14 +451,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
 
         var hasErrors = false;
 
-        if (SelectedSupplier == null &&
-            QuickCreate.EnsureSupplier(App.CompanyManager?.CompanyData, SelectedSupplierText) is { } typedSupplier)
-        {
-            LoadSuppliers();
-            SelectedSupplier = AvailableSuppliers.FirstOrDefault(s => s.Id == typedSupplier.Id);
-        }
-
-        if (SelectedSupplier == null)
+        if (SelectedSupplier == null && string.IsNullOrWhiteSpace(SelectedSupplierText))
         {
             HasSupplierError = true;
             hasErrors = true;
@@ -501,6 +494,23 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
 
         var companyData = App.CompanyManager?.CompanyData;
         if (companyData == null) return null;
+
+        // A supplier typed but never picked is created last, once everything else has passed.
+        // Created first, they were added to the company even when the form was then refused.
+        if (SelectedSupplier == null)
+        {
+            if (QuickCreate.EnsureSupplier(companyData, SelectedSupplierText) is { } typedSupplier)
+            {
+                LoadSuppliers();
+                SelectedSupplier = AvailableSuppliers.FirstOrDefault(s => s.Id == typedSupplier.Id);
+            }
+
+            if (SelectedSupplier == null)
+            {
+                HasSupplierError = true;
+                return null;
+            }
+        }
 
         // Fetch the order-date rate up front (like manual entry) so the saved order shows its amount
         // immediately instead of a momentary "Pending".

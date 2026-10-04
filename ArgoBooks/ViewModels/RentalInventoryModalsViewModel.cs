@@ -799,14 +799,7 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
         ClearRentOutErrors();
         var isValid = true;
 
-        if (RentOutCustomer == null &&
-            QuickCreate.EnsureCustomer(App.CompanyManager?.CompanyData, RentOutCustomerText) is { } typedCustomer)
-        {
-            UpdateDropdownOptions();
-            RentOutCustomer = AvailableCustomers.FirstOrDefault(c => c.Id == typedCustomer.Id);
-        }
-
-        if (RentOutCustomer == null)
+        if (RentOutCustomer == null && string.IsNullOrWhiteSpace(RentOutCustomerText))
         {
             RentOutCustomerError = "Customer is required.".Translate();
             isValid = false;
@@ -831,6 +824,23 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
         {
             RentOutQuantityError = "Only {0} available for these dates.".TranslateFormat(available);
             isValid = false;
+        }
+
+        // A customer typed but never picked is created last, once everything else has passed.
+        // Created first, they were added to the company even when the form was then refused.
+        if (isValid && RentOutCustomer == null)
+        {
+            if (QuickCreate.EnsureCustomer(companyData, RentOutCustomerText) is { } typedCustomer)
+            {
+                UpdateDropdownOptions();
+                RentOutCustomer = AvailableCustomers.FirstOrDefault(c => c.Id == typedCustomer.Id);
+            }
+
+            if (RentOutCustomer == null)
+            {
+                RentOutCustomerError = "Customer is required.".Translate();
+                isValid = false;
+            }
         }
 
         return isValid;

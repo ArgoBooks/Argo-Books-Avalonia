@@ -1427,14 +1427,7 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
         ClearModalErrors();
         var isValid = true;
 
-        if (ModalCustomer == null &&
-            QuickCreate.EnsureCustomer(App.CompanyManager?.CompanyData, ModalCustomerText) is { } typedCustomer)
-        {
-            UpdateDropdownOptions();
-            ModalCustomer = AvailableCustomers.FirstOrDefault(c => c.Id == typedCustomer.Id);
-        }
-
-        if (ModalCustomer == null)
+        if (ModalCustomer == null && string.IsNullOrWhiteSpace(ModalCustomerText))
         {
             ModalCustomerError = "Please select a customer.".Translate();
             isValid = false;
@@ -1482,6 +1475,23 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
                 continue;
             RentalLineItems[i].QuantityError = "Only {0} available for these dates.".TranslateFormat(available);
             isValid = false;
+        }
+
+        // A customer typed but never picked is created last, once everything else has passed.
+        // Created first, they were added to the company even when the form was then refused.
+        if (isValid && ModalCustomer == null)
+        {
+            if (QuickCreate.EnsureCustomer(companyData, ModalCustomerText) is { } typedCustomer)
+            {
+                UpdateDropdownOptions();
+                ModalCustomer = AvailableCustomers.FirstOrDefault(c => c.Id == typedCustomer.Id);
+            }
+
+            if (ModalCustomer == null)
+            {
+                ModalCustomerError = "Please select a customer.".Translate();
+                isValid = false;
+            }
         }
 
         return isValid;
