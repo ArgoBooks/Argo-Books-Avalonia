@@ -221,9 +221,13 @@ public class RoeService
             {
                 PeriodEnd = period.PeriodEnd,
 
-                // An EI exempt employee has no insurable earnings at all, whatever they were
-                // paid, so reporting gross would overstate a claim they cannot make.
-                InsurableEarnings = employee.IsEiExempt ? 0m : gross,
+                // Pay earned while EI exempt is not insurable, whatever it came to, so reporting it
+                // would overstate a claim they cannot make. Each line records whether the employee
+                // was exempt when it was calculated; one saved before that was recorded is taken
+                // as exempt when they are exempt now and nothing was withheld on it.
+                InsurableEarnings = period.Lines
+                    .Where(l => !(l.EiExempt || (employee.IsEiExempt && l.EiEmployee == 0m)))
+                    .Sum(l => l.GrossPay),
                 InsurableHours = !hoursKnown
                     ? null
                     : employee.PayType == PayType.Hourly
