@@ -3729,8 +3729,24 @@ public partial class App : Application
             // A statement that overlaps one already imported, or the same file twice, would
             // double those lines: the second copy matches some other record of the same amount
             // or shows as missing from the books.
+            //
+            // Asked rather than assumed. A line is known only by its date, amount and description,
+            // and the same fee on the same day on a second account looks exactly like a repeat.
             var readCount = lines.Count;
-            lines = BankStatementImportService.WithoutAlreadyImported(lines, companyData.BankImportSessions);
+            var fresh = BankStatementImportService.WithoutAlreadyImported(lines, companyData.BankImportSessions);
+            if (fresh.Count < readCount)
+            {
+                // Skipping is the answer to dismissing the dialog, since importing a repeat doubles it.
+                var importAll = await ConfirmDialogAsync(
+                    "Bank Matching".Translate(),
+                    "{0} of the {1} transactions in this statement match ones already imported (same date, amount and description). They will be skipped unless this statement is for a different account."
+                        .TranslateFormat(readCount - fresh.Count, readCount),
+                    "Import all".Translate(),
+                    "Skip them".Translate());
+                if (!importAll)
+                    lines = fresh;
+            }
+
             if (lines.Count == 0)
             {
                 await ShowInfoDialogAsync("Bank Matching".Translate(),
