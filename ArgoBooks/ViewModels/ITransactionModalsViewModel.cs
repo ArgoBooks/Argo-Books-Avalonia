@@ -30,6 +30,7 @@ public interface ITransactionModalsViewModel
 
     ObservableCollection<CounterpartyOption> CounterpartyOptions { get; }
     CounterpartyOption? SelectedCounterparty { get; set; }
+    string? CounterpartyText { get; set; }
     bool HasCounterpartyError { get; }
     IRelayCommand OpenCreateCounterpartyCommand { get; }
 
