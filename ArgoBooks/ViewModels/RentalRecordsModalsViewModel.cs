@@ -566,10 +566,17 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
         _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.RentalRecordCreated);
         companyData.MarkAsModified();
 
+        // Returning a rental records no undo step, so this one can still be on top of the stack
+        // after the items are back. Undoing it then would put the units into stock a second time
+        // and remove a rental whose payment and kept deposit are already in the books.
+        var createUndone = false;
         App.UndoRedoManager.RecordAction(new DelegateAction(
             $"Create rental '{rental.Id}'",
             () =>
             {
+                if (rental.Status == RentalStatus.Returned) return;
+
+                createUndone = true;
                 companyData.Rentals.RemoveRecord(rental);
                 ReplayStock(companyData, adjustments, undo: true);
                 companyData.MarkAsModified();
@@ -577,6 +584,9 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
             },
             () =>
             {
+                if (!createUndone) return;
+
+                createUndone = false;
                 companyData.Rentals.RestoreRecord(rental);
                 ReplayStock(companyData, adjustments, undo: false);
                 companyData.MarkAsModified();
@@ -679,10 +689,15 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
         Apply(rental, after);
         companyData.MarkAsModified();
 
+        // Not once the rental has been returned (see the create step).
+        var editUndone = false;
         App.UndoRedoManager.RecordAction(new DelegateAction(
             $"Edit rental '{rental.Id}'",
             () =>
             {
+                if (rental.Status == RentalStatus.Returned) return;
+
+                editUndone = true;
                 Apply(rental, before);
                 ReplayStock(companyData, adjustments, undo: true);
                 companyData.MarkAsModified();
@@ -690,6 +705,9 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
             },
             () =>
             {
+                if (!editUndone) return;
+
+                editUndone = false;
                 Apply(rental, after);
                 ReplayStock(companyData, adjustments, undo: false);
                 companyData.MarkAsModified();
@@ -1062,10 +1080,16 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
         var adjustments = MoveStock(companyData, Units(lines, -1), "Rental", rental.Id);
         companyData.MarkAsModified();
 
+        // Not once the rental has been returned (see the create step): it would flip a returned
+        // rental back to Reserved and add its units to stock again.
+        var checkOutUndone = false;
         App.UndoRedoManager.RecordAction(new DelegateAction(
             $"Check out rental '{rental.Id}'",
             () =>
             {
+                if (rental.Status == RentalStatus.Returned) return;
+
+                checkOutUndone = true;
                 rental.Status = RentalStatus.Reserved;
                 rental.StartDate = oldStart;
                 ReplayStock(companyData, adjustments, undo: true);
@@ -1074,6 +1098,9 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
             },
             () =>
             {
+                if (!checkOutUndone) return;
+
+                checkOutUndone = false;
                 rental.Status = RentalStatus.Active;
                 rental.StartDate = start;
                 ReplayStock(companyData, adjustments, undo: false);
