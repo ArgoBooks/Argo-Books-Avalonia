@@ -106,8 +106,9 @@ public class RefundModalShippingTests
         Assert.Equal(103.20m, vm.RefundTotal);
     }
 
+    // The Tax box starts ticked. Refunding the card fee alone must not take the tax with it.
     [Fact]
-    public void TaxAndTheCardFee_CanBeRefundedTogether()
+    public void CardFeeRefundedAlone_WithTaxLeftTicked_GivesBackNoTax()
     {
         var invoice = new Invoice
         {
@@ -124,7 +125,7 @@ public class RefundModalShippingTests
         vm.LineRows.First(r => r.Kind == "lineItem").IsSelected = false;
         vm.LineRows.First(r => r.Kind == "processingFee").IsSelected = true;
 
-        Assert.Equal(13.50m, vm.RefundTotal);
+        Assert.Equal(3.50m, vm.RefundTotal);
     }
 
     // Refunding only the deposit, with the Tax box left ticked from the default. The deposit was
