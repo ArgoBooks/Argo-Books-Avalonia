@@ -138,15 +138,8 @@ public class StripeApiClient
     /// <summary>
     /// Fetches charges newest-first, expanded with customer/invoice/balance_transaction, stopping
     /// when it reaches the watermark charge id (the newest charge seen at the last sync). Only
-    /// succeeded, paid charges are included. Returns the new charges, newest first.
-    /// </summary>
-    public async Task<IReadOnlyList<StripeChargeDetail>> FetchChargesUntilAsync(
-        string apiKey, string? watermarkChargeId, CancellationToken ct = default)
-        => (await FetchNewChargesAsync(apiKey, watermarkChargeId, ct)).Charges;
-
-    /// <summary>
-    /// As <see cref="FetchChargesUntilAsync"/>, with the charge the next sync should stop at and
-    /// the charges that are still pending.
+    /// succeeded, paid charges are included, newest first. Also returns the charge the next sync
+    /// should stop at and the charges that are still pending.
     ///
     /// A bank debit takes days to succeed, and the charges made meanwhile are imported without
     /// it. The cursor then sits above it, so the list is never read that far back again. The
