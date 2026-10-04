@@ -89,6 +89,7 @@
                                            Text="{loc:Loc 'Customer'}" />
                                 <controls:SearchableDropdown ItemsSource="{Binding CounterpartyOptions}"
                                                             SelectedItem="{Binding SelectedCounterparty}"
+                                                            SearchText="{Binding CounterpartyText, Mode=TwoWay}"
                                                             DisplayMemberPath="Name"
                                                             SearchMemberPath="Id"
                                                             Placeholder="{loc:Loc 'Search for a customer...'}"
@@ -98,6 +99,27 @@
                                                             AddNewText="{loc:Loc 'Create new customer'}"
                                                             AddNewCommand="{Binding OpenCreateCounterpartyCommand}"
                                                             EmptyMessage="{loc:Loc 'No customers found'}"
+                                                            EmptyCreateLinkText="{loc:Loc 'Create one'}"
+                                                            EmptyCreateCommand="{Binding OpenCreateCounterpartyCommand}" />
+                            </StackPanel>
+
+                            <!-- Supplier Selection (expense). Two blocks rather than one with
+                                 bound wording, matching how the filter modal below splits them. -->
+                            <StackPanel Spacing="6" IsVisible="{Binding !IsRevenue}">
+                                <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}"
+                                           Text="{loc:Loc 'Supplier'}" />
+                                <controls:SearchableDropdown ItemsSource="{Binding CounterpartyOptions}"
+                                                            SelectedItem="{Binding SelectedCounterparty}"
+                                                            SearchText="{Binding CounterpartyText, Mode=TwoWay}"
+                                                            DisplayMemberPath="Name"
+                                                            SearchMemberPath="Id"
+                                                            Placeholder="{loc:Loc 'Search for a supplier...'}"
+                                                            HasError="{Binding HasCounterpartyError}"
+                                                            ErrorMessage="{loc:Loc 'Please select a supplier.'}"
+                                                            ShowAddNew="True"
+                                                            AddNewText="{loc:Loc 'Create new supplier'}"
+                                                            AddNewCommand="{Binding OpenCreateCounterpartyCommand}"
+                                                            EmptyMessage="{loc:Loc 'No suppliers found'}"
                                                             EmptyCreateLinkText="{loc:Loc 'Create one'}"
                                                             EmptyCreateCommand="{Binding OpenCreateCounterpartyCommand}" />
                             </StackPanel>

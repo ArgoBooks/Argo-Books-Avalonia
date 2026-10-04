@@ -308,14 +308,15 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
             data.RecurringTransactions.Add(created);
 
             var dateBefore = created.NextDate;
-            var generated = OwnEntries(GenerateDueNow(data), created);
+            var stock = new Dictionary<Transaction, List<StockChange>>();
+            var generated = GenerateDueNow(data, created, stock);
             var dateAfter = created.NextDate;
 
             App.UndoRedoManager.RecordAction(new DelegateAction(
                 $"Add recurring schedule {created.Id}",
                 () =>
                 {
-                    RemoveGenerated(data, generated);
+                    RemoveGenerated(data, generated, stock);
                     created.NextDate = dateBefore;
                     data.RecurringTransactions.RemoveRecord(created);
                     Saved?.Invoke();
@@ -323,7 +324,7 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
                 () =>
                 {
                     data.RecurringTransactions.RestoreRecord(created);
-                    RestoreGenerated(data, generated);
+                    RestoreGenerated(data, generated, stock);
                     created.NextDate = dateAfter;
                     Saved?.Invoke();
                 }));
@@ -371,7 +372,8 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
 
             var after = Capture(existing);
 
-            var generated = OwnEntries(GenerateDueNow(data), existing);
+            var stock = new Dictionary<Transaction, List<StockChange>>();
+            var generated = GenerateDueNow(data, existing, stock);
             var dateAfter = existing.NextDate;
             var lastGeneratedAfter = existing.LastGeneratedAt;
             var statusAfter = existing.Status;
@@ -380,7 +382,7 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
                 $"Edit recurring schedule {existing.Id}",
                 () =>
                 {
-                    RemoveGenerated(data, generated);
+                    RemoveGenerated(data, generated, stock);
                     Restore(existing, before);
                     existing.NextDate = dateBefore;
                     existing.LastGeneratedAt = lastGeneratedBefore;
@@ -390,7 +392,7 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
                 () =>
                 {
                     Restore(existing, after);
-                    RestoreGenerated(data, generated);
+                    RestoreGenerated(data, generated, stock);
                     existing.NextDate = dateAfter;
                     existing.LastGeneratedAt = lastGeneratedAfter;
                     existing.Status = statusAfter;
@@ -410,28 +412,35 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
     /// Company open is the usual trigger, but a schedule starting today would otherwise show as
     /// due with nothing to show for it until the file was reopened.
     /// </summary>
-    private static IReadOnlyList<Transaction> GenerateDueNow(Core.Data.CompanyData data)
+    /// <returns>
+    /// The entries the saved schedule produced. Generation runs every schedule that has come due,
+    /// and undoing this save must not delete an entry another schedule legitimately produced.
+    /// </returns>
+    private static IReadOnlyList<Transaction> GenerateDueNow(
+        Core.Data.CompanyData data, RecurringTransaction saved, Dictionary<Transaction, List<StockChange>> stock)
     {
-        var generated = RecurringTransactionService.GenerateDue(data, DateTime.Today);
-        if (generated.Count == 0) return generated;
+        // The saved schedule goes last. Undo puts stock back to what it was before these
+        // entries, which is only right while nothing after them has moved the same stock.
+        var others = RecurringTransactionService.GenerateDue(data, DateTime.Today, only: s => s != saved);
+        var own = RecurringTransactionService.GenerateDue(data, DateTime.Today, stockChanges: stock, only: s => s == saved);
 
-        var expenses = generated.Count(t => t is Expense);
-        RecurringTransactionService.RaiseGenerated(expenses, generated.Count - expenses);
-        return generated;
+        var expenses = others.Concat(own).Count(t => t is Expense);
+        var total = others.Count + own.Count;
+        if (total > 0)
+            RecurringTransactionService.RaiseGenerated(expenses, total - expenses);
+        return own;
     }
 
-    /// <summary>
-    /// Generation runs every schedule that has come due, not only the one just saved. Undoing this
-    /// save must not delete an entry another schedule legitimately produced.
-    /// </summary>
-    private static IReadOnlyList<Transaction> OwnEntries(
-        IReadOnlyList<Transaction> generated, RecurringTransaction schedule) =>
-        generated.Where(t => t.RecurringScheduleId == schedule.Id).ToList();
-
-    private static void RemoveGenerated(Core.Data.CompanyData data, IReadOnlyList<Transaction> generated)
+    private static void RemoveGenerated(
+        Core.Data.CompanyData data, IReadOnlyList<Transaction> generated,
+        Dictionary<Transaction, List<StockChange>> stock)
     {
-        foreach (var entry in generated)
+        // Newest first, so stock two entries both moved is put back in the order it was taken.
+        foreach (var entry in generated.Reverse())
         {
+            if (stock.TryGetValue(entry, out var moved))
+                InventoryStockService.Revert(data, moved);
+
             if (entry is Expense expense) data.Expenses.RemoveRecord(expense);
             else if (entry is Revenue revenue) data.Revenues.RemoveRecord(revenue);
         }
@@ -440,13 +449,16 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
     }
 
     /// <summary>An entry converted before the undo keeps its USD figure, so only one still waiting queues again.</summary>
-    private static void RestoreGenerated(Core.Data.CompanyData data, IReadOnlyList<Transaction> generated)
+    private static void RestoreGenerated(
+        Core.Data.CompanyData data, IReadOnlyList<Transaction> generated,
+        Dictionary<Transaction, List<StockChange>> stock)
     {
         foreach (var entry in generated)
         {
             if (entry is Expense expense) data.Expenses.RestoreRecord(expense);
             else if (entry is Revenue revenue) data.Revenues.RestoreRecord(revenue);
             UsdConversion.Requeue(data, entry);
+            stock[entry] = InventoryStockService.Apply(data, entry.LineItems, entry, isPurchase: entry is Expense);
         }
     }
 

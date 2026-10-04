@@ -253,7 +253,7 @@ public class ReportTemplateStorage
             }
             catch (Exception ex)
             {
-                _errorLogger?.LogWarning($"Failed to read template file {Path.GetFileName(file)}: {ex.Message}", "ReportTemplateStorage");
+                _errorLogger?.LogWarning($"Failed to read a report template file: {ex.Message}", "ReportTemplateStorage");
             }
         }
 

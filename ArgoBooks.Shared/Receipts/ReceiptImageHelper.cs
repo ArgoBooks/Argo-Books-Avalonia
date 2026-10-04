@@ -28,6 +28,23 @@ public static class ReceiptImageHelper
     }
 
     /// <summary>
+    /// The image as bytes the app can draw, turned right-side up, or null when it cannot be shown.
+    /// A HEIC photo, which iPhones shoot by default and Skia cannot read, is converted to JPEG.
+    /// Null is anything that is not an image at all, such as a Word file attached as a receipt.
+    /// </summary>
+    public static byte[]? ToDisplayable(byte[] imageData)
+    {
+        using (var stream = new MemoryStream(imageData))
+        using (var codec = SKCodec.Create(stream))
+        {
+            if (codec != null)
+                return FixOrientation(imageData);
+        }
+
+        return HeifImageDecoder.TryConvertToJpeg(imageData);
+    }
+
+    /// <summary>
     /// Applies EXIF orientation correction so the image displays right-side up.
     /// Returns the original bytes if no rotation is needed or the format is unsupported.
     /// </summary>

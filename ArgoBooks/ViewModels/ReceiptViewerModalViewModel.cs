@@ -285,7 +285,11 @@ public partial class ReceiptViewerModalViewModel : ViewModelBase
 
         var receipt = App.CompanyManager?.CompanyData?.Receipts.FirstOrDefault(r => r.Id == receiptId);
         if (receipt == null || string.IsNullOrEmpty(receipt.FileData))
+        {
+            if (receipt != null)
+                EmptyMessage = "This receipt's file was not saved. Attach it again.";
             return;
+        }
 
         IsLoadingPages = true;
         try
@@ -299,7 +303,11 @@ public partial class ReceiptViewerModalViewModel : ViewModelBase
                 InsertPageOrdered(page.Index, page.Path);
             });
 
-            await ReceiptPageRenderer.GetPagePathsAsync(receipt, progress);
+            var pages = await ReceiptPageRenderer.GetPagePathsAsync(receipt, progress);
+
+            // The file is stored and can still be downloaded; it is only the preview that fails.
+            if (token == _renderToken && pages.Count == 0)
+                EmptyMessage = "This file can't be previewed here. Use Download to save and open it.";
         }
         finally
         {

@@ -167,8 +167,22 @@ public partial class PasswordPromptModalViewModel : ViewModelBase
         IsOpen = false;
         _biometricSuccessCompletionSource?.TrySetResult(true);
         // Complete with special marker to indicate biometric was used
-        _completionSource?.TrySetResult("__BIOMETRIC__");
+        CompletedWithBiometric = true;
+        _completionSource?.TrySetResult(BiometricMarker);
     }
+
+    /// <summary>What the prompt answers with when the fingerprint or face check passed.</summary>
+    public const string BiometricMarker = "__BIOMETRIC__";
+
+    /// <summary>
+    /// Whether the last answer came from a passed biometric check. The marker travels the same way
+    /// a typed password does, so on its own it proves nothing: typing it into the box used to
+    /// unlock the company with the stored password and no check at all.
+    /// </summary>
+    public bool CompletedWithBiometric { get; private set; }
+
+    /// <summary>True only for the marker produced by a passed biometric check, never a typed one.</summary>
+    public bool IsBiometricAnswer(string? answer) => CompletedWithBiometric && answer == BiometricMarker;
 
     /// <summary>
     /// Called when biometric authentication fails.
@@ -235,6 +249,7 @@ public partial class PasswordPromptModalViewModel : ViewModelBase
 
         // Complete with the password but keep modal open
         // The caller will close it on success or call ShowError on failure
+        CompletedWithBiometric = false;
         _completionSource?.TrySetResult(Password);
     }
 

@@ -1657,8 +1657,9 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
             await ShowSendErrorAsync(message);
         }
 
-        // Publish and send: portal handles both publishing and email delivery via sendEmail: true.
-        // When portal is not configured, fall back to desktop email sending.
+        // The portal publishes the invoice and sends the email, via sendEmail: true. Reaching
+        // here without one is impossible: CreateAndSendInvoice returns early when the portal is
+        // not configured, and it is this method's only caller.
         if (PortalSettings.IsConfigured)
         {
             try
@@ -1707,35 +1708,6 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
                 return;
             }
         }
-        else
-        {
-            // No portal configured - send email directly from the desktop app
-            try
-            {
-                var emailService = new InvoiceEmailService();
-                var emailSettings = companyData.Settings.InvoiceEmail;
-                // Email goes to the customer in the invoice's issued currency.
-                var currencySymbol = CurrencyService.GetSymbol(invoice.OriginalCurrency);
-
-                var response = await emailService.SendInvoiceAsync(
-                    invoice,
-                    selectedTemplate,
-                    companyData,
-                    emailSettings,
-                    currencySymbol);
-
-                if (!response.Success)
-                {
-                    await SendFailedAsync(response.Message.Translate(), mayHavePublished: false);
-                    return;
-                }
-            }
-            catch (Exception ex)
-            {
-                await SendFailedAsync($"{"Failed to send invoice:".Translate()} {ex.Message}", mayHavePublished: true);
-                return;
-            }
-        }
 
         _unansweredSend = null;
         invoice.Status = InvoiceStatus.Sent;
@@ -1770,7 +1742,10 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
         // Auto-create a Revenue transaction if this invoice isn't already linked to one.
         // Path A (Revenue → Invoice): revenue already exists, LinkInvoiceToRevenue linked it above.
         // Path B (Invoice → Revenue): no revenue exists yet, so create one automatically.
-        var hasLinkedRevenue = companyData.Revenues.Any(r => r.InvoiceId == invoice.Id);
+        // A kept deposit is linked to the invoice too, but it is not the invoice's revenue. Counted
+        // here, a deposit kept while the invoice was still a draft stopped the rental charge
+        // itself from ever being recorded.
+        var hasLinkedRevenue = companyData.Revenues.Any(r => r.InvoiceId == invoice.Id && !r.IsKeptDeposit);
         if (!hasLinkedRevenue)
         {
             CreateRevenueFromInvoice(invoice, companyData);

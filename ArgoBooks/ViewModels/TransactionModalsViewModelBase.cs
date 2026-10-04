@@ -10,6 +10,7 @@ using ArgoBooks.Core.Services;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
 using ArgoBooks.Shared.Telemetry;
+using ArgoBooks.Utilities;
 using Avalonia;
 using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -152,6 +153,10 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     [ObservableProperty]
     private CounterpartyOption? _selectedCounterparty;
 
+    /// <summary>What is typed into the counterparty box, picked from the list or not.</summary>
+    [ObservableProperty]
+    private string? _counterpartyText;
+
     // Called when SelectedCounterparty changes - allows derived classes to notify alias properties
     partial void OnSelectedCounterpartyChanged(CounterpartyOption? value)
     {
@@ -270,6 +275,8 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     /// product changes only the box's text, and that text is what the save acts on. It is
     /// compared trimmed.
     /// </summary>
+    // These two records are only ever compared, so their properties are read through Equals.
+    // ReSharper disable NotAccessedPositionalProperty.Local
     private sealed record LineState(
         string? ProductId, string? CategoryId, string Description, decimal? Quantity, decimal? UnitPrice,
         string ItemText, string CategoryText);
@@ -277,6 +284,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     private sealed record EditState(
         DateTimeOffset? Date, string? CounterpartyId, string? CategoryId, decimal TaxAmount, decimal Shipping,
         decimal Discount, decimal Fee, string PaymentMethod, string Notes, Helpers.EquatableArray<LineState> LineItems);
+    // ReSharper restore NotAccessedPositionalProperty.Local
 
     // The form as the edit modal opened, for change detection.
     private EditState? _original;
@@ -373,7 +381,10 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         // A picked product brings its category into the line's category box.
         if (e.PropertyName == nameof(TransactionLineItemBase.SelectedProduct) &&
             sender is TLineItem { SelectedProduct: { } product } lineItem)
+        {
             lineItem.SelectedCategory = CategoryOptionFor(product);
+            DefaultCounterpartyFromProduct(product);
+        }
 
         if (e.PropertyName == nameof(TransactionLineItemBase.SelectedProduct) && sender is TLineItem changedLine)
         {
@@ -382,6 +393,21 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         }
 
         UpdateTotals();
+    }
+
+    /// <summary>
+    /// Fills an empty supplier box from the product just picked, the way the category box is
+    /// filled. Only when it is still empty, so it never overwrites a choice, and only on an
+    /// expense: a product's supplier is who we usually buy from, which says nothing about who a
+    /// sale went to. It stays editable, because the usual supplier and the one actually paid are
+    /// not always the same.
+    /// </summary>
+    private void DefaultCounterpartyFromProduct(ProductOption product)
+    {
+        if (CounterpartyName != "Supplier" || SelectedCounterparty != null) return;
+        if (string.IsNullOrEmpty(product.SupplierId)) return;
+
+        SelectedCounterparty = CounterpartyOptions.FirstOrDefault(c => c.Id == product.SupplierId);
     }
 
     protected void UpdateTotals()
@@ -565,7 +591,8 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
                 Name = product.Name,
                 Description = product.Description,
                 UnitPrice = UseCostPrice ? product.CostPrice : product.UnitPrice,
-                CategoryId = product.CategoryId
+                CategoryId = product.CategoryId,
+                SupplierId = product.SupplierId
             });
         }
     }
@@ -658,7 +685,9 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         ModalDiscount = transaction.Discount;
         ModalFee = transaction.Fee;
 
-        SelectedPaymentMethod = transaction.PaymentMethod.ToString();
+        // GetDisplayName, not ToString: the dropdown holds display names, and only a value
+        // that is in that list can be selected.
+        SelectedPaymentMethod = transaction.PaymentMethod.GetDisplayName();
         ModalNotes = transaction.Notes;
 
         LineItems.Clear();
@@ -966,6 +995,10 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
             // Fetched if it isn't held. Without it the transaction saves pending and converts later.
             SaveCurrency = currentCurrency;
             SaveRate = await UsdConversion.FetchRateAsync(currentCurrency, transactionDate);
+
+            // Only now that the save is going ahead. Created before validation, a typed supplier or
+            // customer was added to the company even when the save was refused or then cancelled.
+            EnsureTypedCounterparty();
 
             if (typedLines != null)
                 ResolveTypedItems(companyData, typedLines);
@@ -1300,6 +1333,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         SetEntryCurrency(null);
         ModalDate = DateTimeOffset.Now;
         SelectedCounterparty = null;
+        CounterpartyText = null;
         SelectedCategory = null;
         ModalDescription = string.Empty;
         ModalQuantity = 1;
@@ -1400,6 +1434,24 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     /// <summary>
     /// Selects the counterparty option with the given id, if present, after the options reload.
     /// </summary>
+    /// <summary>
+    /// Creates the counterparty the user typed but never picked, and selects it. QuickCreate reuses
+    /// an existing record of the same name, so typing one that already exists selects that one.
+    /// </summary>
+    private void EnsureTypedCounterparty()
+    {
+        if (SelectedCounterparty != null || string.IsNullOrWhiteSpace(CounterpartyText)) return;
+
+        var data = App.CompanyManager?.CompanyData;
+        var id = CounterpartyName == "Supplier"
+            ? QuickCreate.EnsureSupplier(data, CounterpartyText)?.Id
+            : QuickCreate.EnsureCustomer(data, CounterpartyText)?.Id;
+        if (id == null) return;
+
+        LoadCounterpartyOptions();
+        SelectCounterparty(id);
+    }
+
     private void SelectCounterparty(string? counterpartyId)
     {
         if (string.IsNullOrEmpty(counterpartyId)) return;
@@ -1501,9 +1553,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
             AllowMultiple = false,
             FileTypeFilter =
             [
-                new FilePickerFileType("Images") { Patterns = ["*.png", "*.jpg", "*.jpeg", "*.webp", "*.pdf"
-                    ]
-                },
+                FilePickerTypes.AllSupportedTypes,
                 new FilePickerFileType("All Files") { Patterns = ["*.*"] }
             ]
         });
@@ -1518,15 +1568,8 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
 
     protected static string GetFileType(string filePath)
     {
-        return Path.GetExtension(filePath).ToLowerInvariant() switch
-        {
-            ".pdf" => "application/pdf",
-            ".png" => "image/png",
-            ".jpg" or ".jpeg" => "image/jpeg",
-            ".webp" => "image/webp",
-            ".gif" => "image/gif",
-            _ => "application/octet-stream"
-        };
+        return FilePickerTypes.GetReceiptContentType(filePath)
+               ?? (Path.GetExtension(filePath).ToLowerInvariant() == ".gif" ? "image/gif" : "application/octet-stream");
     }
 
     #endregion

@@ -57,4 +57,73 @@ internal static class SecureTempDirectory
             return null;
         }
     }
+
+    /// <summary>
+    /// A directory younger than this is left alone. One being filled by a company that is still
+    /// opening in another window has no marker yet.
+    /// </summary>
+    private static readonly TimeSpan AbandonedAfter = TimeSpan.FromHours(1);
+
+    /// <summary>
+    /// Deletes the working directories no running copy of the app is using. A crash, a forced
+    /// shutdown or the power going leaves one behind, and it holds the whole company unencrypted,
+    /// password or not. Returns how many were deleted.
+    /// </summary>
+    public static int DeleteAbandoned(string? root = null, DateTime? nowUtc = null)
+    {
+        root ??= Path.Combine(Path.GetTempPath(), "ArgoBooks");
+        var cutoff = (nowUtc ?? DateTime.UtcNow) - AbandonedAfter;
+        var deleted = 0;
+
+        try
+        {
+            if (!Directory.Exists(root)) return 0;
+
+            foreach (var directory in Directory.EnumerateDirectories(root))
+            {
+                try
+                {
+                    if (!IsWorkingDirectoryName(Path.GetFileName(directory))
+                        || Directory.GetCreationTimeUtc(directory) > cutoff
+                        || IsHeld(directory))
+                        continue;
+
+                    Directory.Delete(directory, recursive: true);
+                    deleted++;
+                }
+                catch
+                {
+                    // In use after all, or not ours to delete. The next launch tries again.
+                }
+            }
+        }
+        catch
+        {
+            // The temp folder could not be listed. Nothing to clean this time.
+        }
+
+        return deleted;
+    }
+
+    // Create() names a directory with a GUID in "N" form: 32 hex digits. The other folders the
+    // app keeps beside them (Receipts, locks, Sample) do not match and are left alone.
+    private static bool IsWorkingDirectoryName(string name)
+        => name.Length == 32 && name.All(Uri.IsHexDigit);
+
+    private static bool IsHeld(string directory)
+    {
+        var marker = Path.Combine(directory, InUseFileName);
+        if (!File.Exists(marker)) return false;
+
+        try
+        {
+            // The owner holds the marker with no sharing, so this only opens once it has gone.
+            using var probe = new FileStream(marker, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+            return false;
+        }
+        catch
+        {
+            return true;
+        }
+    }
 }

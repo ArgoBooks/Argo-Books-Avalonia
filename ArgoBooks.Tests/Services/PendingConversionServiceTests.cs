@@ -297,7 +297,9 @@ public class PendingConversionServiceTests
         release.SetResult();
         using (await suspending.WaitAsync(TimeSpan.FromSeconds(10)))
         {
-            Assert.True(pass.IsCompleted);
+            // Awaited, not asserted complete: the suspend is signalled from the pass's finally,
+            // so the method's own task settles a moment later.
+            await pass.WaitAsync(TimeSpan.FromSeconds(10));
             Assert.False(first.IsPendingConversion);
             Assert.True(second.IsPendingConversion);
 

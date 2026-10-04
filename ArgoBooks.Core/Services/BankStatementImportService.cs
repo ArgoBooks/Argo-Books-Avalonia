@@ -75,8 +75,18 @@ public class BankStatementImportService(IErrorLogger? errorLogger = null)
 
     private List<BankStatementLine> ParseExcelCore(string filePath, Action<List<string>> normalize, bool requireEssentials, CancellationToken cancellationToken)
     {
+        // ClosedXML reads .xlsx only, so a legacy .xls is converted first. Done here rather
+        // than at the two call sites, which is why the temp file is deleted below.
+        string? tempXlsx = null;
         try
         {
+            if (filePath.EndsWith(".xls", StringComparison.OrdinalIgnoreCase)
+                && !filePath.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
+            {
+                tempXlsx = LegacyXlsConverter.ConvertXlsToTempXlsx(filePath);
+                filePath = tempXlsx;
+            }
+
             using var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
             using var workbook = new XLWorkbook(fileStream);
 
@@ -105,8 +115,15 @@ public class BankStatementImportService(IErrorLogger? errorLogger = null)
         catch (OperationCanceledException) { throw; }
         catch (Exception ex)
         {
-            errorLogger?.LogError(ex, ErrorCategory.Import, $"Failed to parse bank statement: {Path.GetFileName(filePath)}");
+            errorLogger?.LogError(ex, ErrorCategory.Import, $"Failed to parse bank statement ({Path.GetExtension(filePath)})");
             throw new UnreadableStatementFileException(Path.GetFileName(filePath), ex);
+        }
+        finally
+        {
+            if (tempXlsx != null)
+            {
+                try { File.Delete(tempXlsx); } catch { /* a temp file we could not remove is not worth failing an import over */ }
+            }
         }
     }
 
@@ -144,7 +161,7 @@ public class BankStatementImportService(IErrorLogger? errorLogger = null)
         catch (OperationCanceledException) { throw; }
         catch (Exception ex)
         {
-            errorLogger?.LogError(ex, ErrorCategory.Import, $"Failed to parse bank statement CSV: {Path.GetFileName(filePath)}");
+            errorLogger?.LogError(ex, ErrorCategory.Import, "Failed to parse bank statement CSV");
             throw new UnreadableStatementFileException(Path.GetFileName(filePath), ex);
         }
     }

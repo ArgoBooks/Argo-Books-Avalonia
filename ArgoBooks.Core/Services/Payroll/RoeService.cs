@@ -213,6 +213,11 @@ public class RoeService
                 + "from the employment contract.";
         }
 
+        // For lines saved before the exemption was recorded on them. Only when nothing was ever
+        // withheld: a line with no EI on it is otherwise one where the year's maximum had been
+        // reached, which is insurable.
+        bool exemptThroughout = employee.IsEiExempt && periods.All(p => p.Lines.All(l => l.EiEmployee == 0m));
+
         foreach (var period in periods.Take(worksheet.HoursPeriodCount))
         {
             decimal gross = period.Lines.Sum(l => l.GrossPay);
@@ -221,9 +226,12 @@ public class RoeService
             {
                 PeriodEnd = period.PeriodEnd,
 
-                // An EI exempt employee has no insurable earnings at all, whatever they were
-                // paid, so reporting gross would overstate a claim they cannot make.
-                InsurableEarnings = employee.IsEiExempt ? 0m : gross,
+                // Pay earned while EI exempt is not insurable, whatever it came to, so reporting it
+                // would overstate a claim they cannot make. Each line records whether the employee
+                // was exempt when it was calculated.
+                InsurableEarnings = period.Lines
+                    .Where(l => !(l.EiExempt || exemptThroughout))
+                    .Sum(l => l.GrossPay),
                 InsurableHours = !hoursKnown
                     ? null
                     : employee.PayType == PayType.Hourly

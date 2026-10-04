@@ -1725,6 +1725,8 @@ public partial class SettingsModalViewModel : ViewModelBase
         stripe.Connected = false;
         stripe.AccountLabel = null;
         stripe.LastSyncCursor = null;
+        stripe.LastRefundCursor = null;
+        stripe.PendingChargeIds.Clear();
         stripe.LastSyncTime = null;
 
         StripeIntegrationConnected = false;
@@ -3108,6 +3110,33 @@ public partial class SettingsModalViewModel : ViewModelBase
         var companyUid = App.CompanyManager?.CompanyData?.Settings.MobileSync.CompanyUid;
         var syncService = App.SyncService;
         if (string.IsNullOrEmpty(companyUid) || syncService == null) return;
+
+        // Revoking the last phone makes the server delete what it is holding for this company,
+        // including receipts the phone sent that have not been brought in yet. Bring them in
+        // first, and stop if any are left: the sync leaves a receipt on the server until it is
+        // saved in the company file, and skips the save while there are unsaved changes.
+        if (PairedDevices.Count <= 1)
+        {
+            await App.AutoMobileSyncAsync();
+
+            var waiting = 0;
+            try
+            {
+                waiting = (await syncService.PullQueueAsync(companyUid, CancellationToken.None)).Count;
+            }
+            catch
+            {
+                // Unreachable, in which case the revoke below does not go through either.
+            }
+
+            if (waiting > 0)
+            {
+                await App.ShowWarningDialogAsync(
+                    "Revoke Device".Translate(),
+                    "Receipts from this phone are still waiting to be saved. Save your company, then revoke the phone. Revoking it now would delete them.".Translate());
+                return;
+            }
+        }
 
         try
         {

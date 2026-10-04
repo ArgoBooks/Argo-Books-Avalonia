@@ -118,4 +118,21 @@ public class ImportUndoSnapshotTests
         Assert.Equal(BankLineMatchStatus.Ignored, lines[0].MatchStatus);
         Assert.Equal("L2", lines[1].Id);
     }
+
+    // Undo restores the whole company, so it must not run once something has been added that has
+    // no undo step of its own: an invoice sent after the import would vanish and its number be
+    // given out again.
+    [Fact]
+    public void ARecordAddedAfterTheImport_IsSeenAsNewAgainstTheImportsSnapshot()
+    {
+        var data = new CompanyData();
+        data.Customers.Add(new ArgoBooks.Core.Models.Entities.Customer { Id = "CUS-001", Name = "Imported" });
+        var afterImport = App.CreateCompanyDataSnapshot(data);
+
+        Assert.False(App.HasRecordsAddedSince(data, afterImport));
+
+        data.Invoices.Add(new Invoice { Id = "INV-2026-00042", InvoiceNumber = "INV-2026-00042" });
+
+        Assert.True(App.HasRecordsAddedSince(data, afterImport));
+    }
 }

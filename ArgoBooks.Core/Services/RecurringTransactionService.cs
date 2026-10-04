@@ -143,8 +143,15 @@ public static class RecurringTransactionService
     /// this does not have to reach for the exchange rate singleton, which is set once per process
     /// and cannot be controlled by a caller.
     /// </summary>
+    /// <param name="stockChanges">
+    /// Filled with what each generated entry did to stock, for a caller that can undo the
+    /// generation and has to put the stock back.
+    /// </param>
+    /// <param name="only">Limits the run to the schedules it accepts.</param>
     public static IReadOnlyList<Transaction> GenerateDue(
-        CompanyData data, DateTime today, UsdRateSource? rates = null)
+        CompanyData data, DateTime today, UsdRateSource? rates = null,
+        Dictionary<Transaction, List<StockChange>>? stockChanges = null,
+        Func<RecurringTransaction, bool>? only = null)
     {
         var generated = new List<Transaction>();
         var asOfDate = today.Date;
@@ -156,6 +163,7 @@ public static class RecurringTransactionService
         {
             if (schedule.Template == null) continue;
             if (schedule.Status != RecurringTransactionStatus.Active) continue;
+            if (only != null && !only(schedule)) continue;
 
             var count = 0;
             while (schedule.NextDate.Date <= asOfDate && count < MaxOccurrencesPerSchedulePerRun)
@@ -171,7 +179,14 @@ public static class RecurringTransactionService
                 var skipped = schedule.SkippedDates.Any(d => d.Date == occurrence);
                 if (!skipped && !AlreadyGenerated(data, schedule, occurrence))
                 {
-                    generated.Add(CloneFor(schedule, occurrence, data, rates, takenIds.Value));
+                    var entry = CloneFor(schedule, occurrence, data, rates, takenIds.Value);
+                    generated.Add(entry);
+
+                    // A generated entry is a real purchase or sale, so it moves stock as one saved
+                    // by hand does. Without this a schedule for a stocked product left the stock
+                    // count and the cost of goods sold untouched, however many times it ran.
+                    var moved = InventoryStockService.Apply(data, entry.LineItems, entry, isPurchase: entry is Expense);
+                    if (stockChanges != null) stockChanges[entry] = moved;
                     schedule.LastGeneratedAt = DateTime.UtcNow;
                 }
 
@@ -238,7 +253,8 @@ public static class RecurringTransactionService
     /// Entries this schedule generated that still carry the old amount, which is what the prompt
     /// tells the user it will change. Bank-matched entries are excluded: rewriting a matched amount
     /// breaks the match without telling anyone. So is an entry whose amount or line items were
-    /// changed by hand, since correcting it would overwrite that change.
+    /// changed by hand, since correcting it would overwrite that change, and a purchase that went
+    /// into stock: its price is part of that stock's cost, which only editing the entry updates.
     /// </summary>
     public static IReadOnlyList<Transaction> FindCorrectableOccurrences(
         CompanyData data, RecurringTransaction schedule, decimal oldAmount)
@@ -252,7 +268,8 @@ public static class RecurringTransactionService
                         && !t.BankMatched
                         && t.Amount == oldAmount
                         && t.LineItems.Count <= 1
-                        && t.LineItems.All(IsTemplateShaped))
+                        && t.LineItems.All(IsTemplateShaped)
+                        && !(t is Expense && t.LineItems.Any(l => l.IsStockPurchase)))
             .ToList();
     }
 

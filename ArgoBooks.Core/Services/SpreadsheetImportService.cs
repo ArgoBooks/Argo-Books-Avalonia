@@ -225,7 +225,7 @@ public class SpreadsheetImportService
             }
             catch (Exception ex)
             {
-                _errorLogger?.LogError(ex, ErrorCategory.Import, $"Failed to validate import file: {Path.GetFileName(filePath)}");
+                _errorLogger?.LogError(ex, ErrorCategory.Import, $"Failed to validate import file ({Path.GetExtension(filePath)})");
                 result.Errors.Add($"Failed to read file: {ex.Message}");
             }
 
@@ -283,7 +283,7 @@ public class SpreadsheetImportService
         }
         catch (Exception ex)
         {
-            _errorLogger?.LogError(ex, ErrorCategory.Import, $"Failed to import from: {Path.GetFileName(filePath)}");
+            _errorLogger?.LogError(ex, ErrorCategory.Import, $"Failed to import ({Path.GetExtension(filePath)})");
             throw;
         }
     }
@@ -328,7 +328,7 @@ public class SpreadsheetImportService
                 if (options.AutoCreateMissingReferences || options.AutoCreateTypes.Count > 0)
                 {
                     progress?.Report(("Creating missing references...", -1));
-                    CreateMissingReferences(workbook, companyData, options);
+                    CreateMissingReferences(workbook, companyData, options, analysis);
                 }
 
                 var totalSteps = worksheets.Count;
@@ -347,7 +347,7 @@ public class SpreadsheetImportService
         }
         catch (Exception ex)
         {
-            _errorLogger?.LogError(ex, ErrorCategory.Import, $"Failed AI-mapped import from: {Path.GetFileName(filePath)}");
+            _errorLogger?.LogError(ex, ErrorCategory.Import, $"Failed AI-mapped import ({Path.GetExtension(filePath)})");
             throw;
         }
 
@@ -434,7 +434,7 @@ public class SpreadsheetImportService
         }
         catch (Exception ex)
         {
-            _errorLogger?.LogError(ex, ErrorCategory.Import, $"Failed AI-mapped CSV import from: {Path.GetFileName(filePath)}");
+            _errorLogger?.LogError(ex, ErrorCategory.Import, "Failed AI-mapped CSV import");
             throw;
         }
 
@@ -462,7 +462,7 @@ public class SpreadsheetImportService
                 using var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
                 using var workbook = new XLWorkbook(fileStream);
 
-                var importedIds = CollectImportedIds(workbook);
+                var importedIds = CollectImportedIds(workbook, analysis);
 
                 foreach (var worksheet in workbook.Worksheets)
                 {
@@ -477,15 +477,19 @@ public class SpreadsheetImportService
                     if (sheetAnalysis != null)
                         ApplyColumnMapping(headers, sheetAnalysis);
 
-                    // Validation uses the mapped headers
+                    // Validation uses the mapped headers, and for a sheet the import reads by
+                    // them, the type it was recognised as rather than whatever it is called.
                     var rows = GetDataRows(worksheet, headers.Count);
                     if (rows.Count == 0) continue;
-                    ValidateWorksheetData(worksheet.Name, headers, rows, companyData, importedIds, result);
+                    var readByMapping = sheetAnalysis is { IsIncluded: true, Tier: ProcessingTier.Tier1_Mapping };
+                    ValidateWorksheetData(
+                        readByMapping ? ValidationName(worksheet, sheetAnalysis) : worksheet.Name,
+                        headers, rows, companyData, importedIds, result);
                 }
             }
             catch (Exception ex)
             {
-                _errorLogger?.LogError(ex, ErrorCategory.Import, $"Failed to validate AI-mapped import file: {Path.GetFileName(filePath)}");
+                _errorLogger?.LogError(ex, ErrorCategory.Import, $"Failed to validate AI-mapped import file ({Path.GetExtension(filePath)})");
                 result.Errors.Add($"Failed to read file: {ex.Message}");
             }
 
@@ -967,6 +971,7 @@ public class SpreadsheetImportService
         // financial builders for the duration of this sheet import, then clear it.
         _currentSheetRowCurrency = options?.RowCurrencyBySheet is { } bySheet
             && bySheet.TryGetValue(sheetName, out var rowMap) ? rowMap : null;
+        _undatedRows = 0;
         try
         {
             BeginSheet(rows);
@@ -1019,7 +1024,14 @@ public class SpreadsheetImportService
             if (unaccounted > 0)
             {
                 result.Skipped += unaccounted;
-                result.SkipReasons.Add($"{unaccounted} rows with missing or empty required fields");
+
+                // Said by name, because a row left out for its date takes anything that refers
+                // to it with it: a payment naming a skipped invoice comes in with no invoice.
+                var undated = Math.Min(_undatedRows, unaccounted);
+                if (undated > 0)
+                    result.SkipReasons.Add($"{undated} rows with a blank or unreadable date");
+                if (unaccounted > undated)
+                    result.SkipReasons.Add($"{unaccounted - undated} rows with missing or empty required fields");
             }
         }
 
@@ -1157,6 +1169,24 @@ public class SpreadsheetImportService
     /// </summary>
     private List<List<object?>>? _sheetRows;
     private readonly Dictionary<string, SpreadsheetRowReader.DateOrder> _sheetDateOrders = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// A new record whose sheet has a date column but whose own date is blank or unreadable. It
+    /// used to be imported dated 0001-01-01, where it sat outside every year and, in a company
+    /// that converts currency, could never be given a rate. It is left out instead, and counted
+    /// with the rows that have missing fields. A sheet with no date column at all is unchanged.
+    /// </summary>
+    private bool IsUndatedNewRow(List<string> headers, string dateColumn, DateTime date, bool exists)
+    {
+        if (exists || date != DateTime.MinValue || !headers.Contains(dateColumn))
+            return false;
+
+        _undatedRows++;
+        return true;
+    }
+
+    /// <summary>How many rows of the sheet being imported were left out for having no readable date.</summary>
+    private int _undatedRows;
 
     private void BeginSheet(List<List<object?>> rows)
     {
@@ -1959,17 +1989,63 @@ public class SpreadsheetImportService
 
     #region Validation
 
-    private Dictionary<string, HashSet<string>> CollectImportedIds(XLWorkbook workbook)
+    /// <summary>
+    /// The name the import knows a sheet type by, for a sheet the analysis recognised under some
+    /// other name ("Client List" for Customers).
+    /// </summary>
+    private static string? CanonicalSheetName(SpreadsheetSheetType type) => type switch
+    {
+        SpreadsheetSheetType.Customers => "Customers",
+        SpreadsheetSheetType.Suppliers => "Suppliers",
+        SpreadsheetSheetType.Products => "Products",
+        SpreadsheetSheetType.Categories => "Categories",
+        SpreadsheetSheetType.Locations => "Locations",
+        SpreadsheetSheetType.Invoices => "Invoices",
+        SpreadsheetSheetType.Inventory => "Inventory",
+        SpreadsheetSheetType.RentalInventory => "Rental Inventory",
+        SpreadsheetSheetType.PurchaseOrders => "Purchase Orders",
+        SpreadsheetSheetType.Expenses => "Expenses",
+        SpreadsheetSheetType.Revenue => "Revenue",
+        SpreadsheetSheetType.Payments => "Payments",
+        SpreadsheetSheetType.RentalRecords => "Rental Records",
+        _ => null
+    };
+
+    /// <summary>
+    /// The name to check a sheet's references under. The check works from the sheet's name, so a
+    /// sheet the analysis recognised as invoices but called "Sales Invoices" was not checked at
+    /// all, and its missing customers were neither reported nor created.
+    /// </summary>
+    private static string ValidationName(IXLWorksheet worksheet, SheetAnalysis? sheetAnalysis) =>
+        (sheetAnalysis == null ? null : CanonicalSheetName(sheetAnalysis.DetectedType)) ?? worksheet.Name;
+
+    /// <summary>
+    /// A sheet's headers as the import will read them: with the analysis's column mapping applied
+    /// when there is one. Validation that read the raw headers could not see a "Customer ID"
+    /// column the mapping had turned into "ID", so it took every customer the file defined for a
+    /// missing one, created a placeholder named after the id, and the real row was then skipped
+    /// as already existing.
+    /// </summary>
+    private static List<string> MappedHeaders(IXLWorksheet worksheet, SpreadsheetAnalysisResult? analysis, out SheetAnalysis? sheetAnalysis)
+    {
+        var headers = GetHeaders(worksheet);
+        sheetAnalysis = analysis?.Sheets.FirstOrDefault(s => s.SourceSheetName == worksheet.Name && s.IsIncluded);
+        if (sheetAnalysis != null && headers.Count > 0)
+            ApplyColumnMapping(headers, sheetAnalysis);
+        return headers;
+    }
+
+    private Dictionary<string, HashSet<string>> CollectImportedIds(XLWorkbook workbook, SpreadsheetAnalysisResult? analysis = null)
     {
         var ids = new Dictionary<string, HashSet<string>>();
 
         foreach (var worksheet in workbook.Worksheets)
         {
-            var headers = GetHeaders(worksheet);
+            var headers = MappedHeaders(worksheet, analysis, out var sheetAnalysis);
             if (headers.Count == 0) continue;
 
             var rows = GetDataRows(worksheet, headers.Count);
-            var sheetName = worksheet.Name;
+            var sheetName = (sheetAnalysis == null ? null : CanonicalSheetName(sheetAnalysis.DetectedType)) ?? worksheet.Name;
 
             // The Invoices sheet exports both "ID" (INV-2026-00001) and "Invoice #"
             // (#INV-2026-00001), and the line item and payment sheets reference the ID, so that
@@ -2039,15 +2115,21 @@ public class SpreadsheetImportService
         IXLWorksheet worksheet,
         CompanyData data,
         Dictionary<string, HashSet<string>> importedIds,
-        ImportValidationResult result)
+        ImportValidationResult result,
+        SpreadsheetAnalysisResult? analysis = null)
     {
-        var headers = GetHeaders(worksheet);
+        var headers = MappedHeaders(worksheet, analysis, out var sheetAnalysis);
         if (headers.Count == 0) return;
+
+        // A sheet the AI converts row by row is not read by its mapped columns, and resolves the
+        // names in it itself. Checking it here created placeholders named after those names,
+        // which then stopped them being matched to the customers that already exist.
+        if (sheetAnalysis is { Tier: ProcessingTier.Tier2_LlmProcessing }) return;
 
         var rows = GetDataRows(worksheet, headers.Count);
         if (rows.Count == 0) return;
 
-        ValidateWorksheetData(worksheet.Name, headers, rows, data, importedIds, result);
+        ValidateWorksheetData(ValidationName(worksheet, sheetAnalysis), headers, rows, data, importedIds, result);
     }
 
     private void ValidateWorksheetData(
@@ -2739,14 +2821,15 @@ public class SpreadsheetImportService
 
     #region Auto-Create Missing References
 
-    private void CreateMissingReferences(XLWorkbook workbook, CompanyData data, ImportOptions options)
+    private void CreateMissingReferences(XLWorkbook workbook, CompanyData data, ImportOptions options,
+        SpreadsheetAnalysisResult? analysis = null)
     {
         var result = new ImportValidationResult();
-        var importedIds = CollectImportedIds(workbook);
+        var importedIds = CollectImportedIds(workbook, analysis);
 
         foreach (var worksheet in workbook.Worksheets)
         {
-            ValidateWorksheet(worksheet, data, importedIds, result);
+            ValidateWorksheet(worksheet, data, importedIds, result, analysis);
         }
 
         foreach (var (refType, ids) in result.MissingReferences)
@@ -3461,6 +3544,10 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             if (string.IsNullOrWhiteSpace(invoiceNumber))
                 invoiceNumber = invoiceId;
 
+            if (IsUndatedNewRow(headers, "Issue Date", issueDate,
+                    !string.IsNullOrWhiteSpace(invoiceId) && data.Invoices.Any(i => i.Id == invoiceId)))
+                continue;
+
             // Blank on both: mint a unique one so distinct rows aren't collapsed into a single record.
             if (string.IsNullOrWhiteSpace(invoiceId))
             {
@@ -3482,7 +3569,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
                 invoice.InvoiceNumber = invoiceNumber;
             if (Set("Customer ID"))
                 invoice.CustomerId = customerId;
-            if (Set("Issue Date"))
+            if (Set("Issue Date") && (existing == null || issueDate != DateTime.MinValue))
                 invoice.IssueDate = issueDate;
             if (Set("Due Date"))
                 invoice.DueDate = GetDateTime(row, headers, "Due Date");
@@ -3549,6 +3636,10 @@ Respond with ONLY a JSON array, one entry per product in the same order:
                 && string.IsNullOrWhiteSpace(description) && string.IsNullOrWhiteSpace(supplierId))
                 continue;
 
+            if (IsUndatedNewRow(headers, "Date", date,
+                    !string.IsNullOrWhiteSpace(id) && data.Expenses.Any(p => p.Id == id)))
+                continue;
+
             // No ID column (or a blank ID): mint a unique one so distinct rows aren't collapsed into a
             // single record (or skipped as "already exists") when the sheet has no identifier. Without
             // this, an ID-less sheet imports only its first row.
@@ -3565,7 +3656,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             bool Set(params string[] columns) => existing == null || columns.Any(headers.Contains);
 
             purchase.Id = id;
-            if (Set("Date"))
+            if (Set("Date") && (existing == null || date != DateTime.MinValue))
                 purchase.Date = date;
             if (Set("Supplier ID"))
                 purchase.SupplierId = supplierId;
@@ -3823,6 +3914,10 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             // No ID column (or a blank ID): mint a unique one so distinct rows aren't collapsed into a
             // single record (or skipped as "already exists") when the sheet has no identifier. Without
             // this, an ID-less sheet imports only its first row. (Mirrors ImportPurchases.)
+            if (IsUndatedNewRow(headers, "Date", date,
+                    !string.IsNullOrWhiteSpace(id) && data.Payments.Any(p => p.Id == id)))
+                continue;
+
             if (string.IsNullOrWhiteSpace(id))
                 id = new IdGenerator(data).NextPaymentId(takenIds);
 
@@ -3840,7 +3935,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
                     ? invoiceId : "";
             if (Set("Customer ID"))
                 payment.CustomerId = customerId;
-            if (Set("Date"))
+            if (Set("Date") && (existing == null || date != DateTime.MinValue))
                 payment.Date = date;
             if (Set("Amount"))
                 payment.Amount = amount;
@@ -4109,6 +4204,10 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             // No ID column (or a blank ID): mint a unique one so distinct rows aren't collapsed into a
             // single record (or skipped as "already exists") when the sheet has no identifier. Without
             // this, an ID-less sheet imports only its first row. (Mirrors ImportPurchases.)
+            if (IsUndatedNewRow(headers, "Date", date,
+                    !string.IsNullOrWhiteSpace(id) && data.Revenues.Any(s => s.Id == id)))
+                continue;
+
             if (string.IsNullOrWhiteSpace(id))
                 id = new IdGenerator(data).NextRevenueId(date, takenIds);
 
@@ -4123,7 +4222,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             bool Set(params string[] columns) => existing == null || columns.Any(headers.Contains);
 
             revenue.Id = id;
-            if (Set("Date"))
+            if (Set("Date") && (existing == null || date != DateTime.MinValue))
                 revenue.Date = date;
             if (Set("Customer ID"))
                 revenue.CustomerId = customerId;

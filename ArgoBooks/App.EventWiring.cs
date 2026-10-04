@@ -49,6 +49,9 @@ public partial class App
             _appShellViewModel.CompanySwitcherPanelViewModel.SetCurrentCompany(args.CompanyName, args.FilePath, logo);
             _appShellViewModel.FileMenuPanelViewModel.SetCurrentCompany(args.FilePath);
 
+            if (args.IsEncrypted)
+                ReceiptTempCleanup.MarkProtected();
+
             // Clear undo/redo history for fresh start with new company
             UndoRedoManager.Clear();
 
@@ -277,6 +280,8 @@ public partial class App
 
         CompanyManager.CompanyClosed += async (_, _) =>
         {
+            ReceiptTempCleanup.ClearProtected();
+
             // Clear the portal API key so a new company starts fresh
             PortalSettings.DeactivateApiKey();
 
@@ -320,6 +325,10 @@ public partial class App
         {
             _ = TelemetryManager?.TrackFeatureAsync(
                 FeatureName.CompanySaved, TimingContext(e.Kind, e.IsEncrypted, e.FileSizeBytes), e.ElapsedMs);
+
+            // A password added part way through a session protects the previews from then on.
+            if (e.IsEncrypted)
+                ReceiptTempCleanup.MarkProtected();
 
             // The loading overlay is left to whoever showed it. A save before closing keeps it up
             // until the company has closed, and a background save must not drop another flow's.
@@ -384,7 +393,7 @@ public partial class App
                 companyName, filePath, biometricAvailable);
 
             // Handle biometric login success - retrieve stored password
-            if (password == "__BIOMETRIC__")
+            if (_appShellViewModel.PasswordPromptModalViewModel.IsBiometricAnswer(password))
             {
                 var fileId = GetBiometricFileId(filePath);
                 password = platformService.GetPasswordForBiometric(fileId);
@@ -1355,7 +1364,7 @@ public partial class App
                 return false;
             }
 
-            if (password == "__BIOMETRIC__")
+            if (passwordModal.IsBiometricAnswer(password))
             {
                 // biometric login succeeded, retrieve stored password and verify
                 var fileId = GetBiometricFileId(filePath);
@@ -1388,7 +1397,7 @@ public partial class App
                     return false;
 
                 // Handle biometric login retry
-                if (password == "__BIOMETRIC__")
+                if (passwordModal.IsBiometricAnswer(password))
                 {
                     var fileId = GetBiometricFileId(filePath);
                     var storedPassword = platformService.GetPasswordForBiometric(fileId);

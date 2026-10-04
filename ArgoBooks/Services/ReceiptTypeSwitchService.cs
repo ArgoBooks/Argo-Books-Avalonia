@@ -78,6 +78,10 @@ public static class ReceiptTypeSwitchService
             "A return refers to {0}. Remove it first.".TranslateFormat(receipt.TransactionId),
         ReceiptSwitchBlock.UsedByPayRun =>
             "{0} is a payroll expense and is referenced by a pay run.".TranslateFormat(receipt.TransactionId),
+        ReceiptSwitchBlock.BankMatched =>
+            "{0} is matched to a bank statement line. Unmatch it first.".TranslateFormat(receipt.TransactionId),
+        ReceiptSwitchBlock.MovedStock =>
+            "{0} changed stock levels, so it cannot be moved. Delete it and enter it again on the other side.".TranslateFormat(receipt.TransactionId),
         _ => string.Empty
     };
 }

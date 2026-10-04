@@ -279,7 +279,18 @@ public class UndoRedoManager : ObservableObject, IUndoRedoManager
         try
         {
             var action = _undoStack.Pop();
-            action.Undo();
+            if (action is IGuardedUndoableAction guarded)
+            {
+                if (!guarded.TryUndo())
+                {
+                    DropRefusedUndo(action);
+                    return false;
+                }
+            }
+            else
+            {
+                action.Undo();
+            }
             _redoStack.Push(action);
             OnStateChanged();
             ActionUndone?.Invoke(this, new ActionRecordedEventArgs(action));
@@ -304,7 +315,18 @@ public class UndoRedoManager : ObservableObject, IUndoRedoManager
         try
         {
             var action = _redoStack.Pop();
-            action.Redo();
+            if (action is IGuardedUndoableAction guarded)
+            {
+                if (!guarded.TryRedo())
+                {
+                    DropRefusedRedo();
+                    return false;
+                }
+            }
+            else
+            {
+                action.Redo();
+            }
             _undoStack.Push(action);
             OnStateChanged();
             ActionRedone?.Invoke(this, new ActionRecordedEventArgs(action));
@@ -314,6 +336,35 @@ public class UndoRedoManager : ObservableObject, IUndoRedoManager
         {
             _isExecutingUndoRedo = false;
         }
+    }
+
+    /// <summary>
+    /// Forgets a step that turned out to be no longer possible. It changed nothing, so it leaves
+    /// both stacks and no "Undo:" entry is logged for it. Left on a stack, it would be moved to
+    /// the other one and reported as done.
+    /// </summary>
+    private void DropRefusedUndo(IUndoableAction action)
+    {
+        // The step stays done. If the save included it, what is left on the stack is still the
+        // saved company. If not, its change now sits unsaved on top of every earlier point, so
+        // going back to one of them is no longer going back to the file. A save point ahead, on
+        // the redo stack, is still reached by redoing up to it.
+        if (ReferenceEquals(_savedState, action))
+            _savedState = SavePoint;
+        else if (_savedState == null || !_redoStack.Contains(_savedState))
+            _savedState = NoSavedState.Instance;
+        OnStateChanged();
+    }
+
+    /// <summary>
+    /// As <see cref="DropRefusedUndo"/>, for a redo. The step stays undone, so a save that
+    /// included it, or any step after it, can no longer be reached.
+    /// </summary>
+    private void DropRefusedRedo()
+    {
+        if (_savedState != null && !_undoStack.Contains(_savedState))
+            _savedState = NoSavedState.Instance;
+        OnStateChanged();
     }
 
     /// <summary>
@@ -466,6 +517,33 @@ public class DelegateAction : IUndoableAction
     /// Redoes the action.
     /// </summary>
     public void Redo() => _redoAction();
+}
+
+/// <summary>
+/// A step that may no longer be possible by the time it is undone or redone, because something
+/// that records no step of its own has happened since: an invoice sent, a rental returned.
+/// </summary>
+public interface IGuardedUndoableAction : IUndoableAction
+{
+    /// <summary>Undoes the step, or returns false having changed nothing.</summary>
+    bool TryUndo();
+
+    /// <summary>Redoes the step, or returns false having changed nothing.</summary>
+    bool TryRedo();
+}
+
+/// <summary>A <see cref="DelegateAction"/> whose delegates say whether they ran.</summary>
+public class GuardedDelegateAction(string description, Func<bool> undo, Func<bool> redo) : IGuardedUndoableAction
+{
+    public string Description { get; } = description;
+
+    public bool TryUndo() => undo();
+
+    public bool TryRedo() => redo();
+
+    public void Undo() => undo();
+
+    public void Redo() => redo();
 }
 
 /// <summary>

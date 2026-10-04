@@ -202,10 +202,26 @@ internal static class SpreadsheetRowReader
         return value switch
         {
             DateTime dt => dt,
-            double d => DateTime.FromOADate(d),
+            double d => FromNumber(d),
             string s => ParseDateString(s, order),
             _ => DateTime.MinValue
         };
+    }
+
+    /// <summary>
+    /// A date held as a number. Normally Excel's own serial date, but some exports write the date
+    /// as the digits 20240315, which is far outside the serial range: FromOADate threw on it and
+    /// the whole import stopped part way.
+    /// </summary>
+    private static DateTime FromNumber(double value)
+    {
+        if (value is >= 19000101 and <= 22001231 && value == Math.Floor(value)
+            && DateTime.TryParseExact(((long)value).ToString(CultureInfo.InvariantCulture), "yyyyMMdd",
+                CultureInfo.InvariantCulture, DateTimeStyles.None, out var fromDigits))
+            return fromDigits;
+
+        // The range FromOADate accepts.
+        return value is > -657435 and < 2958466 ? DateTime.FromOADate(value) : DateTime.MinValue;
     }
 
     /// <summary>
@@ -221,25 +237,50 @@ internal static class SpreadsheetRowReader
         var index = GetColumnIndex(headers, columnName);
         if (index < 0) return DateOrder.Unknown;
 
+        var (dayFirst, monthFirst) = OrderEvidence(rows, index);
+        if (dayFirst && monthFirst) return DateOrder.Unknown;
+        if (dayFirst || monthFirst) return dayFirst ? DateOrder.DayFirst : DateOrder.MonthFirst;
+
+        // Nothing in this column settles it, so look at the sheet's other date columns before the
+        // computer's region. One file is written one way: an Issue Date column of 01/05 beside a
+        // Due Date column holding a 25 is month-first in both. Only columns headed as dates:
+        // an invoice number like 26-01-0007 or a phone number has the same shape and is not one.
+        bool anyDayFirst = false, anyMonthFirst = false;
+        for (var column = 0; column < headers.Count; column++)
+        {
+            if (column == index || !headers[column].Contains("date", StringComparison.OrdinalIgnoreCase)) continue;
+            var (d, m) = OrderEvidence(rows, column);
+            anyDayFirst |= d;
+            anyMonthFirst |= m;
+        }
+
+        if (anyDayFirst != anyMonthFirst) return anyDayFirst ? DateOrder.DayFirst : DateOrder.MonthFirst;
+        return RegionIsDayFirst() ? DateOrder.DayFirst : DateOrder.Unknown;
+    }
+
+    /// <summary>What one column's written dates prove about their order, if anything.</summary>
+    private static (bool DayFirst, bool MonthFirst) OrderEvidence(List<List<object?>> rows, int index)
+    {
         bool dayFirst = false, monthFirst = false;
         foreach (var row in rows)
         {
             if (index >= row.Count || row[index] is not string s) continue;
 
-            // A year-first date (2024-03-05) is never ambiguous, so only 1-2 digit leading fields count.
+            // A year-first date (2024-03-05) is never ambiguous, so only 1-2 digit leading fields
+            // count. The third field has to look like a year, so text such as "13-5-A" is not
+            // taken for a date.
             var parts = s.Trim().Split('/', '.', '-');
             if (parts.Length < 3 || parts[0].Length > 2 ||
                 !int.TryParse(parts[0], NumberStyles.None, CultureInfo.InvariantCulture, out var first) ||
-                !int.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out var second))
+                !int.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out var second) ||
+                parts[2].Length < 2 || !char.IsDigit(parts[2][0]) || !char.IsDigit(parts[2][1]))
                 continue;
 
             if (first > 12) dayFirst = true;
             if (second > 12) monthFirst = true;
         }
 
-        if (dayFirst && monthFirst) return DateOrder.Unknown;
-        if (!dayFirst && !monthFirst) return RegionIsDayFirst() ? DateOrder.DayFirst : DateOrder.Unknown;
-        return dayFirst ? DateOrder.DayFirst : DateOrder.MonthFirst;
+        return (dayFirst, monthFirst);
     }
 
     private static bool RegionIsDayFirst()
@@ -274,7 +315,10 @@ internal static class SpreadsheetRowReader
         {
             if (DateTime.TryParseExact(s.Trim(), DayFirstDateFormats, CultureInfo.InvariantCulture, DateTimeStyles.None, out var exact))
                 return exact;
-            return DateTime.TryParse(s, DayFirstCulture, DateTimeStyles.None, out var lenient) ? lenient : DateTime.MinValue;
+            if (DateTime.TryParse(s, DayFirstCulture, DateTimeStyles.None, out var lenient))
+                return lenient;
+            // Not readable day-first at all, such as "12/25" with no year. Fall through to the
+            // ordinary parse rather than lose the date.
         }
 
         if (DateTime.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.None, out var result))

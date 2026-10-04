@@ -216,6 +216,77 @@ public class StripeDetailImporter
         return made;
     }
 
+    /// <summary>
+    /// Records refunds made on sales that are already in the books, each as its own return dated
+    /// when the refund was made. A refund on a sale that is not in the books is left out: there
+    /// is no sale to take it off.
+    /// </summary>
+    public int ApplyLaterRefunds(CompanyData data, IReadOnlyList<StripeRefund> refunds)
+    {
+        var made = 0;
+        var ids = new IdGenerator(data);
+        var returnIds = IdGenerator.TakenSet(data.Returns.Select(r => r.Id));
+
+        foreach (var refund in refunds.OrderBy(r => r.CreatedUnix))
+        {
+            if (SaleAwaiting(data, refund) is not { } rev) continue;
+
+            var currency = ImportLookup.NormalizeCurrency(refund.Currency, fallback: rev.OriginalCurrency);
+            data.Returns.Add(new Return
+            {
+                Id = ids.NextReturnId(returnIds),
+                OriginalTransactionId = rev.Id,
+                ReturnType = "Customer",
+                CustomerId = rev.CustomerId ?? string.Empty,
+                ReturnDate = RefundDate(refund),
+                RefundAmount = ArgoMoney.ToDecimal(refund.AmountCents, currency),
+                Status = ReturnStatus.Completed,
+                Notes = RefundNote + refund.Id
+            });
+            made++;
+        }
+
+        if (made > 0) data.MarkAsModified();
+        return made;
+    }
+
+    private const string RefundNote = "Stripe refund ";
+
+    /// <summary>
+    /// The sale a refund still has to be recorded against, or null when the sale is not in the
+    /// books or the refund is already covered.
+    ///
+    /// Three kinds of return can already be on the sale:
+    /// one made from the refund list names its refund, and covers that one refund;
+    /// one made by the sync that imported the sale recorded everything refunded up to that
+    /// moment, and covers the refunds made before it;
+    /// one entered by hand covers the refund whatever its date. Someone who marks a sale
+    /// returned and refunds it in Stripe the next day has recorded this refund, and a second
+    /// return would take the money off twice.
+    /// </summary>
+    public static Revenue? SaleAwaiting(CompanyData data, StripeRefund refund)
+    {
+        var rev = data.Revenues.FirstOrDefault(r => r.ReferenceNumber == refund.ChargeId);
+        if (rev == null) return null;
+
+        var made = RefundDate(refund);
+        var covered = data.Returns.Any(rt => rt.OriginalTransactionId == rev.Id
+            && (rt.Notes.StartsWith(RefundNote, StringComparison.Ordinal) ? rt.Notes == RefundNote + refund.Id
+                : IsFromImport(rt) ? rt.ReturnDate >= made
+                : true));
+
+        return covered ? null : rev;
+    }
+
+    /// <summary>
+    /// A return <see cref="ApplyRefunds"/> made: no items and no note. One entered in the app
+    /// always lists the item returned.
+    /// </summary>
+    private static bool IsFromImport(Return rt) => rt.Items.Count == 0 && string.IsNullOrEmpty(rt.Notes);
+
+    private static DateTime RefundDate(StripeRefund refund) =>
+        DateTimeOffset.FromUnixTimeSeconds(refund.CreatedUnix).LocalDateTime;
+
     private string ResolveStripeCategory(CompanyData data)
     {
         if (_stripeCategoryId != null) return _stripeCategoryId;

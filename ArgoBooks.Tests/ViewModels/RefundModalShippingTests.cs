@@ -83,6 +83,72 @@ public class RefundModalShippingTests
         Assert.Equal(220m, vm.RefundTotal);
     }
 
+    // The fee the customer paid was never revenue and never taxed. Refunded by default, it came
+    // off both.
+    [Fact]
+    public void CardFeeTheCustomerPaid_IsNotRefundedUnlessTicked()
+    {
+        var invoice = new Invoice
+        {
+            Id = "INV-7", InvoiceNumber = "INV-7", Subtotal = 100m, Total = 100m,
+            LineItems = { new LineItem { Description = "Desk", Quantity = 1, UnitPrice = 100m } }
+        };
+        var payment = new Payment
+        {
+            Id = "PAY-7", InvoiceId = "INV-7", Amount = 103.20m, ProcessingFee = 3.20m,
+            Source = PaymentSource.Online, ProviderPaymentId = "pi_7"
+        };
+
+        var vm = new RefundModalViewModel(null!, invoice, [payment], "Bob");
+
+        Assert.Equal(100m, vm.RefundTotal);
+        vm.LineRows.First(r => r.Kind == "processingFee").IsSelected = true;
+        Assert.Equal(103.20m, vm.RefundTotal);
+    }
+
+    // The Tax box starts ticked. Refunding the card fee alone must not take the tax with it.
+    [Fact]
+    public void CardFeeRefundedAlone_WithTaxLeftTicked_GivesBackNoTax()
+    {
+        var invoice = new Invoice
+        {
+            Id = "INV-9", InvoiceNumber = "INV-9", Subtotal = 100m, TaxAmount = 10m, Total = 110m,
+            LineItems = { new LineItem { Description = "Desk", Quantity = 1, UnitPrice = 100m } }
+        };
+        var payment = new Payment
+        {
+            Id = "PAY-9", InvoiceId = "INV-9", Amount = 113.50m, ProcessingFee = 3.50m,
+            Source = PaymentSource.Online, ProviderPaymentId = "pi_9"
+        };
+
+        var vm = new RefundModalViewModel(null!, invoice, [payment], "Bob");
+        vm.LineRows.First(r => r.Kind == "lineItem").IsSelected = false;
+        vm.LineRows.First(r => r.Kind == "processingFee").IsSelected = true;
+
+        Assert.Equal(3.50m, vm.RefundTotal);
+    }
+
+    // Refunding only the deposit, with the Tax box left ticked from the default. The deposit was
+    // not taxed, so no tax goes back with it.
+    [Fact]
+    public void DepositRefundedWithTaxLeftTicked_GivesBackNoTax()
+    {
+        var invoice = new Invoice
+        {
+            Id = "INV-8", InvoiceNumber = "INV-8", Subtotal = 50m, TaxAmount = 5m, SecurityDeposit = 100m, Total = 155m,
+            LineItems = { new LineItem { Description = "Ladder hire", Quantity = 1, UnitPrice = 50m } }
+        };
+        var payment = new Payment
+        {
+            Id = "PAY-8", InvoiceId = "INV-8", Amount = 155m, Source = PaymentSource.Online, ProviderPaymentId = "pi_8"
+        };
+
+        var vm = new RefundModalViewModel(null!, invoice, [payment], "Bob");
+        vm.LineRows.First(r => r.Kind == "lineItem").IsSelected = false;
+
+        Assert.Equal(100m, vm.RefundTotal);
+    }
+
     [Fact]
     public void NoShipping_NoShippingRow()
     {

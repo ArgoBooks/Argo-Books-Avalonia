@@ -588,7 +588,9 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
                 ? ReceiptPageRenderer.PagePath(receipt, 0)
                 : ReceiptPageRenderer.ImagePath(receipt);
 
-            return File.Exists(path) ? path : string.Empty;
+            // A HEIC preview cached by an earlier version cannot be drawn, so it counts as missing
+            // and is generated again.
+            return File.Exists(path) && !ReceiptPageRenderer.IsUnconvertedHeic(path) ? path : string.Empty;
         }
         catch
         {
@@ -621,8 +623,10 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
                 return (pdfPreviewPath, rendered.Value.PageCount);
             }
 
+            // Null for a file that is not an image the app can draw; a HEIC photo is converted.
+            if (ReceiptImageHelper.ToDisplayable(bytes) is not { } output)
+                return (string.Empty, 1);
             var tempPath = ReceiptPageRenderer.ImagePath(receipt);
-            var output = ReceiptImageHelper.FixOrientation(bytes);
             File.WriteAllBytes(tempPath, output);
             return (tempPath, 1);
         }
@@ -795,24 +799,28 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
     [RelayCommand]
     private async Task DownloadReceipt(ReceiptDisplayItem? receipt)
     {
-        if (receipt == null || string.IsNullOrEmpty(receipt.ImagePath)) return;
+        if (receipt == null) return;
 
         try
         {
+            // The stored file, not the preview image. The preview is a rendered page for a PDF and
+            // a converted JPEG for a HEIC photo, and there is none for a file that cannot be drawn.
+            var stored = App.CompanyManager?.CompanyData?.Receipts.FirstOrDefault(r => r.Id == receipt.Id);
+            if (string.IsNullOrEmpty(stored?.FileData)) return;
+
             var topLevel = Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
                 ? desktop.MainWindow
                 : null;
 
             if (topLevel?.StorageProvider == null) return;
 
-            // Determine file extension from source
-            var sourceExtension = Path.GetExtension(receipt.ImagePath);
+            var sourceExtension = Path.GetExtension(stored.FileName);
             if (string.IsNullOrEmpty(sourceExtension))
                 sourceExtension = ".png";
 
             var filters = new[]
             {
-                new FilePickerFileType("Image files") { Patterns = [$"*{sourceExtension}"] }
+                new FilePickerFileType("Receipt file") { Patterns = [$"*{sourceExtension}"] }
             };
 
             var suggestedName = $"Receipt_{receipt.Id}{sourceExtension}";
@@ -827,14 +835,8 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
 
             if (result != null)
             {
-                var destinationPath = result.Path.LocalPath;
-
-                // Copy the file
-                if (File.Exists(receipt.ImagePath))
-                {
-                    File.Copy(receipt.ImagePath, destinationPath, overwrite: true);
-                    App.AddNotification("Success", "Receipt saved successfully", NotificationType.Success);
-                }
+                await File.WriteAllBytesAsync(result.Path.LocalPath, Convert.FromBase64String(stored.FileData));
+                App.AddNotification("Success", "Receipt saved successfully", NotificationType.Success);
             }
         }
         catch (Exception ex)

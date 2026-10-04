@@ -59,7 +59,10 @@ public static class IntegrationImportFlow
             {
                 Title = "Import from Stripe".Translate(),
                 Message = "Import your Stripe activity: {0} in revenue and {1} in fees?"
-                    .TranslateFormat(Total(preview.Sales), Total(preview.Fees)),
+                    .TranslateFormat(Total(preview.Sales), Total(preview.Fees))
+                    + (preview.LaterRefunds.Count > 0
+                        ? "\n\n" + "Refunds on earlier sales to record: {0}".TranslateFormat(preview.LaterRefunds.Count)
+                        : string.Empty),
                 PrimaryButtonText = "Import".Translate(),
                 CancelButtonText = "Cancel".Translate()
             });
@@ -149,6 +152,7 @@ public static class IntegrationImportFlow
                     }));
             }
             Changed(host);
+            await SaveToMatchServerAsync();
 
             await host.Inform(title.Translate(),
                 "Imported {0} revenue and {1} expense entries.".TranslateFormat(creation.RevenuesCreated, creation.ExpensesCreated));
@@ -207,9 +211,34 @@ public static class IntegrationImportFlow
 
     private static async Task ReleaseAsync(ArgoApiSyncService svc, CompanyData data, string? batchId, Host host)
     {
-        if (batchId != null)
-            await svc.TryReleaseBatchAsync(data, batchId);
+        if (batchId != null && await svc.TryReleaseBatchAsync(data, batchId))
+            await SaveToMatchServerAsync();
         if (host.AfterQueueChange != null) await host.AfterQueueChange();
+    }
+
+    /// <summary>
+    /// Saves the company once the server has been told items were taken, or handed back. The
+    /// server's answer is permanent and the books were only changed in memory, so closing without
+    /// saving left the two disagreeing: items the server would never offer again that were in no
+    /// file, or, after an undo, items in the file that the next sync brought in a second time.
+    /// </summary>
+    private static async Task SaveToMatchServerAsync()
+    {
+        if (App.CompanyManager is not { IsCompanyOpen: true } manager) return;
+
+        App.SuppressNextSavedFeedback();
+        try
+        {
+            await manager.SaveCompanyAsync();
+        }
+        catch (Exception ex)
+        {
+            App.ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Save after an Argo Books API import failed");
+            App.AddNotification(
+                "Not saved yet".Translate(),
+                "The import is in your books but could not be written to the company file. Use Save to try again.".Translate(),
+                NotificationType.Warning);
+        }
     }
 
     /// <summary>
@@ -232,6 +261,10 @@ public static class IntegrationImportFlow
                 ("The restored items are back in your books, but the server could not be told they were taken. " +
                  "They may still show as waiting on your next sync. Importing them again would create duplicates, " +
                  "so check before you do.").Translate());
+        }
+        else
+        {
+            await SaveToMatchServerAsync();
         }
 
         if (host.AfterQueueChange != null) await host.AfterQueueChange();

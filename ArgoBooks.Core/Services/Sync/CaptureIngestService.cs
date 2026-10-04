@@ -39,15 +39,25 @@ public static class CaptureIngestService
         if (tx.Total <= 0)
             throw new ArgumentException("Captured transaction total must be positive.", nameof(tx));
 
-        if (tx.LineItems == null || tx.LineItems.Count == 0)
-            throw new ArgumentException("Captured transaction must have at least one line item.", nameof(tx));
-
         if (!string.IsNullOrEmpty(tx.ScanUid) && data.IngestedScanUids.Contains(tx.ScanUid))
             return null;
 
         var lineItems = BuildLineItems(data, tx);
         var subtotal = tx.Total - tx.Tax;
         var amount = subtotal > 0 ? subtotal : tx.Total;
+
+        // A receipt the scan read no items from still has its total and its photo, and the phone
+        // has already told its owner it was added. It goes in as one line for the whole amount.
+        // Refusing it made the sync take it for unreadable and delete it from the queue.
+        if (lineItems.Count == 0)
+        {
+            lineItems.Add(new LineItem
+            {
+                Description = string.IsNullOrWhiteSpace(tx.SupplierOrCustomer) ? "Receipt" : tx.SupplierOrCustomer,
+                Quantity = 1,
+                UnitPrice = amount
+            });
+        }
         var taxRate = subtotal > 0 && tx.Tax > 0 ? (tx.Tax / subtotal) * 100 : 0;
         var unitPrice = lineItems.Count > 0 ? lineItems.Average(li => li.UnitPrice) : subtotal;
         var description = lineItems.Count > 0 ? lineItems[0].Description : tx.SupplierOrCustomer ?? string.Empty;
@@ -188,7 +198,7 @@ public static class CaptureIngestService
     /// </summary>
     private static List<LineItem> BuildLineItems(CompanyData data, CapturedTransaction tx)
     {
-        return tx.LineItems.Select(li =>
+        return (tx.LineItems ?? []).Select(li =>
         {
             var product = FindProductByName(data.Products, li.ProductName);
             return new LineItem

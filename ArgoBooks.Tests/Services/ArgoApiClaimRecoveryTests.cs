@@ -10,10 +10,9 @@ namespace ArgoBooks.Tests.Services;
 /// Claiming an import batch, and what happens when the claim's response goes missing.
 ///
 /// The claim is the moment the server is told a set of pending objects has reached the
-/// merchant's books. It used to send a fresh random Idempotency-Key on every call,
-/// which meant the server's replay cache could never fire, and a lost response left
-/// the objects imported on the server with nothing in the books, invisible to the next
-/// sync because they were no longer pending. Nobody would have seen an error.
+/// merchant's books. A lost response used to leave the objects imported on the server
+/// with nothing in the books, invisible to the next sync because they were no longer
+/// pending. Nobody would have seen an error.
 /// </summary>
 public class ArgoApiClaimRecoveryTests
 {
@@ -127,11 +126,12 @@ public class ArgoApiClaimRecoveryTests
     }
 
     /// <summary>
-    /// The key must be reproducible, or the server's replay cache can never fire and a
-    /// retry looks like a brand new request.
+    /// The same objects are claimed again when an import is undone and run again. The server
+    /// answers a repeated key with the first claim's batch, which the undo released, so the
+    /// second claim has to carry a key of its own or it claims nothing.
     /// </summary>
     [Fact]
-    public async Task TheSameClaimSendsTheSameIdempotencyKeyEveryTime()
+    public async Task ClaimingTheSameObjectsAgain_SendsANewIdempotencyKey()
     {
         var first = new ClaimFailsHandler("pending", null);
         var second = new ClaimFailsHandler("pending", null);
@@ -144,6 +144,6 @@ public class ArgoApiClaimRecoveryTests
                 .ImportPreviewAsync(Company(), PreviewWithOneSale()));
 
         Assert.NotEmpty(first.IdempotencyKeys);
-        Assert.Equal(first.IdempotencyKeys[0], second.IdempotencyKeys[0]);
+        Assert.NotEqual(first.IdempotencyKeys[0], second.IdempotencyKeys[0]);
     }
 }

@@ -1497,6 +1497,39 @@ public class CompanyManager : IDisposable
     }
 
     /// <summary>
+    /// Deletes the working directories left behind by copies of the app that are no longer
+    /// running. Safe to call at startup; never throws.
+    /// </summary>
+    public static int DeleteAbandonedWorkingDirectories() => SecureTempDirectory.DeleteAbandoned();
+
+    /// <summary>
+    /// Deletes the open company's working directory as the app exits. Exiting does not close the
+    /// company, so without this every run left the company unencrypted in the temp folder. A save
+    /// still writing keeps its directory, and the next launch removes it.
+    /// </summary>
+    public void DeleteWorkingDirectoryOnExit()
+    {
+        if (_isDisposed || !_saveLock.Wait(0)) return;
+
+        try
+        {
+            _workingDirectoryLock?.Dispose();
+            _workingDirectoryLock = null;
+
+            if (_currentTempDirectory != null && Directory.Exists(_currentTempDirectory))
+                Directory.Delete(_currentTempDirectory, recursive: true);
+        }
+        catch
+        {
+            // Best effort. Whatever is left is removed at the next launch.
+        }
+        finally
+        {
+            _saveLock.Release();
+        }
+    }
+
+    /// <summary>
     /// Waits until no save is running, for callers about to end the process, which would cut a
     /// save off part-way. Writes queued behind a save (see <see cref="WriteTempFilesWhenFree"/>)
     /// finish first too.

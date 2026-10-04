@@ -28,8 +28,17 @@ public static class RentalBookings
             .Where(i => i != null)
             .ToList();
 
-        return linked.Count > 0 && linked.All(i => i!.Status == InvoiceStatus.Paid);
+        return linked.Count > 0 && linked.All(i => IsSettled(i!));
     }
+
+    /// <summary>
+    /// Paid, or paid and then refunded in part. Giving the deposit back moves the invoice to
+    /// PartiallyRefunded, and reading that as unpaid brought Mark as Paid back for a rental whose
+    /// invoice had been paid in full.
+    /// </summary>
+    private static bool IsSettled(Invoice invoice) =>
+        invoice.Status == InvoiceStatus.Paid
+        || (invoice.Status is InvoiceStatus.PartiallyRefunded or InvoiceStatus.Refunded && invoice.IsPaidInFull);
 
     /// <summary>The invoice carrying this rental's security deposit, if one was billed.</summary>
     public static Invoice? DepositInvoice(RentalRecord rental, CompanyData data) =>

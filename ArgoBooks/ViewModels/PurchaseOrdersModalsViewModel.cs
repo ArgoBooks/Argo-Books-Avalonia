@@ -243,6 +243,8 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
         IsAddModalOpen = true;
     }
 
+    private const string FullAmountFormat = "0.00########";
+
     /// <summary>
     /// Opens the edit purchase order modal.
     /// </summary>
@@ -263,7 +265,9 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
         SelectedSupplier = AvailableSuppliers.FirstOrDefault(s => s.Id == order.SupplierId);
         OrderDate = new DateTimeOffset(order.OrderDate);
         ExpectedDeliveryDate = new DateTimeOffset(order.ExpectedDeliveryDate);
-        ShippingCost = order.ShippingCost.ToString("F2");
+        // Shown in full. Rounded to cents here, an edit that touched nothing else saved the
+        // rounded figure back over a unit cost such as 0.125.
+        ShippingCost = order.ShippingCost.ToString(FullAmountFormat);
         Notes = order.Notes;
 
         // Populate line items
@@ -276,7 +280,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
                 ProductId = lineItem.ProductId,
                 ProductName = product?.Name ?? "Unknown Product",
                 Quantity = lineItem.Quantity.ToString(),
-                UnitCost = lineItem.UnitCost.ToString("F2")
+                UnitCost = lineItem.UnitCost.ToString(FullAmountFormat)
             };
             vm.PropertyChanged += OnOrderLineItemPropertyChanged;
             LineItems.Add(vm);
@@ -451,14 +455,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
 
         var hasErrors = false;
 
-        if (SelectedSupplier == null &&
-            QuickCreate.EnsureSupplier(App.CompanyManager?.CompanyData, SelectedSupplierText) is { } typedSupplier)
-        {
-            LoadSuppliers();
-            SelectedSupplier = AvailableSuppliers.FirstOrDefault(s => s.Id == typedSupplier.Id);
-        }
-
-        if (SelectedSupplier == null)
+        if (SelectedSupplier == null && string.IsNullOrWhiteSpace(SelectedSupplierText))
         {
             HasSupplierError = true;
             hasErrors = true;
@@ -501,6 +498,23 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
 
         var companyData = App.CompanyManager?.CompanyData;
         if (companyData == null) return null;
+
+        // A supplier typed but never picked is created last, once everything else has passed.
+        // Created first, they were added to the company even when the form was then refused.
+        if (SelectedSupplier == null)
+        {
+            if (QuickCreate.EnsureSupplier(companyData, SelectedSupplierText) is { } typedSupplier)
+            {
+                LoadSuppliers();
+                SelectedSupplier = AvailableSuppliers.FirstOrDefault(s => s.Id == typedSupplier.Id);
+            }
+
+            if (SelectedSupplier == null)
+            {
+                HasSupplierError = true;
+                return null;
+            }
+        }
 
         // Fetch the order-date rate up front (like manual entry) so the saved order shows its amount
         // immediately instead of a momentary "Pending".
@@ -1508,7 +1522,7 @@ public partial class OrderLineItemViewModel : ObservableObject
                 ProductId = value.Id;
                 ProductName = value.Name;
                 if (string.IsNullOrEmpty(UnitCost) || UnitCost == "0.00")
-                    UnitCost = value.CostPrice.ToString("F2");
+                    UnitCost = value.CostPrice.ToString("0.00########");
                 HasProductError = false;
                 OnPropertyChanged();
             }

@@ -566,14 +566,20 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
         _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.RentalRecordCreated);
         companyData.MarkAsModified();
 
-        App.UndoRedoManager.RecordAction(new DelegateAction(
+        // Returning a rental records no undo step, so this one can still be on top of the stack
+        // after the items are back. Undoing it then would put the units into stock a second time
+        // and remove a rental whose payment and kept deposit are already in the books.
+        App.UndoRedoManager.RecordAction(new GuardedDelegateAction(
             $"Create rental '{rental.Id}'",
             () =>
             {
+                if (rental.Status == RentalStatus.Returned) return false;
+
                 companyData.Rentals.RemoveRecord(rental);
                 ReplayStock(companyData, adjustments, undo: true);
                 companyData.MarkAsModified();
                 changed();
+                return true;
             },
             () =>
             {
@@ -582,6 +588,7 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
                 companyData.MarkAsModified();
                 changed();
                 App.CheckAndNotifyRentalOverdue(rental);
+                return true;
             }));
 
         App.CheckAndNotifyRentalOverdue(rental);
@@ -679,22 +686,31 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
         Apply(rental, after);
         companyData.MarkAsModified();
 
-        App.UndoRedoManager.RecordAction(new DelegateAction(
+        // Not once the rental has been returned (see the create step).
+        App.UndoRedoManager.RecordAction(new GuardedDelegateAction(
             $"Edit rental '{rental.Id}'",
             () =>
             {
+                if (rental.Status == RentalStatus.Returned) return false;
+
                 Apply(rental, before);
                 ReplayStock(companyData, adjustments, undo: true);
                 companyData.MarkAsModified();
                 RecordSaved?.Invoke(this, EventArgs.Empty);
+                return true;
             },
             () =>
             {
+                // An edit undone and then the rental returned: redoing it would rewrite the
+                // returned rental's lines and take its units out of stock again.
+                if (rental.Status == RentalStatus.Returned) return false;
+
                 Apply(rental, after);
                 ReplayStock(companyData, adjustments, undo: false);
                 companyData.MarkAsModified();
                 RecordSaved?.Invoke(this, EventArgs.Empty);
                 App.CheckAndNotifyRentalOverdue(rental);
+                return true;
             }));
 
         RecordSaved?.Invoke(this, EventArgs.Empty);
@@ -1062,15 +1078,20 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
         var adjustments = MoveStock(companyData, Units(lines, -1), "Rental", rental.Id);
         companyData.MarkAsModified();
 
-        App.UndoRedoManager.RecordAction(new DelegateAction(
+        // Not once the rental has been returned (see the create step): it would flip a returned
+        // rental back to Reserved and add its units to stock again.
+        App.UndoRedoManager.RecordAction(new GuardedDelegateAction(
             $"Check out rental '{rental.Id}'",
             () =>
             {
+                if (rental.Status == RentalStatus.Returned) return false;
+
                 rental.Status = RentalStatus.Reserved;
                 rental.StartDate = oldStart;
                 ReplayStock(companyData, adjustments, undo: true);
                 companyData.MarkAsModified();
                 RecordSaved?.Invoke(this, EventArgs.Empty);
+                return true;
             },
             () =>
             {
@@ -1079,6 +1100,7 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
                 ReplayStock(companyData, adjustments, undo: false);
                 companyData.MarkAsModified();
                 RecordSaved?.Invoke(this, EventArgs.Empty);
+                return true;
             }));
 
         RecordSaved?.Invoke(this, EventArgs.Empty);
@@ -1400,14 +1422,7 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
         ClearModalErrors();
         var isValid = true;
 
-        if (ModalCustomer == null &&
-            QuickCreate.EnsureCustomer(App.CompanyManager?.CompanyData, ModalCustomerText) is { } typedCustomer)
-        {
-            UpdateDropdownOptions();
-            ModalCustomer = AvailableCustomers.FirstOrDefault(c => c.Id == typedCustomer.Id);
-        }
-
-        if (ModalCustomer == null)
+        if (ModalCustomer == null && string.IsNullOrWhiteSpace(ModalCustomerText))
         {
             ModalCustomerError = "Please select a customer.".Translate();
             isValid = false;
@@ -1455,6 +1470,23 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
                 continue;
             RentalLineItems[i].QuantityError = "Only {0} available for these dates.".TranslateFormat(available);
             isValid = false;
+        }
+
+        // A customer typed but never picked is created last, once everything else has passed.
+        // Created first, they were added to the company even when the form was then refused.
+        if (isValid && ModalCustomer == null)
+        {
+            if (QuickCreate.EnsureCustomer(companyData, ModalCustomerText) is { } typedCustomer)
+            {
+                UpdateDropdownOptions();
+                ModalCustomer = AvailableCustomers.FirstOrDefault(c => c.Id == typedCustomer.Id);
+            }
+
+            if (ModalCustomer == null)
+            {
+                ModalCustomerError = "Please select a customer.".Translate();
+                isValid = false;
+            }
         }
 
         return isValid;

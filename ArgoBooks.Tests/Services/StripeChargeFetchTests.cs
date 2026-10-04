@@ -36,7 +36,7 @@ public class StripeChargeFetchTests
         var handler = new StubHandler(Body);
         var client = new StripeApiClient(new HttpClient(handler));
 
-        var charges = await client.FetchChargesUntilAsync("rk_test", null);
+        var charges = (await client.FetchNewChargesAsync("rk_test", null)).Charges;
 
         var c = Assert.Single(charges);
         Assert.Equal("ch_1", c.ChargeId);
@@ -59,7 +59,7 @@ public class StripeChargeFetchTests
             "\"balance_transaction\":{\"fee\":30,\"net\":970}}]}";
         var client = new StripeApiClient(new HttpClient(new StubHandler(body)));
 
-        var c = Assert.Single(await client.FetchChargesUntilAsync("rk_test", null));
+        var c = Assert.Single((await client.FetchNewChargesAsync("rk_test", null)).Charges);
         Assert.Equal("T-shirt", c.ProductName);
         Assert.Equal(0, c.TaxCents);
     }
@@ -71,6 +71,6 @@ public class StripeChargeFetchTests
             "\"id\":\"ch_3\",\"status\":\"failed\",\"paid\":false,\"amount\":1000,\"currency\":\"usd\",\"created\":1}]}";
         var client = new StripeApiClient(new HttpClient(new StubHandler(body)));
 
-        Assert.Empty(await client.FetchChargesUntilAsync("rk_test", null));
+        Assert.Empty((await client.FetchNewChargesAsync("rk_test", null)).Charges);
     }
 }
