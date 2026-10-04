@@ -309,7 +309,7 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
 
             var dateBefore = created.NextDate;
             var stock = new Dictionary<Transaction, List<StockChange>>();
-            var generated = OwnEntries(GenerateDueNow(data, stock), created);
+            var generated = GenerateDueNow(data, created, stock);
             var dateAfter = created.NextDate;
 
             App.UndoRedoManager.RecordAction(new DelegateAction(
@@ -373,7 +373,7 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
             var after = Capture(existing);
 
             var stock = new Dictionary<Transaction, List<StockChange>>();
-            var generated = OwnEntries(GenerateDueNow(data, stock), existing);
+            var generated = GenerateDueNow(data, existing, stock);
             var dateAfter = existing.NextDate;
             var lastGeneratedAfter = existing.LastGeneratedAt;
             var statusAfter = existing.Status;
@@ -412,24 +412,24 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
     /// Company open is the usual trigger, but a schedule starting today would otherwise show as
     /// due with nothing to show for it until the file was reopened.
     /// </summary>
+    /// <returns>
+    /// The entries the saved schedule produced. Generation runs every schedule that has come due,
+    /// and undoing this save must not delete an entry another schedule legitimately produced.
+    /// </returns>
     private static IReadOnlyList<Transaction> GenerateDueNow(
-        Core.Data.CompanyData data, Dictionary<Transaction, List<StockChange>> stock)
+        Core.Data.CompanyData data, RecurringTransaction saved, Dictionary<Transaction, List<StockChange>> stock)
     {
-        var generated = RecurringTransactionService.GenerateDue(data, DateTime.Today, stockChanges: stock);
-        if (generated.Count == 0) return generated;
+        // The saved schedule goes last. Undo puts stock back to what it was before these
+        // entries, which is only right while nothing after them has moved the same stock.
+        var others = RecurringTransactionService.GenerateDue(data, DateTime.Today, only: s => s != saved);
+        var own = RecurringTransactionService.GenerateDue(data, DateTime.Today, stockChanges: stock, only: s => s == saved);
 
-        var expenses = generated.Count(t => t is Expense);
-        RecurringTransactionService.RaiseGenerated(expenses, generated.Count - expenses);
-        return generated;
+        var expenses = others.Concat(own).Count(t => t is Expense);
+        var total = others.Count + own.Count;
+        if (total > 0)
+            RecurringTransactionService.RaiseGenerated(expenses, total - expenses);
+        return own;
     }
-
-    /// <summary>
-    /// Generation runs every schedule that has come due, not only the one just saved. Undoing this
-    /// save must not delete an entry another schedule legitimately produced.
-    /// </summary>
-    private static IReadOnlyList<Transaction> OwnEntries(
-        IReadOnlyList<Transaction> generated, RecurringTransaction schedule) =>
-        generated.Where(t => t.RecurringScheduleId == schedule.Id).ToList();
 
     private static void RemoveGenerated(
         Core.Data.CompanyData data, IReadOnlyList<Transaction> generated,
