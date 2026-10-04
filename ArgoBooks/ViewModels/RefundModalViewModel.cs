@@ -473,7 +473,10 @@ public partial class RefundModalViewModel : ObservableObject
                     Label = "Payment processing fee",
                     Detail = "",
                     Amount = targetFee,
-                    IsSelected = true,
+                    // Off unless chosen. The fee the customer paid was never revenue or taxed, so
+                    // refunding it by default took it off both (docs/Calculations.md, Refund
+                    // status rule).
+                    IsSelected = false,
                     Kind = "processingFee",
                 };
                 feeRow.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(RefundableLineRow.IsSelected)) RecomputeTotals(); };
@@ -489,6 +492,19 @@ public partial class RefundModalViewModel : ObservableObject
     /// <summary>The rows tax was charged on (InvoiceMath.TaxableBase). The deposit is untaxed.</summary>
     private static bool IsTaxed(RefundableLineRow row) => row.Kind is "lineItem" or "fee" or "shipping" or "discount";
 
+    /// <summary>What was charged for, as opposed to the discount taken off it.</summary>
+    private static bool IsCharge(RefundableLineRow row) => row.Kind is "lineItem" or "fee" or "shipping";
+
+    /// <summary>
+    /// The rows that make up the refund. A discount comes off the charges it was given on, so
+    /// with none of them ticked it has nothing to reduce and is left out.
+    /// </summary>
+    private IEnumerable<RefundableLineRow> RefundedRows()
+    {
+        var anyCharge = LineRows.Any(r => IsCharge(r) && r.IsSelected);
+        return LineRows.Where(r => r.IsSelected && (anyCharge || r.Kind != "discount"));
+    }
+
     private void RecomputeTotals()
     {
         SelectedPaymentsRefundable = Payments.Where(p => p.IsSelected).Sum(p => p.Refundable);
@@ -499,15 +515,22 @@ public partial class RefundModalViewModel : ObservableObject
         {
             var taxedAll = LineRows.Where(IsTaxed).Sum(r => r.Amount);
             var taxedTicked = Math.Max(0m, LineRows.Where(r => IsTaxed(r) && r.IsSelected).Sum(r => r.Amount));
-            var anyTaxedTicked = LineRows.Any(r => IsTaxed(r) && r.IsSelected);
+            var anyChargeTicked = LineRows.Any(r => IsCharge(r) && r.IsSelected);
+            var taxIsAllThatIsTicked = !LineRows.Any(r => r.IsSelected && r.Kind is not ("tax" or "discount"));
 
-            if (!anyTaxedTicked)
+            if (!anyChargeTicked && taxIsAllThatIsTicked)
             {
                 // Tax ticked alone is a refund of the tax itself: a customer who should not
                 // have been charged it, or what an earlier part refund left behind.
                 taxRow.Amount = SelectedPaymentsRefundable > 0
                     ? Math.Min(_invoice.TaxAmount, SelectedPaymentsRefundable)
                     : _invoice.TaxAmount;
+            }
+            else if (!anyChargeTicked)
+            {
+                // Only the deposit or the card fee is being refunded. Neither was taxed, so a
+                // Tax box left ticked gives nothing back.
+                taxRow.Amount = 0m;
             }
             else if (taxedAll <= 0 || taxedTicked >= taxedAll)
             {
@@ -523,7 +546,7 @@ public partial class RefundModalViewModel : ObservableObject
 
         // To the cent, which is what is sent. A percent discount or fee leaves the rows summing to
         // a fraction that would otherwise read as over the refundable amount.
-        RefundTotal = Math.Round(LineRows.Where(r => r.IsSelected).Sum(r => r.Amount), 2, MidpointRounding.AwayFromZero);
+        RefundTotal = Math.Round(RefundedRows().Sum(r => r.Amount), 2, MidpointRounding.AwayFromZero);
 
         var selectedPaymentCount = Payments.Count(p => p.IsSelected);
         if (selectedPaymentCount == 0)
@@ -575,7 +598,7 @@ public partial class RefundModalViewModel : ObservableObject
                 ProviderPaymentId: primaryPayment.ProviderPaymentId,
                 AmountCents: (long)Math.Round(RefundTotal * 100, 0),
                 Currency: Currency,
-                LineItems: LineRows.Where(r => r.IsSelected).Select(r => (object)new {
+                LineItems: RefundedRows().Select(r => (object)new {
                     label = r.Label,
                     amount = r.Amount,
                     kind = r.Kind,
