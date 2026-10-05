@@ -975,14 +975,20 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
             }
         }
 
-        IsSavingTransaction = true;
+        var currentCurrency = FormCurrencyCode;
+        var transactionDate = ModalDate?.DateTime ?? DateTime.Now;
+
+        // The saving screen covers the wait for an exchange rate, which is the only thing a save
+        // waits on. With the rate already held there is nothing to wait for, and showing it made
+        // the form flash on every save, even one that only changed the payment method.
+        var waitsOnRate = UsdConversion.CachedRate(currentCurrency, transactionDate) == null;
+
+        IsSavingTransaction = waitsOnRate;
         try
         {
             // Yield to let the UI render the loading indicator
-            await Task.Delay(1);
-
-            var currentCurrency = FormCurrencyCode;
-            var transactionDate = ModalDate?.DateTime ?? DateTime.Now;
+            if (waitsOnRate)
+                await Task.Delay(1);
 
             if (!UsdConversion.IsUsd(currentCurrency) && ExchangeRateService.Instance == null)
             {
