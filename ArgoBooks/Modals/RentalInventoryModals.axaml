@@ -213,13 +213,10 @@
                                                             SearchText="{Binding RentOutCustomerText, Mode=TwoWay}"
                                                             DisplayMemberPath="Name"
                                                             SearchMemberPath="Id"
-                                                            Placeholder="{loc:Loc 'Search customers...'}"
+                                                            Placeholder="{loc:Loc 'Type a new customer, or pick one'}"
                                                             ShowAddNew="True"
                                                             AddNewText="{loc:Loc 'Create new customer'}"
-                                                            AddNewCommand="{Binding OpenCreateCustomerCommand}"
-                                                            EmptyMessage="{loc:Loc 'No customers available.'}"
-                                                            EmptyCreateLinkText="{loc:Loc 'Create one'}"
-                                                            EmptyCreateCommand="{Binding OpenCreateCustomerCommand}" />
+                                                            AddNewCommand="{Binding OpenCreateCustomerCommand}" />
                                 <TextBlock TextWrapping="Wrap" Text="{Binding RentOutCustomerError}" FontSize="12" Foreground="{DynamicResource ErrorBrush}"
                                            IsVisible="{Binding RentOutCustomerError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                             </StackPanel>

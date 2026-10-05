@@ -92,15 +92,12 @@
                                                             SearchText="{Binding CounterpartyText, Mode=TwoWay}"
                                                             DisplayMemberPath="Name"
                                                             SearchMemberPath="Id"
-                                                            Placeholder="{loc:Loc 'Search for a customer...'}"
+                                                            Placeholder="{loc:Loc 'Type a new customer, or pick one'}"
                                                             HasError="{Binding HasCounterpartyError}"
                                                             ErrorMessage="{loc:Loc 'Please select a customer.'}"
                                                             ShowAddNew="True"
                                                             AddNewText="{loc:Loc 'Create new customer'}"
-                                                            AddNewCommand="{Binding OpenCreateCounterpartyCommand}"
-                                                            EmptyMessage="{loc:Loc 'No customers found'}"
-                                                            EmptyCreateLinkText="{loc:Loc 'Create one'}"
-                                                            EmptyCreateCommand="{Binding OpenCreateCounterpartyCommand}" />
+                                                            AddNewCommand="{Binding OpenCreateCounterpartyCommand}" />
                             </StackPanel>
 
                             <!-- Supplier Selection (expense). Two blocks rather than one with
@@ -113,15 +110,12 @@
                                                             SearchText="{Binding CounterpartyText, Mode=TwoWay}"
                                                             DisplayMemberPath="Name"
                                                             SearchMemberPath="Id"
-                                                            Placeholder="{loc:Loc 'Search for a supplier...'}"
+                                                            Placeholder="{loc:Loc 'Type a new supplier, or pick one'}"
                                                             HasError="{Binding HasCounterpartyError}"
                                                             ErrorMessage="{loc:Loc 'Please select a supplier.'}"
                                                             ShowAddNew="True"
                                                             AddNewText="{loc:Loc 'Create new supplier'}"
-                                                            AddNewCommand="{Binding OpenCreateCounterpartyCommand}"
-                                                            EmptyMessage="{loc:Loc 'No suppliers found'}"
-                                                            EmptyCreateLinkText="{loc:Loc 'Create one'}"
-                                                            EmptyCreateCommand="{Binding OpenCreateCounterpartyCommand}" />
+                                                            AddNewCommand="{Binding OpenCreateCounterpartyCommand}" />
                             </StackPanel>
 
                             <!-- Line Items Section -->

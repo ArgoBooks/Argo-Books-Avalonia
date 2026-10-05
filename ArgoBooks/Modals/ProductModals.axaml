@@ -84,13 +84,10 @@
                                                                 SearchText="{Binding ModalSupplierText, Mode=TwoWay}"
                                                                 DisplayMemberPath="Name"
                                                                 SearchMemberPath="Id"
-                                                                Placeholder="{loc:Loc 'Search suppliers...'}"
+                                                                Placeholder="{loc:Loc 'Type a new supplier, or pick one'}"
                                                                 ShowAddNew="True"
                                                                 AddNewText="{loc:Loc 'Create new supplier'}"
-                                                                AddNewCommand="{Binding OpenSuppliersWithAddModalCommand}"
-                                                                EmptyMessage="{loc:Loc 'No suppliers.'}"
-                                                                EmptyCreateLinkText="{loc:Loc 'Create'}"
-                                                                EmptyCreateCommand="{Binding OpenSuppliersWithAddModalCommand}" />
+                                                                AddNewCommand="{Binding OpenSuppliersWithAddModalCommand}" />
                                 </StackPanel>
                                 <StackPanel Spacing="6" IsVisible="{Binding !IsExpensesTab}">
                                     <TextBlock Text="{loc:Loc 'Default Unit Price'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />

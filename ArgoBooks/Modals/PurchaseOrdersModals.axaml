@@ -39,13 +39,10 @@
                                                             SearchText="{Binding SelectedSupplierText, Mode=TwoWay}"
                                                             DisplayMemberPath="Name"
                                                             SearchMemberPath="Id"
-                                                            Placeholder="{loc:Loc 'Search suppliers...'}"
+                                                            Placeholder="{loc:Loc 'Type a new supplier, or pick one'}"
                                                             ShowAddNew="True"
                                                             AddNewText="{loc:Loc 'Create new supplier'}"
-                                                            AddNewCommand="{Binding OpenCreateSupplierCommand}"
-                                                            EmptyMessage="{loc:Loc 'No suppliers.'}"
-                                                            EmptyCreateLinkText="{loc:Loc 'Create one'}"
-                                                            EmptyCreateCommand="{Binding OpenCreateSupplierCommand}" />
+                                                            AddNewCommand="{Binding OpenCreateSupplierCommand}" />
                                 <TextBlock Text="{loc:Loc 'Please select a supplier.'}"
                                            FontSize="12" Foreground="{DynamicResource ErrorBrush}"
                                            IsVisible="{Binding HasSupplierError}" />
