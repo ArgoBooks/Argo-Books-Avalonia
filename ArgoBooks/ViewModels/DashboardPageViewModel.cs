@@ -1,8 +1,10 @@
 ﻿using System.Collections.ObjectModel;
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
+using ArgoBooks.Core.Models;
 using ArgoBooks.Core.Models.Reports;
 using ArgoBooks.Core.Models.Telemetry;
+using ArgoBooks.Core.Platform;
 using ArgoBooks.Core.Services;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
@@ -330,6 +332,9 @@ public partial class DashboardPageViewModel : ChartContextMenuViewModelBase, ICl
     [ObservableProperty]
     private bool _showSourceSurveyBanner;
 
+    [ObservableProperty]
+    private string _sourceSurveyBannerMessage = string.Empty;
+
     public void RefreshSourceSurveyBanner()
     {
         var tutorial = TutorialService.Instance;
@@ -338,6 +343,12 @@ public partial class DashboardPageViewModel : ChartContextMenuViewModelBase, ICl
         ShowSourceSurveyBanner =
             (tutorial.HasSkippedTutorial || tutorial.IsSetupChecklistDismissed) &&
             tutorial.ShouldShowSourceSurvey();
+
+        // The banner names whichever question is still open. Someone whose source is already
+        // known, or who answered it in an earlier version, only has the second one left.
+        SourceSurveyBannerMessage = tutorial.ShouldAskSurveySource()
+            ? "Quick question: where did you hear about Argo Books?".Translate()
+            : "Quick question: what do you mainly want to use Argo Books for?".Translate();
 
         // Never both at once, and the survey wins, so this has to follow it.
         RefreshUpdateEmailBanner();
@@ -378,14 +389,18 @@ public partial class DashboardPageViewModel : ChartContextMenuViewModelBase, ICl
         if (settings == null || settings.Dismissed || settings.Submitted || ShowSourceSurveyBanner)
         {
             ShowUpdateEmailBanner = false;
-            return;
+        }
+        else
+        {
+            var data = _companyManager?.CompanyData;
+            var hasUsedTheApp = data != null &&
+                (data.Expenses.Count > 0 || data.Revenues.Count > 0 || data.Invoices.Count > 0);
+
+            ShowUpdateEmailBanner = hasUsedTheApp && _companyManager?.IsSampleCompany != true;
         }
 
-        var data = _companyManager?.CompanyData;
-        var hasUsedTheApp = data != null &&
-            (data.Expenses.Count > 0 || data.Revenues.Count > 0 || data.Invoices.Count > 0);
-
-        ShowUpdateEmailBanner = hasUsedTheApp && _companyManager?.IsSampleCompany != true;
+        // One banner at a time, and this is the last in line, so it follows the other two.
+        RefreshReviewBanner();
     }
 
     [RelayCommand]
@@ -416,6 +431,57 @@ public partial class DashboardPageViewModel : ChartContextMenuViewModelBase, ICl
             _ = service.SaveGlobalSettingsAsync();
         }
         ShowUpdateEmailBanner = false;
+    }
+
+    #endregion
+
+    #region Review Banner
+
+    [ObservableProperty]
+    private bool _showReviewBanner;
+
+    /// <summary>
+    /// Asks for a review once someone has had the app a while and is plainly using it, and
+    /// never beside the survey or the update email offer. See
+    /// <see cref="SurveyPrompts.ShouldAskForReview"/>.
+    /// </summary>
+    public void RefreshReviewBanner()
+    {
+        var settings = App.SettingsService?.GlobalSettings;
+        var data = _companyManager?.CompanyData;
+        if (settings == null || data == null || ShowSourceSurveyBanner || ShowUpdateEmailBanner)
+        {
+            ShowReviewBanner = false;
+            return;
+        }
+
+        ShowReviewBanner = SurveyPrompts.ShouldAskForReview(
+            settings.ReviewPrompt,
+            settings.Tutorial.FirstLaunchDate,
+            data.Expenses.Count + data.Revenues.Count + data.Invoices.Count,
+            _companyManager?.IsSampleCompany == true,
+            DateTime.UtcNow);
+    }
+
+    [RelayCommand]
+    private void OpenReviewPage()
+    {
+        UrlHelper.SafeOpenUrl($"{ApiConfig.BaseUrl}/review/?source=app-review");
+        CloseReviewBanner(s => s.Opened = true);
+    }
+
+    [RelayCommand]
+    private void DismissReviewBanner() => CloseReviewBanner(s => s.Dismissed = true);
+
+    private void CloseReviewBanner(Action<ReviewPromptSettings> record)
+    {
+        var service = App.SettingsService;
+        if (service != null)
+        {
+            record(service.GlobalSettings.ReviewPrompt);
+            _ = service.SaveGlobalSettingsAsync();
+        }
+        ShowReviewBanner = false;
     }
 
     #endregion

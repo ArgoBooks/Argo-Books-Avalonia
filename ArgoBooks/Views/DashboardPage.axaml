@@ -141,7 +141,7 @@
                                      IsVisible="{Binding ShowSourceSurveyBanner}"
                                      BannerMargin="0"
                                      Margin="0,-16,0,0"
-                                     Message="{loc:Loc 'Quick question: where did you hear about Argo Books?'}"
+                                     Message="{Binding SourceSurveyBannerMessage}"
                                      ActionText="{loc:Loc 'Answer'}"
                                      ActionCommand="{Binding OpenSourceSurveyCommand}"
                                      IconData="{x:Static icons:Icons.Info}"
@@ -156,6 +156,17 @@
                                      ActionCommand="{Binding OpenUpdateEmailSettingsCommand}"
                                      DismissCommand="{Binding DismissUpdateEmailBannerCommand}"
                                      IconData="{x:Static icons:Icons.Send}"
+                                     BannerBackground="{DynamicResource InfoBrush}" />
+
+                <controls:InfoBanner ShowBanner="{Binding ShowReviewBanner}"
+                                     IsVisible="{Binding ShowReviewBanner}"
+                                     BannerMargin="0"
+                                     Margin="0,-16,0,0"
+                                     Message="{loc:Loc 'Finding Argo Books useful? A short review helps other small businesses find it.'}"
+                                     ActionText="{loc:Loc 'Leave a review'}"
+                                     ActionCommand="{Binding OpenReviewPageCommand}"
+                                     DismissCommand="{Binding DismissReviewBannerCommand}"
+                                     IconData="{x:Static icons:Icons.Info}"
                                      BannerBackground="{DynamicResource InfoBrush}" />
 
                 <!-- Edit Mode Toolbar -->

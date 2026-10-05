@@ -16,6 +16,7 @@ public class GlobalSettings
     public ReportExportSettings ReportExport { get; set; } = new();
     public TutorialSettings Tutorial { get; set; } = new();
     public UpdateEmailSettings UpdateEmail { get; set; } = new();
+    public ReviewPromptSettings ReviewPrompt { get; set; } = new();
     public BackupSettings Backups { get; set; } = new();
 
     /// <summary>
@@ -202,6 +203,16 @@ public class UpdateEmailSettings
     public bool Submitted { get; set; }
 }
 
+/// <summary>The dashboard's one-time request for a review.</summary>
+public class ReviewPromptSettings
+{
+    /// <summary>Set when the request was declined, so the dashboard stops asking.</summary>
+    public bool Dismissed { get; set; }
+
+    /// <summary>Set once the review page has been opened, for the same reason.</summary>
+    public bool Opened { get; set; }
+}
+
 public class ReportExportSettings
 {
     public string? LastExportDirectory { get; set; }
@@ -275,4 +286,16 @@ public class TutorialSettings
     /// Whether the user explicitly dismissed the source survey without answering.
     /// </summary>
     public bool IsSourceSurveyDismissed { get; set; } = false;
+
+    /// <summary>
+    /// The user's answer to "What do you mainly want to use it for?", asked beside the source
+    /// question. A key from the website's list of goals. Null if not answered.
+    /// </summary>
+    public string? SurveyGoalAnswer { get; set; }
+
+    /// <summary>
+    /// Whether the app has asked, on closing with nothing recorded, what the person was hoping
+    /// to do. Asked once, answered or not.
+    /// </summary>
+    public bool HasAskedExitSurvey { get; set; }
 }

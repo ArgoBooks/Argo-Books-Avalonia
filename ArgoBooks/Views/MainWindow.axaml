@@ -263,6 +263,11 @@
                                       VerticalAlignment="Stretch"
                                       ZIndex="218" />
 
+        <!-- Asked once, on closing the app with nothing recorded -->
+        <controls:ExitSurveyOverlay HorizontalAlignment="Stretch"
+                                    VerticalAlignment="Stretch"
+                                    ZIndex="218" />
+
         <!-- Categories Page Tutorial Overlay.
              Margin top = 30 so the backdrop clears the title bar (see above). -->
         <modals:PageTutorialOverlay DataContext="{Binding CategoriesTutorialViewModel}"

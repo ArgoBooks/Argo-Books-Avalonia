@@ -27,12 +27,15 @@ public partial class SourceSurveyOverlay : UserControl
 
     private async void OnVisibilityChanged(object? sender, bool show)
     {
+        if (show)
+            _viewModel.DecideWhatToAsk();
+
         if (_overlay != null)
             _overlay.IsOpen = show;
 
         if (show)
         {
-            // The collection already holds the bundled defaults (instant render);
+            // The collections already hold the bundled defaults (instant render);
             // refresh from the server so newly added options appear without a release.
             await _viewModel.LoadOptionsAsync();
         }
@@ -50,9 +53,9 @@ public partial class SourceSurveyOverlay : UserControl
 }
 
 /// <summary>
-/// A single selectable survey option in the overlay's options list. Raises
-/// <see cref="SelectionRequested"/> when the user picks it so the parent
-/// view model can enforce single selection and track the chosen key.
+/// A single selectable survey option in a question's list. Raises
+/// <see cref="SelectionRequested"/> when the user picks it so the question can
+/// enforce single selection and track the chosen key.
 /// </summary>
 public partial class SurveyOptionItem : ObservableObject
 {
@@ -79,66 +82,46 @@ public partial class SurveyOptionItem : ObservableObject
     }
 }
 
-public partial class SourceSurveyOverlayViewModel : ObservableObject
+/// <summary>
+/// One pick-one question: its choices, which is picked, and the text typed for a freeform choice.
+/// </summary>
+public partial class SurveyQuestion : ObservableObject
 {
     [ObservableProperty]
-    private string? _selectedAnswer;
-
-    [ObservableProperty]
-    private bool _isSubmitting;
-
-    [ObservableProperty]
-    private string _otherText = string.Empty;
-
-    [ObservableProperty]
-    private string? _submitError;
+    private string? _selectedKey;
 
     // True when the currently selected option is freeform (reveals the text box).
     [ObservableProperty]
     private bool _isFreeformSelected;
 
-    /// <summary>The options shown as radio choices. Seeded with bundled defaults.</summary>
+    [ObservableProperty]
+    private string _otherText = string.Empty;
+
+    /// <summary>The options shown as radio choices.</summary>
     public ObservableCollection<SurveyOptionItem> Options { get; } = new();
 
-    public SourceSurveyOverlayViewModel()
-    {
-        SetOptions(SourceSurveyOptionsService.DefaultOptions);
-    }
+    /// <summary>Raised when the answer changes, so whoever owns the question can recheck it.</summary>
+    public event Action? Changed;
 
-    public bool CanSubmit
-    {
-        get
-        {
-            if (string.IsNullOrEmpty(SelectedAnswer) || IsSubmitting) return false;
-            // A freeform option requires a non-empty freeform answer.
-            if (IsFreeformSelected && string.IsNullOrWhiteSpace(OtherText)) return false;
-            return true;
-        }
-    }
+    public SurveyQuestion(IReadOnlyList<SurveyOption> options) => SetOptions(options);
 
-    partial void OnSelectedAnswerChanged(string? value) => OnPropertyChanged(nameof(CanSubmit));
-    partial void OnIsSubmittingChanged(bool value) => OnPropertyChanged(nameof(CanSubmit));
-    partial void OnOtherTextChanged(string value) => OnPropertyChanged(nameof(CanSubmit));
-    partial void OnIsFreeformSelectedChanged(bool value) => OnPropertyChanged(nameof(CanSubmit));
+    /// <summary>A choice is picked, and a freeform one has its text.</summary>
+    public bool IsAnswered =>
+        !string.IsNullOrEmpty(SelectedKey) && (!IsFreeformSelected || !string.IsNullOrWhiteSpace(OtherText));
 
-    /// <summary>
-    /// Fetches the latest options from the server and rebuilds the list.
-    /// The service returns bundled defaults on failure, so this never throws.
-    /// </summary>
-    public async Task LoadOptionsAsync()
-    {
-        var service = App.SourceSurveyOptionsService;
-        if (service == null) return;
-        var options = await service.GetOptionsAsync();
-        SetOptions(options);
-    }
+    /// <summary>The text that goes with a freeform choice, or null for any other.</summary>
+    public string? FreeformText => IsFreeformSelected ? OtherText.Trim() : null;
 
-    private void SetOptions(IReadOnlyList<SurveyOption> options)
+    partial void OnSelectedKeyChanged(string? value) => Changed?.Invoke();
+    partial void OnIsFreeformSelectedChanged(bool value) => Changed?.Invoke();
+    partial void OnOtherTextChanged(string value) => Changed?.Invoke();
+
+    public void SetOptions(IReadOnlyList<SurveyOption> options)
     {
         // Preserve any current selection: the overlay opens with bundled defaults
         // and then awaits the server refresh, so the user may have already picked
         // an option (and typed freeform text) by the time this runs.
-        var previousKey = SelectedAnswer;
+        var previousKey = SelectedKey;
 
         foreach (var existing in Options)
             existing.SelectionRequested -= OnOptionSelectionRequested;
@@ -157,13 +140,13 @@ public partial class SourceSurveyOverlayViewModel : ObservableObject
         if (toReselect != null)
         {
             // Re-apply the prior choice; OnOptionSelectionRequested restores
-            // SelectedAnswer/IsFreeformSelected. OtherText is intentionally kept.
+            // SelectedKey/IsFreeformSelected. OtherText is intentionally kept.
             toReselect.IsSelected = true;
         }
         else
         {
             // The previously selected key is gone (or nothing was selected).
-            SelectedAnswer = null;
+            SelectedKey = null;
             IsFreeformSelected = false;
         }
     }
@@ -177,7 +160,7 @@ public partial class SourceSurveyOverlayViewModel : ObservableObject
                 item.IsSelected = false;
         }
 
-        SelectedAnswer = selected.Key;
+        SelectedKey = selected.Key;
         IsFreeformSelected = selected.Freeform;
     }
 
@@ -185,9 +168,80 @@ public partial class SourceSurveyOverlayViewModel : ObservableObject
     {
         foreach (var item in Options)
             item.IsSelected = false;
-        SelectedAnswer = null;
+        SelectedKey = null;
         IsFreeformSelected = false;
         OtherText = string.Empty;
+    }
+}
+
+public partial class SourceSurveyOverlayViewModel : ObservableObject
+{
+    [ObservableProperty]
+    private bool _isSubmitting;
+
+    [ObservableProperty]
+    private string? _submitError;
+
+    // Each question is asked only of someone who has not answered it. The source is also left
+    // out for an install that arrived through a tracked link, where it is already known.
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Title))]
+    private bool _askSource = true;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Title))]
+    private bool _askGoal = true;
+
+    /// <summary>"Where did you hear about Argo Books?"</summary>
+    public SurveyQuestion Source { get; } = new(SourceSurveyOptionsService.DefaultOptions);
+
+    /// <summary>"What do you mainly want to use it for?"</summary>
+    public SurveyQuestion Goal { get; } = new(SourceSurveyOptionsService.DefaultGoals);
+
+    public SourceSurveyOverlayViewModel()
+    {
+        Source.Changed += () => OnPropertyChanged(nameof(CanSubmit));
+        Goal.Changed += () => OnPropertyChanged(nameof(CanSubmit));
+    }
+
+    public string Title => AskSource && AskGoal
+        ? "Two quick questions".Translate()
+        : "A quick question".Translate();
+
+    public bool CanSubmit =>
+        !IsSubmitting
+        && (AskSource || AskGoal)
+        && (!AskSource || Source.IsAnswered)
+        && (!AskGoal || Goal.IsAnswered);
+
+    partial void OnIsSubmittingChanged(bool value) => OnPropertyChanged(nameof(CanSubmit));
+    partial void OnAskSourceChanged(bool value) => OnPropertyChanged(nameof(CanSubmit));
+    partial void OnAskGoalChanged(bool value) => OnPropertyChanged(nameof(CanSubmit));
+
+    /// <summary>Works out which of the two questions this user still has to answer.</summary>
+    public void DecideWhatToAsk()
+    {
+        AskSource = TutorialService.Instance.ShouldAskSurveySource();
+        AskGoal = TutorialService.Instance.ShouldAskSurveyGoal();
+    }
+
+    /// <summary>
+    /// Fetches the latest options from the server and rebuilds the lists.
+    /// The service returns bundled defaults on failure, so this never throws.
+    /// </summary>
+    public async Task LoadOptionsAsync()
+    {
+        var service = App.SourceSurveyOptionsService;
+        if (service == null) return;
+        var choices = await service.GetChoicesAsync();
+        Source.SetOptions(choices.Sources);
+        Goal.SetOptions(choices.Goals);
+    }
+
+    public void Reset()
+    {
+        Source.Reset();
+        Goal.Reset();
         IsSubmitting = false;
         SubmitError = null;
     }
@@ -206,26 +260,29 @@ public partial class SourceSurveyOverlayViewModel : ObservableObject
     [RelayCommand]
     private async Task SubmitAsync()
     {
-        var answer = SelectedAnswer;
-        if (string.IsNullOrEmpty(answer)) return;
+        if (!CanSubmit) return;
 
-        var isFreeform = IsFreeformSelected;
-        var otherText = isFreeform ? OtherText.Trim() : null;
-        if (isFreeform && string.IsNullOrEmpty(otherText)) return;
+        var source = AskSource ? Source.SelectedKey : null;
+        var goal = AskGoal ? Goal.SelectedKey : null;
 
         IsSubmitting = true;
         SubmitError = null;
         try
         {
             var reporter = App.SourceSurveyReporter;
-            var machineUuid = ReadMachineUuid();
+            var machineUuid = InstallAttributionReason.ReadMachineUuid();
             if (reporter == null || machineUuid == null)
             {
                 SubmitError = "Could not record your answer. Please try again later.".Translate();
                 return;
             }
 
-            var ok = await reporter.ReportAsync(answer, machineUuid, otherText);
+            var ok = await reporter.ReportAsync(
+                source,
+                machineUuid,
+                AskSource ? Source.FreeformText : null,
+                goal,
+                AskGoal ? Goal.FreeformText : null);
             if (!ok)
             {
                 SubmitError = "Could not record your answer. Please check your connection and try again.".Translate();
@@ -234,29 +291,11 @@ public partial class SourceSurveyOverlayViewModel : ObservableObject
 
             // Only mark answered after a successful POST so a failure doesn't
             // permanently suppress the survey with no record on the server.
-            TutorialService.Instance.MarkSourceSurveyAnswered(answer);
+            TutorialService.Instance.MarkSourceSurveyAnswered(source, goal);
         }
         finally
         {
             IsSubmitting = false;
-        }
-    }
-
-    private static string? ReadMachineUuid()
-    {
-        try
-        {
-            var path = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "ArgoBooks",
-                "machine_uuid.txt");
-            if (!File.Exists(path)) return null;
-            var raw = File.ReadAllText(path).Trim();
-            return Guid.TryParse(raw, out _) ? raw : null;
-        }
-        catch
-        {
-            return null;
         }
     }
 }

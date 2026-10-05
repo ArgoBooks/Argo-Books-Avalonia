@@ -1,0 +1,83 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="using:ArgoBooks.Controls"
+             xmlns:loc="using:ArgoBooks.Localization"
+             mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="500"
+             x:Class="ArgoBooks.Controls.ExitSurveyOverlay"
+             x:DataType="controls:ExitSurveyOverlayViewModel">
+
+    <!-- Asked once, when someone closes the app without having recorded anything. Clicking away
+         or pressing Escape skips it: the person is on their way out, and nothing here may hold
+         them up. -->
+    <controls:ModalOverlay x:Name="Overlay" ClosingCommand="{Binding SkipCommand}">
+        <controls:ModalOverlay.ModalContent>
+            <Border Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource PrimaryBrush}"
+                    BorderThickness="2"
+                    CornerRadius="16"
+                    Padding="32,28"
+                    MaxWidth="560"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    BoxShadow="0 4 20 0 #26000000">
+                <StackPanel Spacing="20">
+
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="{loc:Loc 'Before you go, what were you hoping to do?'}"
+                                   FontSize="20"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   TextWrapping="Wrap" />
+                        <TextBlock Text="{loc:Loc 'One question, asked once. It helps us see what Argo Books is missing.'}"
+                                   FontSize="13"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <ItemsControl ItemsSource="{Binding Goal.Options}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Columns="2" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="controls:SurveyOptionItem">
+                                <RadioButton GroupName="ExitSurveyGoalOption"
+                                             IsChecked="{Binding IsSelected, Mode=TwoWay}">
+                                    <TextBlock Text="{Binding Label}" TextWrapping="Wrap" />
+                                </RadioButton>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="{loc:Loc 'Did anything get in the way? (optional)'}"
+                                   FontSize="13"
+                                   Foreground="{DynamicResource TextSecondaryBrush}" />
+                        <TextBox Text="{Binding Note, Mode=TwoWay}"
+                                 AcceptsReturn="True"
+                                 TextWrapping="Wrap"
+                                 MinHeight="64"
+                                 MaxLength="500" />
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal"
+                                Spacing="12"
+                                HorizontalAlignment="Right"
+                                Margin="0,4,0,0">
+                        <Button Classes="secondary"
+                                Content="{loc:Loc 'Skip'}"
+                                Command="{Binding SkipCommand}" />
+                        <Button Classes="primary"
+                                Content="{loc:Loc 'Send and close'}"
+                                Command="{Binding SendCommand}"
+                                IsEnabled="{Binding CanSend}" />
+                    </StackPanel>
+
+                </StackPanel>
+            </Border>
+        </controls:ModalOverlay.ModalContent>
+    </controls:ModalOverlay>
+</UserControl>

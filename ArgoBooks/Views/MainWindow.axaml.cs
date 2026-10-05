@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using ArgoBooks.Controls;
+using ArgoBooks.Core.Services;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
 using ArgoBooks.ViewModels;
@@ -279,6 +280,26 @@ public partial class MainWindow : Window
     // and a second click on X meanwhile would end the session and upload everything again.
     private bool _isEndingSession;
 
+    private static CompanyUse CurrentCompanyUse()
+    {
+        var manager = App.CompanyManager;
+        var data = manager?.CompanyData;
+        if (manager == null || data == null || !manager.IsCompanyOpen)
+        {
+            return App.SettingsService?.GlobalSettings.RecentCompanies.Count > 0
+                ? CompanyUse.NoneOpen
+                : CompanyUse.NeverHadOne;
+        }
+
+        // The sample company's records are not the person's own.
+        if (manager.IsSampleCompany)
+            return CompanyUse.OpenAndEmpty;
+
+        return data.Expenses.Count > 0 || data.Revenues.Count > 0 || data.Invoices.Count > 0
+            ? CompanyUse.OpenWithRecords
+            : CompanyUse.OpenAndEmpty;
+    }
+
     private async void OnWindowClosing(object? sender, WindowClosingEventArgs e)
     {
         try
@@ -293,6 +314,19 @@ public partial class MainWindow : Window
             if (_isEndingSession)
             {
                 e.Cancel = true;
+                return;
+            }
+
+            // Someone leaving without having recorded anything is asked, once, what they were
+            // hoping to do. Only when a person closes the window: a shutdown must not wait on
+            // a question. It is marked as asked before it shows, so the Close() below, or a
+            // second click on X meanwhile, goes straight through.
+            if (e.CloseReason == WindowCloseReason.WindowClosing
+                && TutorialService.Instance.ShouldAskOnExit(CurrentCompanyUse()))
+            {
+                e.Cancel = true;
+                await TutorialService.Instance.AskExitSurveyAsync();
+                Close();
                 return;
             }
 
