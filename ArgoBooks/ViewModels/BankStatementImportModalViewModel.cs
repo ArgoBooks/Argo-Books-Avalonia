@@ -1163,16 +1163,21 @@ public partial class ImportLineRow : ObservableObject
         get => _resolvedProductObject;
         set
         {
-            if (SetProperty(ref _resolvedProductObject, value) && value != null)
+            if (!SetProperty(ref _resolvedProductObject, value))
+                return;
+
+            // Null is the box dropping its pick because it was typed over or emptied. Keeping
+            // the id would import the row under a product it no longer shows.
+            ResolvedProductId = value?.Id;
+            CategoryDisplay = value == null ? null : ProductCategoryNameLookup?.Invoke(value);
+            if (value != null)
             {
-                ResolvedProductId = value.Id;
                 IsNewProduct = false;
                 NewProductName = null;
                 NewProductCategoryId = null;
                 NewProductCategoryName = null;
-                CategoryDisplay = ProductCategoryNameLookup?.Invoke(value);
-                OnPropertyChanged(nameof(HasProduct));
             }
+            OnPropertyChanged(nameof(HasProduct));
         }
     }
 

@@ -1526,6 +1526,14 @@ public partial class OrderLineItemViewModel : ObservableObject
                 HasProductError = false;
                 OnPropertyChanged();
             }
+            // The box drops its pick when it is typed over or emptied. Keeping the id would
+            // order a product the line no longer shows.
+            else if (ProductId.Length > 0)
+            {
+                ProductId = string.Empty;
+                ProductName = string.Empty;
+                OnPropertyChanged();
+            }
         }
     }
 
