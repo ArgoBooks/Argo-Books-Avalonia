@@ -154,7 +154,7 @@
                                             <Grid ColumnDefinitions="*,Auto">
                                                 <TextBlock Grid.Column="0" Text="{loc:Loc 'MESSAGE (OPTIONAL)'}" Classes="sidebar-label" />
                                                 <TextBlock Grid.Column="1" Text="{Binding SendMessageCounter}"
-                                                           FontSize="11" Margin="0,0,0,6"
+                                                           FontSize="12" Margin="0,0,0,6"
                                                            Foreground="{DynamicResource TextTertiaryBrush}" />
                                             </Grid>
                                             <TextBox Text="{Binding SendMessage, Mode=TwoWay}"
@@ -166,7 +166,7 @@
                                                      MaxLength="500"
                                                      PlaceholderText="{loc:Loc 'Add a line or two for your customer...'}" />
                                             <TextBlock Text="{loc:Loc 'The rest of the email is written for you: your business name, the amount, the valid-until date and the link.'}"
-                                                       FontSize="11" TextWrapping="Wrap"
+                                                       FontSize="12" TextWrapping="Wrap"
                                                        Foreground="{DynamicResource TextTertiaryBrush}" />
                                         </StackPanel>
 

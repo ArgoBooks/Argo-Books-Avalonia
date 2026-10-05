@@ -68,13 +68,13 @@
                                         <!-- Only provinces the loaded rate table covers are offered, so an
                                              employee can never be created that a pay run would refuse. -->
                                         <TextBlock Text="{loc:Loc 'Where they work, which may differ from where they live.'}"
-                                                   FontSize="11" TextWrapping="Wrap"
+                                                   FontSize="12" TextWrapping="Wrap"
                                                    Foreground="{DynamicResource TextTertiaryBrush}" />
                                         <!-- Said here rather than at pay-run time. Someone whose staff work
                                              in a province that is not covered needs to know before they
                                              enter an employee, not after they try to pay them. -->
                                         <TextBlock Text="{Binding ProvinceSupportNote}"
-                                                   FontSize="11" TextWrapping="Wrap"
+                                                   FontSize="12" TextWrapping="Wrap"
                                                    Foreground="{DynamicResource WarningBrush}"
                                                    IsVisible="{Binding ProvinceSupportNote, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                     </StackPanel>
@@ -105,7 +105,7 @@
                                              PlaceholderText="0.00"
                                              behaviors:CurrencyInputBehavior.FormatAsCurrency="True"
                                              MaxLength="16" />
-                                    <TextBlock Text="{Binding PayRateHint}" FontSize="11"
+                                    <TextBlock Text="{Binding PayRateHint}" FontSize="12"
                                                Foreground="{DynamicResource TextTertiaryBrush}" />
                                     <TextBlock TextWrapping="Wrap" Text="{Binding PayRateError}" FontSize="12"
                                                Foreground="{DynamicResource ErrorBrush}"
@@ -114,8 +114,8 @@
                                     <!-- Salary only. An hourly employee's real hours are entered on
                                          every pay run, so asking for contract hours would invite
                                          the wrong number to be used on their ROE. -->
-                                    <StackPanel Spacing="4" IsVisible="{Binding IsSalaried}">
-                                        <TextBlock Text="{loc:Loc 'Hours in a normal week'}" FontSize="12"
+                                    <StackPanel Spacing="6" IsVisible="{Binding IsSalaried}">
+                                        <TextBlock Text="{loc:Loc 'Hours in a normal week'}" FontSize="13" FontWeight="Medium"
                                                    Foreground="{DynamicResource TextSecondaryBrush}" />
                                         <TextBox Text="{Binding StandardHoursPerWeek, Mode=TwoWay}"
                                                  Classes="form-input"
@@ -123,7 +123,7 @@
                                                  behaviors:NumericInputBehavior.IsDecimalOnly="True"
                                                  MaxLength="5" />
                                         <TextBlock Text="{loc:Loc 'Optional. Used only for the Record of Employment, which asks for insurable hours. Without it that box has to be filled from the employment contract.'}"
-                                                   FontSize="11" TextWrapping="Wrap"
+                                                   FontSize="12" TextWrapping="Wrap"
                                                    Foreground="{DynamicResource TextTertiaryBrush}" />
                                     </StackPanel>
                                 </StackPanel>
@@ -136,7 +136,7 @@
                                              whatever the employee wrote on their TD1, and a typed 0 is a real
                                              claim of nothing, which blank cannot say. -->
                                         <TextBlock Text="{loc:Loc 'Leave blank to use the basic personal amount. Enter the totals from the employee''s TD1 forms if they claim more, or 0 if a form claims nothing, as it does when another employer already applies their credits.'}"
-                                                   FontSize="11" TextWrapping="Wrap"
+                                                   FontSize="12" TextWrapping="Wrap"
                                                    Foreground="{DynamicResource TextTertiaryBrush}" />
                                         <Grid ColumnDefinitions="*,16,*">
                                             <StackPanel Grid.Column="0" Spacing="6">
@@ -171,7 +171,7 @@
                                                      behaviors:NumericInputBehavior.IsIntegerOnly="True"
                                                      MaxLength="2" />
                                             <TextBlock Text="{loc:Loc 'Dependants under 19 plus disabled dependants. Optional: leaving it blank withholds slightly more, which the employee gets back on their return.'}"
-                                                       FontSize="11" TextWrapping="Wrap"
+                                                       FontSize="12" TextWrapping="Wrap"
                                                        Foreground="{DynamicResource TextTertiaryBrush}" />
                                         </StackPanel>
                                     </StackPanel>
@@ -181,12 +181,12 @@
                                     <CheckBox IsChecked="{Binding IsCppExempt, Mode=TwoWay}"
                                               Content="{loc:Loc 'Exempt from CPP'}" />
                                     <TextBlock Text="{loc:Loc 'Under 18, over 70, or already receiving a CPP retirement pension.'}"
-                                               FontSize="11" Margin="28,0,0,0" TextWrapping="Wrap"
+                                               FontSize="12" Margin="28,0,0,0" TextWrapping="Wrap"
                                                Foreground="{DynamicResource TextTertiaryBrush}" />
                                     <CheckBox IsChecked="{Binding IsEiExempt, Mode=TwoWay}"
                                               Content="{loc:Loc 'Exempt from EI'}" />
                                     <TextBlock Text="{loc:Loc 'Usually an owner controlling more than 40% of the voting shares.'}"
-                                               FontSize="11" Margin="28,0,0,0" TextWrapping="Wrap"
+                                               FontSize="12" Margin="28,0,0,0" TextWrapping="Wrap"
                                                Foreground="{DynamicResource TextTertiaryBrush}" />
                                 </StackPanel>
 
@@ -207,7 +207,7 @@
                                              T4 and the record of employment both need the actual last day,
                                              and it is not the day someone got round to tidying the list. -->
                                         <TextBlock Text="{loc:Loc 'Their last day, if they have left.'}"
-                                                   FontSize="11" TextWrapping="Wrap"
+                                                   FontSize="12" TextWrapping="Wrap"
                                                    Foreground="{DynamicResource TextTertiaryBrush}" />
                                         <TextBlock TextWrapping="Wrap" Text="{Binding EndDateError}" FontSize="12"
                                                    Foreground="{DynamicResource ErrorBrush}"
@@ -223,7 +223,7 @@
                                         <TextBlock Text="{loc:Loc 'For their T4'}" FontSize="13" FontWeight="SemiBold"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
                                         <TextBlock Text="{loc:Loc 'Used at year end, and you can add them later. A T4 files without a social insurance number, but the contributions are not credited to the employee. An RL-1 or a record of employment does need one.'}"
-                                                   FontSize="11" TextWrapping="Wrap"
+                                                   FontSize="12" TextWrapping="Wrap"
                                                    Foreground="{DynamicResource TextTertiaryBrush}" />
 
                                         <StackPanel Spacing="6">
@@ -273,7 +273,7 @@
 
                                             <!-- Not the same as the province of employment above. -->
                                             <TextBlock Text="{loc:Loc 'Where they live, which may differ from where they work.'}"
-                                                       FontSize="11" TextWrapping="Wrap"
+                                                       FontSize="12" TextWrapping="Wrap"
                                                        Foreground="{DynamicResource TextTertiaryBrush}" />
                                         </StackPanel>
 
@@ -290,7 +290,7 @@
                                                 </ComboBox.ItemTemplate>
                                             </ComboBox>
                                             <TextBlock Text="{loc:Loc 'Whether they or their family could access dental coverage on 31 December. Required on every T4.'}"
-                                                       FontSize="11" TextWrapping="Wrap"
+                                                       FontSize="12" TextWrapping="Wrap"
                                                        Foreground="{DynamicResource TextTertiaryBrush}" />
                                         </StackPanel>
                                     </StackPanel>

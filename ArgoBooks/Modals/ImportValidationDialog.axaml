@@ -263,13 +263,13 @@
                                                                         <Border CornerRadius="3" Padding="4,1" VerticalAlignment="Center"
                                                                                 IsVisible="{Binding IsAutoFixable}"
                                                                                 Background="#1A22C55E">
-                                                                            <TextBlock Text="Auto-fix" FontSize="9" FontWeight="SemiBold"
+                                                                            <TextBlock Text="Auto-fix" FontSize="11" FontWeight="SemiBold"
                                                                                        Foreground="#22C55E" />
                                                                         </Border>
                                                                         <Border CornerRadius="3" Padding="4,1" VerticalAlignment="Center"
                                                                                 IsVisible="{Binding !IsAutoFixable}"
                                                                                 Background="#1AEF4444">
-                                                                            <TextBlock Text="Manual fix" FontSize="9" FontWeight="SemiBold"
+                                                                            <TextBlock Text="Manual fix" FontSize="11" FontWeight="SemiBold"
                                                                                        Foreground="#EF4444" />
                                                                         </Border>
                                                                         <TextBlock Text="{Binding Description}"

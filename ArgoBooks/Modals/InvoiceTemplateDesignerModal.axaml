@@ -488,11 +488,11 @@
                                                                  MaxLength="5" />
                                                     </Grid>
                                                     <TextBlock Text="{loc:Loc 'Range: 20-300 px'}"
-                                                               FontSize="11"
+                                                               FontSize="12"
                                                                Foreground="{DynamicResource TextTertiaryBrush}"
                                                                IsVisible="{Binding !HasLogoWidthWarning}" />
                                                     <TextBlock TextWrapping="Wrap" Text="{Binding LogoWidthWarning}"
-                                                               FontSize="11"
+                                                               FontSize="12"
                                                                Foreground="{DynamicResource ErrorBrush}"
                                                                IsVisible="{Binding HasLogoWidthWarning}" />
                                                     <CheckBox IsChecked="{Binding LockAspectRatio}"

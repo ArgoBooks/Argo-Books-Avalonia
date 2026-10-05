@@ -161,7 +161,7 @@
                                                 <TextBlock Grid.Row="1" Grid.Column="1"
                                                            Text="{loc:Loc 'Already imported'}"
                                                            IsVisible="{Binding AlreadyImported}"
-                                                           FontSize="10"
+                                                           FontSize="11"
                                                            Foreground="{DynamicResource WarningBrush}"
                                                            VerticalAlignment="Top"
                                                            Margin="0,2,0,0" />
@@ -188,7 +188,7 @@
                                                             Classes="category-chip-button"
                                                             Command="{Binding CreateNewProductCommand}">
                                                         <StackPanel Orientation="Horizontal" Spacing="4">
-                                                            <TextBlock Text="{loc:Loc 'New'}" FontSize="10" FontWeight="SemiBold"
+                                                            <TextBlock Text="{loc:Loc 'New'}" FontSize="11" FontWeight="SemiBold"
                                                                        Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center" />
                                                             <TextBlock Text="{loc:Loc 'click to edit'}" FontSize="11"
                                                                        Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
@@ -290,7 +290,7 @@
                                                     <!-- New counterparty: will be created on import -->
                                                     <Border Classes="category-chip"
                                                             IsVisible="{Binding NewCounterpartyName, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-                                                        <TextBlock Text="{loc:Loc 'New'}" FontSize="10" FontWeight="SemiBold"
+                                                        <TextBlock Text="{loc:Loc 'New'}" FontSize="11" FontWeight="SemiBold"
                                                                    Foreground="{DynamicResource PrimaryBrush}" />
                                                     </Border>
                                                     <!-- Validation -->
@@ -407,7 +407,7 @@
                             DisplayMemberPath="Name"
                             Placeholder="{loc:Loc 'Select or type a new category...'}" />
                         <TextBlock Text="{loc:Loc 'Type a new name to create a category on import.'}"
-                                   FontSize="11" Foreground="{DynamicResource TextTertiaryBrush}" />
+                                   FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}" />
                     </StackPanel>
 
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12">

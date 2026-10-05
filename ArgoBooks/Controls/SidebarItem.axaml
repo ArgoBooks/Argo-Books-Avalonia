@@ -41,7 +41,7 @@
                     VerticalAlignment="Center"
                     IsVisible="{Binding ShowBadge, RelativeSource={RelativeSource AncestorType=controls:SidebarItem}}">
                 <TextBlock Text="{Binding BadgeText, RelativeSource={RelativeSource AncestorType=controls:SidebarItem}}"
-                           FontSize="10"
+                           FontSize="11"
                            FontWeight="SemiBold"
                            Foreground="White" />
             </Border>

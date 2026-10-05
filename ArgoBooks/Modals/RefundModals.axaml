@@ -103,7 +103,7 @@
                                                                   VerticalAlignment="Center" />
                                                         <StackPanel Grid.Column="1" Margin="8,0" VerticalAlignment="Center">
                                                             <TextBlock Text="{Binding Label}" />
-                                                            <TextBlock Text="{Binding Detail}" FontSize="11"
+                                                            <TextBlock Text="{Binding Detail}" FontSize="12"
                                                                        Foreground="{DynamicResource TextSecondaryBrush}"
                                                                        IsVisible="{Binding Detail, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                                         </StackPanel>

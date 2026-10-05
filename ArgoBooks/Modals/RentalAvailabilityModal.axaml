@@ -56,7 +56,7 @@
                                          Foreground="{DynamicResource TextSecondaryBrush}" />
                                 </TextBlock>
                                 <TextBlock Text="{Binding ItemSubtitle}"
-                                           FontSize="11"
+                                           FontSize="12"
                                            Foreground="{DynamicResource TextTertiaryBrush}" />
                             </StackPanel>
                             <Button Grid.Column="2"
@@ -85,7 +85,7 @@
                                     <!-- Quantity input -->
                                     <StackPanel Spacing="8">
                                         <TextBlock Text="{loc:Loc 'How many do you need?'}"
-                                                   FontSize="10"
+                                                   FontSize="12"
                                                    FontWeight="SemiBold"
                                                    Foreground="{DynamicResource TextSecondaryBrush}"
                                                    />
@@ -114,7 +114,7 @@
                                                     FontSize="18"
                                                     HorizontalContentAlignment="Center" />
                                         </Grid>
-                                        <TextBlock FontSize="10"
+                                        <TextBlock FontSize="12"
                                                    Foreground="{Binding QuantityExceedsTotal, Converter={x:Static converters:BoolConverters.ToErrorOrTertiaryBrush}}"
                                                    HorizontalAlignment="Center">
                                             <Run Text="{loc:Loc 'Total fleet:'}" />
@@ -132,7 +132,7 @@
                                             IsVisible="{Binding HasNextAvailable}">
                                         <StackPanel Spacing="4">
                                             <TextBlock Text="{loc:Loc 'NEXT AVAILABLE'}"
-                                                       FontSize="9"
+                                                       FontSize="11"
                                                        FontWeight="Bold"
                                                        Foreground="{DynamicResource SuccessTextBrush}"
                                                        />
@@ -156,7 +156,7 @@
                                             IsVisible="{Binding !HasNextAvailable}">
                                         <StackPanel Spacing="4">
                                             <TextBlock Text="{loc:Loc 'NOT AVAILABLE'}"
-                                                       FontSize="9"
+                                                       FontSize="11"
                                                        FontWeight="Bold"
                                                        Foreground="{DynamicResource ErrorBrush}"
                                                        />
@@ -176,7 +176,7 @@
                                     <!-- Right now -->
                                     <StackPanel Spacing="8">
                                         <TextBlock Text="{loc:Loc 'RIGHT NOW'}"
-                                                   FontSize="10"
+                                                   FontSize="12"
                                                    FontWeight="SemiBold"
                                                    Foreground="{DynamicResource TextSecondaryBrush}"
                                                    />
@@ -192,7 +192,7 @@
                                                                FontWeight="Bold"
                                                                Foreground="{DynamicResource SuccessBrush}" />
                                                     <TextBlock Text="{loc:Loc 'free today'}"
-                                                               FontSize="10"
+                                                               FontSize="12"
                                                                Foreground="{DynamicResource TextTertiaryBrush}" />
                                                 </StackPanel>
                                                 <StackPanel Grid.Column="1" Spacing="2" HorizontalAlignment="Right">
@@ -202,7 +202,7 @@
                                                                Foreground="{DynamicResource WarningBrush}"
                                                                HorizontalAlignment="Right" />
                                                     <TextBlock Text="{loc:Loc 'on rent'}"
-                                                               FontSize="10"
+                                                               FontSize="12"
                                                                Foreground="{DynamicResource TextTertiaryBrush}"
                                                                HorizontalAlignment="Right" />
                                                 </StackPanel>
@@ -213,7 +213,7 @@
                                     <!-- Active rentals list -->
                                     <StackPanel Spacing="8" IsVisible="{Binding HasActiveRentals}">
                                         <TextBlock Text="{loc:Loc 'Active and Reserved'}"
-                                                   FontSize="10"
+                                                   FontSize="12"
                                                    FontWeight="SemiBold"
                                                    Foreground="{DynamicResource TextSecondaryBrush}"
                                                    />
@@ -221,7 +221,7 @@
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate DataType="vm:ActiveRentalDisplay">
                                                     <TextBlock Text="{Binding Description}"
-                                                               FontSize="11"
+                                                               FontSize="12"
                                                                LineHeight="18"
                                                                TextWrapping="Wrap"
                                                                Foreground="{DynamicResource TextPrimaryBrush}" />
@@ -277,13 +277,13 @@
 
                             <!-- Day-of-week headers -->
                             <UniformGrid Grid.Row="1" Columns="7" Margin="0,0,0,4">
-                                <TextBlock Text="{loc:Loc 'Sun'}" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource TextTertiaryBrush}" HorizontalAlignment="Center" Padding="0,6" />
-                                <TextBlock Text="{loc:Loc 'Mon'}" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource TextTertiaryBrush}" HorizontalAlignment="Center" Padding="0,6" />
-                                <TextBlock Text="{loc:Loc 'Tue'}" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource TextTertiaryBrush}" HorizontalAlignment="Center" Padding="0,6" />
-                                <TextBlock Text="{loc:Loc 'Wed'}" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource TextTertiaryBrush}" HorizontalAlignment="Center" Padding="0,6" />
-                                <TextBlock Text="{loc:Loc 'Thu'}" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource TextTertiaryBrush}" HorizontalAlignment="Center" Padding="0,6" />
-                                <TextBlock Text="{loc:Loc 'Fri'}" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource TextTertiaryBrush}" HorizontalAlignment="Center" Padding="0,6" />
-                                <TextBlock Text="{loc:Loc 'Sat'}" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource TextTertiaryBrush}" HorizontalAlignment="Center" Padding="0,6" />
+                                <TextBlock Text="{loc:Loc 'Sun'}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextTertiaryBrush}" HorizontalAlignment="Center" Padding="0,6" />
+                                <TextBlock Text="{loc:Loc 'Mon'}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextTertiaryBrush}" HorizontalAlignment="Center" Padding="0,6" />
+                                <TextBlock Text="{loc:Loc 'Tue'}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextTertiaryBrush}" HorizontalAlignment="Center" Padding="0,6" />
+                                <TextBlock Text="{loc:Loc 'Wed'}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextTertiaryBrush}" HorizontalAlignment="Center" Padding="0,6" />
+                                <TextBlock Text="{loc:Loc 'Thu'}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextTertiaryBrush}" HorizontalAlignment="Center" Padding="0,6" />
+                                <TextBlock Text="{loc:Loc 'Fri'}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextTertiaryBrush}" HorizontalAlignment="Center" Padding="0,6" />
+                                <TextBlock Text="{loc:Loc 'Sat'}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextTertiaryBrush}" HorizontalAlignment="Center" Padding="0,6" />
                             </UniformGrid>
 
                             <!-- Day grid -->
@@ -325,7 +325,7 @@
                                                             Background="{DynamicResource PrimaryBrush}"
                                                             IsVisible="{Binding HasEvent}">
                                                         <TextBlock Text="{Binding EventLabel}"
-                                                                   FontSize="9"
+                                                                   FontSize="11"
                                                                    TextTrimming="CharacterEllipsis"
                                                                    Foreground="White" />
                                                     </Border>
@@ -355,7 +355,7 @@
                                         BorderBrush="{DynamicResource SuccessBrush}"
                                         BorderThickness="1" />
                                 <TextBlock Text="{Binding MeetsNeedLegendText}"
-                                           FontSize="10"
+                                           FontSize="11"
                                            Foreground="{DynamicResource TextSecondaryBrush}" />
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
@@ -364,7 +364,7 @@
                                         BorderBrush="{DynamicResource WarningBrush}"
                                         BorderThickness="1" />
                                 <TextBlock Text="{loc:Loc 'Partially booked'}"
-                                           FontSize="10"
+                                           FontSize="11"
                                            Foreground="{DynamicResource TextSecondaryBrush}" />
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
@@ -373,7 +373,7 @@
                                         BorderBrush="{DynamicResource ErrorBrush}"
                                         BorderThickness="1" />
                                 <TextBlock Text="{loc:Loc 'Fully booked'}"
-                                           FontSize="10"
+                                           FontSize="11"
                                            Foreground="{DynamicResource TextSecondaryBrush}" />
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
@@ -382,7 +382,7 @@
                                         BorderBrush="{DynamicResource PrimaryBrush}"
                                         BorderThickness="2" />
                                 <TextBlock Text="{loc:Loc 'Today'}"
-                                           FontSize="10"
+                                           FontSize="11"
                                            Foreground="{DynamicResource TextSecondaryBrush}" />
                             </StackPanel>
                         </StackPanel>

@@ -2230,9 +2230,11 @@
                                                         </Border.BorderBrush>
                                                         <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="2">
                                                             <TextBlock Text="{Binding SummaryText}"
-                                                                       FontSize="8"
+                                                                       FontSize="11"
                                                                        Foreground="{DynamicResource TextSecondaryBrush}"
                                                                        TextAlignment="Center"
+                                                                       TextWrapping="Wrap"
+                                                                       MaxLines="3"
                                                                        TextTrimming="CharacterEllipsis"
                                                                        MaxWidth="56" />
                                                         </StackPanel>

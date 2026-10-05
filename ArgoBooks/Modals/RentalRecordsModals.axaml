@@ -163,7 +163,7 @@
                                                     </Grid>
                                                     <TextBlock TextWrapping="Wrap" Text="{Binding QuantityError}"
                                                                Foreground="{DynamicResource ErrorBrush}"
-                                                               FontSize="11"
+                                                               FontSize="12"
                                                                IsVisible="{Binding QuantityError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                                 </StackPanel>
                                             </Border>

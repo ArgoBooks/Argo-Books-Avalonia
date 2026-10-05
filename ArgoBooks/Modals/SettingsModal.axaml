@@ -1453,7 +1453,7 @@
                                                                Text="{Binding PatternError}"
                                                                IsVisible="{Binding HasPatternError}"
                                                                Foreground="{DynamicResource ErrorBrush}"
-                                                               FontSize="11"
+                                                               FontSize="12"
                                                                Margin="2,4,0,0"
                                                                TextWrapping="Wrap" />
 
@@ -1462,7 +1462,7 @@
                                                                Text="{Binding CategoryError}"
                                                                IsVisible="{Binding HasCategoryError}"
                                                                Foreground="{DynamicResource ErrorBrush}"
-                                                               FontSize="11"
+                                                               FontSize="12"
                                                                Margin="2,4,0,0"
                                                                TextWrapping="Wrap" />
                                                 </Grid>
@@ -1777,7 +1777,7 @@
                                                            TextTrimming="CharacterEllipsis"
                                                            ToolTip.Tip="{Binding StripeIntegrationAccountLabel}"
                                                            Foreground="{DynamicResource TextPrimaryBrush}" />
-                                                <TextBlock Text="{Binding StripeLastSyncedDisplay}" FontSize="11"
+                                                <TextBlock Text="{Binding StripeLastSyncedDisplay}" FontSize="12"
                                                            TextTrimming="CharacterEllipsis"
                                                            Foreground="{DynamicResource TextTertiaryBrush}"
                                                            IsVisible="{Binding StripeLastSyncedDisplay, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
@@ -1790,7 +1790,7 @@
                                                                                  IsSpinning="{Binding IsSyncingStripe}"
                                                                                  SpinnerBrush="{DynamicResource PrimaryBrush}"
                                                                                  VerticalAlignment="Center" />
-                                                        <TextBlock Text="{Binding StripeSyncStatus}" FontSize="11"
+                                                        <TextBlock Text="{Binding StripeSyncStatus}" FontSize="12"
                                                                    VerticalAlignment="Center"
                                                                    Foreground="{DynamicResource TextTertiaryBrush}" />
                                                     </StackPanel>
@@ -1871,11 +1871,11 @@
                                                                Foreground="{DynamicResource TextPrimaryBrush}" />
                                                     <!-- Under the URL rather than beside the buttons, where it
                                                          was stealing the width the URL needed. -->
-                                                    <TextBlock Text="{Binding ArgoApiLastSyncedDisplay}" FontSize="11"
+                                                    <TextBlock Text="{Binding ArgoApiLastSyncedDisplay}" FontSize="12"
                                                                TextTrimming="CharacterEllipsis"
                                                                Foreground="{DynamicResource TextTertiaryBrush}"
                                                                IsVisible="{Binding ArgoApiLastSyncedDisplay, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                                                    <TextBlock Text="{Binding ArgoApiPendingSummary}" FontSize="11"
+                                                    <TextBlock Text="{Binding ArgoApiPendingSummary}" FontSize="12"
                                                                Foreground="{DynamicResource TextTertiaryBrush}"
                                                                IsVisible="{Binding ArgoApiPendingSummary, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                                 </StackPanel>
@@ -1887,7 +1887,7 @@
                                                                                  IsSpinning="{Binding IsSyncingArgoApi}"
                                                                                  SpinnerBrush="{DynamicResource PrimaryBrush}"
                                                                                  VerticalAlignment="Center" />
-                                                        <TextBlock Text="{Binding ArgoApiSyncStatus}" FontSize="11"
+                                                        <TextBlock Text="{Binding ArgoApiSyncStatus}" FontSize="12"
                                                                    VerticalAlignment="Center"
                                                                    Foreground="{DynamicResource TextTertiaryBrush}" />
                                                     </StackPanel>
@@ -1946,10 +1946,10 @@
                                                                     <StackPanel Grid.Column="0" Spacing="2">
                                                                         <TextBlock Text="{Binding DisplayName}" FontSize="13"
                                                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
-                                                                        <TextBlock Text="{Binding Hint}" FontSize="11"
+                                                                        <TextBlock Text="{Binding Hint}" FontSize="12"
                                                                                    FontFamily="Consolas,monospace"
                                                                                    Foreground="{DynamicResource TextTertiaryBrush}" />
-                                                                        <TextBlock Text="{Binding LastUsedDisplay}" FontSize="11"
+                                                                        <TextBlock Text="{Binding LastUsedDisplay}" FontSize="12"
                                                                                    Foreground="{DynamicResource TextTertiaryBrush}" />
                                                                     </StackPanel>
                                                                     <StackPanel Grid.Column="1" Orientation="Horizontal"
@@ -2095,7 +2095,7 @@
                                         </Border.Styles>
                                     </Border>
                                 </Border>
-                                <TextBlock Grid.Column="1" Text="{Binding PasswordStrengthText}" FontSize="11"
+                                <TextBlock Grid.Column="1" Text="{Binding PasswordStrengthText}" FontSize="12"
                                            Margin="8,0,0,0" VerticalAlignment="Center"
                                            Classes.strength-weak="{Binding IsStrengthWeak}"
                                            Classes.strength-fair="{Binding IsStrengthFair}"
@@ -2217,7 +2217,7 @@
                                         </Border.Styles>
                                     </Border>
                                 </Border>
-                                <TextBlock Grid.Column="1" Text="{Binding PasswordStrengthText}" FontSize="11"
+                                <TextBlock Grid.Column="1" Text="{Binding PasswordStrengthText}" FontSize="12"
                                            Margin="8,0,0,0" VerticalAlignment="Center"
                                            Classes.strength-weak="{Binding IsStrengthWeak}"
                                            Classes.strength-fair="{Binding IsStrengthFair}"

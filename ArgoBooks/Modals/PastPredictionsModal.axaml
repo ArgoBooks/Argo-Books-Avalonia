@@ -151,7 +151,7 @@
                                                Foreground="{DynamicResource TextSecondaryBrush}"
                                                VerticalAlignment="Center" />
                                     <TextBlock Text="(Made before the period, then validated)"
-                                               FontSize="11"
+                                               FontSize="12"
                                                Foreground="{DynamicResource TextTertiaryBrush}"
                                                VerticalAlignment="Center" />
                                 </StackPanel>
@@ -162,7 +162,7 @@
                                                Foreground="{DynamicResource TextSecondaryBrush}"
                                                VerticalAlignment="Center" />
                                     <TextBlock Text="(Simulated using historical data)"
-                                               FontSize="11"
+                                               FontSize="12"
                                                Foreground="{DynamicResource TextTertiaryBrush}"
                                                VerticalAlignment="Center" />
                                 </StackPanel>
@@ -248,7 +248,7 @@
                                                             <SolidColorBrush Color="{Binding TypeBadgeColor}" Opacity="0.15" />
                                                         </Border.Background>
                                                         <TextBlock Text="{Binding TypeLabel}"
-                                                                   FontSize="10"
+                                                                   FontSize="11"
                                                                    FontWeight="SemiBold"
                                                                    VerticalAlignment="Center">
                                                             <TextBlock.Foreground>

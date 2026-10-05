@@ -274,7 +274,7 @@
                                                                                            IsVisible="{Binding EntityTypeText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                                                                 <!-- Field-level changes for edit events -->
                                                                                 <TextBlock Text="{Binding ChangesSummary}"
-                                                                                           FontSize="11"
+                                                                                           FontSize="12"
                                                                                            Foreground="{DynamicResource TextTertiaryBrush}"
                                                                                            FontStyle="Italic"
                                                                                            TextWrapping="Wrap"
@@ -282,7 +282,7 @@
                                                                                            Margin="0,2,0,0" />
                                                                                 <!-- The reason and note given for the change, such as taking back a returned status -->
                                                                                 <TextBlock Text="{Binding Note}"
-                                                                                           FontSize="11"
+                                                                                           FontSize="12"
                                                                                            Foreground="{DynamicResource TextTertiaryBrush}"
                                                                                            FontStyle="Italic"
                                                                                            TextWrapping="Wrap"
