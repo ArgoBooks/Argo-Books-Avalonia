@@ -992,7 +992,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
         ModalStatus = nameof(InvoiceStatus.Draft);
 
         IsEditMode = false;
-        ModalTitle = "Create Invoice";
+        ModalTitle = "Duplicate Invoice";
 
         // So closing an untouched copy does not ask first.
         CaptureOriginalValues();
