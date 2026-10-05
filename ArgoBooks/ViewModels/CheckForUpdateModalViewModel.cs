@@ -1,4 +1,4 @@
-using ArgoBooks.Core.Platform;
+﻿using ArgoBooks.Core.Platform;
 using ArgoBooks.Core.Services;
 using ArgoBooks.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -239,6 +239,12 @@ public partial class CheckForUpdateModalViewModel : ViewModelBase
         // needs in order to finish, so that one has to end first.
         if (App.CompanyManager != null)
             await App.CompanyManager.WaitForSaveToFinishAsync();
+
+        // The installer ends the process, so this session has to be closed here. Left to the
+        // installer, the sentinel survives and the next launch reports the update as a run
+        // that died, which is how every successful update has been counted so far.
+        if (App.TelemetryManager != null)
+            await App.TelemetryManager.EndSessionAsync();
 
         try
         {

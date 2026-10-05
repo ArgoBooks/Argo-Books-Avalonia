@@ -144,6 +144,9 @@ public class TelemetryManager : ITelemetryManager
     private bool _isInitialized;
 
     private SessionSentinel? _sentinel;
+
+    /// <summary>Set once this session's SessionEnd is on its way, so a second call is a no-op.</summary>
+    private int _sessionEnded;
     private Timer? _heartbeatTimer;
     private int _heartbeatTicks;
     private int _uploadInFlight;
@@ -247,6 +250,12 @@ public class TelemetryManager : ITelemetryManager
     public async Task EndSessionAsync(CancellationToken cancellationToken = default)
     {
         if (!_isInitialized)
+            return;
+
+        // One run files one SessionEnd. Applying an update ends the session before handing
+        // over to the installer, and closing the window ends it again when the install did
+        // not go ahead, so both paths can call this freely.
+        if (Interlocked.Exchange(ref _sessionEnded, 1) != 0)
             return;
 
         // Stopped first so a heartbeat can't race the sentinel's removal below.
