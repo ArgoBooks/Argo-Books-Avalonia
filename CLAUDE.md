@@ -54,6 +54,7 @@ Developer tools live in `tools/`, separate from the app. Each has a README expla
 | **ArgoBooks.Translations** | Generates the language files via Azure Translator |
 | **ArgoBooks.Recovery** | Opens a company file when the password is lost |
 | **ArgoBooks.UnusedCode** | Reports members that nothing references |
+| **ArgoBooks.RegionFlags** | Downloads the province and state flags from Wikidata |
 
 ### Data Storage
 
