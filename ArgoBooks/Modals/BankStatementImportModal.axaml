@@ -5,7 +5,6 @@
              xmlns:vm="using:ArgoBooks.ViewModels"
              xmlns:controls="using:ArgoBooks.Controls"
              xmlns:loc="using:ArgoBooks.Localization"
-             xmlns:local="using:ArgoBooks"
              mc:Ignorable="d" d:DesignWidth="1080" d:DesignHeight="700"
              x:Class="ArgoBooks.Modals.BankStatementImportModal"
              x:DataType="vm:BankStatementImportModalViewModel">

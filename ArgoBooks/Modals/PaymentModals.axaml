@@ -5,9 +5,7 @@
              xmlns:vm="using:ArgoBooks.ViewModels"
              xmlns:controls="using:ArgoBooks.Controls"
              xmlns:behaviors="using:ArgoBooks.Behaviors"
-             xmlns:local="using:ArgoBooks"
              xmlns:loc="using:ArgoBooks.Localization"
-             xmlns:icons="using:ArgoBooks"
              mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="550"
              x:Class="ArgoBooks.Modals.PaymentModals"
              x:DataType="vm:PaymentModalsViewModel">

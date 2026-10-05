@@ -6,7 +6,6 @@
              xmlns:modals="using:ArgoBooks.Modals"
              xmlns:controls="using:ArgoBooks.Controls"
              xmlns:loc="using:ArgoBooks.Localization"
-             xmlns:icons="using:ArgoBooks"
              mc:Ignorable="d" d:DesignWidth="1280" d:DesignHeight="800"
              x:Class="ArgoBooks.Modals.ReportModals"
              x:DataType="vm:ReportModalsViewModel">

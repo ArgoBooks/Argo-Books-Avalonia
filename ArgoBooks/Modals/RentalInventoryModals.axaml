@@ -6,7 +6,6 @@
              xmlns:behaviors="using:ArgoBooks.Behaviors"
              xmlns:controls="using:ArgoBooks.Controls"
              xmlns:loc="using:ArgoBooks.Localization"
-             xmlns:local="using:ArgoBooks"
              mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="550"
              x:Class="ArgoBooks.Modals.RentalInventoryModals"
              x:DataType="vm:RentalInventoryModalsViewModel">
