@@ -639,14 +639,15 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     /// </summary>
     public void OpenDuplicateModal(TDisplayItem? item)
     {
-        if (item == null || LoadIntoForm(item) == null) return;
+        if (item == null || LoadIntoForm(item) is not { } original) return;
 
         _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.RecordDuplicated, TransactionTypeName.ToLowerInvariant());
         TrackCreateOpened();
 
         EditingTransactionId = string.Empty;
         IsEditMode = false;
-        ModalTitle = $"Add {TransactionTypeName}";
+        // Named after the record being copied, as the edit form is named after the one being edited.
+        ModalTitle = $"Duplicate {TransactionTypeName} {original.Id}";
         SaveButtonText = $"Add {TransactionTypeName}";
         ModalDate = DateTimeOffset.Now;
         ReceiptFilePath = null;
