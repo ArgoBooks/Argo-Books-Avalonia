@@ -223,6 +223,50 @@ public class RentalBookingsTests
         Assert.Equal(new int?[] { null, 2 }, RentalBookings.FindShortfalls(data, lines, Today, Today.AddDays(1), takesStock: true));
     }
 
+    private static int?[] Shortfall(CompanyData data, int units, int startIn, int dueIn, bool takesStock = false, RentalRecord? editing = null) =>
+        RentalBookings.FindShortfalls(
+            data, [new RentalLineItem { RentalItemId = "RI-1", Quantity = units }],
+            Today.AddDays(startIn), Today.AddDays(dueIn), takesStock, editing);
+
+    // The promise the whole booking screen rests on: units reserved for some dates cannot be
+    // reserved again for dates that overlap them.
+    [Fact]
+    public void FindShortfalls_TheSameUnitsCannotBeReservedTwiceForOverlappingDates()
+    {
+        var data = CompanyWithStock(2);
+        data.Rentals.Add(Rental("A", RentalStatus.Reserved, 3, 5, units: 2));
+
+        Assert.Equal(new int?[] { 0 }, Shortfall(data, units: 1, startIn: 4, dueIn: 6));
+        // The day a booking is due back still belongs to it.
+        Assert.Equal(new int?[] { 0 }, Shortfall(data, units: 1, startIn: 5, dueIn: 7));
+        Assert.Equal(new int?[] { null }, Shortfall(data, units: 2, startIn: 6, dueIn: 8));
+    }
+
+    // Units on the shelf today are not free to go out if they are promised before they would be back.
+    [Fact]
+    public void FindShortfalls_UnitsOnTheShelfButPromisedCannotGoOutAcrossThatBooking()
+    {
+        var data = CompanyWithStock(2);
+        data.Rentals.Add(Rental("B", RentalStatus.Reserved, 2, 4, units: 2));
+
+        Assert.Equal(new int?[] { 0 }, Shortfall(data, units: 1, startIn: 0, dueIn: 3, takesStock: true));
+        Assert.Equal(new int?[] { null }, Shortfall(data, units: 2, startIn: 0, dueIn: 1, takesStock: true));
+    }
+
+    // Changing a reservation must not be refused because of the units it already holds itself.
+    [Fact]
+    public void FindShortfalls_AReservationBeingEditedDoesNotCompeteWithItself()
+    {
+        var data = CompanyWithStock(2);
+        var reservation = Rental("A", RentalStatus.Reserved, 3, 5, units: 2);
+        data.Rentals.Add(reservation);
+
+        Assert.Equal(new int?[] { null }, Shortfall(data, units: 2, startIn: 3, dueIn: 6, editing: reservation));
+        Assert.Equal(new int?[] { 2 }, Shortfall(data, units: 3, startIn: 3, dueIn: 6, editing: reservation));
+        // The same request as a new booking is refused, because those two units are taken.
+        Assert.Equal(new int?[] { 0 }, Shortfall(data, units: 2, startIn: 3, dueIn: 6));
+    }
+
     [Fact]
     public void PaidRevenue_IsTheChargesPlusTheDepositKept()
     {
