@@ -692,11 +692,14 @@ public partial class PaymentModalsViewModel : ViewModelBase
                 .Where(p => p.InvoiceId == invoice.Id && p.Amount > 0)
                 .Sum(p => p.Amount);
             var amountDue = invoice.Total - totalPaid;
+            var currency = string.IsNullOrEmpty(invoice.OriginalCurrency)
+                ? CurrencyService.CurrentCurrencyCode
+                : invoice.OriginalCurrency;
 
             InvoiceOptions.Add(new InvoiceOption
             {
                 Id = invoice.Id,
-                Display = $"{invoice.Id} - {customerName} (${amountDue:N2} due)",
+                Display = $"{invoice.Id} - {customerName} ({CurrencyInfo.FormatAmount(amountDue, currency)} due)",
                 AmountDue = amountDue
             });
         }

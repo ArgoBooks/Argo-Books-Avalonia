@@ -707,11 +707,17 @@
                                                                           VerticalAlignment="Center"
                                                                           Margin="0,0,4,0"
                                                                           ToolTip.Tip="{loc:Loc 'This value may be inaccurate. Please double-check it.'}" />
-                                                                <TextBlock Text="{Binding TotalPrice, StringFormat='${0}'}"
-                                                                           FontSize="14"
+                                                                <TextBlock FontSize="14"
                                                                            FontWeight="Medium"
                                                                            Foreground="{DynamicResource TextPrimaryBrush}"
-                                                                           VerticalAlignment="Center" />
+                                                                           VerticalAlignment="Center">
+                                                                    <TextBlock.Text>
+                                                                        <MultiBinding StringFormat="{}{0}{1}">
+                                                                            <Binding Path="$parent[ItemsControl].((vm:ReceiptsModalsViewModel)DataContext).ScanCurrencySymbol" />
+                                                                            <Binding Path="TotalPrice" />
+                                                                        </MultiBinding>
+                                                                    </TextBlock.Text>
+                                                                </TextBlock>
                                                             </StackPanel>
                                                             <Button Grid.Column="4" Grid.Row="0"
                                                                     Classes="icon-button danger"
@@ -1950,11 +1956,17 @@
                                                                           VerticalAlignment="Center"
                                                                           Margin="0,0,4,0"
                                                                           ToolTip.Tip="This value may be inaccurate. Please double-check it." />
-                                                                <TextBlock Text="{Binding TotalPrice, StringFormat='${0}'}"
-                                                                           FontSize="14"
+                                                                <TextBlock FontSize="14"
                                                                            FontWeight="Medium"
                                                                            Foreground="{DynamicResource TextPrimaryBrush}"
-                                                                           VerticalAlignment="Center" />
+                                                                           VerticalAlignment="Center">
+                                                                    <TextBlock.Text>
+                                                                        <MultiBinding StringFormat="{}{0}{1}">
+                                                                            <Binding Path="$parent[ItemsControl].((vm:ReceiptsModalsViewModel)DataContext).ScanCurrencySymbol" />
+                                                                            <Binding Path="TotalPrice" />
+                                                                        </MultiBinding>
+                                                                    </TextBlock.Text>
+                                                                </TextBlock>
                                                             </StackPanel>
                                                             <Button Grid.Column="4" Grid.Row="0"
                                                                     Classes="icon-button danger"

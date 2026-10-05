@@ -438,7 +438,11 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
     /// so the user can correct it before saving.
     /// </summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ScanCurrencySymbol))]
     private string _selectedScanCurrency = string.Empty;
+
+    /// <summary>The symbol each line's total is shown with.</summary>
+    public string ScanCurrencySymbol => CurrencyInfo.GetSymbol(ScanCurrencyCode);
 
     public IReadOnlyList<string> CurrencyOptions => Currencies.All;
 
