@@ -863,6 +863,27 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     [RelayCommand]
     protected abstract void ConfirmItemStatus();
 
+    /// <summary>
+    /// Records the step that takes back a returned or lost status, with the reason and note from
+    /// the status dialog on its history entry. Taking the status back deletes the record they
+    /// would otherwise be kept on, so the history is the only place left for why it was done.
+    /// They are stored as typed, in English like the entry's own description.
+    /// </summary>
+    protected void RecordStatusUndo(IUndoableAction action)
+    {
+        var lines = new List<string>();
+        if (!string.IsNullOrWhiteSpace(SelectedItemStatusReason))
+            lines.Add($"Reason: {SelectedItemStatusReason}");
+        if (!string.IsNullOrWhiteSpace(ItemStatusNotes))
+            lines.Add($"Note: {ItemStatusNotes.Trim()}");
+
+        var history = App.EventLogService;
+        history?.SetPendingNote(string.Join("\n", lines));
+        App.UndoRedoManager.RecordAction(action);
+        // Nothing was recorded if recording is switched off. The note must not wait for the next change.
+        history?.SetPendingNote(null);
+    }
+
     protected static LostDamagedReason MapToLostDamagedReason(string reason)
     {
         return reason.ToLowerInvariant() switch

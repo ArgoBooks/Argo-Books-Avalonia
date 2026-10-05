@@ -280,6 +280,14 @@
                                                                                            TextWrapping="Wrap"
                                                                                            IsVisible="{Binding HasChanges}"
                                                                                            Margin="0,2,0,0" />
+                                                                                <!-- The reason and note given for the change, such as taking back a returned status -->
+                                                                                <TextBlock Text="{Binding Note}"
+                                                                                           FontSize="11"
+                                                                                           Foreground="{DynamicResource TextTertiaryBrush}"
+                                                                                           FontStyle="Italic"
+                                                                                           TextWrapping="Wrap"
+                                                                                           IsVisible="{Binding HasNote}"
+                                                                                           Margin="0,2,0,0" />
                                                                             </StackPanel>
                                                                         </Grid>
                                                                     </Border>

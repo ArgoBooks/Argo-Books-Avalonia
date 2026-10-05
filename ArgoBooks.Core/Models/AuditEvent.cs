@@ -58,6 +58,15 @@ public class AuditEvent : IRecord
     public Dictionary<string, FieldChange>? Changes { get; set; }
 
     /// <summary>
+    /// What the person said about the change, where the app asked: the reason picked and any
+    /// note typed. Kept here when the change leaves no record of its own to keep them on, as
+    /// when a returned or lost status is taken back.
+    /// </summary>
+    [JsonPropertyName("note")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Note { get; set; }
+
+    /// <summary>
     /// If this event is itself an undo/redo of another event, the ID of that original event.
     /// </summary>
     [JsonPropertyName("relatedEventId")]

@@ -290,7 +290,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
                 if (record != null)
                 {
                     companyData.LostDamaged.RemoveRecord(record);
-                    App.UndoRedoManager.RecordAction(new DelegateAction(
+                    RecordStatusUndo(new DelegateAction(
                         $"Undo lost/damaged status for expense '{purchase.Id}'",
                         () =>
                         {
@@ -313,7 +313,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
                 if (record != null)
                 {
                     companyData.Returns.RemoveRecord(record);
-                    App.UndoRedoManager.RecordAction(new DelegateAction(
+                    RecordStatusUndo(new DelegateAction(
                         $"Undo returned status for expense '{purchase.Id}'",
                         () =>
                         {

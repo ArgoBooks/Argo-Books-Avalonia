@@ -54,6 +54,22 @@ public class EventLogServiceTests
 
     #endregion
 
+    #region Pending Note Tests
+
+    [Fact]
+    public void RecordFromAction_PutsThePendingNoteOnTheNextEntryOnly()
+    {
+        _service.SetPendingNote("Reason: Entered by mistake");
+
+        var first = _service.RecordFromAction(CreateMockAction("Undo returned status for expense 'PUR-001'"));
+        var second = _service.RecordFromAction(CreateMockAction("Added customer 'John'"));
+
+        Assert.Equal("Reason: Entered by mistake", first.Note);
+        Assert.Null(second.Note);
+    }
+
+    #endregion
+
     #region Clear Tests
 
     [Fact]
