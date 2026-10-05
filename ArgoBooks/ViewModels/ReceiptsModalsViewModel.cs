@@ -1129,13 +1129,12 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
                     await _usageService.IncrementUsageAsync();
 
                 var supplier = result.SupplierName ?? "Unknown";
-                var total = result.TotalAmount?.ToString("F2") ?? "0.00";
 
                 await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     item.ScanResult = result;
                     item.Status = BulkScanStatus.Succeeded;
-                    item.SummaryText = $"{supplier} · ${total}";
+                    item.SummaryText = BulkSummary(supplier, result.TotalAmount ?? 0, ReceiptCurrency(result.CurrencyCode));
                     item.ConfidenceText = result.Confidence >= 0.85 ? "High" : result.Confidence >= 0.6 ? "Medium" : "Low";
                     BulkScansCompleted++;
                     BulkScansSucceeded++;
@@ -1401,6 +1400,10 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             NavigateToBulkItem(nextIndex);
     }
 
+    // The tile for a scanned receipt: who it is from and what it came to, in its own currency.
+    private static string BulkSummary(string? supplier, decimal total, string currency) =>
+        $"{supplier} · {CurrencyInfo.FormatAmount(total, currency)}";
+
     private void SaveCurrentFormToItem(BulkScanItem item)
     {
         if (item.ScanResult == null) return;
@@ -1451,7 +1454,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         var supplier = ExtractedSupplier;
         if (string.IsNullOrEmpty(supplier) && SelectedSupplier != null)
             supplier = SelectedSupplier.Name;
-        item.SummaryText = $"{supplier} · ${ExtractedTotal}";
+        item.SummaryText = BulkSummary(supplier, item.ScanResult.TotalAmount ?? 0, ScanCurrencyCode);
 
         item.UpdateValidation();
         OnPropertyChanged(nameof(BulkAllReviewed));
