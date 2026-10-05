@@ -283,7 +283,8 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
 
     private sealed record EditState(
         DateTimeOffset? Date, string? CounterpartyId, string? CategoryId, decimal TaxAmount, decimal Shipping,
-        decimal Discount, decimal Fee, string PaymentMethod, string Notes, Helpers.EquatableArray<LineState> LineItems);
+        decimal Discount, decimal Fee, string PaymentMethod, string Notes, string? ReceiptPath,
+        Helpers.EquatableArray<LineState> LineItems);
     // ReSharper restore NotAccessedPositionalProperty.Local
 
     // The form as it opened filled in from a record, for change detection. Null on a blank form.
@@ -291,7 +292,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
 
     private EditState Capture() => new(
         ModalDate, SelectedCounterparty?.Id, SelectedCategory?.Id, ModalTaxAmount, ModalShipping,
-        ModalDiscount, ModalFee, SelectedPaymentMethod, ModalNotes,
+        ModalDiscount, ModalFee, SelectedPaymentMethod, ModalNotes, ReceiptFilePath,
         new Helpers.EquatableArray<LineState>(LineItems.Select(li => new LineState(
             li.SelectedProduct?.Id, li.SelectedCategory?.Id, li.Description, li.Quantity, li.UnitPrice,
             li.ItemText?.Trim() ?? string.Empty, li.CategoryText?.Trim() ?? string.Empty))));
@@ -307,6 +308,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         ModalShipping > 0 ||
         ModalDiscount > 0 ||
         ModalFee > 0 ||
+        !string.IsNullOrEmpty(ReceiptFilePath) ||
         LineItems.Any(li => li.SelectedProduct != null || li.SelectedCategory != null || !string.IsNullOrWhiteSpace(li.Description) || (li.UnitPrice ?? 0) > 0 ||
                             !string.IsNullOrWhiteSpace(li.ItemText) || !string.IsNullOrWhiteSpace(li.CategoryText));
 
