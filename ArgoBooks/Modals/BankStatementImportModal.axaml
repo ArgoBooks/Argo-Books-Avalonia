@@ -252,7 +252,7 @@
                                                     <controls:SearchableDropdown
                                                         IsVisible="{Binding !CreateAsRevenue}"
                                                         Classes="compact"
-                                                        Placeholder="{loc:Loc 'Search suppliers...'}"
+                                                        Placeholder="{loc:Loc 'Type a new supplier, or pick one'}"
                                                         ItemsSource="{Binding $parent[ItemsControl].((vm:BankStatementImportModalViewModel)DataContext).AvailableSuppliers}"
                                                         SelectedItem="{Binding ResolvedSupplierObject, Mode=TwoWay}"
                                                         SearchText="{Binding CounterpartySearchText, Mode=TwoWay}"
@@ -261,15 +261,13 @@
                                                         ShowAddNew="True"
                                                         AddNewText="{loc:Loc 'Create one'}"
                                                         AddNewCommand="{Binding CreateNewCounterpartyCommand}"
-                                                        EmptyCreateLinkText="{loc:Loc 'Create one'}"
-                                                        EmptyCreateCommand="{Binding CreateNewCounterpartyCommand}"
                                                         HasError="{Binding HasCounterpartyError}" />
 
                                                     <!-- Customer dropdown (revenue) -->
                                                     <controls:SearchableDropdown
                                                         IsVisible="{Binding CreateAsRevenue}"
                                                         Classes="compact"
-                                                        Placeholder="{loc:Loc 'Search customers...'}"
+                                                        Placeholder="{loc:Loc 'Type a new customer, or pick one'}"
                                                         ItemsSource="{Binding $parent[ItemsControl].((vm:BankStatementImportModalViewModel)DataContext).AvailableCustomers}"
                                                         SelectedItem="{Binding ResolvedCustomerObject, Mode=TwoWay}"
                                                         SearchText="{Binding CounterpartySearchText, Mode=TwoWay}"
@@ -278,8 +276,6 @@
                                                         ShowAddNew="True"
                                                         AddNewText="{loc:Loc 'Create one'}"
                                                         AddNewCommand="{Binding CreateNewCounterpartyCommand}"
-                                                        EmptyCreateLinkText="{loc:Loc 'Create one'}"
-                                                        EmptyCreateCommand="{Binding CreateNewCounterpartyCommand}"
                                                         HasError="{Binding HasCounterpartyError}" />
                                                 </Grid>
 

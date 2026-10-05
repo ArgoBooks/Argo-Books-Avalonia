@@ -1098,10 +1098,45 @@ public partial class ImportLineRow : ObservableObject
 
     public void SetNewCounterparty(string name)
     {
+        // Push null to the pickers first (they clear their text), as SetNewProduct does.
+        _resolvedSupplierObject = null;
+        _resolvedCustomerObject = null;
+        OnPropertyChanged(nameof(ResolvedSupplierObject));
+        OnPropertyChanged(nameof(ResolvedCustomerObject));
         ResolvedCounterpartyId = null;
         NewCounterpartyName = name;
-        CounterpartySearchText = name;
         HasCounterpartyError = false;
+        OnPropertyChanged(nameof(HasCounterparty));
+        CounterpartySearchText = name;
+    }
+
+    partial void OnCounterpartySearchTextChanged(string? value) => UseTypedCounterparty();
+
+    // A supplier picked for an expense is not a customer, and the other way round, so a row
+    // switched between the two goes by what its box says.
+    partial void OnCreateAsRevenueChanged(bool value) => UseTypedCounterparty();
+
+    /// <summary>
+    /// With nothing picked for the kind of row this is, the name in the box stands for a supplier
+    /// or customer to be found or created by that name on import, as typing one does on the other
+    /// forms.
+    /// </summary>
+    private void UseTypedCounterparty()
+    {
+        var name = CounterpartySearchText?.Trim() ?? string.Empty;
+        var (pickedId, pickedName) = CreateAsRevenue
+            ? (_resolvedCustomerObject?.Id, _resolvedCustomerObject?.Name)
+            : (_resolvedSupplierObject?.Id, _resolvedSupplierObject?.Name);
+
+        // A pick counts only while the box still shows it. The two boxes share their text, so
+        // one can be typed over through the other without its own pick being cleared.
+        if (pickedName?.Trim() != name)
+            pickedId = null;
+
+        ResolvedCounterpartyId = pickedId;
+        NewCounterpartyName = pickedId != null || name.Length == 0 ? null : name;
+        if (HasCounterparty)
+            HasCounterpartyError = false;
         OnPropertyChanged(nameof(HasCounterparty));
     }
 
@@ -1150,12 +1185,9 @@ public partial class ImportLineRow : ObservableObject
         get => _resolvedSupplierObject;
         set
         {
-            if (SetProperty(ref _resolvedSupplierObject, value) && value != null)
-            {
-                ResolvedCounterpartyId = value.Id;
-                NewCounterpartyName = null;
-                OnPropertyChanged(nameof(HasCounterparty));
-            }
+            // Typing over a pick clears it here, and what was typed takes its place.
+            if (SetProperty(ref _resolvedSupplierObject, value))
+                UseTypedCounterparty();
         }
     }
 
@@ -1165,12 +1197,8 @@ public partial class ImportLineRow : ObservableObject
         get => _resolvedCustomerObject;
         set
         {
-            if (SetProperty(ref _resolvedCustomerObject, value) && value != null)
-            {
-                ResolvedCounterpartyId = value.Id;
-                NewCounterpartyName = null;
-                OnPropertyChanged(nameof(HasCounterparty));
-            }
+            if (SetProperty(ref _resolvedCustomerObject, value))
+                UseTypedCounterparty();
         }
     }
 }
