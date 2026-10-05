@@ -1818,7 +1818,7 @@
 
                                 <Separator Margin="0,4" />
                                 <TextBlock Text="{loc:Loc 'Click an element on the canvas to edit its properties'}"
-                                           FontSize="11"
+                                           FontSize="12"
                                            Foreground="{DynamicResource TextTertiaryBrush}"
                                            TextWrapping="Wrap"
                                            TextAlignment="Center"

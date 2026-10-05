@@ -287,7 +287,7 @@
                             <!-- Accuracy description (visible when no accuracy data yet) -->
                             <TextBlock IsVisible="{Binding !HasAccuracyData}"
                                        Text="{Binding AccuracyDescription}"
-                                       FontSize="11"
+                                       FontSize="12"
                                        FontStyle="Italic"
                                        Foreground="{DynamicResource TextPrimaryBrush}"
                                        TextWrapping="Wrap" />
@@ -297,7 +297,7 @@
                     <!-- Disclaimer -->
                     <TextBlock IsVisible="{Binding !HasInsufficientData}"
                                Text="{loc:Loc 'Disclaimer: These forecasts are estimates and should not be relied upon. Actual results often vary.'}"
-                               FontSize="11"
+                               FontSize="12"
                                FontStyle="Italic"
                                Foreground="{DynamicResource TextTertiaryBrush}"
                                TextWrapping="Wrap" />
