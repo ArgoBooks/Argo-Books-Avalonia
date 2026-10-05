@@ -384,6 +384,8 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
         string? CustomerId, DateTimeOffset? IssueDate, DateTimeOffset? DueDate, string Status, string Notes,
         decimal TaxRate, bool TaxIsFixed, decimal SecurityDeposit, decimal ShippingAmount,
         decimal CustomFeeAmount, bool CustomFeeIsPercent, decimal DiscountAmount, bool DiscountIsPercent,
+        string CustomFeeLabel, string Currency, string? TemplateId,
+        bool PassProcessingFee, bool ShowCompanyAddress, bool ShowCompanyPhone, bool ShowDueDateProminent,
         Helpers.EquatableArray<LineState> LineItems);
 
     // The form as it opened filled in from an invoice, for change detection. Null on a blank form.
@@ -393,6 +395,8 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
         SelectedCustomer?.Id, ModalIssueDate, ModalDueDate, ModalStatus, ModalNotes,
         TaxRate, TaxIsFixed, SecurityDeposit, ShippingAmount,
         CustomFeeAmount, CustomFeeIsPercent, DiscountAmount, DiscountIsPercent,
+        CustomFeeLabel ?? string.Empty, SelectedCurrencyCode, SelectedTemplate?.Id,
+        OptPassProcessingFee, OptShowCompanyAddress, OptShowCompanyPhone, OptShowDueDateProminent,
         new Helpers.EquatableArray<LineState>(LineItems.Select(li =>
             new LineState(li.SelectedProduct?.Id, li.Description, li.Quantity, li.UnitPrice))));
 
