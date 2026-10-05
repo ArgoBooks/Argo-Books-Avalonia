@@ -385,8 +385,8 @@ public partial class DashboardPage : UserControl
             {
                 Width = sourceRow.Bounds.Width,
                 Height = sourceRow.Bounds.Height,
-                Background = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.FromArgb(30, 59, 130, 246)),
-                BorderBrush = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.FromRgb(59, 130, 246)),
+                Background = Converters.ConverterUtils.AccentTint(30),
+                BorderBrush = Converters.ConverterUtils.AccentBrush,
                 BorderThickness = new Thickness(2),
                 CornerRadius = new CornerRadius(12),
                 IsHitTestVisible = false,

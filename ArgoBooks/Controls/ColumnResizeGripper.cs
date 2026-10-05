@@ -1,4 +1,5 @@
 using ArgoBooks.Controls.ColumnWidths;
+using ArgoBooks.Converters;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -65,7 +66,7 @@ public class ColumnResizeGripper : Border
         base.OnPointerEntered(e);
         if (!_isDragging)
         {
-            Background = new SolidColorBrush(Color.FromArgb(80, 59, 130, 246));
+            Background = ConverterUtils.AccentTint(80);
         }
     }
 
@@ -98,7 +99,7 @@ public class ColumnResizeGripper : Border
 
             _isDragging = true;
             _lastDragPoint = e.GetPosition(TopLevel.GetTopLevel(this));
-            Background = new SolidColorBrush(Color.FromArgb(120, 59, 130, 246));
+            Background = ConverterUtils.AccentTint(120);
 
             // Capture a transparent full-window overlay carrying the resize cursor so the
             // cursor stays put for the whole drag (see field comment). The overlay drives
