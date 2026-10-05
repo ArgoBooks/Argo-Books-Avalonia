@@ -386,7 +386,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
         decimal CustomFeeAmount, bool CustomFeeIsPercent, decimal DiscountAmount, bool DiscountIsPercent,
         Helpers.EquatableArray<LineState> LineItems);
 
-    // The form as the edit modal opened, for change detection.
+    // The form as it opened filled in from an invoice, for change detection. Null on a blank form.
     private EditState? _original;
 
     private EditState Capture() => new(
@@ -402,6 +402,13 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
     public bool HasEditModalChanges => Capture() != _original;
 
     private void CaptureOriginalValues() => _original = Capture();
+
+    /// <summary>
+    /// Whether closing would throw work away. A blank form has work in it once anything is
+    /// entered. A form opened already filled in, to edit or to copy an invoice, has work in it
+    /// only once it differs from how it opened.
+    /// </summary>
+    private bool HasUnsavedWork => _original == null ? HasEnteredData : HasEditModalChanges;
 
     public ObservableCollection<string> StatusOptions { get; } = new(InvoiceStatusExtensions.GetModalOptions());
 
@@ -986,6 +993,9 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
 
         IsEditMode = false;
         ModalTitle = "Create Invoice";
+
+        // So closing an untouched copy does not ask first.
+        CaptureOriginalValues();
 
         ShowForm();
     }
@@ -1962,10 +1972,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
             return;
         }
 
-        // In edit mode, check if changes were made; in add mode, check if data was entered
-        var hasUnsavedWork = IsEditMode ? HasEditModalChanges : HasEnteredData;
-
-        if (hasUnsavedWork)
+        if (HasUnsavedWork)
         {
             // Hide the editable WebView so the confirmation dialog renders above it. The native
             // WebView renders in its own airspace above Avalonia content, so it otherwise occludes
@@ -2318,6 +2325,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
     {
         IsPortalReady = PaymentProviderService.IsPortalReady();
         _editingInvoiceId = string.Empty;
+        _original = null;
         _unansweredSend = null;
         PaperLogo = null;
         IsFromRental = false;

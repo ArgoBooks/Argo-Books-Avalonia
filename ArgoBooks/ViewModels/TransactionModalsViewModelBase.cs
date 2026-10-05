@@ -286,7 +286,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         decimal Discount, decimal Fee, string PaymentMethod, string Notes, Helpers.EquatableArray<LineState> LineItems);
     // ReSharper restore NotAccessedPositionalProperty.Local
 
-    // The form as the edit modal opened, for change detection.
+    // The form as it opened filled in from a record, for change detection. Null on a blank form.
     private EditState? _original;
 
     private EditState Capture() => new(
@@ -319,6 +319,13 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     /// Captures the current form state as original values for change detection.
     /// </summary>
     protected void CaptureOriginalValues() => _original = Capture();
+
+    /// <summary>
+    /// Whether closing would throw work away. A blank form has work in it once anything is
+    /// entered. A form opened already filled in, to edit or to copy a record, has work in it
+    /// only once it differs from how it opened.
+    /// </summary>
+    private bool HasUnsavedWork => _original == null ? HasEnteredData : HasEditModalChanges;
 
     // Computed totals
     public decimal Subtotal => LineItems.Count > 0
@@ -652,6 +659,8 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         ModalDate = DateTimeOffset.Now;
         ReceiptFilePath = null;
         ReceiptFileName = "No receipt attached";
+        // Taken again now the date has moved, so closing an untouched copy does not ask first.
+        CaptureOriginalValues();
         // The mismatch warning stays. The copy is saved at what its lines add up to, so when the
         // original's total was something else, this is the only sign the two will differ.
         IsAddEditModalOpen = true;
@@ -912,10 +921,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     [RelayCommand]
     protected async Task RequestCloseAddEditModalAsync()
     {
-        // In edit mode, check if changes were made; in add mode, check if data was entered
-        var hasUnsavedWork = IsEditMode ? HasEditModalChanges : HasEnteredData;
-
-        if (hasUnsavedWork)
+        if (HasUnsavedWork)
         {
             var confirmed = IsEditMode
                 ? await ConfirmDiscardEditsAsync()
@@ -1358,6 +1364,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     protected void ResetForm()
     {
         EditingTransactionId = string.Empty;
+        _original = null;
         SetEntryCurrency(null);
         ModalDate = DateTimeOffset.Now;
         SelectedCounterparty = null;
