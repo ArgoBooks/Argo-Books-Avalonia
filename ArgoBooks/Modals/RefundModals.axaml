@@ -123,13 +123,13 @@
                                     </Border>
 
                                     <TextBlock TextWrapping="Wrap" Text="{Binding LineItemsValidationMessage}"
-                                               Foreground="#dc2626" FontSize="12"
+                                               Foreground="{DynamicResource ErrorBrush}" FontSize="12"
                                                IsVisible="{Binding LineItemsValidationMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
 
                                     <!-- Server error from /refunds/request (e.g. 404, 401, 412 email_not_verified) -->
-                                    <Border Background="#3b1818" BorderBrush="#dc2626" BorderThickness="1" CornerRadius="4" Padding="10"
+                                    <Border Background="{DynamicResource ErrorLightBrush}" BorderBrush="{DynamicResource ErrorBrush}" BorderThickness="1" CornerRadius="4" Padding="10"
                                             IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-                                        <TextBlock Text="{Binding ErrorMessage}" Foreground="#fca5a5" FontSize="12" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding ErrorMessage}" Foreground="{DynamicResource ErrorTextBrush}" FontSize="12" TextWrapping="Wrap" />
                                     </Border>
 
                                     <StackPanel Spacing="4">
@@ -157,7 +157,7 @@
                                                 IsEnabled="{Binding CanResend}"
                                                 Command="{Binding ResendCodeCommand}" />
                                     </Grid>
-                                    <TextBlock TextWrapping="Wrap" Text="{Binding ErrorMessage}" Foreground="#dc2626" FontSize="12"
+                                    <TextBlock TextWrapping="Wrap" Text="{Binding ErrorMessage}" Foreground="{DynamicResource ErrorBrush}" FontSize="12"
                                                IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                 </StackPanel>
 
@@ -199,7 +199,7 @@
 
                                 <!-- Terminal: failure (success is rendered as a SuccessAnimation overlay below) -->
                                 <StackPanel IsVisible="{Binding IsFailureStep}" Spacing="14">
-                                    <TextBlock Text="Refund did not complete" FontSize="16" FontWeight="SemiBold" Foreground="#dc2626" />
+                                    <TextBlock Text="Refund did not complete" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource ErrorBrush}" />
                                     <TextBlock Text="{Binding TerminalMessage}" TextWrapping="Wrap" />
                                     <!-- Hard-block-only: collect a short reason from the user
                                          before they click the email button. The reason gets
@@ -340,13 +340,13 @@
                                                 IsEnabled="{Binding CanResend}"
                                                 Command="{Binding ResendCommand}" />
                                     </Grid>
-                                    <TextBlock TextWrapping="Wrap" Text="{Binding ErrorMessage}" Foreground="#dc2626" FontSize="12"
+                                    <TextBlock TextWrapping="Wrap" Text="{Binding ErrorMessage}" Foreground="{DynamicResource ErrorBrush}" FontSize="12"
                                                IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                 </StackPanel>
 
                                 <StackPanel IsVisible="{Binding IsVerified}" Spacing="10">
                                     <TextBlock Text="✓ Email verified" FontSize="18" FontWeight="SemiBold"
-                                               Foreground="#059669" TextAlignment="Center" />
+                                               Foreground="{DynamicResource SuccessDarkBrush}" TextAlignment="Center" />
                                     <TextBlock TextWrapping="Wrap" TextAlignment="Center"
                                                Text="Refunds are now enabled for this account. You can close this dialog." />
                                 </StackPanel>
@@ -448,7 +448,7 @@
 
                                 <StackPanel IsVisible="{Binding IsSuccess}" Spacing="10">
                                     <TextBlock Text="✓ Email changed" FontSize="18" FontWeight="SemiBold"
-                                               Foreground="#059669" TextAlignment="Center" />
+                                               Foreground="{DynamicResource SuccessDarkBrush}" TextAlignment="Center" />
                                     <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap" TextAlignment="Center"
                                                Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12" />
                                 </StackPanel>
@@ -456,7 +456,7 @@
                                 <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap"
                                            Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12"
                                            IsVisible="{Binding ShowSharedStatusMessage}" />
-                                <TextBlock TextWrapping="Wrap" Text="{Binding ErrorMessage}" Foreground="#dc2626" FontSize="12"
+                                <TextBlock TextWrapping="Wrap" Text="{Binding ErrorMessage}" Foreground="{DynamicResource ErrorBrush}" FontSize="12"
                                            IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                             </StackPanel>
                         </ScrollViewer>

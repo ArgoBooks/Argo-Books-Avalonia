@@ -263,7 +263,7 @@
                                 <!-- Delete Confirmation -->
                                 <Border Grid.Row="0"
                                         IsVisible="{Binding IsDeleteConfirmOpen}"
-                                        Background="#80000000"
+                                        Background="{DynamicResource OverlayBrush}"
                                         VerticalAlignment="Stretch"
                                         HorizontalAlignment="Stretch">
                                     <Border Background="{DynamicResource SurfaceBrush}"

@@ -528,7 +528,7 @@
     </controls:ColumnVisibilityMenu>
 
     <!-- Drag-Drop Overlay -->
-    <Border Background="#E0FFFFFF"
+    <Border Background="{DynamicResource LoadingOverlayBrush}"
             IsVisible="{Binding IsDragOver}"
             IsHitTestVisible="False">
         <Border Background="{DynamicResource PrimaryLightBrush}"

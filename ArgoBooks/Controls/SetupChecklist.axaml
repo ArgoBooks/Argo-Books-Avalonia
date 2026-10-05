@@ -146,7 +146,7 @@
                             <StackPanel Spacing="8" HorizontalAlignment="Center">
                                 <Border Width="48" Height="48"
                                         CornerRadius="24"
-                                        Background="#E6F4EA"
+                                        Background="{DynamicResource SuccessLightBrush}"
                                         HorizontalAlignment="Center">
                                     <PathIcon Data="{x:Static local:Icons.Check}"
                                               Width="24" Height="24"

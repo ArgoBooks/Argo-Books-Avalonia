@@ -681,7 +681,7 @@
                                     </StackPanel>
                                     <!-- Zoomable / pannable PDF preview -->
                                     <Border Grid.Row="0"
-                                            Background="#1A000000"
+                                            Background="{DynamicResource SurfaceAltBrush}"
                                             Margin="8,8,8,4"
                                             CornerRadius="4"
                                             ClipToBounds="True"

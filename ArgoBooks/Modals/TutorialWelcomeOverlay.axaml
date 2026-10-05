@@ -87,7 +87,7 @@
                             <Border Grid.Column="0"
                                     Width="40" Height="40"
                                     CornerRadius="20"
-                                    Background="#E6F4EA"
+                                    Background="{DynamicResource SuccessLightBrush}"
                                     Margin="0,0,16,0">
                                 <PathIcon Data="{x:Static local:Icons.Check}"
                                           Width="20" Height="20"

@@ -425,14 +425,14 @@
 
                             <!-- Total Mismatch Warning -->
                             <Border IsVisible="{Binding HasTotalMismatchWarning}"
-                                    Background="#33FFA500"
-                                    BorderBrush="#FFA500"
+                                    Background="{DynamicResource WarningLightBrush}"
+                                    BorderBrush="{DynamicResource WarningBrush}"
                                     BorderThickness="1"
                                     CornerRadius="6"
                                     Padding="12,8">
                                 <TextBlock Text="{Binding TotalMismatchWarningMessage}"
                                            FontSize="12"
-                                           Foreground="#FFA500"
+                                           Foreground="{DynamicResource WarningTextBrush}"
                                            TextWrapping="Wrap" />
                             </Border>
 

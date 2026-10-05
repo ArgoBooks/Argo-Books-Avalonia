@@ -184,7 +184,7 @@
                                         <TextBlock Text="{Binding Tier1SheetCount}"
                                                    FontSize="24"
                                                    FontWeight="Bold"
-                                                   Foreground="#22C55E"
+                                                   Foreground="{DynamicResource SuccessBrush}"
                                                    HorizontalAlignment="Center" />
                                     </StackPanel>
                                 </Border>

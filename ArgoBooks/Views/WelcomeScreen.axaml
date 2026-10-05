@@ -132,7 +132,7 @@
                             <StackPanel Spacing="16">
                                 <Border Width="64" Height="64"
                                         CornerRadius="32"
-                                        Background="#E6F4EA">
+                                        Background="{DynamicResource SuccessLightBrush}">
                                     <PathIcon Data="{x:Static local:Icons.Folder}"
                                               Width="28" Height="28"
                                               Foreground="{DynamicResource SuccessBrush}" />
@@ -310,8 +310,8 @@
                            Margin="0,16,0,0" />
 
                 <!-- Sandbox Mode Indicator (developer-only) -->
-                <Border Background="#FEF3C7"
-                        BorderBrush="#F59E0B"
+                <Border Background="{DynamicResource WarningLightBrush}"
+                        BorderBrush="{DynamicResource WarningBrush}"
                         BorderThickness="1"
                         CornerRadius="6"
                         Padding="12,6"
@@ -321,7 +321,7 @@
                     <TextBlock Text="SANDBOX MODE: Using dev.argorobots.com"
                                FontSize="12"
                                FontWeight="SemiBold"
-                               Foreground="#92400E"
+                               Foreground="{DynamicResource WarningTextBrush}"
                                HorizontalAlignment="Center" />
                 </Border>
             </StackPanel>

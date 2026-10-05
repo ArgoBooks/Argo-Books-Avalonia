@@ -81,7 +81,7 @@
                                     <Border Grid.Column="0"
                                             Width="36" Height="36"
                                             CornerRadius="8"
-                                            Background="#EDE9FE"
+                                            Background="{DynamicResource PurpleLightBrush}"
                                             Margin="0,0,12,0"
                                             VerticalAlignment="Top">
                                         <PathIcon Data="{x:Static icons:Icons.Clock}"
@@ -165,12 +165,12 @@
                                     <Border Grid.Column="0"
                                             Width="36" Height="36"
                                             CornerRadius="8"
-                                            Background="#F0FDF4"
+                                            Background="{DynamicResource SuccessLightBrush}"
                                             Margin="0,0,12,0"
                                             VerticalAlignment="Top">
                                         <PathIcon Data="{x:Static icons:Icons.DocumentNotes}"
                                                   Width="18" Height="18"
-                                                  Foreground="#16A34A" />
+                                                  Foreground="{DynamicResource SuccessDarkBrush}" />
                                     </Border>
                                     <StackPanel Grid.Column="1" Spacing="4">
                                         <TextBlock Text="How Accuracy is Calculated"
@@ -198,7 +198,7 @@
                                             VerticalAlignment="Top">
                                         <PathIcon Data="{x:Static icons:Icons.CircleCheck}"
                                                   Width="18" Height="18"
-                                                  Foreground="#EF4444" />
+                                                  Foreground="{DynamicResource ErrorBrush}" />
                                     </Border>
                                     <StackPanel Grid.Column="1" Spacing="4">
                                         <TextBlock Text="Adaptive Learning"

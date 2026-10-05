@@ -93,7 +93,7 @@
                                     <TextBlock Text="{Binding NonAutoFixableCount}"
                                                FontSize="24"
                                                FontWeight="Bold"
-                                               Foreground="#EF4444"
+                                               Foreground="{DynamicResource ErrorBrush}"
                                                HorizontalAlignment="Center" />
                                 </StackPanel>
                             </Border>
@@ -264,13 +264,13 @@
                                                                                 IsVisible="{Binding IsAutoFixable}"
                                                                                 Background="#1A22C55E">
                                                                             <TextBlock Text="Auto-fix" FontSize="11" FontWeight="SemiBold"
-                                                                                       Foreground="#22C55E" />
+                                                                                       Foreground="{DynamicResource SuccessBrush}" />
                                                                         </Border>
                                                                         <Border CornerRadius="3" Padding="4,1" VerticalAlignment="Center"
                                                                                 IsVisible="{Binding !IsAutoFixable}"
                                                                                 Background="#1AEF4444">
                                                                             <TextBlock Text="Manual fix" FontSize="11" FontWeight="SemiBold"
-                                                                                       Foreground="#EF4444" />
+                                                                                       Foreground="{DynamicResource ErrorBrush}" />
                                                                         </Border>
                                                                         <TextBlock Text="{Binding Description}"
                                                                                    FontSize="12"

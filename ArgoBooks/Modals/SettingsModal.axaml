@@ -1751,7 +1751,7 @@
                                                  VerticalContentAlignment="Top"
                                                  IsEnabled="{Binding !IsSampleCompany}" />
 
-                                        <TextBlock Text="{Binding StripeIntegrationError}" Foreground="#dc2626" FontSize="12"
+                                        <TextBlock Text="{Binding StripeIntegrationError}" Foreground="{DynamicResource ErrorBrush}" FontSize="12"
                                                    TextWrapping="Wrap"
                                                    IsVisible="{Binding StripeIntegrationError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
 
@@ -2016,7 +2016,7 @@
                                         </StackPanel>
                                     </StackPanel>
 
-                                    <TextBlock Text="{Binding ArgoApiError}" Foreground="#dc2626" FontSize="12"
+                                    <TextBlock Text="{Binding ArgoApiError}" Foreground="{DynamicResource ErrorBrush}" FontSize="12"
                                                TextWrapping="Wrap"
                                                IsVisible="{Binding ArgoApiError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                 </StackPanel>
