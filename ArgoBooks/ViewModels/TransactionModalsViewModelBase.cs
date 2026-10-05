@@ -282,7 +282,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         string ItemText, string CategoryText);
 
     private sealed record EditState(
-        DateTimeOffset? Date, string? CounterpartyId, string? CategoryId, decimal TaxAmount, decimal Shipping,
+        DateTimeOffset? Date, string? CounterpartyId, string NewCounterpartyName, string? CategoryId, decimal TaxAmount, decimal Shipping,
         decimal Discount, decimal Fee, string PaymentMethod, string Notes, string? ReceiptPath,
         Helpers.EquatableArray<LineState> LineItems);
     // ReSharper restore NotAccessedPositionalProperty.Local
@@ -290,8 +290,12 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     // The form as it opened filled in from a record, for change detection. Null on a blank form.
     private EditState? _original;
 
+    // The box's text counts only with nothing picked. Picked, it is that record's own name, which
+    // the box fills in for itself some time after the form has loaded.
     private EditState Capture() => new(
-        ModalDate, SelectedCounterparty?.Id, SelectedCategory?.Id, ModalTaxAmount, ModalShipping,
+        ModalDate, SelectedCounterparty?.Id,
+        SelectedCounterparty == null ? CounterpartyText?.Trim() ?? string.Empty : string.Empty,
+        SelectedCategory?.Id, ModalTaxAmount, ModalShipping,
         ModalDiscount, ModalFee, SelectedPaymentMethod, ModalNotes, ReceiptFilePath,
         new Helpers.EquatableArray<LineState>(LineItems.Select(li => new LineState(
             li.SelectedProduct?.Id, li.SelectedCategory?.Id, li.Description, li.Quantity, li.UnitPrice,
@@ -302,6 +306,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     /// </summary>
     public bool HasEnteredData =>
         SelectedCounterparty != null ||
+        !string.IsNullOrWhiteSpace(CounterpartyText) ||
         SelectedCategory != null ||
         !string.IsNullOrWhiteSpace(ModalNotes) ||
         ModalTaxAmount > 0 ||
