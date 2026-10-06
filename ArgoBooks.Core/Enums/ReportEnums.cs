@@ -544,26 +544,4 @@ public static class ReportEnumExtensions
         ChartDataType.ProductRevenueTrend => "Products",
         _ => "Charts"
     };
-
-    /// <summary>
-    /// Returns an emoji icon representing the category of the chart data type.
-    /// </summary>
-    public static string GetChartIcon(this ChartDataType chartType)
-    {
-        var category = chartType.GetChartCategory();
-        return category switch
-        {
-            "Revenue" => "💰",
-            "Expenses" => "📉",
-            "Financial" => "📊",
-            "Transactions" => "📝",
-            "Geographic" => "🌍",
-            "Accountant" => "🧾",
-            "Customer" => "👥",
-            "Returns" => "↩️",
-            "Losses" => "⚠️",
-            "Taxes" => "🏛️",
-            _ => "📈"
-        };
-    }
 }
