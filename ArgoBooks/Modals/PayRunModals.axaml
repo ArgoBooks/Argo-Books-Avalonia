@@ -1,4 +1,4 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -57,17 +57,26 @@
                                 BorderBrush="{DynamicResource BorderBrush}"
                                 BorderThickness="0,0,0,1">
                             <StackPanel Orientation="Horizontal" Spacing="10">
-                                <TextBlock Text="{loc:Loc '1. Period'}" FontSize="14" Classes="step"
+                                <TextBlock FontSize="14" Classes="step"
                                            Classes.active="{Binding IsStep1}"
-                                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                                           Foreground="{DynamicResource TextPrimaryBrush}">
+                                    <Run Text="1. " />
+                                    <Run Text="{loc:Loc 'Period'}" />
+                                </TextBlock>
                                 <TextBlock Text="&#x203A;" Foreground="{DynamicResource TextTertiaryBrush}" />
-                                <TextBlock Text="{loc:Loc '2. Amounts'}" FontSize="14" Classes="step"
+                                <TextBlock FontSize="14" Classes="step"
                                            Classes.active="{Binding IsStep2}"
-                                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                                           Foreground="{DynamicResource TextPrimaryBrush}">
+                                    <Run Text="2. " />
+                                    <Run Text="{loc:Loc 'Amounts'}" />
+                                </TextBlock>
                                 <TextBlock Text="&#x203A;" Foreground="{DynamicResource TextTertiaryBrush}" />
-                                <TextBlock Text="{loc:Loc '3. Review'}" FontSize="14" Classes="step"
+                                <TextBlock FontSize="14" Classes="step"
                                            Classes.active="{Binding IsStep3}"
-                                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                                           Foreground="{DynamicResource TextPrimaryBrush}">
+                                    <Run Text="3. " />
+                                    <Run Text="{loc:Loc 'Review'}" />
+                                </TextBlock>
                             </StackPanel>
                         </Border>
 
