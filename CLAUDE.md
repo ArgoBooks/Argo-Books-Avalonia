@@ -6,6 +6,7 @@
 - **Do NOT amend commits or force push** unless explicitly told to. Always create new commits.
 - **Do NOT update the language files** in `tools/ArgoBooks.Translations/languages/`.
 - **Do NOT commit plan or spec markdown files** (e.g. anything under `docs/superpowers/`). These are local planning artifacts; keep them untracked.
+- **Explain things in plain language.** Say what happened in words that make sense on their own, without names from the code, file paths or terms that have to be looked up before the sentence means anything. Describe what a person does and what they see. Where a technical detail genuinely matters, say what it is in ordinary words first.
 - **Do NOT write comments that explain how the code used to behave.** A comment describes what the code does now and why it is this way. "used to", "previously", "the box cleared itself" and the rest of the bug's story belong in the commit message, which is where someone goes when they want the history.
 
 ## Project Overview
