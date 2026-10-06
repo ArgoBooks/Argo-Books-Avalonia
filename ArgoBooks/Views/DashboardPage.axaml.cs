@@ -508,17 +508,6 @@ public partial class DashboardPage : UserControl
         // Build popup content
         SettingsContent.Children.Clear();
 
-        // Header
-        var headerText = new TextBlock
-        {
-            Text = "Settings",
-            FontWeight = Avalonia.Media.FontWeight.SemiBold,
-            FontSize = 13
-        };
-        headerText.SetValue(TextBlock.ForegroundProperty, Application.Current?.FindResource("TextPrimaryBrush") as Avalonia.Media.IBrush ?? Avalonia.Media.Brushes.White);
-        SettingsContent.Children.Add(headerText);
-        SettingsContent.Children.Add(new Separator { Height = 1, Margin = new Thickness(0, 0, 0, 4) });
-
         // Widget-specific config content
         var configView = WidgetSettingsFactory.CreateConfigView(hostVm.WidgetViewModel);
         if (configView != null)

@@ -345,7 +345,14 @@
                 HorizontalAlignment="Left"
                 VerticalAlignment="Top"
                 BoxShadow="0 4 16 0 #30000000">
-            <StackPanel x:Name="SettingsContent" Spacing="8" MaxHeight="400" />
+            <StackPanel Spacing="8">
+                <TextBlock Text="{loc:Loc 'Settings'}"
+                           FontSize="13"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                <Separator Height="1" Margin="0,0,0,4" />
+                <StackPanel x:Name="SettingsContent" Spacing="8" MaxHeight="400" />
+            </StackPanel>
         </Border>
 
         <!-- Global Chart Context Menu (rendered on top of everything) -->
