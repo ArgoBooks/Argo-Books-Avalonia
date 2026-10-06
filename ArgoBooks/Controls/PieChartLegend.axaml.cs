@@ -140,7 +140,7 @@ public partial class PieChartLegend : UserControl
     /// The legend never takes more than this share of the row it shares with its pie, so a narrow
     /// card shrinks the legend (labels trim) instead of squeezing the pie down to a dot.
     /// </summary>
-    private const double MaxShareOfRow = 0.4;
+    private const double MaxShareOfRow = 0.45;
 
     private Control? _row;
 

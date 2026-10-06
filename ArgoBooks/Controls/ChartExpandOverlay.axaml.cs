@@ -1004,7 +1004,7 @@ public partial class ChartExpandOverlay : UserControl
             legend.IndicatorSize = 18;
             legend.IndicatorCornerRadius = new CornerRadius(9);
             legend.MaxHeightOverride = 600;
-            legend.Width = 340;
+            legend.Width = 440;
             legend.Margin = new Thickness(8, 0, 24, 0);
         }
 
