@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -1632,10 +1632,19 @@ public partial class App : Application
                 var message = args.ConvertedCount == 1
                     ? "1 pending transaction has been processed successfully.".Translate()
                     : string.Format("{0} pending transactions have been processed successfully.".Translate(), args.ConvertedCount);
+
+                // Said once, for the run that was actually waiting on the connection coming back.
+                var afterOutage = _pendingConversionsWaitedForNetwork;
+                _pendingConversionsWaitedForNetwork = false;
+
                 Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                 {
-                    // The sample converts its demo rows on every open; announcing that is noise.
-                    if (args.ConvertedCount > 0 && CompanyManager?.IsSampleCompany != true)
+                    // Announced only when the wait was worth announcing. A row can be pending simply
+                    // because its date's rate was not cached yet, which the next sweep settles within
+                    // seconds; telling someone they are "back online" when they never left reads as
+                    // though something had gone wrong. The sample converts its demo rows on every
+                    // open, which is noise either way.
+                    if (afterOutage && args.ConvertedCount > 0 && CompanyManager?.IsSampleCompany != true)
                     {
                         AddNotification(
                             "Back Online".Translate(),
@@ -2425,6 +2434,85 @@ public partial class App : Application
     /// Starts a periodic timer that checks for pending conversions and processes them
     /// when connectivity is restored. Runs every 15 seconds.
     /// </summary>
+
+    /// <summary>
+    /// Fetches the exact-date rate for every date given, before any rows are written, behind a
+    /// cancelable progress overlay, and offers to retry when the rates cannot be reached.
+    ///
+    /// Every record stores a USD equivalent, so a company whose currency is not USD needs a rate
+    /// for each transaction's own date. A row written without one lands pending and its amounts
+    /// fill in on a later pass, which reads as though something went wrong. Both importers come
+    /// through here so they wait the same way and give up the same way.
+    ///
+    /// Returns false when the user backed out, in which case nothing should be imported.
+    /// </summary>
+    public static async Task<bool> EnsureImportRatesAsync(List<DateTime> dates, string abandonContext)
+    {
+        if (dates.Count == 0 || ExchangeRateService.Instance is not { } exchangeRates)
+            return true;
+
+        var readinessSvc = new RateReadinessService(exchangeRates, new ConnectivityService(), ErrorLogger);
+
+        // Fetching the exact-date rate for every transaction date can take seconds to minutes, and
+        // it runs before any rows are inserted. Show it as an explicit, cancelable phase with a
+        // determinate progress bar so the import doesn't look frozen.
+        using var rateCts = new CancellationTokenSource();
+        _mainWindowViewModel?.ShowLoading("Fetching exchange rates...".Translate(), null, 0, rateCts, ConfirmCancelAsync);
+        var rateProgress = new Progress<int>(pct => _mainWindowViewModel?.UpdateLoadingProgress(pct));
+
+        while (true)
+        {
+            RateReadiness readiness;
+            try
+            {
+                readiness = await readinessSvc.EnsureRatesAsync(dates, rateProgress, rateCts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                _mainWindowViewModel?.HideLoading();
+                _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportAbandoned, abandonContext + ":rate-fetch");
+                return false; // user canceled while fetching rates
+            }
+            catch (Exception ex)
+            {
+                ErrorLogger?.LogError(ex, ErrorCategory.Import, "Rate readiness check failed");
+                readiness = new RateReadiness(RateReadinessStatus.Unavailable, RateUnavailableReason.Unknown, []);
+            }
+
+            if (readiness.Status == RateReadinessStatus.Ready)
+            {
+                if (readiness.FutureDatesDeferred.Count > 0)
+                    ErrorLogger?.LogWarning(
+                        $"{readiness.FutureDatesDeferred.Count} future-dated rows will import as pending (no rate yet).",
+                        "Import");
+                break;
+            }
+
+            // Pause the progress overlay while the connect-and-retry prompt is up, then restore it.
+            _mainWindowViewModel?.HideLoading();
+            if (_appShellViewModel is not { } shell)
+            {
+                // No shell means nothing can ask whether to retry, and importing without the rates
+                // is the outcome this exists to prevent.
+                ErrorLogger?.LogWarning("Rates unavailable with no shell to offer a retry.", "Import");
+                return false;
+            }
+            var choice = await shell.RateUnavailableDialogViewModel.ShowAsync(readiness.Reason);
+            if (choice == RateRetryResult.Cancel)
+            {
+                _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportAbandoned, abandonContext + ":rates-unavailable");
+                return false; // abort: nothing imported
+            }
+            _mainWindowViewModel?.ShowLoading("Fetching exchange rates...".Translate(), null, 0, rateCts, ConfirmCancelAsync);
+        }
+
+        _mainWindowViewModel?.HideLoading();
+        return true;
+    }
+
+    /// <summary>True once a pending sweep has been turned away for having no connection.</summary>
+    private static bool _pendingConversionsWaitedForNetwork;
+
     private static void StartPendingConversionTimer()
     {
         // Dispose any existing timer
@@ -2457,7 +2545,12 @@ public partial class App : Application
             var connectivityService = new ConnectivityService();
             var isOnline = await connectivityService.IsInternetAvailableAsync();
             if (!isOnline)
+            {
+                // Remembered so the sweep that finally succeeds knows it followed an outage and can
+                // say so. Cleared by that sweep.
+                _pendingConversionsWaitedForNetwork = true;
                 return;
+            }
 
             await PendingConversionService.ProcessPendingConversionsAsync(CompanyManager.CompanyData);
         }
@@ -3076,58 +3169,11 @@ public partial class App : Application
                         .Concat(importOptions.SymbolResolution.Values)
                         .Append(companyData.Settings.Localization.Currency)
                         .Any(c => !string.IsNullOrEmpty(c) && !string.Equals(c, "USD", StringComparison.OrdinalIgnoreCase));
-                if (hasNonUsd && ExchangeRateService.Instance is { } exchangeRates)
+                if (hasNonUsd)
                 {
                     var importDates = importService.CollectTransactionDates(filePath, updatedAnalysis);
-                    var readinessSvc = new RateReadinessService(exchangeRates, new ConnectivityService(), ErrorLogger);
-
-                    // Fetching the exact-date rate for every transaction date can take seconds to
-                    // minutes, and it runs before any rows are inserted. Show it as an explicit,
-                    // cancelable phase with a determinate progress bar so the import doesn't look frozen.
-                    using var rateCts = new CancellationTokenSource();
-                    _mainWindowViewModel?.ShowLoading("Fetching exchange rates...".Translate(), null, 0, rateCts, ConfirmCancelAsync);
-                    var rateProgress = new Progress<int>(pct => _mainWindowViewModel?.UpdateLoadingProgress(pct));
-
-                    while (true)
-                    {
-                        RateReadiness readiness;
-                        try
-                        {
-                            readiness = await readinessSvc.EnsureRatesAsync(importDates, rateProgress, rateCts.Token);
-                        }
-                        catch (OperationCanceledException)
-                        {
-                            _mainWindowViewModel?.HideLoading();
-                            _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportAbandoned, "rate-fetch");
-                            return; // user canceled while fetching rates
-                        }
-                        catch (Exception ex)
-                        {
-                            ErrorLogger?.LogError(ex, ErrorCategory.Import, "Rate readiness check failed");
-                            readiness = new RateReadiness(RateReadinessStatus.Unavailable, RateUnavailableReason.Unknown, []);
-                        }
-
-                        if (readiness.Status == RateReadinessStatus.Ready)
-                        {
-                            if (readiness.FutureDatesDeferred.Count > 0)
-                                ErrorLogger?.LogWarning(
-                                    $"{readiness.FutureDatesDeferred.Count} future-dated rows will import as pending (no rate yet).",
-                                    "Import");
-                            break;
-                        }
-
-                        // Pause the progress overlay while the connect-and-retry prompt is up, then restore it.
-                        _mainWindowViewModel?.HideLoading();
-                        var choice = await _appShellViewModel.RateUnavailableDialogViewModel.ShowAsync(readiness.Reason);
-                        if (choice == RateRetryResult.Cancel)
-                        {
-                            _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportAbandoned, "rates-unavailable");
-                            return; // abort: nothing imported
-                        }
-                        _mainWindowViewModel?.ShowLoading("Fetching exchange rates...".Translate(), null, 0, rateCts, ConfirmCancelAsync);
-                    }
-
-                    _mainWindowViewModel?.HideLoading();
+                    if (!await EnsureImportRatesAsync(importDates, "spreadsheet"))
+                        return;
                 }
             }
             catch (Exception ex)

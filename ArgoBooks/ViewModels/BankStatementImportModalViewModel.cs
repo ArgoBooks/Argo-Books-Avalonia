@@ -216,6 +216,17 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
                 return;
         }
 
+        // Every record stores a USD equivalent, so rows go in pending unless the rate for their own
+        // date is already cached, and a statement is mostly dates the cache has never seen. Fetched
+        // here, with the same overlay the spreadsheet import uses, rather than left to fill in a
+        // minute later under a status nothing explains.
+        var companyCurrency = data.Settings.Localization.Currency;
+        if (!string.Equals(companyCurrency, "USD", StringComparison.OrdinalIgnoreCase)
+            && !await App.EnsureImportRatesAsync(toImport.Select(r => r.Date.Date).Distinct().ToList(), "bank"))
+        {
+            return;
+        }
+
         // Past every gate, so this is the last moment the books look the way they did before.
         await App.BackUpBeforeRiskyChangeAsync();
 
