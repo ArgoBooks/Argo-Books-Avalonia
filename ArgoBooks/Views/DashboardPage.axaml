@@ -173,49 +173,51 @@
                 <Border Classes="card"
                         Padding="12,8"
                         IsVisible="{Binding LayoutViewModel.IsEditMode}">
-                    <StackPanel Spacing="6">
-                        <Grid ColumnDefinitions="Auto,*,Auto">
-                            <!-- Left: Add Widget and Reset -->
-                            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
-                                <Button Classes="edit-toolbar-btn"
-                                        Command="{Binding LayoutViewModel.OpenCatalogCommand}">
-                                    <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <TextBlock Text="+" FontSize="14" FontWeight="Bold" VerticalAlignment="Center" />
-                                        <TextBlock Text="{loc:Loc 'Add Widget'}" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </Button>
-                                <Button Classes="edit-toolbar-btn"
-                                        Command="{Binding LayoutViewModel.ResetToDefaultCommand}">
-                                    <TextBlock Text="{loc:Loc 'Reset to Default'}" />
-                                </Button>
-                            </StackPanel>
+                    <Grid x:Name="EditToolbar" RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,*,Auto">
+                        <!-- Left: Add Widget and Reset -->
+                        <StackPanel x:Name="EditToolbarLeft" Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Spacing="8">
+                            <Button Classes="edit-toolbar-btn"
+                                    Command="{Binding LayoutViewModel.OpenCatalogCommand}">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <TextBlock Text="+" FontSize="14" FontWeight="Bold" VerticalAlignment="Center" />
+                                    <TextBlock Text="{loc:Loc 'Add Widget'}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                            <Button Classes="edit-toolbar-btn"
+                                    Command="{Binding LayoutViewModel.ResetToDefaultCommand}">
+                                <TextBlock Text="{loc:Loc 'Reset to Default'}" />
+                            </Button>
+                        </StackPanel>
 
-                            <!-- Right: Cancel and Save -->
-                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8"
-                                        VerticalAlignment="Center">
-                                <Button Classes="edit-toolbar-btn"
-                                        Command="{Binding LayoutViewModel.CancelEditCommand}">
-                                    <TextBlock Text="{loc:Loc Cancel}" />
-                                </Button>
-                                <Button Classes="edit-toolbar-btn primary"
-                                        Command="{Binding LayoutViewModel.SaveEditCommand}">
-                                    <TextBlock Text="{loc:Loc Save}" />
-                                </Button>
-                            </StackPanel>
-                        </Grid>
+                        <!-- Right: Cancel and Save -->
+                        <StackPanel x:Name="EditToolbarRight" Grid.Row="0" Grid.Column="2" Orientation="Horizontal" Spacing="8"
+                                    VerticalAlignment="Center">
+                            <Button Classes="edit-toolbar-btn"
+                                    Command="{Binding LayoutViewModel.CancelEditCommand}">
+                                <TextBlock Text="{loc:Loc Cancel}" />
+                            </Button>
+                            <Button Classes="edit-toolbar-btn primary"
+                                    Command="{Binding LayoutViewModel.SaveEditCommand}">
+                                <TextBlock Text="{loc:Loc Save}" />
+                            </Button>
+                        </StackPanel>
 
-                        <!-- Sample company warning -->
-                        <Border IsVisible="{Binding IsSampleCompany}"
+                        <!-- The code-behind lifts this into the button row whenever that row is wide enough for it. -->
+                        <Border x:Name="SampleCompanyNotice"
+                                Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3"
+                                IsVisible="{Binding IsSampleCompany}"
                                 Background="{DynamicResource WarningLightBrush}"
                                 CornerRadius="6"
                                 Padding="10,6"
-                                HorizontalAlignment="Center">
+                                Margin="0,6,0,0"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center">
                             <TextBlock Text="{loc:Loc 'This is a sample company. Dashboard changes will not persist.'}"
                                        FontSize="13"
                                        FontWeight="SemiBold"
                                        Foreground="{DynamicResource WarningTextBrush}" />
                         </Border>
-                    </StackPanel>
+                    </Grid>
                 </Border>
 
                 <!-- Date Range Message. Negative top margin tightens the 24px StackPanel spacing so the

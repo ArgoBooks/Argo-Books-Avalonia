@@ -48,6 +48,25 @@ public partial class DashboardPage : UserControl
 
         // Subscribe to ViewModel events when DataContext changes
         DataContextChanged += OnDataContextChanged;
+
+        EditToolbar.SizeChanged += (_, _) => PlaceSampleCompanyNotice();
+    }
+
+    /// <summary>
+    /// Puts the sample company notice in the same row as the edit mode buttons while that row is
+    /// wide enough to hold all three, and below them when it is not.
+    /// </summary>
+    private void PlaceSampleCompanyNotice()
+    {
+        // The notice does not wrap, so its desired width is the width it needs on one line.
+        var needed = EditToolbarLeft.Bounds.Width + EditToolbarRight.Bounds.Width
+                     + SampleCompanyNotice.DesiredSize.Width + 32;
+        var inline = EditToolbar.Bounds.Width >= needed;
+
+        Grid.SetRow(SampleCompanyNotice, inline ? 0 : 1);
+        Grid.SetColumn(SampleCompanyNotice, inline ? 1 : 0);
+        Grid.SetColumnSpan(SampleCompanyNotice, inline ? 1 : 3);
+        SampleCompanyNotice.Margin = inline ? new Thickness(8, 0, 8, 0) : new Thickness(0, 6, 0, 0);
     }
 
     private void OnDataContextChanged(object? sender, EventArgs e)
