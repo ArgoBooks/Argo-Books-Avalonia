@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using ArgoBooks.Core.Models.Dashboard;
 using ArgoBooks.Services;
+using ArgoBooks.Utilities;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -28,6 +29,30 @@ public partial class WidgetCatalogViewModel : ObservableObject
     public ObservableCollection<CatalogItem> Tables { get; } = [];
     public ObservableCollection<CatalogItem> Other { get; } = [];
 
+    /// <summary>Every chart there is, which <see cref="Charts"/> is the searched view of.</summary>
+    private readonly List<CatalogItem> _allCharts = [];
+
+    [ObservableProperty]
+    private string _chartSearch = string.Empty;
+
+    /// <summary>Whether a search has been typed that nothing answers.</summary>
+    public bool NoChartMatches => Charts.Count == 0 && !string.IsNullOrWhiteSpace(ChartSearch);
+
+    partial void OnChartSearchChanged(string value) => ApplyChartSearch();
+
+    private void ApplyChartSearch()
+    {
+        Charts.Clear();
+        var matches = _allCharts.RankBySearch(ChartSearch, c => [c.Definition.Name, c.Definition.Description]);
+        foreach (var item in matches)
+            Charts.Add(item);
+
+        OnPropertyChanged(nameof(NoChartMatches));
+    }
+
+    [RelayCommand]
+    private void ClearChartSearch() => ChartSearch = string.Empty;
+
     public event EventHandler<WidgetDefinition>? WidgetAddRequested;
 
     private static readonly HashSet<string> StatCardCategories = ["Statistics"];
@@ -36,7 +61,10 @@ public partial class WidgetCatalogViewModel : ObservableObject
 
     public void Refresh(IEnumerable<WidgetHostViewModel> currentWidgets, double remainingFraction = 1.0)
     {
+        // Cleared first, so the list the search runs over is the one this refresh builds.
+        ChartSearch = string.Empty;
         StatCards.Clear();
+        _allCharts.Clear();
         Charts.Clear();
         Tables.Clear();
         Other.Clear();
@@ -60,15 +88,17 @@ public partial class WidgetCatalogViewModel : ObservableObject
             if (StatCardCategories.Contains(d.Category))
                 StatCards.Add(item);
             else if (ChartCategories.Contains(d.Category))
-                Charts.Add(item);
+                _allCharts.Add(item);
             else if (OtherCategories.Contains(d.Category))
                 Other.Add(item);
             else
                 Tables.Add(item);
         }
 
+        ApplyChartSearch();
+
         // Show banner when every available (not-already-added) widget is too large
-        var allItems = StatCards.Concat(Charts).Concat(Tables).Concat(Other);
+        var allItems = StatCards.Concat(_allCharts).Concat(Tables).Concat(Other);
         IsRowFull = allItems.Where(i => !i.IsAlreadyAdded).All(i => i.CannotFitInRow);
     }
 
