@@ -399,6 +399,7 @@
                                                Margin="0,8,0,4" />
                                     <Grid Grid.Row="1" ColumnDefinitions="*,Auto">
                                         <lvc:PieChart Grid.Column="0"
+                                                      Tag="{x:Static enums:ChartDataType.CompaniesOfOrigin}"
                                                       PointerPressed="OnChartPointerPressed"
                                                     PointerReleased="OnChartPointerReleased"
                                                       Series="{Binding CompaniesOfOriginSeries}"
