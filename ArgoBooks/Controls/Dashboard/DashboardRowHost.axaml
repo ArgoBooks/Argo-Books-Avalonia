@@ -13,7 +13,10 @@
             <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="8" />
-            <Setter Property="Padding" Value="8" />
+        </Style>
+        <!-- The widgets move in so the row's box is drawn around them and crosses no widget edge. -->
+        <Style Selector="dashboard|DashboardRowPanel.editing">
+            <Setter Property="Margin" Value="8" />
         </Style>
         <Style Selector="Button.row-action-btn">
             <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
@@ -33,7 +36,8 @@
     </UserControl.Styles>
 
     <Grid ClipToBounds="False">
-        <dashboard:DashboardRowPanel x:Name="RowPanel" Spacing="0" />
+        <dashboard:DashboardRowPanel x:Name="RowPanel" Spacing="0"
+                                     Classes.editing="{Binding IsEditMode}" />
 
         <Border Classes.row-container-editing="{Binding IsEditMode}"
                 IsHitTestVisible="False"

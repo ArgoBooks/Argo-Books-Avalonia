@@ -7,13 +7,6 @@
              x:DataType="vm:WidgetHostViewModel">
 
     <UserControl.Styles>
-        <!-- Edit mode indicator, adds accent border around the widget -->
-        <Style Selector="Border.editing">
-            <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}" />
-            <Setter Property="BorderThickness" Value="2" />
-            <Setter Property="CornerRadius" Value="12" />
-            <Setter Property="Padding" Value="0" />
-        </Style>
         <!-- Overlay buttons -->
         <Style Selector="Button.widget-overlay-btn">
             <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
@@ -38,8 +31,14 @@
 
     <Panel IsVisible="{Binding WidgetViewModel.IsWidgetVisible}">
         <!-- Widget content, each widget provides its own card styling -->
-        <Border x:Name="WidgetContent"
-                Classes.editing="{Binding IsEditMode}" />
+        <Border x:Name="WidgetContent" />
+
+        <!-- Sits on the card's own edge, so the accent replaces that border rather than ringing it. -->
+        <Border IsVisible="{Binding IsEditMode}"
+                BorderBrush="{DynamicResource PrimaryBrush}"
+                BorderThickness="2"
+                CornerRadius="12"
+                IsHitTestVisible="False" />
 
         <!-- Edit mode overlay controls -->
         <StackPanel x:Name="EditOverlay"
