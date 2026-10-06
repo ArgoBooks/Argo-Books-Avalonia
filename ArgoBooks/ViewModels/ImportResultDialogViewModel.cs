@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Text;
 using ArgoBooks.Core.Services;
 using ArgoBooks.Localization;
@@ -26,10 +26,13 @@ public class SheetResultItem
         get
         {
             var parts = new List<string>();
-            if (Inserted > 0) parts.Add($"{Inserted:N0} {"new".Translate()}");
-            if (Updated > 0) parts.Add($"{Updated:N0} {"updated".Translate()}");
-            if (Imported > 0) parts.Add($"{Imported:N0} {"imported".Translate()}");
-            if (Skipped > 0) parts.Add($"{Skipped:N0} {"skipped".Translate()}");
+            // Whole phrases, not a number glued to a word. A language that puts the count after
+            // the noun cannot be served by the latter, and a bare word collides with the tile
+            // heading above, which is the same word with a capital.
+            if (Inserted > 0) parts.Add("{0} new".TranslateFormat(Inserted.ToString("N0")));
+            if (Updated > 0) parts.Add("{0} updated".TranslateFormat(Updated.ToString("N0")));
+            if (Imported > 0) parts.Add("{0} imported".TranslateFormat(Imported.ToString("N0")));
+            if (Skipped > 0) parts.Add("{0} skipped".TranslateFormat(Skipped.ToString("N0")));
             return string.Join(", ", parts);
         }
     }
