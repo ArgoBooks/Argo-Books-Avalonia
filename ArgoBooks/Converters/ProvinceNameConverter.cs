@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using ArgoBooks.Localization;
 using Avalonia.Data.Converters;
 
@@ -46,7 +46,10 @@ public class ProvinceNameConverter : IValueConverter
 
         // Translate falls back to the input when there is no entry, so an untranslated province
         // name still reads correctly rather than coming out blank.
-        return (Names.TryGetValue(code, out string? name) ? name : code).Translate();
+        // Only the name is translated. A code this list does not hold is a region outside Canada,
+        // and a two-letter code is a word in its own right to a translator: OK comes back as the
+        // Russian for "okay", ME as "I", IN as "in". It is shown as it was given.
+        return Names.TryGetValue(code, out string? name) ? name.Translate() : code;
     }
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
