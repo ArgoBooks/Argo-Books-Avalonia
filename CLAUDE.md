@@ -7,7 +7,7 @@
 - **Do NOT update the language files** in `tools/ArgoBooks.Translations/languages/`.
 - **Do NOT commit plan or spec markdown files** (e.g. anything under `docs/superpowers/`). These are local planning artifacts; keep them untracked.
 - **Explain things in plain language.** Say what happened in words that make sense on their own, without names from the code, file paths or terms that have to be looked up before the sentence means anything. Describe what a person does and what they see. Where a technical detail genuinely matters, say what it is in ordinary words first.
-- **Do NOT write comments that explain how the code used to behave.** A comment describes what the code does now and why it is this way. "used to", "previously", "the box cleared itself" and the rest of the bug's story belong in the commit message, which is where someone goes when they want the history.
+- **Write a comment only for the reason something is done, and only when that reason is not obvious.** One line. Three to five line comments are not allowed. Write it in the present tense, in plain language and in full sentences, for somebody who knows C# but has never opened this file. A comment that compresses the reasoning into framework vocabulary is a note to yourself rather than an explanation to a reader. Say what the code does and why it is this way, never what the code used to do and never what not to do. "used to", "previously" and the rest of a bug's story belong in the commit message, which is where someone goes for history.
 
 ## Project Overview
 
