@@ -1,4 +1,4 @@
-namespace ArgoBooks.Core.Services.Integrations;
+﻿namespace ArgoBooks.Core.Services.Integrations;
 
 /// <summary>
 /// Wire types for the Argo Books public API (/v1).
@@ -25,7 +25,7 @@ public static class ArgoMoney
 
     /// <summary>Convert an amount to the currency's smallest unit, the form Stripe states amounts in.</summary>
     public static long ToMinorUnits(decimal amount, string? currency)
-        => (long)Math.Round(ZeroDecimal.Contains(currency ?? "USD") ? amount : amount * 100m);
+        => (long)Math.Round(ZeroDecimal.Contains(currency ?? "USD") ? amount : amount * 100m, MidpointRounding.AwayFromZero);
 }
 
 /// <summary>Import lifecycle reported alongside every object.</summary>

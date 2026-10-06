@@ -1,4 +1,4 @@
-using ArgoBooks.Data;
+﻿using ArgoBooks.Data;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
 using System.Collections.ObjectModel;
@@ -2268,7 +2268,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
                 Discount = li.Discount
             }).ToList(),
             Quantity = totalQuantity,
-            UnitPrice = totalQuantity > 0 ? Math.Round(invoice.Subtotal / totalQuantity, 2) : 0,
+            UnitPrice = totalQuantity > 0 ? Math.Round(invoice.Subtotal / totalQuantity, 2, MidpointRounding.AwayFromZero) : 0,
             Subtotal = invoice.Subtotal,
             Amount = invoice.Subtotal,
             TaxRate = invoice.TaxRate,

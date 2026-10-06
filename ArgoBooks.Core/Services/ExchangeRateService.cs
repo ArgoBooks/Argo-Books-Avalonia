@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Globalization;
 using System.Net.Http.Json;
 
@@ -182,7 +182,7 @@ public class ExchangeRateService
             return false;
         }
 
-        result = Math.Round(amount * rate, CurrencyInfo.GetByCode(to).DecimalPlaces);
+        result = Math.Round(amount * rate, CurrencyInfo.GetByCode(to).DecimalPlaces, MidpointRounding.AwayFromZero);
         return true;
     }
 

@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Models.Transactions;
@@ -597,7 +597,7 @@ public partial class RefundModalViewModel : ObservableObject
                 CustomerName: CustomerDisplay,
                 Provider: primaryPayment.Provider.ToLowerInvariant(),
                 ProviderPaymentId: primaryPayment.ProviderPaymentId,
-                AmountCents: (long)Math.Round(RefundTotal * 100, 0),
+                AmountCents: (long)Math.Round(RefundTotal * 100, 0, MidpointRounding.AwayFromZero),
                 Currency: Currency,
                 LineItems: RefundedRows().Select(r => (object)new {
                     label = r.Label,

@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using ArgoBooks.Controls;
 using ArgoBooks.Controls.ColumnWidths;
 using ArgoBooks.Core.Data;
@@ -871,7 +871,7 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
                 continue;
             fees += p.ProcessingFee;
             if (invoice.TotalUSD > 0 && invoice.Total > 0)
-                feesUSD += Math.Round(p.ProcessingFee * (invoice.TotalUSD / invoice.Total), 2);
+                feesUSD += Math.Round(p.ProcessingFee * (invoice.TotalUSD / invoice.Total), 2, MidpointRounding.AwayFromZero);
             else
                 feesUSD += p.ProcessingFee;
         }

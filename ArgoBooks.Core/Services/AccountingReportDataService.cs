@@ -1,4 +1,4 @@
-using ArgoBooks.Core.Data;
+﻿using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Models.Reports;
@@ -163,7 +163,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
                 balanceUSD = Math.Max(0m, invoice.EffectiveTotalUSD - paidByEnd.Sum(p => p.EffectiveAmountUSD));
             }
 
-            if (Math.Round(balanceUSD, 2) > 0)
+            if (Math.Round(balanceUSD, 2, MidpointRounding.AwayFromZero) > 0)
                 receivables.Add((invoice, balanceUSD));
         }
         return receivables;

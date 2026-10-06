@@ -1,4 +1,4 @@
-using ArgoBooks.Core.Data;
+﻿using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Models.Reports;
 
 namespace ArgoBooks.Core.Services;
@@ -50,7 +50,7 @@ public static class ProductSalesService
                 Sku = product?.Sku ?? string.Empty,
                 UnitsSold = qty,
                 RevenueUSD = revenue,
-                AvgSalePriceUSD = qty != 0 ? Math.Round(revenue / qty, 2) : 0
+                AvgSalePriceUSD = qty != 0 ? Math.Round(revenue / qty, 2, MidpointRounding.AwayFromZero) : 0
             });
         }
 

@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
 using ArgoBooks.Core.Data;
@@ -683,7 +683,7 @@ public partial class InvoiceHtmlRenderer
         if (amount <= 0) return 0m;
         const decimal percent = 2.90m;
         const decimal fixedFee = 0.30m;
-        return Math.Round(amount * percent / 100m + fixedFee, 2);
+        return Math.Round(amount * percent / 100m + fixedFee, 2, MidpointRounding.AwayFromZero);
     }
 
     /// <summary>

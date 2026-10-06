@@ -1,5 +1,4 @@
-
-namespace ArgoBooks.Core.Models.Common;
+﻿namespace ArgoBooks.Core.Models.Common;
 
 /// <summary>
 /// Represents a line item in a transaction (revenue, invoice, expense order, etc.).
@@ -100,19 +99,19 @@ public class LineItem
     /// turning the line, and everything summed from it, negative.
     /// </summary>
     public static decimal SubtotalOf(decimal quantity, decimal unitPrice, decimal discount) =>
-        Math.Round(Math.Max(0, (quantity * unitPrice) - discount), 2);
+        Math.Round(Math.Max(0, (quantity * unitPrice) - discount), 2, MidpointRounding.AwayFromZero);
 
     /// <summary>
     /// Calculated tax amount.
     /// </summary>
     [JsonIgnore]
-    public decimal TaxAmount => Math.Round(Subtotal * TaxRate, 2);
+    public decimal TaxAmount => Math.Round(Subtotal * TaxRate, 2, MidpointRounding.AwayFromZero);
 
     /// <summary>
     /// Calculated total amount including tax.
     /// </summary>
     [JsonIgnore]
-    public decimal Amount => Math.Round(Subtotal + TaxAmount, 2);
+    public decimal Amount => Math.Round(Subtotal + TaxAmount, 2, MidpointRounding.AwayFromZero);
 
     /// <summary>A copy with every field, including what stock the line took.</summary>
     public LineItem Clone() => (LineItem)MemberwiseClone();
