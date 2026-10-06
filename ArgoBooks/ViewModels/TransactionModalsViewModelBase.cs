@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Common;
@@ -279,7 +279,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     // ReSharper disable NotAccessedPositionalProperty.Local
     private sealed record LineState(
         string? ProductId, string? CategoryId, string Description, decimal? Quantity, decimal? UnitPrice,
-        string ItemText, string CategoryText);
+        string ItemText, string CategoryText, string? LocationId);
 
     private sealed record EditState(
         DateTimeOffset? Date, string? CounterpartyId, string NewCounterpartyName, string? CategoryId, decimal TaxAmount, decimal Shipping,
@@ -299,7 +299,8 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         ModalDiscount, ModalFee, SelectedPaymentMethod, ModalNotes, ReceiptFilePath,
         new Helpers.EquatableArray<LineState>(LineItems.Select(li => new LineState(
             li.SelectedProduct?.Id, li.SelectedCategory?.Id, li.Description, li.Quantity, li.UnitPrice,
-            li.ItemText?.Trim() ?? string.Empty, li.CategoryText?.Trim() ?? string.Empty))));
+            li.ItemText?.Trim() ?? string.Empty, li.CategoryText?.Trim() ?? string.Empty,
+            li.SelectedLocation?.Id))));
 
     /// <summary>
     /// Returns true if any data has been entered in the Add modal.

@@ -1,4 +1,4 @@
-using ArgoBooks.Localization;
+﻿using ArgoBooks.Localization;
 using ArgoBooks.Services;
 using System.Collections.ObjectModel;
 using ArgoBooks.Core.Data;
@@ -103,12 +103,12 @@ public partial class PaymentModalsViewModel : ViewModelBase
     /// </summary>
     private Payment? _editingPayment;
 
-    private sealed record EditState(string? InvoiceId, string Amount, string PaymentMethod, string ReferenceNumber, string Notes);
+    private sealed record EditState(string? InvoiceId, DateTimeOffset? Date, string Amount, string PaymentMethod, string ReferenceNumber, string Notes);
 
     // The form as the edit modal opened, for change detection.
     private EditState? _original;
 
-    private EditState Capture() => new(ModalInvoiceId, ModalAmount, ModalPaymentMethod, ModalReferenceNumber, ModalNotes);
+    private EditState Capture() => new(ModalInvoiceId, ModalDate, ModalAmount, ModalPaymentMethod, ModalReferenceNumber, ModalNotes);
 
     /// <summary>
     /// Returns true if any data has been entered in the Add modal.

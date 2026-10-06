@@ -218,7 +218,7 @@ public partial class CustomerModalsViewModel : ViewModelBase
     private sealed record EditState(
         string Id, string FirstName, string LastName, string CompanyName, string Email, string Phone,
         string StreetAddress, string City, string StateProvince, string PostalCode, string Country, string Notes,
-        bool AvatarChanged);
+        string Status, bool AvatarChanged);
 
     // The form as the edit modal opened, for change detection.
     private EditState? _original;
@@ -226,7 +226,7 @@ public partial class CustomerModalsViewModel : ViewModelBase
     private EditState Capture() => new(
         ModalId.Trim(), ModalFirstName, ModalLastName, ModalCompanyName, ModalEmail, ModalPhone,
         ModalStreetAddress, ModalCity, ModalStateProvince, ModalPostalCode, ModalCountry, ModalNotes,
-        _pendingAvatarSourcePath != null || _shouldRemoveAvatarOnSave);
+        ModalStatus, _pendingAvatarSourcePath != null || _shouldRemoveAvatarOnSave);
 
     /// <summary>
     /// Returns true if any data has been entered in the Add modal.
