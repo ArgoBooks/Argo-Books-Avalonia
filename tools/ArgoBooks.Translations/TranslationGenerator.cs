@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using ArgoBooks.Data;
@@ -171,6 +171,7 @@ public partial class TranslationGenerator
         var csFiles = Directory.GetFiles(sourceDirectory, "*.cs", SearchOption.AllDirectories);
         foreach (var file in csFiles)
         {
+            if (DataOnlyFiles.Contains(Path.GetFileName(file))) continue;
             CollectFromCsFile(file, strings);
         }
 
@@ -182,6 +183,7 @@ public partial class TranslationGenerator
             var coreFiles = Directory.GetFiles(coreDirectory, "*.cs", SearchOption.AllDirectories);
             foreach (var file in coreFiles)
             {
+                if (DataOnlyFiles.Contains(Path.GetFileName(file))) continue;
                 CollectFromCsFile(file, strings);
             }
         }
@@ -442,6 +444,19 @@ public partial class TranslationGenerator
         if (LooksLikeCodeIdentifier(text))
             return;
 
+        // Skip a short run of capitals, which is a code rather than a label: province and country
+        // codes, currency codes and the payroll ones are all picked out of data tables by the
+        // blanket patterns above. Handing them to a translator turns them into words, so BC comes
+        // back as the Russian for "Before Christ" and SIN as the word sin. The few that really are
+        // labels are named below.
+        if (IsShortCode(text))
+            return;
+
+        // Skip text with no letters in it: a bare number or a percentage band read out of a data
+        // table. There is nothing in it for a translator to translate.
+        if (!text.Any(char.IsLetter))
+            return;
+
         // Display strings start with an uppercase letter or a digit. Skip lowercase-leading
         // strings, those are usually internal parsing tokens (e.g., the "this month" /
         // "last 30 days" arms in ReportConfiguration's case-insensitive switch).
@@ -450,6 +465,36 @@ public partial class TranslationGenerator
 
         AddString(strings, text);
     }
+
+    /// <summary>
+    /// Files that hold data rather than labels. Nothing in them is ever handed to the translator,
+    /// so every string the blanket patterns find in them is dead weight in all 54 files: a demo
+    /// company's street addresses, the aged receivables column headings, which the report renderer
+    /// draws exactly as given, and the box labels on the T4 and record of employment, which are
+    /// printed on a government form and have to stay as the form has them.
+    /// </summary>
+    private static readonly HashSet<string> DataOnlyFiles = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "SampleCompanyService.cs",
+        "AccountingReportDataService.cs",
+        "T4PdfRenderer.cs",
+        "RoePdfRenderer.cs",
+    };
+
+    /// <summary>The short runs of capitals that really are shown to people.</summary>
+    private static readonly HashSet<string> CodeShapedLabels =
+        new(StringComparer.Ordinal) { "OK", "ID", "AI", "SKU", "PDF", "CSV", "HST", "GST", "PST", "QST", "VAT" };
+
+    /// <summary>
+    /// Returns true for a short run of capitals with no lowercase in it, which in this codebase is
+    /// a code rather than something anyone reads: AB, QC, JPY, CPP, SIN. The handful that are real
+    /// labels are listed in <see cref="CodeShapedLabels"/>.
+    /// </summary>
+    private static bool IsShortCode(string text) =>
+        text.Length <= 5
+        && text.Any(char.IsLetter)
+        && text.All(c => char.IsUpper(c) || char.IsDigit(c))
+        && !CodeShapedLabels.Contains(text);
 
     /// <summary>
     /// Returns true if the text looks like a PascalCase or camelCase code identifier
@@ -541,6 +586,19 @@ public partial class TranslationGenerator
     /// <summary>
     /// Adds a string to the collection if valid.
     /// </summary>
+    /// <summary>
+    /// True when the text opens with a numbered placeholder, as "{0} items waiting" does, rather
+    /// than with a binding or an expression.
+    /// </summary>
+    private static bool StartsWithCount(string text)
+    {
+        if (text.Length < 4 || text[0] != '{') return false;
+
+        var i = 1;
+        while (i < text.Length && char.IsAsciiDigit(text[i])) i++;
+        return i > 1 && i < text.Length && text[i] == '}';
+    }
+
     private void AddString(Dictionary<string, string> strings, string text)
     {
         // Decode C# escape sequences captured as literal text by the regex extractors,
@@ -550,8 +608,10 @@ public partial class TranslationGenerator
         if (string.IsNullOrWhiteSpace(text))
             return;
 
-        // Skip if it looks like a variable or placeholder
-        if (text.StartsWith('{') || text.Contains("{{"))
+        // Skip if it looks like a variable or placeholder. A numbered placeholder is not one: a
+        // message that opens with its own count, such as "{0} invoices are overdue.", is ordinary
+        // text that the code asked to translate, and its singular partner is already translated.
+        if ((text.StartsWith('{') && !StartsWithCount(text)) || text.Contains("{{"))
             return;
 
         // Skip hex color codes (e.g., "#3B82F6", "#FFF")
