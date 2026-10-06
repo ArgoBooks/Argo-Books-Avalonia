@@ -728,7 +728,8 @@ public partial class AppShellViewModel : ViewModelBase
         HeaderViewModel.OpenFileMenuRequested += (_, _) => FileMenuPanelViewModel.ToggleCommand.Execute(null);
 
         // Wire up notification panel's settings to open settings modal at notifications tab
-        NotificationPanelViewModel.OpenNotificationSettingsRequested += (_, _) => SettingsModalViewModel.OpenWithTab(SettingsTab.Notifications);
+        NotificationPanelViewModel.OpenNotificationSettingsRequested += (_, _) =>
+            _ = OpenPastDashboardEditAsync(() => SettingsModalViewModel.OpenWithTab(SettingsTab.Notifications));
 
         // Wire up settings modal's upgrade request to open upgrade modal
         SettingsModalViewModel.UpgradeRequested += (_, _) => UpgradeModalViewModel.OpenCommand.Execute(null);
@@ -737,36 +738,45 @@ public partial class AppShellViewModel : ViewModelBase
         HeaderViewModel.OpenHelpRequested += (_, _) => HelpPanelViewModel.ToggleCommand.Execute(null);
 
         // Wire up header's upgrade button to open upgrade modal
-        HeaderViewModel.OpenUpgradeRequested += (_, _) => UpgradeModalViewModel.OpenCommand.Execute(null);
+        HeaderViewModel.OpenUpgradeRequested += (_, _) =>
+            _ = OpenPastDashboardEditAsync(() => UpgradeModalViewModel.OpenCommand.Execute(null));
 
         // Wire up header's settings button to open settings modal
-        HeaderViewModel.OpenSettingsRequested += (_, _) => SettingsModalViewModel.OpenCommand.Execute(null);
+        HeaderViewModel.OpenSettingsRequested += (_, _) =>
+            _ = OpenPastDashboardEditAsync(() => SettingsModalViewModel.OpenCommand.Execute(null));
 
         // Wire up header's history button to open version history modal
-        HeaderViewModel.OpenHistoryRequested += (_, _) => VersionHistoryModalViewModel.OpenCommand.Execute(null);
+        HeaderViewModel.OpenHistoryRequested += (_, _) =>
+            _ = OpenPastDashboardEditAsync(() => VersionHistoryModalViewModel.OpenCommand.Execute(null));
 
         // Wire up file menu's create new company to open the wizard (prompts to save first if
         // the current company has unsaved changes).
-        FileMenuPanelViewModel.CreateNewCompanyRequested += (_, _) => _ = App.RequestCreateNewCompanyAsync();
+        FileMenuPanelViewModel.CreateNewCompanyRequested += (_, _) =>
+            _ = OpenPastDashboardEditAsync(() => _ = App.RequestCreateNewCompanyAsync());
 
         // Wire up sidebar's company header click to open the company switcher
-        SidebarViewModel.OpenCompanySwitcherRequested += (_, _) => CompanySwitcherPanelViewModel.ToggleCommand.Execute(null);
+        SidebarViewModel.OpenCompanySwitcherRequested += (_, _) =>
+            _ = OpenPastDashboardEditAsync(() => CompanySwitcherPanelViewModel.ToggleCommand.Execute(null));
 
         // Wire up sidebar navigation to close all panels
         SidebarViewModel.NavigationRequested += (_, _) => CloseAllPanels();
 
         // Wire up help panel's check for updates to open the check for update modal
-        HelpPanelViewModel.CheckForUpdatesRequested += (_, _) => CheckForUpdateModalViewModel.OpenCommand.Execute(null);
+        HelpPanelViewModel.CheckForUpdatesRequested += (_, _) =>
+            _ = OpenPastDashboardEditAsync(() => CheckForUpdateModalViewModel.OpenCommand.Execute(null));
 
         // Wire up help panel's restart tutorial to show the tutorial welcome
         HelpPanelViewModel.RestartTutorialRequested += OnRestartTutorialRequested;
 
         // Wire up file menu's import to open the import modal
-        FileMenuPanelViewModel.ImportRequested += (_, _) => ImportModalViewModel.OpenCommand.Execute(null);
+        FileMenuPanelViewModel.ImportRequested += (_, _) =>
+            _ = OpenPastDashboardEditAsync(() => ImportModalViewModel.OpenCommand.Execute(null));
 
         // Wire up file menu's export as to open the export as modal
-        FileMenuPanelViewModel.ExportAsRequested += (_, _) => ExportAsModalViewModel.OpenCommand.Execute(null);
-        FileMenuPanelViewModel.SendToAccountantRequested += (_, _) => SendToAccountantModalViewModel.Open();
+        FileMenuPanelViewModel.ExportAsRequested += (_, _) =>
+            _ = OpenPastDashboardEditAsync(() => ExportAsModalViewModel.OpenCommand.Execute(null));
+        FileMenuPanelViewModel.SendToAccountantRequested += (_, _) =>
+            _ = OpenPastDashboardEditAsync(() => SendToAccountantModalViewModel.Open());
 
         // Sync search query between header and quick actions
         HeaderViewModel.PropertyChanged += (_, e) =>
@@ -852,28 +862,28 @@ public partial class AppShellViewModel : ViewModelBase
                     }
                     break;
                 case QuickActionName.OpenSettings:
-                    SettingsModalViewModel.OpenCommand.Execute(null);
+                    _ = OpenPastDashboardEditAsync(() => SettingsModalViewModel.OpenCommand.Execute(null));
                     break;
                 case QuickActionName.OpenHelp:
                     HelpPanelViewModel.ToggleCommand.Execute(null);
                     break;
                 case QuickActionName.OpenExport:
-                    ExportAsModalViewModel.OpenCommand.Execute(null);
+                    _ = OpenPastDashboardEditAsync(() => ExportAsModalViewModel.OpenCommand.Execute(null));
                     break;
                 case QuickActionName.OpenImport:
-                    ImportModalViewModel.OpenCommand.Execute(null);
+                    _ = OpenPastDashboardEditAsync(() => ImportModalViewModel.OpenCommand.Execute(null));
                     break;
                 case QuickActionName.OpenScanModal:
                     OpenFileScanRequested?.Invoke(this, EventArgs.Empty);
                     break;
                 case QuickActionName.OpenBankImport:
-                    _ = App.OpenBankStatementImportAsync();
+                    _ = OpenPastDashboardEditAsync(() => _ = App.OpenBankStatementImportAsync());
                     break;
                 case QuickActionName.OpenEditCompany:
-                    EditCompanyRequested?.Invoke(this, EventArgs.Empty);
+                    _ = OpenPastDashboardEditAsync(() => EditCompanyRequested?.Invoke(this, EventArgs.Empty));
                     break;
                 case QuickActionName.OpenCheckForUpdates:
-                    CheckForUpdateModalViewModel.OpenCommand.Execute(null);
+                    _ = OpenPastDashboardEditAsync(() => CheckForUpdateModalViewModel.OpenCommand.Execute(null));
                     break;
             }
         };
@@ -962,33 +972,52 @@ public partial class AppShellViewModel : ViewModelBase
     }
 
     /// <summary>
+    /// Asks what to do with a dashboard layout that is still being edited, and leaves edit mode
+    /// whichever way is chosen. True when the thing that prompted this may go ahead.
+    /// </summary>
+    private async Task<bool> LeaveDashboardEditModeAsync()
+    {
+        if (CurrentPage is not Control { DataContext: DashboardPageViewModel dashVm }
+            || !dashVm.LayoutViewModel.IsEditMode)
+            return true;
+
+        var result = await UnsavedChangesDialogViewModel.ShowAsync(
+            "Unsaved Dashboard Changes".Translate(),
+            "You have unsaved changes to the dashboard layout. Would you like to save them before leaving?".Translate());
+
+        switch (result)
+        {
+            case UnsavedChangesResult.Save:
+                await dashVm.LayoutViewModel.SaveEditCommand.ExecuteAsync(null);
+                return true;
+
+            case UnsavedChangesResult.DontSave:
+                dashVm.LayoutViewModel.CancelEditCommand.Execute(null);
+                return true;
+
+            case UnsavedChangesResult.Cancel:
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// Opens something that covers the dashboard, after asking about an edit still in progress.
+    /// </summary>
+    private async Task OpenPastDashboardEditAsync(Action open)
+    {
+        if (await LeaveDashboardEditModeAsync())
+            open();
+    }
+
+    /// <summary>
     /// Navigation guard that checks for unsaved changes when leaving the Reports page.
     /// </summary>
     private async Task<bool> CheckUnsavedChangesBeforeNavigation(string fromPage, string toPage)
     {
         // Check when leaving the Dashboard page in edit mode
-        if (fromPage == "Dashboard" && CurrentPage is Control { DataContext: DashboardPageViewModel dashVm }
-            && dashVm.LayoutViewModel.IsEditMode)
-        {
-            var result = await UnsavedChangesDialogViewModel.ShowAsync(
-                "Unsaved Dashboard Changes".Translate(),
-                "You have unsaved changes to the dashboard layout. Would you like to save them before leaving?".Translate());
-
-            switch (result)
-            {
-                case UnsavedChangesResult.Save:
-                    await dashVm.LayoutViewModel.SaveEditCommand.ExecuteAsync(null);
-                    return true;
-
-                case UnsavedChangesResult.DontSave:
-                    dashVm.LayoutViewModel.CancelEditCommand.Execute(null);
-                    return true;
-
-                case UnsavedChangesResult.Cancel:
-                default:
-                    return false;
-            }
-        }
+        if (fromPage == "Dashboard" && !await LeaveDashboardEditModeAsync())
+            return false;
 
         // Check when leaving the Reports page
         if (fromPage != "Reports" || _reportsPageViewModel == null)
