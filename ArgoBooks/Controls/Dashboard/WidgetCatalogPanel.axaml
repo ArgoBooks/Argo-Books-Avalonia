@@ -165,7 +165,7 @@
                                                            Foreground="{DynamicResource TextSecondaryBrush}"
                                                            VerticalAlignment="Center" Margin="8,0,0,0"
                                                            IsVisible="{Binding IsAlreadyAdded}" />
-                                                <TextBlock Grid.Column="2" Text="Won't fit" FontSize="11"
+                                                <TextBlock Grid.Column="2" Text="{loc:Loc 'Won','t fit'}" FontSize="11"
                                                            Foreground="{DynamicResource TextSecondaryBrush}"
                                                            VerticalAlignment="Center" Margin="8,0,0,0"
                                                            IsVisible="{Binding ShowWontFit}" />
@@ -209,7 +209,7 @@
                                                            Foreground="{DynamicResource TextSecondaryBrush}"
                                                            VerticalAlignment="Center" Margin="8,0,0,0"
                                                            IsVisible="{Binding IsAlreadyAdded}" />
-                                                <TextBlock Grid.Column="2" Text="Won't fit" FontSize="11"
+                                                <TextBlock Grid.Column="2" Text="{loc:Loc 'Won','t fit'}" FontSize="11"
                                                            Foreground="{DynamicResource TextSecondaryBrush}"
                                                            VerticalAlignment="Center" Margin="8,0,0,0"
                                                            IsVisible="{Binding ShowWontFit}" />
@@ -253,7 +253,7 @@
                                                            Foreground="{DynamicResource TextSecondaryBrush}"
                                                            VerticalAlignment="Center" Margin="8,0,0,0"
                                                            IsVisible="{Binding IsAlreadyAdded}" />
-                                                <TextBlock Grid.Column="2" Text="Won't fit" FontSize="11"
+                                                <TextBlock Grid.Column="2" Text="{loc:Loc 'Won','t fit'}" FontSize="11"
                                                            Foreground="{DynamicResource TextSecondaryBrush}"
                                                            VerticalAlignment="Center" Margin="8,0,0,0"
                                                            IsVisible="{Binding ShowWontFit}" />
@@ -297,7 +297,7 @@
                                                            Foreground="{DynamicResource TextSecondaryBrush}"
                                                            VerticalAlignment="Center" Margin="8,0,0,0"
                                                            IsVisible="{Binding IsAlreadyAdded}" />
-                                                <TextBlock Grid.Column="2" Text="Won't fit" FontSize="11"
+                                                <TextBlock Grid.Column="2" Text="{loc:Loc 'Won','t fit'}" FontSize="11"
                                                            Foreground="{DynamicResource TextSecondaryBrush}"
                                                            VerticalAlignment="Center" Margin="8,0,0,0"
                                                            IsVisible="{Binding ShowWontFit}" />

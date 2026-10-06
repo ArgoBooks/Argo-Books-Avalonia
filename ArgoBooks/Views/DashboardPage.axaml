@@ -258,7 +258,7 @@
                                    FontWeight="SemiBold"
                                    Foreground="{DynamicResource TextPrimaryBrush}"
                                    HorizontalAlignment="Center" />
-                        <TextBlock Text="Click 'Edit Dashboard' to add widgets and customize your view."
+                        <TextBlock Text="{loc:Loc 'Click ','Edit Dashboard',' to add widgets and customize your view.'}"
                                    FontSize="14"
                                    Foreground="{DynamicResource TextSecondaryBrush}"
                                    HorizontalAlignment="Center"

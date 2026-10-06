@@ -302,7 +302,7 @@
                             <controls:SuccessAnimation Title="Refund Issued!"
                                                        Message="{Binding TerminalMessage}"
                                                        ShowContinueButton="True"
-                                                       ContinueButtonText="Done"
+                                                       ContinueButtonText="{loc:Loc 'Done'}"
                                                        ContinueButtonDelayMs="300"
                                                        ContinueCommand="{Binding CloseCommand}"
                                                        IsPlaying="{Binding IsSuccessStep}" />

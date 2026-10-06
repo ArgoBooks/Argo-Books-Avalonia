@@ -121,7 +121,7 @@
                                                    FontSize="13"
                                                    FontWeight="Medium"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
-                                        <TextBlock Text="Understands whether your business is growing, stable, or declining - and factors this into predictions so they're not just based on averages."
+                                        <TextBlock Text="{loc:Loc 'Understands whether your business is growing, stable, or declining - and factors this into predictions so they','re not just based on averages.'}"
                                                    FontSize="12"
                                                    TextWrapping="Wrap"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
@@ -149,7 +149,7 @@
                                                    FontSize="13"
                                                    FontWeight="Medium"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
-                                        <TextBlock Text="Compares past predictions to what actually happened. Over time, you'll see how accurate the forecasts have been for your specific business."
+                                        <TextBlock Text="{loc:Loc 'Compares past predictions to what actually happened. Over time, you','ll see how accurate the forecasts have been for your specific business.'}"
                                                    FontSize="12"
                                                    TextWrapping="Wrap"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
@@ -177,7 +177,7 @@
                                                    FontSize="13"
                                                    FontWeight="Medium"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
-                                        <TextBlock Text="The Historical Accuracy percentage shows how close predictions were to actual results. For example, 85% accuracy means predictions were typically within 15% of the actual values. It's calculated by comparing each past forecast to the actual outcome, then averaging the results."
+                                        <TextBlock Text="{loc:Loc 'The Historical Accuracy percentage shows how close predictions were to actual results. For example, 85% accuracy means predictions were typically within 15% of the actual values. It','s calculated by comparing each past forecast to the actual outcome, then averaging the results.'}"
                                                    FontSize="12"
                                                    TextWrapping="Wrap"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
@@ -326,11 +326,11 @@
                                                   Foreground="{DynamicResource WarningBrush}" />
                                     </Border>
                                     <StackPanel Grid.Column="1" Spacing="6">
-                                        <TextBlock Text="Forecasts learn from your past, so they can't see things that haven't happened before. Treat the numbers with extra skepticism in these situations:"
+                                        <TextBlock Text="{loc:Loc 'Forecasts learn from your past, so they can','t see things that haven','t happened before. Treat the numbers with extra skepticism in these situations:'}"
                                                    FontSize="12"
                                                    TextWrapping="Wrap"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
-                                        <TextBlock Text="• Big changes the model can't predict: losing or winning a major customer, opening a new location, hiring, layoffs, or a price change."
+                                        <TextBlock Text="{loc:Loc '• Big changes the model can','t predict: losing or winning a major customer, opening a new location, hiring, layoffs, or a price change.'}"
                                                    FontSize="12"
                                                    TextWrapping="Wrap"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
@@ -338,7 +338,7 @@
                                                    FontSize="12"
                                                    TextWrapping="Wrap"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
-                                        <TextBlock Text="• New businesses with less than 12 months of data: there isn't enough history yet to tell real patterns from noise."
+                                        <TextBlock Text="{loc:Loc '• New businesses with less than 12 months of data: there isn','t enough history yet to tell real patterns from noise.'}"
                                                    FontSize="12"
                                                    TextWrapping="Wrap"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />

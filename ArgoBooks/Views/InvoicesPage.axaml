@@ -486,7 +486,7 @@
                                                             Spacing="4">
                                                     <Button Classes="icon-button"
                                                             ToolTip.Tip="{loc:Loc 'View Invoice'}"
-                                                            AutomationProperties.Name="View Invoice"
+                                                            AutomationProperties.Name="{loc:Loc 'View Invoice'}"
                                                             Command="{Binding $parent[ItemsControl].((vm:InvoicesPageViewModel)DataContext).ViewInvoiceCommand}"
                                                             CommandParameter="{Binding}">
                                                         <PathIcon Data="{x:Static icons:Icons.Eye}"
@@ -494,7 +494,7 @@
                                                     </Button>
                                                     <Button Classes="icon-button"
                                                             ToolTip.Tip="{loc:Loc Continue}"
-                                                            AutomationProperties.Name="Continue"
+                                                            AutomationProperties.Name="{loc:Loc 'Continue'}"
                                                             IsVisible="{Binding IsDraft}"
                                                             Command="{Binding $parent[ItemsControl].((vm:InvoicesPageViewModel)DataContext).ContinueDraftInvoiceCommand}"
                                                             CommandParameter="{Binding}">
@@ -503,7 +503,7 @@
                                                     </Button>
                                                     <Button Classes="icon-button"
                                                             ToolTip.Tip="{loc:Loc Duplicate}"
-                                                            AutomationProperties.Name="Duplicate"
+                                                            AutomationProperties.Name="{loc:Loc 'Duplicate'}"
                                                             Command="{Binding $parent[ItemsControl].((vm:InvoicesPageViewModel)DataContext).DuplicateInvoiceCommand}"
                                                             CommandParameter="{Binding}">
                                                         <PathIcon Data="{x:Static icons:Icons.Copy}"
@@ -511,7 +511,7 @@
                                                     </Button>
                                                     <Button Classes="icon-button"
                                                             ToolTip.Tip="{loc:Loc 'Record Payment'}"
-                                                            AutomationProperties.Name="Record Payment"
+                                                            AutomationProperties.Name="{loc:Loc 'Record Payment'}"
                                                             IsVisible="{Binding CanSend}"
                                                             IsEnabled="{Binding $parent[ItemsControl].((vm:InvoicesPageViewModel)DataContext).CanResendInvoice}"
                                                             Command="{Binding $parent[ItemsControl].((vm:InvoicesPageViewModel)DataContext).RecordPaymentCommand}"
@@ -521,7 +521,7 @@
                                                     </Button>
                                                     <Button Classes="icon-button"
                                                             ToolTip.Tip="{loc:Loc 'Resend Invoice'}"
-                                                            AutomationProperties.Name="Resend Invoice"
+                                                            AutomationProperties.Name="{loc:Loc 'Resend Invoice'}"
                                                             IsVisible="{Binding CanSend}"
                                                             IsEnabled="{Binding $parent[ItemsControl].((vm:InvoicesPageViewModel)DataContext).CanResendInvoice}"
                                                             Command="{Binding $parent[ItemsControl].((vm:InvoicesPageViewModel)DataContext).ResendInvoiceCommand}"
@@ -531,7 +531,7 @@
                                                     </Button>
                                                     <Button Classes="icon-button"
                                                             ToolTip.Tip="{loc:Loc 'View History'}"
-                                                            AutomationProperties.Name="View History"
+                                                            AutomationProperties.Name="{loc:Loc 'View History'}"
                                                             Command="{Binding $parent[ItemsControl].((vm:InvoicesPageViewModel)DataContext).OpenHistoryModalCommand}"
                                                             CommandParameter="{Binding}">
                                                         <PathIcon Data="{x:Static icons:Icons.History}"
@@ -539,7 +539,7 @@
                                                     </Button>
                                                     <Button Classes="icon-button"
                                                             ToolTip.Tip="{loc:Loc 'Refund'}"
-                                                            AutomationProperties.Name="Refund"
+                                                            AutomationProperties.Name="{loc:Loc 'Refund'}"
                                                             IsVisible="{Binding CanRefund}"
                                                             Command="{Binding $parent[ItemsControl].((vm:InvoicesPageViewModel)DataContext).OpenRefundModalCommand}"
                                                             CommandParameter="{Binding}">
@@ -577,9 +577,9 @@
                         <!-- Column headers -->
                         <Grid ColumnDefinitions="1.4*,2*,1.2*,Auto" Margin="20,0,20,6">
                             <TextBlock Grid.Column="0" Text="{loc:Loc 'INVOICE #'}" FontSize="11" FontWeight="Medium" Foreground="{DynamicResource TextTertiaryBrush}" />
-                            <TextBlock Grid.Column="1" Text="{loc:Loc 'CUSTOMER'}" FontSize="11" FontWeight="Medium" Foreground="{DynamicResource TextTertiaryBrush}" />
-                            <TextBlock Grid.Column="2" Text="{loc:Loc 'AMOUNT'}" FontSize="11" FontWeight="Medium" Foreground="{DynamicResource TextTertiaryBrush}" />
-                            <TextBlock Grid.Column="3" Text="{loc:Loc 'STATUS'}" Width="150" FontSize="11" FontWeight="Medium" Foreground="{DynamicResource TextTertiaryBrush}" />
+                            <TextBlock Grid.Column="1" Text="CUSTOMER" FontSize="11" FontWeight="Medium" Foreground="{DynamicResource TextTertiaryBrush}" />
+                            <TextBlock Grid.Column="2" Text="AMOUNT" FontSize="11" FontWeight="Medium" Foreground="{DynamicResource TextTertiaryBrush}" />
+                            <TextBlock Grid.Column="3" Text="STATUS" Width="150" FontSize="11" FontWeight="Medium" Foreground="{DynamicResource TextTertiaryBrush}" />
                         </Grid>
                         <!-- table-rows gives the app's standard virtualized rows (VirtualizingStackPanel +
                              its own scroll); MaxHeight caps the card so a long list scrolls, not grows. -->
@@ -627,7 +627,7 @@
                              GoToPreviousPageCommand="{Binding ScheduleGoToPreviousPageCommand}"
                              GoToNextPageCommand="{Binding ScheduleGoToNextPageCommand}"
                              AddCommand="{Binding NewRecurringInvoiceCommand}"
-                             AddButtonText="New recurring invoice"
+                             AddButtonText="{loc:Loc 'New recurring invoice'}"
                              AddButtonTooltip="New recurring invoice"
                              EmptyIcon="{x:Static icons:Icons.Refresh}"
                              EmptyTitle="No recurring invoices yet"
@@ -687,7 +687,7 @@
                                                             Spacing="4">
                                                     <Button Classes="icon-button"
                                                             ToolTip.Tip="{loc:Loc 'View Invoice'}"
-                                                            AutomationProperties.Name="View Invoice"
+                                                            AutomationProperties.Name="{loc:Loc 'View Invoice'}"
                                                             IsVisible="{Binding HasInvoice}"
                                                             Command="{Binding $parent[ItemsControl].((vm:InvoicesPageViewModel)DataContext).ViewScheduleInvoiceCommand}"
                                                             CommandParameter="{Binding}">
@@ -709,7 +709,7 @@
                                                     </Button>
                                                     <Button Classes="icon-button"
                                                             ToolTip.Tip="{loc:Loc Delete}"
-                                                            AutomationProperties.Name="Delete"
+                                                            AutomationProperties.Name="{loc:Loc 'Delete'}"
                                                             Command="{Binding $parent[ItemsControl].((vm:InvoicesPageViewModel)DataContext).DeleteScheduleCommand}"
                                                             CommandParameter="{Binding}">
                                                         <PathIcon Data="{x:Static icons:Icons.Delete}" Width="16" Height="16" />

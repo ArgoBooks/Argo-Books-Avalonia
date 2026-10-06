@@ -170,7 +170,7 @@
                                             </Border>
 
                                             <StackPanel>
-                                                <TextBlock Text="{loc:Loc 'TEMPLATE'}" Classes="sidebar-label" />
+                                                <TextBlock Text="TEMPLATE" Classes="sidebar-label" />
                                                 <ComboBox ItemsSource="{Binding TemplateOptions}" SelectedItem="{Binding SelectedTemplate}"
                                                           Classes="form-combobox" HorizontalAlignment="Stretch">
                                                     <ComboBox.ItemTemplate>
@@ -180,14 +180,14 @@
                                             </StackPanel>
 
                                             <StackPanel IsVisible="{Binding !IsFromExternalSource}">
-                                                <TextBlock Text="{loc:Loc 'CURRENCY'}" Classes="sidebar-label" />
+                                                <TextBlock Text="CURRENCY" Classes="sidebar-label" />
                                                 <ComboBox ItemsSource="{Binding AvailableCurrencies}" SelectedItem="{Binding SelectedCurrency}"
                                                           Classes="form-combobox" HorizontalAlignment="Stretch" />
                                             </StackPanel>
 
                                             <!-- Display toggles: what appears on the invoice (per-invoice overrides). -->
                                             <StackPanel Spacing="7">
-                                                <TextBlock Text="{loc:Loc 'DISPLAY'}" Classes="sidebar-label" />
+                                                <TextBlock Text="DISPLAY" Classes="sidebar-label" />
                                                 <CheckBox IsChecked="{Binding OptShowCompanyAddress}" Content="{loc:Loc 'Show company address'}" />
                                                 <CheckBox IsChecked="{Binding OptShowCompanyPhone}" Content="{loc:Loc 'Show company phone'}" />
                                                 <CheckBox IsChecked="{Binding OptShowDueDateProminent}" Content="{loc:Loc 'Show prominent due date'}" />
@@ -198,7 +198,7 @@
 
                                             <!-- Status (edit mode) -->
                                             <StackPanel IsVisible="{Binding IsEditMode}">
-                                                <TextBlock Text="{loc:Loc 'STATUS'}" Classes="sidebar-label" />
+                                                <TextBlock Text="STATUS" Classes="sidebar-label" />
                                                 <ComboBox ItemsSource="{Binding StatusOptions}" SelectedItem="{Binding ModalStatus}"
                                                           Classes="form-combobox" HorizontalAlignment="Stretch">
                                                     <ComboBox.ItemTemplate>
@@ -209,7 +209,7 @@
 
                                             <!-- Behaviour toggles: how the invoice works (fees, recurrence). -->
                                             <StackPanel Spacing="10">
-                                                <TextBlock Text="{loc:Loc 'OPTIONS'}" Classes="sidebar-label" />
+                                                <TextBlock Text="OPTIONS" Classes="sidebar-label" />
                                                 <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                                                     <CheckBox IsChecked="{Binding OptPassProcessingFee}" Content="{loc:Loc 'Pass processing fee to customer'}" VerticalAlignment="Center" />
                                                     <Button Classes="icon-button" Padding="4" VerticalAlignment="Center"
@@ -550,14 +550,14 @@
                                                             IsVisible="{Binding CanEditPayment}">
                                                     <Button Classes="icon-button"
                                                             ToolTip.Tip="{loc:Loc 'Edit Payment'}"
-                                                            AutomationProperties.Name="Edit Payment"
+                                                            AutomationProperties.Name="{loc:Loc 'Edit Payment'}"
                                                             Command="{Binding $parent[ItemsControl].((vm:InvoiceModalsViewModel)DataContext).EditHistoryPaymentCommand}"
                                                             CommandParameter="{Binding}">
                                                         <PathIcon Data="{x:Static icons:Icons.Edit}" Width="14" Height="14" />
                                                     </Button>
                                                     <Button Classes="icon-button danger"
                                                             ToolTip.Tip="{loc:Loc 'Delete Payment'}"
-                                                            AutomationProperties.Name="Delete Payment"
+                                                            AutomationProperties.Name="{loc:Loc 'Delete Payment'}"
                                                             Command="{Binding $parent[ItemsControl].((vm:InvoiceModalsViewModel)DataContext).DeleteHistoryPaymentCommand}"
                                                             CommandParameter="{Binding}">
                                                         <PathIcon Data="{x:Static icons:Icons.Delete}" Width="14" Height="14" />

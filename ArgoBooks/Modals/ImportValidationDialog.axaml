@@ -309,7 +309,7 @@
                                        FontSize="12"
                                        Foreground="{DynamicResource DangerBrush}"
                                        IsVisible="{Binding HasErrors}" />
-                            <TextBlock Text="Please fix the issues marked 'Manual fix' in your spreadsheet and try again."
+                            <TextBlock Text="{loc:Loc 'Please fix the issues marked ','Manual fix',' in your spreadsheet and try again.'}"
                                        FontSize="12"
                                        Foreground="{DynamicResource WarningBrush}"
                                        IsVisible="{Binding HasNonAutoFixableIssues}"

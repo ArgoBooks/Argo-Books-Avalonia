@@ -49,7 +49,7 @@
                                        FontWeight="Bold"
                                        Foreground="White"
                                        HorizontalAlignment="Center" />
-                            <TextBlock Text="Let's get you started with a quick tour"
+                            <TextBlock Text="{loc:Loc 'Let','s get you started with a quick tour'}"
                                        FontSize="14"
                                        Foreground="#CCFFFFFF"
                                        HorizontalAlignment="Center" />
@@ -95,7 +95,7 @@
                                           Foreground="{DynamicResource SuccessBrush}" />
                             </Border>
                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                                <TextBlock Text="{loc:Loc 'Setup checklist'}"
+                                <TextBlock Text="{loc:Loc 'Setup Checklist'}"
                                            FontSize="14"
                                            FontWeight="SemiBold"
                                            Foreground="{DynamicResource TextPrimaryBrush}" />

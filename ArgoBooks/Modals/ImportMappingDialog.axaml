@@ -536,7 +536,7 @@
                                            TextWrapping="Wrap" />
                                 <CheckBox IsChecked="{Binding SkipExistingRecords}"
                                           IsVisible="{Binding HasImportableContent}">
-                                    <TextBlock Text="Don't overwrite existing records"
+                                    <TextBlock Text="{loc:Loc 'Don','t overwrite existing records'}"
                                                FontSize="13"
                                                Foreground="{DynamicResource TextSecondaryBrush}" />
                                 </CheckBox>

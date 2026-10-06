@@ -28,7 +28,7 @@
                    Width="64"
                    Height="64"
                    HorizontalAlignment="Center" />
-            <TextBlock Text="Argo Books"
+            <TextBlock Text="{loc:Loc 'Argo Books'}"
                        FontSize="22"
                        FontWeight="SemiBold"
                        Foreground="{DynamicResource TextPrimaryBrush}"
