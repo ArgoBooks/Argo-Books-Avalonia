@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.AI;
@@ -596,7 +596,15 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
             if (data != null)
                 ApplyDeterministicPrefill(data, row);
 
-            row.PropertyChanged += (_, _) => RefreshState();
+            row.PropertyChanged += (_, e) =>
+            {
+                RefreshState();
+                if (e.PropertyName is nameof(ImportLineRow.NewCounterpartyName)
+                    or nameof(ImportLineRow.CreateAsRevenue))
+                {
+                    SyncTypedCounterparties();
+                }
+            };
             Rows.Add(row);
         }
 
@@ -849,11 +857,71 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
                 AvailableProducts.Add(p);
     }
 
-    private void ReloadSuppliers() =>
+    private void ReloadSuppliers()
+    {
         OptionLoader.Fill(AvailableSuppliers, OptionLoader.Suppliers(App.CompanyManager?.CompanyData));
+        SyncTypedCounterparties();
+    }
 
-    private void ReloadCustomers() =>
+    private void ReloadCustomers()
+    {
         OptionLoader.Fill(AvailableCustomers, OptionLoader.Customers(App.CompanyManager?.CompanyData));
+        SyncTypedCounterparties();
+    }
+
+    /// <summary>
+    /// Offers a name typed on one row in every other row's picker, so a statement with ten lines
+    /// from one supplier is assigned by picking rather than by typing the name ten times. Typing
+    /// it again is safe, since the import finds a supplier by name before creating one, but a
+    /// second spelling makes a second record, and nothing else here helps you stay consistent.
+    ///
+    /// The entries stand for a name, not a record, so they carry no id. Picking one therefore
+    /// means the same as typing it, which is what UseTypedCounterparty relies on.
+    /// </summary>
+    private void SyncTypedCounterparties()
+    {
+        var data = App.CompanyManager?.CompanyData;
+
+        var suppliers = TypedNames(r => !r.CreateAsRevenue)
+            .Where(n => data?.Suppliers.Any(x => NameIs(x.Name, n)) != true)
+            .ToList();
+        SyncOffered(AvailableSuppliers, suppliers, x => x.Name, x => string.IsNullOrEmpty(x.Id),
+            n => new Supplier { Name = n });
+
+        var customers = TypedNames(r => r.CreateAsRevenue)
+            .Where(n => data?.Customers.Any(x => NameIs(x.Name, n)) != true)
+            .ToList();
+        SyncOffered(AvailableCustomers, customers, x => x.Name, x => string.IsNullOrEmpty(x.Id),
+            n => new Customer { Name = n });
+    }
+
+    private static bool NameIs(string? a, string b) => string.Equals(a?.Trim(), b, StringComparison.OrdinalIgnoreCase);
+
+    private List<string> TypedNames(Func<ImportLineRow, bool> forKind) =>
+        Rows.Where(r => forKind(r) && !string.IsNullOrWhiteSpace(r.NewCounterpartyName))
+            .Select(r => r.NewCounterpartyName!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+    private static void SyncOffered<T>(
+        ObservableCollection<T> list,
+        List<string> names,
+        Func<T, string?> nameOf,
+        Func<T, bool> isOffered,
+        Func<string, T> make) where T : class
+    {
+        for (var i = list.Count - 1; i >= 0; i--)
+        {
+            if (isOffered(list[i]) && !names.Any(n => NameIs(nameOf(list[i]), n)))
+                list.RemoveAt(i);
+        }
+
+        foreach (var name in names)
+        {
+            if (!list.Any(x => NameIs(nameOf(x), name)))
+                list.Add(make(name));
+        }
+    }
 
     private void RefreshState()
     {
@@ -1131,6 +1199,11 @@ public partial class ImportLineRow : ObservableObject
         // A pick counts only while the box still shows it. The two boxes share their text, so
         // one can be typed over through the other without its own pick being cleared.
         if (pickedName?.Trim() != name)
+            pickedId = null;
+
+        // A name typed on another row is offered here with no id behind it, so picking it means
+        // what typing it means: the import finds or creates that supplier or customer by name.
+        if (string.IsNullOrEmpty(pickedId))
             pickedId = null;
 
         ResolvedCounterpartyId = pickedId;
