@@ -534,10 +534,9 @@ public partial class App : Application
                 if (CompanyChanged()) return;
             }
 
-            // Persist when there are new rows OR existing rows were backfilled
-            // with previously-missing fields (e.g. ProcessingFee on pre-fix
-            // payments). Without the backfill arm, the in-memory update gets
-            // lost on next app launch and the fee disappears again.
+            // Saved for new rows, and for a sync that filled in a field an existing row does not
+            // carry, such as a processing fee. Without the second case that change lives only in
+            // memory and is gone on the next launch.
             if (newPayments.Count > 0 || syncResult.BackfilledRows > 0)
             {
                 // Only auto-persist when the user has no unsaved edits. The sync flow never flags the
@@ -3932,8 +3931,8 @@ public partial class App : Application
         if (check.Allowed) return usage;
 
         usage.Dispose();
-        // Out of imports is a paywall; a failed check is ours. They produced the same empty
-        // result and so used to be indistinguishable afterwards.
+        // Out of imports is a paywall; a check that failed is our problem. Both end with no rows,
+        // so the context is what tells the two apart.
         _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, 
             check.ErrorMessage != null ? "bank-pdf:check-failed" : "bank-pdf:limit");
         if (check.ErrorMessage != null)

@@ -1,4 +1,4 @@
-using ArgoBooks.Core.Enums;
+﻿using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Common;
 using CommunityToolkit.Mvvm.ComponentModel;
 
@@ -59,7 +59,8 @@ public partial class Invoice : ObservableObject, IRecord
     public decimal Subtotal { get; set; }
 
     /// <summary>
-    /// Tax rate as a decimal.
+    /// Tax rate as a percentage, or a flat amount when <see cref="TaxIsFixed"/> is set. 8 means 8%,
+    /// not 0.08, which is how a product and a line item hold theirs.
     /// </summary>
     [JsonPropertyName("taxRate")]
     public decimal TaxRate { get; set; }
