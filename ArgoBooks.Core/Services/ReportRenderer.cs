@@ -23,6 +23,7 @@ public class ReportRenderer : IDisposable
     private readonly ReportChartDataService? _chartDataService;
     private readonly ITranslationProvider _translationProvider;
     private readonly IErrorLogger? _errorLogger;
+    private readonly Func<string?, string?, string?>? _regionName;
     private readonly string _currencyCode;
     private readonly string _currencySymbol;
 
@@ -101,13 +102,15 @@ public class ReportRenderer : IDisposable
             ? FormatCurrency(converted)
             : PendingText;
 
-    public ReportRenderer(ReportConfiguration config, CompanyData? companyData, float renderScale = 1f, ITranslationProvider? translationProvider = null, IErrorLogger? errorLogger = null)
+    /// <param name="regionName">Spells a region out from the code an address holds, so a chart of regions reads "Ontario" rather than "ON".</param>
+    public ReportRenderer(ReportConfiguration config, CompanyData? companyData, float renderScale = 1f, ITranslationProvider? translationProvider = null, IErrorLogger? errorLogger = null, Func<string?, string?, string?>? regionName = null)
     {
         _config = config;
         _companyData = companyData;
         _renderScale = renderScale;
         _translationProvider = translationProvider ?? DefaultTranslationProvider.Instance;
         _errorLogger = errorLogger;
+        _regionName = regionName;
 
         // Resolve currency code and symbol from company settings
         _currencyCode = companyData == null
@@ -1020,7 +1023,7 @@ public class ReportRenderer : IDisposable
             titlePaint.Color = SKColors.Black;
             titlePaint.IsAntialias = true;
 
-            var title = GetChartTitle(chart.ChartType);
+            var title = GetChartTitle(chart.ChartType, chart.GeoLevel);
             canvas.DrawText(title, rect.MidX, rect.Top + 20 * _renderScale, SKTextAlign.Center, titleFont, titlePaint);
         }
 
@@ -1075,7 +1078,7 @@ public class ReportRenderer : IDisposable
         }
 
         // Get single-series chart data
-        var chartData = GetChartDataPoints(chart.ChartType);
+        var chartData = GetChartDataPoints(chart.ChartType, chart.GeoLevel);
 
         if (chartData == null || chartData.Count == 0)
         {
@@ -1176,7 +1179,7 @@ public class ReportRenderer : IDisposable
         or ChartDataType.TaxCollectedVsPaid
         or ChartDataType.ExpenseVsRevenueTax;
 
-    private List<ChartDataPoint>? GetChartDataPoints(ChartDataType chartType)
+    private List<ChartDataPoint>? GetChartDataPoints(ChartDataType chartType, GeoLevel level)
     {
         if (_chartDataService == null)
             return null;
@@ -1185,7 +1188,8 @@ public class ReportRenderer : IDisposable
             && !string.Equals(_currencyCode, "USD", StringComparison.OrdinalIgnoreCase))
         {
             return _chartDataService.GetChartData(
-                chartType, (usd, date) => (decimal)ConvertFromUSD((double)usd, date)) as List<ChartDataPoint>;
+                chartType, (usd, date) => (decimal)ConvertFromUSD((double)usd, date),
+                level, _regionName) as List<ChartDataPoint>;
         }
 
         // Return and loss amounts are in their sale's or purchase's currency, not USD, so each one
@@ -1197,7 +1201,7 @@ public class ReportRenderer : IDisposable
         if (chartType == ChartDataType.LossFinancialImpact)
             return _chartDataService.GetLossFinancialImpact(FromNative);
 
-        var data = _chartDataService.GetChartData(chartType);
+        var data = _chartDataService.GetChartData(chartType, null, level, _regionName);
 
         if (data is List<ChartDataPoint> dataPoints)
         {
@@ -4030,7 +4034,8 @@ public class ReportRenderer : IDisposable
         return SKColors.Black;
     }
 
-    private string GetChartTitle(ChartDataType chartType) => Tr(chartType.GetDisplayName());
+    private string GetChartTitle(ChartDataType chartType, GeoLevel level) =>
+        Tr(chartType.GetDisplayName(level));
 
     private static List<string> GetVisibleColumns(TableReportElement table)
     {

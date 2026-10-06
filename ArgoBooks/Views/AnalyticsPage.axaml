@@ -334,6 +334,26 @@
                 <!-- Geographic Tab Content -->
                 <StackPanel Margin="24" Spacing="24"
                             IsVisible="{Binding IsGeographicTabSelected}">
+                    <!-- The map below keeps drawing countries, because it has no smaller geography to draw. -->
+                    <Border HorizontalAlignment="Right"
+                            Background="{DynamicResource SurfaceAltBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="2">
+                        <StackPanel Orientation="Horizontal" Spacing="2">
+                            <RadioButton Content="{loc:Loc Country}"
+                                         IsChecked="{Binding IsGeoByCountry}"
+                                         Classes="segmented-button" />
+                            <RadioButton Content="{loc:Loc Region}"
+                                         IsChecked="{Binding IsGeoByRegion}"
+                                         Classes="segmented-button" />
+                            <RadioButton Content="{loc:Loc City}"
+                                         IsChecked="{Binding IsGeoByCity}"
+                                         Classes="segmented-button" />
+                        </StackPanel>
+                    </Border>
+
                     <!-- Row 1: Countries/Companies of Origin -->
                     <Grid ColumnDefinitions="*,*" Height="300">
                         <!-- Countries of Origin Chart -->
@@ -348,7 +368,7 @@
                                 <!-- Pie Chart with custom legend -->
                                 <Grid RowDefinitions="Auto,*" IsVisible="{Binding HasCountriesOfOriginData}">
                                     <TextBlock Grid.Row="0"
-                                               Text="{loc:Loc 'Countries of Origin'}"
+                                               Text="{Binding CountriesOfOriginTitle}"
                                                HorizontalAlignment="Center"
                                                FontSize="16"
                                                FontWeight="SemiBold"
@@ -437,7 +457,7 @@
                                 <!-- Pie Chart with custom legend -->
                                 <Grid RowDefinitions="Auto,*" IsVisible="{Binding HasCountriesOfDestinationData}">
                                     <TextBlock Grid.Row="0"
-                                               Text="{loc:Loc 'Countries of Destination'}"
+                                               Text="{Binding CountriesOfDestinationTitle}"
                                                HorizontalAlignment="Center"
                                                FontSize="16"
                                                FontWeight="SemiBold"
@@ -2125,6 +2145,8 @@
         <!-- Segmented Button (RadioButton) -->
         <Style Selector="RadioButton.segmented-button">
             <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
             <Setter Property="Padding" Value="12,6" />
             <Setter Property="CornerRadius" Value="4" />
@@ -2134,6 +2156,8 @@
             <Setter Property="Template">
                 <ControlTemplate>
                     <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
                             CornerRadius="{TemplateBinding CornerRadius}"
                             Padding="{TemplateBinding Padding}">
                         <ContentPresenter Content="{TemplateBinding Content}"
@@ -2149,6 +2173,7 @@
         </Style>
         <Style Selector="RadioButton.segmented-button:checked">
             <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}" />
             <Setter Property="Foreground" Value="{DynamicResource PrimaryBrush}" />
         </Style>
     </UserControl.Styles>

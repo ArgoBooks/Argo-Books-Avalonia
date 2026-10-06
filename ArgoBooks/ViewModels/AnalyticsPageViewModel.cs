@@ -713,6 +713,49 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
     #region Map Mode Toggle
 
     [ObservableProperty]
+    private GeoLevel _geoLevel = GeoLevel.Country;
+
+    // One bound property per button, because a radio reports whether it is the chosen one.
+    public bool IsGeoByCountry
+    {
+        get => GeoLevel == GeoLevel.Country;
+        set { if (value) GeoLevel = GeoLevel.Country; }
+    }
+
+    public bool IsGeoByRegion
+    {
+        get => GeoLevel == GeoLevel.Region;
+        set { if (value) GeoLevel = GeoLevel.Region; }
+    }
+
+    public bool IsGeoByCity
+    {
+        get => GeoLevel == GeoLevel.City;
+        set { if (value) GeoLevel = GeoLevel.City; }
+    }
+
+    public string CountriesOfOriginTitle =>
+        ChartDataType.CountriesOfOrigin.GetDisplayName(GeoLevel).Translate();
+
+    public string CountriesOfDestinationTitle =>
+        ChartDataType.CountriesOfDestination.GetDisplayName(GeoLevel).Translate();
+
+    partial void OnGeoLevelChanged(GeoLevel value)
+    {
+        OnPropertyChanged(nameof(IsGeoByCountry));
+        OnPropertyChanged(nameof(IsGeoByRegion));
+        OnPropertyChanged(nameof(IsGeoByCity));
+        OnPropertyChanged(nameof(CountriesOfOriginTitle));
+        OnPropertyChanged(nameof(CountriesOfDestinationTitle));
+
+        var data = _companyManager?.CompanyData;
+        if (data == null) return;
+
+        LoadCountriesOfOriginChart(data);
+        LoadCountriesOfDestinationChart(data);
+    }
+
+    [ObservableProperty]
     private bool _isMapModeOrigin = true;
 
     public bool IsMapModeDestination
@@ -1959,7 +2002,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
 
     private void LoadCountriesOfOriginChart(CompanyData data)
     {
-        var (series, legend) = ChartLoaderService.LoadCountriesOfOriginChart(data, StartDate, EndDate);
+        var (series, legend) = ChartLoaderService.LoadCountriesOfOriginChart(data, StartDate, EndDate, GeoLevel);
         CountriesOfOriginSeries = series;
         CountriesOfOriginLegend = legend;
         HasCountriesOfOriginData = series.Count > 0;
@@ -1983,7 +2026,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
 
     private void LoadCountriesOfDestinationChart(CompanyData data)
     {
-        var (series, legend) = ChartLoaderService.LoadCountriesOfDestinationChart(data, StartDate, EndDate);
+        var (series, legend) = ChartLoaderService.LoadCountriesOfDestinationChart(data, StartDate, EndDate, GeoLevel);
         CountriesOfDestinationSeries = series;
         CountriesOfDestinationLegend = legend;
         HasCountriesOfDestinationData = series.Count > 0;

@@ -475,6 +475,7 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
         OnPropertyChanged(nameof(SelectedChartElement));
         OnPropertyChanged(nameof(SelectedChartDataTypeOption));
         OnPropertyChanged(nameof(SelectedChartStyleOption));
+        OnPropertyChanged(nameof(SelectedGeoLevelOption));
         OnPropertyChanged(nameof(SelectedLabelElement));
         OnPropertyChanged(nameof(SelectedImageElement));
         OnPropertyChanged(nameof(SelectedImageFileName));
@@ -494,6 +495,7 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
         OnPropertyChanged(nameof(ShowSectionHeaderColors));
         OnPropertyChanged(nameof(ShowTotalColors));
         OnPropertyChanged(nameof(IsDistributionChartSelected));
+        OnPropertyChanged(nameof(IsGeographicChartSelected));
     }
 
     private void OnElementPropertyChanging(object? sender, ElementPropertyChangingEventArgs e)
@@ -623,6 +625,27 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
             }
         }
     }
+
+    /// <summary>
+    /// The level the selected chart groups by, for the ComboBox binding.
+    /// </summary>
+    public GeoLevelOption? SelectedGeoLevelOption
+    {
+        get => GeoLevelOptions.FirstOrDefault(o => o.Value == SelectedChartElement.GeoLevel);
+        set
+        {
+            if (value != null && SelectedElement is ChartReportElement chart)
+            {
+                chart.GeoLevel = value.Value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Whether the selected chart groups by where somebody is, which is what a level applies to.
+    /// </summary>
+    public bool IsGeographicChartSelected => SelectedChartElement.ChartType.GroupsByPlace();
 
     // Type checking properties for conditional visibility
     public bool IsChartSelected => SelectedElement is ChartReportElement;
@@ -1462,7 +1485,8 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
             Configuration.Use24HourFormat = TimeZoneService.Is24HourFormat;
             Configuration.CompanyLogoPath = App.CompanyManager?.CurrentCompanyLogoPath;
             Configuration.MaxPieSlices = ChartSettingsService.GetMaxPieSlices();
-            using var renderer = new ReportRenderer(Configuration, companyData, 1f, LanguageServiceTranslationProvider.Instance, App.ErrorLogger);
+            using var renderer = new ReportRenderer(Configuration, companyData, 1f, LanguageServiceTranslationProvider.Instance, App.ErrorLogger,
+                Data.Regions.NameFor);
 
             // Dispose previous page bitmaps
             foreach (var bmp in PreviewPageImages)
@@ -1526,7 +1550,8 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
             Configuration.Use24HourFormat = TimeZoneService.Is24HourFormat;
             Configuration.CompanyLogoPath = App.CompanyManager?.CurrentCompanyLogoPath;
             Configuration.MaxPieSlices = ChartSettingsService.GetMaxPieSlices();
-            using var renderer = new ReportRenderer(Configuration, companyData, PageDimensions.RenderScale, LanguageServiceTranslationProvider.Instance, App.ErrorLogger);
+            using var renderer = new ReportRenderer(Configuration, companyData, PageDimensions.RenderScale, LanguageServiceTranslationProvider.Instance, App.ErrorLogger,
+                Data.Regions.NameFor);
 
             bool success;
             if (SelectedExportFormat == ExportFormat.PDF)
@@ -1770,9 +1795,18 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
                 SelectedChartElement.ChartType = value.Value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(IsDistributionChartSelected));
+                OnPropertyChanged(nameof(IsGeographicChartSelected));
+                OnPropertyChanged(nameof(SelectedGeoLevelOption));
             }
         }
     }
+
+    public ObservableCollection<GeoLevelOption> GeoLevelOptions { get; } =
+    [
+        new(GeoLevel.Country, Loc.Tr("Country")),
+        new(GeoLevel.Region, Loc.Tr("Region")),
+        new(GeoLevel.City, Loc.Tr("City"))
+    ];
 
     public ObservableCollection<ChartStyleOption> ChartStyleOptions { get; } =
     [
@@ -2866,6 +2900,14 @@ public partial class CustomTemplateOption(string name) : ObservableObject
 /// Represents a chart style option with a display name.
 /// </summary>
 public record ChartStyleOption(ReportChartStyle Value, string DisplayName)
+{
+    public override string ToString() => DisplayName;
+}
+
+/// <summary>
+/// Represents a geographic grouping level with a display name.
+/// </summary>
+public record GeoLevelOption(GeoLevel Value, string DisplayName)
 {
     public override string ToString() => DisplayName;
 }

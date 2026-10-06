@@ -1718,14 +1718,15 @@ public class ChartLoaderService
     public (ObservableCollection<ISeries> Series, ObservableCollection<PieLegendItem> Legend) LoadCountriesOfOriginChart(
         CompanyData? companyData,
         DateTime? startDate = null,
-        DateTime? endDate = null)
+        DateTime? endDate = null,
+        GeoLevel level = GeoLevel.Country)
     {
         var filters = CreateFilters(startDate, endDate);
         var dataService = new ReportChartDataService(companyData, filters);
 
         // Per-transaction conversion at each row's OWN date (docs/Calculations.md Rule 4);
         // values come back in display currency, so the pie helper must not convert again.
-        var dataPoints = dataService.GetExpensesByCountryOfDestination(CurrencyService.GetDisplayAmount).ToList();
+        var dataPoints = dataService.GetExpensesByCountryOfDestination(CurrencyService.GetDisplayAmount, level, Data.Regions.NameFor).ToList();
 
         if (dataPoints.Count == 0)
             return ([], []);
@@ -1751,7 +1752,8 @@ public class ChartLoaderService
     public (ObservableCollection<ISeries> Series, ObservableCollection<PieLegendItem> Legend) LoadCountriesOfDestinationChart(
         CompanyData? companyData,
         DateTime? startDate = null,
-        DateTime? endDate = null)
+        DateTime? endDate = null,
+        GeoLevel level = GeoLevel.Country)
     {
         var filters = CreateFilters(startDate, endDate);
         var dataService = new ReportChartDataService(companyData, filters);
@@ -1759,7 +1761,7 @@ public class ChartLoaderService
         // Use sales with customer country lookup - destination is where products are shipped to (customer location)
         // Per-transaction conversion at each row's OWN date (docs/Calculations.md Rule 4);
         // values come back in display currency, so the pie helper must not convert again.
-        var dataPoints = dataService.GetRevenueByCustomerCountry(CurrencyService.GetDisplayAmount).ToList();
+        var dataPoints = dataService.GetRevenueByCustomerCountry(CurrencyService.GetDisplayAmount, level, Data.Regions.NameFor).ToList();
 
         if (dataPoints.Count == 0)
             return ([], []);

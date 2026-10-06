@@ -380,7 +380,8 @@ public partial class SkiaReportDesignCanvas : UserControl
         Configuration.Use24HourFormat = TimeZoneService.Is24HourFormat;
         Configuration.CompanyLogoPath = App.CompanyManager?.CurrentCompanyLogoPath;
         Configuration.MaxPieSlices = ChartSettingsService.GetMaxPieSlices();
-        using var renderer = new ReportRenderer(Configuration, companyData, 1f, LanguageServiceTranslationProvider.Instance, App.ErrorLogger);
+        using var renderer = new ReportRenderer(Configuration, companyData, 1f, LanguageServiceTranslationProvider.Instance, App.ErrorLogger,
+            Data.Regions.NameFor);
         renderer.ComputeContinuationPlan();
         _continuationPlan = renderer.GetContinuationPlan();
 

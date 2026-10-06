@@ -63,6 +63,23 @@ public partial class UnifiedChartWidgetViewModel : WidgetViewModelBase
 
     public string[] ChartStyleOptions { get; } = ["pie", "donut"];
 
+    /// <summary>The two charts that group by where somebody is, so only those offer a level.</summary>
+    public bool IsGeographic => ChartDataType.GroupsByPlace();
+
+    public string[] GeoLevelOptions { get; } = ["Country", "Region", "City"];
+
+    [ObservableProperty]
+    private string _geoLevelOption = "Country";
+
+    partial void OnGeoLevelOptionChanged(string value) => LoadData();
+
+    private GeoLevel Level => GeoLevelOption switch
+    {
+        "Region" => GeoLevel.Region,
+        "City" => GeoLevel.City,
+        _ => GeoLevel.Country
+    };
+
     public override bool HasConfig => IsDistribution;
 
     partial void OnChartStyleChanged(string value) => LoadData();
@@ -91,6 +108,9 @@ public partial class UnifiedChartWidgetViewModel : WidgetViewModelBase
 
         if (config.TryGetValue("ChartStyle", out var style))
             ChartStyle = style;
+
+        if (config.TryGetValue("GeoLevel", out var level) && GeoLevelOptions.Contains(level))
+            GeoLevelOption = level;
     }
 
     public override Dictionary<string, string> GetConfig()
@@ -101,6 +121,8 @@ public partial class UnifiedChartWidgetViewModel : WidgetViewModelBase
         };
         if (IsDistribution)
             config["ChartStyle"] = ChartStyle;
+        if (IsGeographic)
+            config["GeoLevel"] = GeoLevelOption;
         return config;
     }
 
@@ -128,7 +150,7 @@ public partial class UnifiedChartWidgetViewModel : WidgetViewModelBase
             EndDate = chartSettings.EndDate
         };
 
-        ChartTitle = ChartDataType.GetDisplayName();
+        ChartTitle = ChartDataType.GetDisplayName(Level);
 
         // Total Profits uses the analytics-page loader so the dashboard widget
         // gets the same positive=green / negative=red bar split and computed title.
@@ -165,7 +187,8 @@ public partial class UnifiedChartWidgetViewModel : WidgetViewModelBase
             // unaffected because GetDisplayAmount only scales monetary aggregates. The time-series
             // paths below intentionally stay in USD: CreateDateTimeSeries already converts per
             // bucket date, so passing a converter there would double-convert.
-            var result = service.GetChartData(ChartDataType, CurrencyService.GetDisplayAmount);
+            var result = service.GetChartData(ChartDataType, CurrencyService.GetDisplayAmount,
+                Level, Data.Regions.NameFor);
             LoadDistributionChart(result);
         }
         else if (ChartDataType.IsMultiSeries())

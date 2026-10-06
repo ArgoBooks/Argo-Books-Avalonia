@@ -205,6 +205,17 @@ public class ChartReportElement : ReportElementBase
         set => SetField(ref field, value);
     } = ReportChartStyle.Area;
 
+    /// <summary>
+    /// How far down a geographic chart groups its rows. An element saved before this existed has no
+    /// value for it, so it keeps grouping by country.
+    /// </summary>
+    [JsonPropertyName("geoLevel")]
+    public GeoLevel GeoLevel
+    {
+        get;
+        set => SetField(ref field, value);
+    } = GeoLevel.Country;
+
     [JsonPropertyName("showLegend")]
     public bool ShowLegend
     {

@@ -1090,6 +1090,12 @@
                                               SelectedItem="{Binding SelectedChartStyleOption}"
                                               HorizontalAlignment="Stretch" />
                                 </StackPanel>
+                                <StackPanel Spacing="4" IsVisible="{Binding IsGeographicChartSelected}">
+                                    <TextBlock Text="{loc:Loc 'Group By'}" FontSize="11" Foreground="{DynamicResource TextTertiaryBrush}" />
+                                    <ComboBox ItemsSource="{Binding GeoLevelOptions}"
+                                              SelectedItem="{Binding SelectedGeoLevelOption}"
+                                              HorizontalAlignment="Stretch" />
+                                </StackPanel>
                                 <CheckBox Content="{loc:Loc 'Show Title'}" IsChecked="{Binding SelectedChartElement.ShowTitle, FallbackValue=False}" />
                                 <CheckBox Content="{loc:Loc 'Show Legend'}" IsChecked="{Binding SelectedChartElement.ShowLegend, FallbackValue=False}" IsVisible="{Binding IsDistributionChartSelected}" />
                                 <StackPanel Spacing="4">
