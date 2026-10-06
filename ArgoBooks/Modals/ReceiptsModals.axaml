@@ -1010,7 +1010,7 @@
                                 <PathIcon Data="{x:Static icons:Icons.ScanReceipt}"
                                           Width="24" Height="24"
                                           Foreground="{DynamicResource PrimaryBrush}" />
-                                <TextBlock Classes="modal-title" Text="Bulk Receipt Scanning" />
+                                <TextBlock Classes="modal-title" Text="{loc:Loc 'Bulk Receipt Scanning'}" />
                             </StackPanel>
                         </controls:ModalHeader>
 
@@ -1032,7 +1032,7 @@
                                                   Width="48" Height="48"
                                                   Foreground="{DynamicResource TextTertiaryBrush}"
                                                   HorizontalAlignment="Center" />
-                                        <TextBlock Text="Drag &amp; drop receipts here"
+                                        <TextBlock Text="{loc:Loc 'Drag &amp; drop receipts here'}"
                                                    FontSize="16"
                                                    FontWeight="SemiBold"
                                                    Foreground="{DynamicResource TextPrimaryBrush}"
@@ -1042,7 +1042,7 @@
                                                    Foreground="{DynamicResource TextTertiaryBrush}"
                                                    HorizontalAlignment="Center" />
                                         <Button Classes="secondary-button"
-                                                Content="Browse Files"
+                                                Content="{loc:Loc 'Browse Files'}"
                                                 HorizontalAlignment="Center"
                                                 Margin="0,8,0,0"
                                                 Click="OnBrowseFilesClick" />
@@ -1150,7 +1150,7 @@
                         <Border Classes="modal-footer" Grid.Row="2">
                             <Grid ColumnDefinitions="*,Auto,Auto">
                                 <Button Grid.Column="1"
-                                        Content="Cancel"
+                                        Content="{loc:Loc 'Cancel'}"
                                         Classes="secondary-button"
                                         Margin="0,0,12,0"
                                         Command="{Binding RequestCloseBulkDropZoneCommand}" />
@@ -1185,7 +1185,7 @@
                         <controls:ModalHeader Grid.Row="0">
                             <StackPanel Spacing="8">
                                 <Grid ColumnDefinitions="*,Auto">
-                                    <TextBlock Classes="modal-title" Text="Scanning Receipts" />
+                                    <TextBlock Classes="modal-title" Text="{loc:Loc 'Scanning Receipts'}" />
                                     <TextBlock Grid.Column="1"
                                                FontSize="13"
                                                Foreground="{DynamicResource TextSecondaryBrush}"
@@ -1193,7 +1193,7 @@
                                         <Run Text="{Binding BulkScansCompleted}" />
                                         <Run Text=" of " />
                                         <Run Text="{Binding BulkItems.Count}" />
-                                        <Run Text=" complete" />
+                                        <Run Text="{loc:Loc 'complete'}" />
                                     </TextBlock>
                                 </Grid>
                                 <ProgressBar Value="{Binding BulkProgressPercent}"
@@ -1311,7 +1311,7 @@
                         <Border Classes="modal-footer" Grid.Row="2">
                             <Grid ColumnDefinitions="*,Auto">
                                 <Button Grid.Column="1"
-                                        Content="Cancel"
+                                        Content="{loc:Loc 'Cancel'}"
                                         Classes="secondary-button"
                                         Command="{Binding CancelBulkScanCommand}" />
                             </Grid>
@@ -1338,7 +1338,7 @@
                                     <Run Text="{Binding BulkScansSucceeded}" />
                                     <Run Text=" succeeded, " />
                                     <Run Text="{Binding BulkScansFailed}" />
-                                    <Run Text=" failed" />
+                                    <Run Text="{loc:Loc 'failed'}" />
                                 </TextBlock>
                             </controls:ModalHeader.Actions>
                         </controls:ModalHeader>
@@ -1438,7 +1438,7 @@
                             <Grid ColumnDefinitions="*,Auto,Auto">
                                 <!-- Close when no succeeded items -->
                                 <Button Grid.Column="1"
-                                        Content="Close"
+                                        Content="{loc:Loc 'Close'}"
                                         Classes="secondary-button"
                                         Margin="0,0,12,0"
                                         Command="{Binding CloseBulkReviewCommand}" />
@@ -1622,7 +1622,7 @@
                                             CornerRadius="8"
                                             Padding="12,8">
                                         <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                            <TextBlock Text="Extraction Confidence"
+                                            <TextBlock Text="{loc:Loc 'Extraction Confidence'}"
                                                        FontSize="13"
                                                        Foreground="{DynamicResource TextSecondaryBrush}"
                                                        VerticalAlignment="Center" />
@@ -1636,7 +1636,7 @@
                                                     Padding="8,3"
                                                     VerticalAlignment="Center"
                                                     IsVisible="{Binding IsHighConfidence}">
-                                                <TextBlock Text="High"
+                                                <TextBlock Text="{loc:Loc 'High'}"
                                                            FontSize="12"
                                                            FontWeight="Medium"
                                                            Foreground="{DynamicResource SuccessDarkBrush}" />
@@ -1646,7 +1646,7 @@
                                                     Padding="8,3"
                                                     VerticalAlignment="Center"
                                                     IsVisible="{Binding IsMediumConfidence}">
-                                                <TextBlock Text="Medium"
+                                                <TextBlock Text="{loc:Loc 'Medium'}"
                                                            FontSize="12"
                                                            FontWeight="Medium"
                                                            Foreground="{DynamicResource WarningDarkBrush}" />
@@ -1656,7 +1656,7 @@
                                                     Padding="8,3"
                                                     VerticalAlignment="Center"
                                                     IsVisible="{Binding IsLowConfidence}">
-                                                <TextBlock Text="Low - Review Carefully"
+                                                <TextBlock Text="{loc:Loc 'Low - Review Carefully'}"
                                                            FontSize="12"
                                                            FontWeight="Medium"
                                                            Foreground="{DynamicResource ErrorBrush}" />
@@ -1666,7 +1666,7 @@
 
                                     <!-- Basic Info -->
                                     <StackPanel Spacing="12">
-                                        <TextBlock Text="Extracted Information"
+                                        <TextBlock Text="{loc:Loc 'Extracted Information'}"
                                                    FontSize="14"
                                                    FontWeight="SemiBold"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
@@ -1674,7 +1674,7 @@
                                         <!-- Date and Total Row -->
                                         <Grid ColumnDefinitions="*,16,*,16,*">
                                             <StackPanel Grid.Column="0" Spacing="6">
-                                                <TextBlock Text="Date"
+                                                <TextBlock Text="{loc:Loc 'Date'}"
                                                            FontSize="13"
                                                            FontWeight="Medium"
                                                            Foreground="{DynamicResource TextSecondaryBrush}" />
@@ -1683,7 +1683,7 @@
                                                             HorizontalAlignment="Stretch" />
                                             </StackPanel>
                                             <StackPanel Grid.Column="2" Spacing="6">
-                                                <TextBlock Text="Currency"
+                                                <TextBlock Text="{loc:Loc 'Currency'}"
                                                            FontSize="13"
                                                            FontWeight="Medium"
                                                            Foreground="{DynamicResource TextSecondaryBrush}" />
@@ -1694,7 +1694,7 @@
                                             </StackPanel>
                                             <StackPanel Grid.Column="4" Spacing="6">
                                                 <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}">
-                                                    <Run Text="Total" /><Run Text=" *" Foreground="{DynamicResource ErrorBrush}" />
+                                                    <Run Text="{loc:Loc 'Total'}" /><Run Text=" *" Foreground="{DynamicResource ErrorBrush}" />
                                                 </TextBlock>
                                                 <TextBox Text="{Binding ExtractedTotal}"
                                                          PlaceholderText="0.00"
@@ -1712,7 +1712,7 @@
                                         <!-- Subtotal, Tax, Discount, Shipping Row -->
                                         <Grid ColumnDefinitions="*,16,*,16,*,16,*">
                                             <StackPanel Grid.Column="0" Spacing="6">
-                                                <TextBlock Text="Subtotal"
+                                                <TextBlock Text="{loc:Loc 'Subtotal'}"
                                                            FontSize="13"
                                                            FontWeight="Medium"
                                                            Foreground="{DynamicResource TextSecondaryBrush}" />
@@ -1723,7 +1723,7 @@
                                                          MaxLength="13" />
                                             </StackPanel>
                                             <StackPanel Grid.Column="2" Spacing="6">
-                                                <TextBlock Text="Tax"
+                                                <TextBlock Text="{loc:Loc 'Tax'}"
                                                            FontSize="13"
                                                            FontWeight="Medium"
                                                            Foreground="{DynamicResource TextSecondaryBrush}" />
@@ -1734,7 +1734,7 @@
                                                          MaxLength="13" />
                                             </StackPanel>
                                             <StackPanel Grid.Column="4" Spacing="6">
-                                                <TextBlock Text="Discount"
+                                                <TextBlock Text="{loc:Loc 'Discount'}"
                                                            FontSize="13"
                                                            FontWeight="Medium"
                                                            Foreground="{DynamicResource TextSecondaryBrush}" />
@@ -1745,7 +1745,7 @@
                                                          MaxLength="13" />
                                             </StackPanel>
                                             <StackPanel Grid.Column="6" Spacing="6">
-                                                <TextBlock Text="Shipping"
+                                                <TextBlock Text="{loc:Loc 'Shipping'}"
                                                            FontSize="13"
                                                            FontWeight="Medium"
                                                            Foreground="{DynamicResource TextSecondaryBrush}" />
@@ -1812,7 +1812,7 @@
                                     <StackPanel Spacing="12">
                                         <Grid ColumnDefinitions="*,Auto">
                                             <TextBlock Grid.Column="0"
-                                                       Text="Line Items"
+                                                       Text="{loc:Loc 'Line Items'}"
                                                        FontSize="14"
                                                        FontWeight="SemiBold"
                                                        Foreground="{DynamicResource TextPrimaryBrush}" />
@@ -1827,7 +1827,7 @@
                                                 <StackPanel Orientation="Horizontal" Spacing="6">
                                                     <PathIcon Data="{x:Static icons:Icons.Add}"
                                                               Width="14" Height="14" />
-                                                    <TextBlock Text="Add Item" />
+                                                    <TextBlock Text="{loc:Loc 'Add Item'}" />
                                                 </StackPanel>
                                             </Button>
                                         </Grid>
@@ -1838,17 +1838,17 @@
                                                 Padding="12,8"
                                                 IsVisible="{Binding LineItems.Count}">
                                             <Grid ColumnDefinitions="*,70,80,100,40">
-                                                <TextBlock Grid.Column="0" Text="Product" FontSize="12" FontWeight="Medium"
+                                                <TextBlock Grid.Column="0" Text="{loc:Loc 'Product'}" FontSize="12" FontWeight="Medium"
                                                            Foreground="{DynamicResource TextTertiaryBrush}" />
-                                                <TextBlock Grid.Column="1" Text="Quantity" FontSize="12" FontWeight="Medium"
+                                                <TextBlock Grid.Column="1" Text="{loc:Loc 'Quantity'}" FontSize="12" FontWeight="Medium"
                                                            Foreground="{DynamicResource TextTertiaryBrush}"
                                                            HorizontalAlignment="Center"
                                                            Margin="0,0,8,0" />
-                                                <TextBlock Grid.Column="2" Text="Unit Price" FontSize="12" FontWeight="Medium"
+                                                <TextBlock Grid.Column="2" Text="{loc:Loc 'Unit Price'}" FontSize="12" FontWeight="Medium"
                                                            Foreground="{DynamicResource TextTertiaryBrush}"
                                                            HorizontalAlignment="Center"
                                                            Margin="0,0,8,0" />
-                                                <TextBlock Grid.Column="3" Text="Total" FontSize="12" FontWeight="Medium"
+                                                <TextBlock Grid.Column="3" Text="{loc:Loc 'Total'}" FontSize="12" FontWeight="Medium"
                                                            Foreground="{DynamicResource TextTertiaryBrush}"
                                                            HorizontalAlignment="Right"
                                                            Margin="0,0,12,0" />
@@ -1955,7 +1955,7 @@
                                                                           IsVisible="{Binding IsLowConfidence}"
                                                                           VerticalAlignment="Center"
                                                                           Margin="0,0,4,0"
-                                                                          ToolTip.Tip="This value may be inaccurate. Please double-check it." />
+                                                                          ToolTip.Tip="{loc:Loc 'This value may be inaccurate. Please double-check it.'}" />
                                                                 <TextBlock FontSize="14"
                                                                            FontWeight="Medium"
                                                                            Foreground="{DynamicResource TextPrimaryBrush}"
@@ -1975,7 +1975,7 @@
                                                                     IsVisible="{Binding $parent[ItemsControl].((vm:ReceiptsModalsViewModel)DataContext).LineItems.Count, Converter={x:Static local:IntConverters.IsGreaterThanOne}}"
                                                                     Command="{Binding $parent[ItemsControl].((vm:ReceiptsModalsViewModel)DataContext).RemoveLineItemCommand}"
                                                                     CommandParameter="{Binding}"
-                                                                    ToolTip.Tip="Remove item">
+                                                                    ToolTip.Tip="{loc:Loc 'Remove item'}">
                                                                 <PathIcon Data="{x:Static icons:Icons.Delete}"
                                                                           Width="14" Height="14" />
                                                             </Button>
@@ -1990,7 +1990,7 @@
                                                 CornerRadius="8"
                                                 Padding="24,16"
                                                 IsVisible="{Binding !LineItems.Count}">
-                                            <TextBlock Text="No line items detected. Click Add Item to manually add items."
+                                            <TextBlock Text="{loc:Loc 'No line items detected. Click Add Item to manually add items.'}"
                                                        FontSize="13"
                                                        Foreground="{DynamicResource TextTertiaryBrush}"
                                                        HorizontalAlignment="Center" />
@@ -2169,12 +2169,12 @@
 
                                     <!-- Notes -->
                                     <StackPanel Spacing="6">
-                                        <TextBlock Text="Notes"
+                                        <TextBlock Text="{loc:Loc 'Notes'}"
                                                    FontSize="13"
                                                    FontWeight="Medium"
                                                    Foreground="{DynamicResource TextSecondaryBrush}" />
                                         <TextBox Text="{Binding Notes}"
-                                                 PlaceholderText="Add any additional notes..."
+                                                 PlaceholderText="{loc:Loc 'Add any additional notes...'}"
                                                  Classes="form-input"
                                                  AcceptsReturn="True"
                                                  TextWrapping="Wrap"
@@ -2191,19 +2191,19 @@
                                             <StackPanel Orientation="Horizontal" Spacing="6">
                                                 <PathIcon Data="{x:Static icons:Icons.Check}"
                                                           Width="16" Height="16" />
-                                                <TextBlock Text="Approve" />
+                                                <TextBlock Text="{loc:Loc 'Approve'}" />
                                             </StackPanel>
                                         </Button>
                                         <!-- Un-approve button (shown when approved) -->
                                         <Button Classes="secondary-button"
                                                 Command="{Binding UnapproveBulkItemCommand}"
                                                 IsVisible="{Binding ShowUnapproveBulkButton}">
-                                            <TextBlock Text="Un-approve" />
+                                            <TextBlock Text="{loc:Loc 'Un-approve'}" />
                                         </Button>
                                         <!-- Skip button -->
                                         <Button Classes="secondary-button"
                                                 Command="{Binding SkipBulkItemCommand}"
-                                                Content="Skip" />
+                                                Content="{loc:Loc 'Skip'}" />
                                     </StackPanel>
                                 </StackPanel>
                             </ScrollViewer>
@@ -2356,7 +2356,7 @@
                                     <Run Text="{Binding BulkApprovedCount}" FontWeight="SemiBold" />
                                     <Run Text=" of " />
                                     <Run Text="{Binding BulkSucceededItems.Count}" />
-                                    <Run Text=" approved" />
+                                    <Run Text="{loc:Loc 'approved'}" />
                                 </TextBlock>
                                 <StackPanel Grid.Column="2"
                                             Orientation="Horizontal"
@@ -2372,7 +2372,7 @@
                                                Foreground="{DynamicResource WarningBrush}"
                                                VerticalAlignment="Center">
                                         <Run Text="{Binding BulkIncompleteCount}" />
-                                        <Run Text=" item(s) need attention" />
+                                        <Run Text="{loc:Loc 'item(s) need attention'}" />
                                     </TextBlock>
                                 </StackPanel>
                                 <Button Grid.Column="3"

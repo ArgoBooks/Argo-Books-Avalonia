@@ -1,5 +1,6 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="using:ArgoBooks.Localization"
              xmlns:local="using:ArgoBooks"
              xmlns:vm="using:ArgoBooks.ViewModels.Dashboard"
              x:Class="ArgoBooks.Controls.Dashboard.WidgetHost"
@@ -50,7 +51,7 @@
                     IsVisible="{Binding IsEditMode}">
             <Border x:Name="DragHandle"
                     Classes="widget-overlay-btn drag-handle"
-                    ToolTip.Tip="Drag to reorder"
+                    ToolTip.Tip="{loc:Loc 'Drag to reorder'}"
                     Background="{DynamicResource SurfaceBrush}"
                     BorderThickness="1"
                     BorderBrush="{DynamicResource BorderBrush}"
@@ -65,13 +66,13 @@
             <Button x:Name="SettingsButton"
                     Classes="widget-overlay-btn"
                     Command="{Binding ToggleConfigCommand}"
-                    ToolTip.Tip="Settings">
+                    ToolTip.Tip="{loc:Loc 'Settings'}">
                 <PathIcon Data="{x:Static local:Icons.Settings}"
                           Width="12" Height="12" />
             </Button>
             <Button Classes="widget-overlay-btn remove-btn"
                     x:Name="RemoveButton"
-                    ToolTip.Tip="Remove widget">
+                    ToolTip.Tip="{loc:Loc 'Remove widget'}">
                 <PathIcon Data="{x:Static local:Icons.Close}"
                           Width="12" Height="12" />
             </Button>

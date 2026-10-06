@@ -1,4 +1,4 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -132,7 +132,7 @@
                                                 <!-- Required by the T619 transmittal record, and the address CRA
                                                      replies to about the filing. Not printed on any slip. -->
                                                 <TextBox Text="{Binding ContactEmail, Mode=TwoWay}" Classes="form-input"
-                                                         PlaceholderText="name@example.com" MaxLength="60" />
+                                                         PlaceholderText="{loc:Loc 'name@example.com'}" MaxLength="60" />
                                                 <TextBlock Text="{Binding ContactEmailError}" FontSize="14"
                                                            TextWrapping="Wrap"
                                                            Foreground="{DynamicResource ErrorBrush}"

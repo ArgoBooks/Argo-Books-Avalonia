@@ -1,4 +1,4 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -78,7 +78,7 @@
                                                HorizontalAlignment="Center" />
                                     <Button Grid.Column="2"
                                             Command="{Binding HeaderViewModel.DismissUnsavedChangesReminderCommand}"
-                                            ToolTip.Tip="Dismiss"
+                                            ToolTip.Tip="{loc:Loc 'Dismiss'}"
                                             Background="{DynamicResource WarningDarkBrush}"
                                             BorderThickness="0"
                                             CornerRadius="4"
@@ -202,7 +202,7 @@
                         Cursor="Hand"
                         VerticalAlignment="Top"
                         Margin="4,10,8,0"
-                        ToolTip.Tip="Dismiss">
+                        ToolTip.Tip="{loc:Loc 'Dismiss'}">
                     <PathIcon Data="{x:Static icons:Icons.Close}"
                               Width="14" Height="14"
                               Foreground="{DynamicResource TextTertiaryBrush}" />

@@ -1,5 +1,6 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="using:ArgoBooks.Localization"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:ArgoBooks.ViewModels"
@@ -86,7 +87,7 @@
                                     Padding="16"
                                     Margin="0,0,8,0">
                                 <StackPanel HorizontalAlignment="Center" Spacing="4">
-                                    <TextBlock Text="Needs Manual Fix"
+                                    <TextBlock Text="{loc:Loc 'Needs Manual Fix'}"
                                                FontSize="12"
                                                Foreground="{DynamicResource TextSecondaryBrush}"
                                                HorizontalAlignment="Center" />
@@ -105,7 +106,7 @@
                                     Padding="16"
                                     Margin="8,0,0,0">
                                 <StackPanel HorizontalAlignment="Center" Spacing="4">
-                                    <TextBlock Text="Sheets Affected"
+                                    <TextBlock Text="{loc:Loc 'Sheets Affected'}"
                                                FontSize="12"
                                                Foreground="{DynamicResource TextSecondaryBrush}"
                                                HorizontalAlignment="Center" />
@@ -128,7 +129,7 @@
                                     <PathIcon Data="{x:Static icons:Icons.CircleCheck}"
                                               Width="16" Height="16"
                                               Foreground="{DynamicResource DangerBrush}" />
-                                    <TextBlock Text="Critical Errors"
+                                    <TextBlock Text="{loc:Loc 'Critical Errors'}"
                                                FontSize="14"
                                                FontWeight="SemiBold"
                                                Foreground="{DynamicResource DangerBrush}" />
@@ -207,10 +208,10 @@
                                                     Background="{DynamicResource BackgroundBrush}"
                                                     IsVisible="{Binding IsExpanded}">
                                                 <Grid ColumnDefinitions="45,150,180,*">
-                                                    <TextBlock Grid.Column="0" Text="Row" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextTertiaryBrush}" />
-                                                    <TextBlock Grid.Column="1" Text="Column" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextTertiaryBrush}" />
-                                                    <TextBlock Grid.Column="2" Text="Value" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextTertiaryBrush}" />
-                                                    <TextBlock Grid.Column="3" Text="Issue" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextTertiaryBrush}" />
+                                                    <TextBlock Grid.Column="0" Text="{loc:Loc 'Row'}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextTertiaryBrush}" />
+                                                    <TextBlock Grid.Column="1" Text="{loc:Loc 'Column'}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextTertiaryBrush}" />
+                                                    <TextBlock Grid.Column="2" Text="{loc:Loc 'Value'}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextTertiaryBrush}" />
+                                                    <TextBlock Grid.Column="3" Text="{loc:Loc 'Issue'}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextTertiaryBrush}" />
                                                 </Grid>
                                             </Border>
 
@@ -263,13 +264,13 @@
                                                                         <Border CornerRadius="3" Padding="4,1" VerticalAlignment="Center"
                                                                                 IsVisible="{Binding IsAutoFixable}"
                                                                                 Background="#1A22C55E">
-                                                                            <TextBlock Text="Auto-fix" FontSize="11" FontWeight="SemiBold"
+                                                                            <TextBlock Text="{loc:Loc 'Auto-fix'}" FontSize="11" FontWeight="SemiBold"
                                                                                        Foreground="{DynamicResource SuccessBrush}" />
                                                                         </Border>
                                                                         <Border CornerRadius="3" Padding="4,1" VerticalAlignment="Center"
                                                                                 IsVisible="{Binding !IsAutoFixable}"
                                                                                 Background="#1AEF4444">
-                                                                            <TextBlock Text="Manual fix" FontSize="11" FontWeight="SemiBold"
+                                                                            <TextBlock Text="{loc:Loc 'Manual fix'}" FontSize="11" FontWeight="SemiBold"
                                                                                        Foreground="{DynamicResource ErrorBrush}" />
                                                                         </Border>
                                                                         <TextBlock Text="{Binding Description}"
@@ -300,11 +301,11 @@
                     <Grid ColumnDefinitions="*,Auto">
                         <!-- Message based on state -->
                         <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                            <TextBlock Text="Review the issues above before proceeding."
+                            <TextBlock Text="{loc:Loc 'Review the issues above before proceeding.'}"
                                        FontSize="12"
                                        Foreground="{DynamicResource TextTertiaryBrush}"
                                        IsVisible="{Binding CanImport}" />
-                            <TextBlock Text="Critical errors must be fixed before importing."
+                            <TextBlock Text="{loc:Loc 'Critical errors must be fixed before importing.'}"
                                        FontSize="12"
                                        Foreground="{DynamicResource DangerBrush}"
                                        IsVisible="{Binding HasErrors}" />
@@ -318,10 +319,10 @@
                                     Orientation="Horizontal"
                                     Spacing="12">
                             <Button Classes="secondary-button"
-                                    Content="Cancel"
+                                    Content="{loc:Loc 'Cancel'}"
                                     Command="{Binding RequestCloseCommand}" />
                             <Button Classes="primary-button"
-                                    Content="Create Missing &amp; Import"
+                                    Content="{loc:Loc 'Create Missing &amp; Import'}"
                                     Command="{Binding CreateMissingAndImportCommand}"
                                     IsVisible="{Binding CanImport}" />
                         </StackPanel>

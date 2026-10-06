@@ -1,4 +1,4 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -28,11 +28,11 @@
                         Classes="page-tabs">
                 <TabItem Header="{loc:Loc 'All Invoices'}" />
                 <TabItem Header="{loc:Loc Drafts}" />
-                <TabItem Header="Sent" />
+                <TabItem Header="{loc:Loc 'Sent'}" />
                 <TabItem>
                     <TabItem.Header>
                         <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
-                            <TextBlock Text="Recurring" VerticalAlignment="Center" />
+                            <TextBlock Text="{loc:Loc 'Recurring'}" VerticalAlignment="Center" />
                             <!-- Count of recurring drafts waiting to be sent -->
                             <Border Background="{DynamicResource PrimaryBrush}" CornerRadius="9"
                                     MinWidth="18" Height="18" Padding="5,0" VerticalAlignment="Center"
@@ -277,13 +277,13 @@
                                 <Button Grid.Column="2"
                                         Classes="secondary-button"
                                         Padding="10,4"
-                                        Content="Review"
+                                        Content="{loc:Loc 'Review'}"
                                         Command="{Binding ReviewGeneratedCommand}"
                                         Margin="8,0,6,0" />
                                 <Button Grid.Column="3"
                                         Classes="secondary-button"
                                         Padding="10,4"
-                                        Content="Dismiss"
+                                        Content="{loc:Loc 'Dismiss'}"
                                         Command="{Binding DismissGeneratedBannerCommand}" />
                             </Grid>
                         </Border>
@@ -567,7 +567,7 @@
                         BorderThickness="1" CornerRadius="12" ClipToBounds="True">
                     <StackPanel>
                         <Grid ColumnDefinitions="*,Auto" Margin="20,16,20,8">
-                            <TextBlock Grid.Column="0" Text="Waiting to send"
+                            <TextBlock Grid.Column="0" Text="{loc:Loc 'Waiting to send'}"
                                        FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center"
                                        Foreground="{DynamicResource TextPrimaryBrush}" />
                             <TextBlock Grid.Column="1" VerticalAlignment="Center" FontSize="12"
@@ -576,10 +576,10 @@
                         </Grid>
                         <!-- Column headers -->
                         <Grid ColumnDefinitions="1.4*,2*,1.2*,Auto" Margin="20,0,20,6">
-                            <TextBlock Grid.Column="0" Text="INVOICE #" FontSize="11" FontWeight="Medium" Foreground="{DynamicResource TextTertiaryBrush}" />
-                            <TextBlock Grid.Column="1" Text="CUSTOMER" FontSize="11" FontWeight="Medium" Foreground="{DynamicResource TextTertiaryBrush}" />
-                            <TextBlock Grid.Column="2" Text="AMOUNT" FontSize="11" FontWeight="Medium" Foreground="{DynamicResource TextTertiaryBrush}" />
-                            <TextBlock Grid.Column="3" Text="STATUS" Width="150" FontSize="11" FontWeight="Medium" Foreground="{DynamicResource TextTertiaryBrush}" />
+                            <TextBlock Grid.Column="0" Text="{loc:Loc 'INVOICE #'}" FontSize="11" FontWeight="Medium" Foreground="{DynamicResource TextTertiaryBrush}" />
+                            <TextBlock Grid.Column="1" Text="{loc:Loc 'CUSTOMER'}" FontSize="11" FontWeight="Medium" Foreground="{DynamicResource TextTertiaryBrush}" />
+                            <TextBlock Grid.Column="2" Text="{loc:Loc 'AMOUNT'}" FontSize="11" FontWeight="Medium" Foreground="{DynamicResource TextTertiaryBrush}" />
+                            <TextBlock Grid.Column="3" Text="{loc:Loc 'STATUS'}" Width="150" FontSize="11" FontWeight="Medium" Foreground="{DynamicResource TextTertiaryBrush}" />
                         </Grid>
                         <!-- table-rows gives the app's standard virtualized rows (VirtualizingStackPanel +
                              its own scroll); MaxHeight caps the card so a long list scrolls, not grows. -->
@@ -590,7 +590,7 @@
                                         <Button Classes="ghost" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
                                                 CornerRadius="0" Padding="20,12"
                                                 BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0"
-                                                ToolTip.Tip="Open to review and send"
+                                                ToolTip.Tip="{loc:Loc 'Open to review and send'}"
                                                 Command="{Binding $parent[ItemsControl].((vm:InvoicesPageViewModel)DataContext).ContinueDraftInvoiceCommand}"
                                                 CommandParameter="{Binding}">
                                             <Grid ColumnDefinitions="1.4*,2*,1.2*,Auto" VerticalAlignment="Center">
@@ -601,7 +601,7 @@
                                                     <Border Background="{DynamicResource WarningLightBrush}" CornerRadius="4" Padding="8,4" HorizontalAlignment="Left">
                                                         <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                                                             <PathIcon Data="{x:Static icons:Icons.Send}" Width="12" Height="12" Foreground="{DynamicResource WarningTextBrush}" />
-                                                            <TextBlock Text="Needs to be sent" FontSize="12" FontWeight="Medium" Foreground="{DynamicResource WarningTextBrush}" />
+                                                            <TextBlock Text="{loc:Loc 'Needs to be sent'}" FontSize="12" FontWeight="Medium" Foreground="{DynamicResource WarningTextBrush}" />
                                                         </StackPanel>
                                                     </Border>
                                                 </Border>
@@ -637,22 +637,22 @@
                 <!-- Column headers - widths driven by RecurringColumnWidths so they redistribute on resize -->
                 <table:ArgoTable.HeaderContent>
                     <StackPanel Orientation="Horizontal">
-                        <table:ArgoTableHeader Header="Customer" ColumnName="Customer" IsSortable="False"
+                        <table:ArgoTableHeader Header="{loc:Loc 'Customer'}" ColumnName="Customer" IsSortable="False"
                                                ColumnWidth="{Binding RecurringColumnWidths.CustomerColumnWidth}"
                                                ColumnWidths="{Binding RecurringColumnWidths}" />
-                        <table:ArgoTableHeader Header="Amount" ColumnName="Amount" IsSortable="False"
+                        <table:ArgoTableHeader Header="{loc:Loc 'Amount'}" ColumnName="Amount" IsSortable="False"
                                                ColumnWidth="{Binding RecurringColumnWidths.AmountColumnWidth}"
                                                ColumnWidths="{Binding RecurringColumnWidths}" />
-                        <table:ArgoTableHeader Header="Frequency" ColumnName="Frequency" IsSortable="False"
+                        <table:ArgoTableHeader Header="{loc:Loc 'Frequency'}" ColumnName="Frequency" IsSortable="False"
                                                ColumnWidth="{Binding RecurringColumnWidths.FrequencyColumnWidth}"
                                                ColumnWidths="{Binding RecurringColumnWidths}" />
-                        <table:ArgoTableHeader Header="Next Invoice" ColumnName="NextInvoice" IsSortable="False"
+                        <table:ArgoTableHeader Header="{loc:Loc 'Next Invoice'}" ColumnName="NextInvoice" IsSortable="False"
                                                ColumnWidth="{Binding RecurringColumnWidths.NextInvoiceColumnWidth}"
                                                ColumnWidths="{Binding RecurringColumnWidths}" />
-                        <table:ArgoTableHeader Header="Status" ColumnName="Status" IsSortable="False"
+                        <table:ArgoTableHeader Header="{loc:Loc 'Status'}" ColumnName="Status" IsSortable="False"
                                                ColumnWidth="{Binding RecurringColumnWidths.StatusColumnWidth}"
                                                ColumnWidths="{Binding RecurringColumnWidths}" />
-                        <table:ArgoTableHeader Header="Actions" ColumnName="Actions" IsSortable="False"
+                        <table:ArgoTableHeader Header="{loc:Loc 'Actions'}" ColumnName="Actions" IsSortable="False"
                                                IsResizable="False" ShowSeparator="False"
                                                ColumnWidth="{Binding RecurringColumnWidths.ActionsColumnWidth}" />
                     </StackPanel>
@@ -694,14 +694,14 @@
                                                         <PathIcon Data="{x:Static icons:Icons.Eye}" Width="16" Height="16" />
                                                     </Button>
                                                     <Button Classes="icon-button"
-                                                            ToolTip.Tip="Pause"
+                                                            ToolTip.Tip="{loc:Loc 'Pause'}"
                                                             IsVisible="{Binding !IsPaused}"
                                                             Command="{Binding $parent[ItemsControl].((vm:InvoicesPageViewModel)DataContext).PauseResumeScheduleCommand}"
                                                             CommandParameter="{Binding}">
                                                         <PathIcon Data="{x:Static icons:Icons.Pause}" Width="16" Height="16" />
                                                     </Button>
                                                     <Button Classes="icon-button"
-                                                            ToolTip.Tip="Resume"
+                                                            ToolTip.Tip="{loc:Loc 'Resume'}"
                                                             IsVisible="{Binding IsPaused}"
                                                             Command="{Binding $parent[ItemsControl].((vm:InvoicesPageViewModel)DataContext).PauseResumeScheduleCommand}"
                                                             CommandParameter="{Binding}">

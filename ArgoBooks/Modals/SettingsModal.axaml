@@ -1,4 +1,4 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -1073,7 +1073,7 @@
                                         <TextBox Grid.Column="0"
                                                  Text="{Binding PendingOwnerEmail, Mode=TwoWay}"
                                                  Classes="form-input"
-                                                 PlaceholderText="you@example.com"
+                                                 PlaceholderText="{loc:Loc 'you@example.com'}"
                                                  HorizontalAlignment="Stretch" />
                                         <Button Grid.Column="1"
                                                 Content="{loc:Loc 'Set'}"
@@ -1183,7 +1183,7 @@
                                     <Border Classes="status-panel" Classes.on="{Binding StripeConnected}">
                                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16" MinHeight="40">
                                             <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
-                                                <TextBlock Text="Stripe"
+                                                <TextBlock Text="{loc:Loc 'Stripe'}"
                                                            FontSize="14"
                                                            FontWeight="Medium"
                                                            Foreground="{DynamicResource TextPrimaryBrush}" />
@@ -1222,7 +1222,7 @@
                                     <Border Classes="status-panel" Classes.on="{Binding SquareConnected}">
                                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16" MinHeight="40">
                                             <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
-                                                <TextBlock Text="Square"
+                                                <TextBlock Text="{loc:Loc 'Square'}"
                                                            FontSize="14"
                                                            FontWeight="Medium"
                                                            Foreground="{DynamicResource TextPrimaryBrush}" />
@@ -1682,12 +1682,12 @@
                                  to reach the other. -->
                             <TabControl Grid.Row="1" Classes="sub-tabs">
 
-                                <TabItem Header="Stripe">
+                                <TabItem Header="{loc:Loc 'Stripe'}">
                                     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" AllowAutoHide="False" Padding="0,14,8,0">
                                 <!-- IsEnabled sits on the inputs below, not here, so the sample
                                      company keeps a clickable "Full guide" link. -->
                                 <StackPanel Spacing="8">
-                                    <TextBlock Text="Stripe" FontSize="18" FontWeight="SemiBold"
+                                    <TextBlock Text="{loc:Loc 'Stripe'}" FontSize="18" FontWeight="SemiBold"
                                                Foreground="{DynamicResource TextPrimaryBrush}" />
                                     <TextBlock Text="{loc:Loc 'Import your Stripe payouts, charges, fees and refunds into your books.'}"
                                                FontSize="12" TextWrapping="Wrap"
@@ -1744,7 +1744,7 @@
 
                                         <TextBox Text="{Binding StripeKeyInput, Mode=TwoWay}"
                                                  Classes="form-input"
-                                                 PlaceholderText="rk_live_..."
+                                                 PlaceholderText="{loc:Loc 'rk_live_...'}"
                                                  TextWrapping="Wrap"
                                                  AcceptsReturn="False"
                                                  MinHeight="64" Height="64"

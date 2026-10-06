@@ -1,5 +1,6 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="using:ArgoBooks.Localization"
              xmlns:local="using:ArgoBooks"
              xmlns:vm="using:ArgoBooks.ViewModels.Dashboard"
              xmlns:dashboard="using:ArgoBooks.Controls.Dashboard"
@@ -46,7 +47,7 @@
                 Padding="24,16"
                 HorizontalAlignment="Stretch"
                 Opacity="0.7">
-            <TextBlock Text="Empty row, add a widget or this row will be removed on save"
+            <TextBlock Text="{loc:Loc 'Empty row, add a widget or this row will be removed on save'}"
                        FontSize="12"
                        Foreground="{DynamicResource TextSecondaryBrush}"
                        HorizontalAlignment="Center" />
@@ -59,7 +60,7 @@
                     Spacing="4"
                     IsVisible="{Binding IsEditMode}">
             <Border x:Name="RowDragHandle"
-                    ToolTip.Tip="Drag to reorder row"
+                    ToolTip.Tip="{loc:Loc 'Drag to reorder row'}"
                     Background="{DynamicResource SurfaceBrush}"
                     BorderThickness="1"
                     BorderBrush="{DynamicResource BorderBrush}"
@@ -73,12 +74,12 @@
             </Border>
             <Button x:Name="AddWidgetToRowButton"
                     Classes="row-action-btn"
-                    ToolTip.Tip="Add widget to this row">
+                    ToolTip.Tip="{loc:Loc 'Add widget to this row'}">
                 <TextBlock Text="+" FontSize="14" FontWeight="Bold" />
             </Button>
             <Button x:Name="DeleteRowButton"
                     Classes="row-action-btn"
-                    ToolTip.Tip="Delete this row">
+                    ToolTip.Tip="{loc:Loc 'Delete this row'}">
                 <PathIcon Data="{x:Static local:Icons.Close}"
                           Width="11" Height="11" />
             </Button>
