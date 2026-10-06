@@ -1,7 +1,8 @@
-#pragma warning disable CS0618 // LabelVisual is obsolete, DrawnLabelVisual is not API-compatible
+﻿#pragma warning disable CS0618 // LabelVisual is obsolete, DrawnLabelVisual is not API-compatible
 using System.Collections.ObjectModel;
 using Avalonia;
 using Avalonia.Controls;
+using ArgoBooks.Localization;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
@@ -287,6 +288,7 @@ public partial class ChartExpandOverlay : UserControl
             }
         };
         button.Classes.Add("chart-expand-btn");
+        ToolTip.SetTip(button, "View full screen".Translate());
         button.Click += OnExpandButtonClick;
 
         // Hide the expand button when the chart has no data (empty state showing).
