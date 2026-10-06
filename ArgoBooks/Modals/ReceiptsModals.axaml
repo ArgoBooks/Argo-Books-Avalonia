@@ -100,7 +100,7 @@
                                         <TextBlock Text="{loc:Loc 'Min'}" FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}" />
                                         <TextBox Text="{Binding FilterAmountMin}"
                                                  Classes="form-input"
-                                                 PlaceholderText="$0.00"
+                                                 PlaceholderText="{Binding AmountPlaceholder}"
                                                  behaviors:NumericInputBehavior.IsDecimalOnly="True"
                                                  MaxLength="13" />
                                     </StackPanel>
@@ -108,7 +108,7 @@
                                         <TextBlock Text="{loc:Loc 'Max'}" FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}" />
                                         <TextBox Text="{Binding FilterAmountMax}"
                                                  Classes="form-input"
-                                                 PlaceholderText="$0.00"
+                                                 PlaceholderText="{Binding AmountPlaceholder}"
                                                  behaviors:NumericInputBehavior.IsDecimalOnly="True"
                                                  MaxLength="13" />
                                     </StackPanel>

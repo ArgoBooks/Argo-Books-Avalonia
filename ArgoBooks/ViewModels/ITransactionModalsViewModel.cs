@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.Input;
@@ -27,6 +27,9 @@ public interface ITransactionModalsViewModel
     DateTimeOffset? ModalDate { get; set; }
     ObservableCollection<string> PaymentMethodOptions { get; }
     string SelectedPaymentMethod { get; set; }
+
+    /// <summary>Inherited from ViewModelBase; declared here because the layout binds it.</summary>
+    string AmountPlaceholder { get; }
 
     ObservableCollection<CounterpartyOption> CounterpartyOptions { get; }
     CounterpartyOption? SelectedCounterparty { get; set; }
