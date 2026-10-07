@@ -8,9 +8,7 @@ using Microsoft.Maui.ApplicationModel;
 
 namespace ArgoBooks.Mobile;
 
-// Avalonia 12's Android head moved app-builder customization onto the
-// Application subclass (see MainApplication.cs); AvaloniaMainActivity is now
-// non-generic.
+// Avalonia 12's Android head moved app-builder customization onto the Application subclass (see MainApplication.cs); AvaloniaMainActivity is now non-generic.
 [Activity(
     Label = "Argo Books",
     Theme = "@style/MyTheme.NoActionBar",
@@ -40,9 +38,7 @@ public class MainActivity : AvaloniaMainActivity
         base.OnRequestPermissionsResult(requestCode, permissions, grantResults);
     }
 
-    // Drive the biometric app lock's "resume past grace period" check off the real Activity
-    // lifecycle: OnPause fires when the app is sent to the background (including screen-off and
-    // switching apps), OnResume fires when it comes back to the foreground.
+    // Driven off the real Activity lifecycle, because OnPause fires whenever the app goes to the background, screen-off and app switching included.
     protected override void OnPause()
     {
         base.OnPause();
@@ -55,9 +51,7 @@ public class MainActivity : AvaloniaMainActivity
         App.NotifyForegrounded();
     }
 
-    // Collects the result of DocumentScanner.ScanAsync()'s StartIntentSenderForResult call - the
-    // ML Kit document scanner has no ActivityResultLauncher binding available, so it relies on the
-    // classic request-code + OnActivityResult path instead.
+    // Collects the result of the scanner's StartIntentSenderForResult, since ML Kit's document scanner has no ActivityResultLauncher binding.
     protected override void OnActivityResult(int requestCode, Result resultCode, Intent? data)
     {
         base.OnActivityResult(requestCode, resultCode, data);

@@ -171,18 +171,12 @@ public class SettingsModalViewModelTests
         Assert.Equal(0, _viewModel.SelectedTabIndex);
     }
 
-    // ShouldContinuePairing is the guard ConnectPhoneAsync/PollPairingAsync check before ever
-    // showing a pairing code or delivering the encrypted sync key. These tests pin down the
-    // security property directly: once the pairing screen is cancelled or no longer visible,
-    // the guard must say "don't proceed" so the key is never handed to a screen the user can't
-    // see, regardless of network timing.
+    // ShouldContinuePairing is the guard both pairing calls check before showing a code or delivering the encrypted sync key.
 
     [Fact]
     public void ShouldContinuePairing_WhenCancelled_ReturnsFalse()
     {
-        // Even if the modal is (still, momentarily) open on the right tab, a cancelled
-        // create/poll request must never proceed - this is the exact async-gap scenario: the
-        // modal closed while CreatePairingAsync was in flight, which cancels the token.
+        // A cancelled create or poll must not proceed even with the modal still open on the right tab, which is the async-gap case.
         var result = SettingsModalViewModel.ShouldContinuePairing(
             isCancellationRequested: true, isModalOpen: true, selectedTabIndex: SettingsModalViewModel.MobileAppTabIndex);
 

@@ -20,9 +20,7 @@
         <Setter Property="BorderThickness" Value="0" />
     </Style>
 
-    <!-- Page Tabs (TabControl). The strip scrolls sideways instead of wrapping onto a second row
-         when the tabs do not fit. The content hosts stay in the template, hidden, because the
-         TabControl looks them up by name; page tabs never show content of their own. -->
+    <!-- Page Tabs (TabControl). The strip scrolls sideways instead of wrapping onto a second row when the tabs do not fit. -->
     <Style Selector="TabControl.page-tabs">
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="Template">

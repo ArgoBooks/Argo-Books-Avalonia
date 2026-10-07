@@ -166,10 +166,7 @@ public class TelemetryStorageServiceTests
 
     private class MockPlatformService : IPlatformService
     {
-        // One directory per mock instance, not one per call. As an expression-bodied member
-        // this handed out a fresh GUID every time it was read, so the events file was written
-        // to one directory and looked for in another: nothing could ever be read back, and
-        // every test passed by finding an empty store no matter what had been recorded.
+        // One directory per mock instance, not one per call.
         private readonly string _appDataPath =
             Path.Combine(Path.GetTempPath(), "ArgoBooks_Test_" + Guid.NewGuid().ToString("N")[..8]);
 

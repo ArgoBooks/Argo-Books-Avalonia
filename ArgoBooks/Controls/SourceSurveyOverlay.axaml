@@ -45,9 +45,7 @@
                                    TextWrapping="Wrap" />
                     </StackPanel>
 
-                    <!-- Where they heard about it. Left out when the install came through a
-                         tracked link, or was answered in an earlier version. The choices are
-                         short, so they sit three across to keep both questions on one screen. -->
+                    <!-- Where they heard about it. Left out when the install came through a tracked link, or was answered in an earlier version. -->
                     <StackPanel Spacing="8" IsVisible="{Binding AskSource}">
                         <TextBlock Classes="question" Text="{loc:Loc 'Where did you hear about Argo Books?'}" />
                         <ItemsControl ItemsSource="{Binding Source.Options}">
@@ -104,9 +102,7 @@
                                FontSize="12"
                                TextWrapping="Wrap" />
 
-                    <!-- Actions: Submit is the only path until a submit failure, after which
-                         a Cancel button appears so the user isn't trapped. Cancelling closes
-                         the overlay but leaves the dashboard banner prompting them to answer. -->
+                    <!-- Actions: Submit is the only path until a submit failure, after which a Cancel button appears so the user isn't trapped. -->
                     <StackPanel Orientation="Horizontal"
                                 Spacing="12"
                                 HorizontalAlignment="Right"

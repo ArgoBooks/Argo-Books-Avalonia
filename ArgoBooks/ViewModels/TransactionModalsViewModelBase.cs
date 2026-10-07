@@ -441,11 +441,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         OnPropertyChanged(nameof(FeeAmountFormatted));
         OnPropertyChanged(nameof(TotalFormatted));
 
-        // The stored-total mismatch is a load-time data-integrity check (it flags AI-scanned or
-        // imported transactions whose stored total didn't match their line items - see the call in
-        // the edit-load path). Once the user edits, they are defining the values themselves, so
-        // re-checking the new total against the now-stale stored total just produces a false warning
-        // (e.g. changing an expense from $10 to $100 warned that $100 != the stored $10). Clear it.
+        // The stored-total mismatch is a load-time integrity check for scanned or imported transactions, so it has no place once the user is editing.
         HasTotalMismatchWarning = false;
         TotalMismatchWarningMessage = string.Empty;
     }
@@ -1014,9 +1010,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         var currentCurrency = FormCurrencyCode;
         var transactionDate = ModalDate?.DateTime ?? DateTime.Now;
 
-        // The saving screen covers the wait for an exchange rate, which is the only thing a save
-        // waits on. With the rate already held there is nothing to wait for, and showing it made
-        // the form flash on every save, even one that only changed the payment method.
+        // The saving screen covers the wait for an exchange rate, which is the only thing a save waits on.
         var waitsOnRate = UsdConversion.CachedRate(currentCurrency, transactionDate) == null;
 
         IsSavingTransaction = waitsOnRate;
@@ -1431,9 +1425,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
 
     #region Navigation Commands
 
-    // One-shot handlers for the "create entity from this modal" flows. Stored so a cancelled create
-    // (which never raises the *Saved event) can be detached before the next attempt, instead of
-    // leaking onto the singleton create-modal VMs. See CreateModalSubscription.
+    // One-shot handlers for the "create entity from this modal" flows.
     private EventHandler? _supplierSavedHandler;
     private EventHandler? _customerSavedHandler;
     private EventHandler? _categorySavedHandler;

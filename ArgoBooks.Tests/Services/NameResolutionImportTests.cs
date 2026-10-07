@@ -79,10 +79,7 @@ public class NameResolutionImportTests
     public void AmbiguousCustomerName_CreatesNewCustomer_WarnsAndDoesNotMislink()
     {
         var data = new CompanyData();
-        // Two existing customers whose names differ by a single character. The resolver is
-        // pure-Levenshtein with a 0.92 accept threshold and a 0.05 tie margin, so a reference
-        // that sits one edit from BOTH scores a dead tie at the top and is genuinely ambiguous
-        // (a short substring like "Smith" against longer names would just score too low to match).
+        // Two existing customers whose names differ by a single character.
         data.Customers.Add(new Customer { Id = "CUS-1", Name = "Northwind Tradimg" });
         data.Customers.Add(new Customer { Id = "CUS-2", Name = "Northwind Tradinh" });
 

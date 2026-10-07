@@ -336,9 +336,7 @@ public class ReceiptTypeConverterTests
         Assert.Equal("Revenue", entry.TransactionType);
     }
 
-    // Once a conversion pass had converted the new transaction and taken its entry off the queue,
-    // undo pointed the entry back at the original without queuing it, and the original, which was
-    // never converted, stayed pending for good.
+    // A conversion pass had converted the new transaction and taken its entry off the queue, so undo has to re-queue the original.
     [Fact]
     public void Revert_AfterTheNewTransactionConverted_QueuesTheOriginalAgain()
     {

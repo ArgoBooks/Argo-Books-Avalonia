@@ -224,9 +224,7 @@
         <!-- Settings Modal -->
         <modals:SettingsModal DataContext="{Binding SettingsModalViewModel}" />
 
-        <!-- Upgrade Modal. Declared after Settings so it draws on top of it: the
-             Premium prompts inside Settings used to close Settings before opening
-             this, which threw away where the user was for the sake of z-order. -->
+        <!-- Declared after Settings so it draws on top, which lets a Premium prompt inside Settings open it without throwing away where the user was. -->
         <modals:UpgradeModal DataContext="{Binding UpgradeModalViewModel}" />
 
         <!-- Check for Update Modal -->

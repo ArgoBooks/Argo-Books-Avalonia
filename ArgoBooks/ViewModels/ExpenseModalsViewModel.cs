@@ -581,9 +581,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
         var fileInfo = new FileInfo(ReceiptFilePath);
         var fileType = GetFileType(ReceiptFilePath);
 
-        // A receipt is only worth keeping with its file in it. A file that has gone since it was
-        // picked (an online-only cloud file, a phone or network drive that dropped) used to be
-        // attached empty with no warning, and then opened blank.
+        // A receipt is only worth keeping with its file in it.
         string fileData;
         try
         {
@@ -722,10 +720,7 @@ internal class TransactionState
     public string ReferenceNumber { get; set; } = string.Empty;
     public string? ReceiptId { get; set; }
     public bool IsPendingConversion { get; set; }
-    // USD-normalized + currency fields must also be captured. Dashboard
-    // aggregations read EffectiveTotalUSD which falls back to TotalUSD for
-    // non-USD companies. If undo restores only native fields, those
-    // companies see stale (post-edit) values even after the revert.
+    // The USD and currency fields are captured too, because dashboard totals read EffectiveTotalUSD and undo would leave them stale.
     public string OriginalCurrency { get; set; } = "USD";
     public decimal TotalUSD { get; set; }
     public decimal UnitPriceUSD { get; set; }

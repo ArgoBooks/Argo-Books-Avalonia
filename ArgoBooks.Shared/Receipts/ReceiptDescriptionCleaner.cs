@@ -10,10 +10,7 @@ namespace ArgoBooks.Core.Services;
 /// </summary>
 public static partial class ReceiptDescriptionCleaner
 {
-    // Matches a leading code token followed by whitespace and at least one more (non-space)
-    // character of the actual name. A code is either hyphen-joined digit groups
-    // ("6010-0272-0259-0062") or a long run of digits ("0123456789", a barcode). Plain short
-    // numbers like "2" (a quantity) or "2024" (a year) are NOT matched, so real names are kept.
+    // Matches a leading code token followed by whitespace and at least one more (non-space) character of the actual name.
     [GeneratedRegex(@"^\s*(?:\d+(?:-\d+)+|\d{5,})\s+(?=\S)")]
     private static partial Regex LeadingCodeRegex();
 

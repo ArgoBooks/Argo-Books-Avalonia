@@ -240,9 +240,7 @@ public partial class CheckForUpdateModalViewModel : ViewModelBase
         if (App.CompanyManager != null)
             await App.CompanyManager.WaitForSaveToFinishAsync();
 
-        // The installer ends the process, so this session has to be closed here. Left to the
-        // installer, the sentinel survives and the next launch reports the update as a run
-        // that died, which is how every successful update has been counted so far.
+        // The installer ends the process, so this session has to be closed here.
         if (App.TelemetryManager != null)
             await App.TelemetryManager.EndSessionAsync();
 

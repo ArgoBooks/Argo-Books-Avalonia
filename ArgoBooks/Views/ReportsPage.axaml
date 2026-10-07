@@ -196,9 +196,7 @@
                         BorderThickness="1"
                         Margin="0,0,24,0">
                     <Grid RowDefinitions="Auto,*">
-                            <!-- Tab Navigation. Send to Accountant sits with it rather than at the
-                                 foot of the template list, where it was only reachable by scrolling
-                                 past every template on one of the two tabs. -->
+                            <!-- Tab Navigation. Send to Accountant sits with it rather than at the foot of the template list, where it was only reachable by scrolling past every template on one of the two tabs. -->
                             <Border Grid.Row="0"
                                     BorderBrush="{DynamicResource BorderBrush}"
                                     BorderThickness="0,0,0,1">

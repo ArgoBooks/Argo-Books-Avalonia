@@ -65,10 +65,7 @@ public class BankStatementImportServiceTests
     [Fact]
     public async Task ParseExcelAsync_StatementWithPreambleRows_FindsHeaderAndImportsLines()
     {
-        // Many banks export Excel statements with a couple of metadata rows before the column
-        // header. The Excel path picks the first row with >= 2 cells as the header (the preamble),
-        // fails to find Date/Amount, and silently imports nothing. The CSV path scans for the real
-        // header; the Excel path should too.
+        // Many banks export Excel statements with a couple of metadata rows before the column header.
         var path = WriteTempXlsxWithPreamble();
         try
         {

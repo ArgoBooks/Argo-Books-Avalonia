@@ -711,10 +711,7 @@ public partial class AppShellViewModel : ViewModelBase
             navService.RegisterNavigationGuard(CheckUnsavedChangesBeforeNavigation);
         }
 
-        // Wire up header's quick actions button to open the panel in dropdown mode. Re-sync the
-        // query from the header searchbox first: closing the panel clears the panel's own
-        // SearchQuery, but the textbox keeps its text, so without this the reopened panel would
-        // show unfiltered results while the textbox still displays the search text.
+        // Wire up header's quick actions button to open the panel in dropdown mode.
         HeaderViewModel.OpenQuickActionsRequested += (_, _) =>
         {
             QuickActionsViewModel.SearchQuery = HeaderViewModel.SearchQuery;

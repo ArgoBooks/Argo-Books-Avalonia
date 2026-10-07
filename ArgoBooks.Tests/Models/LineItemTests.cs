@@ -199,9 +199,7 @@ public class LineItemTests
             TaxRate = 0.08m
         };
 
-        // Subtotal = (10 * 50) - 50 = 450
-        // TaxAmount = 450 * 0.08 = 36
-        // Amount = 450 + 36 = 486
+        // Subtotal = (10 * 50) - 50 = 450 TaxAmount = 450 * 0.08 = 36 Amount = 450 + 36 = 486
         Assert.Equal(486.00m, lineItem.Amount);
     }
 
@@ -216,9 +214,7 @@ public class LineItemTests
             TaxRate = 0.0625m
         };
 
-        // Subtotal = (3 * 29.99) - 10.00 = 79.97
-        // TaxAmount = Round(79.97 * 0.0625, 2) = 5.00
-        // Amount = Round(79.97 + 5.00, 2) = 84.97
+        // Subtotal = (3 * 29.99) - 10.00 = 79.97 TaxAmount = Round(79.97 * 0.0625, 2) = 5.00 Amount = Round(79.97 + 5.00, 2) = 84.97
         Assert.Equal(79.97m, lineItem.Subtotal);
         Assert.Equal(5.00m, lineItem.TaxAmount);
         Assert.Equal(84.97m, lineItem.Amount);

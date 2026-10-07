@@ -733,11 +733,6 @@ public partial class SearchableDropdown : UserControl, INotifyPropertyChanged
         SearchText = GetSelectedText(item);
 
         // Rebuild the filtered list synchronously before closing, cancelling any debounced pass.
-        // This is what keeps the popup's teardown safe: UpdateFilteredItems' Clear() detaches the
-        // item buttons (including the one currently being clicked) from the popup BEFORE it closes.
-        // Closing the popup while the clicked button is still attached and mid-click crashes
-        // Avalonia 12's visual-tree teardown (ArgumentOutOfRangeException in
-        // OnDetachedFromVisualTreeCore). Only the typing path is debounced; selection must be sync.
         _searchDebounceCts?.Cancel();
         UpdateFilteredItems();
 
@@ -773,9 +768,7 @@ public partial class SearchableDropdown : UserControl, INotifyPropertyChanged
         _highlightedIndex = -1;
         HighlightedItem = null;
 
-        // Debounce the expensive filter (fuzzy scoring over the whole source list). Opening the
-        // dropdown filters immediately via the IsDropdownOpen handler, so first-open feedback is
-        // instant; only subsequent keystrokes are debounced.
+        // Debounce the expensive filter (fuzzy scoring over the whole source list).
         _searchDebounceCts?.Cancel();
         var cts = new CancellationTokenSource();
         _searchDebounceCts = cts;

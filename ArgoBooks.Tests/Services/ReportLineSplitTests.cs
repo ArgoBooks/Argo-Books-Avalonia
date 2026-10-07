@@ -98,8 +98,6 @@ public class ReportLineSplitTests
     }
 
     // An expense whose lines all bought stock has only its shipping and fees left as an expense.
-    // Its lines can't take that, so it goes under Uncategorized like any transaction whose lines
-    // can't, rather than under the first stock line's category.
     [Fact]
     public void IncomeStatement_ExpenseWhoseLinesAllBoughtStock_PutsTheRestUnderUncategorized()
     {

@@ -50,9 +50,7 @@ public sealed class SourceSurveyReporter
             AppVersion = _appVersion,
             MachineUuid = machineUuid,
             Answer = answer,
-            // The caller supplies the text only for a freeform option; the
-            // server stores it only for keys flagged freeform. Forwarding it
-            // as-given keeps freeform working regardless of the option's key.
+            // The caller supplies the text only for a freeform option; the server stores it only for keys flagged freeform.
             OtherText = otherText,
             Goal = goal,
             GoalOtherText = goalOtherText,

@@ -7,9 +7,8 @@ using Xunit;
 namespace ArgoBooks.Tests.Services;
 
 /// <summary>
-/// The invoice document marks itself overdue from Invoice.IsOverdue, like every other overdue check
-/// (docs/Calculations.md §6). It used to check the due date and balance itself, so a cancelled
-/// invoice past its due date went out stamped OVERDUE.
+/// The invoice document marks itself overdue from Invoice.IsOverdue, like every other overdue
+/// check (docs/Calculations.md §6), so a cancelled invoice past its due date is not stamped.
 /// </summary>
 public class InvoiceOverdueRenderTests
 {

@@ -121,10 +121,7 @@ public partial class SetupChecklistViewModel : ViewModelBase
     private void InitializeItems()
     {
         Items.Clear();
-        // Scanning is first: it is the fastest path to a visible result. A scan does create an
-        // expense behind the scenes, but it credits only this step, so the expense form is still
-        // walked by hand. There are no category or product steps: the expense form creates both
-        // from what is typed into a line, so sending people to those pages first was a detour.
+        // Scanning is first: it is the fastest path to a visible result.
         Items.Add(new ChecklistItemViewModel
         {
             Id = TutorialService.ChecklistItems.ScanReceipt,
@@ -180,8 +177,6 @@ public partial class SetupChecklistViewModel : ViewModelBase
         }
 
         // Hide the checklist until the app tour has been finished or skipped.
-        // The tour ends on a slide that explicitly tells the user the checklist
-        // is the next step, so showing it earlier would steal attention from the tour.
         if (!tutorialService.HasCompletedAppTour && !tutorialService.HasSkippedTutorial)
         {
             IsVisible = false;
@@ -247,9 +242,6 @@ public partial class SetupChecklistViewModel : ViewModelBase
             NavigationRequested?.Invoke(this, item.NavigationTarget);
 
         // The scan step opens its own workflow rather than just landing the user on a page.
-        // Seeing a scan happen is the whole point of the step, and a brand-new user has no
-        // receipt to pick, so the sample is offered directly. If the sample can't be
-        // produced this is a no-op and they simply stay on the Receipts page.
         if (item.Id == TutorialService.ChecklistItems.ScanReceipt)
             _ = App.ReceiptsModalsViewModel?.OpenScanModalWithSampleAsync();
         else if (item.Id == TutorialService.ChecklistItems.RecordExpense)

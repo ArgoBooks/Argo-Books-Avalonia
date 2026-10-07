@@ -223,8 +223,6 @@ public class PaymentPurchaseOrderPendingConversionTests
     public async Task ImportTimeConversion_EqualsHealTimeConversion_ToTheCent()
     {
         // A foreign row can be converted immediately at import, or imported pending and healed later.
-        // Both paths must store IDENTICAL USD (full precision, no rounding) so the value never shifts
-        // when a pending row heals. See docs/Calculations.md Rule 3.
         var date = DateTime.Today.AddMonths(-1);
         var ex = new ExchangeRateService(new MockPlatform(), new HttpClient(new AlwaysEurHandler(UsdToEur)));
         await ex.GetExchangeRateAsync("USD", "EUR", date);

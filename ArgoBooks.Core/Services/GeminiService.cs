@@ -49,10 +49,7 @@ public class GeminiService : IGeminiService, IDisposable
         try
         {
             var prompt = BuildPrompt(request);
-            // gemini-2.5-flash spends hidden "thinking" tokens out of maxOutputTokens; 500 was too
-            // small and the budget was exhausted before the JSON answer (finishReason=MAX_TOKENS,
-            // truncated content), so the suggestion silently failed. The output itself is tiny, so a
-            // generous budget just covers thinking (billing is per token used, not the ceiling).
+            // A thinking model spends hidden tokens out of maxOutputTokens, so the budget has to cover thinking plus the JSON or the answer comes back truncated.
             var response = (await SendApiRequestAsync(
                 "You are a helpful assistant that categorizes business expenses. Always respond with valid JSON only, no markdown.",
                 prompt,
@@ -103,9 +100,7 @@ public class GeminiService : IGeminiService, IDisposable
         if (request.Lines.Count <= BankLineBatchSize)
             return await GetBankLineSuggestionsBatchAsync(request, request.Lines, cancellationToken);
 
-        // Split a large statement into batches and merge. Suggestions carry the original line
-        // Index, so a plain concat maps back correctly. A failed batch leaves its lines blank
-        // (the user fills them in manually); return whatever the successful batches produced.
+        // Split a large statement into batches and merge. Suggestions carry the original line Index, so a plain concat maps back correctly.
         var merged = new List<BankLineSuggestion>();
         var anySucceeded = false;
         for (int i = 0; i < request.Lines.Count; i += BankLineBatchSize)
@@ -148,9 +143,7 @@ public class GeminiService : IGeminiService, IDisposable
         try
         {
             var prompt = BuildBankLinePrompt(batchRequest);
-            // gemini-2.5-flash spends hidden "thinking" tokens out of maxOutputTokens, so the
-            // budget must comfortably cover thinking plus the JSON output or the response comes
-            // back empty (finishReason=MAX_TOKENS). Be generous; the model only uses what it needs.
+            // A thinking model spends hidden tokens out of maxOutputTokens, so the budget has to cover thinking plus the JSON or the answer comes back truncated.
             var maxTokens = Math.Min(16000, 4000 + lines.Count * 250);
             var response = (await SendApiRequestAsync(
                 "You categorize business bank statement lines. Always respond with valid JSON only, no markdown.",

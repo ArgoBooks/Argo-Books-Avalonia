@@ -392,8 +392,6 @@ public partial class ReceiptViewerModal : UserControl
         if (_imageScrollViewer == null) return;
 
         // Don't start panning when the press lands on a scroll bar, let it scroll normally.
-        // This tunnel handler runs before the scroll bar sees the event, so without this guard
-        // dragging the scroll bar thumb would pan the receipt instead.
         if (IsOnScrollBar(e.Source)) return;
 
         var point = e.GetCurrentPoint(_imageScrollViewer);

@@ -48,10 +48,7 @@ public class CategoryRuleServiceTests
         Assert.Equal("CAT-PUR-009", data.BankCategoryRules[0].CategoryId);
     }
 
-    // Regression test for match-precedence fix: Exact must beat Contains for the same pattern
-    // regardless of which rule appears first in the list. This test places Contains first so best=Contains
-    // initially, then Exact is processed second. Clause 2 promotes Exact; the fix ensures clause 3
-    // cannot later demote it if another Contains with equal length is evaluated.
+    // Exact must beat Contains for the same pattern whichever rule comes first, so this places Contains first.
     [Fact]
     public void Match_ExactRule_BeatsContainsRule_WhenContainsIsFirst()
     {

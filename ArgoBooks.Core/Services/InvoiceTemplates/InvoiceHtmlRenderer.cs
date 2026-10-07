@@ -14,9 +14,7 @@ namespace ArgoBooks.Core.Services.InvoiceTemplates;
 /// </summary>
 public partial class InvoiceHtmlRenderer
 {
-    // All money amounts on an invoice are formatted with InvariantCulture so a non-US machine locale
-    // can't render a hybrid like "$1.234,56" on a customer-facing document. The number of decimals
-    // is the currency's, not the culture's: yen has no subunit, so "¥5,000.00" is wrong everywhere.
+    // All money amounts on an invoice are formatted with InvariantCulture so a non-US machine locale can't render a hybrid like "$1.234,56" on a customer-facing document.
     private static string Money(decimal amount, int decimals) =>
         amount.ToString($"N{decimals}", System.Globalization.CultureInfo.InvariantCulture);
 
@@ -278,17 +276,7 @@ public partial class InvoiceHtmlRenderer
         var isOverdue = invoice.IsOverdue;
         var decimals = DecimalsFor(invoice);
 
-        // Processing-fee row logic:
-        //  - If the customer has already paid online with a fee (sum of
-        //    Payment.ProcessingFee > 0), show the actual fee, even when
-        //    Balance == 0. This is the user-visible record of what they
-        //    were actually charged.
-        //  - Otherwise, if the invoice is unpaid and the portal is
-        //    configured, show the *estimated* fee they would pay if they
-        //    chose to pay through the portal.
-        // The "Amount to Pay" row (= Balance + estimated fee) only makes
-        // sense when there is still a balance the customer can pay
-        // online. For paid invoices we want the plain "Total" row.
+        // Processing-fee row logic: - If the customer has already paid online with a fee (sum of Payment.ProcessingFee > 0), show the actual fee, even when Balance == 0.
         var invoiceCurrency = string.IsNullOrEmpty(invoice.OriginalCurrency)
             ? "USD" : invoice.OriginalCurrency;
         var actualProcessingFee = payments?
@@ -310,9 +298,7 @@ public partial class InvoiceHtmlRenderer
         var estimatedProcessingFee = hasUnpaidBalance && feesActive
             ? CalculateProcessingFee(invoice.Balance)
             : 0m;
-        // Fees already charged AND the estimate on what is still owed. The totals
-        // column has to reconcile a gross Amount Paid against a forward-looking
-        // Amount to Pay, so showing only one of the two would never add up.
+        // Fees already charged AND the estimate on what is still owed.
         var displayProcessingFee = actualProcessingFee + estimatedProcessingFee;
         // In the editor, keep the fee row present whenever the fee applies so the
         // live recompute can fill it in as the user types (even from a $0 start).
@@ -369,9 +355,7 @@ public partial class InvoiceHtmlRenderer
             ["CompanyProvinceState"] = companySettings.Company.ProvinceState,
             ["CompanyCountry"] = companySettings.Company.Country,
 
-            // Customer info
-            // Empty (not "Unknown Customer") when no customer is picked yet, so the editable field on
-            // the paper reads as a blank, clickable placeholder rather than a bogus name.
+            // Customer info Empty (not "Unknown Customer") when no customer is picked yet, so the editable field on the paper reads as a blank, clickable placeholder rather than a bogus name.
             ["CustomerName"] = customer?.Name ?? string.Empty,
             ["CustomerAddress"] = FormatAddress(customer?.Address),
             ["CustomerEmail"] = customer?.Email,
@@ -415,15 +399,11 @@ public partial class InvoiceHtmlRenderer
             ["DiscountRaw"] = Raw(invoice.DiscountAmount),
             ["DiscountModeRaw"] = invoice.DiscountIsPercent ? "percent" : "fixed",
             ["Total"] = $"{currencySymbol}{Money(NonNegative(invoice.Total), decimals)}{CurrencyCodeSuffix(invoice)}",
-            // Already gross: portal payments are stored at the amount the customer
-            // was actually charged, fee included (see PaymentPortalService). Adding
-            // the fee again here double-counts it.
+            // Already gross: portal payments are stored at the amount the customer was actually charged, fee included (see PaymentPortalService). Adding the fee again here double-counts it.
             ["AmountPaid"] = invoice.AmountPaid > 0 ? $"{currencySymbol}{Money(invoice.AmountPaid, decimals)}" : null,
             ["Balance"] = $"{currencySymbol}{Money(NonNegative(invoice.Balance), decimals)}{CurrencyCodeSuffix(invoice)}",
 
-            // Every fee touching this invoice: already charged, plus the estimate
-            // on what is still owed. Both belong in the column, the first to offset
-            // the gross Amount Paid above and the second to reach Amount to Pay.
+            // Every fee touching this invoice: already charged, plus the estimate on what is still owed.
             ["ShowProcessingFee"] = showProcessingFeeRow,
             ["ProcessingFeeLabel"] = BuildProcessingFeeLabel(companySettings),
             ["ProcessingFeeAmount"] = showProcessingFeeRow
@@ -452,9 +432,7 @@ public partial class InvoiceHtmlRenderer
                 ["ItemDescription"] = null, // Can be extended for product descriptions
                 ["Quantity"] = Raw(item.Quantity),
                 ["UnitPrice"] = $"{currencySymbol}{Money(item.UnitPrice, decimals)}",
-                // LineItem.Subtotal, which is quantity x price LESS the discount and is what the
-                // invoice Subtotal is summed from. Printing quantity x price put an Amount on the
-                // line that did not add up to the total beneath it on a discounted invoice.
+                // LineItem.Subtotal, which is quantity x price LESS the discount and is what the invoice Subtotal is summed from.
                 ["Amount"] = $"{currencySymbol}{Money(item.Subtotal, decimals)}",
                 // Carried onto the paper so the browser's live recompute can subtract it too; it has
                 // no editor of its own, and without it an edit anywhere restated the line at full price.

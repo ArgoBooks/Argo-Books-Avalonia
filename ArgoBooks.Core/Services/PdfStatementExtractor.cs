@@ -35,9 +35,7 @@ public class PdfStatementExtractor(IErrorLogger? errorLogger = null) : IPdfState
             wallClock.Stop();
             if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
                 throw ServerRateLimitedException.FromBody(body);
-            // Anything else the server refused is not an empty statement. ParseRows reads a
-            // failure body as no rows, which is indistinguishable from a file we read and
-            // found nothing in, and that is how a 401 came to mean "unreadable statement".
+            // Anything else the server refused is not an empty statement.
             if (!response.IsSuccessStatusCode)
                 throw StatementExtractionException.FromBody(body);
             RecordTiming(body, wallClock.Elapsed.TotalMilliseconds, pdfData.Length);
@@ -83,9 +81,7 @@ public class PdfStatementExtractor(IErrorLogger? errorLogger = null) : IPdfState
                 Description = el.TryGetProperty("description", out var d) ? d.GetString() ?? "" : "",
                 Amount = el.TryGetProperty("amount", out var a) && a.TryGetDecimal(out var amt) ? amt : 0m
             };
-            // InvariantCulture (like every other date parse in the codebase) so the parse doesn't
-            // depend on the machine locale; otherwise an ambiguous date such as 02/03/2023 reads as
-            // March 2 on a day-first machine instead of February 3.
+            // InvariantCulture, as every other date parse here, or an ambiguous date such as 02/03/2023 reads as March 2 on a day-first machine.
             if (el.TryGetProperty("date", out var dt)
                 && DateTime.TryParse(dt.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed))
                 line.Date = parsed;

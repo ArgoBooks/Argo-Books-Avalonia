@@ -37,9 +37,7 @@ public class FileFooterTests
     [Fact]
     public void FileFormatConstants_FormatVersion_IsThree()
     {
-        // Version 2 introduced envelope encryption. Bumping this is a breaking change for
-        // older builds, which cannot read the newer envelope, so it should not move without
-        // a matching change to how files are written.
+        // Version 2 introduced envelope encryption.
         Assert.Equal(3, FileFormatConstants.FormatVersion);
     }
 

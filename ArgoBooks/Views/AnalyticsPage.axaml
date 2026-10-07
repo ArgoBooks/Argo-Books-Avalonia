@@ -555,14 +555,7 @@
                                             Background="{DynamicResource SurfaceAltBrush}"
                                             CornerRadius="6"
                                             Padding="4">
-                                        <!-- No GroupName: these two radios share this StackPanel parent, so
-                                             Avalonia groups them by container. Their IsChecked is two-way bound to
-                                             IsMapModeOrigin/IsMapModeDestination (strict inverses in the VM), which
-                                             already enforces mutual exclusion. Setting GroupName routes them through
-                                             Avalonia's RadioButtonGroupManager, which never releases detached radios;
-                                             because this page is rebuilt on every theme change (RefreshCurrentPage),
-                                             that leaked hundreds of thousands of entries and froze the UI for ~20s
-                                             when the group was next iterated. -->
+                                        <!-- No GroupName: these two radios share this StackPanel parent, so Avalonia groups them by container. -->
                                         <StackPanel Orientation="Horizontal" Spacing="4">
                                             <RadioButton Content="{loc:Loc Origin}"
                                                          IsChecked="{Binding IsMapModeOrigin}"

@@ -411,10 +411,7 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
                     "Set" => Core.Enums.AdjustmentType.Set,
                     _ => Core.Enums.AdjustmentType.Add
                 },
-                // Store the quantity that was actually applied. A "Remove" clamps NewStock at 0, so the
-                // user-entered amount can exceed what was removed. InventoryValuationService.SignedDelta
-                // rolls back a Remove by -Quantity, so an unclamped Quantity would corrupt every
-                // historical valuation before this adjustment.
+                // Store the quantity that was actually applied. A "Remove" clamps NewStock at 0, so the user-entered amount can exceed what was removed.
                 Quantity = AdjustmentType == "Remove" ? oldInStock - newStock : quantity,
                 PreviousStock = oldInStock,
                 NewStock = newStock,
@@ -474,9 +471,7 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
     /// <summary>
     /// Opens the create location modal on top of the current modal.
     /// </summary>
-    // One-shot handlers for the "create entity from this modal" flows. Stored so a cancelled create
-    // (which never raises the *Saved event) can be detached before the next attempt, instead of
-    // leaking onto the singleton create-modal VMs. See CreateModalSubscription.
+    // One-shot handlers for the "create entity from this modal" flows.
     private EventHandler? _locationSavedHandler;
     private EventHandler? _productSavedHandler;
 

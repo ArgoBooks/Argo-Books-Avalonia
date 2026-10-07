@@ -107,19 +107,14 @@
                                                        Foreground="{DynamicResource TextSecondaryBrush}" />
                                             <DatePicker SelectedDate="{Binding PeriodEnd, Mode=TwoWay}"
                                                         Classes="form-datepicker" MinWidth="0" HorizontalAlignment="Stretch" />
-                                            <!-- Under the date at fault rather than under the row. Said as
-                                                 soon as it is true, not on pressing Next: a backwards period
-                                                 calculates happily and only reads as nonsense later, on a
-                                                 stub and on a record of employment. -->
+                                            <!-- Under the date at fault rather than under the row. -->
                                             <TextBlock Text="{Binding PeriodError}" FontSize="14" TextWrapping="Wrap"
                                                        Foreground="{DynamicResource ErrorBrush}"
                                                        IsVisible="{Binding PeriodError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                         </StackPanel>
                                     </Grid>
 
-                                    <!-- The pay date decides which CRA edition applies, and some provinces
-                                         carry different figures in each half of the year. Making the edition
-                                         visible costs nothing and prevents a silent class of error. -->
+                                    <!-- The pay date decides which CRA edition applies, and some provinces carry different figures in each half of the year. -->
                                     <TextBlock Text="{Binding RateEditionNote}" FontSize="12"
                                                Foreground="{DynamicResource TextTertiaryBrush}"
                                                IsVisible="{Binding RateEditionNote, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
@@ -152,9 +147,7 @@
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>
 
-                                        <!-- An empty list here read like something had failed to
-                                             load. It says which of the two reasons it is, because
-                                             they are fixed differently. -->
+                                        <!-- An empty list here read like something had failed to load. It says which of the two reasons it is, because they are fixed differently. -->
                                         <Border Background="{DynamicResource SurfaceAltBrush}" CornerRadius="8"
                                                 Padding="16" IsVisible="{Binding HasNobodyToPay}">
                                             <TextBlock Text="{Binding NoEmployeesMessage, Converter={StaticResource TranslateConverter}}"
@@ -194,16 +187,7 @@
                                                                        Foreground="{DynamicResource TextTertiaryBrush}" />
                                                         </StackPanel>
 
-                                                        <!-- Hourly people need hours typed in. Salaried people prefill
-                                                             but stay editable, since a mid-period start is entered by
-                                                             adjusting the amount.
-
-                                                             The unit sits beside the box because this one column takes
-                                                             two different things, and the row should say which without
-                                                             the reader having to look at the caption under the name. A
-                                                             placeholder cannot do it: it disappears on the first
-                                                             keystroke, which is exactly when someone is checking what
-                                                             they typed. -->
+                                                        <!-- Hourly people need hours typed in. Salaried people prefill but stay editable, since a mid-period start is entered by adjusting the amount. -->
                                                         <Grid Grid.Column="1" ColumnDefinitions="*,Auto" Margin="0,0,8,0">
                                                             <TextBox Grid.Column="0"
                                                                      Text="{Binding Hours, Mode=TwoWay}"
@@ -256,9 +240,7 @@
                                 <!-- ===================== STEP 3: THE REVIEW ===================== -->
                                 <StackPanel Spacing="16" IsVisible="{Binding IsStep3}">
 
-                                    <!-- Anything that changes the numbers without being visible on a row:
-                                         a maximum reached partway through, a missing TD1, an unsupported
-                                         province. -->
+                                    <!-- Anything that changes the numbers without being visible on a row: a maximum reached partway through, a missing TD1, an unsupported province. -->
                                     <Border Background="{DynamicResource SurfaceAltBrush}" CornerRadius="8" Padding="14"
                                             IsVisible="{Binding HasWarnings}">
                                         <StackPanel Spacing="6">
@@ -280,9 +262,7 @@
                                             <DataTemplate DataType="vm:PayRunReviewRow">
                                                 <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
                                                     <StackPanel>
-                                                        <!-- Right inset matches the expanded rows below, so a
-                                                             net figure and the amounts it breaks down into stay
-                                                             on the same right edge. -->
+                                                        <!-- Right inset matches the expanded rows below, so a net figure and the amounts it breaks down into stay on the same right edge. -->
                                                         <Button Classes="review-row" Padding="12,12,12,12"
                                                                 HorizontalAlignment="Stretch"
                                                                 HorizontalContentAlignment="Stretch"

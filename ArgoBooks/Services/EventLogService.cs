@@ -8,16 +8,6 @@ namespace ArgoBooks.Services;
 /// read-only history and persists events to the company file via CompanyData.EventLog. Toolbar
 /// undo/redo (Ctrl+Z/Ctrl+Y) is recorded as its own history entries; there is no per-event undo.
 /// </summary>
-/// <remarks>
-/// FUTURE MULTI-ACCOUNTANT SUPPORT:
-/// When multi-accountant support is added:
-/// 1. Set AccountantId/AccountantName on each event from the current session's accountant.
-/// 2. Add filtering by accountant to GetEvents/GetGroupedEvents.
-/// 3. Enforce permissions before allowing undo of another accountant's actions
-///    (e.g., only admins can undo other accountants' changes).
-/// 4. For sync, the event log becomes the unit of replication, merge event logs
-///    from multiple clients using timestamp ordering and conflict detection.
-/// </remarks>
 public class EventLogService
 {
     private readonly List<AuditEvent> _events = [];

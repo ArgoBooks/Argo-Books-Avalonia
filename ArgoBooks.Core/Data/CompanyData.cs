@@ -8,13 +8,6 @@ using ArgoBooks.Core.Models.Rentals;
 using ArgoBooks.Core.Models.Tracking;
 using ArgoBooks.Core.Models.Transactions;
 
-// FUTURE MULTI-ACCOUNTANT SUPPORT:
-// When multi-accountant support is added, the EventLog will record which accountant
-// performed each action via AuditEvent.AccountantId. The sync layer should merge
-// event logs from multiple clients, using timestamps and accountant IDs to detect
-// and resolve conflicts. Admin permissions can be enforced by checking the accountant's
-// role before allowing undo of another accountant's actions.
-
 namespace ArgoBooks.Core.Data;
 
 /// <summary>

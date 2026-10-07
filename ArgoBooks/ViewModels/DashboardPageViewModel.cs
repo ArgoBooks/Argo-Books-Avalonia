@@ -171,9 +171,7 @@ public partial class DashboardPageViewModel : ChartContextMenuViewModelBase, ICl
             onApply: (start, end) =>
             {
                 StartDate = start.Date;
-                // Inclusive end-of-day so transactions stored later in the
-                // user's day (or with a UTC timestamp ahead of local time)
-                // aren't filtered out of stat-card aggregations.
+                // Inclusive end-of-day so transactions stored later in the user's day (or with a UTC timestamp ahead of local time) aren't filtered out of stat-card aggregations.
                 EndDate = end.Date.AddDays(1).AddTicks(-1);
                 HasAppliedCustomRange = true;
                 OnPropertyChanged(nameof(AppliedDateRangeText));
@@ -645,9 +643,7 @@ public partial class DashboardPageViewModel : ChartContextMenuViewModelBase, ICl
         var data = _companyManager?.CompanyData;
         if (data == null || !IsOnScreen) return;
 
-        // A preset's dates are worked out when it is picked. Left open overnight, "This Month"
-        // still ended yesterday and "Today" was yesterday, so today's sales were left out until
-        // the preset was picked again. Also what lets "All Time" take in newly added data.
+        // A preset's dates are worked out when it is picked.
         ChartSettings.UpdateDateRangeFromSelection();
 
         // Correct rental statuses before displaying

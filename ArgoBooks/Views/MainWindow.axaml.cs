@@ -21,10 +21,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
 
-        // Count input for the session's active time. Tunnelling, so a click or key press
-        // still registers when a child control handles it and the event never bubbles
-        // back up here. Only presses and key downs: pointer movement would fire
-        // constantly and would count a cursor drifting over the window as work.
+        // Count input for the session's active time. Tunnelling, so a click or key press still registers when a child control handles it and the event never bubbles back up here.
         AddHandler(InputElement.KeyDownEvent, OnAnyInput, RoutingStrategies.Tunnel);
         AddHandler(InputElement.PointerPressedEvent, OnAnyInput, RoutingStrategies.Tunnel);
 
@@ -203,9 +200,7 @@ public partial class MainWindow : Window
         var restoreIcon = this.FindControl<Canvas>("RestoreIcon");
         if (maximizeRect == null || restoreIcon == null) return;
 
-        // FullScreen counts as filling the screen, so the chrome shows "restore" there
-        // too. Clicking it then lands on Maximized, which is a sensible way out for
-        // anyone who got into fullscreen and does not know the shortcut.
+        // FullScreen counts as filling the screen, so the chrome shows "restore" there too.
         var fillsScreen = WindowState is WindowState.Maximized or WindowState.FullScreen;
         maximizeRect.IsVisible = !fillsScreen;
         restoreIcon.IsVisible = fillsScreen;
@@ -317,10 +312,7 @@ public partial class MainWindow : Window
                 return;
             }
 
-            // Someone leaving without having recorded anything is asked, once, what they were
-            // hoping to do. Only when a person closes the window: a shutdown must not wait on
-            // a question. It is marked as asked before it shows, so the Close() below, or a
-            // second click on X meanwhile, goes straight through.
+            // Someone leaving without having recorded anything is asked, once, what they were hoping to do. Only when a person closes the window: a shutdown must not wait on a question.
             if (e.CloseReason == WindowCloseReason.WindowClosing
                 && TutorialService.Instance.ShouldAskOnExit(CurrentCompanyUse()))
             {

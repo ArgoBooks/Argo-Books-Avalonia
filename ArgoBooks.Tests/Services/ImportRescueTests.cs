@@ -304,9 +304,7 @@ public class ImportRescueTests
     [Fact]
     public void BucketMixedRows_AssignsTypeAndCategoryBySection()
     {
-        // rows: 0..11
-        // 0 IncomeSection, 1 Category(Design), [2,3] data, 4 Subtotal,
-        // 5 Category(Landscaping), [6] data, 7 ExpenseSection, 8 Category(Advertising), [9,10] data, 11 Subtotal
+        // rows: 0..11 0 IncomeSection, 1 Category(Design), [2,3] data, 4 Subtotal, 5 Category(Landscaping), [6] data, 7 ExpenseSection, 8 Category(Advertising), [9,10] data, 11 Subtotal
         var markers = new List<MixedRowMarker>
         {
             new(0, MixedRowKind.IncomeSection, "Income"),

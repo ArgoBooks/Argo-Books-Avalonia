@@ -16,9 +16,7 @@ internal static class PaperEditorWiring
     {
         IPaperDocumentEditor? Editor() => owner.DataContext as IPaperDocumentEditor;
 
-        // Every action below re-renders the paper from the model, so whatever the user just typed,
-        // still sitting in the page inside the input debounce (a rate typed right before "+ add
-        // line"), is flushed into the model first or it would be lost.
+        // Every action below re-renders the paper from the model, so anything still inside the input debounce is flushed into the model first.
         async void Run(Action<IPaperDocumentEditor> action)
         {
             if (Editor() is not { } editor) return;

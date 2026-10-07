@@ -101,10 +101,7 @@ Rules:
 
             if (!skipPreprocessing)
             {
-                // Preprocess image to improve OCR accuracy (contrast, sharpen). PDFs pass
-                // through unchanged, and so does anything Skia cannot decode: HEIC from an
-                // iPhone arrives here as its original bytes. Rename only on a real
-                // conversion, or the content type below would describe the wrong format.
+                // Preprocess image to improve OCR accuracy (contrast, sharpen).
                 imageData = ReceiptImageHelper.PreprocessForOcr(imageData, fileName, out var convertedToJpeg);
                 if (convertedToJpeg)
                     fileName = Path.ChangeExtension(fileName, ".jpg");
@@ -147,9 +144,7 @@ Rules:
             // report themselves.
             if (!result.IsSuccess)
             {
-                // Covers both "the model says this is not a receipt" and "the response would
-                // not parse". The code groups them; the message says which, since it carries
-                // the model's own words.
+                // Covers both "the model says this is not a receipt" and "the response would not parse". The code groups them; the message says which, since it carries the model's own words.
                 errorLogger?.LogWarning(
                     $"Receipt scan returned no usable data: {result.ErrorMessage}",
                     "GeminiReceiptScannerService.ScanReceiptAsync",
@@ -186,9 +181,7 @@ Rules:
         }
         catch (TaskCanceledException)
         {
-            // One exception type, two very different events. A user who pressed Cancel is
-            // not a failure and must not be reported as one; only the client giving up on
-            // its own is worth knowing about.
+            // One exception type, two very different events. A user who pressed Cancel is not a failure and must not be reported as one; only the client giving up on its own is worth knowing about.
             if (cancellationToken.IsCancellationRequested)
             {
                 return ReceiptScanResult.Failed("Scan cancelled.");
@@ -217,9 +210,7 @@ Rules:
         finally
         {
             stopwatch.Stop();
-            // Tag as ReceiptScanProxy (not Gemini) so the admin app-stats dashboard's
-            // Receipt Scanning charts see these calls; the generic Gemini bucket is for
-            // non-receipt AI (spreadsheet analysis, bank categorize, etc.).
+            // Tagged ReceiptScanProxy rather than Gemini so the admin dashboard's receipt charts see these calls, since the Gemini bucket is for other AI.
             _ = telemetryManager?.TrackApiCallAsync(
                 ApiName.ReceiptScanProxy,
                 stopwatch.ElapsedMilliseconds,
@@ -258,16 +249,11 @@ If nothing was missed, return: {{""missingItems"": []}}";
         if (total <= 0m)
             return result.LineItems.Count >= 15;
 
-        // Reconcile the extracted amounts against the printed total. Line items are
-        // stored as positive amounts (negatives are folded into Discount during
-        // parsing), so: total == sum(items) - discount + tax + shipping.
+        // Reconcile the extracted amounts against the printed total.
         var itemsSum = result.LineItems.Sum(li => li.TotalPrice);
         var computedTotal = itemsSum - (result.Discount ?? 0m) + (result.TaxAmount ?? 0m) + (result.Shipping ?? 0m);
 
-        // Tolerance is kept tight and biased toward verifying: a genuinely missed item
-        // shifts the total by roughly its own price, which we want to catch. A few cents
-        // (or 0.5% on larger receipts) absorbs ordinary per-line rounding and fees we
-        // don't model. When the books don't balance, re-scan; otherwise trust the pass.
+        // Tolerance is kept tight and biased toward verifying: a genuinely missed item shifts the total by roughly its own price, which we want to catch.
         var tolerance = Math.Max(0.05m, total * 0.005m);
         return Math.Abs(computedTotal - total) > tolerance;
     }
@@ -285,11 +271,7 @@ If nothing was missed, return: {{""missingItems"": []}}";
 
             var prompt = string.Format(VerificationPrompt, itemList);
 
-            // Sent as receipt_verify, NOT receipt_scan. The user asked for one scan; this is the
-            // app choosing to look again because the arithmetic did not reconcile, and billing
-            // them a second time for that decision meant ten receipts could quietly cost twelve
-            // and the last one be refused. The server meters on the operation name, so this is
-            // what stops the double charge.
+            // Sent as receipt_verify, NOT receipt_scan.
             var verifyResponse = await SendVisionRequestAsync(
                 "You are a receipt verification system. Check if any line items were missed. Return JSON only.",
                 prompt,
@@ -298,9 +280,7 @@ If nothing was missed, return: {{""missingItems"": []}}";
                 cancellationToken,
                 operation: "receipt_verify");
 
-            // Deliberately keeps the first pass's result rather than failing the scan. A refused
-            // or failed verification means the extra look did not happen, not that the receipt
-            // is unusable.
+            // Deliberately keeps the first pass's result rather than failing the scan. A refused or failed verification means the extra look did not happen, not that the receipt is unusable.
             if (string.IsNullOrEmpty(verifyResponse.Content))
                 return result;
 
@@ -398,9 +378,7 @@ If nothing was missed, return: {{""missingItems"": []}}";
             return response;
         }
 
-        // Feeds the server-measured compute time (and load factor) back to the caller so
-        // desktop-side progress estimates can self-calibrate (see App's OperationTimingService
-        // wiring). Best-effort: no-op when the response has no "timing" block.
+        // Feeds the server-measured compute time (and load factor) back to the caller so desktop-side progress estimates can self-calibrate (see App's OperationTimingService wiring).
         if (response.Timing is { } timing)
         {
             onTimingRecorded?.Invoke(timing.ServerMs, response.WallClockMs, response.UploadBytes, timing.LoadFactor);

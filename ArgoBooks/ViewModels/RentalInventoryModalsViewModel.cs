@@ -366,9 +366,7 @@ public partial class RentalInventoryModalsViewModel : ViewModelBase
         CloseAddModal();
     }
 
-    // One-shot handlers for the "create entity from this modal" flows. Stored so a cancelled create
-    // (which never raises the *Saved event) can be detached before the next attempt, instead of
-    // leaking onto the singleton create-modal VMs. See CreateModalSubscription.
+    // One-shot handlers for the "create entity from this modal" flows.
     private EventHandler? _supplierSavedHandler;
     private EventHandler? _customerSavedHandler;
     private EventHandler? _stockSavedHandler;

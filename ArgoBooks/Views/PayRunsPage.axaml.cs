@@ -30,9 +30,7 @@ public partial class PayRunsPage : UserControl
 
     private void OnDataContextChanged(object? sender, EventArgs e)
     {
-        // Unsubscribed first, because this page's view model outlives the view: navigating away
-        // and back hands the same instance to a new PayRunsPage, and without this each visit
-        // would leave another handler attached to it.
+        // Unsubscribed first, because this view model outlives the view and each visit would otherwise leave another handler attached.
         if (_previousViewModel != null)
         {
             _previousViewModel.PropertyChanged -= OnViewModelPropertyChanged;

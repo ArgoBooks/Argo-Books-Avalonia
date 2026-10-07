@@ -8,9 +8,7 @@
              x:Class="ArgoBooks.Controls.ExitSurveyOverlay"
              x:DataType="controls:ExitSurveyOverlayViewModel">
 
-    <!-- Asked once, when someone closes the app without having recorded anything. Clicking away
-         or pressing Escape skips it: the person is on their way out, and nothing here may hold
-         them up. -->
+    <!-- Asked once, when someone closes the app without having recorded anything. Clicking away or pressing Escape skips it: the person is on their way out, and nothing here may hold them up. -->
     <controls:ModalOverlay x:Name="Overlay" ClosingCommand="{Binding SkipCommand}">
         <controls:ModalOverlay.ModalContent>
             <Border Background="{DynamicResource SurfaceBrush}"

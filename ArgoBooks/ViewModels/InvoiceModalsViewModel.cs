@@ -433,10 +433,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
     /// </summary>
     public string SelectedCurrencyCode => CurrencyService.ParseCurrencyCode(SelectedCurrency);
 
-    // Computed totals. Subtotal is the line-items sum (the base for a percentage discount/fee and the
-    // displayed Subtotal line). Tax applies to the subtotal AFTER the invoice-level discount and
-    // taxable custom fee, per industry standard and docs/Calculations.md §4. InvoiceMath owns the
-    // formula so the form, the preview, the saved invoice and the rendered paper can't disagree.
+    // Computed totals. Subtotal is the line-items sum (the base for a percentage discount/fee and the displayed Subtotal line).
     public decimal Subtotal => LineItems.Sum(i => i.Amount);
     public decimal CustomFeeCalculated => InvoiceMath.CustomFee(Subtotal, CustomFeeAmount, CustomFeeIsPercent);
     public decimal DiscountCalculated => InvoiceMath.Discount(Subtotal, DiscountAmount, DiscountIsPercent);
@@ -460,16 +457,12 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
         {
             ModalNotes = value.DefaultNotes;
         }
-        // Adopt the new template's display settings as the starting point for the per-invoice options
-        // (the user can then override them). In edit mode LoadFromInvoice re-applies saved overrides
-        // after the template is set.
+        // Adopt the new template's display settings as the starting point for the per-invoice options (the user can then override them).
         SyncOptionsFromTemplate(value);
         RegeneratePaper();
     }
 
-    // Amount edits come from typing directly on the paper; only recompute totals here. A full
-    // paper re-render would recreate the field mid-keystroke and drop the caret, so the paper is
-    // rebuilt when previewing or saving instead, by which point the caret has moved on.
+    // Amount edits come from typing directly on the paper; only recompute totals here.
     protected override void OnTotalsAmountChanged() => UpdateTotals();
 
     partial void OnSecurityDepositChanged(decimal value)
@@ -1010,10 +1003,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
     /// </summary>
     private void LoadInvoiceIntoForm(Invoice invoice)
     {
-        // Reset to a clean baseline: clears stale external-source flags
-        // (IsFromRental/IsFromRevenue/IsViewOnly), unsubscribes any line items
-        // left over from a previous modal session, and zeroes validation state.
-        // We then overwrite the relevant fields below from the loaded invoice.
+        // Reset to a clean baseline: stale external-source flags, leftover line-item subscriptions and validation state all go.
         ResetForm();
 
         IsEditMode = true;
@@ -1038,9 +1028,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
         SelectedCurrency = CurrencyService.GetDisplayString(
             string.IsNullOrEmpty(invoice.OriginalCurrency) ? "USD" : invoice.OriginalCurrency);
 
-        // Restore the template this draft was created with, so the preview (and a re-save) keep it
-        // instead of snapping to the default. Set it before LoadOptionsFrom so that its saved overrides
-        // win over the template's defaults; IsEditMode is already true, so this won't clobber the notes.
+        // Restore the template this draft was created with, so the preview (and a re-save) keep it instead of snapping to the default.
         if (!string.IsNullOrEmpty(invoice.TemplateId))
         {
             var savedTemplate = TemplateOptions.FirstOrDefault(t => t.Id == invoice.TemplateId);
@@ -1453,9 +1441,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
                 var usage = await usageService.CheckUsageAsync();
                 if (!usage.Allowed)
                 {
-                    // A failed check (offline / server unreachable) reports an ErrorMessage
-                    // rather than a real limit. Show that inline instead of falsely claiming
-                    // the monthly send limit was reached.
+                    // A failed check (offline / server unreachable) reports an ErrorMessage rather than a real limit. Show that inline instead of falsely claiming the monthly send limit was reached.
                     if (!string.IsNullOrEmpty(usage.ErrorMessage))
                     {
                         await ShowSendErrorAsync(usage.ErrorMessage.Translate());
@@ -1492,10 +1478,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
             return;
         }
 
-        // From here down: the user is committed to sending. Flip IsSending so
-        // the modal swaps the preview + footer for a centered spinner. The
-        // 1-2 second silent gap was confusing because nothing visibly happened
-        // after the click.
+        // From here down: the user is committed to sending. Flip IsSending so the modal swaps the preview + footer for a centered spinner.
         IsSending = true;
         try
         {
@@ -1515,9 +1498,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
         var customer = companyData.GetCustomer(SelectedCustomer!.Id!);
         if (customer == null) return;
 
-        // The outer CreateAndSendInvoice already guards on SelectedTemplate
-        // being non-null, but the compiler can't see across method boundaries,
-        // re-assert here so the SendInvoiceAsync call site doesn't warn.
+        // CreateAndSendInvoice already guards SelectedTemplate, but the compiler cannot see across methods, so it is re-asserted here.
         var selectedTemplate = SelectedTemplate;
         if (selectedTemplate == null) return;
 
@@ -1620,9 +1601,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
                     Quantity = i.Quantity ?? 0,
                     UnitPrice = i.UnitPrice ?? 0,
 
-                    // Written back rather than zeroed. Both are zero on anything this form
-                    // created; an imported line can carry them, and hard-coding zero here
-                    // silently discarded whatever the sheet supplied.
+                    // Written back rather than zeroed. Both are zero on anything this form created; an imported line can carry them, and hard-coding zero here silently discarded whatever the sheet supplied.
                     TaxRate = i.TaxRate,
                     Discount = i.Discount
                 }).ToList()
@@ -1645,18 +1624,14 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
         invoice.OriginalCurrency = SelectedCurrencyCode;
         await ApplyUsdTotalAsync(companyData, invoice);
 
-        // Payment-derived totals (AmountPaid / Balance / BalanceUSD) come
-        // from InvoiceTotalsService so the rule "stored totals always match
-        // the Payment list" is preserved. See docs/Calculations.md §5.
+        // Payment-derived totals (AmountPaid / Balance / BalanceUSD) come from InvoiceTotalsService so the rule "stored totals always match the Payment list" is preserved.
         InvoiceTotalsService.Recalculate(invoice, companyData.Payments);
 
         // Rendered and published with the status it goes out with, so a due date already past prints
         // as overdue (Invoice.IsOverdue) and the portal doesn't receive a draft.
         invoice.Status = InvoiceStatus.Sent;
 
-        // Undoes what this attempt changed and says why it failed. The number goes back only when the
-        // portal can't hold it: reusing one it published would put another invoice behind the link
-        // that customer was emailed.
+        // Undoes what this attempt changed and says why it failed.
         async Task SendFailedAsync(string message, bool mayHavePublished)
         {
             restoreDraft?.Invoke();
@@ -1671,9 +1646,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
             await ShowSendErrorAsync(message);
         }
 
-        // The portal publishes the invoice and sends the email, via sendEmail: true. Reaching
-        // here without one is impossible: CreateAndSendInvoice returns early when the portal is
-        // not configured, and it is this method's only caller.
+        // The portal publishes the invoice and sends the email, via sendEmail: true.
         if (PortalSettings.IsConfigured)
         {
             try
@@ -1749,16 +1722,9 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
         }
 
         // If "Repeat this invoice" was set, create the recurring schedule here too.
-        // The helper no-ops if it isn't recurring or a schedule already exists (e.g. a
-        // recurring draft that was scheduled on save and is now being sent).
         CreateRecurringScheduleIfNeeded(invoice, companyData, new IdGenerator(companyData));
 
-        // Auto-create a Revenue transaction if this invoice isn't already linked to one.
-        // Path A (Revenue → Invoice): revenue already exists, LinkInvoiceToRevenue linked it above.
-        // Path B (Invoice → Revenue): no revenue exists yet, so create one automatically.
-        // A kept deposit is linked to the invoice too, but it is not the invoice's revenue. Counted
-        // here, a deposit kept while the invoice was still a draft stopped the rental charge
-        // itself from ever being recorded.
+        // Auto-create a Revenue transaction if this invoice isn't already linked to one. Path A (Revenue → Invoice): revenue already exists, LinkInvoiceToRevenue linked it above.
         var hasLinkedRevenue = companyData.Revenues.Any(r => r.InvoiceId == invoice.Id && !r.IsKeptDeposit);
         if (!hasLinkedRevenue)
         {
@@ -1849,9 +1815,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
         if (App.ConfirmationDialog == null) return;
 
         IsNestedModalOpen = true;
-        // The caller flushed the live paper edits into the model first. Rebuild PreviewHtml from it
-        // now (while the WebView is hidden, so there's no visible reload) so re-showing the WebView
-        // re-navigates to content that includes those edits instead of a stale paper that drops them.
+        // The caller flushed the live paper edits into the model first.
         RegeneratePaper();
         try
         {
@@ -1978,9 +1942,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
 
         if (HasUnsavedWork)
         {
-            // Hide the editable WebView so the confirmation dialog renders above it. The native
-            // WebView renders in its own airspace above Avalonia content, so it otherwise occludes
-            // the dialog.
+            // Hide the editable WebView so the confirmation dialog renders above it. The native WebView renders in its own airspace above Avalonia content, so it otherwise occludes the dialog.
             IsNestedModalOpen = true;
 
             var confirmed = IsEditMode
@@ -2123,9 +2085,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
 
         ApplyOptionsTo(invoice);
 
-        // Compute and store invoice-level totals (Subtotal / TaxAmount /
-        // Total). Payment-derived fields are set by InvoiceTotalsService
-        // below, see docs/Calculations.md §5.
+        // Compute and store invoice-level totals (Subtotal / TaxAmount / Total). Payment-derived fields are set by InvoiceTotalsService below, see docs/Calculations.md §5.
         invoice.Subtotal = Subtotal;
         invoice.TaxAmount = TaxAmount;
         invoice.Total = Total;
@@ -2146,10 +2106,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
 
         CreateRecurringScheduleIfNeeded(invoice, companyData, idGenerator);
 
-        // Editing an already-published invoice changes what the customer owes,
-        // so the portal needs the new total or it would chase the old one. A
-        // no-op for invoices that were never published, and for brand-new ones
-        // the publish path sends the full record anyway.
+        // Editing an already-published invoice changes what the customer owes, so the portal needs the new total or it would chase the old one.
         App.PortalBalanceSyncService?.Queue(invoice.Id);
 
         LastSavedInvoiceId = invoice.Id;

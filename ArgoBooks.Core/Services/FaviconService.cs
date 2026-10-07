@@ -57,10 +57,7 @@ public static class FaviconService
 
         try
         {
-            // ResponseHeadersRead returns as soon as the headers arrive. We can then
-            // inspect Content-Length / Content-Type before pulling the body, important
-            // because a hostile server could otherwise force us to buffer a giant
-            // response just to discover it's over the cap.
+            // ResponseHeadersRead returns as soon as the headers arrive.
             using var response = await _client.Value.GetAsync(faviconUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
                 return null;

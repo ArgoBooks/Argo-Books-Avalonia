@@ -83,10 +83,7 @@ public sealed class NetSparkleUpdateService : IUpdateService, IDisposable
     {
         _errorLogger = errorLogger;
 
-        // OnlyVerifySoftwareDownloads verifies the Ed25519 signature of downloaded
-        // installers/AppImages against UpdatePublicKey, without also requiring a
-        // sidecar signature for the hand-edited appcast XML itself. DownloadUpdateAsync
-        // additionally rejects updates whose appcast entry carries no signature at all.
+        // OnlyVerifySoftwareDownloads checks the Ed25519 signature of a downloaded installer against UpdatePublicKey, without demanding one for the appcast.
         _sparkle = new SparkleUpdater(AppCastUrl,
             new Ed25519Checker(SecurityMode.OnlyVerifySoftwareDownloads, UpdatePublicKey))
         {
@@ -148,9 +145,7 @@ public sealed class NetSparkleUpdateService : IUpdateService, IDisposable
         catch (Exception ex)
         {
             _errorLogger?.LogWarning($"Update check failed: {ex.Message}", "AutoUpdate");
-            // An update check is an HTTP fetch of the appcast, so a failure is almost
-            // always a connectivity problem. Show a clear message instead of the raw
-            // exception text (the probe also covers the server-down case).
+            // An update check is an HTTP fetch of the appcast, so a failure is almost always a connectivity problem.
             LastError = await ConnectivityMessage.ResolveAsync();
             SetState(UpdateState.Error);
             return null;
@@ -185,9 +180,7 @@ public sealed class NetSparkleUpdateService : IUpdateService, IDisposable
             long receivedBytes = 0;
             int lastReportedProgress = -1;
 
-            // Block-scoped so the file handle is fully closed before signature
-            // verification reopens the file for reading (FileShare.None would
-            // otherwise block it with a sharing violation).
+            // Block-scoped so the file handle is fully closed before signature verification reopens the file for reading (FileShare.None would otherwise block it with a sharing violation).
             await using (var contentStream = await response.Content.ReadAsStreamAsync())
             await using (var fileStream = new FileStream(filePath, FileMode.Create, FileAccess.Write,
                              FileShare.None, bufferSize: 81920, useAsync: true))
@@ -276,9 +269,7 @@ public sealed class NetSparkleUpdateService : IUpdateService, IDisposable
         if (!File.Exists(InstallerPath))
             throw new FileNotFoundException("Downloaded installer not found.", InstallerPath);
 
-        // Notify subscribers to save their data before we exit. One that could not is refusing on
-        // the user's behalf: the installer restarts the app, so continuing would discard whatever
-        // it failed to write. The state is left ready so they can retry once they have saved.
+        // Notify subscribers to save their data before we exit.
         var applying = new ApplyingUpdateEventArgs();
         ApplyingUpdate?.Invoke(this, applying);
         if (applying.Cancel)
@@ -352,13 +343,7 @@ public sealed class NetSparkleUpdateService : IUpdateService, IDisposable
     /// </summary>
     private static AppCastItem? FindBestUpdate(List<AppCastItem> items)
     {
-        // macOS ships a build per processor, and handing an Intel Mac the Apple Silicon zip
-        // produces an app that will not launch. NetSparkle has no concept of architecture, but
-        // sparkle:os is a free-form string it preserves, so the appcast qualifies the macOS
-        // entries as macos-arm64 and macos-x64 and both still read as macOS updates.
-        //
-        // Matched by name rather than by position: the parser does not return items in file
-        // order, so "the first macOS entry" is not a stable thing to rely on.
+        // macOS ships a build per processor, and handing an Intel Mac the Apple Silicon zip produces an app that will not launch.
         if (OperatingSystem.IsMacOS())
         {
             var suffix = RuntimeInformation.ProcessArchitecture == Architecture.Arm64
@@ -511,9 +496,7 @@ public sealed class NetSparkleUpdateService : IUpdateService, IDisposable
 
             var newAppPath = appBundles[0];
 
-            // Use a shell script to replace the app and relaunch after a short delay
-            // (we need the current process to exit first)
-            // All paths are shell-escaped to prevent injection via crafted filenames
+            // Use a shell script to replace the app and relaunch after a short delay (we need the current process to exit first) All paths are shell-escaped to prevent injection via crafted filenames
             var updateDir = Path.Combine(Path.GetTempPath(), UpdateTempDirName);
             var script = $"""
                           #!/bin/bash

@@ -321,9 +321,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
         CloseAddModal();
     }
 
-    // One-shot handlers for the "create entity from this modal" flows. Stored so a cancelled create
-    // (which never raises the *Saved event) can be detached before the next attempt, instead of
-    // leaking onto the singleton create-modal VMs. See CreateModalSubscription.
+    // One-shot handlers for the "create entity from this modal" flows.
     private EventHandler? _supplierSavedHandler;
     private EventHandler? _productSavedHandler;
 
@@ -1214,11 +1212,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
             return;
         }
 
-        // If the recipient differs from the supplier's saved email, ask the user
-        // whether to update the saved address. Three-way choice so users can:
-        //   - Update & Send (this becomes the supplier's new email going forward)
-        //   - Send without saving (one-off override, leave the saved address alone)
-        //   - Cancel (something is wrong, let me re-check)
+        // If the recipient differs from the supplier's saved email, ask the user whether to update the saved address.
         var supplier = companyData.GetSupplier(SendingOrder.SupplierId);
         var shouldSaveSupplierEmail = false;
         if (supplier != null)

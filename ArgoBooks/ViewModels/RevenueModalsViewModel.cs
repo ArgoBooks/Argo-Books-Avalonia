@@ -628,9 +628,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
         var fileInfo = new FileInfo(ReceiptFilePath);
         var fileType = GetFileType(ReceiptFilePath);
 
-        // A receipt is only worth keeping with its file in it. A file that has gone since it was
-        // picked (an online-only cloud file, a phone or network drive that dropped) used to be
-        // attached empty with no warning, and then opened blank.
+        // A receipt is only worth keeping with its file in it.
         string fileData;
         try
         {

@@ -52,9 +52,7 @@ public class InvoiceHtmlRendererTests
         Assert.Contains("INV-001", result);
     }
 
-    // The stored Total includes shipping (taxable base = subtotal - discount + fee + shipping), and the
-    // HTML render shows a Shipping row, but the plain-text totals block omits it - so the breakdown
-    // doesn't sum to TOTAL. Regression test for that bug.
+    // The stored total includes shipping and the HTML shows a shipping row, so the plain-text totals block has to as well.
     [Fact]
     public void RenderPlainText_WithShipping_ShowsAShippingLine()
     {

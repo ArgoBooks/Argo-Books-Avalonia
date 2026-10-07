@@ -310,9 +310,7 @@ public class TutorialService
         SaveSettings();
         ChecklistItemCompleted?.Invoke(this, itemId);
 
-        // Anonymous onboarding telemetry: report which step was finished, so the
-        // setup funnel shows where users stop rather than only who reached the
-        // end. The Contains guard above means each step reports at most once.
+        // Anonymous onboarding telemetry: report which step was finished, so the setup funnel shows where users stop rather than only who reached the end.
         _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ChecklistStepCompleted, itemId);
 
         // Only while the checklist is on screen: the guidance points the user back to its next step,

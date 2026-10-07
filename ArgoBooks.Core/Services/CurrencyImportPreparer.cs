@@ -232,10 +232,7 @@ public static class CurrencyImportPreparer
                     if (d.Code != null) { resolved = d.Code; break; }
                     if (d.AmbiguousSymbol != null)
                     {
-                        // A symbol shared by currencies with different decimal conventions (e.g. "¥" =
-                        // JPY with 0 decimals or CNY with 2) is resolved from the cell's own formatting
-                        // when the displayed decimal count picks exactly one candidate, so it doesn't
-                        // need to prompt and won't default to the wrong currency.
+                        // A symbol shared by currencies with different decimal conventions, such as yen for JPY and CNY, is resolved from the cell's own formatting.
                         var byFormat = DisambiguateByDecimals(d.AmbiguousSymbol, text);
                         if (byFormat != null) { resolved = byFormat; break; }
                         pendingSymbol ??= d.AmbiguousSymbol;

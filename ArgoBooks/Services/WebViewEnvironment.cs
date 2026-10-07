@@ -90,9 +90,7 @@ public static class WebViewEnvironment
                 return;
             }
 
-            // Handling it leaves the app running with a dead web view, which costs a PDF
-            // thumbnail or an inline invoice preview. Every caller already treats a missing
-            // web view as a failed render, so this degrades onto a path that already exists.
+            // Handling it leaves the app running with a dead web view, which costs a PDF thumbnail or an inline invoice preview.
             e.Handled = true;
             HasFailed = true;
 

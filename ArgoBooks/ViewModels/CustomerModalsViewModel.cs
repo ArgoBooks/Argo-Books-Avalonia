@@ -581,11 +581,7 @@ public partial class CustomerModalsViewModel : ViewModelBase
             _ => "Active"
         };
 
-        // Load existing avatar (if any) into the modal preview.
-        // _originalHasAvatar tracks the persisted state (used for change detection so
-        // a missing/corrupt file can still be cleared on save). HasModalAvatar drives
-        // the *visual*, only set it when the bitmap actually decoded, otherwise the
-        // UI would show a blank Image control instead of falling back to initials.
+        // Load existing avatar (if any) into the modal preview. _originalHasAvatar tracks the persisted state (used for change detection so a missing/corrupt file can still be cleared on save).
         _pendingAvatarSourcePath = null;
         _shouldRemoveAvatarOnSave = false;
         _originalHasAvatar = !string.IsNullOrEmpty(customer.AvatarFileName);
@@ -704,9 +700,7 @@ public partial class CustomerModalsViewModel : ViewModelBase
             return;
         }
 
-        // Snapshot the avatar bytes BEFORE applying the change so the undo callback
-        // can write them back; capture again AFTER so redo restores the new state.
-        // Tiny resized PNG, so closure capture is cheap.
+        // Snapshot the avatar bytes BEFORE applying the change so the undo callback can write them back; capture again AFTER so redo restores the new state.
         byte[]? oldAvatarBytes = null;
         byte[]? newAvatarBytes = null;
         if (hasAvatarChanges)
@@ -756,9 +750,7 @@ public partial class CustomerModalsViewModel : ViewModelBase
         if (oldStatus != newStatus) changes["Status"] = new FieldChange { OldValue = oldStatus.ToString(), NewValue = newStatus.ToString() };
         if (changes.Count > 0) App.EventLogService?.SetPendingChanges(changes);
 
-        // Apply the Id rename FIRST so a failure (e.g. unique-constraint race) doesn't
-        // leave the entity with new field values but the old Id. Validation already
-        // prevents conflicts; this ordering is defense-in-depth.
+        // Apply the Id rename FIRST so a failure (e.g. unique-constraint race) doesn't leave the entity with new field values but the old Id.
         if (hasIdChange)
         {
             try

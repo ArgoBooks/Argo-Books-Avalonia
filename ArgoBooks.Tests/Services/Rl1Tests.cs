@@ -236,13 +236,7 @@ public class Rl1Tests
     [Fact]
     public void BoxG_IsCappedAtTheAdditionalMaximum_WhenThereIsAQpp2Contribution()
     {
-        // RL-1.G-V section 5.9 gives box G two maximums: the maximum pensionable earnings "if an
-        // amount is entered in box B.A only", and the ADDITIONAL maximum "if amounts are entered
-        // in boxes B.A and B.B". Anyone paid above the first ceiling has QPP2 withheld and so
-        // has an amount in box B.B, which selects the second.
-        //
-        // Capping at the first ceiling reported less pensionable salary than the QPP2 in box B.B
-        // was charged on, which is the pair Revenu Quebec checks against each other.
+        // RL-1.G-V section 5.9 gives box G two maximums, the pensionable earnings one and the additional one when box B.B is also filled.
         PayrollRateTable rates = new Core.Services.PayrollRateService().GetForDate(new DateTime(2026, 12, 31))!;
         decimal betweenTheCeilings = (rates.Quebec!.Qpp.YmpeCeiling + rates.Quebec.Qpp2.YampeCeiling) / 2m;
 
@@ -258,12 +252,7 @@ public class Rl1Tests
     [Fact]
     public void BoxI_IsNotNil_WhenAQpipPremiumWasWithheld()
     {
-        // Box I was gated on the EI exemption, and the two exemptions are not the same one. EI
-        // exemption is the owner holding more than 40% of the voting shares; QPIP has its own
-        // rules and its own base, and the calculator withholds it from a Quebec employee either
-        // way. That produced a slip with a premium in box H and a nil box I, which is the one
-        // pair that cannot be right: RL-1.G-V takes "0" in box I to mean there was no eligible
-        // salary at all.
+        // Box I was gated on the EI exemption, and the two exemptions are not the same one.
         Employee person = Person();
         person.IsEiExempt = true;
 
@@ -281,9 +270,7 @@ public class Rl1Tests
     {
         CompanyData data = Data(Person());
 
-        // Well above both ceilings. A slip reporting the whole $200,000 would look entirely
-        // reasonable and would have Revenu Quebec expect contributions on money that was never
-        // pensionable or eligible.
+        // Well above both ceilings: a slip reporting the whole $200,000 would look reasonable and have Revenu Quebec expect contributions never owed.
         data.PayRuns.Add(Run("PR-0001", new DateTime(2026, 7, 3), "EMP-001", 200_000m));
 
         Rl1Slip slip = Built(data).Slips[0];
@@ -371,9 +358,8 @@ public class Rl1Tests
         Assert.Equal(expected, Rl1Service.IsQuebecIdentificationNumber(value));
 
     /// <summary>
-    /// The slip count is not what decides whether these PDFs can be filed, and it used to be
-    /// treated as though it were: six or more raised a blocking problem, which left four
-    /// implying that mailing them would work.
+    /// The slip count is not what decides whether these PDFs can be filed, so four are no more
+    /// mailable than six.
     ///
     /// It never would. Revenu Quebec accepts a paper slip printed by software only when it
     /// carries an authorization number, which it issues to a developer per taxation year after

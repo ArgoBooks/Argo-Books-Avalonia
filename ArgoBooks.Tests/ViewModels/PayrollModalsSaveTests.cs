@@ -502,9 +502,7 @@ public class PayrollModalsSaveTests : ModalViewModelTestBase
     [Fact]
     public void AProvinceNoEditionCoversAnyMore_IsSwappedForOneThatWorks()
     {
-        // Rate files are delivered rather than shipped, so the set can change under an employee
-        // who was created against an older one. Leaving the form on a province no pay run could
-        // calculate would fail at approval instead of here.
+        // Rate files are delivered rather than shipped, so the set can change under an employee who was created against an older one.
         var vm = new PayrollModalsViewModel { Province = "ZZ" };
 
         vm.OpenAddEmployeeModal();
@@ -516,9 +514,7 @@ public class PayrollModalsSaveTests : ModalViewModelTestBase
     [Fact]
     public void WithNoRateEditionForToday_TheFormSaysSoRatherThanOfferingNothing()
     {
-        // What the day after the last edition expires looks like. The form still has to work,
-        // because the employer can enter people before the new rates arrive; it is the pay run
-        // that refuses, and this note is what tells them why in advance.
+        // What the day after the last edition expires looks like.
         var vm = new PayrollModalsViewModel(new NoEditionsRateService()) { Province = "AB" };
         vm.OpenAddEmployeeModal();
 

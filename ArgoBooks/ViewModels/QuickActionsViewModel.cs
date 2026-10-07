@@ -246,10 +246,7 @@ public partial class QuickActionsViewModel : ViewModelBase
                     var titleScore = LevenshteinDistance.ComputeSearchScore(query, a.Title);
                     var descScore = LevenshteinDistance.ComputeSearchScore(query, a.Description);
 
-                    // Title matches are prioritized:
-                    // - Strong title match (>= 0.8): use title score with small desc boost
-                    // - Weak title match with strong desc match: boost slightly but less than title match
-                    // - Both weak: use max
+                    // A strong title match wins, a weak one with a strong description match gets a small boost, and otherwise the best of the two is used.
                     double finalScore;
                     if (titleScore >= StrongMatchThreshold)
                     {
@@ -303,9 +300,7 @@ public partial class QuickActionsViewModel : ViewModelBase
         }
         else
         {
-            // No query - show every item, grouped by category. The results list scrolls, so
-            // there's no need to cap each section the way a search does; showing the full set
-            // gives users a usable menu the moment the panel opens.
+            // No query - show every item, grouped by category.
             var items = filteredList.Select(x => x.Item).ToList();
 
             foreach (var item in items.Where(a => a.Type == QuickActionType.QuickAction))

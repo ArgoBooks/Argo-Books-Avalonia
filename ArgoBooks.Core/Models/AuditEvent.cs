@@ -6,13 +6,6 @@ namespace ArgoBooks.Core.Models;
 /// Represents a recorded change in the company data for version history and audit trail.
 /// Each event captures what changed, when, and by whom.
 /// </summary>
-/// <remarks>
-/// FUTURE MULTI-ACCOUNTANT SUPPORT:
-/// When multi-accountant support is added, set <see cref="AccountantId"/> and <see cref="AccountantName"/>
-/// to identify which accountant performed the action. The version history modal can then filter by
-/// accountant and show per-user activity. The server-side sync layer can use these fields to merge
-/// event streams from multiple clients and detect conflicts (e.g., two accountants editing the same entity).
-/// </remarks>
 public class AuditEvent : IRecord
 {
     /// <summary>

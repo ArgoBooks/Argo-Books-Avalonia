@@ -1225,10 +1225,7 @@ public class ReportRenderer : IDisposable
         if (_chartDataService == null)
             return null;
 
-        // Revenue vs Expenses for a non-USD display currency: convert each day's value at that day's
-        // OWN rate before bucketing, so a wide range doesn't convert a month total at the month-start
-        // date (whose rate is usually uncached) and fall back to showing the raw USD figure. Matches
-        // the dashboard / analytics path (Calculations.md Rule 4).
+        // Each day's value converts at its own rate before bucketing, so a wide range does not convert a month total at the month-start date.
         if (chartType == ChartDataType.RevenueVsExpenses
             && !string.Equals(_currencyCode, "USD", StringComparison.OrdinalIgnoreCase))
         {
@@ -1270,9 +1267,7 @@ public class ReportRenderer : IDisposable
         if (_chartDataService == null)
             return null;
 
-        // Convert each country's revenue at each transaction's OWN date during aggregation
-        // (docs/Calculations.md Rule 4) instead of converting the country total at today's
-        // rate. Null for a USD report (identity).
+        // Convert each country's revenue at each transaction's OWN date during aggregation (docs/Calculations.md Rule 4) instead of converting the country total at today's rate.
         var converter = string.Equals(_currencyCode, "USD", StringComparison.OrdinalIgnoreCase)
             ? (Func<decimal, DateTime, decimal>?)null
             : (usd, date) => (decimal)ConvertFromUSD((double)usd, date);
@@ -1303,9 +1298,7 @@ public class ReportRenderer : IDisposable
         // Determine if we have negative values
         var hasNegatives = minValue < 0;
 
-        // 20% headroom above the max so the tallest point isn't flush with the top edge.
-        // The floor stays pinned at 0 unless the data goes negative, in which case the
-        // bottom gets the same 20%.
+        // 20% headroom above the max so the tallest point is not flush with the top, with the floor pinned at 0 unless the data goes negative.
         var paddedMaxValue = maxValue > 0 ? maxValue * 1.2 : maxValue;
         var paddedMinValue = hasNegatives ? minValue * 1.2 : 0;
 
@@ -1420,9 +1413,7 @@ public class ReportRenderer : IDisposable
         // Determine if we have negative values
         var hasNegatives = minValue < 0;
 
-        // 20% headroom above the max so the tallest point isn't flush with the top edge.
-        // The floor stays pinned at 0 unless the data goes negative, in which case the
-        // bottom gets the same 20%.
+        // 20% headroom above the max so the tallest point is not flush with the top, with the floor pinned at 0 unless the data goes negative.
         var paddedMaxValue = maxValue > 0 ? maxValue * 1.2 : maxValue;
         var paddedMinValue = hasNegatives ? minValue * 1.2 : 0;
 
@@ -1467,9 +1458,7 @@ public class ReportRenderer : IDisposable
         canvas.DrawLine(chartArea.Left, chartArea.Top, chartArea.Left, chartArea.Bottom, axisPaint);
         canvas.DrawLine(chartArea.Left, baselineY, chartArea.Right, baselineY, axisPaint);
 
-        // Line uses a single representative color per chart type.
-        // For profit/tax-liability, that's the color matching positive values
-        // (green for profits, red for owed tax).
+        // Line uses a single representative color per chart type. For profit/tax-liability, that's the color matching positive values (green for profits, red for owed tax).
         var lineColor = ChartColors.ForValue(chart.ChartType, 0);
 
         // Calculate point positions
@@ -1748,9 +1737,7 @@ public class ReportRenderer : IDisposable
         // Determine if we have negative values
         var hasNegatives = minValue < 0;
 
-        // 20% headroom above the max so the tallest point isn't flush with the top edge.
-        // The floor stays pinned at 0 unless the data goes negative, in which case the
-        // bottom gets the same 20%.
+        // 20% headroom above the max so the tallest point is not flush with the top, with the floor pinned at 0 unless the data goes negative.
         var paddedMaxValue = maxValue > 0 ? maxValue * 1.2 : maxValue;
         var paddedMinValue = hasNegatives ? minValue * 1.2 : 0;
 
@@ -1880,9 +1867,7 @@ public class ReportRenderer : IDisposable
         // Determine if we have negative values
         var hasNegatives = minValue < 0;
 
-        // 20% headroom above the max so the tallest point isn't flush with the top edge.
-        // The floor stays pinned at 0 unless the data goes negative, in which case the
-        // bottom gets the same 20%.
+        // 20% headroom above the max so the tallest point is not flush with the top, with the floor pinned at 0 unless the data goes negative.
         var paddedMaxValue = maxValue > 0 ? maxValue * 1.2 : maxValue;
         var paddedMinValue = hasNegatives ? minValue * 1.2 : 0;
 
@@ -3034,9 +3019,7 @@ public class ReportRenderer : IDisposable
             // Invariant, like the currency cells, so the footer's re-parse reads "1.5" as one and a half.
             "Qty" => r.Quantity.ToString("#,0.##", System.Globalization.CultureInfo.InvariantCulture),
             "Unit Price" => FormatCurrency(r.UnitPrice),
-            // r.Total is USD-normalized (see ReportTableDataService); convert it to the display
-            // currency at the row's date instead of stamping the symbol on a raw dollar figure. The
-            // footer re-parses these rendered cells, so its total follows automatically.
+            // r.Total is USD-normalized (see ReportTableDataService); convert it to the display currency at the row's date instead of stamping the symbol on a raw dollar figure.
             "Total" => FormatCurrency(ToDisplayCurrency(r.Total, r.Date)),
             "Status" => r.Status,
             "Accountant" => r.AccountantName,

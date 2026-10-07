@@ -150,8 +150,6 @@ public partial class ChartExpandOverlay : UserControl
         var pageContent = _pageContentControl?.Content as Control;
 
         // Navigation builds a new page instance every time, so let go of the old one first.
-        // Same instance means this is a repeat call: keep the subscriptions it already has,
-        // since AddExpandButton skips panels that are already decorated.
         if (!ReferenceEquals(pageContent, _decoratedPageContent))
         {
             ReleasePageSubscriptions();
@@ -218,10 +216,7 @@ public partial class ChartExpandOverlay : UserControl
         }
         else
         {
-            // Fallback: traverse the visual tree for controls that don't expose
-            // children via the logical tree (e.g., ContentPresenter, template hosts).
-            // This ensures dynamically created charts inside dashboard widgets
-            // are always discovered.
+            // Fallback: traverse the visual tree for controls that don't expose children via the logical tree (e.g., ContentPresenter, template hosts).
             foreach (var child in control.GetVisualChildren())
             {
                 if (child is Control childControl)
@@ -292,8 +287,6 @@ public partial class ChartExpandOverlay : UserControl
         button.Click += OnExpandButtonClick;
 
         // Hide the expand button when the chart has no data (empty state showing).
-        // For pie charts and GeoMaps, the chart control's own IsVisible doesn't
-        // reflect data availability, so we watch ChartEmptyState siblings instead.
         var emptyStates = FindDescendants<ChartEmptyState>(panel);
         if (emptyStates.Count > 0)
         {
@@ -348,11 +341,7 @@ public partial class ChartExpandOverlay : UserControl
         var contentPanel = this.FindControl<Panel>("ContentPanel");
         if (contentPanel == null) return;
 
-        // Set DataContexts so bindings keep working after reparenting.
-        // ChartArea gets the page-level ViewModel (for context menu bindings).
-        // ContentPanel gets the source panel's original DataContext (for chart
-        // bindings like Series, HasData, etc., critical for dashboard widgets
-        // where the chart is bound to a UnifiedChartWidgetViewModel, not the page VM).
+        // Set DataContexts so bindings keep working after reparenting. ChartArea gets the page-level ViewModel (for context menu bindings).
         var chartArea = this.FindControl<Panel>("ChartArea");
         if (chartArea != null)
         {
@@ -393,9 +382,6 @@ public partial class ChartExpandOverlay : UserControl
         }
 
         // Move all children except the expand button to the overlay.
-        // GeoMaps cannot be reparented because LiveCharts' DetachedFromVisualTree
-        // handler calls CoreChart.Unload() which permanently breaks the control.
-        // Instead, we hide original GeoMaps and create fresh copies in the overlay.
         _geoMapCopies.Clear();
         _isGeoMapFullscreen = sourcePanel.Children.OfType<GeoMap>().Any();
 
@@ -420,10 +406,7 @@ public partial class ChartExpandOverlay : UserControl
             }
             else
             {
-                // Set an explicit DataContext on each child so it survives reparenting.
-                // Without this, the child loses its inherited DataContext when removed
-                // from the widget and picks up the overlay's DataContext instead,
-                // breaking bindings (e.g., dashboard charts show "no data available").
+                // Each child gets an explicit DataContext so it survives reparenting, or it picks up the overlay's instead and its bindings break.
                 child.DataContext = sourceDataContext;
                 _movedChildren.Add(child);
                 sourcePanel.Children.Remove(child);
@@ -632,7 +615,6 @@ public partial class ChartExpandOverlay : UserControl
     /// </summary>
     private void TeardownFullscreenZoom()
     {
-        // Unsubscribe from zoom
         _zoomUnsubscriber?.Invoke();
         _zoomUnsubscriber = null;
 

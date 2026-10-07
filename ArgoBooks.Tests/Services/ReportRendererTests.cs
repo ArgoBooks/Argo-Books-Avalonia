@@ -73,9 +73,7 @@ public class ReportRendererTests
     [Fact]
     public void GeneralLedgerOverSeveralPages_DrawsEveryRow()
     {
-        // The planner picks the rows for each page and the renderer draws them. When the two measured
-        // the page differently, rows planned for a page were cut off there and drawn nowhere, and the
-        // row lost could be a subtotal or the grand total.
+        // The planner picks the rows for each page and the renderer draws them.
         var data = new CompanyData();
         for (var i = 0; i < 150; i++)
         {

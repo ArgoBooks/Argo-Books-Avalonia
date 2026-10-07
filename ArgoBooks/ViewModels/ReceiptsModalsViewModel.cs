@@ -294,9 +294,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
 
     partial void OnIsScanningChanged(bool value)
     {
-        // Clear any leftover progress from the previous scan the moment scanning (re)starts, so the
-        // bar doesn't briefly flash the prior scan's 100% before the new scan's reset runs. Covers
-        // every entry point (open + retry).
+        // Clear any leftover progress from the previous scan the moment scanning (re)starts, so the bar doesn't briefly flash the prior scan's 100% before the new scan's reset runs.
         if (value)
         {
             ScanProgress = 0;
@@ -556,9 +554,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
 
     private SupplierCategorySuggestion? _aiSuggestion;
 
-    // Bumped whenever the scan modal resets (close or a new scan starts). An in-flight AI suggestion
-    // call captures the current value and discards its result if the generation has moved on, so a
-    // late suggestion for a previous receipt can't land on the receipt now on screen (single-scan flow).
+    // Bumped whenever the scan modal resets (close or a new scan starts).
     private int _scanGeneration;
 
     [ObservableProperty]
@@ -922,12 +918,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             IsBulkDropZoneOpen = false;
             BulkItems.Clear();
 
-            // Launch the single-scan modal without awaiting it. This command is an
-            // AsyncRelayCommand (AllowConcurrentExecutions = false), so awaiting the whole scan
-            // here would keep the command "running" - and the Scan All button disabled - for the
-            // entire scan. Decoupling lets the command finish immediately once the modal is up, so
-            // the button re-enables right away even if the previous scan was cancelled mid-flight.
-            // OpenScanModalAsync handles its own errors and drives the modal's own state.
+            // Launch the single-scan modal without awaiting it.
             _ = OpenScanModalAsync(single.FilePath);
             return;
         }
@@ -980,8 +971,6 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
                 }
 
                 // Drop the ones the allowance does not cover before any scanning starts.
-                // The dialog named this number, and the list is what the user watches, so
-                // leaving them queued would look stuck and scanning them would overspend.
                 while (BulkItems.Count > usageCheck.Remaining)
                 {
                     BulkItems.RemoveAt(BulkItems.Count - 1);
@@ -989,13 +978,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             }
         }
 
-        // Pipeline: each item reads, preprocesses, generates preview, and scans
-        // in a single task. SemaphoreSlim gates concurrency across all stages.
-        //
-        // Three rather than five: at five, observed scans averaged 39 seconds and the
-        // slowest successful one took 85, because the requests compete with each other
-        // upstream. Fewer in flight means each finishes sooner, which matters more than
-        // raw parallelism when a slow scan is what pushes one past its timeout.
+        // Pipeline: each item reads, preprocesses, generates preview, and scans in a single task. SemaphoreSlim gates concurrency across all stages.
         var semaphore = new SemaphoreSlim(3);
         var tasks = BulkItems
             .Select(item => ProcessAndScanItemAsync(item, semaphore, token))
@@ -1019,9 +1002,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         }
         catch (OperationCanceledException)
         {
-            // Cancelled while waiting for a concurrency slot. The semaphore was never
-            // acquired, so it must not be released. Mark the item cancelled and finish
-            // cleanly so the task doesn't fault and crash Task.WhenAll in StartBulkScan.
+            // Cancelled while waiting for a concurrency slot. The semaphore was never acquired, so it must not be released.
             await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
             {
                 item.Status = BulkScanStatus.Failed;
@@ -1089,12 +1070,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             // Free original file bytes, local `fileData` var keeps the reference for the preview task
             item.FileData = null;
 
-            // 4. Check usage
-            //
-            // The server is the authority and refuses on its own, so this is here to avoid
-            // sending a request that is certain to be refused. It cannot be relied on alone:
-            // three items scan at once, so the allowance can run out between this check and the
-            // request below. That race is what the _bulkScanLimitMessage guard covers.
+            // The server refuses on its own, so this only avoids a request certain to be refused, and cannot be relied on alone because three items scan at once.
             if (_bulkScanLimitMessage != null)
             {
                 await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
@@ -1146,9 +1122,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             }
             else
             {
-                // Once the allowance is gone every item still queued would be refused too, so
-                // the reason is recorded here and the rest short-circuit rather than each
-                // spending a request to be told the same thing.
+                // Once the allowance is gone every queued item would be refused too, so the reason is recorded once and the rest short-circuit.
                 if (result.IsScanLimitReached)
                 {
                     _bulkScanLimitMessage = result.ErrorMessage ?? "Monthly scan limit reached".Translate();
@@ -1213,9 +1187,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
     [RelayCommand]
     private void CancelBulkScan()
     {
-        // Signal cancellation, Task.WhenAll in StartBulkScan will set IsBulkScanComplete
-        // when all tasks finish. Don't set it here to avoid counter corruption from
-        // tasks that complete after this point.
+        // Signal cancellation, Task.WhenAll in StartBulkScan will set IsBulkScanComplete when all tasks finish.
         _bulkCancellationSource?.Cancel();
     }
 
@@ -1298,9 +1270,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         else
             SetScanPreview(item.PreviewImagePath);
 
-        // The supplier box belongs to the receipt being left. Cleared so it cannot carry over:
-        // the next receipt either gets its own match below or starts empty, which is what makes
-        // "supplier required" stop a receipt being saved under the previous one's supplier.
+        // The supplier box belongs to the receipt being left.
         SelectedSupplier = null;
 
         // Only suppress AI suggestions if they've already run for this item.
@@ -1771,8 +1741,6 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         LoadProductOptions();
 
         // Preprocess the image once on a background thread (EXIF fix + contrast + sharpen).
-        // The result is used for both the preview image and the API call, avoiding
-        // a redundant FixOrientation decode/encode cycle. PDFs are returned unchanged.
         var isPdf = Path.GetExtension(fileName).Equals(".pdf", StringComparison.OrdinalIgnoreCase);
         var convertedToJpeg = false;
         var preprocessedData = await Task.Run(
@@ -1992,9 +1960,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ReceiptScanned, "sample");
         App.MainWindowViewModel?.NoteSampleReceiptScan();
 
-        // The receipt is canned, so the supplier and category it resolves to are known before the
-        // call is made. Suppressed rather than sent, then matched locally against whatever the
-        // company already has.
+        // The receipt is canned, so the supplier and category it resolves to are known before the call is made.
         _suppressAiSuggestions = true;
         PopulateScanResults(BuildSampleScanResult());
         _suppressAiSuggestions = false;
@@ -2099,9 +2065,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
                 {
                     IsScanning = false;
 
-                    // A populated ErrorMessage means the check itself failed (offline or
-                    // server unreachable), not that a real limit was hit. Surface that
-                    // instead of a "0/0" scan-limit prompt.
+                    // A populated ErrorMessage means the check itself failed (offline or server unreachable), not that a real limit was hit. Surface that instead of a "0/0" scan-limit prompt.
                     if (!string.IsNullOrEmpty(usageCheck.ErrorMessage))
                     {
                         HasScanError = true;
@@ -2133,10 +2097,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             var result = await Task.Run(() => _scannerService.ScanReceiptAsync(imageData, fileName, skipPreprocessing: true, token), token);
             scanTicker.Complete();
 
-            // If this scan was cancelled or superseded by a newer one while the API call was in
-            // flight, the shared modal state now belongs to that newer scan. Bail out without
-            // writing anything, otherwise a cancelled scan's late "cancelled/timed out" result
-            // would clobber the result the user is actually looking at.
+            // If this scan was cancelled or superseded by a newer one while the API call was in flight, the shared modal state now belongs to that newer scan.
             if (token.IsCancellationRequested)
                 return;
 
@@ -2281,10 +2242,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         IsScanReviewModalOpen = false;
         IsFullscreen = false;
 
-        // Suggested products/supplier/category are created eagerly while the user reviews.
-        // If the modal is closed without adding the receipt, roll them back so they only
-        // persist when a transaction is actually created. When a transaction was created,
-        // ownership transfers to the undo action, so this is skipped.
+        // Suggested products, supplier and category are created while the user reviews, so closing without adding rolls them back.
         if (!_createdEntitiesCommitted)
             RollbackUncommittedCreatedEntities();
 
@@ -2552,9 +2510,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         // transfers to the undo action, so don't roll them back when the modal closes.
         _createdEntitiesCommitted = true;
 
-        // Credit the scan step.
-        // This fires at the commit point rather than where the entities are created, because a
-        // review that gets cancelled rolls those entities back and must not leave a step ticked.
+        // Credited at the commit point rather than where the entities are created, because a cancelled review rolls those back.
         TutorialService.Instance.CompleteChecklistItem(TutorialService.ChecklistItems.ScanReceipt);
 
         App.CompanyManager?.MarkAsChanged();
@@ -2752,9 +2708,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         App.UndoRedoManager.RecordAction(action);
     }
 
-    // One-shot handlers for the "create entity from this modal" flows. Stored so a cancelled create
-    // (which never raises the *Saved event) can be detached before the next attempt, instead of
-    // leaking onto the singleton create-modal VMs. See CreateModalSubscription.
+    // One-shot handlers for the "create entity from this modal" flows.
     private EventHandler? _supplierSavedHandler;
     private EventHandler? _productSavedHandler;
 
@@ -3048,9 +3002,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
     /// </summary>
     private void ValidateCurrentBulkItem()
     {
-        // Filling the form sets its fields one at a time, and each change lands here. Writing
-        // the half-filled form to the receipt just selected put the previous receipt's supplier
-        // and expense/revenue choice on it.
+        // Filling the form sets its fields one at a time, and each change lands here.
         if (_isLoadingBulkItem) return;
 
         if (!IsBulkReviewOpen || CurrentBulkItem == null || !CurrentBulkItem.IsApproved)

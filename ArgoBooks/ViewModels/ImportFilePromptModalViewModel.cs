@@ -19,10 +19,8 @@ public sealed class ImportFilePromptOptions
 }
 
 /// <summary>
-/// Stands in front of the file pickers that used to be the first thing an import
-/// did. Opening an operating system dialog over an empty company tells somebody
-/// nothing about which file to go and find, and the ones who had not downloaded a
-/// statement yet could only cancel.
+/// Stands in front of the file pickers, because an operating system dialog over an empty
+/// company says nothing about which file to find, and somebody without one can only cancel.
 /// </summary>
 public partial class ImportFilePromptModalViewModel : ViewModelBase
 {

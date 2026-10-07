@@ -153,10 +153,7 @@ public abstract partial class PaperDocumentEditorViewModelBase<TLine> : ViewMode
         switch (field)
         {
             case "notes":
-                // The paper falls back to the template's footer when the document has no notes of
-                // its own, so a commit handing that same text back is the fallback, not typing.
-                // Taking it would make an untouched document look edited and stop it following
-                // the template.
+                // The paper falls back to the template's footer when the document has no notes of its own, so a commit handing that same text back is the fallback, not typing.
                 if (value != (SelectedTemplate?.FooterText ?? string.Empty))
                     ModalNotes = value;
                 break;
@@ -352,16 +349,11 @@ public abstract partial class PaperDocumentEditorViewModelBase<TLine> : ViewMode
         }
     }
 
-    // One-shot handlers for the "create entity from this modal" flows. Stored so a cancelled create
-    // (which never raises the *Saved event) can be detached before the next attempt, instead of
-    // leaking onto the singleton create-modal VMs. See CreateModalSubscription.
+    // One-shot handlers for the "create entity from this modal" flows.
     private EventHandler? _customerSavedHandler;
     private EventHandler? _productSavedHandler;
 
-    // Hide the paper while a modal is open on top of it; restore when it closes (its open flag flips
-    // back to false, on save or cancel). Only the named open-flag property is watched: OpenAddModal
-    // resets other fields first (firing PropertyChanged while the flag is still false), and reacting
-    // to those would clear this before the modal is even shown.
+    // Hide the paper while a modal is open on top of it; restore when it closes (its open flag flips back to false, on save or cancel).
     protected void HideWebViewWhileModalOpen(System.ComponentModel.INotifyPropertyChanged modalVm, string openFlagName, Func<bool> isOpen)
     {
         IsNestedModalOpen = true;

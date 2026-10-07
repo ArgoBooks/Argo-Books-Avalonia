@@ -1018,9 +1018,7 @@ public partial class SkiaReportDesignCanvas : UserControl
             ? (viewportHeight - oldExtent.Height) / 2
             : 0;
 
-        // Calculate the mouse position in content space
-        // When scrolled: add scroll offset
-        // When centered: subtract centering offset (scroll offset is 0)
+        // Calculate the mouse position in content space When scrolled: add scroll offset When centered: subtract centering offset (scroll offset is 0)
         var mousePosInContent = new Point(
             mousePosInViewport.X + oldOffset.X - centeringOffsetX,
             mousePosInViewport.Y + oldOffset.Y - centeringOffsetY

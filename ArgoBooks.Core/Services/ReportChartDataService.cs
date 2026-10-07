@@ -164,9 +164,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
 
         var (startDate, endDate) = GetDateRange();
 
-        // ProfitCalculator owns the formula (pre-tax revenue − expenses −
-        // pre-tax refunds), keyed by the day each component happened. See
-        // docs/Calculations.md §2 and §8.
+        // ProfitCalculator owns the formula (pre-tax revenue − expenses − pre-tax refunds), keyed by the day each component happened. See docs/Calculations.md §2 and §8.
         return ProfitCalculator.CalculateNetProfitByDayUSD(companyData, startDate, endDate)
             .OrderBy(kv => kv.Key)
             .Select(kv => new ChartDataPoint
@@ -350,9 +348,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
             return new ChartDataPoint
             {
                 Label = month.ToString("MMM yyyy"),
-                // Match the paired "Average Transaction Value" chart, which
-                // averages only collected revenue. Counting unpaid invoices
-                // here would make Count * Avg disagree with Total Revenue.
+                // Match the paired "Average Transaction Value" chart, which averages only collected revenue. Counting unpaid invoices here would make Count * Avg disagree with Total Revenue.
                 Value = companyData.Revenues
                     .Where(RevenueAggregator.IsCollected)
                     .Count(s => s.Date >= clampedStart && s.Date <= clampedEnd),
@@ -747,9 +743,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
 
         var allMonths = GetMonthsBetween(startDate, endDate).ToList();
 
-        // Cash-basis: only count shipping on revenue rows that were actually
-        // collected. Unpaid invoices shouldn't influence the shipping average,
-        // see Calculations.md §2 Rule 2.
+        // Cash-basis: only count shipping on revenue rows that were actually collected. Unpaid invoices shouldn't influence the shipping average, see Calculations.md §2 Rule 2.
         var monthsWithData = allMonths.Where(month =>
         {
             var monthStart = new DateTime(month.Year, month.Month, 1);
@@ -960,9 +954,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
 
         var (startDate, endDate) = GetDateRange();
 
-        // Lifetime value = collected revenue per customer. Unpaid invoices
-        // would inflate every bucket and misclassify which segment a
-        // customer falls into.
+        // Lifetime value = collected revenue per customer. Unpaid invoices would inflate every bucket and misclassify which segment a customer falls into.
         var customerRevenue = companyData.Revenues
             .Where(s => s.Date >= startDate && s.Date <= endDate && !string.IsNullOrEmpty(s.CustomerId))
             .Where(RevenueAggregator.IsCollected)
@@ -1909,9 +1901,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
     public object GetChartData(ChartDataType chartType, Func<decimal, DateTime, decimal>? toDisplay = null,
         GeoLevel level = GeoLevel.Country, Func<string?, string?, string?>? regionName = null)
     {
-        // When a display converter is supplied (dashboard distribution path), bypass the cache
-        // entirely: a USD result computed earlier (e.g. for the report) must not be served when a
-        // converter is requested, and a converted result must never poison the USD cache.
+        // A supplied converter bypasses the cache both ways: a USD result is never served to a request that wants one converted, and a converted result never enters the USD cache.
         if (toDisplay != null)
             return ComputeChartData(chartType, toDisplay, level, regionName);
 

@@ -118,9 +118,7 @@ public partial class SurveyQuestion : ObservableObject
 
     public void SetOptions(IReadOnlyList<SurveyOption> options)
     {
-        // Preserve any current selection: the overlay opens with bundled defaults
-        // and then awaits the server refresh, so the user may have already picked
-        // an option (and typed freeform text) by the time this runs.
+        // Keeps any current selection, because the overlay opens on bundled defaults and the user may have picked one before the server refresh lands.
         var previousKey = SelectedKey;
 
         foreach (var existing in Options)

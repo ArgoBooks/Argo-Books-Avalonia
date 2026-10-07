@@ -50,10 +50,7 @@ public class StripeApiClient
 
         var key = apiKey.Trim();
 
-        // Validate against the exact data the feature reads (balance transactions), so a
-        // restricted key scoped only to Balance transactions / Charges / Payouts passes.
-        // Validating against /v1/account would fail such a key with 403, since we do not
-        // ask for account read access.
+        // Validate against the exact data the feature reads (balance transactions), so a restricted key scoped only to Balance transactions / Charges / Payouts passes.
         using var req = new HttpRequestMessage(HttpMethod.Get, $"{BalanceTxUrl}?limit=1");
         req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key);
 

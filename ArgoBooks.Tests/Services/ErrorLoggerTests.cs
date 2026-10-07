@@ -215,10 +215,7 @@ public class ErrorLoggerTests
 
     #region Telemetry Forwarding Tests
 
-    // Warnings are opt-in: one reaches telemetry only when the caller gives it a code,
-    // which is what makes it groupable on the dashboard. Without this rule the dozens of
-    // existing LogWarning calls would all upload as uncategorised noise, so these tests
-    // pin the rule rather than the implementation that happens to satisfy it today.
+    // A warning reaches telemetry only when the caller gives it a code, which is what makes it groupable on the dashboard.
 
     [Fact]
     public void LogWarning_WithCode_IsReportedToTelemetry()

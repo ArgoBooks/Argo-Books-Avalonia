@@ -23,12 +23,7 @@ public partial class TranslationGenerator
     [GeneratedRegex(@"\{loc:Loc\s+([^}]+)\}")]
     private static partial Regex LocExtensionRegex();
 
-    // Strips whole-line C# comments (// ... and /// ...). Only matches when the //
-    // is at the start of a line (after optional whitespace), so URLs inside string
-    // literals like "https://example.com" aren't truncated and any .Translate() calls
-    // sharing the line aren't silently dropped. End-of-line comments after code are
-    // left intact, picking up a stray translatable string from one would produce a
-    // visible spurious entry, which is preferable to silently losing a real one.
+    // Strips whole-line comments only, matching at the start of a line, so a URL inside a string literal survives.
     [GeneratedRegex(@"(?m)^[\t ]*//.*$")]
     private static partial Regex LineCommentRegex();
 
@@ -74,11 +69,7 @@ public partial class TranslationGenerator
     [GeneratedRegex(@"\[\s*""([^""]+)""")]
     private static partial Regex ArrayItemStartRegex();
 
-    // Continuation strings inside an array literal: matches `, "value"` only when the
-    // following token is another quoted string or a closing `]`. This filters out method
-    // call arguments like `Load("Page", "Column", true)` where the next token after a
-    // string is a non-string parameter, while still catching real array literals like
-    // `["A", "B", "C"]`.
+    // Continuation strings inside an array literal: matches `, "value"` only when the following token is another quoted string or a closing `]`.
     [GeneratedRegex(@",\s*""([^""]+)""(?=\s*(?:,\s*""|\]))")]
     private static partial Regex ArrayItemContinueRegex();
 
@@ -402,9 +393,7 @@ public partial class TranslationGenerator
                 }
             }
 
-            // Find string array items: ["Item1", "Item2", "Item3"], used for ComboBox options
-            // Restricted to ViewModel/Service/Enum/Configuration files because plain arrays
-            // appear in many non-UI contexts and would generate noise.
+            // Finds string array items for combo box options, restricted to view model, service, enum and configuration files.
             if (filePath.Contains("Enum") || filePath.Contains("Service") || filePath.Contains("ViewModel") || filePath.Contains("Configuration"))
             {
                 var arrayStartMatches = ArrayItemStartRegex().Matches(content);
@@ -444,11 +433,7 @@ public partial class TranslationGenerator
         if (LooksLikeCodeIdentifier(text))
             return;
 
-        // Skip a short run of capitals, which is a code rather than a label: province and country
-        // codes, currency codes and the payroll ones are all picked out of data tables by the
-        // blanket patterns above. Handing them to a translator turns them into words, so BC comes
-        // back as the Russian for "Before Christ" and SIN as the word sin. The few that really are
-        // labels are named below.
+        // A short run of capitals is a code rather than a label, such as a province, country, currency or payroll code.
         if (IsShortCode(text))
             return;
 
@@ -457,9 +442,7 @@ public partial class TranslationGenerator
         if (!text.Any(char.IsLetter))
             return;
 
-        // Display strings start with an uppercase letter or a digit. Skip lowercase-leading
-        // strings, those are usually internal parsing tokens (e.g., the "this month" /
-        // "last 30 days" arms in ReportConfiguration's case-insensitive switch).
+        // Display strings start with an uppercase letter or a digit.
         if (!char.IsUpper(text[0]) && !char.IsDigit(text[0]))
             return;
 
@@ -802,10 +785,7 @@ public partial class TranslationGenerator
                 var sourceText = batch[i];
                 var translatedText = i < translatedBatch.Count ? translatedBatch[i] : englishStrings[key];
 
-                // Detect when Azure returned the source unchanged. Multi-word phrases that
-                // come back identical are usually mis-detection by Azure (e.g., "Select Premium").
-                // Allowlisted entries (legitimate loanwords like "Status" in Polish, or
-                // global brand names / font families) are skipped.
+                // Detect when Azure returned the source unchanged. Multi-word phrases that come back identical are usually mis-detection by Azure (e.g., "Select Premium").
                 var isAllowlisted = (allowlistForLang?.Contains(sourceText) ?? false)
                                     || (globalAllowlist?.Contains(sourceText) ?? false);
                 if (string.Equals(translatedText, sourceText, StringComparison.Ordinal) &&
@@ -862,9 +842,7 @@ public partial class TranslationGenerator
         return batches;
     }
 
-    // Max attempts when Azure returns 429 (Too Many Requests). F0 (free tier) has
-    // tight per-minute throttles independent of the 2M-char monthly cap; S1 rarely
-    // 429s but we honor it there too for resilience.
+    // Max attempts when Azure returns 429 (Too Many Requests).
     private const int MaxRateLimitRetries = 6;
 
     /// <summary>

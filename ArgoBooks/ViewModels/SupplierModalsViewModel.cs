@@ -186,10 +186,7 @@ public partial class SupplierModalsViewModel : ViewModelBase
 
     partial void OnModalWebsiteChanged(string value)
     {
-        // Auto-fetch the supplier's /favicon.ico, but only when the user has not
-        // already picked or kept their own image. The check on HasModalAvatar handles
-        // every "image already there" case (existing avatar in edit mode, prior favicon
-        // fetch in this session, manual file pick).
+        // Auto-fetch the supplier's /favicon.ico, but only when the user has not already picked or kept their own image.
         if (HasModalAvatar || _pendingAvatarSourcePath != null)
             return;
 
@@ -297,9 +294,7 @@ public partial class SupplierModalsViewModel : ViewModelBase
         _pendingFaviconBytes = null;
         _shouldRemoveAvatarOnSave = _originalHasAvatar;
 
-        // Re-evaluate the website: with no avatar showing, the favicon fetch becomes
-        // applicable again. Mirrors the rule "if the user did not select an image,
-        // pull the website's favicon".
+        // Re-evaluate the website: with no avatar showing, the favicon fetch becomes applicable again. Mirrors the rule "if the user did not select an image, pull the website's favicon".
         TriggerFaviconFetch(ModalWebsite);
     }
 
@@ -365,9 +360,7 @@ public partial class SupplierModalsViewModel : ViewModelBase
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     if (cts.IsCancellationRequested) return;
-                    // Re-check the gating conditions on the UI thread, the user may
-                    // have picked a file or removed-with-empty-website while we were
-                    // waiting on the network.
+                    // Re-check the gating conditions on the UI thread, the user may have picked a file or removed-with-empty-website while we were waiting on the network.
                     if (HasModalAvatar || _pendingAvatarSourcePath != null)
                     {
                         bitmap.Dispose();
@@ -718,9 +711,7 @@ public partial class SupplierModalsViewModel : ViewModelBase
         if (oldNotes != newNotes) changes["Notes"] = new FieldChange { OldValue = oldNotes, NewValue = newNotes };
         if (changes.Count > 0) App.EventLogService?.SetPendingChanges(changes);
 
-        // Apply the Id rename FIRST so a failure doesn't leave the entity with new
-        // field values but the old Id. Validation already prevents conflicts; this
-        // ordering is defense-in-depth.
+        // Apply the Id rename FIRST so a failure doesn't leave the entity with new field values but the old Id. Validation already prevents conflicts; this ordering is defense-in-depth.
         if (hasIdChange)
         {
             try

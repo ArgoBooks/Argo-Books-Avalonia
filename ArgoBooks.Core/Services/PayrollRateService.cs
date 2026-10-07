@@ -126,9 +126,7 @@ public class PayrollRateService
         }
         catch
         {
-            // A corrupt file is skipped rather than thrown, so one bad edition cannot make
-            // every other pay date uncalculable. The absent edition surfaces as a null from
-            // GetForDate, which callers already have to handle.
+            // A corrupt file is skipped rather than thrown, so one bad edition cannot make every other pay date uncalculable.
             return null;
         }
     }

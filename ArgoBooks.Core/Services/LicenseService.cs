@@ -284,9 +284,7 @@ public class LicenseService
         }
         catch (HttpRequestException ex)
         {
-            // The probe runs either way to pick the user's message, so classifying the log
-            // entry from its answer is free: a customer whose connection dropped is a
-            // warning, our licence endpoint being unreachable is an error worth chasing.
+            // The probe runs either way to pick the user's message, so a dropped connection logs as a warning and an unreachable licence endpoint does not.
             return new LicenseValidationResult
             {
                 Status = LicenseValidationStatus.NetworkError,

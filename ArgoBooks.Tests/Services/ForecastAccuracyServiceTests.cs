@@ -313,10 +313,7 @@ public class ForecastAccuracyServiceTests
     [Fact]
     public void ValidatePastForecasts_MeasuresActualRevenueAsGrossCollected()
     {
-        // Forecasts are generated from gross (tax-inclusive), collected-only revenue
-        // (InsightsService uses RevenueAggregator.IsCollected + EffectiveTotalUSD). The validation
-        // step must measure "actual" the same way, otherwise the accuracy score compares two
-        // different yardsticks. It used pre-tax amounts and counted uncollected revenue too.
+        // Forecasts are generated from gross (tax-inclusive), collected-only revenue (InsightsService uses RevenueAggregator.IsCollected + EffectiveTotalUSD).
         var companyData = new CompanyData();
 
         var period = new AnalysisDateRange

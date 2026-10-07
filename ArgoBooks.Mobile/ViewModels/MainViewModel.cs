@@ -5,9 +5,7 @@ namespace ArgoBooks.Mobile.ViewModels;
 
 public partial class MainViewModel : ViewModelBase
 {
-    // Trivial use of ArgoBooks.Shared (net10.0) from the Android head, to prove the
-    // cross-platform reuse premise: the same sync crypto code that runs on desktop
-    // compiles and runs unchanged on Android.
+    // A trivial use of ArgoBooks.Shared from the Android head, proving the same sync crypto compiles and runs unchanged on both.
     [ObservableProperty]
     private string _greeting = $"Welcome to Argo Books! (demo sync key: {SyncCrypto.GenerateSyncKey()[..8]}...)";
 }

@@ -188,9 +188,7 @@
         <Setter Property="Opacity" Value="0.5" />
     </Style>
 
-    <!-- Filled variant buttons used by ArgoButton's Variant property (Warning/Success/Danger).
-         These mirror Button.primary so a colored variant doesn't fall through to the default
-         gray button theme (which previously made message-box primary buttons render unstyled). -->
+    <!-- Filled variants for ArgoButton, mirroring Button.primary so a coloured variant does not fall through to the default grey theme. -->
     <Style Selector="Button.warning">
         <Setter Property="Background" Value="{DynamicResource WarningBrush}" />
         <Setter Property="Foreground" Value="White" />
@@ -445,11 +443,7 @@
         <Setter Property="MinWidth" Value="0" />
         <Setter Property="Cursor" Value="Hand" />
     </Style>
-    <!-- Foreground and Background are restated here, not just the underline.
-         Without them the base Button hover style wins, which paints the text
-         with the theme's ButtonForegroundPointerOver. In dark mode that is
-         white, and a link sitting on a pale info panel became invisible on
-         hover. Button.link-button below already does this correctly. -->
+    <!-- Foreground and Background are restated here, not just the underline. Without them the base Button hover style wins, which paints the text with the theme's ButtonForegroundPointerOver. -->
     <Style Selector="Button.link:pointerover /template/ ContentPresenter">
         <Setter Property="TextBlock.TextDecorations" Value="Underline" />
         <Setter Property="TextBlock.Foreground" Value="{DynamicResource PrimaryBrush}" />

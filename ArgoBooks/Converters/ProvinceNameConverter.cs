@@ -44,11 +44,7 @@ public class ProvinceNameConverter : IValueConverter
             return string.Empty;
         }
 
-        // Translate falls back to the input when there is no entry, so an untranslated province
-        // name still reads correctly rather than coming out blank.
-        // Only the name is translated. A code this list does not hold is a region outside Canada,
-        // and a two-letter code is a word in its own right to a translator: OK comes back as the
-        // Russian for "okay", ME as "I", IN as "in". It is shown as it was given.
+        // Translate falls back to the input when there is no entry, so an untranslated province name still reads correctly rather than coming out blank. Only the name is translated.
         return Names.TryGetValue(code, out string? name) ? name.Translate() : code;
     }
 

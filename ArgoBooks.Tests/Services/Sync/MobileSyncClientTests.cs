@@ -238,10 +238,7 @@ public class MobileSyncClientTests
         Assert.EndsWith("/pair/key", handler.Last!.RequestUri!.AbsolutePath);
     }
 
-    // Regression tests: a non-2xx response with a non-JSON body (e.g. an Apache/htaccess HTML
-    // error page, which is realistic for these routes) must never reach JsonDocument.Parse.
-    // Existing callers must still surface HttpRequestException (not JsonException), and the
-    // newer ClaimPairing/FetchPairingKey callers must still return null (not throw).
+    // A non-2xx response with a non-JSON body, such as an HTML error page, must never reach JsonDocument.Parse.
 
     [Fact]
     public async Task GetSnapshot_throws_HttpRequestException_not_JsonException_on_non_json_error_body()

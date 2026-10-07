@@ -26,9 +26,7 @@ public class SheetResultItem
         get
         {
             var parts = new List<string>();
-            // Whole phrases, not a number glued to a word. A language that puts the count after
-            // the noun cannot be served by the latter, and a bare word collides with the tile
-            // heading above, which is the same word with a capital.
+            // Whole phrases, not a number glued to a word.
             if (Inserted > 0) parts.Add("{0} new".TranslateFormat(Inserted.ToString("N0")));
             if (Updated > 0) parts.Add("{0} updated".TranslateFormat(Updated.ToString("N0")));
             if (Imported > 0) parts.Add("{0} imported".TranslateFormat(Imported.ToString("N0")));

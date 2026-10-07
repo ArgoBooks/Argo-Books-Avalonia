@@ -135,9 +135,7 @@ public partial class InvoicePreviewControl : UserControl
     private bool _isInitialized;
     private bool _webViewReady;
     private double _currentZoom = 1.0;
-    // Set once the user zooms by hand, so re-renders keep their zoom; until then every render fits the
-    // paper. Opening an invoice re-renders several times as the form fills in, faster than the page
-    // reports its fitted zoom back, so restoring a remembered number opened it at 100%.
+    // Set once the user zooms by hand, so re-renders keep their zoom; until then every render fits the paper.
     private bool _userZoomed;
     private double _pendingScrollX;
     private double _pendingScrollY;
@@ -147,9 +145,7 @@ public partial class InvoicePreviewControl : UserControl
     private const double MinZoom = 0.25;
     private const double MaxZoom = 5.0;
 
-    // Injected only in editable mode: makes [data-field] elements contenteditable, posts edits back
-    // via the zoom feature's postMessage channel, and builds a product dropdown on description fields
-    // that mirrors the app's SearchableDropdown (filter, keyboard nav, create-new, empty state).
+    // Injected only in editable mode: it makes [data-field] elements editable, posts edits back over the zoom channel, and builds the product dropdown.
     private string BuildEditingScript()
     {
         var products = string.IsNullOrWhiteSpace(ProductsJson) ? "[]" : ProductsJson;
@@ -219,10 +215,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
         });
     }
 
-    // qty, rate and notes are free-text contenteditable. customer and description are strict pickers
-    // (below): typed text only searches the dropdown and never commits as free text, so a line item can
-    // only hold a real product picked from the list (or one made via '+ Create new product'). Dates are
-    // pickers too. This keeps an invalid product from sticking, mirroring the customer field.
+    // qty, rate and notes are free-text contenteditable.
     var pickers = { customer: 1, description: 1, issueDate: 1, dueDate: 1 };
     var timers = {};
     document.querySelectorAll('[data-field]').forEach(function(el) {
@@ -396,9 +389,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
         }
     }
 
-    // ---- editable totals: tax (%/fixed), shipping ($), discount (%/fixed), custom fee (%/fixed) ----
-    // Each marked cell shows the computed amount in the customer view; here we replace it with an
-    // inline value editor plus a swap button, mirroring the website's totals controls.
+    // --- Editable totals: tax, shipping, discount, custom fee ---
     document.querySelectorAll('[data-total]').forEach(function(cell) {
         var which = cell.dataset.total;              // tax | shipping | discount | fee
         var mode = cell.dataset.totalMode || '';     // percent | fixed | '' (shipping has no mode)
@@ -455,9 +446,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
         });
         val.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); val.blur(); } });
         val.addEventListener('blur', function() {
-            // Flush the value to the model. The displayed Total updates live in JS (see the recompute
-            // block below), so there is no paper re-render here, which is what kept the preview from
-            // resetting its zoom while the user typed.
+            // Flushes the value to the model. The total updates live in JS, so there is no paper re-render and the preview keeps its zoom while typing.
             clearTimeout(t);
             post({ type:'invoiceEdit', field: fieldName, index: null, value: val.textContent });
         });
@@ -475,9 +464,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
         cell.appendChild(box);
     });
 
-    // ---- live totals: recompute amounts/subtotal/total/fee in the browser as the user types, so
-    // ---- the paper never has to re-render (which would reset the zoom). Mirrors the C# math; the
-    // ---- authoritative values are recomputed in C# on preview/save.
+    // ---- live totals: recompute amounts/subtotal/total/fee in the browser as the user types, so ---- the paper never has to re-render (which would reset the zoom).
     (function() {
         var cfg = window.__totalsConfig || {};
         var sym = cfg.symbol || '$';
@@ -537,9 +524,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
             var balance = Math.max(0, total - paid);
             var procFee = (portal && passFee && balance > 0) ? Math.round((balance * 2.9 / 100 + 0.30) * 100) / 100 : 0;
 
-            // The (x%) suffix on the tax label is server-rendered, so it has to be
-            // rewritten here or it keeps showing the rate the paper loaded with.
-            // Trims trailing zeros to match the C# ""0.##"" format.
+            // The (x%) suffix on the tax label is server-rendered, so it has to be rewritten here or it keeps showing the rate the paper loaded with.
             setOut('taxRateLabel', taxMode === 'fixed' ? '' : ' (' + String(parseFloat(tax.toFixed(2))) + '%)');
             setOut('subtotal', money(subtotal));
             setOut('processingFee', money(procFee));
@@ -585,9 +570,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
     {
         base.OnLoaded(e);
 
-        // Subscribed on every load, above the initialised check, so it stays paired with the
-        // unsubscribe in OnUnloaded. A control that is unloaded and loaded again skips the
-        // block below, and would otherwise come back without a subscription.
+        // Subscribed on every load, above the initialised check, so it stays paired with the unsubscribe in OnUnloaded.
         WebViewEnvironment.Failed -= OnWebViewFailed;
         WebViewEnvironment.Failed += OnWebViewFailed;
 
@@ -601,9 +584,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
             _isInitialized = true;
         }
 
-        // A modal hands over its content only once it is open, so this control usually loads with
-        // its visibility and Html bindings already true and no later change to react to. Requiring
-        // Html keeps a preview whose bindings have not run yet (default IsVisible is true) hidden.
+        // A modal hands over its content only once it is open, so this control usually loads with its visibility and Html bindings already true and no later change to react to.
         EnsureWebViewActiveIfVisible();
     }
 
@@ -640,10 +621,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
 
     private void InitializePlatformPreview()
     {
-        // A web view that already failed to start this session fails the same way again, and it
-        // fails silently from here: the exception never reaches this call. Without the check the
-        // preview would show an empty panel, so treat it exactly like a platform that cannot
-        // embed one and offer the browser instead.
+        // A web view that already failed to start fails the same way silently, so the exception never arrives here and the check stands in for it.
         if (PlatformSupportsInlineWebView && !WebViewEnvironment.HasFailed)
         {
             ActivateWebView();
@@ -810,10 +788,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
 
     private void OnNavigationCompleted(object? sender, WebViewNavigationCompletedEventArgs e)
     {
-        // Only now does the page exist to be asked which channel it chose. Asking in
-        // ActivateWebView instead reads __argoNative off a page that has not loaded, which
-        // answers "no native bridge" everywhere and would start polling on Windows too,
-        // delivering every edit twice: once by postMessage and again from the drain.
+        // Only now does the page exist to be asked which channel it chose.
         _ = StartOutboxPollingIfNeededAsync();
 
         if (_hasPendingScroll && _webView != null)
@@ -949,10 +924,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
         if (!_webViewReady || _webView == null || string.IsNullOrEmpty(Html))
             return;
 
-        // Capture current scroll position so NavigationCompleted can restore it
-        // after NavigateToString resets the page. Skip re-capture while a prior
-        // navigation is still in flight, the live page is mid-reload and would
-        // report scroll=0, clobbering the position we're trying to preserve.
+        // Capture current scroll position so NavigationCompleted can restore it after NavigateToString resets the page.
         if (!_hasPendingScroll)
         {
             try
@@ -993,10 +965,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
 
     window.__isInFitMode = false;
 
-    // Horizontal centering: when the scaled wrapper is narrower than the
-    // viewport, shift it right by half the empty space. Without this,
-    // transform-origin: 0 0 leaves zoomed-out content pinned to the
-    // viewport's left edge.
+    // Shifted right by half the empty space when the scaled wrapper is narrower than the viewport, since transform-origin pins it left.
     function centerOffsetX(scale) {
         var wrapper = document.getElementById('__zoomWrapper');
         if (!wrapper) return 0;
@@ -1006,10 +975,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
         return scaledWidth < viewportWidth ? (viewportWidth - scaledWidth) / 2 : 0;
     }
 
-    // Single source of truth for the wrapper transform. Form is
-    // ""translate(tx, ty) scale(s)"", translate is applied in screen
-    // pixels (CSS rule: outer transform applies last). tx already
-    // accounts for centering; panOffset adds the rubber-band overscroll.
+    // Single source of truth for the wrapper transform. Form is ""translate(tx, ty) scale(s)"", translate is applied in screen pixels (CSS rule: outer transform applies last).
     function applyTransform(scale, panOffsetX, panOffsetY) {
         var wrapper = document.getElementById('__zoomWrapper');
         if (!wrapper) return;
@@ -1028,18 +994,13 @@ window.__totalsConfig = __TOTALS_CONFIG__;
         newScale = Math.max(0.25, Math.min(5.0, newScale));
         wrapper.dataset.scale = newScale;
         window.__isInFitMode = false;
-        // Show scrollbars only if the SCALED content actually overflows the viewport. transform:scale
-        // doesn't shrink the layout box, so a plain overflow:auto shows phantom scrollbars (e.g. at
-        // 1:1 when the paper visibly fits). Compare the scaled size to the viewport instead.
+        // Show scrollbars only if the SCALED content actually overflows the viewport.
         var scaledW = wrapper.scrollWidth * newScale;
         var scaledH = wrapper.scrollHeight * newScale;
         var fits = scaledW <= window.innerWidth + 1 && scaledH <= window.innerHeight + 1;
         document.body.style.overflow = fits ? 'hidden' : 'auto';
 
         // Calculate scroll adjustment to keep the point under cursor.
-        // Assumes centering offset doesn't change much across the zoom
-        // step, true once content is wider than viewport, slightly
-        // approximate around the fit-to-window boundary.
         var scrollX = window.scrollX || 0;
         var scrollY = window.scrollY || 0;
         var docX = scrollX + (originX / oldScale);
@@ -1066,13 +1027,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
         // Reset to 1 first to measure natural size
         wrapper.style.transform = '';
         wrapper.dataset.scale = '1';
-        // Hide scrollbars BEFORE measuring the viewport. transform: scale() doesn't shrink the
-        // wrapper's layout box, so the body reports overflow and shows scrollbars even though the
-        // scaled content fits; we hide them while in fit mode. Doing it first matters: if we
-        // measured with the scrollbar present and hid it afterwards, removing the scrollbar would
-        // widen the viewport and fire a resize, which re-fit to the new width and nudged the paper
-        // a few px right - the shift the user saw a moment after the paper appeared. Measuring after
-        // the hide means the fit (and any resize-triggered re-fit) use the same final viewport.
+        // Hide scrollbars BEFORE measuring the viewport.
         document.body.style.overflow = 'hidden';
         var contentWidth = wrapper.scrollWidth;
         var contentHeight = wrapper.scrollHeight;
@@ -1098,17 +1053,11 @@ window.__totalsConfig = __TOTALS_CONFIG__;
         return parseFloat(wrapper.dataset.scale || '1');
     };
 
-    // First load and DPI/window-resize handling. WebView2 fires
-    // ""resize"" when the parent moves to a monitor with different DPI
-    // (window.innerWidth changes inversely with devicePixelRatio).
-    // If the user hasn't manually zoomed, re-fit so the preview lays
-    // out cleanly on the new monitor instead of staying ""zoomed in"".
+    // WebView2 fires resize when the parent moves to a monitor of different DPI, because innerWidth changes inversely with devicePixelRatio.
     var resizeTimer = null;
     window.addEventListener('resize', function() {
         if (!window.__isInFitMode) return;
-        // Ignore the spurious resize our own fit fires when it toggles the scrollbar (the viewport
-        // barely changes). Only re-fit on a real window/monitor/DPI change, otherwise we re-fit in a
-        // loop and nudge the paper a few px each pass. A scrollbar is ~17px, so 24px is a safe cutoff.
+        // Ignore the spurious resize our own fit fires when it toggles the scrollbar (the viewport barely changes).
         if (Math.abs(window.innerWidth - (window.__fitVW || 0)) < 24
             && Math.abs(window.innerHeight - (window.__fitVH || 0)) < 24) return;
         if (resizeTimer) clearTimeout(resizeTimer);
@@ -1124,12 +1073,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
         if (document.getElementById('__zoomWrapper'))
             window.__fitToWindow();
     }
-    // Apply the initial fit synchronously - before the browser's first paint - so the content
-    // appears already fitted and centered. This script runs at the end of <body>, so the DOM is
-    // parsed and measurable here. Deferring to setTimeout painted the page at natural scale 1
-    // (left-aligned) first, then shifted it right to center a frame later: the ""shifts right a
-    // second later"" jump the user saw on every show. Fall back to a deferred pass only if the
-    // viewport isn't measurable yet (innerWidth 0 during an early navigation).
+    // Apply the initial fit synchronously - before the browser's first paint - so the content appears already fitted and centered.
     function runInitialFit() {
         if (window.innerWidth > 0 && document.getElementById('__zoomWrapper')) {
             maybeInitialFit();
@@ -1258,10 +1202,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
         }
         catch (Exception ex)
         {
-            // NavigateToString never delivered the navigation, so OnNavigationCompleted
-            // won't fire to reset _hasPendingScroll. Clear it here so the next
-            // UpdateWebViewContent can recapture a fresh scroll position instead of
-            // being blocked indefinitely by a stale pending capture.
+            // NavigateToString never delivered the navigation, so OnNavigationCompleted won't fire to reset _hasPendingScroll.
             _hasPendingScroll = false;
             System.Diagnostics.Debug.WriteLine($"InvoicePreview error: {ex.Message}");
         }

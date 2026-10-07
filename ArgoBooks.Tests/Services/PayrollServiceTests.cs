@@ -36,9 +36,7 @@ public class PayrollServiceTests
     };
 
 
-    // A run added late with an earlier pay date. The annual maximums are for the whole year, so
-    // the calculation has to see what later runs already withheld; a pay stub still wants the
-    // figures as they stood at its own pay date.
+    // A run added late with an earlier pay date.
     [Fact]
     public void YearToDate_ForACalculation_CountsRunsDatedAfterTheDraft()
     {
@@ -174,12 +172,7 @@ public class PayrollServiceTests
     [Fact]
     public void YearToDate_IsUnaffectedByARunThatWasVoided()
     {
-        // Voiding has to leave the year-to-date exactly where it was before the run existed.
-        //
-        // Note this goes through Void() rather than setting the status by hand. The reversal
-        // is half the mechanism: the voided run still counts, and the reversal's negative
-        // amounts are what cancel it. A Void status on its own is not a state the service can
-        // produce.
+        // Voiding has to leave the year-to-date exactly where it was before the run existed. Note this goes through Void() rather than setting the status by hand.
         CompanyData data = DataWithEmployee();
         data.PayRuns.Add(ApprovedRun("PR-0001", new DateTime(2026, 1, 9), "EMP-001", 2000m, 110.99m, 32.60m));
 
@@ -239,9 +232,7 @@ public class PayrollServiceTests
     [Fact]
     public void ApproveAndRecord_WritesOneExpensePerEmployeeAtNetPay()
     {
-        // Net rather than gross, so the books mirror the bank. The employer makes two separate
-        // withdrawals, the net pay now and the CRA remittance later, and recording gross here
-        // would count the deductions twice.
+        // Net rather than gross, so the books mirror the bank.
         CompanyData data = DataWithEmployee();
         data.Employees.Add(new Employee { Id = "EMP-002", Name = "Second Person", Province = "AB" });
 
@@ -316,9 +307,7 @@ public class PayrollServiceTests
         Assert.Null(run.Lines[0].ExpenseId);
     }
 
-    // Undoing an approval took the wages out and left their queued conversion behind, which a pass
-    // then dropped as having nothing to convert. Redo put the wages back still waiting, with nothing
-    // queued to convert them, so they counted as 0 for good.
+    // Undoing an approval took the wages out and left their queued conversion behind, which a pass then dropped as having nothing to convert.
     [Fact]
     public void UndoAndRedoOfWages_TakesTheQueuedConversionOutAndBack()
     {
@@ -339,9 +328,7 @@ public class PayrollServiceTests
         Assert.Equal((wages.Id, "Expense", 1856.41m, PayDate), (entry.TransactionId, entry.TransactionType, entry.Total, entry.TransactionDate));
     }
 
-    // Undoing an import restores the company from a snapshot while the pay run's undo still holds
-    // the wages. When the restore swapped every expense for a copy, undoing the approval left the
-    // wages in the books, and redoing it added a second expense with the same id.
+    // Undoing an import restores the company from a snapshot while the pay run's undo still holds the wages.
     [Fact]
     public void UndoAndRedoOfWages_AfterASnapshotRestore_TakeAndReturnTheSameWages()
     {
@@ -441,10 +428,7 @@ public class PayrollServiceTests
 
         PayrollYearToDate ytd = service.YearToDateFor(data, "EMP-001");
 
-        // Exactly zero. The voided run and its reversal are both counted and cancel. Skipping
-        // the voided run as well would subtract the same payroll twice and leave the year to
-        // date at -110.99, so the next run would be calculated against a ceiling that had
-        // moved further away than it ever was.
+        // Exactly zero. The voided run and its reversal are both counted and cancel.
         Assert.Equal(0m, ytd.CppEmployee);
         Assert.Equal(0m, ytd.EiEmployee);
         Assert.Equal(0m, ytd.PensionableEarnings);
@@ -491,9 +475,7 @@ public class PayrollServiceTests
     [Fact]
     public void AnEmployeeFromAFileWrittenBeforeZeroClaims_StillGetsTheBasicPersonalAmount()
     {
-        // Every existing file stores 0 for "no TD1 on file". Reading one must not turn that into
-        // a claim of nothing, which would raise the tax of every such employee on the next run.
-        // The options are the ones FileService reads a company file with.
+        // Every existing file stores 0 for "no TD1 on file". Reading one must not turn that into a claim of nothing, which would raise the tax of every such employee on the next run.
         const string json = """
             {"id":"EMP-001","name":"Test Person","province":"AB","payType":"Salary","payRate":52000,
              "payFrequency":"Biweekly","federalClaimAmount":0,"provincialClaimAmount":0}
@@ -540,9 +522,7 @@ public class PayrollServiceTests
     [Fact]
     public void BeforeTheFifteenth_TheDeadlineIsStillLastMonths()
     {
-        // On 10 September the 15 September deadline has not passed, and what it covers is
-        // AUGUST's payroll. Showing September's here would name a figure that is not yet due and
-        // hide the one that is.
+        // On 10 September the 15 September deadline has not passed, and what it covers is AUGUST's payroll.
         var data = new List<PayRun>
         {
             RunOn("PR-0001", new DateTime(2026, 8, 14)),

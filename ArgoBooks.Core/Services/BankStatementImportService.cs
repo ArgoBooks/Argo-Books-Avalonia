@@ -94,11 +94,7 @@ public class BankStatementImportService(IErrorLogger? errorLogger = null)
                             ?? workbook.Worksheets.FirstOrDefault();
             if (worksheet == null) return [];
 
-            // When essentials are required (a bank statement), scan for the row that actually yields a
-            // Date + money column rather than the first row with >= 2 cells. Many banks put metadata
-            // rows ("Account:", "Statement Period:") above the real header; without this the preamble
-            // would be mistaken for the header and the whole statement would import as zero lines.
-            // The CSV path does the same via FindHeaderRowIndex.
+            // When essentials are required (a bank statement), scan for the row that actually yields a Date + money column rather than the first row with >= 2 cells.
             var headerRow = requireEssentials
                 ? FindExcelHeaderRow(worksheet, normalize)
                 : SpreadsheetRowReader.FindHeaderRow(worksheet);

@@ -33,9 +33,7 @@
                        FontWeight="SemiBold"
                        Foreground="{DynamicResource TextPrimaryBrush}"
                        HorizontalAlignment="Center" />
-            <!-- Static text rather than an animated progress bar. The UI thread is fully
-                 occupied building the service graph for the few seconds this is on screen, so
-                 nothing here can animate. A frozen spinner reads as a hang; plain text does not. -->
+            <!-- Static text rather than an animated progress bar. The UI thread is fully occupied building the service graph for the few seconds this is on screen, so nothing here can animate. -->
             <TextBlock Text="{loc:Loc 'Starting...'}"
                        FontSize="13"
                        Foreground="{DynamicResource TextTertiaryBrush}"

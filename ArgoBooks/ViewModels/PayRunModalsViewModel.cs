@@ -254,9 +254,7 @@ public partial class PayRunModalsViewModel : ViewModelBase
             BlockingError = $"No CRA payroll tables are loaded for {date:d MMMM yyyy}. " +
                             "Checking for an update.";
 
-            // CRA publishes twice a year on dates nobody chooses, so the edition a pay date
-            // needs can exist on the server while this install has never seen it. Ask, rather
-            // than telling the user payroll is unavailable until the next app release.
+            // CRA publishes twice a year on dates nobody chooses, so the edition a pay date needs can exist on the server while this install has never seen it.
             _ = FetchRatesForAsync(date);
             return;
         }
@@ -407,10 +405,7 @@ public partial class PayRunModalsViewModel : ViewModelBase
 
         DateTime payDate = PayDate?.DateTime.Date ?? DateTime.Today;
 
-        // Asked before the draft is built, not after. The calculator throws for a province it
-        // has no table for. The province dropdown cannot produce a bad code, but the spreadsheet
-        // importer takes whatever is in the cell and upper-cases it, so "Ontario" gets stored
-        // and every pay run afterwards is unrunnable.
+        // Asked before the draft is built, not after. The calculator throws for a province it has no table for.
         List<string> unsupported = data.Employees
             .Where(e => chosen.Contains(e.Id) && !_payroll.Supports(payDate, e.Province))
             .Select(e => $"{e.Name} ({e.Province})")
@@ -491,10 +486,7 @@ public partial class PayRunModalsViewModel : ViewModelBase
 
     private void BuildAmountRows(CompanyData data)
     {
-        // What has already been typed, keyed by employee. Next from step 1 rebuilds these rows
-        // every time, so stepping Back to correct a period date and pressing Next again threw
-        // away every hour, bonus and vacation figure already entered, with no warning. The class
-        // note above promises the rows survive stepping back; this is what keeps that true.
+        // What has already been typed, keyed by employee.
         var typed = AmountRows.ToDictionary(
             r => r.EmployeeId,
             r => (r.Hours, r.Bonus, r.VacationPay),
@@ -542,9 +534,7 @@ public partial class PayRunModalsViewModel : ViewModelBase
             AmountRows.Add(row);
         }
 
-        // The same pair the amount-changed handler runs. Without the recalculate the rows show
-        // an empty Gross until the first keystroke, even though the figures are already known:
-        // a salaried run arrives with its base pay filled in and needs no input at all.
+        // The same pair the amount-changed handler runs, or the rows show an empty Gross until the first keystroke even though the figures are known.
         Recalculate();
         UpdateGrossTotal();
     }
@@ -625,9 +615,7 @@ public partial class PayRunModalsViewModel : ViewModelBase
                 Gross = CurrencyService.Format(line.GrossPay),
                 Cpp = CurrencyService.Format(line.CppEmployee + line.Cpp2Employee),
 
-                // Quebec's pension money is QPP. It is stored in the CPP fields because it is
-                // the same column in the same run, but naming it CPP on the review is telling
-                // the employer they withheld something they did not.
+                // Quebec's pension money is QPP, stored in the CPP fields because it is the same column, but naming it CPP on the review would misstate it.
                 CppLabel = quebec ? "QPP" : "CPP",
                 Ei = CurrencyService.Format(line.EiEmployee),
 
@@ -762,9 +750,7 @@ public partial class PayRunModalsViewModel : ViewModelBase
 
         PayrollYearToDate ytd = _payroll.YearToDateFor(data, employee.Id, _draft, includeLaterRuns: true);
 
-        // Quebec runs its own plans at its own maximums, so the figure to compare against is not
-        // the federal one. Checking a Quebec employee against CPP's ceiling announces the
-        // maximum late, and against EI's higher rest-of-Canada ceiling never announces it at all.
+        // Quebec runs its own plans at its own maximums, so the figure to compare against is not the federal one.
         bool quebec = string.Equals(employee.Province, "QC", StringComparison.OrdinalIgnoreCase);
         QuebecRates? qc = quebec ? rates.Quebec : null;
 

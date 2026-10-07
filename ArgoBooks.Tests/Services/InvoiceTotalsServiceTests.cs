@@ -12,9 +12,7 @@ namespace ArgoBooks.Tests.Services;
 /// </summary>
 public class InvoiceTotalsServiceTests
 {
-    // IsPaidInFull rounds at the currency's own decimals, not a fixed two. The yen has none, so a
-    // total carrying a fraction is settled by the whole-yen figure the customer is shown and pays.
-    // Rounded to two places that fraction survived, and the invoice stayed unpaid forever.
+    // IsPaidInFull rounds at the currency's own decimals, not a fixed two. The yen has none, so a total carrying a fraction is settled by the whole-yen figure the customer is shown and pays.
     [Theory]
     [InlineData("JPY", "1000.4", "1000", true)]
     [InlineData("JPY", "1000.5", "1001", true)]
@@ -47,9 +45,7 @@ public class InvoiceTotalsServiceTests
     [Fact]
     public void FractionalCentTotal_PaidAtTheDisplayedAmount_IsPaidAndNotOverdue()
     {
-        // 13% tax on a subtotal of 33.33 stores a total of 37.6629 on an invoice that reads
-        // $37.66. The customer pays what it reads, leaving a third of a cent that used to keep
-        // the invoice Partial, and then Overdue, while its revenue already counted as collected.
+        // 13% tax on 33.33 stores 37.6629 on an invoice reading $37.66, and the customer pays what it reads, leaving a third of a cent.
         var invoice = new Invoice
         {
             Id = "INV-1",
@@ -229,10 +225,7 @@ public class InvoiceTotalsServiceTests
     [Fact]
     public void RecalculateStatus_FullRefundWithProcessingFee_StillRefunded()
     {
-        // Customer paid $103 ($100 invoice + $3 processing fee they absorbed).
-        // A full refund returns $100 (the invoice value, not the fee).
-        // Net paid afterward is $3, fee residue, not a re-payment. Status
-        // should be Refunded.
+        // Customer paid $103 ($100 invoice + $3 processing fee they absorbed). A full refund returns $100 (the invoice value, not the fee).
         var invoice = new Invoice
         {
             Id = "INV-1",
@@ -250,10 +243,7 @@ public class InvoiceTotalsServiceTests
     [Fact]
     public void RecalculateStatus_PayRefundPay_StaysPartiallyRefunded()
     {
-        // Customer paid $100, was refunded $100, then paid $100 again.
-        // AmountPaid=$200, AmountRefunded=$100. Net paid is $100, a full
-        // invoice value of fresh money, not fee residue. Refund history
-        // must remain visible, so status is PartiallyRefunded.
+        // Customer paid $100, was refunded $100, then paid $100 again. AmountPaid=$200, AmountRefunded=$100. Net paid is $100, a full invoice value of fresh money, not fee residue.
         var invoice = new Invoice
         {
             Id = "INV-1",

@@ -161,9 +161,7 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
                 UndoRedoManager.Clear();
                 LoadTemplate(SelectedTemplateName);
 
-                // Clear radio button selection for point-in-time reports where date range is disabled
-                // (mirrors the logic in OnSelectedTemplateNameChanged, which doesn't fire here
-                // because SelectedTemplateName didn't change)
+                // Clears the radio selection for a point-in-time report, mirroring OnSelectedTemplateNameChanged, which does not fire when the name has not changed.
                 if (!IsDateRangeEnabled)
                 {
                     foreach (var option in DatePresets)
@@ -247,9 +245,7 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
         OnPropertyChanged(nameof(IsTemplatesTabSelected));
         OnPropertyChanged(nameof(IsChartsTabSelected));
 
-        // When switching to the Custom (charts) tab, reset template-specific state
-        // so Balance Sheet's disabled date range doesn't carry over, and the report
-        // name reflects that this is now a custom chart report.
+        // Switching to the Custom charts tab resets template state, so a disabled date range does not carry over and the name reflects a custom report.
         if (IsChartsTabSelected)
         {
             IsDateRangeEnabled = true;
@@ -512,9 +508,6 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
                 return;
 
             // For position/size changes, create a coalescing move/resize action.
-            // Rapid changes (e.g., scrolling spinner controls) will be merged into
-            // a single undo entry by the undo manager's coalescing logic.
-            // During canvas drag/resize, SuppressRecording is set so these are skipped.
             if (e.PropertyName is "X" or "Y" or "Width" or "Height")
             {
                 // PropertyChanging fires before the change, so element still has old values
@@ -995,9 +988,7 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
         Configuration.AddElement(element);
         UndoRedoManager.RecordAction(new AddElementAction(Configuration, element));
 
-        // Suppress recording while setting up selection, binding updates from the
-        // properties panel can write back rounded values (e.g. the NumericUpDown
-        // integer display format) which would create a spurious "Move element" action.
+        // Recording is suppressed while selection is set up, because a binding write-back of a rounded value would log a spurious move.
         UndoRedoManager.SuppressRecording = true;
         try
         {
@@ -2659,9 +2650,7 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
     /// </summary>
     private void SyncChartElementsWithSelection()
     {
-        // When user is on the Custom (charts) tab, remove all non-chart elements
-        // that may have been added by a previously selected template (summary cards,
-        // accounting tables, labels, images, etc.). This mode is chart-only.
+        // On the Custom charts tab every non-chart element from a previous template goes, since this mode is charts only.
         if (IsChartsTabSelected)
         {
             foreach (var element in Configuration.Elements

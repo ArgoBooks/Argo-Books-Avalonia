@@ -489,9 +489,7 @@ public partial class App : Application
             // and CompanyData, and nothing from these replies may then land in it.
             bool CompanyChanged() => !ReferenceEquals(CompanyManager?.CompanyData, companyData);
 
-            // Use force sync to also recover any payments that were previously
-            // confirmed on the server but never saved locally (e.g. due to app crash).
-            // Duplicate prevention in ProcessSyncedPayments handles efficiency.
+            // Force sync also recovers a payment confirmed on the server but never saved here, and ProcessSyncedPayments already prevents duplicates.
             var syncResponse = await portalService.SyncPaymentsAsync(since: null, force: true);
 
             if (!syncResponse.Success || CompanyChanged())
@@ -500,14 +498,7 @@ public partial class App : Application
             // Always advance the sync timestamp on success to avoid re-querying the same window
             portalSettings.LastSyncTime = syncResponse.SyncTimestamp ?? DateTime.UtcNow;
 
-            // Sweep locally-recorded balances up to the server while we already
-            // have it on the line, so payments taken in cash (or on another
-            // machine, or while this one was offline) stop the reminder cron
-            // chasing an invoice that is already settled.
-            //
-            // Deliberately ABOVE the no-new-payments return below: having
-            // nothing to pull down is the common case, and it says nothing
-            // about whether we have something to push up.
+            // Local balances go up to the server while the connection is open, so the reminder cron stops chasing an invoice already settled in cash or elsewhere.
             if (PortalBalanceSyncService != null)
             {
                 await PortalBalanceSyncService.ReconcileAsync();
@@ -522,8 +513,6 @@ public partial class App : Application
             var newPayments = syncResult.NewPayments;
 
             // Only confirm payments that were actually processed into local records.
-            // Unprocessed payments (e.g. invoice not found locally) must NOT be
-            // confirmed so the server returns them on the next sync attempt.
             var processedPortalIds = newPayments
                 .Where(p => p.PortalPaymentId != null)
                 .Select(p => int.Parse(p.PortalPaymentId!))
@@ -534,17 +523,10 @@ public partial class App : Application
                 if (CompanyChanged()) return;
             }
 
-            // Saved for new rows, and for a sync that filled in a field an existing row does not
-            // carry, such as a processing fee. Without the second case that change lives only in
-            // memory and is gone on the next launch.
+            // Saved for a new row, and for a sync that fills a field an existing row lacks, such as a processing fee, which would otherwise live only in memory.
             if (newPayments.Count > 0 || syncResult.BackfilledRows > 0)
             {
-                // Only auto-persist when the user has no unsaved edits. The sync flow never flags the
-                // company dirty (adding payments and setting LastSyncTime don't call MarkAsModified),
-                // so this reflects ONLY the user's own edits - including any made while the sync was in
-                // flight. If they have edits, the synced payments stay in memory and persist on the
-                // next explicit save (or are re-fetched next open via the force sync), so a background
-                // sync can't quietly commit the user's in-progress edits.
+                // Only auto-persist when the user has no unsaved edits.
                 if (!CompanyManager!.HasUnsavedChanges)
                 {
                     try { await CompanyManager.SavePaymentSyncAsync(companyData); }
@@ -590,9 +572,7 @@ public partial class App : Application
             Interlocked.Exchange(ref _isAutoSyncing, 0);
         }
 
-        // After the payments, on the same trigger and the same connection: an accepted quote is
-        // as time-sensitive as a paid invoice, and nothing else pulls it. Outside the guard above
-        // so a payment sync that bailed early still lets the quote answers through.
+        // After the payments, on the same trigger and the same connection: an accepted quote is as time-sensitive as a paid invoice, and nothing else pulls it.
         await AutoSyncPortalQuoteResponsesAsync();
     }
 
@@ -654,9 +634,7 @@ public partial class App : Application
                 if (CompanyChanged()) return;
             }
 
-            // Only once the answer is in the file. Confirming an answer that is still only in
-            // memory would lose it outright if the app closed without saving: the server drops it
-            // on confirm and never offers it again. Unconfirmed, it simply arrives again next pass.
+            // Confirmed only once the answer is in the file, because the server drops it on confirm and would never offer it again.
             if (persisted)
             {
                 await portalService.ConfirmQuoteSyncAsync(localIds);
@@ -716,8 +694,6 @@ public partial class App : Application
             bool CompanyChanged() => !ReferenceEquals(CompanyManager?.CompanyData, companyData);
 
             // UPLOAD: push a fresh snapshot so the phone always has current data to browse offline.
-            // Wrapped in its own try/catch so an upload/network failure doesn't skip the pull/ingest
-            // below - the two directions are independent and one failing shouldn't block the other.
             try
             {
                 var snap = SnapshotBuilder.Build(companyData);
@@ -733,9 +709,6 @@ public partial class App : Application
             if (CompanyChanged()) return;
 
             // PULL + INGEST: drain the phone's capture queue into local Expenses/Revenue/Receipts.
-            // CaptureIngestService de-dupes on CapturedTransaction.ScanUid via the persisted
-            // CompanyData.IngestedScanUids list, so a re-delivered-but-still-pending item is
-            // safely skipped even across app restarts (not just within this session).
             var items = await syncService.PullQueueAsync(companyUid, ct);
             if (CompanyChanged()) return;
 
@@ -758,20 +731,13 @@ public partial class App : Application
                 }
                 catch (Exception ex)
                 {
-                    // A permanently-malformed item (bad ciphertext, unparsable JSON, invalid
-                    // transaction) must still be acked so it stops being re-delivered forever.
-                    // A transient failure (e.g. this process crashing mid-loop) simply re-appears
-                    // on the next pull since it was never acked.
+                    // A permanently-malformed item (bad ciphertext, unparsable JSON, invalid transaction) must still be acked so it stops being re-delivered forever.
                     ErrorLogger?.LogError(ex, ErrorCategory.Parsing, "MobileSync: failed to ingest queue item");
                     malformedIds.Add(item.Id);
                 }
             }
 
-            // PERSIST before ACK: an item that added new data must never be acknowledged (and thus
-            // deleted server-side) before that data is actually saved locally. If the save is skipped
-            // (the user has unsaved edits in memory), writes nothing or throws, the newly-ingested items must NOT be
-            // acked - they stay in the server queue and are re-delivered each cycle, where
-            // CaptureIngestService's ScanUid check no-ops them, until a save has written them.
+            // Persist before acknowledging, because an acknowledged item is deleted on the server, so data not yet saved here would be gone.
             var saved = false;
             if (ingestedIds.Count > 0 && CompanyManager != null)
             {
@@ -793,9 +759,7 @@ public partial class App : Application
                     companyData.MarkAsModified();
             }
 
-            // A duplicate is only known to be a duplicate from its ScanUid in memory, which may come
-            // from an earlier cycle whose save was skipped. Acking deletes the server's copy, so wait
-            // until nothing is unsaved: from then on the capture is in the file.
+            // A duplicate is only known to be a duplicate from its ScanUid in memory, which may come from an earlier cycle whose save was skipped.
             var toAck = new List<int>(malformedIds);
             if (saved || !companyData.ChangesMade)
             {
@@ -856,12 +820,7 @@ public partial class App : Application
         if (companyData == null)
             return;
 
-        // Never for the sample company. Its data is time-shifted to look recent on every open, so
-        // its invoices and rentals are permanently "overdue" and its stock permanently low, which
-        // means someone opening the sample to look around is greeted by a stack of warnings about
-        // a business that does not exist. Gated here rather than at each alert because this is the
-        // one entry point for all of them, and the notifications a user's own action produces
-        // ("Password has been set") should still appear.
+        // Never for the sample company: its data is time-shifted on every open, so its invoices are permanently overdue and its stock permanently low.
         if (CompanyManager?.IsSampleCompany == true)
             return;
 
@@ -1166,9 +1125,7 @@ public partial class App : Application
     // lifetime is not reachable from there.
     private static string[] _startupArgs = [];
 
-    // macOS hands a double-clicked document to a running app as an Apple Event rather than
-    // on the command line, so _startupArgs is always empty there. The event can arrive
-    // before the shell is built, which is what _macActivationFile holds it for.
+    // macOS hands a double-clicked document to a running app as an Apple Event rather than on the command line, so _startupArgs is always empty there.
     private static string? _macActivationFile;
     private static bool _startupCompanyHandled;
     private static string? _fileToOpenAfterUpdate;
@@ -1204,12 +1161,7 @@ public partial class App : Application
     /// </summary>
     private static void ClearPageCaches()
     {
-        // Tear down each cached page VM's event subscriptions (the static LanguageChanged and
-        // CurrencyChanged events, modal events, etc.) before dropping it. Without this, a company
-        // switch leaves the orphaned VMs rooted by those static events and still reacting to them.
-        // Cast to ICleanupViewModel rather than SortablePageViewModelBase: the Dashboard, Analytics,
-        // and Reports VMs have Cleanup() but extend a different base, so a SortablePageViewModelBase
-        // cast silently skipped them and leaked their subscriptions on every company switch.
+        // Each cached page view model is unsubscribed before being dropped, or the static LanguageChanged and CurrencyChanged events keep it alive past a company switch.
         foreach (var vm in new object?[]
         {
             _dashboardPageViewModel, _analyticsPageViewModel, _insightsPageViewModel, _reportsPageViewModel,
@@ -1249,9 +1201,7 @@ public partial class App : Application
         _employeesPageViewModel = null;
         _payRunsPageViewModel = null;
 
-        // The "N recurring invoices were generated" banner count is process-wide static state. Clear
-        // it on a company switch/close so a count produced for the previous company can't surface as a
-        // phantom banner on the next company (whose own generation run may have produced nothing).
+        // The "N recurring invoices were generated" banner count is process-wide static state.
         RecurringInvoiceService.ClearPendingGenerated();
         RecurringTransactionService.ClearPendingExpenses();
         RecurringTransactionService.ClearPendingRevenues();
@@ -1322,9 +1272,7 @@ public partial class App : Application
         }
     }
 
-    // When true, a new company is being created. Like _isOpeningCompany, this keeps the loading
-    // overlay up across the close-then-open transition so the welcome screen doesn't flash between
-    // closing the current company and opening the new one.
+    // When true, a new company is being created.
     private static bool _isCreatingCompany;
 
     /// <summary>
@@ -1414,14 +1362,10 @@ public partial class App : Application
             // entries as breadcrumbs.
             CrashReporter.SetBreadcrumbSource(errorLogger);
 
-            // A web view that cannot start throws from an async void attach handler, which
-            // lands on the dispatcher as an unhandled exception and ends the process. Install
-            // the guard before any window exists so the first attach is already covered.
+            // A web view that cannot start throws from an async void attach handler, which lands on the dispatcher as an unhandled exception and ends the process.
             WebViewEnvironment.InstallDispatcherGuard(errorLogger);
 
-            // Before any window exists: RequestedThemeVariant is "Default" (follows the OS)
-            // until the saved theme is applied, so applying it late flashes the wrong palette.
-            // Both calls are cheap and synchronous.
+            // Before any window exists: RequestedThemeVariant is "Default" (follows the OS) until the saved theme is applied, so applying it late flashes the wrong palette.
             SettingsService = new GlobalSettingsService(errorLogger);
             try
             {
@@ -1446,28 +1390,17 @@ public partial class App : Application
                 errorLogger.LogWarning($"Failed to apply saved language during startup: {ex.Message}", "Startup");
             }
 
-            // Show a splash straight away. Avalonia only shows MainWindow once this method
-            // returns, and everything below builds the service graph first, so without this
-            // the screen stays empty for several seconds. Users read that as a failed launch
-            // and click the shortcut again, which is how we end up with concurrent instances.
-            //
-            // Wrapped defensively: the splash is a nicety and must never be able to stop the
-            // app from starting.
+            // A splash goes up at once, because Avalonia shows MainWindow only when this method returns and the service graph below takes seconds.
             SplashWindow? splash;
             try
             {
                 splash = new SplashWindow();
                 splash.Show();
 
-                // Show() only queues the window. Without pumping the dispatcher the UI thread
-                // goes straight into the construction below, so layout and render never run and
-                // the window stays blank: present and marked visible to the OS, but showing
-                // nothing. Force those jobs through now, while there is still a gap to do it in.
+                // Show() only queues the window, so the dispatcher is pumped: without it layout and render never run and the window stays blank.
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
-                // Marked after RunJobs, not after Show(), because Show() alone only queues the
-                // window. This is the first moment the user has something to look at, which is
-                // what the measurement is for.
+                // Marked after RunJobs, not after Show(), because Show() alone only queues the window. This is the first moment the user has something to look at, which is what the measurement is for.
                 StartupTimeline.MarkFirstPaint();
             }
             catch (Exception ex)
@@ -1531,10 +1464,7 @@ public partial class App : Application
             // Initialize refund service (uses the same shared HttpClient)
             RefundService = new RefundService(httpClient);
 
-            // Source survey reporter shares the long-lived telemetry HttpClient. The
-            // survey may fire long after first run (after the user finishes the setup
-            // checklist), so we keep the reporter alive rather than scoping it to a
-            // one-shot task like FirstRunReporter.
+            // Source survey reporter shares the long-lived telemetry HttpClient.
             SourceSurveyReporter = new SourceSurveyReporter(httpClient, appVersion, errorLogger);
 
             // Fetches the survey's answer options from the website (shares the same
@@ -1572,7 +1502,6 @@ public partial class App : Application
                 DataContext = _appShellViewModel
             };
 
-            // Register pages with navigation service
             RegisterPages(NavigationService);
 
             // Set navigation callback to update current page in AppShell
@@ -1603,15 +1532,7 @@ public partial class App : Application
                     _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ReportOpened);
             };
 
-            // Chart text (axis labels, titles, legends) is drawn by LiveCharts with
-            // baked-in SkiaSharp paints. Page view models recolor their charts on
-            // ThemeChanged, but LiveCharts does not repaint an already-rendered chart
-            // when only the paint colors change, so the text keeps the old theme's
-            // color until the chart control is recreated. Rebuild the current page
-            // (the same thing navigating away and back does) so charts render fresh
-            // with the new colors. Only the Dashboard and Analytics pages host live
-            // charts, so leave every other page alone. Posted so it runs after the
-            // page view models' own ThemeChanged handlers have updated their colors.
+            // Chart text (axis labels, titles, legends) is drawn by LiveCharts with baked-in SkiaSharp paints.
             ThemeService.Instance.ThemeChanged += (_, _) =>
             {
                 var page = NavigationService.CurrentPageName;
@@ -1622,7 +1543,6 @@ public partial class App : Application
             // Set initial view
             _mainWindowViewModel.NavigateTo(appShell);
 
-            // Wire up company manager events
             WireCompanyManagerEvents();
 
             // Wire up pending conversion events
@@ -1638,11 +1558,7 @@ public partial class App : Application
 
                 Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                 {
-                    // Announced only when the wait was worth announcing. A row can be pending simply
-                    // because its date's rate was not cached yet, which the next sweep settles within
-                    // seconds; telling someone they are "back online" when they never left reads as
-                    // though something had gone wrong. The sample converts its demo rows on every
-                    // open, which is noise either way.
+                    // Announced only when the wait was worth announcing.
                     if (afterOutage && args.ConvertedCount > 0 && CompanyManager?.IsSampleCompany != true)
                     {
                         AddNotification(
@@ -1658,10 +1574,8 @@ public partial class App : Application
                 });
             };
 
-            // Wire up modal change events (separate from company manager)
             WireModalChangeEvents();
 
-            // Wire up the post-onboarding source survey trigger
             WireSourceSurveyEvents();
 
             // Sync HasUnsavedChanges with undo/redo state (both MainWindow and Header)
@@ -1672,15 +1586,7 @@ public partial class App : Application
                 _appShellViewModel.HeaderViewModel.HasUnsavedChanges = hasChanges;
             };
 
-            // After any undo/redo, fire CompanyDataChanged so pages
-            // subscribed to it (Dashboard, Analytics, Invoices, etc.) refresh
-            // their derived data. Individual undo callbacks only call
-            // companyData.MarkAsModified() which doesn't fire the event.
-            //
-            // NotifyDataChanged fires CompanyDataChanged, whose handler force-sets
-            // HasUnsavedChanges = true. That's wrong after an undo/redo: the undo manager
-            // is the authority on the saved state, so re-sync the flag from IsAtSavedState
-            // afterwards. Otherwise undoing back to the saved state leaves the asterisk on.
+            // After any undo/redo, fire CompanyDataChanged so pages subscribed to it (Dashboard, Analytics, Invoices, etc.) refresh their derived data.
             void RefreshDerivedDataAfterUndoRedo()
             {
                 CompanyManager?.NotifyDataChanged();
@@ -1693,25 +1599,18 @@ public partial class App : Application
             UndoRedoManager.ActionUndone += (_, _) => RefreshDerivedDataAfterUndoRedo();
             UndoRedoManager.ActionRedone += (_, _) => RefreshDerivedDataAfterUndoRedo();
 
-            // Wire up file menu events
             WireFileMenuEvents(desktop);
 
-            // Wire up create company wizard events
             WireCreateCompanyEvents(desktop);
 
-            // Wire up welcome screen events
             WireWelcomeScreenEvents(desktop);
 
-            // Wire up company switcher events
             WireCompanySwitcherEvents(desktop);
 
-            // Wire up settings modal events
             WireSettingsModalEvents();
 
-            // Wire up export as modal events
             WireExportEvents(desktop);
 
-            // Wire up import modal events
             WireImportEvents(desktop);
 
             // Wire up header save request
@@ -1805,9 +1704,7 @@ public partial class App : Application
                 ReceiptTempCleanup.ClearProtected();
             };
 
-            // Close the splash only once the main window is actually on screen. ShutdownMode
-            // is left at its default of OnLastWindowClose, so closing the splash while the
-            // main window is still unshown would leave zero windows open and exit the app.
+            // Close the splash only once the main window is actually on screen.
             if (splash != null)
             {
                 desktop.MainWindow.Opened += (_, _) =>
@@ -1824,8 +1721,6 @@ public partial class App : Application
             }
 
             // Record how long this launch took, once the main window is genuinely on screen.
-            // Separate from the splash handler above so it still runs on the path where the
-            // splash failed to open, which is exactly the launch worth knowing about.
             desktop.MainWindow.Opened += (_, _) =>
             {
                 if (!StartupTimeline.TryClaimReport())
@@ -1853,7 +1748,6 @@ public partial class App : Application
                 await TryProcessPendingConversionsAsync();
             };
 
-            // Wire up idle detection for auto-logout (needs MainWindow to exist)
             WireIdleDetection(desktop);
 
             // Load settings and recent companies asynchronously after window is shown
@@ -1875,8 +1769,6 @@ public partial class App : Application
         var language = SettingsService.GlobalSettings.Ui.Language;
 
         // A fresh install starts in the machine's own language when we have that translation.
-        // Only on the very first run: after that the setting is the user's answer, and a
-        // machine whose language changes later must not overrule it.
         if (SettingsService.IsFirstRun
             && Data.Languages.MatchSystemLanguage(System.Globalization.CultureInfo.CurrentUICulture.Name)
                 is { } detected
@@ -1900,9 +1792,7 @@ public partial class App : Application
     {
         try
         {
-            // Decrypting the license is a deliberately slow key-stretching pass, so it runs off the
-            // UI thread alongside the work below. Anything else that needs the key while it runs
-            // (usage checks, crash upload) waits on the same cached result.
+            // Decrypting the license is a deliberately slow key-stretching pass, so it runs off the UI thread alongside the work below.
             var licenseLoad = LicenseService is { } licenseService
                 ? Task.Run(() => licenseService.LoadLicense())
                 : Task.FromResult(false);
@@ -1944,10 +1834,7 @@ public partial class App : Application
                     MainWindowViewModel.ReportWelcomeShown();
             }
 
-            // Deliver anything a previous run left behind because it didn't close
-            // cleanly: crash reports written by the global handlers, and telemetry
-            // events whose on-close upload never ran (force-quit / crash). Both are
-            // best-effort and run off the UI thread so launch isn't blocked.
+            // Delivers what a previous run left behind, crash reports and telemetry whose on-close upload never ran, both best effort.
             try
             {
                 var flushVersion = AppInfo.VersionNumber;
@@ -1986,9 +1873,7 @@ public partial class App : Application
                     context: "App.InitializeAsync");
             }
 
-            // Report first-run install for referral funnel attribution. Fire-and-forget
-            // so app startup isn't blocked on network I/O. The reporter writes a marker
-            // after a successful POST so subsequent launches are no-ops.
+            // Report first-run install for referral funnel attribution. Fire-and-forget so app startup isn't blocked on network I/O.
             try
             {
                 var appVersion = AppInfo.VersionNumber;
@@ -2034,9 +1919,7 @@ public partial class App : Application
                     await LanguageService.Instance.SetLanguageAsync(language);
                 }
 
-                // Refresh cached translations once per app version. Without this, users
-                // never see translations added after their first language download because
-                // DownloadAndCacheLanguageAsync skips when a cached file exists.
+                // Cached translations refresh once per app version, because DownloadAndCacheLanguageAsync skips a language that already has a cached file.
                 var currentVersion = AppInfo.VersionNumber;
                 if (SettingsService.GlobalSettings.Ui.LastLanguageVersion != currentVersion)
                 {
@@ -2062,9 +1945,7 @@ public partial class App : Application
             // Initialize exchange rate service for currency conversion
             await InitializeExchangeRateServiceAsync();
 
-            // Initialize AI operation timing (pooled duration priors that drive accurate
-            // progress bars). Non-blocking: loads the disk cache, refreshes priors in the
-            // background, and falls back to seed priors when offline.
+            // Initialize AI operation timing (pooled duration priors that drive accurate progress bars).
             InitializeOperationTimingService();
 
             // Load and apply saved license status
@@ -2292,12 +2173,7 @@ public partial class App : Application
         if (!OperatingSystem.IsMacOS())
             return;
 
-        // Not a cast on ApplicationLifetime: ClassicDesktopStyleApplicationLifetime implements
-        // IClassicDesktopStyleApplicationLifetime, IControlledApplicationLifetime,
-        // IApplicationLifetime and IDisposable, and none of them is IActivatableLifetime. That
-        // cast fails on every platform, which is what left this handler unsubscribed and a
-        // double-clicked file opening the app onto the welcome screen. Activation is a platform
-        // feature, and on macOS it resolves to Avalonia.Native.MacOSActivatableLifetime.
+        // Not a cast on ApplicationLifetime, because none of the interfaces it implements is IActivatableLifetime.
         if (TryGetFeature(typeof(IActivatableLifetime)) is not IActivatableLifetime activatable)
             return;
 
@@ -2452,9 +2328,7 @@ public partial class App : Application
 
         var readinessSvc = new RateReadinessService(exchangeRates, new ConnectivityService(), ErrorLogger);
 
-        // Fetching the exact-date rate for every transaction date can take seconds to minutes, and
-        // it runs before any rows are inserted. Show it as an explicit, cancelable phase with a
-        // determinate progress bar so the import doesn't look frozen.
+        // Fetching the exact-date rate for every transaction date can take seconds to minutes, and it runs before any rows are inserted.
         using var rateCts = new CancellationTokenSource();
         _mainWindowViewModel?.ShowLoading("Fetching exchange rates...".Translate(), null, 0, rateCts, ConfirmCancelAsync);
         var rateProgress = new Progress<int>(pct => _mainWindowViewModel?.UpdateLoadingProgress(pct));
@@ -2517,10 +2391,7 @@ public partial class App : Application
         // Dispose any existing timer
         _pendingConversionTimer?.Dispose();
 
-        // Run the processing on the UI thread (the network fetch is awaited, so it doesn't block):
-        // it mutates CompanyData.PendingConversions, which the save paths also mutate on the UI thread.
-        // Without this the System.Threading.Timer callback would touch that List concurrently with a
-        // save. Matches the window-Activated path, which already calls this on the UI thread.
+        // Processed on the UI thread, because it mutates CompanyData.PendingConversions, which the save paths mutate there too.
         _pendingConversionTimer = new Timer(
             state => Avalonia.Threading.Dispatcher.UIThread.Post(() => { _ = TryProcessPendingConversionsAsync(); }),
             null, TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(15));
@@ -2803,10 +2674,7 @@ public partial class App : Application
 
                 _mainWindowViewModel.HideLoading();
 
-                // Only interrupt with the issues dialog when there's something the user must act
-                // on (errors or issues that can't be auto-fixed); when everything is auto-fixable,
-                // proceed straight to import. Mirrors the regular import path so the dialog never
-                // opens in an empty "no issues found" state.
+                // The issues dialog interrupts only when something needs the user, so a wholly auto-fixable file goes straight to import. opens in an empty "no issues found" state.
                 if (validationResult.Errors.Count > 0 || validationResult.HasNonAutoFixableIssues)
                 {
                     var validationDialog = _appShellViewModel.ImportValidationDialogViewModel;
@@ -2832,10 +2700,7 @@ public partial class App : Application
 
             if (success)
             {
-                // Exploring in the sample company looks identical to real use on the
-                // dashboard otherwise: the same CustomerCreated and ProductCreated events
-                // arrive with no CompanyCreated before them, which reads as lost telemetry
-                // rather than as someone evaluating with the demo data.
+                // Exploring the sample otherwise looks like real use: CustomerCreated and ProductCreated arrive with no CompanyCreated, which reads as lost telemetry.
                 _ = TelemetryManager?.TrackFeatureAsync(FeatureName.SampleCompanyOpened);
 
                 await LoadRecentCompaniesAsync();
@@ -2950,19 +2815,14 @@ public partial class App : Application
         // finished. A cancel or a failure part way puts it back.
         string? rollbackSnapshot = null;
 
-        // The name the user actually picked. filePath may later be swapped for a temp file
-        // (legacy .xls conversion, or experimental layout normalization), so capture the
-        // display name up front and use it in all user-facing UI instead of the temp path.
+        // The display name is captured up front, because filePath may later be swapped for a temp file during conversion or normalisation.
         var originalFileName = Path.GetFileName(filePath);
 
         var analysisCts = new CancellationTokenSource();
         _mainWindowViewModel?.ShowLoading("Analyzing spreadsheet structure...".Translate(), "Reading file...", 0, analysisCts, ConfirmCancelAsync);
         await Task.Yield(); // Allow UI to render the loading overlay before heavy work begins
 
-        // Legacy .xls (BIFF) is not read by the pipeline directly. Convert it to a temp
-        // .xlsx up front so the rest of the flow only ever sees .xlsx/.csv (unchanged).
-        // Note: a true .xlsx ends in ".xls" only via the longer ".xlsx" suffix, so we
-        // explicitly exclude .xlsx here. isCsv is left untouched (stays false for .xls).
+        // Legacy .xls (BIFF) is not read by the pipeline directly. Convert it to a temp .xlsx up front so the rest of the flow only ever sees .xlsx/.csv (unchanged).
         if (!isCsv
             && filePath.EndsWith(".xls", StringComparison.OrdinalIgnoreCase)
             && !filePath.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
@@ -2991,10 +2851,7 @@ public partial class App : Application
         {
             _mainWindowViewModel?.HideLoading();
 
-            // A populated ErrorMessage means the usage check couldn't complete (offline or
-            // server unreachable) rather than a real limit being hit, so show the connection
-            // error instead of a misleading "0/0" import-limit prompt.
-            // "quota" is the monthly limit; "usage-check" is the server being unreachable.
+            // A populated ErrorMessage means the usage check could not complete, so the connection error shows rather than a misleading "0/0" limit prompt.
             _ = TelemetryManager?.TrackFeatureAsync(
                 FeatureName.ImportFailed,
                 string.IsNullOrEmpty(usageCheck.ErrorMessage) ? "quota" : "usage-check");
@@ -3024,19 +2881,12 @@ public partial class App : Application
             return;
         }
 
-        // AI layout interpretation for messy spreadsheets (long preambles, merged/multi-row
-        // headers, cross-tabs, stacked tables): rewrite messy sheets into clean single-header
-        // tables before analysis. The cheap, local LayoutGate inside NormalizeAsync skips clean
-        // sheets and returns the ORIGINAL path when nothing needs interpreting, so normal imports
-        // pay no extra cost. Any failure falls back to the original file, so it can never break
-        // an import. CSV files are single-table and never need layout interpretation.
+        // AI layout interpretation rewrites a messy sheet into clean single-header tables before analysis, where the local LayoutGate decides whether it is needed.
         if (!isCsv)
         {
             try
             {
-                // Run off the UI thread: NormalizeAsync opens the workbook with ClosedXML
-                // synchronously (several seconds for a real file), which would otherwise block
-                // the loading overlay from even painting until it finished.
+                // Run off the UI thread, because NormalizeAsync opens the workbook synchronously and would stop the loading overlay painting.
                 var normalizer = new LayoutNormalizationService(geminiService, ErrorLogger);
                 filePath = await Task.Run(() => normalizer.NormalizeAsync(filePath, analysisCts.Token), analysisCts.Token);
             }
@@ -3051,9 +2901,7 @@ public partial class App : Application
         var analysisService = new SpreadsheetAnalysisService(geminiService, ErrorLogger, CompanyManager!.CurrentCompanySettings?.Company.Country);
         var importService = new SpreadsheetImportService(ErrorLogger, TelemetryManager, geminiService);
 
-        // Drive the analysis bar from the learned duration estimate (smooth easing toward the pooled
-        // p50/p90, asymptoting near the ceiling and completing when the call returns).
-        // The service reports only the status detail.
+        // Drive the analysis bar from the learned duration estimate (smooth easing toward the pooled p50/p90, asymptoting near the ceiling and completing when the call returns).
         var analysisDetail = "Reading file...".Translate();
         using var analysisTicker = new EstimatedProgressTicker(
             OperationKind.SpreadsheetAnalysis,
@@ -3062,9 +2910,7 @@ public partial class App : Application
 
         try
         {
-            // Step 1: AI Analysis. Run off the UI thread: the analyzer opens the workbook
-            // synchronously before its network calls, which would otherwise freeze the loading
-            // overlay. The Progress callback was created on the UI thread, so it still marshals back.
+            // Step 1: AI Analysis. Run off the UI thread: the analyzer opens the workbook synchronously before its network calls, which would otherwise freeze the loading overlay.
             analysisTicker.Start();
             var analysis = isCsv
                 ? await Task.Run(() => analysisService.AnalyzeCsvAsync(filePath, analysisCts.Token, analysisProgress), analysisCts.Token)
@@ -3074,11 +2920,7 @@ public partial class App : Application
             await Task.Yield();
             _mainWindowViewModel?.HideLoading();
 
-            // Fall back to the whole-file AI rescue when normal analysis produced nothing importable:
-            // either it returned no result/sheets at all, or it returned sheets but classified every one
-            // as Unknown/unsupported (e.g. a Profit and Loss report). Both are dead-ends on the normal
-            // path, so hand them to the rescue, which either extracts records or explains, in vetted copy,
-            // why the file cannot be imported.
+            // Falls back to the whole-file AI rescue when normal analysis found nothing importable, whether no sheets at all or every sheet unsupported.
             if (analysis == null || analysis.Sheets.Count == 0 || analysis.Sheets.All(s => !s.IsIncluded))
             {
                 await TryRescueImportAsync(
@@ -3123,9 +2965,7 @@ public partial class App : Application
             var snapshot = CreateCompanyDataSnapshot(companyData);
             rollbackSnapshot = snapshot;
 
-            // Step 3: Split sheets by processing tier
-            // Respect the AI's tier recommendation for both Excel and CSV files.
-            // Mixed-type CSVs (e.g., expenses + payments in one file) need Tier 2 LLM processing.
+            // Step 3: Split sheets by processing tier Respect the AI's tier recommendation for both Excel and CSV files.
             var tier1Sheets = includedSheets.Where(s => s.Tier == ProcessingTier.Tier1_Mapping).ToList();
             var tier2Sheets = includedSheets.Where(s => s.Tier == ProcessingTier.Tier2_LlmProcessing).ToList();
 
@@ -3134,9 +2974,7 @@ public partial class App : Application
                 SkipExistingRecords = mappingDialog.SkipExistingRecords
             };
 
-            // Detect currency written into the amount cells (symbols/codes). Unambiguous cases
-            // (an explicit code, or a symbol used by one currency like £/€) resolve silently; an
-            // ambiguous symbol like "$" prompts the user once and is applied to every matching row.
+            // Detect currency written into the amount cells (symbols/codes).
             try
             {
                 var currencyScan = CurrencyImportPreparer.ScanWorkbook(filePath, updatedAnalysis);
@@ -3157,12 +2995,7 @@ public partial class App : Application
                 }
                 importOptions.RowCurrencyBySheet = currencyScan.Resolved;
 
-                // If any non-USD currency was detected, fetch the EXACT-date rate for every
-                // transaction date before importing, so money never converts at a wrong-date rate
-                // (see docs/Calculations.md). If rates can't be fetched (offline or server down),
-                // pause with a connect-and-retry prompt. Best-effort: any row the scan misses still
-                // self-heals via IsPendingConversion. A row that names no currency is in the
-                // company's, so a non-USD company always needs its rates.
+                // An exact-date rate is fetched for every transaction date before importing, so money never converts at the wrong date (docs/Calculations.md).
                 var hasNonUsd =
                     currencyScan.Resolved.Values.SelectMany(m => m.Values)
                         .Concat(importOptions.SymbolResolution.Values)
@@ -3196,15 +3029,11 @@ public partial class App : Application
 
                 if (validationResult.HasIssues)
                 {
-                    // Auto-create any missing references (suppliers, customers, categories,
-                    // etc.) silently. The user shouldn't have to approve creating placeholder
-                    // records, it should "just work".
+                    // Auto-create any missing references (suppliers, customers, categories, etc.) silently. The user shouldn't have to approve creating placeholder records, it should "just work".
                     if (validationResult.HasMissingReferences)
                         importOptions.AutoCreateMissingReferences = true;
 
-                    // Only interrupt with the issues dialog when there's something the user
-                    // must act on: critical errors or issues that can't be auto-fixed. When
-                    // everything is auto-fixable, proceed straight to import.
+                    // The issues dialog interrupts only when something needs the user, so a wholly auto-fixable file goes straight to import. everything is auto-fixable, proceed straight to import.
                     if (validationResult.Errors.Count > 0 || validationResult.HasNonAutoFixableIssues)
                     {
                         var validationDialog = _appShellViewModel.ImportValidationDialogViewModel;
@@ -3254,9 +3083,7 @@ public partial class App : Application
                     await importService.AiCategorizeMissingProductsAsync(companyData, importCts.Token);
                 }
 
-                // Yield to let any pending Progress<T> callbacks (dispatched via
-                // SynchronizationContext.Post) execute before hiding the loading
-                // overlay, otherwise the last callback can re-show it after HideLoading.
+                // Yields so a pending Progress<T> callback runs before the overlay hides, since a late one would re-show it. overlay, otherwise the last callback can re-show it after HideLoading.
                 await Task.Yield();
                 _mainWindowViewModel?.HideLoading();
             }
@@ -3285,10 +3112,7 @@ public partial class App : Application
                 var totalRowsAllSheets = sheetDataMap.Values.Sum(d => d.Rows.Count);
                 var processedRowCounts = new int[tier2Sheets.Count];
 
-                // Use a timer to show estimated progress while waiting for
-                // the LLM to finish. Chunk-level progress only fires after
-                // each chunk completes, so with few rows (< chunk size) the
-                // bar would otherwise stay at 0% the entire time.
+                // Use a timer to show estimated progress while waiting for the LLM to finish.
                 var estimatedProgress = 0.0;
                 var chunkProgressReceived = false;
                 var estimateTimerCts = new CancellationTokenSource();
@@ -3368,9 +3192,7 @@ public partial class App : Application
                     ConfirmCancelAsync);
                 await importService.AiCategorizeMissingProductsAsync(companyData, tier2Cts.Token);
 
-                // Yield to let any pending Progress<T> callbacks (dispatched via
-                // SynchronizationContext.Post) execute before hiding the loading
-                // overlay, otherwise the last callback can re-show it after HideLoading.
+                // Yields so a pending Progress<T> callback runs before the overlay hides, since a late one would re-show it. overlay, otherwise the last callback can re-show it after HideLoading.
                 await Task.Yield();
                 _mainWindowViewModel?.HideLoading();
             }
@@ -3409,10 +3231,7 @@ public partial class App : Application
 
             var totalProcessed = totalImported + totalUpdated;
 
-            // Collect all warnings: the top-level tier-1 warnings plus every per-sheet warning
-            // (reference-resolution "created a new customer/supplier" and re-import notices added on
-            // the Tier 2 path), which would otherwise never reach the user. Distinct() guards against
-            // a per-sheet warning that was also surfaced at the top level.
+            // Collects the top-level warnings and every per-sheet one, such as a created customer or a re-import notice, which would otherwise never reach the user.
             var allWarnings = (tier1Result?.Warnings ?? [])
                 .Concat(allSheetResults.SelectMany(sr => sr.Warnings))
                 .Distinct()
@@ -3458,9 +3277,6 @@ public partial class App : Application
                 allUnimported);
 
             // Rebuild the current page so its charts/widgets show the freshly imported data.
-            // This mirrors navigating away and back, which is otherwise needed because chart
-            // widgets don't reliably repaint while hidden behind the import dialogs. Posted at
-            // Background priority so it runs after the result dialog has finished closing.
             Avalonia.Threading.Dispatcher.UIThread.Post(
                 () => NavigationService?.RefreshCurrentPage(),
                 Avalonia.Threading.DispatcherPriority.Background);
@@ -3521,9 +3337,7 @@ public partial class App : Application
         if (CompanyManager == null || _appShellViewModel == null) return;
         if (Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop) return;
 
-        // The company's own name, not the copy's file name: the company is named after its file
-        // when it opens, so restoring as "Acme--backup-20260930-143200" would put that on its
-        // invoices. Marked as restored so the suggestion does not land on the original.
+        // The company's own name, not the copy's file name: the company is named after its file when it opens, so restoring as "Acme--backup-20260930-143200" would put that on its invoices.
         var suggestedName = $"{BackupService.CompanyNameOf(backupPath)} (restored)";
 
         // Show save dialog to choose where to restore the company file
@@ -3781,12 +3595,7 @@ public partial class App : Application
                 return;
             }
 
-            // A statement that overlaps one already imported, or the same file twice, would
-            // double those lines: the second copy matches some other record of the same amount
-            // or shows as missing from the books.
-            //
-            // Asked rather than assumed. A line is known only by its date, amount and description,
-            // and the same fee on the same day on a second account looks exactly like a repeat.
+            // A statement overlapping one already imported would double those lines, so it is asked about rather than assumed.
             var readCount = lines.Count;
             var fresh = BankStatementImportService.WithoutAlreadyImported(lines, companyData.BankImportSessions);
             if (fresh.Count < readCount)
@@ -3819,9 +3628,7 @@ public partial class App : Application
             companyData.BankImportSessions.Add(session);
             companyData.MarkAsModified();
 
-            // Undo takes this statement back out and nothing else. Restoring a snapshot of the
-            // whole company removed every invoice, sale and payment made since the import that
-            // had no undo step of its own, and rewound the counters so their numbers were reused.
+            // Undo takes this statement back out and nothing else.
             UndoRedoManager.RecordAction(new DelegateAction(
                 "Import bank statement".Translate(),
                 () =>
@@ -4315,18 +4122,13 @@ public partial class App : Application
 
         _mainWindowViewModel.IsSampleCompany = isSample;
 
-        // The settings modal keeps its own copy, set only on company open and close. Save As
-        // fires neither, so without this its sample-company notice and the controls it
-        // disables stayed that way over the user's own company.
+        // The settings modal keeps its own copy, set only on company open and close.
         if (_appShellViewModel?.SettingsModalViewModel != null)
         {
             _appShellViewModel.SettingsModalViewModel.IsSampleCompany = isSample;
         }
 
-        // These two read the flag live but raise nothing on their own, and a page control is
-        // rebuilt only when navigated to. Save As neither navigates nor clears the page cache,
-        // so the dashboard's sample warning and the greyed out resend buttons stayed as they
-        // were on whichever page was already open.
+        // These two read the flag live but raise nothing on their own, and a page control is rebuilt only when navigated to.
         _dashboardPageViewModel?.RefreshSampleCompanyState();
         _invoicesPageViewModel?.RefreshSampleCompanyState();
         _quotesPageViewModel?.RefreshSampleCompanyState();
@@ -4471,10 +4273,7 @@ public partial class App : Application
         }
         catch (CompanyFileTooNewException ex)
         {
-            // File was saved by a newer Argo Books build. Use ConfirmationDialog (same path as
-            // the FileNotFoundException case) rather than the message-box service, because the
-            // latter races with the loading overlay and the dialog ends up queued behind the
-            // next user action.
+            // File was saved by a newer Argo Books build.
             _isOpeningCompany = false;
             _mainWindowViewModel.HideLoading();
             CancelCompanyOpenTiming();
@@ -4678,9 +4477,7 @@ public partial class App : Application
     /// </summary>
     private static string GetFriendlySaveErrorMessage(Exception ex)
     {
-        // Win32 errors HRESULT-wrapped by .NET file APIs:
-        //   ERROR_NOT_READY     (21) -> 0x80070015: drive present but not ready (no media / spun down)
-        //   ERROR_DEV_NOT_EXIST (55) -> 0x80070037: the volume is gone (ejected, disconnected, letter changed)
+        // Win32 errors wrapped as HRESULTs: 0x80070015 means the drive is present but not ready, and 0x80070037 means the volume is gone.
         const int errorNotReady = unchecked((int)0x80070015);
         const int errorDevNotExist = unchecked((int)0x80070037);
 
@@ -4942,11 +4739,7 @@ public partial class App : Application
     /// </summary>
     private static void OnRecentCompanyFileDeleted(object sender, FileSystemEventArgs e)
     {
-        // FileService.SaveCompanyAsync writes to <path>.tmp then File.Move(tmp, path,
-        // overwrite: true). On Windows that overwrite-move emits a Deleted event for
-        // the destination even though the rename itself is atomic, by the time we
-        // observe it, the file is already back. Treating it as a real deletion would
-        // strip the entry from settings.json on every save. Skip if the file exists.
+        // FileService.SaveCompanyAsync writes to <path>.tmp then File.Move(tmp, path, overwrite: true).
         if (File.Exists(e.FullPath))
             return;
 

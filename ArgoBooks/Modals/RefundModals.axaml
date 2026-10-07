@@ -75,9 +75,7 @@
                                         <ItemsControl ItemsSource="{Binding Payments}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate DataType="vm:RefundablePaymentRow">
-                                                    <!-- Match the line-items row layout below so the
-                                                         checkbox-to-label gap is identical between
-                                                         "Refund against" and "What to refund". -->
+                                                    <!-- Match the line-items row layout below so the checkbox-to-label gap is identical between "Refund against" and "What to refund". -->
                                                     <Grid ColumnDefinitions="Auto,*" Margin="0,2">
                                                         <CheckBox Grid.Column="0"
                                                                   IsChecked="{Binding IsSelected, Mode=TwoWay}"
@@ -202,11 +200,7 @@
                                 <StackPanel IsVisible="{Binding IsFailureStep}" Spacing="14">
                                     <TextBlock Text="{loc:Loc 'Refund did not complete'}" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource ErrorBrush}" />
                                     <TextBlock Text="{Binding TerminalMessage}" TextWrapping="Wrap" />
-                                    <!-- Hard-block-only: collect a short reason from the user
-                                         before they click the email button. The reason gets
-                                         baked into the pre-filled mailto body so support has
-                                         the context they need to decide whether to unlock,
-                                         without a back-and-forth. -->
+                                    <!-- Hard-block-only: collect a short reason from the user before they click the email button. -->
                                     <StackPanel IsVisible="{Binding IsHardBlockFailure}" Spacing="8">
                                         <TextBlock Text="{loc:Loc 'What was this refund for? (optional, helps us review faster)'}"
                                                    FontSize="13"
@@ -226,12 +220,7 @@
                             </StackPanel>
                         </ScrollViewer>
 
-                        <!-- Footer, hidden while the busy overlay or success
-                             animation is on screen. The overlays are placed
-                             AFTER the footer in XAML so they always draw on
-                             top. IsVisible is the primary mechanism but the
-                             draw order is the safety net against the footer's
-                             top-border separator leaking through. -->
+                        <!-- Footer, hidden while the busy overlay or success animation is on screen. The overlays are placed AFTER the footer in XAML so they always draw on top. -->
                         <Border Classes="modal-footer" Grid.Row="2"
                                 IsVisible="{Binding ShowRefundFooter}">
                             <Grid ColumnDefinitions="Auto,*,Auto">
@@ -265,10 +254,7 @@
                             </Grid>
                         </Border>
 
-                        <!-- Sending overlay, drawn AFTER the footer in XAML so
-                             it covers the footer's top-border separator if any
-                             visibility-toggle timing glitch occurs. Border (not
-                             Panel) so CornerRadius matches the parent modal shell. -->
+                        <!-- Sending overlay, drawn AFTER the footer in XAML so it covers the footer's top-border separator if any visibility-toggle timing glitch occurs. -->
                         <Border Grid.Row="0" Grid.RowSpan="3"
                                 Background="{DynamicResource SurfaceBrush}"
                                 CornerRadius="12"
@@ -292,9 +278,7 @@
                             </StackPanel>
                         </Border>
 
-                        <!-- Success overlay (refund completed), also drawn
-                             AFTER the footer so its background covers the
-                             footer's top-border line. -->
+                        <!-- Success overlay (refund completed), also drawn AFTER the footer so its background covers the footer's top-border line. -->
                         <Border Grid.Row="0" Grid.RowSpan="3"
                                 Background="{DynamicResource SurfaceBrush}"
                                 CornerRadius="12"

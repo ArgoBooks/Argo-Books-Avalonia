@@ -174,13 +174,7 @@ public class PayrollFullYearTests
 
         Assert.True(with.Tax > without.Tax, "a bonus must be taxed at all");
 
-        // The yardstick is the same money paid evenly across the year, which is the same annual
-        // income and so must attract close to the same withholding. Only rounding and the timing
-        // of the ceilings separate them.
-        //
-        // Deliberately not a loose cap like "less than half the bonus": the bug this covers added
-        // about a quarter of the bonus again in tax, which a cap that generous would have waved
-        // through.
+        // The yardstick is the same money paid evenly across the year, which is the same annual income and so must attract close to the same withholding.
         YearTotals evenly = RunYear(perPeriod + (bonus / Periods));
 
         decimal difference = Math.Abs(with.Tax - evenly.Tax);

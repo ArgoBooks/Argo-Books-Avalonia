@@ -132,7 +132,6 @@ public static class TimeZones
         allZones.Add(Utc);
         priorityZones.Add(Utc);
 
-        // Get all system timezones
         foreach (var tz in TimeZoneInfo.GetSystemTimeZones())
         {
             // Skip UTC since we added it manually

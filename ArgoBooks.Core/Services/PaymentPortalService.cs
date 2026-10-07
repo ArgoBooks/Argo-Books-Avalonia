@@ -680,9 +680,6 @@ public class PaymentPortalService : IDisposable
         foreach (var portalPayment in portalPayments)
         {
             // Skip if we already have this portal payment (duplicate prevention).
-            // BUT first backfill any new fields the local row is missing so the
-            // refund feature works for payments that were synced before this
-            // release, without re-creating duplicate rows.
             var existing = companyData.Payments.FirstOrDefault(p =>
                 p.PortalPaymentId == portalPayment.Id.ToString());
             if (existing != null)
@@ -695,10 +692,6 @@ public class PaymentPortalService : IDisposable
                     rowBackfilled = true;
                 }
                 // ProcessingFee was added after some users had already synced.
-                // Only fill when the local row is missing the value, never
-                // override a non-zero local fee with a server-side zero (the
-                // server can legitimately report zero, but if we already have
-                // a non-zero local value something earlier captured it).
                 if (existing.ProcessingFee == 0m && portalPayment.ProcessingFee > 0m)
                 {
                     existing.ProcessingFee = portalPayment.ProcessingFee;
@@ -736,10 +729,7 @@ public class PaymentPortalService : IDisposable
 
             if (portalPayment.IsRefund)
             {
-                // ----- Refund row -----
-                // The server's amount is already negative for refund rows. Find the
-                // local Payment that this refund offsets via ProviderPaymentId,
-                // which the original payment carries from sync.
+                // ----- Refund row ----- The server's amount is already negative for refund rows.
                 string? refundedFromLocalId = null;
                 if (!string.IsNullOrEmpty(portalPayment.RefundedProviderPaymentId))
                 {
@@ -780,9 +770,7 @@ public class PaymentPortalService : IDisposable
                 companyData.Payments.Add(payment);
                 newPayments.Add(payment);
 
-                // Recalc invoice totals + status from the full Payments list.
-                // Status only flips to Refunded / PartiallyRefunded when
-                // AmountPaid is also > 0, see InvoiceTotalsService.
+                // Recalc invoice totals + status from the full Payments list. Status only flips to Refunded / PartiallyRefunded when AmountPaid is also > 0, see InvoiceTotalsService.
                 InvoiceTotalsService.Recalculate(invoice, companyData.Payments);
 
                 // The refund is subtracted from revenue on its own date (Calculations.md §8), so the
@@ -802,12 +790,7 @@ public class PaymentPortalService : IDisposable
                 continue;
             }
 
-            // ----- Regular payment row (existing logic) -----
-            // Use the gross amount the customer was actually charged on the
-            // portal (invoice balance + processing fee). This matches both
-            // the customer's email/portal display and what arrived on the
-            // Stripe/PayPal/Square charge, so the Payments page totals line
-            // up with what the merchant sees in their provider dashboard.
+            // ----- Regular payment row (existing logic) ----- Use the gross amount the customer was actually charged on the portal (invoice balance + processing fee).
             var invoiceAmount = Math.Max(0m, portalPayment.Amount);
 
             // Build payment notes with fee info if applicable
@@ -1110,10 +1093,7 @@ public class PaymentPortalService : IDisposable
 
         try
         {
-            // Built as a dictionary rather than an anonymous type so an omitted
-            // toggle is genuinely absent from the JSON. SerializeOptions has no
-            // DefaultIgnoreCondition, so a nullable property would serialize as
-            // null and the server could not tell "leave alone" from "set false".
+            // Built as a dictionary rather than an anonymous type so an omitted toggle is genuinely absent from the JSON.
             var payload = new Dictionary<string, object>();
             if (sendPaymentReminders != null)
             {
@@ -1265,9 +1245,7 @@ public class PaymentPortalService : IDisposable
             Currency = invoiceCurrency,
             DueDate = invoice.DueDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
             Cancelled = invoice.Status == InvoiceStatus.Cancelled,
-            // Only worth sending once something has been paid. An untouched
-            // invoice's stored snapshot is still accurate, and the HTML is by
-            // far the largest thing in this payload.
+            // Only worth sending once something has been paid. An untouched invoice's stored snapshot is still accurate, and the HTML is by far the largest thing in this payload.
             CustomInvoiceHtml = invoice.AmountPaid > 0
                 ? RenderInvoiceHtml(invoice, companyData, invoiceCurrency)
                 : null,
@@ -1304,9 +1282,7 @@ public class PaymentPortalService : IDisposable
         }
         catch
         {
-            // A render failure must not stop the balance itself from syncing:
-            // a stale-looking invoice is a cosmetic problem, a stale balance
-            // gets the customer chased for money they already paid.
+            // A render failure must not stop the balance itself from syncing: a stale-looking invoice is a cosmetic problem, a stale balance gets the customer chased for money they already paid.
             return null;
         }
     }
@@ -1444,9 +1420,7 @@ public class PaymentPortalService : IDisposable
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
         request.Headers.Add("X-Api-Key", apiKey);
 
-        // The quote endpoints read X-License-Key before the Bearer token and apply the Premium
-        // send ceiling when it is there. Nothing else from the license helper goes on the wire:
-        // the Bearer token must stay the portal key or the request stops being a portal request.
+        // The quote endpoints read X-License-Key before the Bearer token and apply the Premium send ceiling when it is there.
         if (includeLicense)
         {
             var licenseKey = LicenseAuthHelper.GetLicenseKey();

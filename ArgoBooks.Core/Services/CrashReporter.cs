@@ -69,9 +69,7 @@ public static class CrashReporter
     /// </summary>
     public static void Capture(Exception exception, string handler)
     {
-        // Block concurrent captures (multiple handlers can fire for one dying
-        // process). Reset afterward so non-fatal unobserved-task faults captured
-        // over the app's lifetime aren't permanently suppressed.
+        // Block concurrent captures (multiple handlers can fire for one dying process).
         if (Interlocked.Exchange(ref _capturing, 1) == 1)
         {
             return;

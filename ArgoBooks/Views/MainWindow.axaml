@@ -41,10 +41,7 @@
     </Design.DataContext>
 
     <Panel>
-        <!-- Window Caption Buttons, ZIndex above ALL modals/overlays so the user can
-             always minimize, maximize, or close the window. Closing while a critical
-             dialog (UnsavedChanges, Confirmation) is open still routes through the
-             window's Closing handler, so data-safety prompts re-trigger as normal. -->
+        <!-- Window Caption Buttons, ZIndex above ALL modals/overlays so the user can always minimize, maximize, or close the window. -->
         <StackPanel x:Name="WindowControls"
                     ZIndex="300"
                     Orientation="Horizontal"
@@ -160,18 +157,7 @@
                 </Grid>
             </Border>
 
-            <!-- Demo notice. Docked above the content rather than floated over it, so it
-                 pushes the app down instead of hiding part of it, and so it cannot be
-                 mistaken for a dialog waiting to be answered.
-
-                 The presence comes from the accent edge and the filled button, not from
-                 colouring the whole strip. Warning tones were tried and were wrong twice
-                 over: nothing here is a fault, and WarningLightColor lives in Colors.axaml
-                 rather than in either theme, so its pale yellow stayed pale yellow in dark
-                 mode and read as an alert bar stapled across the app.
-
-                 Text is TextPrimaryBrush at full strength, which is near-white on dark and
-                 near-black on light. A muted grey was easier to overlook than to read. -->
+            <!-- Docked above the content rather than floated over it, so it pushes the app down instead of hiding part of it or reading as a dialog. -->
             <Border DockPanel.Dock="Top"
                     IsVisible="{Binding ShowSampleBanner}"
                     Background="{DynamicResource SurfaceAltBrush}"
@@ -225,9 +211,7 @@
                                     VerticalAlignment="Stretch"
                                     ZIndex="175" />
 
-        <!-- Update modal over the welcome screen, for a company file that needs a newer version.
-             The app shell's copy of this modal sits under the welcome screen, so this one is
-             only shown while the welcome screen is up to avoid two stacked backdrops. -->
+        <!-- Update modal over the welcome screen, for a company file that needs a newer version. -->
         <modals:CheckForUpdateModal DataContext="{Binding CheckForUpdateModalViewModel}"
                                     IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).ShowWelcomeScreen}"
                                     HorizontalAlignment="Stretch"
@@ -240,10 +224,7 @@
                                     VerticalAlignment="Stretch"
                                     ZIndex="200" />
 
-        <!-- Tutorial Welcome Overlay (shown on first launch after company opens).
-             Margin top = 30 (title bar height) so the backdrop doesn't cover the
-             custom title bar / caption buttons. Highlight coordinates are computed
-             relative to the overlay, so they stay correct with the offset. -->
+        <!-- Tutorial Welcome Overlay (shown on first launch after company opens). Margin top = 30 (title bar height) so the backdrop doesn't cover the custom title bar / caption buttons. -->
         <modals:TutorialWelcomeOverlay DataContext="{Binding TutorialWelcomeViewModel}"
                                        HorizontalAlignment="Stretch"
                                        VerticalAlignment="Stretch"

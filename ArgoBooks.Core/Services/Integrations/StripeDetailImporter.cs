@@ -38,9 +38,7 @@ public class StripeDetailImporter
             var gross = ArgoMoney.ToDecimal(ch.GrossCents, currency);
             var tax = ArgoMoney.ToDecimal(ch.TaxCents, currency);
             var discount = ArgoMoney.ToDecimal(ch.DiscountCents, currency);
-            // Gross is what was charged after the discount. Subtotal is before it, as on every
-            // transaction (Total = Subtotal − Discount + Tax), and the discount stays at the
-            // transaction level so it isn't taken off the line a second time.
+            // Gross is what was charged after the discount.
             var subtotal = gross - tax + discount;
             var taxableBase = subtotal - discount;
             var taxRate = taxableBase > 0 ? tax / taxableBase : 0m;

@@ -119,9 +119,7 @@ public sealed class BackupService(IErrorLogger? errorLogger = null)
 
         try
         {
-            // The whole name has to be this company's, not merely start with it: a company called
-            // "Acme--backup-20260930-143200" writes copies that begin with Acme's prefix, and listing
-            // those as Acme's would offer them for restore and prune them alongside Acme's own.
+            // The whole name has to match this company's, since a company named "Acme--backup-20260930-143200" would otherwise have its copies offered as Acme's.
             var prefix = CompanyManager.ToCompanyFileName(companyName) + Marker;
             return [.. new DirectoryInfo(folder)
                 .EnumerateFiles("*" + Extension)

@@ -240,9 +240,7 @@ public partial class PaymentModalsViewModel : ViewModelBase
     /// <summary>
     /// Opens the create invoice modal on top of the current modal.
     /// </summary>
-    // One-shot handler for the "create entity from this modal" flow. Stored so a cancelled create
-    // (which never raises the *Saved event) can be detached before the next attempt, instead of
-    // leaking onto the singleton create-modal VMs. See CreateModalSubscription.
+    // One-shot handler for the "create entity from this modal" flow.
     private EventHandler? _invoiceSavedHandler;
 
     [RelayCommand]
@@ -334,9 +332,7 @@ public partial class PaymentModalsViewModel : ViewModelBase
         UsdConversion.Apply(companyData, newPayment, rate);
         companyData.Payments.Add(newPayment);
         _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.PaymentRecorded);
-        // Recalc the affected invoice's totals + status. Without this the
-        // invoice's AmountPaid / Balance / Status drift out of sync with
-        // the Payment list. See docs/Calculations.md §5.
+        // Recalc the affected invoice's totals + status. Without this the invoice's AmountPaid / Balance / Status drift out of sync with the Payment list. See docs/Calculations.md §5.
         RecalcInvoiceTotals(companyData, newPayment.InvoiceId);
         companyData.MarkAsModified();
 
@@ -658,11 +654,7 @@ public partial class PaymentModalsViewModel : ViewModelBase
         InvoiceTotalsService.Recalculate(invoice, companyData.Payments);
         InvoiceTotalsService.SyncLinkedRevenueStatus(invoice, companyData.Revenues);
 
-        // Every add / edit / delete of a payment funnels through here, and so do
-        // the undo and redo lambdas, so this one call covers them all. Without
-        // it the portal keeps believing a cash-paid invoice is unpaid and the
-        // reminder cron chases a customer who has already paid. Debounced and
-        // best-effort; the periodic reconcile catches anything dropped.
+        // Every add, edit and delete of a payment comes through here, undo and redo included, or the portal keeps believing a cash-paid invoice is unpaid.
         App.PortalBalanceSyncService?.Queue(invoiceId);
     }
 
@@ -679,9 +671,7 @@ public partial class PaymentModalsViewModel : ViewModelBase
         if (companyData?.Invoices == null)
             return;
 
-        // Payments are recorded on sent invoices, as the invoice row offers. A payment on a draft
-        // marked it paid while its revenue, created when it is sent, never existed. A draft that
-        // already has a payment keeps it linked when that payment is edited.
+        // Payments are recorded on sent invoices, as the invoice row offers. A payment on a draft marked it paid while its revenue, created when it is sent, never existed.
         foreach (var invoice in companyData.Invoices
                      .Where(i => i.Status != InvoiceStatus.Draft || i.Id == _editingPayment?.InvoiceId)
                      .OrderByDescending(i => i.IssueDate))

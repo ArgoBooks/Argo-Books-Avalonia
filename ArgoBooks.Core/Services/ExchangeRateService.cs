@@ -275,16 +275,11 @@ public class ExchangeRateService
             }
         }
 
-        // Fall back to single-date requests for any dates the batch missed. Only advance progress on
-        // a successful fetch, so the bar never reaches 100% while dates are still unpriced (which
-        // would let the "could not get rates" prompt appear right after a misleading full bar).
+        // Fall back to single-date requests for any dates the batch missed.
         var stillFailed = new List<DateTime>();
         if (failedDates.Count > 0)
         {
-            // Run the repairs concurrently. One sequential request per date costs a full round trip
-            // each, which is invisible at 45 ms and adds about eight seconds at 500 ms, so a distant
-            // user paid most of the wait here. The cache is written serially once every fetch has
-            // returned, so this does not assume ExchangeRateCache is thread-safe.
+            // Repairs run concurrently, because one round trip per date is invisible at 45 ms and adds about eight seconds at 500 ms.
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             using var gate = new SemaphoreSlim(MaxParallelRateFetches);
             var rateLimited = false;

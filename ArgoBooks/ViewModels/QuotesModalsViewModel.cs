@@ -748,9 +748,7 @@ public partial class QuotesModalsViewModel : PaperDocumentEditorViewModelBase<Qu
         else if (field == "dueDate") ValidUntil = date;
     }
 
-    // Description, quantity and rate are typed straight into the page and must NOT re-render, that
-    // would interrupt typing. Only a product pick (which rewrites two fields at once) re-renders,
-    // and it does so from its own handler.
+    // Description, quantity and rate are typed straight into the page and must NOT re-render, that would interrupt typing.
     private void OnLinePropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
     }
@@ -1001,12 +999,7 @@ public partial class QuotesModalsViewModel : PaperDocumentEditorViewModelBase<Qu
         // Check the paper before asking, so the dialog is never followed by a complaint.
         if (!ValidateForSend()) return;
 
-        // Confirm before anything is written: saying no to a brand new quote must leave no row
-        // behind on the list. The figures come from the editor, which is what the user is
-        // looking at and what is about to be saved.
-        //
-        // Sending over an answer the customer already gave is destructive, and the server only
-        // does it when the request says so. This confirmation is what says so.
+        // Confirm before anything is written: saying no to a brand new quote must leave no row behind on the list.
         var existing = IsEditMode && !string.IsNullOrEmpty(_editingQuoteId)
             ? companyData.Quotes.FirstOrDefault(q => q.Id == _editingQuoteId)
             : null;
@@ -1058,9 +1051,7 @@ public partial class QuotesModalsViewModel : PaperDocumentEditorViewModelBase<Qu
                 revision: isRevision,
                 cancellationToken: ct);
 
-            // The request went out and the reply did not come back. Record it as published before
-            // anything else returns: the customer may be holding this quote, and only a quote the
-            // app believes is out there gets its link cancelled when it is deleted.
+            // The request went out and the reply did not come back.
             if (!response.Success && response.MayHavePublished)
             {
                 MarkMaybePublished(quote, companyData, recipient);

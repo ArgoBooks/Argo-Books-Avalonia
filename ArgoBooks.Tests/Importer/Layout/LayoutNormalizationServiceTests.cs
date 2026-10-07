@@ -149,9 +149,7 @@ public class LayoutNormalizationServiceTests : IDisposable
 
         var result = await service.NormalizeAsync(path);
 
-        // No interpretation needed: original path returned, no LLM call. The service only
-        // creates a temp file when it returns a temp path, so a clean workbook (result ==
-        // original path) must not have produced any new temp file.
+        // No interpretation needed: original path returned, no LLM call.
         Assert.Equal(path, result);
         Assert.Equal(0, fake.CallCount);
 

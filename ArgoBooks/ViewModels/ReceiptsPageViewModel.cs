@@ -346,9 +346,7 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
 
     private async void LoadReceipts()
     {
-        // Receipts load in the background after a company opens; make sure they're
-        // merged before reading them. EnsureReceiptsLoadedAsync completes synchronously
-        // once merged, so this only actually waits on the first call right after open.
+        // Receipts load in the background after a company opens; make sure they're merged before reading them.
         var manager = App.CompanyManager;
         if (manager != null)
         {
@@ -402,9 +400,7 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
 
             ScanUsage = string.Empty;
 
-            // Every failure path in CheckUsageAsync returns a zero limit, so a hidden label and a
-            // genuine "no allowance configured" look identical from here. Recorded rather than
-            // swallowed.
+            // Every failure path in CheckUsageAsync returns a zero limit, so a hidden label and a genuine "no allowance configured" look identical from here. Recorded rather than swallowed.
             App.ErrorLogger?.LogWarning(
                 $"Scan usage unavailable: {usage.ErrorMessage ?? "no limit returned"}",
                 "ReceiptsPageViewModel.RefreshScanUsageAsync",

@@ -125,9 +125,7 @@ public partial class Invoice : ObservableObject, IRecord
     [JsonPropertyName("templateId")]
     public string TemplateId { get; set; } = string.Empty;
 
-    // Per-invoice display overrides. Null = inherit the selected template's setting; a value
-    // overrides it for this invoice only, so the invoice's appearance is frozen at creation and
-    // isn't changed by later template edits.
+    // Per-invoice overrides, where null inherits the template, so an invoice's appearance is frozen at creation and later template edits leave it alone.
 
     /// <summary>Override: pass the card processing fee to the customer on online payments.</summary>
     [JsonPropertyName("passProcessingFee")]

@@ -201,11 +201,7 @@
                                                             </ComboBox.ItemTemplate>
                                                         </ComboBox>
                                                     </StackPanel>
-                                                    <!-- Takes the category for a typed item. A picked product shows its category as text instead,
-                                                         since moving a product between categories belongs on the Products page.
-                                                         Neither box sets an empty-state link: it replaces the text box, and a
-                                                         new company has no products or categories, so nothing could be typed.
-                                                         Creating one stays available at the bottom of each list. -->
+                                                    <!-- Takes the category for a typed item. A picked product shows its category as text instead, since moving a product between categories belongs on the Products page. -->
                                                     <Panel Grid.Column="1" Margin="0,0,8,0">
                                                         <controls:SearchableDropdown Classes="compact"
                                                                  ItemsSource="{Binding $parent[ItemsControl].((vm:ITransactionModalsViewModel)DataContext).CategoryOptions}"

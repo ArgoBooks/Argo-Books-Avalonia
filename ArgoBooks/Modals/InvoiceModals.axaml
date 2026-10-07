@@ -128,9 +128,7 @@
                                 <!-- SIDEBAR -->
                                 <Border Grid.Column="1" Background="{DynamicResource SurfaceBrush}"
                                         BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1,0,0,0">
-                                    <!-- HorizontalScrollBarVisibility=Disabled so content is measured at the fixed
-                                         sidebar width and wraps, instead of a long validation message forcing the
-                                         whole modal to scroll sideways. -->
+                                    <!-- HorizontalScrollBarVisibility=Disabled so content is measured at the fixed sidebar width and wraps, instead of a long validation message forcing the whole modal to scroll sideways. -->
                                     <!-- Going back is not one of the actions, so it sits on the floor of the
                                          panel rather than under whatever the fields happen to end at. -->
                                     <Grid RowDefinitions="*,Auto">
@@ -293,9 +291,7 @@
                                 </Border>
                             </Grid>
 
-                            <!-- VIEW-ONLY: rendered HTML preview above its own bottom bar. The preview lives
-                                 in its own row so the native WebView (which draws above Avalonia) can't
-                                 overflow onto the buttons. -->
+                            <!-- VIEW-ONLY: rendered HTML preview above its own bottom bar. The preview lives in its own row so the native WebView (which draws above Avalonia) can't overflow onto the buttons. -->
                             <Grid RowDefinitions="*,Auto" IsVisible="{Binding IsViewOnly}">
                                 <controls:InvoicePreviewControl Grid.Row="0" Html="{Binding PreviewHtml}"
                                                                 OpenInBrowserCommand="{Binding OpenPreviewInBrowserCommand}">
@@ -530,9 +526,7 @@
                                                         IsVisible="{Binding !IsLast}" />
                                             </StackPanel>
 
-                                            <!-- Content. Payment rows carry edit/delete: payments are
-                                                 only reachable through their invoice, so this is where
-                                                 they get managed. -->
+                                            <!-- Content. Payment rows carry edit/delete: payments are only reachable through their invoice, so this is where they get managed. -->
                                             <Grid Grid.Column="2" ColumnDefinitions="*,Auto">
                                                 <StackPanel Grid.Column="0" Spacing="4">
                                                     <TextBlock Text="{Binding Description}"

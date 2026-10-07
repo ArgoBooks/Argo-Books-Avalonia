@@ -478,12 +478,7 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
         var result = await usageService.CheckUsageAsync();
         if (result.IsOffline) return;
 
-        // Server returns monthly_limit = -1 as a sentinel for Premium /
-        // unlimited. If we update SendCount but not the limit, the UI ends
-        // up with SendCount > stale-default-limit and falsely flags
-        // "limit reached". Treat the sentinel
-        // as a Premium-equivalent: mark HasPremium so RemainingInvoices is
-        // ignored downstream.
+        // The server sends monthly_limit = -1 for unlimited, so updating the count without the limit would falsely read as the limit reached.
         if (result.MonthlyLimit < 0 || string.Equals(result.Tier, "premium", StringComparison.OrdinalIgnoreCase))
         {
             HasPremium = true;
@@ -660,9 +655,7 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
     {
         var now = DateTime.Now;
         var endOfWeek = now.AddDays(7);
-        // Compare against a local month start: the save/send paths stamp UpdatedAt with DateTime.Now
-        // (local), which is the dominant case, so a local cutoff is consistent for it. (UpdatedAt is
-        // mixed-Kind - the portal payment path writes UtcNow - so no cutoff is perfect at the boundary.)
+        // Compare against a local month start: the save/send paths stamp UpdatedAt with DateTime.Now (local), which is the dominant case, so a local cutoff is consistent for it.
         var startOfMonth = new DateTime(now.Year, now.Month, 1);
 
         // Total outstanding (unpaid invoices) - calculate in USD, convert for display. Drafts are excluded:
@@ -1072,9 +1065,7 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
         var schedule = companyData?.RecurringInvoices.FirstOrDefault(s => s.Id == item.Id);
         if (companyData == null || schedule == null) return;
 
-        // Unsent drafts this schedule already generated. On delete we unlink them so they become
-        // ordinary drafts (visible in the Drafts tab) rather than being stranded in "Waiting to send"
-        // with no schedule behind them.
+        // Unsent drafts this schedule already generated.
         var orphanedDrafts = companyData.Invoices
             .Where(i => i.Status == InvoiceStatus.Draft && i.RecurringInvoiceId == schedule.Id)
             .ToList();
@@ -1286,9 +1277,7 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
                     syncResponse.Payments, companyData);
                 var newPayments = syncResult.NewPayments;
 
-                // Only confirm payments that were actually processed locally. Skipped
-                // ones (e.g. invoice not found) stay unconfirmed so the server returns
-                // them next time.
+                // Only confirm payments that were actually processed locally. Skipped ones (e.g. invoice not found) stay unconfirmed so the server returns them next time.
                 var processedPortalIds = newPayments
                     .Where(p => p.PortalPaymentId != null)
                     .Select(p => int.Parse(p.PortalPaymentId!))
@@ -1299,10 +1288,7 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
                     if (CompanyChanged()) return;
                 }
 
-                // Also save when only existing rows were backfilled, or the in-memory
-                // ProcessingFee update is lost on restart. Only auto-persist when the
-                // user has no unsaved edits, so a sync can't quietly commit their
-                // in-progress work.
+                // Also save when only existing rows were backfilled, or the in-memory ProcessingFee update is lost on restart.
                 if ((newPayments.Count > 0 || syncResult.BackfilledRows > 0) && !(App.CompanyManager?.HasUnsavedChanges ?? false))
                 {
                     try { await App.CompanyManager!.SavePaymentSyncAsync(companyData); }
@@ -1364,9 +1350,7 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
         PaymentModalsViewModel? payments = App.PaymentModalsViewModel;
         if (payments == null) return;
 
-        // Detach whatever a previous open left behind. PaymentSaved only fires on save, so
-        // cancelling the modal left its handler subscribed and every later payment reloaded the
-        // list once more per cancellation.
+        // Detach whatever a previous open left behind.
         if (_paymentSavedHandler != null)
         {
             payments.PaymentSaved -= _paymentSavedHandler;

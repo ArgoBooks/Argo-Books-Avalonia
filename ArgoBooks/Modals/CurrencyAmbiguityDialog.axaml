@@ -57,9 +57,7 @@
                         </Grid>
                     </Border>
 
-                    <!-- Body: one row per ambiguous symbol. No ScrollViewer: there are only a few
-                         distinct ambiguous symbols, so the body sizes directly to its content and
-                         can never clip a row. -->
+                    <!-- Body: one row per ambiguous symbol. No ScrollViewer: there are only a few distinct ambiguous symbols, so the body sizes directly to its content and can never clip a row. -->
                     <ItemsControl Grid.Row="1" Padding="24,16" ItemsSource="{Binding Symbols}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:SymbolChoiceViewModel">

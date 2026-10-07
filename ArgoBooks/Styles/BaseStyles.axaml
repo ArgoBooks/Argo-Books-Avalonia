@@ -34,10 +34,7 @@
         <Color x:Key="HighlightAnimationColor">#3060A5FA</Color>
     </Styles.Resources>
 
-    <!-- ToolTip: force theme-aware colors so tooltip text/surface track the active theme.
-         Foreground cascades to the tooltip's text, so the inner TextBlock needs no separate
-         setter. (Sidebar tooltips also need SidebarItem's text styles scoped to .label so
-         they don't leak into the tooltip popup.) -->
+    <!-- ToolTip: force theme-aware colors so tooltip text/surface track the active theme. Foreground cascades to the tooltip's text, so the inner TextBlock needs no separate setter. -->
     <Style Selector="ToolTip">
         <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
@@ -247,9 +244,7 @@
         <Setter Property="MinHeight" Value="{StaticResource FormControlHeight}" />
     </Style>
 
-    <!-- form-combobox applied to a Button (e.g. the category icon "Choose..." picker). The selector
-         above only matches ComboBox, so such a Button fell back to the default (gray) button. Give it
-         the same surface/border form-control look, including hover, so it fits the light theme. -->
+    <!-- form-combobox applied to a Button (e.g. the category icon "Choose..." picker). The selector above only matches ComboBox, so such a Button fell back to the default (gray) button. -->
     <Style Selector="Button.form-combobox">
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="{StaticResource FormControlCornerRadius}" />

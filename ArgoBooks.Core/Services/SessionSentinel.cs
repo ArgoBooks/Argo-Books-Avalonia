@@ -110,9 +110,7 @@ public sealed class SessionSentinel : IDisposable
         }
         catch (Exception ex)
         {
-            // LogDebug compiles to nothing in release, so this used to fail in total
-            // silence: no sentinel means an unclean exit leaves no trace, and that machine
-            // reports session starts with no ends forever without saying why.
+            // LogDebug compiles to nothing in release, so a missing sentinel leaves no trace and that machine reports session starts without ends.
             errorLogger?.LogWarning(
                 $"Could not start session sentinel: {ex.Message}",
                 nameof(SessionSentinel),
@@ -140,10 +138,7 @@ public sealed class SessionSentinel : IDisposable
                 _record.LastHeartbeatUtc = nowUtc;
                 var bytes = JsonSerializer.SerializeToUtf8Bytes(_record, JsonOptions);
 
-                // Overwrite in place, then trim, rather than truncating first. Every
-                // heartbeat after the first serialises to the same length (only the
-                // timestamp changes, and it is fixed-width), so the trim is a no-op and
-                // the file is never momentarily empty for the sweep to read.
+                // Overwrite in place, then trim, rather than truncating first.
                 _stream.Position = 0;
                 _stream.Write(bytes, 0, bytes.Length);
                 _stream.SetLength(bytes.Length);
@@ -151,9 +146,7 @@ public sealed class SessionSentinel : IDisposable
             }
             catch (Exception)
             {
-                // A sentinel that cannot be updated is not worth failing a session over.
-                // The stale timestamp only costs precision on a duration we would not
-                // otherwise have at all.
+                // A sentinel that cannot be updated is not worth failing a session over. The stale timestamp only costs precision on a duration we would not otherwise have at all.
             }
         }
     }
@@ -184,9 +177,7 @@ public sealed class SessionSentinel : IDisposable
             }
             catch (Exception)
             {
-                // Left behind, so the next launch reports this session as unclean when it
-                // was not. Better than throwing during shutdown, and rare enough (the
-                // handle is already closed) not to be worth a retry loop.
+                // Left behind, so the next launch reports this session as unclean when it was not.
             }
         }
     }
@@ -299,9 +290,7 @@ public sealed class SessionSentinel : IDisposable
     {
         try
         {
-            // FileShare.None is the liveness test: it fails while any process has the file
-            // open. DeleteOnClose makes reading and cleanup a single operation, so a
-            // corrupt sentinel is removed instead of being retried every launch.
+            // FileShare.None is the liveness test: it fails while any process has the file open.
             using var stream = new FileStream(
                 path,
                 FileMode.Open,

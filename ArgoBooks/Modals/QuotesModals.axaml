@@ -66,9 +66,7 @@
                                                             TotalsConfigJson="{Binding TotalsConfigJson}"
                                                             OpenInBrowserCommand="{Binding OpenEditorPreviewInBrowserCommand}">
                                 <controls:InvoicePreviewControl.IsVisible>
-                                    <!-- The native web view draws above Avalonia content, so it steps aside
-                                         whenever something else needs to be on top of it: a nested create
-                                         modal, a confirmation dialog, the sending and success cards. -->
+                                    <!-- The native web view draws above Avalonia content, so it steps aside whenever something else has to be on top of it. -->
                                     <MultiBinding Converter="{x:Static BoolConverters.And}">
                                         <Binding Path="IsEditorOpen" />
                                         <Binding Path="!IsNestedModalOpen" />

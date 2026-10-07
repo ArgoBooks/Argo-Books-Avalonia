@@ -129,14 +129,8 @@
                     </StackPanel>
                 </Grid>
 
-                <!-- Source Survey Banner (shown once the setup checklist is off screen).
-                     No dismiss button: the user must answer. IsVisible is bound so the
-                     banner only takes up layout space while shown, letting the content
-                     below return to its normal position once it goes away. -->
-                <!-- BannerMargin=0 removes the banner's built-in 10px top gap; the negative outer
-                     Margin then pulls the whole control up to tighten the ~24px StackPanel spacing
-                     to ~8px. The negative goes on the control (not BannerMargin) so the banner moves
-                     as a unit instead of overflowing its own bounds. -->
+                <!-- Source Survey Banner (shown once the setup checklist is off screen). No dismiss button: the user must answer. -->
+                <!-- BannerMargin=0 removes the banner's built-in 10px top gap; the negative outer Margin then pulls the whole control up to tighten the ~24px StackPanel spacing to ~8px. -->
                 <controls:InfoBanner ShowBanner="{Binding ShowSourceSurveyBanner}"
                                      IsVisible="{Binding ShowSourceSurveyBanner}"
                                      BannerMargin="0"
