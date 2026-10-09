@@ -2819,6 +2819,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             Id = newId,
             Name = newProduct.Name,
             Description = string.Empty,
+            Unit = newProduct.UnitOfMeasure,
             UnitPrice = newProduct.CostPrice
         };
         ProductOptions.Add(option);
@@ -3394,6 +3395,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
                 Id = product.Id,
                 Name = product.Name,
                 Description = product.Description,
+                Unit = product.UnitOfMeasure,
                 UnitPrice = product.CostPrice // Use cost price for expenses
             });
         }

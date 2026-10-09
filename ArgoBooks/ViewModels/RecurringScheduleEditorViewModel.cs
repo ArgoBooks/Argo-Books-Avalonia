@@ -232,7 +232,8 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
                 Id = product.Id,
                 Name = product.Name,
                 Description = product.Description,
-                UnitPrice = side == CategoryType.Expense ? product.CostPrice : product.UnitPrice
+                UnitPrice = side == CategoryType.Expense ? product.CostPrice : product.UnitPrice,
+                Unit = product.UnitOfMeasure
             });
         }
     }

@@ -602,6 +602,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
                 Name = product.Name,
                 Description = product.Description,
                 UnitPrice = UseCostPrice ? product.CostPrice : product.UnitPrice,
+                Unit = product.UnitOfMeasure,
                 CategoryId = product.CategoryId,
                 SupplierId = product.SupplierId
             });
@@ -1137,6 +1138,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
             Name = product.Name,
             Description = product.Description,
             UnitPrice = UseCostPrice ? product.CostPrice : product.UnitPrice,
+            Unit = product.UnitOfMeasure,
             CategoryId = product.CategoryId
         };
     }
@@ -1288,7 +1290,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         created.Add(product);
         _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ProductCreated);
 
-        var option = new ProductOption { Id = id, Name = name, UnitPrice = price, CategoryId = category?.Id };
+        var option = new ProductOption { Id = id, Name = name, UnitPrice = price, Unit = product.UnitOfMeasure, CategoryId = category?.Id };
         ProductOptions.Add(option);
         return option;
     }
