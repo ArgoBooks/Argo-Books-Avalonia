@@ -41,7 +41,7 @@
                                ClosingCommand="{Binding RequestCloseAddEditModalCommand}">
             <controls:ModalOverlay.ModalContent>
                 <Border Classes="modal-card"
-                    Width="750"
+                    Width="850"
                     MinHeight="500"
                     MaxHeight="700">
                 <Grid RowDefinitions="Auto,*,Auto">
@@ -160,7 +160,7 @@
                                         CornerRadius="6"
                                         Padding="12,8"
                                         IsVisible="{Binding LineItems.Count, Converter={x:Static local:IntConverters.IsPositive}}">
-                                    <Grid ColumnDefinitions="*,150,70,90,100,40">
+                                    <Grid ColumnDefinitions="*,150,70,130,110,40">
                                         <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,8,0">
                                             <TextBlock Text="{loc:Loc 'Item'}" FontSize="12" FontWeight="Medium"
                                                        Foreground="{DynamicResource TextTertiaryBrush}" />
@@ -178,8 +178,7 @@
                                                    HorizontalAlignment="Left" />
                                         <TextBlock Grid.Column="4" Text="{loc:Loc 'Amount'}" FontSize="12" FontWeight="Medium"
                                                    Foreground="{DynamicResource TextTertiaryBrush}"
-                                                   HorizontalAlignment="Right"
-                                                   Margin="0,0,12,0" />
+                                                   HorizontalAlignment="Left" />
                                     </Grid>
                                 </Border>
 
@@ -190,7 +189,7 @@
                                             <Border Padding="12,8"
                                                     BorderBrush="{DynamicResource BorderBrush}"
                                                     BorderThickness="0,0,0,1">
-                                                <Grid ColumnDefinitions="*,150,70,90,100,40">
+                                                <Grid ColumnDefinitions="*,150,70,130,110,40">
                                                     <StackPanel Grid.Column="0" Margin="0,0,8,0" Spacing="4">
                                                     <controls:SearchableDropdown Classes="compact"
                                                              ItemsSource="{Binding $parent[ItemsControl].((vm:ITransactionModalsViewModel)DataContext).ProductOptions}"
@@ -250,7 +249,7 @@
                                                                    Minimum="0.001"
                                                                    Maximum="999999"
                                                                    FormatString="0.###"
-                                                                   Classes="line-item-input"
+                                                                   Classes="line-item-input line-item-qty"
                                                                    ShowButtonSpinner="False"
                                                                    HorizontalAlignment="Stretch"
                                                                    VerticalAlignment="Top"
@@ -260,7 +259,7 @@
                                                                    Minimum="0"
                                                                    Maximum="999999999"
                                                                    FormatString="N2"
-                                                                   Classes="line-item-input"
+                                                                   Classes="line-item-input line-item-price"
                                                                    ShowButtonSpinner="False"
                                                                    HorizontalAlignment="Stretch"
                                                                    VerticalAlignment="Top"
@@ -271,8 +270,7 @@
                                                                FontWeight="Medium"
                                                                Foreground="{DynamicResource TextPrimaryBrush}"
                                                                VerticalAlignment="Center"
-                                                               HorizontalAlignment="Right"
-                                                               Margin="0,0,12,0" />
+                                                               HorizontalAlignment="Left" />
                                                     <Button Grid.Column="5"
                                                             Classes="icon-button danger"
                                                             VerticalAlignment="Center"

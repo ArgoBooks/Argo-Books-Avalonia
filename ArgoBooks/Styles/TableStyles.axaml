@@ -141,6 +141,20 @@
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
     </Style>
+    <Style Selector="NumericUpDown.line-item-price">
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
+    </Style>
+    <Style Selector="NumericUpDown.line-item-price /template/ TextBox#PART_TextBox">
+        <Setter Property="MaxLength" Value="14" />
+        <Setter Property="TextAlignment" Value="Left" />
+    </Style>
+    <Style Selector="NumericUpDown.line-item-qty">
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
+    </Style>
+    <Style Selector="NumericUpDown.line-item-qty /template/ TextBox#PART_TextBox">
+        <Setter Property="MaxLength" Value="10" />
+        <Setter Property="TextAlignment" Value="Left" />
+    </Style>
     <Style Selector="NumericUpDown.line-item-input:focus">
         <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}" />
     </Style>
