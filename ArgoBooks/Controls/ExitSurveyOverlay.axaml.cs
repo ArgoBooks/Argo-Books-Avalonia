@@ -47,6 +47,9 @@ public partial class ExitSurveyOverlay : UserControl
     {
         base.OnUnloaded(e);
         TutorialService.Instance.ExitSurveyRequested -= OnRequested;
+
+        // The window is held open waiting on the question, and the overlay going away is not an answer but it is the end of it, so the close carries on rather than stalling.
+        TutorialService.Instance.CompleteExitSurvey();
     }
 }
 
