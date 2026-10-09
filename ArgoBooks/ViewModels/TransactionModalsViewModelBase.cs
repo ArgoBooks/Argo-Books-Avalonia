@@ -35,6 +35,27 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     /// </summary>
     protected abstract string TransactionTypeName { get; }
 
+    /// <summary>The shape of a generated id, shown in the box on the add form: "PUR-xxx", "REV-xxx".</summary>
+    protected abstract string IdPlaceholderText { get; }
+
+    /// <summary>Whether another record of this kind already holds the id.</summary>
+    protected abstract bool IsIdTaken(CompanyData companyData, string id);
+
+    /// <summary>
+    /// The record's own id. Filled in on the edit form and editable, so a business can number its
+    /// records the way it already does. Left blank on the add form, where one is generated on save.
+    /// </summary>
+    [ObservableProperty]
+    private string _modalId = string.Empty;
+
+    [ObservableProperty]
+    private string? _modalIdError;
+
+    public string ModalIdPlaceholder => IdPlaceholderText;
+
+    /// <summary>What was typed in the id box, or null to leave the id to the generator.</summary>
+    protected string? RequestedId => string.IsNullOrWhiteSpace(ModalId) ? null : ModalId.Trim();
+
     /// <summary>
     /// The entity name for the counterparty (e.g., "Supplier" or "Customer").
     /// </summary>
@@ -995,6 +1016,19 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         var companyData = App.CompanyManager?.CompanyData;
         if (companyData == null) return;
 
+        ModalIdError = null;
+        if (IsEditMode && RequestedId == null)
+        {
+            ModalIdError = "ID cannot be empty.".Translate();
+            return;
+        }
+
+        if (RequestedId is { } requested && requested != EditingTransactionId && IsIdTaken(companyData, requested))
+        {
+            ModalIdError = $"Another {TransactionTypeName.ToLowerInvariant()} already uses this ID.".Translate();
+            return;
+        }
+
         List<TypedLine>? typedLines = null;
         if (AllowsTypedItems)
         {
@@ -1042,7 +1076,8 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
 
             if (IsEditMode)
             {
-                SaveEditedTransaction(companyData);
+                if (!SaveEditedTransaction(companyData))
+                    return;
             }
             else
             {
@@ -1093,7 +1128,8 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     }
 
     protected abstract void SaveNewTransaction(CompanyData companyData);
-    protected abstract void SaveEditedTransaction(CompanyData companyData);
+    /// <summary>Returns false when the save was refused, which leaves the form open on its message.</summary>
+    protected abstract bool SaveEditedTransaction(CompanyData companyData);
 
     protected List<LineItem> CreateModelLineItems()
     {
@@ -1367,6 +1403,8 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
 
     protected void ResetForm()
     {
+        ModalId = string.Empty;
+        ModalIdError = null;
         EditingTransactionId = string.Empty;
         _original = null;
         SetEntryCurrency(null);

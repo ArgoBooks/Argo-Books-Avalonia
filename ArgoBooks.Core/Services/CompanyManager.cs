@@ -1783,6 +1783,118 @@ public class CompanyManager : IDisposable
         CompanyDataChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>
+    /// Renames a revenue's Id, cascading to every reference inside the open company: the payments
+    /// and rentals that point at it, its receipt, a return of it, a pending conversion queued for
+    /// it, a bank line matched to it, and any invoice or quote line it was generated from. Throws
+    /// if newId is empty or another revenue already uses it. A no-op when newId equals the current Id.
+    /// </summary>
+    public void ChangeRevenueId(Revenue revenue, string newId)
+    {
+        ArgumentNullException.ThrowIfNull(revenue);
+        if (CompanyData == null)
+            throw new InvalidOperationException("No company is currently open.");
+
+        var trimmed = newId.Trim();
+        if (string.IsNullOrEmpty(trimmed))
+            throw new ArgumentException("Revenue ID cannot be empty.", nameof(newId));
+
+        var oldId = revenue.Id;
+        if (string.Equals(oldId, trimmed, StringComparison.Ordinal))
+            return;
+
+        if (CompanyData.Revenues.Any(r => !ReferenceEquals(r, revenue) && r.Id == trimmed))
+            throw new InvalidOperationException($"Another sale already uses ID '{trimmed}'.");
+
+        foreach (var pay in CompanyData.Payments)
+            if (pay.RevenueId == oldId) pay.RevenueId = trimmed;
+        foreach (var rent in CompanyData.Rentals)
+            if (rent.RevenueId == oldId) rent.RevenueId = trimmed;
+
+        // A line generated from this revenue carries its id, on an invoice, a quote, or either
+        // kind of recurring template that clones its lines into every occurrence.
+        foreach (var inv in CompanyData.Invoices)
+            CascadeRevenueIdInLineItems(inv.LineItems, oldId, trimmed);
+        foreach (var quote in CompanyData.Quotes)
+            CascadeRevenueIdInLineItems(quote.LineItems, oldId, trimmed);
+        foreach (var ri in CompanyData.RecurringInvoices)
+            if (ri.Template != null) CascadeRevenueIdInLineItems(ri.Template.LineItems, oldId, trimmed);
+        foreach (var rt in CompanyData.RecurringTransactions)
+            if (rt.RevenueTemplate != null) CascadeRevenueIdInLineItems(rt.RevenueTemplate.LineItems, oldId, trimmed);
+
+        CascadeTransactionId(oldId, trimmed, "Revenue", BookRecordType.Revenue);
+
+        revenue.Id = trimmed;
+        revenue.UpdatedAt = DateTime.UtcNow;
+        CompanyData.InvalidateLookupCaches();
+        CompanyData.ChangesMade = true;
+        CompanyDataChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Renames an expense's Id, cascading to every reference inside the open company: the pay run
+    /// that booked it, its receipt, a return of it, a pending conversion queued for it, and a bank
+    /// line matched to it. Throws if newId is empty or another expense already uses it.
+    /// </summary>
+    public void ChangeExpenseId(Expense expense, string newId)
+    {
+        ArgumentNullException.ThrowIfNull(expense);
+        if (CompanyData == null)
+            throw new InvalidOperationException("No company is currently open.");
+
+        var trimmed = newId.Trim();
+        if (string.IsNullOrEmpty(trimmed))
+            throw new ArgumentException("Expense ID cannot be empty.", nameof(newId));
+
+        var oldId = expense.Id;
+        if (string.Equals(oldId, trimmed, StringComparison.Ordinal))
+            return;
+
+        if (CompanyData.Expenses.Any(e => !ReferenceEquals(e, expense) && e.Id == trimmed))
+            throw new InvalidOperationException($"Another expense already uses ID '{trimmed}'.");
+
+        // The wage expense is recorded per employee line, which is what a void reverses.
+        foreach (var run in CompanyData.PayRuns)
+            foreach (var line in run.Lines)
+                if (line.ExpenseId == oldId) line.ExpenseId = trimmed;
+
+        CascadeTransactionId(oldId, trimmed, "Expense", BookRecordType.Expense);
+
+        expense.Id = trimmed;
+        expense.UpdatedAt = DateTime.UtcNow;
+        CompanyData.InvalidateLookupCaches();
+        CompanyData.ChangesMade = true;
+        CompanyDataChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private static void CascadeRevenueIdInLineItems(List<LineItem> lineItems, string oldId, string newId)
+    {
+        foreach (var li in lineItems)
+            if (li.RevenueRecordId == oldId) li.RevenueRecordId = newId;
+    }
+
+    /// <summary>What an expense and a sale are both pointed at by, keyed on the id either one holds.</summary>
+    private void CascadeTransactionId(string oldId, string newId, string conversionType, BookRecordType matchType)
+    {
+        foreach (var receipt in CompanyData!.Receipts)
+            if (receipt.TransactionId == oldId) receipt.TransactionId = newId;
+        foreach (var ret in CompanyData.Returns)
+            if (ret.OriginalTransactionId == oldId) ret.OriginalTransactionId = newId;
+        foreach (var pending in CompanyData.PendingConversions)
+            if (pending.TransactionId == oldId && pending.TransactionType == conversionType)
+                pending.TransactionId = newId;
+
+        // The stock a transaction moved is recorded as adjustments that name it in their reference
+        // number, and InventoryStockService reads them back to work out what editing it should undo.
+        foreach (var adjustment in CompanyData.StockAdjustments)
+            if (adjustment.IsAutoGenerated && adjustment.ReferenceNumber == oldId)
+                adjustment.ReferenceNumber = newId;
+        foreach (var session in CompanyData.BankImportSessions)
+            foreach (var line in session.Lines)
+                if (line.MatchedRecordId == oldId && line.MatchedRecordType == matchType)
+                    line.MatchedRecordId = newId;
+    }
+
     private static void CascadeProductIdInLineItems(List<LineItem> lineItems, string oldId, string newId)
     {
         foreach (var li in lineItems)

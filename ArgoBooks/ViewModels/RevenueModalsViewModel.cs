@@ -34,6 +34,11 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
     #region Abstract Property Implementations
 
     protected override string TransactionTypeName => "Revenue";
+
+    protected override string IdPlaceholderText => "REV-xxx";
+
+    protected override bool IsIdTaken(CompanyData companyData, string id) =>
+        companyData.Revenues.Any(r => r.Id == id);
     protected override string CounterpartyName => "Customer";
     protected override CategoryType CategoryTypeFilter => CategoryType.Revenue;
     protected override bool UseCostPrice => false;
@@ -131,6 +136,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
         if (item == null || LoadIntoForm(item) is not Revenue revenue) return;
 
         EditingTransactionId = revenue.Id;
+        ModalId = revenue.Id;
         IsEditMode = true;
         ModalTitle = $"Edit Revenue {revenue.Id}";
         SaveButtonText = "Save Changes";
@@ -436,7 +442,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
     protected override void SaveNewTransaction(CompanyData companyData)
     {
         var date = ModalDate?.DateTime ?? DateTime.Now;
-        var revenueId = new Core.Data.IdGenerator(companyData).NextRevenueId(date);
+        var revenueId = RequestedId ?? new Core.Data.IdGenerator(companyData).NextRevenueId(date);
 
         var (description, totalQuantity, averageUnitPrice) = GetLineItemSummary();
         var modelLineItems = CreateModelLineItems();
@@ -518,10 +524,18 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
         TutorialService.Instance.CompleteChecklistItem(TutorialService.ChecklistItems.RecordRevenue);
     }
 
-    protected override void SaveEditedTransaction(CompanyData companyData)
+    protected override bool SaveEditedTransaction(CompanyData companyData)
     {
         var revenue = companyData.Revenues.FirstOrDefault(s => s.Id == EditingTransactionId);
-        if (revenue == null) return;
+        if (revenue == null) return false;
+
+        var oldId = revenue.Id;
+        var renamedId = RequestedId ?? oldId;
+        if (renamedId != oldId)
+        {
+            try { App.CompanyManager?.ChangeRevenueId(revenue, renamedId); }
+            catch (Exception ex) { ModalIdError = ex.Message; return false; }
+        }
 
         // Store original values for undo
         var original = CaptureTransactionState(revenue);
@@ -593,6 +607,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
             $"Edit revenue {EditingTransactionId}",
             () =>
             {
+                if (renamedId != oldId) App.CompanyManager?.ChangeRevenueId(revenue, oldId);
                 RestoreTransactionState(revenue, original);
                 UsdConversion.Restore(companyData, [queueKey], originalQueued);
                 if (capturedNewReceipt != null)
@@ -604,6 +619,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
             },
             () =>
             {
+                if (renamedId != oldId) App.CompanyManager?.ChangeRevenueId(revenue, renamedId);
                 RestoreTransactionState(revenue, edited);
                 UsdConversion.Restore(companyData, [queueKey], editedQueued);
                 if (replacedReceipt != null)
@@ -619,6 +635,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
         RaiseTransactionSaved();
 
         ShowEditInventoryNotifications(editResults);
+        return true;
     }
 
     private Receipt? CreateReceipt(CompanyData companyData, string transactionId, string transactionType, string supplier)

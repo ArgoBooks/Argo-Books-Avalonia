@@ -17,6 +17,11 @@ public interface ITransactionModalsViewModel
 
     bool IsAddEditModalOpen { get; set; }
     string ModalTitle { get; }
+
+    /// <summary>The record's own id, editable so a business can keep its own numbering.</summary>
+    string ModalId { get; set; }
+    string ModalIdPlaceholder { get; }
+    string? ModalIdError { get; }
     string SaveButtonText { get; }
     IAsyncRelayCommand RequestCloseAddEditModalCommand { get; }
     IRelayCommand CloseAddEditModalCommand { get; }

@@ -22,6 +22,11 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
     #region Abstract Property Implementations
 
     protected override string TransactionTypeName => "Expense";
+
+    protected override string IdPlaceholderText => "PUR-xxx";
+
+    protected override bool IsIdTaken(CompanyData companyData, string id) =>
+        companyData.Expenses.Any(e => e.Id == id);
     protected override string CounterpartyName => "Supplier";
     protected override CategoryType CategoryTypeFilter => CategoryType.Expense;
     protected override bool UseCostPrice => true;
@@ -124,6 +129,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
         if (item == null || LoadIntoForm(item) is not { } expense) return;
 
         EditingTransactionId = expense.Id;
+        ModalId = expense.Id;
         IsEditMode = true;
         ModalTitle = $"Edit Expense {expense.Id}";
         SaveButtonText = "Save Changes";
@@ -403,7 +409,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
     protected override void SaveNewTransaction(CompanyData companyData)
     {
         var date = ModalDate?.DateTime ?? DateTime.Now;
-        var expenseId = new Core.Data.IdGenerator(companyData).NextExpenseId(date);
+        var expenseId = RequestedId ?? new Core.Data.IdGenerator(companyData).NextExpenseId(date);
 
         var (description, totalQuantity, averageUnitPrice) = GetLineItemSummary();
         var modelLineItems = CreateModelLineItems();
@@ -483,10 +489,18 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
         TutorialService.Instance.CompleteChecklistItem(TutorialService.ChecklistItems.RecordExpense);
     }
 
-    protected override void SaveEditedTransaction(CompanyData companyData)
+    protected override bool SaveEditedTransaction(CompanyData companyData)
     {
         var expense = companyData.Expenses.FirstOrDefault(p => p.Id == EditingTransactionId);
-        if (expense == null) return;
+        if (expense == null) return false;
+
+        var oldId = expense.Id;
+        var renamedId = RequestedId ?? oldId;
+        if (renamedId != oldId)
+        {
+            try { App.CompanyManager?.ChangeExpenseId(expense, renamedId); }
+            catch (Exception ex) { ModalIdError = ex.Message; return false; }
+        }
 
         // Store original values for undo
         var original = CaptureTransactionState(expense);
@@ -546,6 +560,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
             $"Edit expense {EditingTransactionId}",
             () =>
             {
+                if (renamedId != oldId) App.CompanyManager?.ChangeExpenseId(expense, oldId);
                 RestoreTransactionState(expense, original);
                 UsdConversion.Restore(companyData, [queueKey], originalQueued);
                 if (capturedNewReceipt != null)
@@ -557,6 +572,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
             },
             () =>
             {
+                if (renamedId != oldId) App.CompanyManager?.ChangeExpenseId(expense, renamedId);
                 RestoreTransactionState(expense, edited);
                 UsdConversion.Restore(companyData, [queueKey], editedQueued);
                 if (replacedReceipt != null)
@@ -572,6 +588,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
         RaiseTransactionSaved();
 
         ShowEditInventoryNotifications(editResults);
+        return true;
     }
 
     private Receipt? CreateReceipt(CompanyData companyData, string transactionId, string transactionType, string supplier)
