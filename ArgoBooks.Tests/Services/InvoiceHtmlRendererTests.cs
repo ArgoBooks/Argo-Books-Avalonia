@@ -183,7 +183,8 @@ public class InvoiceHtmlRendererTests
     /// </summary>
     [Theory]
     [InlineData("17500.50", "17500.50")]
-    [InlineData("17500.555", "17500.56")]
+    [InlineData("17500.555", "17500.555")]
+    [InlineData("17500.5555", "17500.556")]
     [InlineData("2", "2")]
     [InlineData("0.25", "0.25")]
     [InlineData("12.0", "12")]

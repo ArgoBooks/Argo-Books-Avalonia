@@ -36,11 +36,11 @@ public partial class InvoiceHtmlRenderer
     private static string UnitLabel(string? unit) =>
         string.IsNullOrWhiteSpace(unit) || unit == Models.Inventory.StockUnits.Each ? string.Empty : unit;
 
-    // A quantity is read against a price, so it carries both decimal places when it has a fraction and stays whole when it does not.
+    // A quantity is read against a price, so a fraction shows both of its decimal places, a third only when there is one, and a whole count stays whole.
     private static string Quantity(decimal value)
     {
-        var rounded = decimal.Round(value, 2, MidpointRounding.AwayFromZero);
-        return rounded.ToString(rounded == decimal.Truncate(rounded) ? "0" : "0.00",
+        var rounded = decimal.Round(value, 3, MidpointRounding.AwayFromZero);
+        return rounded.ToString(rounded == decimal.Truncate(rounded) ? "0" : "0.00#",
             System.Globalization.CultureInfo.InvariantCulture);
     }
 

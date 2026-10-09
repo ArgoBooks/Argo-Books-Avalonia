@@ -5,8 +5,8 @@ namespace ArgoBooks.Tests.ViewModels;
 
 /// <summary>
 /// A quantity typed onto the paper is rounded as it is applied, not only as it is printed. If the
-/// model kept 17500.555 while the invoice showed 17500.56, the line amount would not be the product
-/// of the two figures the customer can see.
+/// model kept more places than the invoice shows, the line amount would not be the product of the
+/// two figures the customer can see.
 /// </summary>
 public class InvoicePaperQuantityTests : ModalViewModelTestBase
 {
@@ -19,11 +19,12 @@ public class InvoicePaperQuantityTests : ModalViewModelTestBase
     }
 
     [Theory]
-    [InlineData("17500.555", 17500.56)]
-    [InlineData("17500.554", 17500.55)]
+    [InlineData("17500.5555", 17500.556)]
+    [InlineData("17500.5554", 17500.555)]
+    [InlineData("0.125", 0.125)]
     [InlineData("17500.50", 17500.50)]
     [InlineData("2", 2)]
-    public void TypingAQuantity_StoresItToTwoDecimalPlaces(string typed, decimal stored)
+    public void TypingAQuantity_StoresItToThreeDecimalPlaces(string typed, decimal stored)
     {
         var vm = EditorWithOneLine();
 
@@ -32,15 +33,15 @@ public class InvoicePaperQuantityTests : ModalViewModelTestBase
         Assert.Equal(stored, vm.LineItems[0].Quantity);
     }
 
-    /// <summary>Half of a hundredth rounds away from zero, the way an invoice is expected to.</summary>
+    /// <summary>Half of a thousandth rounds away from zero, the way an invoice is expected to.</summary>
     [Fact]
-    public void TypingAHalfHundredth_RoundsUp()
+    public void TypingAHalfThousandth_RoundsUp()
     {
         var vm = EditorWithOneLine();
 
-        vm.ApplyPaperEdit("quantity", 0, "1.005");
+        vm.ApplyPaperEdit("quantity", 0, "1.0005");
 
-        Assert.Equal(1.01m, vm.LineItems[0].Quantity);
+        Assert.Equal(1.001m, vm.LineItems[0].Quantity);
     }
 
     [Fact]

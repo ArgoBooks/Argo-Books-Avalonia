@@ -179,7 +179,7 @@ public abstract partial class PaperDocumentEditorViewModelBase<TLine> : ViewMode
             case "quantity":
                 // Rounded on the way in, so the figure the customer reads is the one the line total is worked out from.
                 if (index is int qi && qi >= 0 && qi < LineItems.Count && TryParsePaperNumber(value, out var q))
-                    LineItems[qi].Quantity = decimal.Round(q, 2, MidpointRounding.AwayFromZero);
+                    LineItems[qi].Quantity = decimal.Round(q, 3, MidpointRounding.AwayFromZero);
                 break;
             case "rate":
                 if (index is int ri && ri >= 0 && ri < LineItems.Count && TryParsePaperNumber(value, out var r))
