@@ -39,6 +39,7 @@
 
             <!-- Action Link -->
             <Button Grid.Column="2"
+                    Click="OnActionClick"
                     Command="{Binding ActionCommand, RelativeSource={RelativeSource AncestorType=controls:InfoBanner}}"
                     IsVisible="{Binding ActionText, RelativeSource={RelativeSource AncestorType=controls:InfoBanner}, Converter={x:Static ObjectConverters.IsNotNull}}"
                     Background="Transparent"

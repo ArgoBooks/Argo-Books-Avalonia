@@ -170,6 +170,8 @@ window.__totalsConfig = __TOTALS_CONFIG__;
     style.textContent =
         '[data-field]{display:inline-block;outline:2px dashed rgba(47,107,255,0.6);outline-offset:3px;border-radius:4px;padding:3px 7px;cursor:text;background:rgba(47,107,255,0.05)}' +
         '[data-field]:empty{min-width:60px;min-height:1.15em}' +
+        // The dashed outline is drawn 3px outside the box, which a single word space does not clear, so the unit beside it is pushed out of its way.
+        '[data-field=quantity]{margin-right:8px}' +
         '[data-field]:hover{background:rgba(47,107,255,0.12)}' +
         '[data-field]:focus{outline:2px solid rgba(47,107,255,0.95);background:rgba(47,107,255,0.14)}' +
         '#__prodDrop{position:fixed;z-index:99999;background:#fff;border:1px solid #d0d5dd;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,0.15);max-height:280px;overflow-y:auto;min-width:240px;font-family:inherit;font-size:13px;color:#1a1f2b}' +
@@ -329,6 +331,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
     var itemsTable = firstRow ? firstRow.closest('table') : null;
     if (itemsTable && itemsTable.parentNode) {
         var addWrap = document.createElement('div');
+        addWrap.setAttribute('data-editor-chrome', '1');
         addWrap.style.cssText = 'padding:8px 0';
         var addLine = document.createElement('span');
         addLine.textContent = '+ Add line item';
@@ -348,6 +351,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
             if (!lastCell) return;
             lastCell.style.position = 'relative';
             var x = document.createElement('span');
+            x.setAttribute('data-editor-chrome', '1');
             x.textContent = '×';
             x.title = 'Remove line';
             x.style.cssText = 'position:absolute;right:-22px;top:50%;transform:translateY(-50%);cursor:pointer;color:#c4ccd6;font-size:18px;line-height:1;padding:2px 4px';
@@ -370,6 +374,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
         logoEl.style.margin = '0';
         logoEl.style.display = 'block';
         var del = document.createElement('div'); del.textContent = '×'; del.title = 'Remove logo';
+        del.setAttribute('data-editor-chrome', '1');
         del.style.cssText = 'position:absolute;top:-7px;right:-7px;width:17px;height:17px;border-radius:50%;background:#e5484d;color:#fff;font-size:12px;line-height:17px;text-align:center;cursor:pointer;font-family:sans-serif;display:none;box-shadow:0 1px 3px rgba(0,0,0,0.3);';
         wrap.appendChild(del);
         wrap.addEventListener('mouseenter', function() { del.style.display = 'block'; });
@@ -378,6 +383,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
     } else {
         // Show a clickable square where the logo would sit, next to the company name slot.
         var square = document.createElement('div'); square.textContent = '+ Logo';
+        square.setAttribute('data-editor-chrome', '1');
         square.title = 'Click to add a logo';
         square.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;width:72px;height:72px;border:2px dashed #b6bfca;border-radius:8px;color:#5b6472;font-weight:600;font-size:12px;cursor:pointer;font-family:sans-serif;margin-right:14px;background:#ffffff;';
         square.addEventListener('click', function() { post({ type:'pickLogo' }); });
@@ -453,6 +459,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
 
         if (mode) {
             var swap = document.createElement('button');
+            swap.setAttribute('data-editor-chrome', '1');
             swap.type = 'button';
             swap.innerHTML = '&#x21c4;';
             swap.title = 'Switch between percent and fixed amount';
@@ -1301,6 +1308,47 @@ window.__totalsConfig = __TOTALS_CONFIG__;
             && double.TryParse(parts[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out x)
             && double.TryParse(parts[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out y);
     }
+
+    /// <summary>
+    /// Renders what the web view is showing to a PDF stream, for saving the invoice as a file.
+    /// Returns null when there is no web view, which is the case on Linux and before the first render.
+    /// </summary>
+    public async Task<System.IO.Stream?> RenderPdfAsync()
+    {
+        if (_webView == null || !_webViewReady)
+            return null;
+
+        await _webView.InvokeScript(PrintStyleScript);
+        return await _webView.PrintToPdfStreamAsync();
+    }
+
+    // The paper on screen is scaled by the zoom transform and sits on a grey backdrop, and Chromium leaves background colours out of anything it prints, so a print-only stylesheet undoes all three before the PDF is taken.
+    private const string PrintStyleScript = """
+(function(){
+    var id = '__argoPrintStyle';
+    if (document.getElementById(id)) return;
+    var s = document.createElement('style');
+    s.id = id;
+    s.media = 'print';
+    s.textContent = [
+        'html, body { background: #fff !important; overflow: visible !important; display: block !important;',
+        '    padding: 0 !important; min-height: 0 !important;',
+        '    -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }',
+        '#__zoomWrapper { transform: none !important; min-height: 0 !important; will-change: auto !important; }',
+        '#__zoomWrapper > table[role=presentation] { background: #fff !important; }',
+        '#__zoomWrapper > table[role=presentation] > tbody > tr > td { padding: 0 !important; }',
+        'table { box-shadow: none !important; }',
+        'tr, td { page-break-inside: avoid; }',
+        '[data-editor-chrome], #__prodDrop, #__dateInput { display: none !important; }',
+        '[data-field] { outline: none !important; background: none !important; padding: 0 !important; margin: 0 !important; }',
+        // A tax, shipping or discount figure is typed into a bordered box of a fixed width, which on paper reads as an empty form field, so only the number and its currency sign are kept.
+        '[data-total] > span { width: auto !important; border: none !important; background: none !important; }',
+        '[data-total-input] { outline: none !important; background: none !important; }',
+        '[data-total-input]:empty:before { color: inherit !important; }'
+    ].join('');
+    document.head.appendChild(s);
+})();
+""";
 
     /// <summary>
     /// Reads the current text of every editable field straight from the DOM and applies it to the

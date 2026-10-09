@@ -92,6 +92,7 @@ public static class QuoteConversionService
         Description = source.Description,
         Quantity = source.Quantity,
         UnitPrice = source.UnitPrice,
+        Unit = source.Unit,
         TaxRate = source.TaxRate,
         Discount = source.Discount
     };

@@ -135,6 +135,7 @@ public class PaymentPortalService : IDisposable
         {
             Description = li.Description,
             Quantity = li.Quantity,
+            Unit = li.Unit,
             UnitPrice = li.UnitPrice,
             // Less the line's own discount, the same figure the invoice prints, or the
             // portal's line amounts wouldn't add up to the Subtotal sent alongside them.
@@ -272,6 +273,7 @@ public class PaymentPortalService : IDisposable
         {
             Description = li.Description,
             Quantity = li.Quantity,
+            Unit = li.Unit,
             UnitPrice = li.UnitPrice,
             // Less the line's own discount, the same figure the quote prints, or the portal's
             // line amounts wouldn't add up to the subtotal sent alongside them.

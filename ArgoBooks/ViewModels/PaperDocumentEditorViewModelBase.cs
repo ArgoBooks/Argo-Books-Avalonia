@@ -11,6 +11,9 @@ namespace ArgoBooks.ViewModels;
 public interface IPaperLine
 {
     string Description { get; set; }
+
+    /// <summary>Set when the description was typed on the paper rather than loaded or picked.</summary>
+    bool DescriptionTyped { get; set; }
     decimal? Quantity { get; set; }
     decimal? UnitPrice { get; set; }
     ProductOption? SelectedProduct { get; set; }
@@ -128,6 +131,9 @@ public abstract partial class PaperDocumentEditorViewModelBase<TLine> : ViewMode
     // Percent against fixed is a click on the swap button, so a re-render puts the new symbol on the paper.
     protected virtual void OnTotalsModeChanged() => RegeneratePaper();
 
+    /// <summary>The last text typed into the paper's customer box, matched to a customer or not.</summary>
+    protected string TypedCustomerName { get; set; } = string.Empty;
+
     partial void OnSelectedCustomerChanged(CustomerOption? value)
     {
         if (value != null && !string.IsNullOrEmpty(value.Id))
@@ -159,11 +165,21 @@ public abstract partial class PaperDocumentEditorViewModelBase<TLine> : ViewMode
                 break;
             case "description":
                 if (index is int di && di >= 0 && di < LineItems.Count)
+                {
+                    // Every field is committed on each flush, so only a value that differs counts as typing.
+                    if (LineItems[di].Description != value)
+                        LineItems[di].DescriptionTyped = true;
                     LineItems[di].Description = value;
+                }
+                break;
+            case "customer":
+                // The customer box is a strict pick from the list, so typed text is kept only to tell the user it matched nothing.
+                TypedCustomerName = value;
                 break;
             case "quantity":
+                // Rounded on the way in, so the figure the customer reads is the one the line total is worked out from.
                 if (index is int qi && qi >= 0 && qi < LineItems.Count && TryParsePaperNumber(value, out var q))
-                    LineItems[qi].Quantity = q;
+                    LineItems[qi].Quantity = decimal.Round(q, 2, MidpointRounding.AwayFromZero);
                 break;
             case "rate":
                 if (index is int ri && ri >= 0 && ri < LineItems.Count && TryParsePaperNumber(value, out var r))
@@ -344,7 +360,8 @@ public abstract partial class PaperDocumentEditorViewModelBase<TLine> : ViewMode
                 Id = product.Id,
                 Name = product.Name,
                 Description = product.Description,
-                UnitPrice = product.UnitPrice
+                UnitPrice = product.UnitPrice,
+                Unit = product.UnitOfMeasure
             });
         }
     }

@@ -70,6 +70,14 @@ public class LineItem
     public decimal Quantity { get; set; }
 
     /// <summary>
+    /// What one of these is: kg, hr, Box. Copied from the product when the line is written, so a
+    /// later edit to the product cannot change an invoice already sent. Empty, or "Each", prints
+    /// nothing beside the quantity.
+    /// </summary>
+    [JsonPropertyName("unit")]
+    public string Unit { get; set; } = string.Empty;
+
+    /// <summary>
     /// Unit price or rate per item.
     /// </summary>
     [JsonPropertyName("unitPrice")]

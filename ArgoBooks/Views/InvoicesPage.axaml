@@ -546,6 +546,14 @@
                                                         <PathIcon Data="{x:Static icons:Icons.Returns}"
                                                                   Width="16" Height="16" />
                                                     </Button>
+                                                    <Button Classes="icon-button"
+                                                            ToolTip.Tip="{loc:Loc Delete}"
+                                                            AutomationProperties.Name="{loc:Loc 'Delete'}"
+                                                            Command="{Binding $parent[ItemsControl].((vm:InvoicesPageViewModel)DataContext).OpenDeleteConfirmCommand}"
+                                                            CommandParameter="{Binding}">
+                                                        <PathIcon Data="{x:Static icons:Icons.Delete}"
+                                                                  Width="16" Height="16" />
+                                                    </Button>
                                                 </StackPanel>
                                             </table:ArgoTableCell.CellContent>
                                         </table:ArgoTableCell>

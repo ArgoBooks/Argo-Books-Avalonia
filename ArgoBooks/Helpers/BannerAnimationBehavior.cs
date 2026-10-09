@@ -45,9 +45,10 @@ public static class BannerAnimationBehavior
             // Store original transitions (from CSS style) for restore during animate-in
             SetOriginalTransitions(border, border.Transitions);
 
-            // Set initial state
-            border.Opacity = 0;
-            border.IsHitTestVisible = false;
+            // Only AnimateIn turns hit testing back on, so a banner already showing when the behaviour attaches takes its start state from the flag instead of assuming hidden.
+            var shown = GetIsVisible(border);
+            border.Opacity = shown ? 1 : 0;
+            border.IsHitTestVisible = shown;
         }
     }
 

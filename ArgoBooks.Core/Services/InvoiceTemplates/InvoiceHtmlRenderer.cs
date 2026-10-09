@@ -32,6 +32,18 @@ public partial class InvoiceHtmlRenderer
     private static string Raw(decimal value) =>
         value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
 
+    // "Each" is what a thing is counted in, which is what a bare number already says, so only a real unit is printed.
+    private static string UnitLabel(string? unit) =>
+        string.IsNullOrWhiteSpace(unit) || unit == Models.Inventory.StockUnits.Each ? string.Empty : unit;
+
+    // A quantity is read against a price, so it carries both decimal places when it has a fraction and stays whole when it does not.
+    private static string Quantity(decimal value)
+    {
+        var rounded = decimal.Round(value, 2, MidpointRounding.AwayFromZero);
+        return rounded.ToString(rounded == decimal.Truncate(rounded) ? "0" : "0.00",
+            System.Globalization.CultureInfo.InvariantCulture);
+    }
+
     // A stored figure that went negative (an older save, an imported sheet) is still not something to
     // put in front of a customer. The math that produces them cannot go below zero any more.
     private static decimal NonNegative(decimal amount) => Math.Max(0m, amount);
@@ -200,7 +212,9 @@ public partial class InvoiceHtmlRenderer
         foreach (var item in invoice.LineItems)
         {
             sb.AppendLine($"{item.Description}");
-            sb.AppendLine($"  {item.Quantity} x {currencySymbol}{Money(item.UnitPrice, decimals)} = {currencySymbol}{Money(item.Subtotal, decimals)}");
+            var unit = UnitLabel(item.Unit);
+            var qty = Quantity(item.Quantity) + (unit.Length > 0 ? $" {unit}" : string.Empty);
+            sb.AppendLine($"  {qty} x {currencySymbol}{Money(item.UnitPrice, decimals)} = {currencySymbol}{Money(item.Subtotal, decimals)}");
         }
 
         sb.AppendLine(new string('-', 50));
@@ -430,7 +444,8 @@ public partial class InvoiceHtmlRenderer
                 ["Index"] = i,
                 ["Description"] = item.Description,
                 ["ItemDescription"] = null, // Can be extended for product descriptions
-                ["Quantity"] = Raw(item.Quantity),
+                ["Quantity"] = Quantity(item.Quantity),
+                ["QuantityUnit"] = UnitLabel(item.Unit),
                 ["UnitPrice"] = $"{currencySymbol}{Money(item.UnitPrice, decimals)}",
                 // LineItem.Subtotal, which is quantity x price LESS the discount and is what the invoice Subtotal is summed from.
                 ["Amount"] = $"{currencySymbol}{Money(item.Subtotal, decimals)}",

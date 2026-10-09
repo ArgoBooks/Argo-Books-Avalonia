@@ -332,6 +332,7 @@ public partial class QuotesModalsViewModel : PaperDocumentEditorViewModelBase<Qu
                 Description = line.Description,
                 Quantity = line.Quantity,
                 UnitPrice = line.UnitPrice,
+                Unit = line.Unit,
                 Discount = line.Discount,
                 TaxRate = line.TaxRate
             });
@@ -661,6 +662,7 @@ public partial class QuotesModalsViewModel : PaperDocumentEditorViewModelBase<Qu
                 Description = li.Description,
                 Quantity = li.Quantity ?? 0,
                 UnitPrice = li.UnitPrice ?? 0,
+                Unit = li.Unit,
                 Discount = li.Discount,
                 TaxRate = li.TaxRate
             })];
@@ -875,6 +877,7 @@ public partial class QuotesModalsViewModel : PaperDocumentEditorViewModelBase<Qu
             Description = li.Description,
             Quantity = li.Quantity ?? 0,
             UnitPrice = li.UnitPrice ?? 0,
+            Unit = li.Unit,
             Discount = li.Discount,
             TaxRate = li.TaxRate
         }).ToList();
@@ -1487,6 +1490,12 @@ public partial class QuoteLineViewModel : ObservableObject, IPaperLine
     private decimal? _unitPrice;
 
     [ObservableProperty]
+    private string _unit = string.Empty;
+
+    [ObservableProperty]
+    private bool _descriptionTyped;
+
+    [ObservableProperty]
     private decimal _discount;
 
     [ObservableProperty]
@@ -1505,6 +1514,8 @@ public partial class QuoteLineViewModel : ObservableObject, IPaperLine
             ProductId = value.Id;
             Description = value.Name;
             UnitPrice = value.UnitPrice;
+            Unit = value.Unit;
+            DescriptionTyped = false;
             if ((Quantity ?? 0) <= 0) Quantity = 1m;
             OnPropertyChanged();
         }

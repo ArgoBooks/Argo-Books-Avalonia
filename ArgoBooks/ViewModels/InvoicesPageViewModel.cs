@@ -909,7 +909,6 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
     #region Portal Configuration
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(OpenCreateModalCommand), nameof(DuplicateInvoiceCommand))]
     private bool _isPortalConfigured;
 
     private void CheckPortalConfiguration() => IsPortalConfigured = PaymentProviderService.IsPortalReady();
@@ -924,21 +923,20 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
 
     #region Modal Commands
 
-    private bool CanOpenCreateModal() => IsPortalConfigured;
-
-    [RelayCommand(CanExecute = nameof(CanOpenCreateModal))]
+    // Only taking payment online needs the portal, and the modal turns Preview off and says so when it is absent.
+    [RelayCommand]
     private void OpenCreateModal()
     {
         App.InvoiceModalsViewModel?.OpenCreateModal();
     }
 
-    [RelayCommand(CanExecute = nameof(CanOpenCreateModal))]
+    [RelayCommand]
     private void DuplicateInvoice(InvoiceDisplayItem? item)
     {
         App.InvoiceModalsViewModel?.DuplicateInvoice(item);
     }
 
-    [RelayCommand(CanExecute = nameof(CanOpenCreateModal))]
+    [RelayCommand]
     private void NewRecurringInvoice()
     {
         App.InvoiceModalsViewModel?.OpenCreateRecurringModal();
