@@ -4,94 +4,61 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
   <ItemGroup>
-    <!-- Avalonia packages -->
-    <PackageVersion Include="Avalonia" Version="12.1.3" />
-    <PackageVersion Include="Avalonia.Themes.Fluent" Version="12.1.3" />
-    <PackageVersion Include="Avalonia.Fonts.Inter" Version="12.1.3" />
-    <PackageVersion Include="Avalonia.Desktop" Version="12.1.3" />
-    <PackageVersion Include="Avalonia.Controls.WebView" Version="12.0.1" />
-    <!-- Mobile (Android head) -->
-    <PackageVersion Include="Avalonia.Android" Version="12.1.3" />
+    <PackageVersion Include="Avalonia" Version="12.1.4" />
+    <PackageVersion Include="Avalonia.Themes.Fluent" Version="12.1.4" />
+    <PackageVersion Include="Avalonia.Fonts.Inter" Version="12.1.4" />
+    <PackageVersion Include="Avalonia.Desktop" Version="12.1.4" />
+    <PackageVersion Include="Avalonia.Controls.WebView" Version="12.1.0" />
+
+    <!-- Android head -->
+    <PackageVersion Include="Avalonia.Android" Version="12.1.4" />
     <PackageVersion Include="Xamarin.AndroidX.Core.SplashScreen" Version="1.2.0.3" />
-    <!-- Pin transitive dep of Xamarin.AndroidX.Core.SplashScreen. Left unpinned, NuGet
-         resolves Xamarin.AndroidX.Core to 1.19.0.1 (via Avalonia.Android) but
-         Xamarin.AndroidX.Core.Core.Ktx to 1.17.0.2 (via SplashScreen); those two must move
-         in lockstep or their .aar's both ship the same generated Kotlin extension class
-         (androidx/core/animation/AnimatorKt$addListener$2) and D8/R8 fails with a duplicate
-         class error at dex time. -->
+    <!-- Moves in lockstep with Xamarin.AndroidX.Core, or both .aar's ship the same generated Kotlin class and D8/R8 fails at dex time with a duplicate class. -->
     <PackageVersion Include="Xamarin.AndroidX.Core.Core.Ktx" Version="1.19.0.1" />
-    <!-- SecureStorage/Preferences/etc for the Android head -->
+    <!-- SecureStorage and Preferences for the Android head. -->
     <PackageVersion Include="Microsoft.Maui.Essentials" Version="10.0.80" />
-    <!-- ZXing.Net.MAUI was attempted for mobile-pairing QR scanning (Task 2 Step D) and
-         removed: it hard-requires Microsoft.Maui.dll (the full MAUI Controls framework),
-         which a pure-Avalonia Android head doesn't reference. See task-2-report.md. -->
     <PackageVersion Include="Net.Google.MLKit.DocumentScanner" Version="16.1.0" />
-    <!-- QR/barcode scanning for the pairing flow (Task 5). Same binding family as the
-         doc-scanner above (plain Android binding, no MAUI dependency) - unlike
-         ZXing.Net.MAUI (removed, see Task 2), this one is expected to coexist with Avalonia. -->
+    <!-- Plain Android bindings, so they coexist with Avalonia: a binding that needs Microsoft.Maui.dll cannot. -->
     <PackageVersion Include="Xamarin.Google.MLKit.BarcodeScanning" Version="117.3.0.8" />
-    <!-- Turnkey full-screen scan-activity UI (no custom camera pipeline needed), the
-         barcode-scanning equivalent of the DocumentScanner's GmsDocumentScanning UI above. -->
     <PackageVersion Include="Xamarin.GooglePlayServices.Code.Scanner" Version="116.1.0.16" />
-    <!-- AndroidX BiometricPrompt binding for the app lock (Task 7). Same binding family as the
-         MLKit/AndroidX packages above (plain Android binding, coexists with Avalonia). Its
-         nuspec pins AppCompat 1.7.1.4 / Fragment 1.8.9.3 / Core 1.19.0.1, which already match
-         the versions this project resolves to (see the pins above), so no new version conflicts. -->
     <PackageVersion Include="Xamarin.AndroidX.Biometric" Version="1.1.0.33" />
-    <!-- Pin transitive deps: Net.Google.MLKit.DocumentScanner pulls
-         Xamarin.AndroidX.Lifecycle.ViewModelSavedState.Android 2.10.0.2, which constrains
-         Xamarin.AndroidX.Lifecycle.Common.Jvm to < 2.10.1 - but Xamarin.AndroidX.Core
-         1.19.0.1 (needed above) requires Common.Jvm >= 2.11.0.1. Force both onto the newer
-         line to resolve the NU1107 conflict. -->
+    <!-- Forced onto the newer line because the doc scanner holds Common.Jvm below 2.10.1 while Xamarin.AndroidX.Core needs 2.11.0.1, which is an NU1107 conflict. -->
     <PackageVersion Include="Xamarin.AndroidX.Lifecycle.ViewModelSavedState.Android" Version="2.11.0.1" />
     <PackageVersion Include="Xamarin.AndroidX.Lifecycle.Common.Jvm" Version="2.11.0.1" />
-    <!-- Must match what Avalonia.FreeDesktop was compiled against or Connection fails to bind
-         at runtime: 0.92.0 for Avalonia 12.0.x, 0.94.1 for 12.1.x. Recheck on every upgrade. -->
+
+    <!-- Must match what Avalonia.FreeDesktop was compiled against or the connection fails to bind at runtime. Recheck on every upgrade. -->
     <PackageVersion Include="Tmds.DBus.Protocol" Version="0.94.1" />
-    <!-- MVVM -->
+
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
-    <!-- Windows-specific (DPAPI for secure credential storage) -->
+    <!-- DPAPI, for credential storage on Windows. -->
     <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="10.0.7" />
     <PackageVersion Include="System.Security.Cryptography.Xml" Version="10.0.10" />
-    <!-- Charts (pinned to Avalonia 12-specific preview; stable 2.0.4 is built against
-         Avalonia 11 and crashes at chart-control construction on Avalonia 12.0.3) -->
+
+    <!-- The Avalonia 12 preview, because the stable line is built against Avalonia 11 and crashes when a chart control is constructed. -->
     <PackageVersion Include="LiveChartsCore.SkiaSharpView" Version="2.0.1-av12.1" />
     <PackageVersion Include="LiveChartsCore.SkiaSharpView.Avalonia" Version="2.0.1-av12.1" />
-    <!-- Color Picker (first-party; PixiEditor.ColorPicker.AvaloniaUI is built against
-         Avalonia 11 and crashes with MissingMethodException on Avalonia 12) -->
-    <PackageVersion Include="Avalonia.Controls.ColorPicker" Version="12.0.5" />
-    <!-- Graphics (for report rendering) -->
+    <!-- The first-party picker, because PixiEditor's is built against Avalonia 11 and throws MissingMethodException on 12. -->
+    <PackageVersion Include="Avalonia.Controls.ColorPicker" Version="12.1.4" />
     <PackageVersion Include="SkiaSharp" Version="3.119.2" />
-    <!-- HEIC decoding, which Skia does not do on Windows or Linux. iPhones shoot HEIC
-         by default, so without this every photo straight off an iPhone is unreadable.
-         LibHeif.Native.Runtime rather than the LibHeif.Native.<rid> packages: those ship
-         libheif alongside separate aom and x265 DLLs that libheif imports at load time
-         and so cannot be trimmed, costing 15 MB on Windows and 16 MB on Linux for a
-         decoder that needs under 1 MB of that. This one bundles a single library:
-         12.5 MB on Windows and 2.1 MB on Linux. -->
+    <!-- HEIC decoding, which Skia does not do on Windows or Linux and which every photo off an iPhone needs. The Runtime package bundles one library where the per-rid ones ship untrimmable aom and x265 beside it, costing 15 MB. -->
     <PackageVersion Include="LibHeifSharp" Version="3.2.0" />
     <PackageVersion Include="LibHeif.Native.Runtime" Version="1.20.2" />
-    <!-- PDF -->
+
     <PackageVersion Include="QuestPDF" Version="2026.2.4" />
-    <!-- Excel -->
     <PackageVersion Include="ClosedXML" Version="0.105.0" />
     <PackageVersion Include="EPPlus" Version="8.5.4" />
-    <!-- Pin transitive dep of EPPlus (patches CVE-2025-54575 / GHSA-rxmq-m78w-7wmc:
-         infinite-loop DoS in the GIF decoder, fixed in 2.1.11). Stay on the MIT-licensed
-         2.1.x line that EPPlus targets; do NOT move to 3.x (different license). -->
+    <!-- Pinned for CVE-2025-54575, a DoS in the GIF decoder fixed in 2.1.11. Stay on the MIT-licensed 2.1.x line that EPPlus targets: 3.x is licensed differently. -->
     <PackageVersion Include="SixLabors.ImageSharp" Version="2.1.13" />
-    <!-- Legacy .xls (BIFF) reading, converted to .xlsx at the import entry point -->
+    <!-- Legacy .xls (BIFF) reading, converted to .xlsx at the import entry point. -->
     <PackageVersion Include="NPOI" Version="2.7.4" />
-    <!-- Auto-Update (Desktop only) -->
+
     <PackageVersion Include="NetSparkleUpdater.UI.Avalonia" Version="3.1.0" />
-    <!-- Machine Learning (for local forecasting) -->
+    <!-- Forecasting, which runs on the machine rather than a service. -->
     <PackageVersion Include="Microsoft.ML" Version="5.0.0" />
     <PackageVersion Include="Microsoft.ML.TimeSeries" Version="5.0.0" />
-    <!-- CSV parsing (RFC 4180) -->
     <PackageVersion Include="CsvHelper" Version="33.1.0" />
-    <!-- QR Code generation -->
     <PackageVersion Include="QRCoder" Version="1.6.0" />
-    <!-- Testing -->
+
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.5.1" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
