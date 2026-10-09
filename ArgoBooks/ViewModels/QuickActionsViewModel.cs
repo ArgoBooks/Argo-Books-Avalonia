@@ -551,14 +551,14 @@ public partial class QuickActionsViewModel : ViewModelBase
         // Expenses
         foreach (var e in companyData.Expenses)
         {
-            Add(LevenshteinDistance.BestScore(query, e.Description, e.ReferenceNumber, e.Id), "Expenses",
+            Add(LevenshteinDistance.BestScore(query, e.Description, e.ReferenceNumber, e.Notes, e.Id), "Expenses",
                 () => new QuickActionItem(e.Description, $"{CurrencyService.Format(e.Amount)} · {e.Date:MMM dd, yyyy}", Icons.Expenses, QuickActionType.SearchResult, "Expenses", entityId: e.Id));
         }
 
         // Revenues
         foreach (var r in companyData.Revenues)
         {
-            Add(LevenshteinDistance.BestScore(query, r.Description, r.ReferenceNumber, r.Id), "Revenue",
+            Add(LevenshteinDistance.BestScore(query, r.Description, r.ReferenceNumber, r.Notes, r.Id), "Revenue",
                 () => new QuickActionItem(r.Description, $"{CurrencyService.Format(r.Amount)} · {r.Date:MMM dd, yyyy}", Icons.Revenue, QuickActionType.SearchResult, "Revenue", entityId: r.Id));
         }
 

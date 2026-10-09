@@ -453,7 +453,7 @@ public RevenuePageViewModel()
         if (!string.IsNullOrWhiteSpace(SearchQuery))
         {
             filtered = filtered
-                .RankBySearch(SearchQuery, s => [s.Id, s.Description, companyData?.GetCustomer(s.CustomerId ?? "")?.Name])
+                .RankBySearch(SearchQuery, s => [s.Id, s.Description, s.Notes, companyData?.GetCustomer(s.CustomerId ?? "")?.Name])
                 .ToList();
         }
 

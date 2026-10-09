@@ -429,7 +429,7 @@ public ExpensesPageViewModel()
         if (!string.IsNullOrWhiteSpace(SearchQuery))
         {
             filtered = filtered
-                .RankBySearch(SearchQuery, p => [p.Id, p.Description, companyData?.GetSupplier(p.SupplierId ?? "")?.Name])
+                .RankBySearch(SearchQuery, p => [p.Id, p.Description, p.Notes, companyData?.GetSupplier(p.SupplierId ?? "")?.Name])
                 .ToList();
         }
 
