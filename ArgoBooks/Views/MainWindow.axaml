@@ -267,9 +267,10 @@
                                     Margin="0,30,0,0"
                                     ZIndex="220" />
 
-        <!-- Loading Overlay (shows during long operations like import) -->
+        <!-- The backdrop stops below the title bar so the window can still be moved and closed while it is up. -->
         <Border IsVisible="{Binding IsLoading}"
                 Background="{DynamicResource OverlayBrush}"
+                Margin="0,30,0,0"
                 ZIndex="225"
                 IsHitTestVisible="True">
             <Border Background="{DynamicResource SurfaceBrush}"
