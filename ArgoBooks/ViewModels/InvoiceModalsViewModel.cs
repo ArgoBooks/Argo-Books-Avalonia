@@ -495,6 +495,8 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
     /// </summary>
     public string SelectedCurrencyCode => CurrencyService.ParseCurrencyCode(SelectedCurrency);
 
+    protected override int MoneyDecimals => CurrencyInfo.GetByCode(SelectedCurrencyCode).DecimalPlaces;
+
     // Computed totals. Subtotal is the line-items sum (the base for a percentage discount/fee and the displayed Subtotal line).
     public decimal Subtotal => LineItems.Sum(i => i.Amount);
     public decimal CustomFeeCalculated => InvoiceMath.CustomFee(Subtotal, CustomFeeAmount, CustomFeeIsPercent);

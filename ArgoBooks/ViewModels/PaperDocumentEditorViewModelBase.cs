@@ -134,6 +134,15 @@ public abstract partial class PaperDocumentEditorViewModelBase<TLine> : ViewMode
     /// <summary>The last text typed into the paper's customer box, matched to a customer or not.</summary>
     protected string TypedCustomerName { get; set; } = string.Empty;
 
+    /// <summary>How many decimal places the document's currency prints, which is what it is typed to.</summary>
+    protected virtual int MoneyDecimals => 2;
+
+    // The paper prints money at the currency's places and a rate at two, so a figure typed with more
+    // than that would show rounded while the totals still used what was typed, and the invoice would
+    // not add up from the figures on it.
+    private decimal RoundTyped(decimal value, bool isMoney) =>
+        decimal.Round(value, isMoney ? MoneyDecimals : 2, MidpointRounding.AwayFromZero);
+
     partial void OnSelectedCustomerChanged(CustomerOption? value)
     {
         if (value != null && !string.IsNullOrEmpty(value.Id))
@@ -183,24 +192,24 @@ public abstract partial class PaperDocumentEditorViewModelBase<TLine> : ViewMode
                 break;
             case "rate":
                 if (index is int ri && ri >= 0 && ri < LineItems.Count && TryParsePaperNumber(value, out var r))
-                    LineItems[ri].UnitPrice = r;
+                    LineItems[ri].UnitPrice = RoundTyped(r, isMoney: true);
                 break;
             // An empty box means the placeholder is showing, i.e. zero (not "leave unchanged").
             case "taxValue":
                 if (string.IsNullOrWhiteSpace(value)) TaxRate = 0;
-                else if (TryParsePaperNumber(value, out var tax)) TaxRate = tax;
+                else if (TryParsePaperNumber(value, out var tax)) TaxRate = RoundTyped(tax, TaxIsFixed);
                 break;
             case "shippingValue":
                 if (string.IsNullOrWhiteSpace(value)) ShippingAmount = 0;
-                else if (TryParsePaperNumber(value, out var ship)) ShippingAmount = ship;
+                else if (TryParsePaperNumber(value, out var ship)) ShippingAmount = RoundTyped(ship, isMoney: true);
                 break;
             case "discountValue":
                 if (string.IsNullOrWhiteSpace(value)) DiscountAmount = 0;
-                else if (TryParsePaperNumber(value, out var disc)) DiscountAmount = disc;
+                else if (TryParsePaperNumber(value, out var disc)) DiscountAmount = RoundTyped(disc, !DiscountIsPercent);
                 break;
             case "feeValue":
                 if (string.IsNullOrWhiteSpace(value)) CustomFeeAmount = 0;
-                else if (TryParsePaperNumber(value, out var fee)) CustomFeeAmount = fee;
+                else if (TryParsePaperNumber(value, out var fee)) CustomFeeAmount = RoundTyped(fee, !CustomFeeIsPercent);
                 break;
         }
     }

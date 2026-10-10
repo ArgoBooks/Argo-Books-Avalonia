@@ -44,6 +44,34 @@ public class InvoicePaperQuantityTests : ModalViewModelTestBase
         Assert.Equal(1.001m, vm.LineItems[0].Quantity);
     }
 
+    /// <summary>
+    /// The paper prints a price at the currency's two places, so a price kept at more than that
+    /// would show as one figure while the line amount was worked out from another.
+    /// </summary>
+    [Theory]
+    [InlineData("1.005", 1.01)]
+    [InlineData("1.004", 1.00)]
+    [InlineData("1.23456789", 1.23)]
+    [InlineData("12.50", 12.50)]
+    public void TypingAPrice_StoresItToTheCurrencysPlaces(string typed, decimal stored)
+    {
+        var vm = EditorWithOneLine();
+
+        vm.ApplyPaperEdit("rate", 0, typed);
+
+        Assert.Equal(stored, vm.LineItems[0].UnitPrice);
+    }
+
+    [Fact]
+    public void TypingShipping_StoresItToTheCurrencysPlaces()
+    {
+        var vm = EditorWithOneLine();
+
+        vm.ApplyPaperEdit("shippingValue", null, "9.999");
+
+        Assert.Equal(10.00m, vm.ShippingAmount);
+    }
+
     [Fact]
     public void TypingSomethingThatIsNotANumber_LeavesTheQuantityAlone()
     {

@@ -70,6 +70,8 @@ public partial class QuotesModalsViewModel : PaperDocumentEditorViewModelBase<Qu
     /// the app is currently showing amounts in.</summary>
     private string _editorCurrencyCode = CurrencyService.CurrentCurrencyCode;
 
+    protected override int MoneyDecimals => CurrencyInfo.GetByCode(_editorCurrencyCode).DecimalPlaces;
+
     /// <summary>
     /// The save button. A quote the customer already has is not going back to being a draft, so
     /// saving it is saving changes.
