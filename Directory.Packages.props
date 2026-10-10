@@ -31,21 +31,21 @@
 
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <!-- DPAPI, for credential storage on Windows. -->
-    <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="10.0.7" />
-    <PackageVersion Include="System.Security.Cryptography.Xml" Version="10.0.10" />
+    <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="10.0.12" />
+    <PackageVersion Include="System.Security.Cryptography.Xml" Version="10.0.12" />
 
     <!-- The Avalonia 12 preview, because the stable line is built against Avalonia 11 and crashes when a chart control is constructed. -->
     <PackageVersion Include="LiveChartsCore.SkiaSharpView" Version="2.0.1-av12.1" />
     <PackageVersion Include="LiveChartsCore.SkiaSharpView.Avalonia" Version="2.0.1-av12.1" />
     <!-- The first-party picker, because PixiEditor's is built against Avalonia 11 and throws MissingMethodException on 12. -->
     <PackageVersion Include="Avalonia.Controls.ColorPicker" Version="12.1.4" />
-    <PackageVersion Include="SkiaSharp" Version="3.119.2" />
+    <PackageVersion Include="SkiaSharp" Version="3.119.4" />
     <!-- HEIC decoding, which Skia does not do on Windows or Linux and which every photo off an iPhone needs. The Runtime package bundles one library where the per-rid ones ship untrimmable aom and x265 beside it, costing 15 MB. -->
     <PackageVersion Include="LibHeifSharp" Version="3.2.0" />
     <PackageVersion Include="LibHeif.Native.Runtime" Version="1.20.2" />
 
     <PackageVersion Include="QuestPDF" Version="2026.2.4" />
-    <PackageVersion Include="ClosedXML" Version="0.105.0" />
+    <PackageVersion Include="ClosedXML" Version="0.105.1" />
     <PackageVersion Include="EPPlus" Version="8.5.4" />
     <!-- Pinned for CVE-2025-54575, a DoS in the GIF decoder fixed in 2.1.11. Stay on the MIT-licensed 2.1.x line that EPPlus targets: 3.x is licensed differently. -->
     <PackageVersion Include="SixLabors.ImageSharp" Version="2.1.13" />
@@ -59,9 +59,9 @@
     <PackageVersion Include="CsvHelper" Version="33.1.0" />
     <PackageVersion Include="QRCoder" Version="1.6.0" />
 
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.5.1" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
-    <PackageVersion Include="coverlet.collector" Version="10.0.0" />
+    <PackageVersion Include="coverlet.collector" Version="10.1.0" />
   </ItemGroup>
 </Project>
