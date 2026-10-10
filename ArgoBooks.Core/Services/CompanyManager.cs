@@ -25,9 +25,7 @@ public class CompanyManager : IDisposable
     private readonly FooterService _footerService;
     private readonly IErrorLogger? _errorLogger;
 
-    // Held for the whole of every save. Saves pack the temp directory into the .argo file on the
-    // thread pool while the UI keeps running, so anything else that writes to or deletes that
-    // directory takes this lock too: see WriteTempFilesAsync and WriteTempFilesWhenFree.
+    // Held for the whole of every save, because a save packs the temp directory on the thread pool while the UI runs on.
     private readonly SemaphoreSlim _saveLock = new(1, 1);
     private string? _currentTempDirectory;
     private string? _currentPassword;
@@ -41,10 +39,6 @@ public class CompanyManager : IDisposable
     private bool _isDisposed;
 
     // Receipts are loaded off the critical open path (they carry base64 image data).
-    // _receiptsLoadTask reads receipts.json in the background; EnsureReceiptsLoadedAsync
-    // merges them into CompanyData.Receipts exactly once, before any save that writes
-    // receipts.json and before the receipts UI reads them. _receiptsLock guards the
-    // merge-once flag and the task reference.
     private readonly object _receiptsLock = new();
     private Task<List<Models.Tracking.Receipt>>? _receiptsLoadTask;
     // The CompanyData the in-flight load belongs to. The merge only proceeds if this is still the
@@ -161,11 +155,7 @@ public class CompanyManager : IDisposable
         var candidate = Path.GetFullPath(Path.Combine(_currentTempDirectory, relativeAvatarPath));
         var tempRoot = Path.GetFullPath(_currentTempDirectory);
 
-        // Use Path.GetRelativePath instead of a string-prefix check: on case-sensitive
-        // filesystems (Linux/macOS) a string compare needs Ordinal, on Windows it needs
-        // OrdinalIgnoreCase, and a mismatch either rejects valid paths or admits invalid
-        // ones. GetRelativePath uses the platform's native rules, and ".."-prefixed
-        // results unambiguously mean the candidate is outside tempRoot.
+        // Path.GetRelativePath rather than a string prefix, because the right comparison differs by filesystem and a mismatch rejects or accepts wrongly.
         var relativeFromRoot = Path.GetRelativePath(tempRoot, candidate);
         if (Path.IsPathRooted(relativeFromRoot)
             || relativeFromRoot == ".."
@@ -512,9 +502,7 @@ public class CompanyManager : IDisposable
                     else
                         File.Move(oldPath, newPath);
                 }
-                // Always update AvatarFileName to the new relative path: even if the old
-                // file was missing or unsafe, the entity record should now point inside
-                // the temp dir using the new Id.
+                // Always update AvatarFileName to the new relative path: even if the old file was missing or unsafe, the entity record should now point inside the temp dir using the new Id.
                 entity.AvatarFileName = newRelative;
             }
             catch
@@ -650,9 +638,7 @@ public class CompanyManager : IDisposable
         _errorLogger = errorLogger;
     }
 
-    // Test-only constructor: leaves the file-system services unset. Only the in-memory surface
-    // (CompanyData, MarkAsChanged/NotifyDataChanged, HasUnsavedChanges) is usable; any file
-    // operation will NRE by design. Paired with CreateForTesting below.
+    // Test-only constructor: leaves the file-system services unset.
     private CompanyManager()
     {
         _fileService = null!;
@@ -690,9 +676,7 @@ public class CompanyManager : IDisposable
         ArgumentException.ThrowIfNullOrEmpty(filePath);
         ArgumentException.ThrowIfNullOrEmpty(companyName);
 
-        // Refuse to overwrite a file another running instance holds open (the Create/Save-As dialog
-        // lets the user pick any existing .argo path). Checked BEFORE closing the current company so a
-        // rejected create doesn't dump the user on the welcome screen. Mirrors OpenCompanyAsync.
+        // Refuse to overwrite a file another running instance holds open (the Create/Save-As dialog lets the user pick any existing .argo path).
         if (_instanceLock.IsHeldByAnotherInstance(filePath))
         {
             throw new CompanyAlreadyOpenException(filePath);
@@ -787,9 +771,7 @@ public class CompanyManager : IDisposable
         string? password = null,
         CancellationToken cancellationToken = default)
     {
-        // The UI stays responsive while a file opens, so a second request (a file double-clicked
-        // in Finder, say) can arrive mid-open. Running both would orphan the first one's temp
-        // directory and locks, so the second is refused; callers wait on IsOpening instead.
+        // The UI stays responsive while a file opens, so a second request (a file double-clicked in Finder, say) can arrive mid-open.
         if (Interlocked.Exchange(ref _isOpening, 1) == 1)
             throw new InvalidOperationException("Another company is still being opened.");
 
@@ -815,9 +797,7 @@ public class CompanyManager : IDisposable
             throw new FileNotFoundException("Company file not found.", filePath);
         }
 
-        // Fail fast if the company is already open in another instance, BEFORE closing the current
-        // company. Otherwise a blocked open would still close the current company first and dump the
-        // user on the welcome screen just for attempting to open a locked file.
+        // Checked before the current company closes, or a blocked open still closes it and drops the user on the welcome screen.
         if (_instanceLock.IsHeldByAnotherInstance(filePath))
         {
             throw new CompanyAlreadyOpenException(filePath);
@@ -838,10 +818,7 @@ public class CompanyManager : IDisposable
             throw new CompanyAlreadyOpenException(filePath);
         }
 
-        // From here on the instance lock is held. Any failure or password cancel must release it,
-        // so encryption detection, the password prompt, and the load all run inside one try; the
-        // finally releases the lock unless the company opened successfully (in which case the open
-        // company keeps holding it until it is closed).
+        // The instance lock is held from here, so encryption detection, the password prompt and the load share one try and the finally releases it.
         var opened = false;
         try
         {
@@ -873,17 +850,13 @@ public class CompanyManager : IDisposable
                 }
             }
 
-            // Key derivation, decryption, decompression, extraction and parsing all run on the thread
-            // pool: parts of them complete synchronously, which froze the UI for the whole open. The
-            // loaded data is only published to CompanyData once back on the caller's thread.
+            // Key derivation, decryption, decompression, extraction and parsing all run on the thread pool: parts of them complete synchronously, which froze the UI for the whole open.
             var tempDirectory = await Task.Run(
                 () => _fileService.OpenCompanyAsync(filePath, password, cancellationToken));
             _currentTempDirectory = tempDirectory;
             _workingDirectoryLock = SecureTempDirectory.Hold(tempDirectory);
 
-            // Load company data, but defer receipts (they carry base64 image data and
-            // aren't needed to show the dashboard). They load in the background and are
-            // merged in by EnsureReceiptsLoadedAsync before any save or receipts UI read.
+            // Load company data, but defer receipts (they carry base64 image data and aren't needed to show the dashboard).
             CompanyData = await Task.Run(
                 () => _fileService.LoadCompanyDataAsync(tempDirectory, cancellationToken, loadReceipts: false));
             StartReceiptsBackgroundLoad(tempDirectory, CompanyData);
@@ -903,9 +876,7 @@ public class CompanyManager : IDisposable
             CurrentFilePath = filePath;
             _currentPassword = password;
 
-            // Sync the company name from the file name so that external renames
-            // (e.g., via the OS file explorer) are reflected in the app. A file named for the
-            // company's own name leaves it alone, even where "/" and the like became "-".
+            // Sync the company name from the file name so that external renames (e.g., via the OS file explorer) are reflected in the app.
             var fileBaseName = Path.GetFileNameWithoutExtension(filePath);
             if (!string.IsNullOrEmpty(fileBaseName) && ToCompanyFileName(CompanyData.Settings.Company.Name) != fileBaseName)
             {
@@ -1008,11 +979,7 @@ public class CompanyManager : IDisposable
             .Where(id => !string.IsNullOrEmpty(id))
             .ToHashSet();
 
-        // Track whether the heal actually changed anything. The version marker lives in
-        // appSettings.json, but the corrected totals live in invoices.json; a settings-only
-        // save would otherwise persist the marker without the healed invoices, permanently
-        // skipping the heal on the next open. Flagging ChangesMade ensures a full/auto save
-        // writes both. Files with no drift don't set the flag, so they get no spurious asterisk.
+        // Track whether the heal actually changed anything.
         var healed = false;
         foreach (var invoice in data.Invoices)
         {
@@ -1028,9 +995,7 @@ public class CompanyManager : IDisposable
             }
         }
 
-        // Version 2: an invoice paid in full counts its revenue as collected. Payments recorded by
-        // hand never marked it, and a portal refund took a paid invoice's revenue out. Only ever
-        // upgrades, so nothing a user marked collected is taken out of the totals.
+        // Version 2: an invoice paid in full counts its revenue as collected. Payments recorded by hand never marked it, and a portal refund took a paid invoice's revenue out.
         foreach (var revenue in data.Revenues)
         {
             if (string.IsNullOrEmpty(revenue.InvoiceId) || RevenueAggregator.IsCollected(revenue))
@@ -1043,9 +1008,7 @@ public class CompanyManager : IDisposable
             }
         }
 
-        // Version 3: a security deposit is held, not earned (Calculations.md §4). Revenue created from
-        // an invoice counted it, so it comes out, and past refunds record how much of them gave the
-        // deposit back, taken from the deposit first as a refund made in the provider's dashboard is.
+        // Version 3: a security deposit is held, not earned (Calculations.md §4).
         foreach (var invoice in data.Invoices.Where(i => i.SecurityDeposit > 0))
             healed |= TakeDepositOutOfRevenue(data, invoice) | SplitDepositOutOfRefunds(data, invoice);
 
@@ -1236,10 +1199,7 @@ public class CompanyManager : IDisposable
         }
         catch
         {
-            // A company switch can delete the temp directory mid-read, faulting the load. That's
-            // expected and harmless because we'd skip the merge anyway (different company). But if
-            // we're still on the same company the failure is real - rethrow so a save doesn't
-            // silently proceed without the persisted receipts and overwrite them.
+            // A company switch can delete the temp directory mid-read, faulting the load. That's expected and harmless because we'd skip the merge anyway (different company).
             lock (_receiptsLock)
             {
                 if (_receiptsMerged || !ReferenceEquals(CompanyData, target))
@@ -1293,8 +1253,6 @@ public class CompanyManager : IDisposable
             await _fileService.SaveCompanyDataAsync(companyDir, CompanyData!, cancellationToken);
 
             // Apply pending rename before saving so the file is saved at the new path.
-            // Note the rename so we can fire CompanyRenamed AFTER the file save,
-            // when the footer at the new path contains the updated company name.
             var wasRenamed = false;
 
             if (PendingRenamePath != null && PendingRenamePath != CurrentFilePath)
@@ -1348,9 +1306,7 @@ public class CompanyManager : IDisposable
 
             CompanyData!.MarkAsSaved(changeCount);
 
-            // Now that the file at the new path contains the freshly-written footer
-            // with the updated company name, listeners can refresh recent-company
-            // UI from disk and pick up the new name.
+            // Now that the file at the new path contains the freshly-written footer with the updated company name, listeners can refresh recent-company UI from disk and pick up the new name.
             if (wasRenamed)
             {
                 CompanyRenamed?.Invoke(this, EventArgs.Empty);
@@ -1386,9 +1342,7 @@ public class CompanyManager : IDisposable
 
             ArgumentException.ThrowIfNullOrEmpty(newFilePath);
 
-            // Refuse to Save As over a file another running instance holds open (the native save
-            // dialog lets the user pick any existing .argo). A path this instance itself holds returns
-            // false here, so saving onto our own current file is still allowed.
+            // Refuse to Save As over a file another running instance holds open (the native save dialog lets the user pick any existing .argo).
             if (_instanceLock.IsHeldByAnotherInstance(newFilePath))
             {
                 throw new CompanyAlreadyOpenException(newFilePath);
@@ -1829,6 +1783,118 @@ public class CompanyManager : IDisposable
         CompanyDataChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>
+    /// Renames a revenue's Id, cascading to every reference inside the open company: the payments
+    /// and rentals that point at it, its receipt, a return of it, a pending conversion queued for
+    /// it, a bank line matched to it, and any invoice or quote line it was generated from. Throws
+    /// if newId is empty or another revenue already uses it. A no-op when newId equals the current Id.
+    /// </summary>
+    public void ChangeRevenueId(Revenue revenue, string newId)
+    {
+        ArgumentNullException.ThrowIfNull(revenue);
+        if (CompanyData == null)
+            throw new InvalidOperationException("No company is currently open.");
+
+        var trimmed = newId.Trim();
+        if (string.IsNullOrEmpty(trimmed))
+            throw new ArgumentException("Revenue ID cannot be empty.", nameof(newId));
+
+        var oldId = revenue.Id;
+        if (string.Equals(oldId, trimmed, StringComparison.Ordinal))
+            return;
+
+        if (CompanyData.Revenues.Any(r => !ReferenceEquals(r, revenue) && r.Id == trimmed))
+            throw new InvalidOperationException($"Another sale already uses ID '{trimmed}'.");
+
+        foreach (var pay in CompanyData.Payments)
+            if (pay.RevenueId == oldId) pay.RevenueId = trimmed;
+        foreach (var rent in CompanyData.Rentals)
+            if (rent.RevenueId == oldId) rent.RevenueId = trimmed;
+
+        // A line generated from this revenue carries its id, on an invoice, a quote, or either
+        // kind of recurring template that clones its lines into every occurrence.
+        foreach (var inv in CompanyData.Invoices)
+            CascadeRevenueIdInLineItems(inv.LineItems, oldId, trimmed);
+        foreach (var quote in CompanyData.Quotes)
+            CascadeRevenueIdInLineItems(quote.LineItems, oldId, trimmed);
+        foreach (var ri in CompanyData.RecurringInvoices)
+            if (ri.Template != null) CascadeRevenueIdInLineItems(ri.Template.LineItems, oldId, trimmed);
+        foreach (var rt in CompanyData.RecurringTransactions)
+            if (rt.RevenueTemplate != null) CascadeRevenueIdInLineItems(rt.RevenueTemplate.LineItems, oldId, trimmed);
+
+        CascadeTransactionId(oldId, trimmed, "Revenue", BookRecordType.Revenue);
+
+        revenue.Id = trimmed;
+        revenue.UpdatedAt = DateTime.UtcNow;
+        CompanyData.InvalidateLookupCaches();
+        CompanyData.ChangesMade = true;
+        CompanyDataChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Renames an expense's Id, cascading to every reference inside the open company: the pay run
+    /// that booked it, its receipt, a return of it, a pending conversion queued for it, and a bank
+    /// line matched to it. Throws if newId is empty or another expense already uses it.
+    /// </summary>
+    public void ChangeExpenseId(Expense expense, string newId)
+    {
+        ArgumentNullException.ThrowIfNull(expense);
+        if (CompanyData == null)
+            throw new InvalidOperationException("No company is currently open.");
+
+        var trimmed = newId.Trim();
+        if (string.IsNullOrEmpty(trimmed))
+            throw new ArgumentException("Expense ID cannot be empty.", nameof(newId));
+
+        var oldId = expense.Id;
+        if (string.Equals(oldId, trimmed, StringComparison.Ordinal))
+            return;
+
+        if (CompanyData.Expenses.Any(e => !ReferenceEquals(e, expense) && e.Id == trimmed))
+            throw new InvalidOperationException($"Another expense already uses ID '{trimmed}'.");
+
+        // The wage expense is recorded per employee line, which is what a void reverses.
+        foreach (var run in CompanyData.PayRuns)
+            foreach (var line in run.Lines)
+                if (line.ExpenseId == oldId) line.ExpenseId = trimmed;
+
+        CascadeTransactionId(oldId, trimmed, "Expense", BookRecordType.Expense);
+
+        expense.Id = trimmed;
+        expense.UpdatedAt = DateTime.UtcNow;
+        CompanyData.InvalidateLookupCaches();
+        CompanyData.ChangesMade = true;
+        CompanyDataChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private static void CascadeRevenueIdInLineItems(List<LineItem> lineItems, string oldId, string newId)
+    {
+        foreach (var li in lineItems)
+            if (li.RevenueRecordId == oldId) li.RevenueRecordId = newId;
+    }
+
+    /// <summary>What an expense and a sale are both pointed at by, keyed on the id either one holds.</summary>
+    private void CascadeTransactionId(string oldId, string newId, string conversionType, BookRecordType matchType)
+    {
+        foreach (var receipt in CompanyData!.Receipts)
+            if (receipt.TransactionId == oldId) receipt.TransactionId = newId;
+        foreach (var ret in CompanyData.Returns)
+            if (ret.OriginalTransactionId == oldId) ret.OriginalTransactionId = newId;
+        foreach (var pending in CompanyData.PendingConversions)
+            if (pending.TransactionId == oldId && pending.TransactionType == conversionType)
+                pending.TransactionId = newId;
+
+        // The stock a transaction moved is recorded as adjustments that name it in their reference
+        // number, and InventoryStockService reads them back to work out what editing it should undo.
+        foreach (var adjustment in CompanyData.StockAdjustments)
+            if (adjustment.IsAutoGenerated && adjustment.ReferenceNumber == oldId)
+                adjustment.ReferenceNumber = newId;
+        foreach (var session in CompanyData.BankImportSessions)
+            foreach (var line in session.Lines)
+                if (line.MatchedRecordId == oldId && line.MatchedRecordType == matchType)
+                    line.MatchedRecordId = newId;
+    }
+
     private static void CascadeProductIdInLineItems(List<LineItem> lineItems, string oldId, string newId)
     {
         foreach (var li in lineItems)
@@ -1864,9 +1930,7 @@ public class CompanyManager : IDisposable
     /// <returns>List of recent company info.</returns>
     public async Task<List<RecentCompanyInfo>> GetRecentCompaniesAsync(CancellationToken cancellationToken = default)
     {
-        // Copied on the caller's thread, the one that edits the list. The file checks and footer
-        // reads below can stall on a slow or disconnected drive, so they run on the thread pool
-        // instead of holding up the UI thread at launch.
+        // Copied on the caller's thread, the one that edits the list.
         var snapshot = _settingsService.GlobalSettings.RecentCompanies.ToList();
 
         return await Task.Run(async () =>
@@ -1924,9 +1988,7 @@ public class CompanyManager : IDisposable
             // Determine password to use
             var passwordToUse = string.IsNullOrEmpty(newPassword) ? null : newPassword;
 
-            // Re-encrypt what is saved, not the working folder. That already holds changes the user
-            // hasn't saved, such as a deleted logo, which quitting without saving could then not undo.
-            // Decrypting, extracting and re-packing are file work only, so they run on the thread pool.
+            // Re-encrypt what is saved, not the working folder. That already holds changes the user hasn't saved, such as a deleted logo, which quitting without saving could then not undo.
             var filePath = CurrentFilePath;
             var currentPassword = _currentPassword;
             var savedCopy = await Task.Run(
@@ -1952,10 +2014,7 @@ public class CompanyManager : IDisposable
 
             _currentPassword = passwordToUse;
 
-            // Note: We intentionally do NOT:
-            // - Call SaveCompanyDataAsync (preserves unsaved changes in memory)
-            // - Call _companyData.MarkAsSaved() (keeps HasUnsavedChanges state)
-            // - Raise CompanySaved event (no data was saved, only password changed)
+            // Deliberately leaves unsaved changes in memory, the saved state alone, and raises no CompanySaved event, because no data was written.
         }
         finally
         {
@@ -1994,16 +2053,10 @@ public class CompanyManager : IDisposable
             var companyDir = GetCompanyDirectory(_currentTempDirectory);
             await _fileService.SaveCompanyDataAsync(companyDir, CompanyData, cancellationToken);
 
-            // Export the entire temp directory as-is (includes receipts/). Use the working file's
-            // password so a backup of an encrypted company is itself encrypted; passing null wrote
-            // the backup in plaintext, letting anyone restore it without the password.
+            // Export the entire temp directory as-is (includes receipts/).
             await PackTempDirectoryAsync(backupPath, _currentPassword, cancellationToken);
 
-            // Note: We intentionally do NOT:
-            // - Change _currentFilePath (backup is a separate file)
-            // - Release/acquire file lock (working file stays locked)
-            // - Mark as saved (unsaved changes state is unchanged)
-            // - Add to recent companies (backups are not working files)
+            // Deliberately leaves the current file path, the file lock, the saved state and the recent list alone, because a backup is a separate file.
         }
         finally
         {
@@ -2032,8 +2085,6 @@ public class CompanyManager : IDisposable
                 return false;
 
             // Merge deferred receipts before writing receipts.json (see SaveCompanyAsync).
-            // This save path is auto-triggered by portal sync shortly after open, so the
-            // gate here is what prevents an early sync from dropping receipts.
             await EnsureReceiptsLoadedAsync();
             if (!ReferenceEquals(CompanyData, companyData) || CurrentFilePath == null || _currentTempDirectory == null)
                 return false;
@@ -2079,9 +2130,7 @@ public class CompanyManager : IDisposable
 
             var companyDir = GetCompanyDirectory(_currentTempDirectory);
 
-            // These markers record work done on the other files: the open-time repairs and the
-            // forecast backtest. This save writes none of those files, so the markers stay as the
-            // temp copy has them; writing the new ones would make the next open skip that work.
+            // These markers record work done on the other files: the open-time repairs and the forecast backtest.
             var onDisk = await _fileService.ReadJsonAsync<CompanySettings>(companyDir, "appSettings.json", cancellationToken);
             var settings = JsonSerializer.Deserialize<CompanySettings>(
                 JsonSerializer.Serialize(CompanyData.Settings, FileService.JsonOptions),
@@ -2094,9 +2143,7 @@ public class CompanyManager : IDisposable
 
             if (onDisk == null)
             {
-                // The working copy has lost its files (GetCompanyDirectory rebuilds a deleted
-                // directory empty), so packing it with only the settings would replace the
-                // company file with one that holds nothing else. Write every file instead.
+                // The working copy has lost its files, so packing it would replace the company with one holding only settings.
                 await EnsureReceiptsLoadedAsync();
                 if (CompanyData == null || CurrentFilePath == null || _currentTempDirectory == null)
                     return;
@@ -2194,9 +2241,6 @@ public class CompanyManager : IDisposable
     private string GetCompanyDirectory(string tempDirectory)
     {
         // A disk cleaner or antivirus can delete the working directory while the company is open.
-        // Every record is held in memory and rewritten by the save that follows, receipt images
-        // included, so rebuilding the layout costs only the logo and avatar files that lived
-        // nowhere else. Throwing here instead loses the whole session's work.
         if (!Directory.Exists(tempDirectory))
         {
             var rebuilt = Path.Combine(

@@ -1,4 +1,4 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -215,11 +215,11 @@
                                 <Grid ColumnDefinitions="*,8,*">
                                     <StackPanel Grid.Column="0" Spacing="4">
                                         <TextBlock Text="{loc:Loc 'Min'}" FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}" />
-                                        <TextBox Text="{Binding FilterOutstandingMin, Mode=TwoWay}" Classes="form-input" PlaceholderText="$0.00" behaviors:NumericInputBehavior.IsDecimalOnly="True" MaxLength="13" />
+                                        <TextBox Text="{Binding FilterOutstandingMin, Mode=TwoWay}" Classes="form-input" PlaceholderText="{Binding AmountPlaceholder}" behaviors:NumericInputBehavior.IsDecimalOnly="True" MaxLength="13" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="2" Spacing="4">
                                         <TextBlock Text="{loc:Loc 'Max'}" FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}" />
-                                        <TextBox Text="{Binding FilterOutstandingMax, Mode=TwoWay}" Classes="form-input" PlaceholderText="$0.00" behaviors:NumericInputBehavior.IsDecimalOnly="True" MaxLength="13" />
+                                        <TextBox Text="{Binding FilterOutstandingMax, Mode=TwoWay}" Classes="form-input" PlaceholderText="{Binding AmountPlaceholder}" behaviors:NumericInputBehavior.IsDecimalOnly="True" MaxLength="13" />
                                     </StackPanel>
                                 </Grid>
                             </StackPanel>
@@ -397,11 +397,11 @@
                             <Grid ColumnDefinitions="*,8,*">
                                 <StackPanel Grid.Column="0" Spacing="4">
                                     <TextBlock Text="{loc:Loc 'Min'}" FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}" />
-                                    <TextBox Text="{Binding HistoryFilterAmountMin, Mode=TwoWay}" Classes="form-input" PlaceholderText="$0.00" behaviors:NumericInputBehavior.IsDecimalOnly="True" MaxLength="13" />
+                                    <TextBox Text="{Binding HistoryFilterAmountMin, Mode=TwoWay}" Classes="form-input" PlaceholderText="{Binding AmountPlaceholder}" behaviors:NumericInputBehavior.IsDecimalOnly="True" MaxLength="13" />
                                 </StackPanel>
                                 <StackPanel Grid.Column="2" Spacing="4">
                                     <TextBlock Text="{loc:Loc 'Max'}" FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}" />
-                                    <TextBox Text="{Binding HistoryFilterAmountMax, Mode=TwoWay}" Classes="form-input" PlaceholderText="$0.00" behaviors:NumericInputBehavior.IsDecimalOnly="True" MaxLength="13" />
+                                    <TextBox Text="{Binding HistoryFilterAmountMax, Mode=TwoWay}" Classes="form-input" PlaceholderText="{Binding AmountPlaceholder}" behaviors:NumericInputBehavior.IsDecimalOnly="True" MaxLength="13" />
                                 </StackPanel>
                             </Grid>
                         </StackPanel>

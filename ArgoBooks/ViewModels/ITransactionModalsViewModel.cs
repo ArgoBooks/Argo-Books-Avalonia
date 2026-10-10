@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.Input;
@@ -17,6 +17,11 @@ public interface ITransactionModalsViewModel
 
     bool IsAddEditModalOpen { get; set; }
     string ModalTitle { get; }
+
+    /// <summary>The record's own id, editable so a business can keep its own numbering.</summary>
+    string ModalId { get; set; }
+    string ModalIdPlaceholder { get; }
+    string? ModalIdError { get; }
     string SaveButtonText { get; }
     IAsyncRelayCommand RequestCloseAddEditModalCommand { get; }
     IRelayCommand CloseAddEditModalCommand { get; }
@@ -27,6 +32,9 @@ public interface ITransactionModalsViewModel
     DateTimeOffset? ModalDate { get; set; }
     ObservableCollection<string> PaymentMethodOptions { get; }
     string SelectedPaymentMethod { get; set; }
+
+    /// <summary>Inherited from ViewModelBase; declared here because the layout binds it.</summary>
+    string AmountPlaceholder { get; }
 
     ObservableCollection<CounterpartyOption> CounterpartyOptions { get; }
     CounterpartyOption? SelectedCounterparty { get; set; }

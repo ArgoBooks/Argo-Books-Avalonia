@@ -63,6 +63,23 @@ public partial class UnifiedChartWidgetViewModel : WidgetViewModelBase
 
     public string[] ChartStyleOptions { get; } = ["pie", "donut"];
 
+    /// <summary>The two charts that group by where somebody is, so only those offer a level.</summary>
+    public bool IsGeographic => ChartDataType.GroupsByPlace();
+
+    public string[] GeoLevelOptions { get; } = ["Country", "Region", "City"];
+
+    [ObservableProperty]
+    private string _geoLevelOption = "Country";
+
+    partial void OnGeoLevelOptionChanged(string value) => LoadData();
+
+    private GeoLevel Level => GeoLevelOption switch
+    {
+        "Region" => GeoLevel.Region,
+        "City" => GeoLevel.City,
+        _ => GeoLevel.Country
+    };
+
     public override bool HasConfig => IsDistribution;
 
     partial void OnChartStyleChanged(string value) => LoadData();
@@ -91,6 +108,9 @@ public partial class UnifiedChartWidgetViewModel : WidgetViewModelBase
 
         if (config.TryGetValue("ChartStyle", out var style))
             ChartStyle = style;
+
+        if (config.TryGetValue("GeoLevel", out var level) && GeoLevelOptions.Contains(level))
+            GeoLevelOption = level;
     }
 
     public override Dictionary<string, string> GetConfig()
@@ -101,6 +121,8 @@ public partial class UnifiedChartWidgetViewModel : WidgetViewModelBase
         };
         if (IsDistribution)
             config["ChartStyle"] = ChartStyle;
+        if (IsGeographic)
+            config["GeoLevel"] = GeoLevelOption;
         return config;
     }
 
@@ -128,7 +150,7 @@ public partial class UnifiedChartWidgetViewModel : WidgetViewModelBase
             EndDate = chartSettings.EndDate
         };
 
-        ChartTitle = ChartDataType.GetDisplayName();
+        ChartTitle = ChartDataType.GetDisplayName(Level);
 
         // Total Profits uses the analytics-page loader so the dashboard widget
         // gets the same positive=green / negative=red bar split and computed title.
@@ -138,10 +160,7 @@ public partial class UnifiedChartWidgetViewModel : WidgetViewModelBase
             return;
         }
 
-        // Revenue vs Expenses uses the same analytics-page loader, which converts each day's value at
-        // that day's OWN rate before bucketing (Calculations.md Rule 4). The generic multi-series
-        // path below converts pre-bucketed monthly totals at the month-start date, whose rate is usually
-        // uncached, so it fell back to showing the raw USD amount instead of the display currency.
+        // Revenue vs Expenses uses the same analytics-page loader, which converts each day's value at that day's OWN rate before bucketing (Calculations.md Rule 4).
         if (ChartDataType == ChartDataType.RevenueVsExpenses)
         {
             LoadRevenueVsExpensesComparisonChart(data, chartSettings.StartDate, chartSettings.EndDate);
@@ -160,12 +179,9 @@ public partial class UnifiedChartWidgetViewModel : WidgetViewModelBase
 
         if (IsDistribution)
         {
-            // Currency distribution pies must convert each transaction at its OWN date before
-            // grouping into a slice (Calculations.md Rule 4). Count-based distributions are
-            // unaffected because GetDisplayAmount only scales monetary aggregates. The time-series
-            // paths below intentionally stay in USD: CreateDateTimeSeries already converts per
-            // bucket date, so passing a converter there would double-convert.
-            var result = service.GetChartData(ChartDataType, CurrencyService.GetDisplayAmount);
+            // Currency distribution pies must convert each transaction at its OWN date before grouping into a slice (Calculations.md Rule 4).
+            var result = service.GetChartData(ChartDataType, CurrencyService.GetDisplayAmount,
+                Level, Data.Regions.NameFor);
             LoadDistributionChart(result);
         }
         else if (ChartDataType.IsMultiSeries())
@@ -238,10 +254,7 @@ public partial class UnifiedChartWidgetViewModel : WidgetViewModelBase
         var isCount = ChartDataType.IsCount();
         var series = new ObservableCollection<ISeries>();
 
-        // Distribution points already arrive in the display currency: currency distributions are
-        // converted per transaction at each transaction's OWN date inside the data service
-        // (Calculations.md Rule 4), and count-based distributions are raw counts that must NOT
-        // be FX-converted. So use the point values directly here, no further conversion.
+        // Distribution points already arrive in the display currency, converted per transaction at its own date in the data service (Calculations.md Rule 4).
         var top = points.OrderByDescending(p => p.Value).Take(8).ToList();
         var displayValues = top.Select(p => p.Value).ToArray();
         for (int i = 0; i < top.Count; i++)
@@ -288,9 +301,7 @@ public partial class UnifiedChartWidgetViewModel : WidgetViewModelBase
             .SelectMany(s => s.DataPoints.Where(p => p.Date.HasValue).Select(p => p.Date!.Value))
             .Distinct().OrderBy(d => d).ToArray();
 
-        // Convert each DAILY point to display currency at its OWN date BEFORE pivoting onto the
-        // aligned date axis (Calculations.md Rule 4). The pivoted values are then already
-        // display currency, so CreateDateTimeSeries must not convert again. Counts stay as they are.
+        // Convert each DAILY point to display currency at its OWN date BEFORE pivoting onto the aligned date axis (Calculations.md Rule 4).
         if (!ChartDataType.IsCount() && !alreadyConverted)
         {
             foreach (var sd in seriesData)
@@ -351,9 +362,7 @@ public partial class UnifiedChartWidgetViewModel : WidgetViewModelBase
 
         var dated = points.Where(p => p.Date.HasValue).ToList();
 
-        // Convert each DAILY point to display currency at its OWN date BEFORE re-bucketing, so the
-        // bucket sum is a sum of per-day-correct display values (Calculations.md Rule 4).
-        // Counts stay as they are.
+        // Convert each DAILY point to display currency at its OWN date BEFORE re-bucketing, so the bucket sum is a sum of per-day-correct display values (Calculations.md Rule 4).
         if (!ChartDataType.IsCount())
         {
             foreach (var p in dated)

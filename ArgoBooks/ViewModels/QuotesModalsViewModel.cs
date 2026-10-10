@@ -70,6 +70,8 @@ public partial class QuotesModalsViewModel : PaperDocumentEditorViewModelBase<Qu
     /// the app is currently showing amounts in.</summary>
     private string _editorCurrencyCode = CurrencyService.CurrentCurrencyCode;
 
+    protected override int MoneyDecimals => CurrencyInfo.GetByCode(_editorCurrencyCode).DecimalPlaces;
+
     /// <summary>
     /// The save button. A quote the customer already has is not going back to being a draft, so
     /// saving it is saving changes.
@@ -332,6 +334,7 @@ public partial class QuotesModalsViewModel : PaperDocumentEditorViewModelBase<Qu
                 Description = line.Description,
                 Quantity = line.Quantity,
                 UnitPrice = line.UnitPrice,
+                Unit = line.Unit,
                 Discount = line.Discount,
                 TaxRate = line.TaxRate
             });
@@ -661,6 +664,7 @@ public partial class QuotesModalsViewModel : PaperDocumentEditorViewModelBase<Qu
                 Description = li.Description,
                 Quantity = li.Quantity ?? 0,
                 UnitPrice = li.UnitPrice ?? 0,
+                Unit = li.Unit,
                 Discount = li.Discount,
                 TaxRate = li.TaxRate
             })];
@@ -748,9 +752,7 @@ public partial class QuotesModalsViewModel : PaperDocumentEditorViewModelBase<Qu
         else if (field == "dueDate") ValidUntil = date;
     }
 
-    // Description, quantity and rate are typed straight into the page and must NOT re-render, that
-    // would interrupt typing. Only a product pick (which rewrites two fields at once) re-renders,
-    // and it does so from its own handler.
+    // Description, quantity and rate are typed straight into the page and must NOT re-render, that would interrupt typing.
     private void OnLinePropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
     }
@@ -877,6 +879,7 @@ public partial class QuotesModalsViewModel : PaperDocumentEditorViewModelBase<Qu
             Description = li.Description,
             Quantity = li.Quantity ?? 0,
             UnitPrice = li.UnitPrice ?? 0,
+            Unit = li.Unit,
             Discount = li.Discount,
             TaxRate = li.TaxRate
         }).ToList();
@@ -1001,12 +1004,7 @@ public partial class QuotesModalsViewModel : PaperDocumentEditorViewModelBase<Qu
         // Check the paper before asking, so the dialog is never followed by a complaint.
         if (!ValidateForSend()) return;
 
-        // Confirm before anything is written: saying no to a brand new quote must leave no row
-        // behind on the list. The figures come from the editor, which is what the user is
-        // looking at and what is about to be saved.
-        //
-        // Sending over an answer the customer already gave is destructive, and the server only
-        // does it when the request says so. This confirmation is what says so.
+        // Confirm before anything is written: saying no to a brand new quote must leave no row behind on the list.
         var existing = IsEditMode && !string.IsNullOrEmpty(_editingQuoteId)
             ? companyData.Quotes.FirstOrDefault(q => q.Id == _editingQuoteId)
             : null;
@@ -1058,9 +1056,7 @@ public partial class QuotesModalsViewModel : PaperDocumentEditorViewModelBase<Qu
                 revision: isRevision,
                 cancellationToken: ct);
 
-            // The request went out and the reply did not come back. Record it as published before
-            // anything else returns: the customer may be holding this quote, and only a quote the
-            // app believes is out there gets its link cancelled when it is deleted.
+            // The request went out and the reply did not come back.
             if (!response.Success && response.MayHavePublished)
             {
                 MarkMaybePublished(quote, companyData, recipient);
@@ -1496,6 +1492,12 @@ public partial class QuoteLineViewModel : ObservableObject, IPaperLine
     private decimal? _unitPrice;
 
     [ObservableProperty]
+    private string _unit = string.Empty;
+
+    [ObservableProperty]
+    private bool _descriptionTyped;
+
+    [ObservableProperty]
     private decimal _discount;
 
     [ObservableProperty]
@@ -1514,6 +1516,8 @@ public partial class QuoteLineViewModel : ObservableObject, IPaperLine
             ProductId = value.Id;
             Description = value.Name;
             UnitPrice = value.UnitPrice;
+            Unit = value.Unit;
+            DescriptionTyped = false;
             if ((Quantity ?? 0) <= 0) Quantity = 1m;
             OnPropertyChanged();
         }

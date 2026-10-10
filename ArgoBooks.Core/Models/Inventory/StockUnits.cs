@@ -10,7 +10,7 @@ public static class StockUnits
     public const string Each = "Each";
 
     public static IReadOnlyList<string> All { get; } =
-        [Each, "kg", "g", "lb", "oz", "L", "mL", "gal", "m", "cm", "ft", "Box", "Pack"];
+        [Each, "kg", "g", "lb", "oz", "L", "mL", "gal", "m", "cm", "ft", "Box", "Pack", "hr", "day"];
 
     /// <summary>Up to three decimal places, so 12 shows as "12" and 2.5 as "2.5".</summary>
     public static string Format(decimal quantity) =>

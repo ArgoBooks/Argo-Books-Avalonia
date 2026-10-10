@@ -139,14 +139,10 @@ public static class T4XmlWriter
 
         var amounts = new XElement("T4_AMT");
 
-        // Boxes 24 and 26 are required even when nil, which is why they are added
-        // unconditionally while the others are not. CRA states explicitly that exempt
-        // employment files 0.00 rather than omitting the element.
+        // Boxes 24 and 26 are required even when nil, which is why they are added unconditionally while the others are not.
         Add(amounts, "empt_incamt", Money(slip.EmploymentIncome));
 
-        // CRA: "Under no circumstances should amounts for both CPP and QPP appear on the same
-        // slip." Quebec employees contribute to QPP, so their money goes in boxes 17 and 17A
-        // and the CPP elements are omitted entirely rather than written as zero.
+        // CRA does not allow CPP and QPP on one slip, so a Quebec employee's money goes in boxes 17 and 17A and the CPP elements are left out.
         if (slip.IsQuebec)
         {
             Add(amounts, "qpp_cntrb_amt", Money(slip.CppContributions));
@@ -238,9 +234,7 @@ public static class T4XmlWriter
         summary.Add(new XElement("slp_cnt", t4.Slips.Count.ToString(CultureInfo.InvariantCulture)));
         summary.Add(new XElement("rpt_tcd", SummaryReportCode(t4.ReportType)));
 
-        // CRA accepts this for report type A only, and an optional element carrying no value
-        // rejects the whole submission, so it is written only when there is both an amendment
-        // and something to say.
+        // CRA accepts this for report type A only, and an optional element with no value rejects the whole submission.
         if (t4.ReportType == T4ReportType.Amendment)
         {
             Add(summary, "fileramendmentnote", Text(t4.AmendmentNote, 1309));

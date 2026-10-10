@@ -121,7 +121,7 @@
             <Setter Property="FontSize" Value="11" />
         </Style>
         <Style Selector="controls|StatCard.minimal TextBlock#LabelText">
-            <Setter Property="FontSize" Value="10" />
+            <Setter Property="FontSize" Value="11" />
             <Setter Property="HorizontalAlignment" Value="Center" />
         </Style>
         <Style Selector="controls|StatCard Grid#LabelRow">
@@ -151,14 +151,14 @@
             <Setter Property="Spacing" Value="2" />
         </Style>
         <Style Selector="controls|StatCard.compact StackPanel#TrendPanel TextBlock">
-            <Setter Property="FontSize" Value="10" />
+            <Setter Property="FontSize" Value="11" />
         </Style>
         <Style Selector="controls|StatCard.minimal StackPanel#TrendPanel">
             <Setter Property="Spacing" Value="2" />
             <Setter Property="HorizontalAlignment" Value="Center" />
         </Style>
         <Style Selector="controls|StatCard.minimal StackPanel#TrendPanel TextBlock">
-            <Setter Property="FontSize" Value="9" />
+            <Setter Property="FontSize" Value="11" />
         </Style>
 
         <!-- "from last month" etc. The percentage alone is enough on a card this narrow. -->
@@ -266,7 +266,7 @@
                 <!-- Secondary Text -->
                 <TextBlock x:Name="SecondaryTextBlock"
                            Text="{Binding SecondaryText, RelativeSource={RelativeSource AncestorType=controls:StatCard}}"
-                           FontSize="10"
+                           FontSize="11"
                            Foreground="{DynamicResource TextTertiaryBrush}"
                            IsVisible="{Binding SecondaryText, RelativeSource={RelativeSource AncestorType=controls:StatCard}, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
             </StackPanel>

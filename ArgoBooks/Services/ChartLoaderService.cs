@@ -101,9 +101,7 @@ public class ChartLoaderService
         var isDarkTheme = ThemeService.Instance.IsDarkTheme;
         var textColor = isDarkTheme ? SKColor.Parse(AppColors.TextDark) : SKColor.Parse(AppColors.TextLight);
 
-        // Handle titles that may already be translated or contain dynamic values
-        // If the text contains a colon followed by a value (e.g., "Total profits: $7,246.51"),
-        // only translate the label part before the colon
+        // A title may already be translated or carry a value, so text after a colon is left alone and only the label before it is translated.
         var translatedText = TranslateChartTitle(text);
 
         return new LabelVisual
@@ -253,12 +251,7 @@ public class ChartLoaderService
     public ISeries CreateDateTimeSeries(DateTime[] dates, double[] values, string name, SKColor color,
         bool convertFromUSD = true)
     {
-        // Convert dates to OADate (days since Dec 30, 1899) for X coordinate
-        // Use ObservablePoint which directly stores X,Y coordinates.
-        // Most chart series carry currency aggregates that originate in USD.
-        // Convert to display currency at this boundary so bars / tooltips
-        // / axis labels all agree with stat cards. Callers passing counts
-        // (returns, losses, transaction counts) pass convertFromUSD=false.
+        // Convert dates to OADate (days since Dec 30, 1899) for X coordinate Use ObservablePoint which directly stores X,Y coordinates.
         if (convertFromUSD)
             values = ConvertUSDValuesToDisplay(values, dates);
         var points = dates.Zip(values, (d, v) => new ObservablePoint(d.ToOADate(), v)).ToArray();
@@ -340,10 +333,7 @@ public class ChartLoaderService
         string negativeSuffix, SKColor lineColor,
         bool convertFromUSD = true)
     {
-        // Values are USD-aggregated currency unless the caller already converted them. When
-        // converting here, do it per bucket at its OWN date (docs/Calculations.md Rule 4),
-        // not today's rate. Callers whose values already come from per-day-converted, re-bucketed
-        // data pass convertFromUSD:false so we don't double-convert.
+        // Values are USD-aggregated currency unless the caller already converted them. When converting here, do it per bucket at its OWN date (docs/Calculations.md Rule 4), not today's rate.
         if (convertFromUSD)
             values = ConvertUSDValuesToDisplay(values, dates);
 
@@ -458,8 +448,6 @@ public class ChartLoaderService
         var maxDate = sortedOADates[^1];
 
         // Calculate UnitWidth based on minimum gap between consecutive dates.
-        // This tells LiveCharts how wide each data point "slot" is, so column bars
-        // fill the space between points instead of defaulting to 1 day.
         double unitWidth = 1;
         if (sortedOADates.Length >= 2)
         {
@@ -553,9 +541,7 @@ public class ChartLoaderService
     private List<ChartDataPoint> StoreDailyAndBucket(ChartDataType chartType, List<ChartDataPoint> dailyPoints,
         bool convertToDisplay = true)
     {
-        // Convert each daily point to display currency at its OWN date BEFORE bucketing, so the
-        // bucket sum is a sum of per-day-correct display values (Calculations.md Rule 4).
-        // The stored daily cache and returned bucketed points are therefore already display-currency.
+        // Convert each daily point to display currency at its OWN date BEFORE bucketing, so the bucket sum is a sum of per-day-correct display values (Calculations.md Rule 4).
         if (convertToDisplay)
             dailyPoints = ConvertDailyPointsToDisplay(dailyPoints);
 
@@ -579,9 +565,7 @@ public class ChartLoaderService
     private List<ChartSeriesData> StoreDailySeriesAndBucket(
         ChartDataType chartType, List<ChartSeriesData> dailySeries, bool convertToDisplay = true)
     {
-        // Convert each series' daily points to display currency at each point's OWN date BEFORE
-        // bucketing, so bucket sums are per-day-correct (Calculations.md Rule 4). The stored
-        // daily cache and returned bucketed series are therefore already display-currency.
+        // Convert each series' daily points to display currency at each point's OWN date BEFORE bucketing, so bucket sums are per-day-correct (Calculations.md Rule 4).
         if (convertToDisplay)
             foreach (var s in dailySeries)
                 s.DataPoints = ConvertDailyPointsToDisplay(s.DataPoints);
@@ -1232,9 +1216,7 @@ public class ChartLoaderService
             return (series, labels, dates, totalProfit);
         }
 
-        // Total profit for the chart title, in the DISPLAY currency. Convert each day at its OWN
-        // date (Calculations.md Rule 4) so the title matches the per-bucket bars and isn't
-        // re-priced at today's rate. Computed from daily data before bucketing for exact dates.
+        // Total profit for the chart title, in the DISPLAY currency.
         totalProfit = dailyPoints.Sum(p =>
             CurrencyService.GetDisplayAmount((decimal)p.Value, p.Date ?? DateTime.Now));
 
@@ -1422,9 +1404,7 @@ public class ChartLoaderService
         var filters = CreateFilters(startDate, endDate);
         var dataService = new ReportChartDataService(companyData, filters);
 
-        // Convert each transaction at its OWN date during aggregation (docs/Calculations.md Rule 4)
-        // so a category total spanning many dates isn't re-priced at one rate. Values
-        // are already in display currency, so the pie helper must not convert again.
+        // Convert each transaction at its OWN date during aggregation (docs/Calculations.md Rule 4) so a category total spanning many dates isn't re-priced at one rate.
         var dataPoints = dataService.GetRevenueDistribution(CurrencyService.GetDisplayAmount).ToList();
 
         if (dataPoints.Count == 0)
@@ -1718,14 +1698,15 @@ public class ChartLoaderService
     public (ObservableCollection<ISeries> Series, ObservableCollection<PieLegendItem> Legend) LoadCountriesOfOriginChart(
         CompanyData? companyData,
         DateTime? startDate = null,
-        DateTime? endDate = null)
+        DateTime? endDate = null,
+        GeoLevel level = GeoLevel.Country)
     {
         var filters = CreateFilters(startDate, endDate);
         var dataService = new ReportChartDataService(companyData, filters);
 
         // Per-transaction conversion at each row's OWN date (docs/Calculations.md Rule 4);
         // values come back in display currency, so the pie helper must not convert again.
-        var dataPoints = dataService.GetExpensesByCountryOfDestination(CurrencyService.GetDisplayAmount).ToList();
+        var dataPoints = dataService.GetExpensesByCountryOfDestination(CurrencyService.GetDisplayAmount, level, Data.Regions.NameFor).ToList();
 
         if (dataPoints.Count == 0)
             return ([], []);
@@ -1751,7 +1732,8 @@ public class ChartLoaderService
     public (ObservableCollection<ISeries> Series, ObservableCollection<PieLegendItem> Legend) LoadCountriesOfDestinationChart(
         CompanyData? companyData,
         DateTime? startDate = null,
-        DateTime? endDate = null)
+        DateTime? endDate = null,
+        GeoLevel level = GeoLevel.Country)
     {
         var filters = CreateFilters(startDate, endDate);
         var dataService = new ReportChartDataService(companyData, filters);
@@ -1759,7 +1741,7 @@ public class ChartLoaderService
         // Use sales with customer country lookup - destination is where products are shipped to (customer location)
         // Per-transaction conversion at each row's OWN date (docs/Calculations.md Rule 4);
         // values come back in display currency, so the pie helper must not convert again.
-        var dataPoints = dataService.GetRevenueByCustomerCountry(CurrencyService.GetDisplayAmount).ToList();
+        var dataPoints = dataService.GetRevenueByCustomerCountry(CurrencyService.GetDisplayAmount, level, Data.Regions.NameFor).ToList();
 
         if (dataPoints.Count == 0)
             return ([], []);
@@ -3028,16 +3010,13 @@ public class ChartLoaderService
         if (dataPoints.Count == 0)
             return (series, legendItems);
 
-        // Values are already in the correct units (display currency pre-converted
-        // per-date in the data layer, or plain counts), so use them as-is. Currency pies show the
-        // currency symbol and decimals in tooltips; count pies show a whole number.
+        // Values are already in the correct units (display currency pre-converted per-date in the data layer, or plain counts), so use them as-is.
         decimal Convert(double v) => (decimal)v;
 
         string FormatTooltip(double v) => isCurrency
             ? CurrencyService.Format((decimal)v)
             : ((decimal)v).ToString("N0");
 
-        // Sort by value descending
         var sortedPoints = dataPoints.OrderByDescending(p => p.Value).ToList();
         var total = sortedPoints.Sum(p => p.Value);
 

@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Models.Transactions;
@@ -212,18 +212,11 @@ public partial class RefundModalViewModel : ObservableObject
     [ObservableProperty]
     private string? _terminalMessage;
 
-    // Set true on the failure screen only when the server returned the
-    // HARD_BLOCK errorCode. Drives the visibility of the "Email
-    // contact@argorobots.com" mailto button, we don't want that button on
-    // every generic failure (provider timeouts, wrong code, etc.) because
-    // those are usually self-recoverable.
+    // Set true on the failure screen only when the server returned the HARD_BLOCK errorCode.
     [ObservableProperty]
     private bool _isHardBlockFailure;
 
-    // Optional context the user can type on the failure screen, surfaced
-    // inside the pre-filled mailto body so support gets the "what this
-    // refund was for" detail without a back-and-forth. Empty is fine, the
-    // mailto body just omits the section when nothing was typed.
+    // Optional context the user can type on the failure screen, surfaced inside the pre-filled mailto body so support gets the "what this refund was for" detail without a back-and-forth.
     [ObservableProperty]
     private string _hardBlockContactReason = string.Empty;
 
@@ -243,9 +236,7 @@ public partial class RefundModalViewModel : ObservableObject
             SelectDepositOnly(deposit);
         Reason = reason ?? string.Empty;
 
-        // No money left to refund but past refunds exist → open in read-only
-        // details mode. If neither, fall through to LineItems and let it show
-        // its own validation.
+        // No money left to refund but past refunds exist → open in read-only details mode. If neither, fall through to LineItems and let it show its own validation.
         if (Payments.Count == 0 && RefundHistory.Count > 0)
         {
             CurrentStep = Step.Details;
@@ -272,9 +263,6 @@ public partial class RefundModalViewModel : ObservableObject
     private void BuildPaymentRows()
     {
         // Show only refundable portal payments (Source=Online, !IsRefund, has providerPaymentId).
-        // For each, the "refundable" amount is the original amount minus any refunds already
-        // associated with the same providerPaymentId (best-effort linkage via local payments
-        // where IsRefund=true and notes/reference match).
         var portalPayments = _allPayments
             .Where(p => !p.IsRefund && p.Source == PaymentSource.Online && !string.IsNullOrEmpty(p.ProviderPaymentId))
             .ToList();
@@ -406,11 +394,7 @@ public partial class RefundModalViewModel : ObservableObject
             LineRows.Add(row);
         }
 
-        // Discount: added as a negative-amount row so the refund total
-        // reflects what the customer actually paid (gross minus discount).
-        // Without this, refunding all line items + tax + fee inflates the
-        // total by the discount amount and trips the "exceeds refundable"
-        // guard.
+        // A discount is a negative-amount row, or refunding every line plus tax and fee would inflate the total by the discount.
         if (_invoice.DiscountAmount > 0)
         {
             var discountValue = InvoiceMath.Discount(_invoice.Subtotal, _invoice.DiscountAmount, _invoice.DiscountIsPercent);
@@ -473,9 +457,7 @@ public partial class RefundModalViewModel : ObservableObject
                     Label = "Payment processing fee",
                     Detail = "",
                     Amount = targetFee,
-                    // Off unless chosen. The fee the customer paid was never revenue or taxed, so
-                    // refunding it by default took it off both (docs/Calculations.md, Refund
-                    // status rule).
+                    // Off unless chosen. The fee the customer paid was never revenue or taxed, so refunding it by default took it off both (docs/Calculations.md, Refund status rule).
                     IsSelected = false,
                     Kind = "processingFee",
                 };
@@ -528,9 +510,7 @@ public partial class RefundModalViewModel : ObservableObject
             }
             else if (!anyChargeTicked)
             {
-                // Only the deposit or the card fee is being refunded. Neither was taxed, and the
-                // Tax box starts ticked, so one left that way gives nothing back. Counting it
-                // would send the invoice's whole tax out with a refund of the fee alone.
+                // Only the deposit or the card fee is being refunded. Neither was taxed, and the Tax box starts ticked, so one left that way gives nothing back.
                 taxRow.Amount = 0m;
             }
             else if (taxedAll <= 0 || taxedTicked >= taxedAll)
@@ -556,12 +536,7 @@ public partial class RefundModalViewModel : ObservableObject
         }
         else if (selectedPaymentCount > 1)
         {
-            // ContinueAsync only sends the FIRST selected payment to the
-            // refund API, multi-payment refunds aren't wired through to
-            // the server yet. Block selecting >1 here so the user gets a
-            // clear error instead of a confusing AMOUNT_EXCEEDS_REFUNDABLE
-            // from the server when the refund total exceeds the first
-            // payment's individual refundable amount.
+            // ContinueAsync only sends the FIRST selected payment to the refund API, multi-payment refunds aren't wired through to the server yet.
             LineItemsValidationMessage = "Refund only one payment at a time. Issue a separate refund for each.";
         }
         else if (RefundTotal <= 0)
@@ -597,7 +572,7 @@ public partial class RefundModalViewModel : ObservableObject
                 CustomerName: CustomerDisplay,
                 Provider: primaryPayment.Provider.ToLowerInvariant(),
                 ProviderPaymentId: primaryPayment.ProviderPaymentId,
-                AmountCents: (long)Math.Round(RefundTotal * 100, 0),
+                AmountCents: (long)Math.Round(RefundTotal * 100, 0, MidpointRounding.AwayFromZero),
                 Currency: Currency,
                 LineItems: RefundedRows().Select(r => (object)new {
                     label = r.Label,
@@ -617,10 +592,7 @@ public partial class RefundModalViewModel : ObservableObject
                     return;
                 }
 
-                // Build a diagnostic-friendly message: include HTTP status and
-                // ErrorCode so it's clear when the failure is server-side
-                // (e.g. 404 = endpoints not deployed yet, 401 = bad API key,
-                // 412 = email not verified, etc.) vs the friendly server message.
+                // Carries the HTTP status and ErrorCode, so it is clear when the failure is the server's: 404 not deployed, 401 bad key, 412 email unverified.
                 var bits = new List<string>();
                 if (result.HttpStatus > 0) bits.Add($"HTTP {result.HttpStatus}");
                 if (!string.IsNullOrEmpty(result.ErrorCode)) bits.Add(result.ErrorCode);
@@ -680,10 +652,7 @@ public partial class RefundModalViewModel : ObservableObject
                     _ = App.AutoSyncPortalPaymentsAsync();
                     break;
                 case "cooling_off":
-                    // Null-coalesce because CoolingOffSeconds is int?, without
-                    // it, a missing value prints as empty ("...for  minutes").
-                    // Round-up so 899s reads as "15 minutes" instead of the
-                    // truncated 14 that integer division would produce.
+                    // Null-coalesce because CoolingOffSeconds is int?, without it, a missing value prints as empty ("...for minutes").
                     var coolingMinutes = (int)Math.Ceiling((result.CoolingOffSeconds ?? 0) / 60.0);
                     if (coolingMinutes < 1) coolingMinutes = 1;
                     CoolingOffMessage = $"This refund is held for review for {coolingMinutes} minute(s). You can cancel it from the email we just sent. Otherwise it will process automatically.";
@@ -718,13 +687,7 @@ public partial class RefundModalViewModel : ObservableObject
         {
             var subject = Uri.EscapeDataString($"Refund safety check: invoice {InvoiceNumber}");
 
-            // Pull the reason from the in-modal TextBox bound to
-            // HardBlockContactReason. The user has typically already typed
-            // this on the failure screen before clicking the email button,
-            // so it lands pre-filled in their mail client. The header is
-            // included unconditionally (even when the field is empty)
-            // so if they skipped the box and clicked through, the email
-            // still prompts them to add the reason before sending.
+            // Pull the reason from the in-modal TextBox bound to HardBlockContactReason.
             var reason = (HardBlockContactReason ?? string.Empty).Trim();
 
             var bodyLines = new List<string>
@@ -855,10 +818,7 @@ public partial class RefundModalViewModel : ObservableObject
 
     private void BeginPolling()
     {
-        // Cancel any pre-existing polling loop before starting a new one.
-        // Without this, a second BeginPolling() call (e.g. re-entering the
-        // Polling step after a re-test) would leak the prior background
-        // task and let it race-mutate CurrentStep alongside the new loop.
+        // Any existing polling loop is cancelled first, or a second BeginPolling() leaks the earlier task and lets it keep writing.
         StopPolling();
         _pollCts = new CancellationTokenSource();
         _ = Task.Run(async () =>

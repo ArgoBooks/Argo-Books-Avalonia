@@ -197,12 +197,7 @@ public sealed class PdfThumbnailService
         // Dispose any previous failed init to avoid leaking windows
         CleanupWebView();
 
-        // macOS treats a fully offscreen window as occluded and suspends its web view, and a
-        // suspended WKWebView never finishes a canvas render: pdf.js still reports ready and
-        // getPage still resolves, then page.render() hangs and nothing is ever posted back.
-        // Parked at -30000 it stalls every time; anywhere still on screen it renders in about
-        // a quarter second. So on macOS the window stays on screen and hides by being a single
-        // pixel in the corner instead.
+        // macOS suspends the web view of a fully offscreen window, and a suspended WKWebView never finishes a canvas render, so page.render() hangs.
         var hideBySize = OperatingSystem.IsMacOS();
 
         _offscreenWindow = new Window
@@ -223,17 +218,11 @@ public sealed class PdfThumbnailService
 
         _offscreenWindow.Content = _webView;
 
-        // Move it off-screen BEFORE showing it. Setting the position only in Opened leaves the
-        // window on screen for the frame between being mapped and the handler running, and
-        // because this window is undecorated and cached for the rest of the session, a single
-        // slip leaves the faint edge of an 800x600 rectangle floating above every other
-        // application until Argo Books is minimised or closed.
+        // Moved off-screen before being shown, because setting the position in Opened leaves it on screen for a frame.
         var offscreen = hideBySize ? new PixelPoint(0, 0) : new PixelPoint(-30000, -30000);
         _offscreenWindow.Position = offscreen;
 
-        // Re-assert once the platform window actually exists, since a position set before then
-        // can be ignored, and a large negative value can be clamped to the virtual desktop
-        // bounds on multi-monitor or fractional-DPI setups.
+        // Re-asserted once the platform window exists, since a position set earlier can be ignored or clamped to the desktop bounds.
         _offscreenWindow.Opened += (_, _) =>
         {
             _offscreenWindow.Position = offscreen;
@@ -298,9 +287,7 @@ public sealed class PdfThumbnailService
         var deadline = DateTime.UtcNow.AddSeconds(15);
         var pdfJsReady = false;
 
-        // Readiness is read as page state rather than waited for as a message. The post
-        // announcing it goes out during load, before anything here could be listening, so
-        // asking the page whether it is ready is the only question that survives the race.
+        // Readiness is read as page state rather than waited for as a message.
         while (DateTime.UtcNow < deadline && !pdfJsReady && !postMessageReady.IsCompleted)
         {
             pdfJsReady = await ReadBooleanAsync("window.__pdfjsReady === true");
@@ -411,10 +398,7 @@ public sealed class PdfThumbnailService
             if (PdfRenderMessageParser.TryParsePage(body, out var idx, out var bytes))
             {
                 collector.Pages[idx] = bytes;
-                // OnPage callbacks can do synchronous disk I/O (writing JPEG pages),
-                // which would block the WebView message handler / UI thread while
-                // pages stream in. Dispatch to the thread pool so the UI stays
-                // responsive during multi-page renders.
+                // OnPage callbacks can do synchronous disk I/O (writing JPEG pages), which would block the WebView message handler / UI thread while pages stream in.
                 if (collector.OnPage is { } onPage)
                     _ = Task.Run(() => onPage(idx, bytes));
                 return;
@@ -491,12 +475,7 @@ public sealed class PdfThumbnailService
 <script>__PDFJS_LIB__</script>
 <script type="text/plain" id="pdfjs-worker-src">__PDFJS_WORKER__</script>
 <script>
-    // Avalonia.Controls.WebView 12.0.1 registers no WKScriptMessageHandler on macOS, so
-    // window.webkit.messageHandlers is empty and both posts below land in their own catch.
-    // The outbox is the way back: InvokeScript does work there, so C# drains this instead.
-    // It only fills once C# switches it on, so where postMessage works nothing queues.
-    // On from the start. pdf.js reports ready the moment the page loads, well before C#
-    // can flip a switch, so anything gated on a later enable would miss that first message.
+    // Avalonia.Controls.WebView 12.0.1 registers no WKScriptMessageHandler on macOS, so window.webkit.messageHandlers is empty and both posts below land in their own catch.
     window.__outboxEnabled = true;
     window.__outbox = [];
     window.__pdfjsReady = false;
@@ -512,9 +491,7 @@ public sealed class PdfThumbnailService
         try { window.webkit.messageHandlers.webview.postMessage(msg); } catch(e) {}
         try {
             if (window.__outboxEnabled) {
-                // Each rendered page is a data URL, so an undrained queue is a memory
-                // problem long before it is a message-count problem. Dropping the oldest
-                // keeps a stalled drain bounded.
+                // Each rendered page is a data URL, so an undrained queue is a memory problem long before it is a message-count problem. Dropping the oldest keeps a stalled drain bounded.
                 if (window.__outbox.length > 400) window.__outbox.shift();
                 window.__outbox.push(msg);
             }
@@ -576,9 +553,7 @@ public sealed class PdfThumbnailService
         }
     };
 
-    // Renders pages sequentially. Posts "render-page:<index>:<dataUrl>" per rendered page,
-    // then "render-done:<count>". Sequential to avoid spiking memory on large PDFs.
-    // skipCsv is a comma-separated list of 0-based page indices to skip (e.g. already cached).
+    // Renders pages sequentially. Posts "render-page:<index>:<dataUrl>" per rendered page, then "render-done:<count>". Sequential to avoid spiking memory on large PDFs.
     window.__renderAllAndPost = function(base64Data, skipCsv) {
         try {
             var skip = {};

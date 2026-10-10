@@ -99,9 +99,7 @@ public class PayrollModalsViewModelTests
     [Fact]
     public void EveryProvinceAndTerritory_IsOffered()
     {
-        // Thirteen, including Quebec. Quebec is not in the rate table's provinces block, because
-        // it administers its own tax, pension plan and parental insurance, so building the list
-        // from that block alone left a fully supported jurisdiction unselectable.
+        // Thirteen, Quebec included: it is not in the rate table's provinces block, because it runs its own tax, pension plan and parental insurance.
         var vm = new PayrollModalsViewModel();
         vm.OpenAddEmployeeModal();
 

@@ -32,9 +32,7 @@ public class ArgoApiClient
 
     public ArgoApiClient(HttpClient http) => _http = http;
 
-    // -----------------------------------------------------------------------
-    // Control plane
-    // -----------------------------------------------------------------------
+    // --- Control plane ---
 
     /// <summary>The label this app gives its own key, and how it recognises one later.</summary>
     public const string DesktopKeyLabel = "Argo Books desktop";
@@ -43,9 +41,8 @@ public class ArgoApiClient
     /// Register the company and return its account id.
     ///
     /// Idempotent: calling it again returns the same account rather than making
-    /// a second one. Deliberately does NOT mint a key, because minting is the
-    /// one part that is not idempotent and callers were previously getting a
-    /// spare key every time somebody pressed the button twice.
+    /// a second one. Deliberately does NOT mint a key, because minting is the one
+    /// part that is not idempotent, so a double press would hand out a spare key.
     /// </summary>
     public async Task<string> EnsureAccountAsync(
         string companyUid,
@@ -128,9 +125,7 @@ public class ArgoApiClient
             new { company_uid = companyUid, key_id = keyId, label },
             licenseKey, deviceId, ct);
 
-    // -----------------------------------------------------------------------
-    // Public API
-    // -----------------------------------------------------------------------
+    // --- Public API ---
 
     public async Task<ArgoAccount?> GetAccountAsync(string key, CancellationToken ct = default)
         => await SendV1Async<ArgoAccount>(HttpMethod.Get, "/account", key, null, null, ct);

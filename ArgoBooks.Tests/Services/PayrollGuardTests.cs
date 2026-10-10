@@ -52,9 +52,7 @@ public class PayrollGuardTests
     [InlineData(PayFrequency.Monthly, 13, 7)]
     public void TheRoeWindows_AreDifferentLengthsFromEachOther(PayFrequency frequency, int hours, int earnings)
     {
-        // Blocks 15A and 15C look back over the equivalent of 53 weeks; block 15B looks back
-        // over roughly half of that. Using one window for both is the easy mistake and it
-        // shortens somebody's claim.
+        // Blocks 15A and 15C look back over the equivalent of 53 weeks; block 15B looks back over roughly half of that.
         Assert.Equal(hours, RoeService.HoursPeriodCount(frequency));
         Assert.Equal(earnings, RoeService.EarningsPeriodCount(frequency));
         Assert.True(hours > earnings);
@@ -63,9 +61,7 @@ public class PayrollGuardTests
     [Fact]
     public void AFrequencyThatIsNotOneOfTheFour_FallsBackToBiweekly()
     {
-        // A company file can be edited by hand or written by an older version, so an enum value
-        // outside the four defined ones does reach here. Every table has to answer rather than
-        // throw, and biweekly is the answer that is right most often.
+        // A company file can be edited by hand or written by an older version, so an enum value outside the four defined ones does reach here.
         const PayFrequency unknown = (PayFrequency)99;
 
         Assert.Equal(26, unknown.PeriodsPerYear());
@@ -83,9 +79,7 @@ public class PayrollGuardTests
     public void ASalariedEmployeesInsurableHours_ComeFromTheirContractWeek(
         PayFrequency frequency, decimal expected)
     {
-        // Block 15A wants insurable hours and a salaried pay run records none, so Service
-        // Canada's answer is to convert the contract week. That conversion has its own
-        // frequency table, separate from the two window tables above and from CRA's.
+        // Block 15A wants insurable hours and a salaried pay run records none, so Service Canada's answer is to convert the contract week.
         CompanyData data = Company(Person());
         data.Employees[0].PayFrequency = frequency;
         data.Employees[0].StandardHoursPerWeek = 40m;
@@ -120,9 +114,7 @@ public class PayrollGuardTests
     [Fact]
     public void AnEditionCarryingNoQuebecRates_IsRefused()
     {
-        // Quebec was added to the rate files after the rest of Canada, so an older edition can
-        // legitimately have none. Falling back to the federal calculator would produce CPP and
-        // no QPIP for someone who owes the opposite.
+        // Quebec was added to the rate files after the rest of Canada, so an older edition can legitimately have none.
         PayrollRateTable rates = Rates();
         rates.Quebec = null;
 
@@ -142,13 +134,7 @@ public class PayrollGuardTests
     public void WhetherAProvinceCanBeCalculatedFor_CanBeAskedBeforeTheCalculatorThrows(
         string province, bool expected)
     {
-        // The calculator throws for a province it has no table for, which is right for a pure
-        // function and useless as a way to find out. That throw is reachable without touching the
-        // province dropdown: the spreadsheet importer stores whatever is in the cell, so an
-        // employee imported as "Ontario" is upper-cased to ONTARIO and can never be paid.
-        //
-        // Quebec must answer true. It is held outside the provinces dictionary, so a check that
-        // only reads that dictionary reports a fully supported jurisdiction as missing.
+        // The calculator throws for a province it has no table for, which is right for a pure function and useless as a way to find out.
         Assert.Equal(expected, new PayrollService().Supports(new DateTime(2026, 8, 15), province));
     }
 
@@ -173,9 +159,7 @@ public class PayrollGuardTests
     [InlineData("QC")]
     public void ARateFileMissingItsTopBracket_UsesTheHighestOneItHasRatherThanCrashing(string province)
     {
-        // Every published table ends with an open-ended bracket. A delivered file that does not
-        // still has to produce a number for an income above its last ceiling, because the
-        // alternative is an exception in the middle of approving a pay run.
+        // Every published table ends with an open-ended bracket.
         PayrollRateTable rates = Rates();
         rates.Federal.Brackets = [rates.Federal.Brackets[0]];
         rates.Provinces["AB"].Brackets = [rates.Provinces["AB"].Brackets[0]];
@@ -191,11 +175,7 @@ public class PayrollGuardTests
     [Fact]
     public void OntarioDependants_ReduceTheTax()
     {
-        // T4127's factor Y: "$554 multiplied by the number of disabled dependants" plus "$554
-        // multiplied by the number of dependants under age 19", as shown on Form TD1ON. It feeds
-        // Ontario's tax reduction, which is twice the basic amount plus Y, less the tax already
-        // worked out. An income low enough for the reduction to still be alive, or the credit is
-        // exhausted and dependants change nothing.
+        // T4127's factor Y: "$554 multiplied by the number of disabled dependants" plus "$554 multiplied by the number of dependants under age 19", as shown on Form TD1ON.
         PayrollRateTable rates = Rates();
 
         decimal none = PayrollCalculator.Calculate(
@@ -212,9 +192,7 @@ public class PayrollGuardTests
     [Fact]
     public void DependantsOutsideOntario_ChangeNothing()
     {
-        // Only Ontario's reduction has a dependant component. BC's tapers on income alone, and
-        // everywhere else has no reduction at all, so the field has to be inert there rather
-        // than quietly applying.
+        // Only Ontario's reduction has a dependant component.
         PayrollRateTable rates = Rates();
 
         foreach (string province in new[] { "AB", "BC", "SK" })
@@ -532,8 +510,6 @@ public class PayrollGuardTests
     public void AnEmployeesName_IsSplitTheWayTheRl1WantsIt(string name, string surname, string given)
     {
         // The RL-1 has no initial field, so everything before the last word is the given name.
-        // A single-word name and a blank one both have to produce something rather than
-        // throwing halfway through building the return.
         CompanyData data = Company(Person(province: "QC"));
         data.Employees[0].Name = name;
         data.Settings.Company.QuebecIdentificationNumber = "1234567890RS0001";

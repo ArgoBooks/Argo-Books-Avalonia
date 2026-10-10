@@ -19,9 +19,7 @@ public static class PageNames
     public const string PurchaseOrders = "PurchaseOrders";
     public const string Categories = "Categories";
 
-    // The sidebar opens the categories and products pages on a chosen tab, and registers those
-    // under their own names. A page that only matches the bare name above never sees the
-    // navigation the user actually performs.
+    // The sidebar opens the categories and products pages on a chosen tab, and registers those under their own names.
     public const string ExpenseCategories = "ExpenseCategories";
     public const string RevenueCategories = "RevenueCategories";
     public const string ExpenseProducts = "ExpenseProducts";

@@ -4,7 +4,6 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:ArgoBooks.ViewModels"
              xmlns:controls="using:ArgoBooks.Controls"
-             xmlns:local="using:ArgoBooks"
              xmlns:loc="using:ArgoBooks.Localization"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
              x:Class="ArgoBooks.Modals.ProductModals"
@@ -84,13 +83,10 @@
                                                                 SearchText="{Binding ModalSupplierText, Mode=TwoWay}"
                                                                 DisplayMemberPath="Name"
                                                                 SearchMemberPath="Id"
-                                                                Placeholder="{loc:Loc 'Search suppliers...'}"
+                                                                Placeholder="{loc:Loc 'Type a new supplier, or pick one'}"
                                                                 ShowAddNew="True"
                                                                 AddNewText="{loc:Loc 'Create new supplier'}"
-                                                                AddNewCommand="{Binding OpenSuppliersWithAddModalCommand}"
-                                                                EmptyMessage="{loc:Loc 'No suppliers.'}"
-                                                                EmptyCreateLinkText="{loc:Loc 'Create'}"
-                                                                EmptyCreateCommand="{Binding OpenSuppliersWithAddModalCommand}" />
+                                                                AddNewCommand="{Binding OpenSuppliersWithAddModalCommand}" />
                                 </StackPanel>
                                 <StackPanel Spacing="6" IsVisible="{Binding !IsExpensesTab}">
                                     <TextBlock Text="{loc:Loc 'Default Unit Price'}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
@@ -102,12 +98,7 @@
                                 </StackPanel>
                             </UniformGrid>
 
-                            <CheckBox IsChecked="{Binding ModalTrackInventory, Mode=TwoWay}"
-                                     Content="{loc:Loc 'Track Inventory'}"
-                                     IsVisible="{Binding ShowTrackInventoryOption}"
-                                     FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" />
-
-                            <StackPanel Spacing="6" IsVisible="{Binding ModalTrackInventory}">
+                            <StackPanel Spacing="6">
                                 <TextBlock Text="{loc:Loc Unit}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}" />
                                 <ComboBox ItemsSource="{Binding UnitOptions}"
                                           SelectedItem="{Binding ModalUnitOfMeasure, Mode=TwoWay}"
@@ -120,6 +111,11 @@
                                     </ComboBox.ItemTemplate>
                                 </ComboBox>
                             </StackPanel>
+
+                            <CheckBox IsChecked="{Binding ModalTrackInventory, Mode=TwoWay}"
+                                     Content="{loc:Loc 'Track Inventory'}"
+                                     IsVisible="{Binding ShowTrackInventoryOption}"
+                                     FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" />
 
                             <Grid ColumnDefinitions="*,16,*" IsVisible="{Binding ModalTrackInventory}">
                                 <StackPanel Grid.Column="0" Spacing="6">

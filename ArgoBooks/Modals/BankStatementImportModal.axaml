@@ -5,7 +5,6 @@
              xmlns:vm="using:ArgoBooks.ViewModels"
              xmlns:controls="using:ArgoBooks.Controls"
              xmlns:loc="using:ArgoBooks.Localization"
-             xmlns:local="using:ArgoBooks"
              mc:Ignorable="d" d:DesignWidth="1080" d:DesignHeight="700"
              x:Class="ArgoBooks.Modals.BankStatementImportModal"
              x:DataType="vm:BankStatementImportModalViewModel">
@@ -161,7 +160,7 @@
                                                 <TextBlock Grid.Row="1" Grid.Column="1"
                                                            Text="{loc:Loc 'Already imported'}"
                                                            IsVisible="{Binding AlreadyImported}"
-                                                           FontSize="10"
+                                                           FontSize="11"
                                                            Foreground="{DynamicResource WarningBrush}"
                                                            VerticalAlignment="Top"
                                                            Margin="0,2,0,0" />
@@ -188,7 +187,7 @@
                                                             Classes="category-chip-button"
                                                             Command="{Binding CreateNewProductCommand}">
                                                         <StackPanel Orientation="Horizontal" Spacing="4">
-                                                            <TextBlock Text="{loc:Loc 'New'}" FontSize="10" FontWeight="SemiBold"
+                                                            <TextBlock Text="{loc:Loc 'New'}" FontSize="11" FontWeight="SemiBold"
                                                                        Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center" />
                                                             <TextBlock Text="{loc:Loc 'click to edit'}" FontSize="11"
                                                                        Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
@@ -253,7 +252,7 @@
                                                     <controls:SearchableDropdown
                                                         IsVisible="{Binding !CreateAsRevenue}"
                                                         Classes="compact"
-                                                        Placeholder="{loc:Loc 'Search suppliers...'}"
+                                                        Placeholder="{loc:Loc 'Type a new supplier, or pick one'}"
                                                         ItemsSource="{Binding $parent[ItemsControl].((vm:BankStatementImportModalViewModel)DataContext).AvailableSuppliers}"
                                                         SelectedItem="{Binding ResolvedSupplierObject, Mode=TwoWay}"
                                                         SearchText="{Binding CounterpartySearchText, Mode=TwoWay}"
@@ -262,15 +261,13 @@
                                                         ShowAddNew="True"
                                                         AddNewText="{loc:Loc 'Create one'}"
                                                         AddNewCommand="{Binding CreateNewCounterpartyCommand}"
-                                                        EmptyCreateLinkText="{loc:Loc 'Create one'}"
-                                                        EmptyCreateCommand="{Binding CreateNewCounterpartyCommand}"
                                                         HasError="{Binding HasCounterpartyError}" />
 
                                                     <!-- Customer dropdown (revenue) -->
                                                     <controls:SearchableDropdown
                                                         IsVisible="{Binding CreateAsRevenue}"
                                                         Classes="compact"
-                                                        Placeholder="{loc:Loc 'Search customers...'}"
+                                                        Placeholder="{loc:Loc 'Type a new customer, or pick one'}"
                                                         ItemsSource="{Binding $parent[ItemsControl].((vm:BankStatementImportModalViewModel)DataContext).AvailableCustomers}"
                                                         SelectedItem="{Binding ResolvedCustomerObject, Mode=TwoWay}"
                                                         SearchText="{Binding CounterpartySearchText, Mode=TwoWay}"
@@ -279,8 +276,6 @@
                                                         ShowAddNew="True"
                                                         AddNewText="{loc:Loc 'Create one'}"
                                                         AddNewCommand="{Binding CreateNewCounterpartyCommand}"
-                                                        EmptyCreateLinkText="{loc:Loc 'Create one'}"
-                                                        EmptyCreateCommand="{Binding CreateNewCounterpartyCommand}"
                                                         HasError="{Binding HasCounterpartyError}" />
                                                 </Grid>
 
@@ -290,7 +285,7 @@
                                                     <!-- New counterparty: will be created on import -->
                                                     <Border Classes="category-chip"
                                                             IsVisible="{Binding NewCounterpartyName, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-                                                        <TextBlock Text="{loc:Loc 'New'}" FontSize="10" FontWeight="SemiBold"
+                                                        <TextBlock Text="{loc:Loc 'New'}" FontSize="11" FontWeight="SemiBold"
                                                                    Foreground="{DynamicResource PrimaryBrush}" />
                                                     </Border>
                                                     <!-- Validation -->
@@ -407,7 +402,7 @@
                             DisplayMemberPath="Name"
                             Placeholder="{loc:Loc 'Select or type a new category...'}" />
                         <TextBlock Text="{loc:Loc 'Type a new name to create a category on import.'}"
-                                   FontSize="11" Foreground="{DynamicResource TextTertiaryBrush}" />
+                                   FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}" />
                     </StackPanel>
 
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12">

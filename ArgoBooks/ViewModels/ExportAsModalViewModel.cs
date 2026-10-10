@@ -118,9 +118,7 @@ public partial class ExportAsModalViewModel : ViewModelBase
         AddDataItem(new ExportDataItem { Name = "Rental Inventory", Key = "Rental Inventory", RecordCount = 0, IsSelected = true });
         AddDataItem(new ExportDataItem { Name = "Rental Records", Key = "Rental Records", RecordCount = 0, IsSelected = true });
 
-        // Payroll. Employees import like any other entity list; Pay Runs is a register to read,
-        // and is not imported, because an approved run's figures are frozen so the stub the
-        // employee was handed keeps matching.
+        // Employees import like any other list, where an approved pay run's figures are frozen so the stub the employee was handed keeps matching.
         AddDataItem(new ExportDataItem { Name = "Employees", Key = "Employees", RecordCount = 0, IsSelected = true });
         AddDataItem(new ExportDataItem { Name = "Pay Runs", Key = "Pay Runs", RecordCount = 0, IsSelected = true, IsLast = true });
 

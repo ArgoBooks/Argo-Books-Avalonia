@@ -170,9 +170,7 @@ public partial class RentalAvailabilityModalViewModel : ViewModelBase
         int parsed;
         if (string.IsNullOrWhiteSpace(value))
         {
-            // Treat empty/whitespace as 1 so the calendar doesn't lag behind a cleared
-            // textbox. We don't sync the text back here, that would interfere with the
-            // user mid-edit; the textbox visually stays blank until they type a digit.
+            // Treat empty/whitespace as 1 so the calendar doesn't lag behind a cleared textbox.
             parsed = 1;
         }
         else

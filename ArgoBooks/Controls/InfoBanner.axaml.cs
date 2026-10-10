@@ -104,8 +104,16 @@ public partial class InfoBanner : UserControl
 
     #endregion
 
+    /// <summary>
+    /// Raised alongside ActionCommand, for a caller that has to do something first, such as flushing
+    /// a native web view's pending edits before the command hides it.
+    /// </summary>
+    public event EventHandler<Avalonia.Interactivity.RoutedEventArgs>? ActionClick;
+
     public InfoBanner()
     {
         InitializeComponent();
     }
+
+    private void OnActionClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ActionClick?.Invoke(this, e);
 }

@@ -128,10 +128,7 @@ public sealed class PortalBalanceSyncService : IDisposable
 
         var items = new List<PortalBalanceSyncItem>();
 
-        // Tracked separately from ids, because only these are worth putting back. An id that no
-        // longer resolves to an invoice, or to one that was never published, can never produce an
-        // item, so re-queueing it would leave it in _pending for the life of the process and
-        // re-added on every later failure.
+        // Tracked apart from ids, because an id that resolves to nothing or to an unpublished invoice can never produce an item and is not worth re-queueing.
         var sent = new List<string>();
 
         foreach (string id in ids)
@@ -201,10 +198,7 @@ public sealed class PortalBalanceSyncService : IDisposable
             items.Add(PaymentPortalService.BuildBalanceSyncItem(invoice, companyData));
         }
 
-        // Only on success, and only then. Advancing regardless meant a batch that failed (offline,
-        // 5xx) was not tried again until the cursor had rotated all the way round, which for a
-        // company with several hundred published invoices is many sweeps of the only retry there
-        // is. Under the lock because Queue touches shared state from any thread.
+        // Advanced only on success, or a batch that failed offline is not retried until the cursor has gone all the way round.
         if (await SendAsync(items, cancellationToken))
         {
             lock (_gate)

@@ -11,11 +11,9 @@ namespace ArgoBooks.Core.Services;
 /// bank-statement importer (and, optionally, the receipt scanner).
 /// </summary>
 /// <remarks>
-/// OriginalCurrency has deliberately no default. It used to default to "USD",
-/// which was silent and only wrong for a company keeping books in another currency: the amount
-/// is stored in the company's currency, so labelling it USD made the display convert it at the
-/// transaction date and show a pending marker instead of the figure. Every caller knows its own
-/// currency, so the compiler asks rather than guessing.
+/// OriginalCurrency has deliberately no default. The amount is stored in the company's own
+/// currency, so a default of "USD" would make the display convert it and show a pending marker
+/// instead of the figure. Every caller knows its own currency, so the compiler asks.
 /// </remarks>
 public record TransactionDraft(
     DateTime Date,

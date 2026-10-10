@@ -41,7 +41,7 @@
                     VerticalAlignment="Center"
                     IsVisible="{Binding ShowBadge, RelativeSource={RelativeSource AncestorType=controls:SidebarItem}}">
                 <TextBlock Text="{Binding BadgeText, RelativeSource={RelativeSource AncestorType=controls:SidebarItem}}"
-                           FontSize="10"
+                           FontSize="11"
                            FontWeight="SemiBold"
                            Foreground="White" />
             </Border>
@@ -77,9 +77,7 @@
             <Setter Property="Foreground" Value="{DynamicResource SidebarTextMutedBrush}" />
         </Style>
 
-        <!-- Scoped to the label class so these don't leak into the item's ToolTip popup,
-             whose text is a logical descendant of this button (a bare "TextBlock" selector
-             would recolor the tooltip text too, e.g. white on the active item). -->
+        <!-- Scoped to the label class so the colour does not leak into the ToolTip popup, which is a logical descendant of this button. -->
         <Style Selector="Button.sidebar-item TextBlock.label">
             <Setter Property="FontSize" Value="14" />
             <Setter Property="Foreground" Value="{DynamicResource SidebarTextBrush}" />

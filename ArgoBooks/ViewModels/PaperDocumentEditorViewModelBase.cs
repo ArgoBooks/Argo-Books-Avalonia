@@ -11,6 +11,9 @@ namespace ArgoBooks.ViewModels;
 public interface IPaperLine
 {
     string Description { get; set; }
+
+    /// <summary>Set when the description was typed on the paper rather than loaded or picked.</summary>
+    bool DescriptionTyped { get; set; }
     decimal? Quantity { get; set; }
     decimal? UnitPrice { get; set; }
     ProductOption? SelectedProduct { get; set; }
@@ -128,6 +131,18 @@ public abstract partial class PaperDocumentEditorViewModelBase<TLine> : ViewMode
     // Percent against fixed is a click on the swap button, so a re-render puts the new symbol on the paper.
     protected virtual void OnTotalsModeChanged() => RegeneratePaper();
 
+    /// <summary>The last text typed into the paper's customer box, matched to a customer or not.</summary>
+    protected string TypedCustomerName { get; set; } = string.Empty;
+
+    /// <summary>How many decimal places the document's currency prints, which is what it is typed to.</summary>
+    protected virtual int MoneyDecimals => 2;
+
+    // The paper prints money at the currency's places and a rate at two, so a figure typed with more
+    // than that would show rounded while the totals still used what was typed, and the invoice would
+    // not add up from the figures on it.
+    private decimal RoundTyped(decimal value, bool isMoney) =>
+        decimal.Round(value, isMoney ? MoneyDecimals : 2, MidpointRounding.AwayFromZero);
+
     partial void OnSelectedCustomerChanged(CustomerOption? value)
     {
         if (value != null && !string.IsNullOrEmpty(value.Id))
@@ -153,41 +168,48 @@ public abstract partial class PaperDocumentEditorViewModelBase<TLine> : ViewMode
         switch (field)
         {
             case "notes":
-                // The paper falls back to the template's footer when the document has no notes of
-                // its own, so a commit handing that same text back is the fallback, not typing.
-                // Taking it would make an untouched document look edited and stop it following
-                // the template.
+                // The paper falls back to the template's footer when the document has no notes of its own, so a commit handing that same text back is the fallback, not typing.
                 if (value != (SelectedTemplate?.FooterText ?? string.Empty))
                     ModalNotes = value;
                 break;
             case "description":
                 if (index is int di && di >= 0 && di < LineItems.Count)
+                {
+                    // Every field is committed on each flush, so only a value that differs counts as typing.
+                    if (LineItems[di].Description != value)
+                        LineItems[di].DescriptionTyped = true;
                     LineItems[di].Description = value;
+                }
+                break;
+            case "customer":
+                // The customer box is a strict pick from the list, so typed text is kept only to tell the user it matched nothing.
+                TypedCustomerName = value;
                 break;
             case "quantity":
+                // Rounded on the way in, so the figure the customer reads is the one the line total is worked out from.
                 if (index is int qi && qi >= 0 && qi < LineItems.Count && TryParsePaperNumber(value, out var q))
-                    LineItems[qi].Quantity = q;
+                    LineItems[qi].Quantity = decimal.Round(q, 3, MidpointRounding.AwayFromZero);
                 break;
             case "rate":
                 if (index is int ri && ri >= 0 && ri < LineItems.Count && TryParsePaperNumber(value, out var r))
-                    LineItems[ri].UnitPrice = r;
+                    LineItems[ri].UnitPrice = RoundTyped(r, isMoney: true);
                 break;
             // An empty box means the placeholder is showing, i.e. zero (not "leave unchanged").
             case "taxValue":
                 if (string.IsNullOrWhiteSpace(value)) TaxRate = 0;
-                else if (TryParsePaperNumber(value, out var tax)) TaxRate = tax;
+                else if (TryParsePaperNumber(value, out var tax)) TaxRate = RoundTyped(tax, TaxIsFixed);
                 break;
             case "shippingValue":
                 if (string.IsNullOrWhiteSpace(value)) ShippingAmount = 0;
-                else if (TryParsePaperNumber(value, out var ship)) ShippingAmount = ship;
+                else if (TryParsePaperNumber(value, out var ship)) ShippingAmount = RoundTyped(ship, isMoney: true);
                 break;
             case "discountValue":
                 if (string.IsNullOrWhiteSpace(value)) DiscountAmount = 0;
-                else if (TryParsePaperNumber(value, out var disc)) DiscountAmount = disc;
+                else if (TryParsePaperNumber(value, out var disc)) DiscountAmount = RoundTyped(disc, !DiscountIsPercent);
                 break;
             case "feeValue":
                 if (string.IsNullOrWhiteSpace(value)) CustomFeeAmount = 0;
-                else if (TryParsePaperNumber(value, out var fee)) CustomFeeAmount = fee;
+                else if (TryParsePaperNumber(value, out var fee)) CustomFeeAmount = RoundTyped(fee, !CustomFeeIsPercent);
                 break;
         }
     }
@@ -347,21 +369,17 @@ public abstract partial class PaperDocumentEditorViewModelBase<TLine> : ViewMode
                 Id = product.Id,
                 Name = product.Name,
                 Description = product.Description,
-                UnitPrice = product.UnitPrice
+                UnitPrice = product.UnitPrice,
+                Unit = product.UnitOfMeasure
             });
         }
     }
 
-    // One-shot handlers for the "create entity from this modal" flows. Stored so a cancelled create
-    // (which never raises the *Saved event) can be detached before the next attempt, instead of
-    // leaking onto the singleton create-modal VMs. See CreateModalSubscription.
+    // One-shot handlers for the "create entity from this modal" flows.
     private EventHandler? _customerSavedHandler;
     private EventHandler? _productSavedHandler;
 
-    // Hide the paper while a modal is open on top of it; restore when it closes (its open flag flips
-    // back to false, on save or cancel). Only the named open-flag property is watched: OpenAddModal
-    // resets other fields first (firing PropertyChanged while the flag is still false), and reacting
-    // to those would clear this before the modal is even shown.
+    // Hide the paper while a modal is open on top of it; restore when it closes (its open flag flips back to false, on save or cancel).
     protected void HideWebViewWhileModalOpen(System.ComponentModel.INotifyPropertyChanged modalVm, string openFlagName, Func<bool> isOpen)
     {
         IsNestedModalOpen = true;

@@ -403,9 +403,7 @@ public class SpreadsheetImportService
                     var sheetType = sheetAnalysis.DetectedType;
                     var csvSheetName = Path.GetFileNameWithoutExtension(filePath);
 
-                    // The xlsx workbook scan doesn't cover CSV, so detect per-row currency here (an
-                    // in-cell symbol/code or a "Currency" column) and feed it to the importer keyed by
-                    // the same row index, so CSV imports honor per-row currency like Excel does.
+                    // The workbook scan does not cover CSV, so per-row currency is detected here and handed to the importer by row index.
                     var csvCurrency = CurrencyImportPreparer.ScanRows(headers, rows);
                     if (csvCurrency.Count > 0)
                     {
@@ -543,12 +541,7 @@ public class SpreadsheetImportService
             });
         }
 
-        // Bank statement rows are reference data for the Bank Matching feature, never committed as
-        // book transactions. The normal importer hands them to the dedicated bank importer, but this
-        // AI path has no per-entity bank importer (they would fall through ImportSingleEntity to
-        // Failed). Build the bank lines here and add them as a single import session, exactly the
-        // shape the Bank Matching page reads. Reported on their own line (not as new/updated book
-        // records) so it is clear they landed on a different page.
+        // Bank statement rows are reference data for the Bank Matching feature, never committed as book transactions.
         if (firstType == SpreadsheetSheetType.BankStatement)
         {
             var lines = new List<BankStatementLine>();
@@ -595,9 +588,7 @@ public class SpreadsheetImportService
         // by-name reference to an existing customer/supplier instead of creating a placeholder.
         var refContext = ReferenceResolutionContext.Build(companyData);
 
-        // Deduplicate entities across chunks by ID, later chunks win on conflict.
-        // The LLM processes chunks independently and may produce duplicate IDs,
-        // especially at chunk boundaries.
+        // Deduplicate entities across chunks by ID, later chunks win on conflict. The LLM processes chunks independently and may produce duplicate IDs, especially at chunk boundaries.
         var seenIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         // Collect all (chunk, entityJson) pairs, then reverse-iterate to keep the last occurrence of each ID
@@ -625,22 +616,7 @@ public class SpreadsheetImportService
                 $"Removed {duplicatesRemoved} duplicate entities (by ID) across AI chunks for sheet '{sheetName}'");
         }
 
-        // ---------------------------------------------------------------------------------
-        // Task 2C: deterministic natural-key ids for id-less Tier 2 rows + re-import detection.
-        //
-        // For every entity that arrives WITHOUT an id we derive a deterministic id from a
-        // small set of identifying fields (the "natural key"). This makes such rows importable
-        // (today they are dropped) AND idempotent: re-importing the same file reproduces the
-        // same ids, so the existing merge-by-id logic UPDATES the prior row instead of
-        // duplicating it.
-        //
-        // Safety invariant ("no silent drops / never collapse distinct rows"): two genuinely
-        // identical rows in the SAME import share a natural key but MUST both survive. We keep
-        // them apart by appending an ordinal (-2, -3, ...) to the 2nd, 3rd ... occurrence in
-        // order of appearance. The natural key is NEVER used to merge two same-import rows; it
-        // only seeds the deterministic id. Cross-import updates are governed solely by the
-        // existing merge-by-id path.
-        // ---------------------------------------------------------------------------------
+        // --- Task 2C: deterministic natural-key ids for id-less Tier 2 rows + re-import detection. ---
         var entitiesToImport = new List<(SpreadsheetSheetType EntityType, JsonElement Entity, bool SkipImport)>();
         var naturalKeyOrdinals = new Dictionary<string, int>(StringComparer.Ordinal);
 
@@ -672,9 +648,7 @@ public class SpreadsheetImportService
                 continue;
             }
 
-            // An invoice with no id is identified by its number, which is what payments and line
-            // items name. A derived id would leave "1001" unfindable, so the number becomes the id,
-            // as it does on the Tier 1 path and in ImportSingleEntity.
+            // An invoice with no id is identified by its number, which is what payments and line items name.
             if (chunkEntityType == SpreadsheetSheetType.Invoices
                 && entityJson.TryGetProperty("invoiceNumber", out var numberProp)
                 && numberProp.ValueKind == JsonValueKind.String
@@ -690,10 +664,7 @@ public class SpreadsheetImportService
             var naturalKey = NaturalKey(chunkEntityType, entityJson);
             if (naturalKey == null)
             {
-                // Not enough fields to form a meaningful key. Do not
-                // invent an opaque id that could collide arbitrarily. The row is recorded as
-                // unimported below (never silently dropped) by passing it through with the
-                // SkipImport flag so the existing "missing/empty ID" reporting path fires.
+                // Not enough fields to form a meaningful key. Do not invent an opaque id that could collide arbitrarily.
                 entitiesToImport.Add((chunkEntityType, entityJson, true));
                 continue;
             }
@@ -717,10 +688,7 @@ public class SpreadsheetImportService
         foreach (var group in entitiesToImport.Where(e => !e.SkipImport).GroupBy(e => e.EntityType))
             RaiseIdCounter(companyData, group.Key, group.Select(e => ExtractEntityId(e.Entity)));
 
-        // Only claim "updated" when existing records are actually overwritten. With
-        // SkipExistingRecords on (the default), these rows are skipped instead, and that is
-        // already reported via the per-row skipped/unimported path, so the warning would be
-        // both wrong ("updated") and a duplicate.
+        // Only claim "updated" when existing records are actually overwritten.
         if (reimportMatches > 0 && options?.SkipExistingRecords != true)
             sheetResult.Warnings.Add($"{reimportMatches} row(s) look like a re-import and were updated.");
 
@@ -908,10 +876,7 @@ public class SpreadsheetImportService
                 ImportEmployees(data, headers, rows, options);
                 break;
             case SpreadsheetSheetType.PayRuns:
-                // Export only. An approved run's figures are frozen so a stub reprinted next
-                // year still matches the one the employee was handed, and reading them back
-                // from a sheet somebody could have typed in would defeat that. Listed rather
-                // than left to fall through, so the decision is visible here.
+                // Export only: an approved run's figures are frozen so a reprinted stub still matches the one the employee was handed.
                 break;
             case SpreadsheetSheetType.Returns:
                 ImportReturns(data, headers, rows, options);
@@ -920,9 +885,7 @@ public class SpreadsheetImportService
                 ImportLostDamaged(data, headers, rows, options);
                 break;
             case SpreadsheetSheetType.BankStatement:
-                // Bank statements are reference data for the Bank Matching feature and must never
-                // be committed as book transactions. They are parsed by BankStatementImportService
-                // instead. Reaching here means a bank file was routed to the normal importer.
+                // Bank statements are reference data for the Bank Matching feature and must never be committed as book transactions. They are parsed by BankStatementImportService instead.
                 _errorLogger?.LogWarning(
                     "A bank statement sheet was detected by the spreadsheet importer and skipped. " +
                     "Use the Bank Matching feature to import bank statements.");
@@ -983,9 +946,7 @@ public class SpreadsheetImportService
         }
         var countAfter = GetEntityCount(data, sheetType);
 
-        // Line items are merged onto their parent order or invoice rather than added as
-        // first-class entities, so the collection-count delta doesn't reflect the rows processed.
-        // Use the explicit per-row count the importer recorded instead.
+        // Line items are merged onto their parent order or invoice rather than added as first-class entities, so the collection-count delta doesn't reflect the rows processed.
         bool mergedOntoParent = sheetType is SpreadsheetSheetType.PurchaseOrderLineItems
                                           or SpreadsheetSheetType.InvoiceLineItems;
 
@@ -1010,10 +971,7 @@ public class SpreadsheetImportService
                 result.SkipReasons.Add($"{result.Skipped} {sheetType} records skipped (already exist)");
         }
 
-        // Detect rows that were silently dropped (e.g., title rows, blank rows, summary rows).
-        // Only meaningful where one row maps to one entity. Grouped sheet types (rental records
-        // span several rows; purchase-order line items merge onto a parent) legitimately have
-        // more rows than entities, so the difference there is expected, not a dropped row.
+        // Detect rows that were silently dropped (e.g., title rows, blank rows, summary rows). Only meaningful where one row maps to one entity.
         bool rowMapsToEntity = sheetType is not (
             SpreadsheetSheetType.RentalRecords or SpreadsheetSheetType.PurchaseOrderLineItems
             or SpreadsheetSheetType.InvoiceLineItems);
@@ -1329,9 +1287,7 @@ public class SpreadsheetImportService
 
             revenue.InvoiceId = invoice.Id;
 
-            // Its description only summarises the invoice's lines ("Widget (+2 more)"), so the
-            // lines come from the invoice. A kept deposit has none, as when the app records one.
-            // A new revenue moves no stock, even when an adjustment already names its id.
+            // Its description only summarises the invoice's lines ("Widget (+2 more)"), so the lines come from the invoice. A kept deposit has none, as when the app records one.
             if (takesLines && !revenue.IsKeptDeposit && invoice.LineItems.Count > 0)
             {
                 if (isNew)
@@ -1437,10 +1393,7 @@ public class SpreadsheetImportService
     /// </summary>
     internal static string? NaturalKey(SpreadsheetSheetType type, JsonElement json)
     {
-        // Each entity type contributes a small, stable set of identifying fields. A field only
-        // "counts" toward the key when it carries a non-empty value; we require at least two
-        // present fields (checked below) so a near-empty row does not get a meaningless (and
-        // collision-prone) key.
+        // Each entity type contributes a small, stable set of identifying fields.
         string[] fields = type switch
         {
             SpreadsheetSheetType.Expenses or SpreadsheetSheetType.Revenue =>
@@ -1667,8 +1620,6 @@ public class SpreadsheetImportService
                 var invoice = JsonSerializer.Deserialize<Invoice>(jsonStr, opts);
 
                 // Either column can identify the invoice, and each fills in for the other.
-                // Sheets from elsewhere usually carry only an invoice number, and this app's own
-                // export carries both, so neither can be assumed present.
                 if (invoice != null)
                 {
                     if (string.IsNullOrEmpty(invoice.Id))
@@ -1720,17 +1671,13 @@ public class SpreadsheetImportService
                     var existing = data.Expenses.FirstOrDefault(e => e.Id == expense.Id);
                     if (skipExisting && existing != null) return ImportEntityResult.SkippedExisting;
 
-                    // The AI emits quantity + unit price but not the pre-tax Amount, so derive it
-                    // (Quantity defaults to 1) before building the line item, so the line-item
-                    // subtotal agrees with the stored Total.
+                    // The AI gives quantity and unit price but no pre-tax amount, so it is derived here and the line-item subtotal agrees with the stored total.
                     var expenseAmountDerived = !given.Contains("amount") && Changes(existing, ["quantity", "unitPrice"]);
                     expense = Merge(expense, existing, expenseAmountDerived ? ["amount"] : []);
                     if (expenseAmountDerived || expense.Amount == 0)
                         expense.Amount = DerivedAmount(expense);
 
-                    // Convert each amount to USD at the transaction's EXACT date, from the row's own
-                    // currency or else the record's or the company's. Future-dated/unpriceable rows
-                    // become pending. Left as it is when nothing it is priced from changed.
+                    // Convert each amount to USD at the transaction's EXACT date, from the row's own currency or else the record's or the company's. Future-dated/unpriceable rows become pending.
                     if (Changes(existing, TransactionPriceFields))
                         ApplyTransactionCurrencyCode(expense, ExtractRowCurrency(entityJson, options) ?? existing?.OriginalCurrency ?? CompanyCurrency(data), data);
 
@@ -1759,11 +1706,7 @@ public class SpreadsheetImportService
                     if (revenueAmountDerived)
                         revenue.Amount = DerivedAmount(revenue);
 
-                    // PaymentStatus is already normalized by the enum's JSON
-                    // converter (legacy typos → Paid fallback), no separate call.
-                    // Convert each amount to USD at the transaction's EXACT date, from the row's own
-                    // currency or else the record's or the company's. Future-dated/unpriceable rows
-                    // become pending. Left as it is when nothing it is priced from changed.
+                    // PaymentStatus is already normalized by the enum's JSON converter (legacy typos → Paid fallback), no separate call.
                     if (Changes(existing, TransactionPriceFields))
                         ApplyTransactionCurrencyCode(revenue, ExtractRowCurrency(entityJson, options) ?? existing?.OriginalCurrency ?? CompanyCurrency(data), data);
 
@@ -1789,9 +1732,7 @@ public class SpreadsheetImportService
                     if (skipExisting && existing != null) return ImportEntityResult.SkippedExisting;
                     payment = Merge(payment, existing);
 
-                    // Convert at the exact payment date from the row's own currency or else the
-                    // record's or the company's, deferring (pending + enqueue) when unpriceable so it
-                    // self-heals later rather than being stuck at 0. Shared with the Tier 1 path.
+                    // Converted at the exact payment date from the row's, the record's or the company's currency, deferring when unpriceable so it heals later.
                     if (Changes(existing, ["date", "amount", "originalCurrency"]))
                         ApplyPaymentCurrencyCode(payment, ExtractRowCurrency(entityJson, options) ?? existing?.OriginalCurrency ?? CompanyCurrency(data), data);
 
@@ -1892,9 +1833,7 @@ public class SpreadsheetImportService
                     if (skipExisting && existing != null) return ImportEntityResult.SkippedExisting;
                     po = Merge(po, existing);
 
-                    // Convert at the exact order date from the row's own currency or else the
-                    // record's or the company's, deferring (pending + enqueue) when unpriceable.
-                    // Shared with Tier 1.
+                    // Convert at the exact order date from the row's own currency or else the record's or the company's, deferring (pending + enqueue) when unpriceable. Shared with Tier 1.
                     if (Changes(existing, ["orderDate", "total", "originalCurrency"]))
                         ApplyPurchaseOrderCurrencyCode(po, ExtractRowCurrency(entityJson, options) ?? existing?.OriginalCurrency ?? CompanyCurrency(data), data);
 
@@ -2047,12 +1986,7 @@ public class SpreadsheetImportService
             var rows = GetDataRows(worksheet, headers.Count);
             var sheetName = (sheetAnalysis == null ? null : CanonicalSheetName(sheetAnalysis.DetectedType)) ?? worksheet.Name;
 
-            // The Invoices sheet exports both "ID" (INV-2026-00001) and "Invoice #"
-            // (#INV-2026-00001), and the line item and payment sheets reference the ID, so that
-            // is what has to be collected. But ImportInvoices falls back to the number when a
-            // sheet has no ID column, and the schema documents that a sheet carrying only
-            // "Invoice #" still works, so this has to mirror that fallback per row or every
-            // child row of such a sheet is flagged as an orphan.
+            // The Invoices sheet exports both "ID" (INV-2026-00001) and "Invoice #" (#INV-2026-00001), and the line item and payment sheets reference the ID, so that is what has to be collected.
             bool invoices = sheetName == "Invoices";
 
             if (!headers.Contains("ID") && !(invoices && headers.Contains("Invoice #"))) continue;
@@ -2121,9 +2055,7 @@ public class SpreadsheetImportService
         var headers = MappedHeaders(worksheet, analysis, out var sheetAnalysis);
         if (headers.Count == 0) return;
 
-        // A sheet the AI converts row by row is not read by its mapped columns, and resolves the
-        // names in it itself. Checking it here created placeholders named after those names,
-        // which then stopped them being matched to the customers that already exist.
+        // A sheet the AI converts row by row is not read by its mapped columns, and resolves the names in it itself.
         if (sheetAnalysis is { Tier: ProcessingTier.Tier2_LlmProcessing }) return;
 
         var rows = GetDataRows(worksheet, headers.Count);
@@ -3523,10 +3455,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
         {
             var row = rows[rowIndex];
 
-            // Two columns, either of which can identify the invoice. This app's own export
-            // carries both; a sheet from elsewhere usually has only the number. Whichever is
-            // present fills in for the other, so payments and line items still find their
-            // parent either way.
+            // Two columns, either of which can identify the invoice. This app's own export carries both; a sheet from elsewhere usually has only the number.
             var invoiceId = GetString(row, headers, "ID");
             var invoiceNumber = GetString(row, headers, "Invoice #");
             var customerId = GetString(row, headers, "Customer ID");
@@ -3640,9 +3569,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
                     !string.IsNullOrWhiteSpace(id) && data.Expenses.Any(p => p.Id == id)))
                 continue;
 
-            // No ID column (or a blank ID): mint a unique one so distinct rows aren't collapsed into a
-            // single record (or skipped as "already exists") when the sheet has no identifier. Without
-            // this, an ID-less sheet imports only its first row.
+            // A blank or missing id gets a minted one, or distinct rows collapse into a single record or are skipped as already existing.
             if (string.IsNullOrWhiteSpace(id))
                 id = new IdGenerator(data).NextExpenseId(date, takenIds);
 
@@ -3663,9 +3590,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             if (Set("Product", "Description"))
                 purchase.Description = description;
 
-            // Quantity is optional: sheets that list a single amount per row have no quantity
-            // column, so default to 1. When a quantity column IS present, the pre-tax Amount is
-            // Quantity * UnitPrice so the line-item subtotal reconciles with the stored Total.
+            // Quantity is optional: sheets that list a single amount per row have no quantity column, so default to 1.
             if (Set("Quantity"))
             {
                 var quantity = GetDecimal(row, headers, "Quantity");
@@ -3729,11 +3654,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             // Check for existing product by ID first
             productsById.TryGetValue(id, out var existing);
 
-            // Match by name only to adopt an auto-created placeholder product (created from a
-            // foreign key reference; these always carry a "PRD-IMP-" id). Two real products that
-            // share a name but have their own explicit ids must stay distinct, otherwise the second
-            // row would overwrite the first one's id below and orphan anything referencing it
-            // (e.g. a sellable product vs its purchase-side twin both named "ProBook 5500 Laptop").
+            // Match by name only to adopt an auto-created placeholder product (created from a foreign key reference; these always carry a "PRD-IMP-" id).
             if (existing == null && !string.IsNullOrEmpty(name))
             {
                 productsByName.TryGetValue(name, out var placeholder);
@@ -3911,9 +3832,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
                 && string.IsNullOrWhiteSpace(customerId) && string.IsNullOrWhiteSpace(invoiceId))
                 continue;
 
-            // No ID column (or a blank ID): mint a unique one so distinct rows aren't collapsed into a
-            // single record (or skipped as "already exists") when the sheet has no identifier. Without
-            // this, an ID-less sheet imports only its first row. (Mirrors ImportPurchases.)
+            // A blank or missing id gets a minted one, or distinct rows collapse into a single record or are skipped as already existing.
             if (IsUndatedNewRow(headers, "Date", date,
                     !string.IsNullOrWhiteSpace(id) && data.Payments.Any(p => p.Id == id)))
                 continue;
@@ -4019,10 +3938,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             var id = GetString(row, headers, "ID");
             var name = GetString(row, headers, "Name");
 
-            // A single Name column is what this app exports, but almost nothing else does: payroll
-            // systems and HR exports split the name in two. Resolved BEFORE the emptiness test
-            // below, or a sheet with no ID column has both blank on every row and imports nobody,
-            // which is exactly the shape this fallback exists for.
+            // A single Name column is what this app exports, but almost nothing else does: payroll systems and HR exports split the name in two.
             if (string.IsNullOrWhiteSpace(name))
             {
                 name = string.Join(' ', new[]
@@ -4045,11 +3961,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
 
             var employee = existing ?? new Models.Payroll.Employee();
 
-            // A column the sheet does not carry leaves the stored value alone. Writing every
-            // field unconditionally meant importing an ID plus Notes sheet to annotate staff
-            // turned every hourly employee into a salaried one at nil pay, blanked their social
-            // insurance number and wiped their address: the next pay run would pay them nothing
-            // and their T4 could not be filed. Province already guarded for exactly this.
+            // A column the sheet does not carry leaves the stored value alone.
             bool Has(params string[] columns) => columns.Any(headers.Contains);
 
             employee.Id = id;
@@ -4068,9 +3980,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             if (!string.IsNullOrWhiteSpace(province))
                 employee.Province = province.Trim().ToUpperInvariant();
 
-            // "Salary Type" and "Salary Amount" are the common names elsewhere for what this app
-            // calls Pay Type and Pay Rate. Only consulted when the app's own column is absent or
-            // empty, so an export from Argo Books still wins.
+            // "Salary Type" and "Salary Amount" are the common names elsewhere for what this app calls Pay Type and Pay Rate.
             if (Has("Pay Type", "Salary Type"))
             {
                 var payTypeText = GetString(row, headers, "Pay Type");
@@ -4201,9 +4111,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
                 && string.IsNullOrWhiteSpace(description) && string.IsNullOrWhiteSpace(customerId))
                 continue;
 
-            // No ID column (or a blank ID): mint a unique one so distinct rows aren't collapsed into a
-            // single record (or skipped as "already exists") when the sheet has no identifier. Without
-            // this, an ID-less sheet imports only its first row. (Mirrors ImportPurchases.)
+            // A blank or missing id gets a minted one, or distinct rows collapse into a single record or are skipped as already existing.
             if (IsUndatedNewRow(headers, "Date", date,
                     !string.IsNullOrWhiteSpace(id) && data.Revenues.Any(s => s.Id == id)))
                 continue;
@@ -5037,10 +4945,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
             bool hadLineItems = invoice.LineItems.Count > 0;
             invoice.LineItems = lineItems;
 
-            // The invoice's own totals are NOT recalculated from these lines. Tax, discounts,
-            // shipping, deposits and a custom fee all sit on the invoice rather than on its
-            // lines, and the Invoices sheet already carries the figures the customer was billed.
-            // Deriving them here from lines alone would quietly restate what was sent out.
+            // The invoice's own totals are NOT recalculated from these lines.
 
             if (options != null)
             {
@@ -5087,9 +4992,7 @@ Respond with ONLY a JSON array, one entry per product in the same order:
                 continue;
             }
 
-            // An order that already had line items is being replaced (an update); one that had
-            // none is a fresh insert. Count per line-item row so the per-sheet result is accurate,
-            // because line items don't grow a top-level collection the way other entities do.
+            // An order that already had line items is being replaced (an update); one that had none is a fresh insert.
             bool hadLineItems = po.LineItems.Count > 0;
             po.LineItems = lineItems;
             // Calculate subtotal from line items
@@ -5379,9 +5282,7 @@ internal class LenientEnumConverterFactory : JsonConverterFactory
 
     public override JsonConverter CreateConverter(Type typeToConvert, JsonSerializerOptions options)
     {
-        // For a nullable enum (e.g. BookRecordType?) the converter MUST handle the exact
-        // Nullable<T> type, not the underlying enum, otherwise System.Text.Json throws a
-        // "handles type X but asked to convert Y" mismatch.
+        // A nullable enum converter has to handle the Nullable<T> type itself, or System.Text.Json throws that it handles one type and was asked for another.
         var underlying = Nullable.GetUnderlyingType(typeToConvert);
         if (underlying != null)
         {

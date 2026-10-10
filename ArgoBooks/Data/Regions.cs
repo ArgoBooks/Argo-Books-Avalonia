@@ -566,6 +566,9 @@ public static class Regions
             string.Equals(r.EnglishName, trimmed, StringComparison.OrdinalIgnoreCase));
     }
 
+    /// <summary>The spelled out name for a region, or null when the country or the value is unknown.</summary>
+    public static string? NameFor(string? country, string? value) => Find(For(country), value)?.Name;
+
     public static string LabelFor(string? country) => Lookup(country)?.Label ?? "State/Province";
 
     public static string PlaceholderFor(string? country) => Lookup(country)?.Placeholder ?? string.Empty;

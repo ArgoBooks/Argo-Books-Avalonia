@@ -48,9 +48,7 @@ public static class QrScanner
         }
         catch (Java.Lang.Exception)
         {
-            // User cancelled the scan, denied camera permission, or Play Services / the
-            // on-device scanning module isn't available - all surface as an MlKitException
-            // (a Java.Lang.Exception subclass). Treat all of these as "no result".
+            // User cancelled the scan, denied camera permission, or Play Services / the on-device scanning module isn't available - all surface as an MlKitException (a Java.Lang.Exception subclass).
             return null;
         }
     }

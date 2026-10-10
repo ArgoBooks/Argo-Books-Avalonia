@@ -29,10 +29,7 @@ public static class CsvReader
         while (csv.Read())
             all.Add(csv.Record ?? []);
 
-        // Skip leading section-comment lines (e.g. the "# Customers" line our own CSV export writes
-        // above the header) and any blank leading rows, so the real column-header row is used as the
-        // header instead of the comment. Only LEADING lines are skipped; a later data row whose first
-        // cell happens to start with '#' is preserved.
+        // Leading section-comment lines, such as the "# Customers" line our own export writes, and blank rows are skipped so the real header is used.
         var start = 0;
         while (start < all.Count && IsCommentOrBlank(all[start]))
             start++;

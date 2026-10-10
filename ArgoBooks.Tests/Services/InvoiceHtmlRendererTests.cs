@@ -1,3 +1,4 @@
+using System.Globalization;
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Models;
 using ArgoBooks.Core.Models.Common;
@@ -52,9 +53,7 @@ public class InvoiceHtmlRendererTests
         Assert.Contains("INV-001", result);
     }
 
-    // The stored Total includes shipping (taxable base = subtotal - discount + fee + shipping), and the
-    // HTML render shows a Shipping row, but the plain-text totals block omits it - so the breakdown
-    // doesn't sum to TOTAL. Regression test for that bug.
+    // The stored total includes shipping and the HTML shows a shipping row, so the plain-text totals block has to as well.
     [Fact]
     public void RenderPlainText_WithShipping_ShowsAShippingLine()
     {
@@ -125,6 +124,84 @@ public class InvoiceHtmlRendererTests
 
         Assert.False(string.IsNullOrEmpty(result));
         Assert.Contains("<", result); // Should contain HTML tags
+    }
+
+    #endregion
+
+    #region Unit of measure
+
+    private static Invoice InvoiceWithUnit(string unit) => new()
+    {
+        Id = "INV-001",
+        InvoiceNumber = "INV-001",
+        CustomerId = "CUS-001",
+        LineItems = [new LineItem { Description = "Sand", Quantity = 17500.50m, UnitPrice = 1m, Unit = unit }],
+        Total = 17500.50m
+    };
+
+    [Fact]
+    public void RenderInvoice_WithAUnit_PrintsItBesideTheQuantity()
+    {
+        var result = _renderer.RenderInvoice(
+            InvoiceWithUnit("kg"), InvoiceTemplateFactory.CreateProfessionalTemplate(), new CompanyData());
+
+        Assert.Contains("17500.50</span> kg", result);
+    }
+
+    [Fact]
+    public void RenderInvoice_WithEach_PrintsTheQuantityAlone()
+    {
+        var result = _renderer.RenderInvoice(
+            InvoiceWithUnit("Each"), InvoiceTemplateFactory.CreateProfessionalTemplate(), new CompanyData());
+
+        Assert.Contains("17500.50", result);
+        Assert.DoesNotContain("Each", result);
+        Assert.DoesNotContain("QuantityUnit", result);
+    }
+
+    [Fact]
+    public void RenderInvoice_WithNoUnit_LeavesNoPlaceholderBehind()
+    {
+        var result = _renderer.RenderInvoice(
+            InvoiceWithUnit(string.Empty), InvoiceTemplateFactory.CreateProfessionalTemplate(), new CompanyData());
+
+        Assert.DoesNotContain("QuantityUnit", result);
+    }
+
+    [Fact]
+    public void RenderPlainText_WithAUnit_PrintsItBesideTheQuantity()
+    {
+        var result = _renderer.RenderPlainText(
+            InvoiceWithUnit("kg"), InvoiceTemplateFactory.CreateProfessionalTemplate(), new CompanyData());
+
+        Assert.Contains("17500.50 kg x", result);
+    }
+
+    /// <summary>
+    /// A quantity is read against the price beside it, so what it prints has to be what the amount
+    /// was worked out from. Printing 17500.5 for a figure entered as 17500.50 is what started this.
+    /// </summary>
+    [Theory]
+    [InlineData("17500.50", "17500.50")]
+    [InlineData("17500.555", "17500.555")]
+    [InlineData("17500.5555", "17500.556")]
+    [InlineData("2", "2")]
+    [InlineData("0.25", "0.25")]
+    [InlineData("12.0", "12")]
+    public void RenderInvoice_PrintsTheQuantityToTwoPlacesOnlyWhenItHasAFraction(string stored, string printed)
+    {
+        var invoice = new Invoice
+        {
+            Id = "INV-001",
+            InvoiceNumber = "INV-001",
+            CustomerId = "CUS-001",
+            LineItems = [new LineItem { Description = "Sand", Quantity = decimal.Parse(stored, CultureInfo.InvariantCulture), UnitPrice = 1m }]
+        };
+
+        var result = _renderer.RenderInvoice(
+            invoice, InvoiceTemplateFactory.CreateProfessionalTemplate(), new CompanyData());
+
+        Assert.Contains($">{printed}</span>", result);
     }
 
     #endregion

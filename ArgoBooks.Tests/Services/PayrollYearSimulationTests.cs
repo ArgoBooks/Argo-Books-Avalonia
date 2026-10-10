@@ -79,9 +79,7 @@ public class PayrollYearSimulationTests
     [Fact]
     public void AcrossASequenceOfRuns_CppNeverExceedsTheAnnualMaximum()
     {
-        // 260,000 a year is 10,000 a period, so the ceiling is reached partway through. The
-        // period that crosses it must deduct only the remainder, and every period after it
-        // must deduct nothing.
+        // 260,000 a year is 10,000 a period, so the ceiling is reached partway through. The period that crosses it must deduct only the remainder, and every period after it must deduct nothing.
         PayrollRateTable rates = new PayrollRateService().GetForDate(new DateTime(2026, 8, 15))!;
         CompanyData data = DataWith(260000m);
         var service = new PayrollService();

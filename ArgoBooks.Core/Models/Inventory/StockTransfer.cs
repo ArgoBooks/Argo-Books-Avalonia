@@ -1,4 +1,4 @@
-using ArgoBooks.Core.Models.Common;
+﻿using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Enums;
 
 namespace ArgoBooks.Core.Models.Inventory;
@@ -45,10 +45,11 @@ public class StockTransfer : IRecord
     public DateTime TransferDate { get; set; }
 
     /// <summary>
-    /// Transfer status.
+    /// Transfer status. Completed by default because a transfer is recorded only once the
+    /// stock has already moved, so there is no point at which one of these is outstanding.
     /// </summary>
     [JsonPropertyName("status")]
-    public TransferStatus Status { get; set; } = TransferStatus.Pending;
+    public TransferStatus Status { get; set; } = TransferStatus.Completed;
 
     /// <summary>
     /// Additional notes.

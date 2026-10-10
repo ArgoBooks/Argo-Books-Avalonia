@@ -178,9 +178,7 @@ public class ArgoApiImporter
         var categoryId = ResolveRef(data, _categories, api.Category, MatchCategory)
             ?? ResolveFallbackCategory(data, CategoryType.Revenue, creation);
 
-        // Take the product's type from the category it landed in rather than
-        // assuming revenue: a product under an expense category is a thing you
-        // buy, and typing it as revenue would file it on the wrong side.
+        // The product's type comes from the category it landed in, since one under an expense category is a thing you buy.
         var productType = data.Categories.FirstOrDefault(c => c.Id == categoryId)?.Type ?? CategoryType.Revenue;
 
         var product = new Product
@@ -274,9 +272,7 @@ public class ArgoApiImporter
         Claim(creation, api.Id, revenue.Id);
         _revenues[api.Id] = revenue.Id;
 
-        // A platform that withheld its cut reports it as fee_amount. Booking it as
-        // its own expense keeps the sale at its gross value, which is what the
-        // customer actually paid and what the tax is calculated on.
+        // A platform that withheld its cut reports it as fee_amount.
         if (fee > 0)
         {
             var feeExpense = new Expense

@@ -142,9 +142,7 @@ public class TelemetryUploadService : ITelemetryUploadService
         }
         catch (Exception ex)
         {
-            // Silent background work: a user whose connection dropped must not read as a
-            // defect, and probing to find out would cost five seconds on a retry nobody
-            // is waiting for. The events stay pending and go up on the next flush.
+            // Silent background work: a user whose connection dropped must not read as a defect, and probing to find out would cost five seconds on a retry nobody is waiting for.
             NetworkFailure.Report(_errorLogger, ex, "Failed to upload telemetry data");
             result.Success = false;
             result.ErrorMessage = ex.Message;
@@ -337,13 +335,7 @@ public class TelemetryUploadService : ITelemetryUploadService
             severity = err.Severity.ToString(),
             errorCategory = err.ErrorCategory.ToString(),
             errorCode = err.ErrorCode,
-            // Scrubbed and length-capped by ErrorLogger.SanitizeMessage, which strips
-            // emails, phone numbers, and the user segment of a home directory path.
-            // It does not strip file names: a message naming D:\Books\Acme.argo, or
-            // C:\Users\<user>\Books\Acme.argo, arrives with Acme.argo intact, and
-            // customers name company files after the business. Every uploaded Error
-            // carries a message.
-            // Warnings need it: their code alone rarely says what actually happened.
+            // Scrubbed and length-capped by ErrorLogger.SanitizeMessage, which strips emails, phone numbers, and the user segment of a home directory path.
             message = err.Message,
             sourceFile = err.SourceFile,
             lineNumber = err.LineNumber,
@@ -395,9 +387,7 @@ public class TelemetryUploadService : ITelemetryUploadService
             coldStart = startup.ColdStart,
         },
 
-        // Anything with no arm is dropped by the caller's null filter, but the whole batch is
-        // still marked uploaded, so it is discarded permanently rather than retried. Both types
-        // above shipped without one and were never sent at all.
+        // Anything with no arm is dropped by the caller's null filter, but the whole batch is still marked uploaded, so it is discarded permanently rather than retried.
         _ => null,
     };
 }

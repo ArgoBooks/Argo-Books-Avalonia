@@ -331,9 +331,9 @@ public class RoeTests
     /// <summary>
     /// Block 17A is vacation pay paid BECAUSE OF the separation, not the year's vacation pay.
     ///
-    /// This test previously asserted the sum across every period, which is the one thing Service
-    /// Canada's ROE guide says must not be reported: its chart lists vacation pay "included with
-    /// each pay" as do-not-report, and 17A as the amount payable on layoff or termination. An
+    /// The sum across every period is the one thing Service Canada's ROE guide says must not be
+    /// reported: its chart lists vacation pay "included with each pay" as do-not-report, and 17A
+    /// as the amount payable on layoff or termination. An
     /// inflated 17A moves the date EI benefits start, so it costs the employee.
     /// </summary>
     [Fact]

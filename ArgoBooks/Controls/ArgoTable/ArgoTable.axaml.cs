@@ -691,9 +691,7 @@ public partial class ArgoTable : UserControl, INotifyPropertyChanged
             // Set the menu position on the ColumnWidthsManager
             if (ColumnWidthsManager != null)
             {
-                // Find the containing Page (UserControl) - skip over ArgoTable itself
-                // This ensures coordinates are relative to the page that contains both
-                // the ArgoTable and the ColumnVisibilityMenu
+                // Find the containing Page (UserControl) - skip over ArgoTable itself This ensures coordinates are relative to the page that contains both the ArgoTable and the ColumnVisibilityMenu
                 Control? ancestor = Parent as Control;
                 while (ancestor != null)
                 {

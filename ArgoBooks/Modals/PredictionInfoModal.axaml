@@ -1,4 +1,4 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -31,11 +31,11 @@
                         BorderThickness="0,0,0,1">
                     <Grid ColumnDefinitions="*,Auto">
                         <StackPanel Grid.Column="0">
-                            <TextBlock Text="How Predictions Work"
+                            <TextBlock Text="{loc:Loc 'How Predictions Work'}"
                                        FontSize="18"
                                        FontWeight="SemiBold"
                                        Foreground="{DynamicResource TextPrimaryBrush}" />
-                            <TextBlock Text="Smart forecasting powered by machine learning"
+                            <TextBlock Text="{loc:Loc 'Smart forecasting powered by machine learning'}"
                                        FontSize="13"
                                        Foreground="{DynamicResource TextPrimaryBrush}" />
                         </StackPanel>
@@ -56,19 +56,19 @@
                     <StackPanel Spacing="20" Margin="24">
                         <!-- How It Works -->
                         <StackPanel Spacing="8">
-                            <TextBlock Text="How It Works"
+                            <TextBlock Text="{loc:Loc 'How It Works'}"
                                        FontSize="14"
                                        FontWeight="SemiBold"
                                        Foreground="{DynamicResource TextPrimaryBrush}" />
                             <TextBlock TextWrapping="Wrap"
                                        FontSize="13"
                                        Foreground="{DynamicResource TextPrimaryBrush}"
-                                       Text="Our forecasting system uses multiple ML algorithms to predict future revenue, expenses, and customer growth. It continuously tests predictions against actual outcomes and adapts its methods based on what works best for your business. Everything runs locally - your data never leaves your computer." />
+                                       Text="{loc:Loc 'Our forecasting system uses multiple ML algorithms to predict future revenue, expenses, and customer growth. It continuously tests predictions against actual outcomes and adapts its methods based on what works best for your business. Everything runs locally - your data never leaves your computer.'}" />
                         </StackPanel>
 
                         <!-- Key Features -->
                         <StackPanel Spacing="12">
-                            <TextBlock Text="What Makes It Smart"
+                            <TextBlock Text="{loc:Loc 'What Makes It Smart'}"
                                        FontSize="14"
                                        FontWeight="SemiBold"
                                        Foreground="{DynamicResource TextPrimaryBrush}" />
@@ -81,7 +81,7 @@
                                     <Border Grid.Column="0"
                                             Width="36" Height="36"
                                             CornerRadius="8"
-                                            Background="#EDE9FE"
+                                            Background="{DynamicResource PurpleLightBrush}"
                                             Margin="0,0,12,0"
                                             VerticalAlignment="Top">
                                         <PathIcon Data="{x:Static icons:Icons.Clock}"
@@ -89,11 +89,11 @@
                                                   Foreground="{DynamicResource VioletBrush}" />
                                     </Border>
                                     <StackPanel Grid.Column="1" Spacing="4">
-                                        <TextBlock Text="Seasonal Pattern Detection"
+                                        <TextBlock Text="{loc:Loc 'Seasonal Pattern Detection'}"
                                                    FontSize="13"
                                                    FontWeight="Medium"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
-                                        <TextBlock Text="Automatically detects if your business has patterns - like higher sales in December or slower months in summer. The forecast adjusts for these cycles."
+                                        <TextBlock Text="{loc:Loc 'Automatically detects if your business has patterns - like higher sales in December or slower months in summer. The forecast adjusts for these cycles.'}"
                                                    FontSize="12"
                                                    TextWrapping="Wrap"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
@@ -117,11 +117,11 @@
                                                   Foreground="{DynamicResource SuccessBrush}" />
                                     </Border>
                                     <StackPanel Grid.Column="1" Spacing="4">
-                                        <TextBlock Text="Trend Analysis"
+                                        <TextBlock Text="{loc:Loc 'Trend Analysis'}"
                                                    FontSize="13"
                                                    FontWeight="Medium"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
-                                        <TextBlock Text="Understands whether your business is growing, stable, or declining - and factors this into predictions so they're not just based on averages."
+                                        <TextBlock Text="{loc:Loc 'Understands whether your business is growing, stable, or declining - and factors this into predictions so they','re not just based on averages.'}"
                                                    FontSize="12"
                                                    TextWrapping="Wrap"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
@@ -145,11 +145,11 @@
                                                   Foreground="{DynamicResource PrimaryBrush}" />
                                     </Border>
                                     <StackPanel Grid.Column="1" Spacing="4">
-                                        <TextBlock Text="Accuracy Tracking"
+                                        <TextBlock Text="{loc:Loc 'Accuracy Tracking'}"
                                                    FontSize="13"
                                                    FontWeight="Medium"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
-                                        <TextBlock Text="Compares past predictions to what actually happened. Over time, you'll see how accurate the forecasts have been for your specific business."
+                                        <TextBlock Text="{loc:Loc 'Compares past predictions to what actually happened. Over time, you','ll see how accurate the forecasts have been for your specific business.'}"
                                                    FontSize="12"
                                                    TextWrapping="Wrap"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
@@ -165,19 +165,19 @@
                                     <Border Grid.Column="0"
                                             Width="36" Height="36"
                                             CornerRadius="8"
-                                            Background="#F0FDF4"
+                                            Background="{DynamicResource SuccessLightBrush}"
                                             Margin="0,0,12,0"
                                             VerticalAlignment="Top">
                                         <PathIcon Data="{x:Static icons:Icons.DocumentNotes}"
                                                   Width="18" Height="18"
-                                                  Foreground="#16A34A" />
+                                                  Foreground="{DynamicResource SuccessDarkBrush}" />
                                     </Border>
                                     <StackPanel Grid.Column="1" Spacing="4">
-                                        <TextBlock Text="How Accuracy is Calculated"
+                                        <TextBlock Text="{loc:Loc 'How Accuracy is Calculated'}"
                                                    FontSize="13"
                                                    FontWeight="Medium"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
-                                        <TextBlock Text="The Historical Accuracy percentage shows how close predictions were to actual results. For example, 85% accuracy means predictions were typically within 15% of the actual values. It's calculated by comparing each past forecast to the actual outcome, then averaging the results."
+                                        <TextBlock Text="{loc:Loc 'The Historical Accuracy percentage shows how close predictions were to actual results. For example, 85% accuracy means predictions were typically within 15% of the actual values. It','s calculated by comparing each past forecast to the actual outcome, then averaging the results.'}"
                                                    FontSize="12"
                                                    TextWrapping="Wrap"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
@@ -198,14 +198,14 @@
                                             VerticalAlignment="Top">
                                         <PathIcon Data="{x:Static icons:Icons.CircleCheck}"
                                                   Width="18" Height="18"
-                                                  Foreground="#EF4444" />
+                                                  Foreground="{DynamicResource ErrorBrush}" />
                                     </Border>
                                     <StackPanel Grid.Column="1" Spacing="4">
-                                        <TextBlock Text="Adaptive Learning"
+                                        <TextBlock Text="{loc:Loc 'Adaptive Learning'}"
                                                    FontSize="13"
                                                    FontWeight="Medium"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
-                                        <TextBlock Text="The system learns which prediction method works best for your business. Methods that have been more accurate historically are weighted more heavily in future forecasts."
+                                        <TextBlock Text="{loc:Loc 'The system learns which prediction method works best for your business. Methods that have been more accurate historically are weighted more heavily in future forecasts.'}"
                                                    FontSize="12"
                                                    TextWrapping="Wrap"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
@@ -229,11 +229,11 @@
                                                   Foreground="{DynamicResource WarningBrush}" />
                                     </Border>
                                     <StackPanel Grid.Column="1" Spacing="4">
-                                        <TextBlock Text="Confidence Range"
+                                        <TextBlock Text="{loc:Loc 'Confidence Range'}"
                                                    FontSize="13"
                                                    FontWeight="Medium"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
-                                        <TextBlock Text="Shows a range (low to high estimate) instead of just one number, a band of plausible outcomes rather than a single guaranteed figure."
+                                        <TextBlock Text="{loc:Loc 'Shows a range (low to high estimate) instead of just one number, a band of plausible outcomes rather than a single guaranteed figure.'}"
                                                    FontSize="12"
                                                    TextWrapping="Wrap"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
@@ -257,11 +257,11 @@
                                                   Foreground="{DynamicResource PrimaryBrush}" />
                                     </Border>
                                     <StackPanel Grid.Column="1" Spacing="4">
-                                        <TextBlock Text="Conservative / Baseline / Optimistic"
+                                        <TextBlock Text="{loc:Loc 'Conservative / Baseline / Optimistic'}"
                                                    FontSize="13"
                                                    FontWeight="Medium"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
-                                        <TextBlock Text="Switch between three views of the same forecast. Conservative shows the low end of the range (lower revenue and customers, higher expenses); Optimistic shows the high end; Baseline is the middle. Useful for stress-testing plans against both downside and upside without picking one number to bet on."
+                                        <TextBlock Text="{loc:Loc 'Switch between three views of the same forecast. Conservative shows the low end of the range (lower revenue and customers, higher expenses); Optimistic shows the high end; Baseline is the middle. Useful for stress-testing plans against both downside and upside without picking one number to bet on.'}"
                                                    FontSize="12"
                                                    TextWrapping="Wrap"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
@@ -272,34 +272,34 @@
 
                         <!-- Confidence Score -->
                         <StackPanel Spacing="8">
-                            <TextBlock Text="Confidence Score"
+                            <TextBlock Text="{loc:Loc 'Confidence Score'}"
                                        FontSize="14"
                                        FontWeight="SemiBold"
                                        Foreground="{DynamicResource TextPrimaryBrush}" />
                             <TextBlock TextWrapping="Wrap"
                                        FontSize="13"
                                        Foreground="{DynamicResource TextPrimaryBrush}"
-                                       Text="The confidence score (0-100%) tells you how reliable the prediction is likely to be:" />
+                                       Text="{loc:Loc 'The confidence score (0-100%) tells you how reliable the prediction is likely to be:'}" />
                             <Grid ColumnDefinitions="*,*,*" Margin="0,8,0,0">
                                 <Border Grid.Column="0" Background="{DynamicResource SuccessDarkBrush}" CornerRadius="6" Padding="12" Margin="0,0,4,0">
                                     <StackPanel HorizontalAlignment="Center" Spacing="4">
-                                        <TextBlock Text="High" FontSize="16" FontWeight="SemiBold" Foreground="White" HorizontalAlignment="Center" />
+                                        <TextBlock Text="{loc:Loc 'High'}" FontSize="16" FontWeight="SemiBold" Foreground="White" HorizontalAlignment="Center" />
                                         <TextBlock Text="80%+" FontSize="13" Foreground="White" Opacity="0.9" HorizontalAlignment="Center" />
-                                        <TextBlock Text="Strong pattern" FontSize="11" Foreground="White" Opacity="0.7" HorizontalAlignment="Center" />
+                                        <TextBlock Text="{loc:Loc 'Strong pattern'}" FontSize="11" Foreground="White" Opacity="0.7" HorizontalAlignment="Center" />
                                     </StackPanel>
                                 </Border>
                                 <Border Grid.Column="1" Background="{DynamicResource WarningDarkBrush}" CornerRadius="6" Padding="12" Margin="2,0">
                                     <StackPanel HorizontalAlignment="Center" Spacing="4">
-                                        <TextBlock Text="Medium" FontSize="16" FontWeight="SemiBold" Foreground="White" HorizontalAlignment="Center" />
+                                        <TextBlock Text="{loc:Loc 'Medium'}" FontSize="16" FontWeight="SemiBold" Foreground="White" HorizontalAlignment="Center" />
                                         <TextBlock Text="50-79%" FontSize="13" Foreground="White" Opacity="0.9" HorizontalAlignment="Center" />
-                                        <TextBlock Text="Use as guide" FontSize="11" Foreground="White" Opacity="0.7" HorizontalAlignment="Center" />
+                                        <TextBlock Text="{loc:Loc 'Use as guide'}" FontSize="11" Foreground="White" Opacity="0.7" HorizontalAlignment="Center" />
                                     </StackPanel>
                                 </Border>
                                 <Border Grid.Column="2" Background="{DynamicResource ErrorDarkBrush}" CornerRadius="6" Padding="12" Margin="4,0,0,0">
                                     <StackPanel HorizontalAlignment="Center" Spacing="4">
-                                        <TextBlock Text="Low" FontSize="16" FontWeight="SemiBold" Foreground="White" HorizontalAlignment="Center" />
+                                        <TextBlock Text="{loc:Loc 'Low'}" FontSize="16" FontWeight="SemiBold" Foreground="White" HorizontalAlignment="Center" />
                                         <TextBlock Text="&lt;50%" FontSize="13" Foreground="White" Opacity="0.9" HorizontalAlignment="Center" />
-                                        <TextBlock Text="Limited data" FontSize="11" Foreground="White" Opacity="0.7" HorizontalAlignment="Center" />
+                                        <TextBlock Text="{loc:Loc 'Limited data'}" FontSize="11" Foreground="White" Opacity="0.7" HorizontalAlignment="Center" />
                                     </StackPanel>
                                 </Border>
                             </Grid>
@@ -307,7 +307,7 @@
 
                         <!-- When Forecasts May Miss -->
                         <StackPanel Spacing="8">
-                            <TextBlock Text="When Forecasts May Miss"
+                            <TextBlock Text="{loc:Loc 'When Forecasts May Miss'}"
                                        FontSize="14"
                                        FontWeight="SemiBold"
                                        Foreground="{DynamicResource TextPrimaryBrush}" />
@@ -326,27 +326,27 @@
                                                   Foreground="{DynamicResource WarningBrush}" />
                                     </Border>
                                     <StackPanel Grid.Column="1" Spacing="6">
-                                        <TextBlock Text="Forecasts learn from your past, so they can't see things that haven't happened before. Treat the numbers with extra skepticism in these situations:"
+                                        <TextBlock Text="{loc:Loc 'Forecasts learn from your past, so they can','t see things that haven','t happened before. Treat the numbers with extra skepticism in these situations:'}"
                                                    FontSize="12"
                                                    TextWrapping="Wrap"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
-                                        <TextBlock Text="• Big changes the model can't predict: losing or winning a major customer, opening a new location, hiring, layoffs, or a price change."
+                                        <TextBlock Text="{loc:Loc '• Big changes the model can','t predict: losing or winning a major customer, opening a new location, hiring, layoffs, or a price change.'}"
                                                    FontSize="12"
                                                    TextWrapping="Wrap"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
-                                        <TextBlock Text="• One-off events: a single large invoice or refund can skew a whole month and pull the forecast off course."
+                                        <TextBlock Text="{loc:Loc '• One-off events: a single large invoice or refund can skew a whole month and pull the forecast off course.'}"
                                                    FontSize="12"
                                                    TextWrapping="Wrap"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
-                                        <TextBlock Text="• New businesses with less than 12 months of data: there isn't enough history yet to tell real patterns from noise."
+                                        <TextBlock Text="{loc:Loc '• New businesses with less than 12 months of data: there isn','t enough history yet to tell real patterns from noise.'}"
                                                    FontSize="12"
                                                    TextWrapping="Wrap"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
-                                        <TextBlock Text="• Customer-count predictions: these are the lumpiest of the four. Use them as a rough sanity check, not a hiring plan."
+                                        <TextBlock Text="{loc:Loc '• Customer-count predictions: these are the lumpiest of the four. Use them as a rough sanity check, not a hiring plan.'}"
                                                    FontSize="12"
                                                    TextWrapping="Wrap"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
-                                        <TextBlock Text="• Anything used for taxes, loan applications, or formal financial reporting: forecasts here are not a substitute for an accountant."
+                                        <TextBlock Text="{loc:Loc '• Anything used for taxes, loan applications, or formal financial reporting: forecasts here are not a substitute for an accountant.'}"
                                                    FontSize="12"
                                                    TextWrapping="Wrap"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
@@ -357,7 +357,7 @@
 
                         <!-- Tips -->
                         <StackPanel Spacing="8">
-                            <TextBlock Text="Tips for Better Predictions"
+                            <TextBlock Text="{loc:Loc 'Tips for Better Predictions'}"
                                        FontSize="14"
                                        FontWeight="SemiBold"
                                        Foreground="{DynamicResource TextPrimaryBrush}" />
@@ -365,19 +365,19 @@
                                     CornerRadius="8"
                                     Padding="16">
                                 <StackPanel Spacing="8">
-                                    <TextBlock Text="• More data = better predictions. 12+ months is ideal."
+                                    <TextBlock Text="{loc:Loc '• More data = better predictions. 12+ months is ideal.'}"
                                                FontSize="12"
                                                TextWrapping="Wrap"
                                                Foreground="{DynamicResource TextPrimaryBrush}" />
-                                    <TextBlock Text="• The system improves over time as it learns from your data."
+                                    <TextBlock Text="{loc:Loc '• The system improves over time as it learns from your data.'}"
                                                FontSize="12"
                                                TextWrapping="Wrap"
                                                Foreground="{DynamicResource TextPrimaryBrush}" />
-                                    <TextBlock Text="• Keep your records consistent and up to date."
+                                    <TextBlock Text="{loc:Loc '• Keep your records consistent and up to date.'}"
                                                FontSize="12"
                                                TextWrapping="Wrap"
                                                Foreground="{DynamicResource TextPrimaryBrush}" />
-                                    <TextBlock Text="• Use forecasts as a guide, not a guarantee."
+                                    <TextBlock Text="{loc:Loc '• Use forecasts as a guide, not a guarantee.'}"
                                                FontSize="12"
                                                TextWrapping="Wrap"
                                                Foreground="{DynamicResource TextPrimaryBrush}" />
@@ -400,7 +400,7 @@
                                            TextWrapping="Wrap"
                                            FontSize="12"
                                            Foreground="{DynamicResource TextPrimaryBrush}"
-                                           Text="All calculations happen on your device. Your financial data is never sent to any external server or cloud service." />
+                                           Text="{loc:Loc 'All calculations happen on your device. Your financial data is never sent to any external server or cloud service.'}" />
                             </Grid>
                         </Border>
                     </StackPanel>

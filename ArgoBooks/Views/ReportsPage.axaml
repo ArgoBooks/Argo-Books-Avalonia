@@ -196,9 +196,7 @@
                         BorderThickness="1"
                         Margin="0,0,24,0">
                     <Grid RowDefinitions="Auto,*">
-                            <!-- Tab Navigation. Send to Accountant sits with it rather than at the
-                                 foot of the template list, where it was only reachable by scrolling
-                                 past every template on one of the two tabs. -->
+                            <!-- Tab Navigation. Send to Accountant sits with it rather than at the foot of the template list, where it was only reachable by scrolling past every template on one of the two tabs. -->
                             <Border Grid.Row="0"
                                     BorderBrush="{DynamicResource BorderBrush}"
                                     BorderThickness="0,0,0,1">
@@ -1090,6 +1088,12 @@
                                               SelectedItem="{Binding SelectedChartStyleOption}"
                                               HorizontalAlignment="Stretch" />
                                 </StackPanel>
+                                <StackPanel Spacing="4" IsVisible="{Binding IsGeographicChartSelected}">
+                                    <TextBlock Text="{loc:Loc 'Group By'}" FontSize="11" Foreground="{DynamicResource TextTertiaryBrush}" />
+                                    <ComboBox ItemsSource="{Binding GeoLevelOptions}"
+                                              SelectedItem="{Binding SelectedGeoLevelOption}"
+                                              HorizontalAlignment="Stretch" />
+                                </StackPanel>
                                 <CheckBox Content="{loc:Loc 'Show Title'}" IsChecked="{Binding SelectedChartElement.ShowTitle, FallbackValue=False}" />
                                 <CheckBox Content="{loc:Loc 'Show Legend'}" IsChecked="{Binding SelectedChartElement.ShowLegend, FallbackValue=False}" IsVisible="{Binding IsDistributionChartSelected}" />
                                 <StackPanel Spacing="4">
@@ -1773,19 +1777,19 @@
                                     <TextBlock Text="{loc:Loc 'Margins (px)'}" FontSize="11" Foreground="{DynamicResource TextTertiaryBrush}" />
                                     <Grid ColumnDefinitions="*,8,*" RowDefinitions="Auto,8,Auto">
                                         <StackPanel Grid.Column="0" Grid.Row="0" Spacing="2">
-                                            <TextBlock Text="{loc:Loc 'Top'}" FontSize="10" Foreground="{DynamicResource TextTertiaryBrush}" />
+                                            <TextBlock Text="{loc:Loc 'Top'}" FontSize="11" Foreground="{DynamicResource TextTertiaryBrush}" />
                                             <controls:ArgoNumericUpDown Value="{Binding MarginTop}" Minimum="0" Maximum="200" />
                                         </StackPanel>
                                         <StackPanel Grid.Column="2" Grid.Row="0" Spacing="2">
-                                            <TextBlock Text="{loc:Loc 'Right'}" FontSize="10" Foreground="{DynamicResource TextTertiaryBrush}" />
+                                            <TextBlock Text="{loc:Loc 'Right'}" FontSize="11" Foreground="{DynamicResource TextTertiaryBrush}" />
                                             <controls:ArgoNumericUpDown Value="{Binding MarginRight}" Minimum="0" Maximum="200" />
                                         </StackPanel>
                                         <StackPanel Grid.Column="0" Grid.Row="2" Spacing="2">
-                                            <TextBlock Text="{loc:Loc 'Bottom'}" FontSize="10" Foreground="{DynamicResource TextTertiaryBrush}" />
+                                            <TextBlock Text="{loc:Loc 'Bottom'}" FontSize="11" Foreground="{DynamicResource TextTertiaryBrush}" />
                                             <controls:ArgoNumericUpDown Value="{Binding MarginBottom}" Minimum="0" Maximum="200" />
                                         </StackPanel>
                                         <StackPanel Grid.Column="2" Grid.Row="2" Spacing="2">
-                                            <TextBlock Text="{loc:Loc 'Left'}" FontSize="10" Foreground="{DynamicResource TextTertiaryBrush}" />
+                                            <TextBlock Text="{loc:Loc 'Left'}" FontSize="11" Foreground="{DynamicResource TextTertiaryBrush}" />
                                             <controls:ArgoNumericUpDown Value="{Binding MarginLeft}" Minimum="0" Maximum="200" />
                                         </StackPanel>
                                     </Grid>
@@ -1818,7 +1822,7 @@
 
                                 <Separator Margin="0,4" />
                                 <TextBlock Text="{loc:Loc 'Click an element on the canvas to edit its properties'}"
-                                           FontSize="11"
+                                           FontSize="12"
                                            Foreground="{DynamicResource TextTertiaryBrush}"
                                            TextWrapping="Wrap"
                                            TextAlignment="Center"

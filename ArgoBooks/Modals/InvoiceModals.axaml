@@ -1,4 +1,4 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -87,8 +87,11 @@
                                              Message="{loc:Loc 'Your address, phone and email are blank on this invoice.'}"
                                              ActionText="{loc:Loc 'Add them'}"
                                              ActionCommand="{Binding EditCompanyDetailsCommand}"
+                                             ActionClick="OnAddCompanyDetailsClick"
+                                             DismissCommand="{Binding DismissCompanyDetailsPromptCommand}"
                                              IconData="{x:Static icons:Icons.Info}"
-                                             BannerBackground="{DynamicResource InfoBrush}" />
+                                             BannerBackground="{DynamicResource InfoBrush}"
+                                             DismissBackground="{DynamicResource InfoDarkBrush}" />
 
                         <!-- Body -->
                         <Grid Grid.Row="2">
@@ -128,9 +131,7 @@
                                 <!-- SIDEBAR -->
                                 <Border Grid.Column="1" Background="{DynamicResource SurfaceBrush}"
                                         BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1,0,0,0">
-                                    <!-- HorizontalScrollBarVisibility=Disabled so content is measured at the fixed
-                                         sidebar width and wraps, instead of a long validation message forcing the
-                                         whole modal to scroll sideways. -->
+                                    <!-- HorizontalScrollBarVisibility=Disabled so content is measured at the fixed sidebar width and wraps, instead of a long validation message forcing the whole modal to scroll sideways. -->
                                     <!-- Going back is not one of the actions, so it sits on the floor of the
                                          panel rather than under whatever the fields happen to end at. -->
                                     <Grid RowDefinitions="*,Auto">
@@ -146,7 +147,7 @@
                                                         <PathIcon Grid.Column="0" Data="{x:Static icons:Icons.Info}" Width="14" Height="14"
                                                                   Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Top" Margin="0,1,0,0" />
                                                         <TextBlock Grid.Column="2" FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource TextPrimaryBrush}"
-                                                                   Text="{loc:Loc 'Sending an invoice needs the payment portal set up first. You can still save this one as a draft.'}" />
+                                                                   Text="{loc:Loc 'Sending an invoice needs the payment portal set up first. You can still save this one as a draft or download it.'}" />
                                                     </Grid>
                                                     <Button Classes="secondary-button" HorizontalAlignment="Stretch"
                                                             Content="{loc:Loc 'Set up payment portal'}"
@@ -163,7 +164,7 @@
                                                 <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                                                     <PathIcon Data="{x:Static icons:Icons.Refresh}" Width="14" Height="14"
                                                               Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center" />
-                                                    <TextBlock Text="Generated from a recurring schedule" FontSize="12"
+                                                    <TextBlock Text="{loc:Loc 'Generated from a recurring schedule'}" FontSize="12"
                                                                Foreground="{DynamicResource TextSecondaryBrush}"
                                                                VerticalAlignment="Center" TextWrapping="Wrap" />
                                                 </StackPanel>
@@ -188,9 +189,9 @@
                                             <!-- Display toggles: what appears on the invoice (per-invoice overrides). -->
                                             <StackPanel Spacing="7">
                                                 <TextBlock Text="DISPLAY" Classes="sidebar-label" />
-                                                <CheckBox IsChecked="{Binding OptShowCompanyAddress}" Content="Show company address" />
-                                                <CheckBox IsChecked="{Binding OptShowCompanyPhone}" Content="Show company phone" />
-                                                <CheckBox IsChecked="{Binding OptShowDueDateProminent}" Content="Show prominent due date" />
+                                                <CheckBox IsChecked="{Binding OptShowCompanyAddress}" Content="{loc:Loc 'Show company address'}" />
+                                                <CheckBox IsChecked="{Binding OptShowCompanyPhone}" Content="{loc:Loc 'Show company phone'}" />
+                                                <CheckBox IsChecked="{Binding OptShowDueDateProminent}" Content="{loc:Loc 'Show prominent due date'}" />
                                             </StackPanel>
 
                                             <!-- Tax, shipping, discount and fees are edited directly in the totals
@@ -211,17 +212,17 @@
                                             <StackPanel Spacing="10">
                                                 <TextBlock Text="OPTIONS" Classes="sidebar-label" />
                                                 <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                                                    <CheckBox IsChecked="{Binding OptPassProcessingFee}" Content="Pass processing fee to customer" VerticalAlignment="Center" />
+                                                    <CheckBox IsChecked="{Binding OptPassProcessingFee}" Content="{loc:Loc 'Pass processing fee to customer'}" VerticalAlignment="Center" />
                                                     <Button Classes="icon-button" Padding="4" VerticalAlignment="Center"
-                                                            ToolTip.Tip="Learn more" Click="OnProcessingFeeInfoClick">
+                                                            ToolTip.Tip="{loc:Loc 'Learn more'}" Click="OnProcessingFeeInfoClick">
                                                         <PathIcon Data="{x:Static icons:Icons.Info}" Width="14" Height="14" />
                                                     </Button>
                                                 </StackPanel>
 
                                                 <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center" IsVisible="{Binding !IsEditMode}">
-                                                    <CheckBox IsChecked="{Binding IsRecurring}" Content="Make recurring" VerticalAlignment="Center" />
+                                                    <CheckBox IsChecked="{Binding IsRecurring}" Content="{loc:Loc 'Make recurring'}" VerticalAlignment="Center" />
                                                     <Button Classes="icon-button" Padding="4" VerticalAlignment="Center"
-                                                            ToolTip.Tip="Learn more" Click="OnRecurringInfoClick">
+                                                            ToolTip.Tip="{loc:Loc 'Learn more'}" Click="OnRecurringInfoClick">
                                                         <PathIcon Data="{x:Static icons:Icons.Info}" Width="14" Height="14" />
                                                     </Button>
                                                 </StackPanel>
@@ -231,15 +232,15 @@
                                                         BorderThickness="1" CornerRadius="8" Padding="12">
                                                     <StackPanel Spacing="10">
                                                         <StackPanel Spacing="4">
-                                                            <TextBlock Text="Frequency" Classes="sidebar-label" Margin="0" />
+                                                            <TextBlock Text="{loc:Loc 'Frequency'}" Classes="sidebar-label" Margin="0" />
                                                             <ComboBox ItemsSource="{Binding FrequencyOptions}" SelectedItem="{Binding RecurringFrequency}" Classes="form-combobox" HorizontalAlignment="Stretch" />
                                                         </StackPanel>
                                                         <StackPanel Spacing="4">
-                                                            <TextBlock Text="Start date" Classes="sidebar-label" Margin="0" />
+                                                            <TextBlock Text="{loc:Loc 'Start date'}" Classes="sidebar-label" Margin="0" />
                                                             <DatePicker SelectedDate="{Binding RecurringStartDate}" Classes="form-datepicker" HorizontalAlignment="Stretch" />
                                                         </StackPanel>
                                                         <StackPanel Spacing="4">
-                                                            <TextBlock Text="End date (optional)" Classes="sidebar-label" Margin="0" />
+                                                            <TextBlock Text="{loc:Loc 'End date (optional)'}" Classes="sidebar-label" Margin="0" />
                                                             <DatePicker SelectedDate="{Binding RecurringEndDate}" Classes="form-datepicker" HorizontalAlignment="Stretch" />
                                                         </StackPanel>
                                                     </StackPanel>
@@ -264,17 +265,23 @@
                                             <!-- Actions -->
                                             <StackPanel Spacing="8" Margin="0,4,0,0">
                                                 <!-- Edit mode -->
-                                                <Button Classes="primary-button" HorizontalAlignment="Stretch" Content="Preview"
+                                                <Button Classes="primary-button" HorizontalAlignment="Stretch" Content="{loc:Loc 'Preview'}"
                                                         Click="OnPreviewClick" IsVisible="{Binding !IsEditorPreviewing}" IsEnabled="{Binding IsPortalReady}" />
-                                                <Button Classes="secondary-button" HorizontalAlignment="Stretch" Content="Save as draft"
+                                                <Button Classes="secondary-button" HorizontalAlignment="Stretch" Content="{loc:Loc 'Save as draft'}"
                                                         Click="OnSaveAsDraftClick" IsVisible="{Binding !IsEditorPreviewing}" />
+                                                <Button Classes="secondary-button" HorizontalAlignment="Stretch" Click="OnDownloadPdfClick">
+                                                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                                                        <PathIcon Data="{x:Static icons:Icons.Download}" Width="15" Height="15" />
+                                                        <TextBlock Text="{loc:Loc 'Download PDF'}" />
+                                                    </StackPanel>
+                                                </Button>
                                                 <!-- Preview mode. The send button carries a paper-plane icon so it never reads
                                                      as the same button as "Preview" (which sat in the same spot a click earlier). -->
                                                 <Button Classes="primary-button" HorizontalAlignment="Stretch"
                                                         Command="{Binding CreateAndSendInvoiceCommand}" IsVisible="{Binding IsEditorPreviewing}">
                                                     <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
                                                         <PathIcon Data="{x:Static icons:Icons.Send}" Width="15" Height="15" />
-                                                        <TextBlock Text="Create &amp; send" />
+                                                        <TextBlock Text="{loc:Loc 'Create &amp; send'}" />
                                                     </StackPanel>
                                                 </Button>
                                             </StackPanel>
@@ -286,18 +293,16 @@
                                             Command="{Binding BackToEditorCommand}" IsVisible="{Binding IsEditorPreviewing}">
                                         <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
                                             <PathIcon Data="{x:Static icons:Icons.ArrowBack}" Width="15" Height="15" />
-                                            <TextBlock Text="Back to edit" />
+                                            <TextBlock Text="{loc:Loc 'Back to edit'}" />
                                         </StackPanel>
                                     </Button>
                                     </Grid>
                                 </Border>
                             </Grid>
 
-                            <!-- VIEW-ONLY: rendered HTML preview above its own bottom bar. The preview lives
-                                 in its own row so the native WebView (which draws above Avalonia) can't
-                                 overflow onto the buttons. -->
+                            <!-- VIEW-ONLY: rendered HTML preview above its own bottom bar. The preview lives in its own row so the native WebView (which draws above Avalonia) can't overflow onto the buttons. -->
                             <Grid RowDefinitions="*,Auto" IsVisible="{Binding IsViewOnly}">
-                                <controls:InvoicePreviewControl Grid.Row="0" Html="{Binding PreviewHtml}"
+                                <controls:InvoicePreviewControl x:Name="ViewPreview" Grid.Row="0" Html="{Binding PreviewHtml}"
                                                                 OpenInBrowserCommand="{Binding OpenPreviewInBrowserCommand}">
                                     <controls:InvoicePreviewControl.IsVisible>
                                         <MultiBinding Converter="{x:Static BoolConverters.And}">
@@ -312,12 +317,20 @@
                                         Background="{DynamicResource SurfaceBrush}"
                                         BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
                                     <Grid ColumnDefinitions="Auto,*,Auto">
-                                        <Button Grid.Column="0" Classes="secondary-button" Command="{Binding OpenPreviewInBrowserCommand}">
-                                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                                <PathIcon Data="{x:Static icons:Icons.OpenExternal}" Width="14" Height="14" />
-                                                <TextBlock Text="{loc:Loc 'Open in Browser'}" />
-                                            </StackPanel>
-                                        </Button>
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
+                                            <Button Classes="secondary-button" Command="{Binding OpenPreviewInBrowserCommand}">
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <PathIcon Data="{x:Static icons:Icons.OpenExternal}" Width="14" Height="14" />
+                                                    <TextBlock Text="{loc:Loc 'Open in Browser'}" />
+                                                </StackPanel>
+                                            </Button>
+                                            <Button Classes="secondary-button" Click="OnDownloadPdfClick">
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <PathIcon Data="{x:Static icons:Icons.Download}" Width="14" Height="14" />
+                                                    <TextBlock Text="{loc:Loc 'Download PDF'}" />
+                                                </StackPanel>
+                                            </Button>
+                                        </StackPanel>
                                         <Button Grid.Column="2" Classes="primary-button" Content="{loc:Loc Close}" Command="{Binding CloseCreateEditModalCommand}" />
                                     </Grid>
                                 </Border>
@@ -454,7 +467,7 @@
                                         <TextBlock Text="{loc:Loc 'Min'}" FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}" />
                                         <TextBox Text="{Binding FilterAmountMin, Mode=TwoWay}"
                                                  Classes="form-input"
-                                                 PlaceholderText="$0.00"
+                                                 PlaceholderText="{Binding AmountPlaceholder}"
                                                  behaviors:NumericInputBehavior.IsDecimalOnly="True"
                                                  MaxLength="13" />
                                     </StackPanel>
@@ -462,7 +475,7 @@
                                         <TextBlock Text="{loc:Loc 'Max'}" FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}" />
                                         <TextBox Text="{Binding FilterAmountMax, Mode=TwoWay}"
                                                  Classes="form-input"
-                                                 PlaceholderText="$0.00"
+                                                 PlaceholderText="{Binding AmountPlaceholder}"
                                                  behaviors:NumericInputBehavior.IsDecimalOnly="True"
                                                  MaxLength="13" />
                                     </StackPanel>
@@ -530,9 +543,7 @@
                                                         IsVisible="{Binding !IsLast}" />
                                             </StackPanel>
 
-                                            <!-- Content. Payment rows carry edit/delete: payments are
-                                                 only reachable through their invoice, so this is where
-                                                 they get managed. -->
+                                            <!-- Content. Payment rows carry edit/delete: payments are only reachable through their invoice, so this is where they get managed. -->
                                             <Grid Grid.Column="2" ColumnDefinitions="*,Auto">
                                                 <StackPanel Grid.Column="0" Spacing="4">
                                                     <TextBlock Text="{Binding Description}"
@@ -550,14 +561,14 @@
                                                             IsVisible="{Binding CanEditPayment}">
                                                     <Button Classes="icon-button"
                                                             ToolTip.Tip="{loc:Loc 'Edit Payment'}"
-                                                            AutomationProperties.Name="Edit Payment"
+                                                            AutomationProperties.Name="{loc:Loc 'Edit Payment'}"
                                                             Command="{Binding $parent[ItemsControl].((vm:InvoiceModalsViewModel)DataContext).EditHistoryPaymentCommand}"
                                                             CommandParameter="{Binding}">
                                                         <PathIcon Data="{x:Static icons:Icons.Edit}" Width="14" Height="14" />
                                                     </Button>
                                                     <Button Classes="icon-button danger"
                                                             ToolTip.Tip="{loc:Loc 'Delete Payment'}"
-                                                            AutomationProperties.Name="Delete Payment"
+                                                            AutomationProperties.Name="{loc:Loc 'Delete Payment'}"
                                                             Command="{Binding $parent[ItemsControl].((vm:InvoiceModalsViewModel)DataContext).DeleteHistoryPaymentCommand}"
                                                             CommandParameter="{Binding}">
                                                         <PathIcon Data="{x:Static icons:Icons.Delete}" Width="14" Height="14" />

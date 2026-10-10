@@ -43,9 +43,7 @@ public class GeoLocationService : IGeoLocationService
             return Task.FromResult(_cachedData);
         }
 
-        // Single-flight: if a lookup is already running, return its task instead of
-        // hitting the upstream APIs again. ipapi.co rate-limits aggressively (429) and
-        // concurrent callers were each tripping the limit independently.
+        // Single-flight: if a lookup is already running, return its task instead of hitting the upstream APIs again.
         Task<GeoLocationData> lookupTask;
         lock (_inFlightLock)
         {
@@ -59,10 +57,7 @@ public class GeoLocationService : IGeoLocationService
             }
             else
             {
-                // Run the shared lookup with CancellationToken.None so one caller
-                // cancelling their await cannot poison the result for every other
-                // caller waiting on the same in-flight task. Individual callers still
-                // honor their own token via WaitAsync below.
+                // Run the shared lookup with CancellationToken.None so one caller cancelling their await cannot poison the result for every other caller waiting on the same in-flight task.
                 _inFlightLookup = LookupAsync();
                 lookupTask = _inFlightLookup;
             }
@@ -89,10 +84,7 @@ public class GeoLocationService : IGeoLocationService
                 locationData.HashedIp = HashIpAddress(ip);
             }
 
-            // Only cache when we actually got location data. The Try*Async methods
-            // swallow all exceptions (including OperationCanceledException) and return
-            // false, so without this guard a transient failure would pin an all-Unknown
-            // result for the full cache duration.
+            // Only cache when we actually got location data.
             if (gotLocation)
             {
                 _cachedData = locationData;

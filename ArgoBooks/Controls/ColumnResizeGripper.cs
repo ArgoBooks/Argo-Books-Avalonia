@@ -1,4 +1,5 @@
 using ArgoBooks.Controls.ColumnWidths;
+using ArgoBooks.Converters;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -17,13 +18,7 @@ public class ColumnResizeGripper : Border
     private DateTime _lastClickTime = DateTime.MinValue;
     private const int DoubleClickThresholdMs = 300;
 
-    // Avalonia sets the pointer-over element (and thus the cursor) to null whenever the
-    // pointer is captured but sits over something OTHER than the captured element, which
-    // happens constantly during a resize because the gripper lags the pointer by a frame.
-    // That null pointer-over shows the default cursor, hence the flicker. To keep the
-    // resize cursor, we capture a transparent full-window overlay that carries the resize
-    // cursor: the captured element is then exactly what the pointer is over everywhere, so
-    // the cursor never changes. The drag itself is driven from the overlay's events.
+    // Avalonia nulls the pointer-over element, and so the cursor, whenever the pointer is captured but sits over something else, which happens all through a resize.
     private OverlayLayer? _cursorOverlayLayer;
     private Border? _cursorOverlay;
 
@@ -65,7 +60,7 @@ public class ColumnResizeGripper : Border
         base.OnPointerEntered(e);
         if (!_isDragging)
         {
-            Background = new SolidColorBrush(Color.FromArgb(80, 59, 130, 246));
+            Background = ConverterUtils.AccentTint(80);
         }
     }
 
@@ -98,17 +93,13 @@ public class ColumnResizeGripper : Border
 
             _isDragging = true;
             _lastDragPoint = e.GetPosition(TopLevel.GetTopLevel(this));
-            Background = new SolidColorBrush(Color.FromArgb(120, 59, 130, 246));
+            Background = ConverterUtils.AccentTint(120);
 
-            // Capture a transparent full-window overlay carrying the resize cursor so the
-            // cursor stays put for the whole drag (see field comment). The overlay drives
-            // the resize via its captured pointer events.
+            // Capture a transparent full-window overlay carrying the resize cursor so the cursor stays put for the whole drag (see field comment).
             _cursorOverlayLayer = OverlayLayer.GetOverlayLayer(this);
             if (_cursorOverlayLayer != null)
             {
-                // The overlay must cover the window. On the very first drag the layer hasn't
-                // been laid out yet, so its Bounds is still 0,0; fall back to the window's
-                // ClientSize (valid from startup) so the overlay isn't zero-sized that one time.
+                // The layer has no Bounds before its first layout, so the window's ClientSize stands in and the overlay is never zero-sized.
                 var size = _cursorOverlayLayer.Bounds.Size;
                 if (size.Width <= 0 || size.Height <= 0)
                 {
@@ -198,9 +189,7 @@ public class ColumnResizeGripper : Border
         if (Math.Abs(delta) >= 1)
         {
             var actualDelta = ColumnWidths?.ResizeColumn(ColumnName, delta) ?? 0;
-            // Only move the drag anchor by the amount actually applied.
-            // This ensures the mouse must "catch up" to the column position
-            // when constraints prevent the full delta from being applied.
+            // Only move the drag anchor by the amount actually applied. This ensures the mouse must "catch up" to the column position when constraints prevent the full delta from being applied.
             _lastDragPoint = new Point(_lastDragPoint.X + actualDelta, currentPoint.Y);
         }
     }

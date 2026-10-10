@@ -51,10 +51,7 @@ public class BackupServiceTests : IDisposable
     [Fact]
     public void CompanyNameOf_DropsTheCopyStamp()
     {
-        // Built with Path.Combine rather than written out. CompanyNameOf goes through
-        // Path.GetFileNameWithoutExtension, which splits on the running OS's separator, so a
-        // literal "C:\x\..." is one long filename on macOS: nothing is stripped and the
-        // assertion sees "C:\x\Acme".
+        // Built with Path.Combine rather than written out.
         var folder = Path.Combine("x", "y");
         Assert.Equal("Acme", BackupService.CompanyNameOf(Path.Combine(folder, "Acme--backup-20260930-143200.argobk")));
         Assert.Equal("My old books", BackupService.CompanyNameOf(Path.Combine(folder, "My old books.argobk")));

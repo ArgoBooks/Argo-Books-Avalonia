@@ -11,9 +11,7 @@ namespace ArgoBooks.ViewModels;
 /// </summary>
 public class ProductSalesRow
 {
-    // The ProductSalesData here already holds display-currency amounts: GetProductSales was called
-    // with a per-date converter so each sale was converted at its OWN date before aggregation
-    // (Calculations.md Rule 4). So format directly, with no further currency conversion.
+    // ProductSalesData already holds display-currency amounts, because GetProductSales converted each sale at its own date (Calculations.md Rule 4).
     public ProductSalesRow(ProductSalesData data)
     {
         ProductId = data.ProductId;

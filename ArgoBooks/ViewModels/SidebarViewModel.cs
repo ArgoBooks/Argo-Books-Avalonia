@@ -219,7 +219,6 @@ public partial class SidebarViewModel : ViewModelBase
         Width = value ? CollapsedWidth : ExpandedWidth;
         CollapseTooltip = value ? Loc.Tr("Expand sidebar") : Loc.Tr("Collapse sidebar");
 
-        // Update all items with collapsed state
         UpdateItemsCollapsedState(value);
 
         // A collapse forced by a narrow window is not the user's choice, so it is neither

@@ -1,11 +1,7 @@
 <ResourceDictionary xmlns="https://github.com/avaloniaui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <!--
-        Argo Books Light Theme
-        Theme-specific colors for light mode.
-        Based on UI mockup specifications.
-    -->
+    <!-- Argo Books Light Theme Theme-specific colors for light mode. Based on UI mockup specifications. -->
 
     <!-- Background Colors (from mockup) -->
     <Color x:Key="BackgroundColor">#FFFFFF</Color>

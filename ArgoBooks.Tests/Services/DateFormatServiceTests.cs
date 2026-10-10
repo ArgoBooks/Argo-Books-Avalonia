@@ -169,9 +169,7 @@ public class DateFormatServiceTests
     [Fact]
     public void Format_OnNonUsCulture_KeepsSlashSeparators()
     {
-        // The user picks a format like MM/DD/YYYY; the '/' must render literally. In a .NET custom
-        // format string '/' is the locale date-separator placeholder, so without InvariantCulture a
-        // German locale renders it as '.'. With no company loaded the default format is MM/DD/YYYY.
+        // The user picks a format like MM/DD/YYYY; the '/' must render literally.
         var date = new DateTime(2025, 5, 1);
 
         var result = WithCulture("de-DE", () => DateFormatService.Format(date));

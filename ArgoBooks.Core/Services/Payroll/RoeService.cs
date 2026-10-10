@@ -144,12 +144,7 @@ public class RoeService
             HoursPeriodCount = HoursPeriodCount(employee.PayFrequency),
             EarningsPeriodCount = EarningsPeriodCount(employee.PayFrequency),
 
-            // Block 16's contact, seeded from the payroll contact already held for the T4 so it
-            // is confirmed rather than retyped. Block 16 itself stays null: see RoeReason.
-            //
-            // The T4 screen keeps the phone as typed, and the form's phone box holds ten digits,
-            // so it gets the ten digits. Given the typed text, it counted brackets and dashes
-            // toward the ten and cut the number short.
+            // Block 16's contact, seeded from the payroll contact already held for the T4 so it is confirmed rather than retyped. Block 16 itself stays null: see RoeReason.
             ContactPhone = RoeXmlWriter.NationalPhone(company.PayrollContactPhone) ?? company.PayrollContactPhone,
             ContactFirstName = contactGiven,
             ContactLastName = contactSurname,
@@ -180,11 +175,7 @@ public class RoeService
             })
             .ToList();
 
-        // A later period that paid nothing is not the final one. It is what someone who left
-        // without an end date looks like on the next run, where they are still ticked, or a
-        // voided final run netting out against its reversal. Taken as final, it moves blocks 11
-        // and 12 past the last pay and shifts every period in block 15C by one. Nil periods
-        // before the last pay are part of the history and stay.
+        // A later period that paid nothing is not the final one.
         int lastPaid = periods.FindIndex(p => p.Lines.Sum(l => l.GrossPay) != 0m || p.Lines.Sum(l => l.HoursWorked) != 0m);
         if (lastPaid > 0)
         {
@@ -213,9 +204,7 @@ public class RoeService
                 + "from the employment contract.";
         }
 
-        // For lines saved before the exemption was recorded on them. Only when nothing was ever
-        // withheld: a line with no EI on it is otherwise one where the year's maximum had been
-        // reached, which is insurable.
+        // For lines saved before the exemption was recorded on them.
         bool exemptThroughout = employee.IsEiExempt && periods.All(p => p.Lines.All(l => l.EiEmployee == 0m));
 
         foreach (var period in periods.Take(worksheet.HoursPeriodCount))
@@ -226,9 +215,7 @@ public class RoeService
             {
                 PeriodEnd = period.PeriodEnd,
 
-                // Pay earned while EI exempt is not insurable, whatever it came to, so reporting it
-                // would overstate a claim they cannot make. Each line records whether the employee
-                // was exempt when it was calculated.
+                // Pay earned while EI exempt is not insurable, whatever it came to, so reporting it would overstate a claim they cannot make.
                 InsurableEarnings = period.Lines
                     .Where(l => !(l.EiExempt || exemptThroughout))
                     .Sum(l => l.GrossPay),
@@ -254,16 +241,7 @@ public class RoeService
             .Take(worksheet.EarningsPeriodCount)
             .Sum(p => p.InsurableEarnings);
 
-        // The final period only, not the whole history. Service Canada's ROE guide defines block
-        // 17A as vacation pay paid or payable BECAUSE OF the separation, and its chart is explicit
-        // that vacation pay "included with each pay", the usual percentage added to every cheque,
-        // must NOT be reported here. Summing every period reported exactly that.
-        //
-        // The final period is the best the recorded data supports: nothing distinguishes a
-        // termination payout from an ordinary accrual except when it was paid. The two remaining
-        // categories in the guide, a granted leave period and an anniversary payment falling after
-        // the interruption, are future-dated and unknowable from pay runs, which is why the
-        // worksheet asks the employer to confirm the figure.
+        // The final period only, not the whole history.
         worksheet.VacationPay = periods[0].Lines.Sum(l => l.VacationPay);
 
         return worksheet;

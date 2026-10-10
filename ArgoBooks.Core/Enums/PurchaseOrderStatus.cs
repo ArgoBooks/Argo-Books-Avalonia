@@ -1,4 +1,4 @@
-namespace ArgoBooks.Core.Enums;
+﻿namespace ArgoBooks.Core.Enums;
 
 /// <summary>
 /// Status of a purchase order.
@@ -25,9 +25,6 @@ public enum PurchaseOrderStatus
 
     /// <summary>All items have been received.</summary>
     Received,
-
-    /// <summary>All items have been received (alias for Received).</summary>
-    FullyReceived = Received,
 
     /// <summary>Purchase order has been cancelled.</summary>
     Cancelled

@@ -87,9 +87,7 @@ public class UsageLimitService : IUsageLimitService
         }
         catch (Exception ex) when (IsTransportFailure(ex))
         {
-            // Without internet the feature's own call can't run either, so say so now. With
-            // internet only the usage server hiccuped, and the feature's own call will fail
-            // anyway if the server is truly down.
+            // Without internet the feature's own call can't run either, so say so now.
             var message = await NetworkFailure.ResolveAndReportAsync(
                 _errorLogger, ex, $"{_limit.Name} usage check failed", _connectivityService);
             return message == ConnectivityMessage.NoInternet
@@ -119,9 +117,7 @@ public class UsageLimitService : IUsageLimitService
             return result;
         }
 
-        // Only our endpoint saying no blocks: a 4xx whose JSON says why. Anything else (a 5xx, a
-        // body that isn't our JSON such as a hosting-layer error page, or a failure without counts)
-        // is the usage server being unavailable, and the feature's own call decides.
+        // Only our endpoint saying no blocks: a 4xx whose JSON says why.
         var code = (int)status;
         if (code is >= 400 and < 500 && answer is { Refuses: true })
         {

@@ -36,22 +36,14 @@ public class QuebecPayrollCalculatorTests
     [Fact]
     public void QppMatchesTheGuidesWorkedExample()
     {
-        // Appendix 1 uses $4,000 biweekly. The guide's own intermediate for the deductible
-        // share of QPP is $38.65, which implies a QPP contribution of $243.52:
-        //   (4000 - 3500/26) x 0.0630 = 243.52
-        //   243.52 x (0.01 / 0.0630)  = 38.65
+        // Appendix 1 uses $4,000 biweekly, where the guide's own intermediate of $38.65 implies a QPP contribution of $243.52.
         Assert.Equal(243.52m, Calc(4000m).CppEmployee);
     }
 
     [Fact]
     public void TheDeductionForWorkersMatchesTheGuidesWorkedExample()
     {
-        // The guide states H = $55.77 for this employee. It is 6% of pay capped at $1,450 for
-        // the YEAR, so at $4,000 biweekly the annual cap binds long before the 6% does:
-        //   min(0.06 x 4000, 1450 / 26) = min(240.00, 55.77) = 55.77
-        //
-        // Verified through its effect: without the deduction, annual taxable income would be
-        // 26 x 55.77 = $1,450.02 higher, which at the 19% bracket is $275.50 more tax a year.
+        // The guide states H = $55.77 for this employee.
         PayrollRateTable rates = Rates();
         QuebecRates qc = rates.Quebec!;
 
@@ -114,9 +106,7 @@ public class QuebecPayrollCalculatorTests
     [InlineData(5000, 306.52, 30.10)]
     public void MatchesWebRasOnTheEmployerContributions(decimal gross, decimal qpp, decimal qpip)
     {
-        // The employer QPIP rate is its own published figure rather than a multiple of the
-        // employee's, and WebRAS prints both, so this is where that would show up if it were
-        // ever quietly derived.
+        // The employer QPIP rate is its own published figure rather than a multiple of the employee's, and WebRAS prints both, so this is where that would show up if it were ever quietly derived.
         PayrollDeductions d = Calc(gross);
 
         Assert.Equal(qpp, d.CppEmployer);
@@ -126,10 +116,7 @@ public class QuebecPayrollCalculatorTests
     [Fact]
     public void MatchesWebRasOnTheTaxableIncomeItArrivesAt()
     {
-        // WebRAS prints the figure it taxes: $2,321.58 on a $2,400 pay. That is the pay less the
-        // $55.77 deduction for workers and the $22.65 deductible share of QPP, so agreeing on it
-        // means the two Quebec-specific deductions are both right and are both being applied
-        // once. Agreeing on the tax alone could hide two errors cancelling.
+        // WebRAS prints the figure it taxes: $2,321.58 on a $2,400 pay.
         PayrollRateTable rates = Rates();
         QuebecRates qc = rates.Quebec!;
 
@@ -173,13 +160,7 @@ public class QuebecPayrollCalculatorTests
     [Fact]
     public void TheQpipEmployerShareIsReadFromItsOwnPublishedRate()
     {
-        // Revenu Quebec publishes the employer rate and maximum separately, and as it happens
-        // both are exactly 1.4 times the employee's: 0.00430 x 1.4 = 0.00602 and
-        // 442.90 x 1.4 = 620.06. So a multiplier would currently give the right answer.
-        //
-        // It is still read independently. The two figures are published independently and
-        // nothing obliges them to keep that ratio, so deriving one from the other would be
-        // relying on a coincidence that could quietly stop holding at an indexation.
+        // Revenu Quebec publishes the employer rate and maximum separately, and as it happens both are exactly 1.4 times the employee's: 0.00430 x 1.4 = 0.00602 and 442.90 x 1.4 = 620.06.
         PayrollRateTable rates = Rates();
         QuebecRates qc = rates.Quebec!;
 
@@ -207,8 +188,6 @@ public class QuebecPayrollCalculatorTests
     public void FederalTaxIsReducedByTheAbatement()
     {
         // CRA collects less from Quebec residents because Quebec collects its own income tax.
-        // At the same gross, federal tax must be materially below the rest of Canada, and the
-        // gap must be the abatement rather than a rounding difference.
         decimal quebec = Calc(2400m).FederalTax;
         decimal alberta = PayrollCalculator.Calculate(
             new PayrollInput { GrossPay = 2400m, Province = "AB", PayPeriodsPerYear = 26 },
@@ -269,16 +248,7 @@ public class QuebecPayrollCalculatorTests
     [Fact]
     public void ReachingTheEiMaximum_DoesNotChangeFederalTax()
     {
-        // T4127, on all three terms of K2Q: "once the employee contributions or premiums have
-        // reached annual for CPP, EI or QPIP, for the rest of the pay periods in the year,
-        // (P x C x ...), (P x EI), or (P x IE x ...) is replaced by the employee's maximum
-        // annual contribution or premium. This modification ensures that the employee will get
-        // the maximum CPP, EI, and QPIP tax credit for the rest of the pay periods in the year."
-        //
-        // Annualising what was actually withheld does the opposite: in the period the ceiling is
-        // reached the deduction falls to nothing, the credit collapses with it, and federal tax
-        // jumps for every remaining period of the year. Nothing about the employee changed, so
-        // nothing about their tax may.
+        // T4127 on all three terms of K2Q: once contributions reach the annual maximum, the rest of the year's periods use the capped figure.
         PayrollRateTable rates = Rates();
         var atMax = new PayrollYearToDate { EiEmployee = rates.Quebec!.EiMaxPremiumEmployee };
 
@@ -299,26 +269,7 @@ public class QuebecPayrollCalculatorTests
     [Fact]
     public void FederalTax_CreditsQpipAsWellAsQppAndEi()
     {
-        // K2Q has THREE terms where the rest of Canada's K2 has two, and the third is QPIP:
-        //
-        //   K2Q = [(0.14 x (P x C x (base/total), max ...))
-        //        + (0.14 x (P x EI, max ...))
-        //        + (0.14 x (P x IE x qpipRate, max ...))]
-        //
-        // Worked through for $2,400 biweekly with no TD1 on file, using the 2026-07 edition:
-        //
-        //   QPP        (2400 - 3500/26) x 0.0630            = 142.72, annualised base 3,121.70
-        //   EI         2400 x 0.0130 x 26                   =   811.20
-        //   QPIP       2400 x 0.0043 x 26                   =   268.32
-        //   A          (2400 - 22.65 enhanced QPP) x 26     = 61,811.10, second bracket
-        //   T3         0.205 x A - 3804 - 0.14 x 16452
-        //                - 0.14 x (3121.70 + 811.20 + 268.32) - 0.14 x 1501
-        //                                                   = 5,765.68
-        //   abatement  x (1 - 0.165)                        = 4,814.35
-        //   period     / 26                                 =   185.17
-        //
-        // Dropping the QPIP term alone gives 186.37, which is $31.20 a year over-withheld from
-        // every Quebec employee and looks entirely reasonable on the stub.
+        // K2Q has three terms where the rest of Canada's K2 has two, and the third is QPIP.
         Assert.Equal(185.17m, Calc(2400m).FederalTax);
     }
 
@@ -388,9 +339,7 @@ public class QuebecPayrollCalculatorTests
 
     #endregion
 
-    // Moved to Quebec part way through the year. The premiums paid in Ontario were at the higher
-    // rate, so at face value they used up room that the lower Quebec rate had not: EI stopped
-    // early and the year came up short.
+    // Moved to Quebec part way through the year.
     [Fact]
     public void EiPaidInAnotherProvince_CountsAtTheQuebecRate()
     {

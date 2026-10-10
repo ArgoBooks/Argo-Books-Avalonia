@@ -172,9 +172,7 @@ public static class RoePdfRenderer
                                 ? ph.ToString("N2", CultureInfo.CurrentCulture)
                                 : "-").FontSize(9);
 
-                            // Nil periods are printed as 0.00 rather than skipped, because ROE
-                            // Web wants a value in every field and a skipped row shifts every
-                            // period after it into the wrong slot.
+                            // Nil periods are printed as 0.00 rather than skipped, because ROE Web wants a value in every field and a skipped row shifts every period after it into the wrong slot.
                             r.ConstantItem(110).AlignRight().Text(Money(period.InsurableEarnings)).FontSize(9);
                         });
                     }

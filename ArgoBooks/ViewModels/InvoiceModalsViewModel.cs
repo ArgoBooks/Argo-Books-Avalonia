@@ -1,4 +1,4 @@
-using ArgoBooks.Data;
+﻿using ArgoBooks.Data;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
 using System.Collections.ObjectModel;
@@ -108,6 +108,29 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
     [ObservableProperty]
     private bool _isViewOnly;
 
+    private string _viewingInvoiceId = string.Empty;
+
+    /// <summary>What the Download button calls the file: the invoice on screen, named as the list names it.</summary>
+    public string PdfFileName
+    {
+        get
+        {
+            var id = _viewingInvoiceId;
+            if (!IsViewOnly)
+            {
+                var companyData = App.CompanyManager?.CompanyData;
+                id = !string.IsNullOrEmpty(_editingInvoiceId) ? _editingInvoiceId
+                    : companyData == null ? string.Empty
+                    : new IdGenerator(companyData).PeekNextInvoice().Id;
+            }
+
+            if (string.IsNullOrWhiteSpace(id))
+                id = "Invoice";
+
+            return string.Join("-", id.Split(System.IO.Path.GetInvalidFileNameChars())) + ".pdf";
+        }
+    }
+
     [ObservableProperty]
     private string _modalTitle = "Create Invoice";
 
@@ -181,14 +204,17 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
 
     /// <summary>
     /// Where the address, phone and email are asked for: the invoice header beside this prompt
-    /// is visibly blank without them. Clears once any one is filled, so it cannot become a nag.
+    /// is visibly blank without them. Clears once any one is filled or the prompt is dismissed,
+    /// so it cannot become a nag.
     /// </summary>
     public bool ShowCompanyDetailsPrompt
     {
         get
         {
-            var company = App.CompanyManager?.CompanyData?.Settings.Company;
+            var settings = App.CompanyManager?.CompanyData?.Settings;
+            var company = settings?.Company;
             if (company == null || App.CompanyManager?.IsSampleCompany == true) return false;
+            if (settings!.CompanyDetailsPromptDismissed) return false;
 
             return string.IsNullOrWhiteSpace(company.Address)
                    && string.IsNullOrWhiteSpace(company.City)
@@ -200,6 +226,22 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
     [RelayCommand]
     private void EditCompanyDetails()
     {
+        // The paper is a native web view and draws over anything above it, so it steps aside until the company modal closes.
+        if (App.EditCompanyModalViewModel is { } edit)
+        {
+            IsNestedModalOpen = true;
+            RegeneratePaper();
+
+            void OnEditClosed(object? _, System.ComponentModel.PropertyChangedEventArgs e)
+            {
+                if (e.PropertyName != nameof(EditCompanyModalViewModel.IsOpen) || edit.IsOpen) return;
+                edit.PropertyChanged -= OnEditClosed;
+                IsNestedModalOpen = false;
+            }
+
+            edit.PropertyChanged += OnEditClosed;
+        }
+
         App.OpenEditCompanyModal(
             "These appear in the header of every invoice you send. Fill in what you want shown."
                 .Translate());
@@ -210,6 +252,26 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
     /// banner clears while the invoice modal is still open rather than on its next open.
     /// </summary>
     public void RefreshCompanyDetailsPrompt() => OnPropertyChanged(nameof(ShowCompanyDetailsPrompt));
+
+    /// <summary>
+    /// Turns the prompt off for good on this company, for the user whose invoices are meant to
+    /// carry no address, phone or email.
+    /// </summary>
+    [RelayCommand]
+    private async Task DismissCompanyDetailsPrompt()
+    {
+        var companyData = App.CompanyManager?.CompanyData;
+        if (companyData == null) return;
+
+        companyData.Settings.CompanyDetailsPromptDismissed = true;
+        companyData.MarkAsModified();
+        RefreshCompanyDetailsPrompt();
+
+        // Saved now rather than left to the next save, because a dismissal that comes back after a restart is worse than no dismissal.
+        App.SuppressNextSavedFeedback();
+        try { await App.CompanyManager!.SaveCompanyAsync(); }
+        catch (Exception ex) { App.ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Invoice.DismissCompanyDetailsPrompt"); }
+    }
 
     /// <summary>Invoice number for the paper: the existing one when continuing a draft, else the next.</summary>
     public string InvoiceNumberDisplay
@@ -384,15 +446,19 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
         string? CustomerId, DateTimeOffset? IssueDate, DateTimeOffset? DueDate, string Status, string Notes,
         decimal TaxRate, bool TaxIsFixed, decimal SecurityDeposit, decimal ShippingAmount,
         decimal CustomFeeAmount, bool CustomFeeIsPercent, decimal DiscountAmount, bool DiscountIsPercent,
+        string CustomFeeLabel, string Currency, string? TemplateId,
+        bool PassProcessingFee, bool ShowCompanyAddress, bool ShowCompanyPhone, bool ShowDueDateProminent,
         Helpers.EquatableArray<LineState> LineItems);
 
-    // The form as the edit modal opened, for change detection.
+    // The form as it opened filled in from an invoice, for change detection. Null on a blank form.
     private EditState? _original;
 
     private EditState Capture() => new(
         SelectedCustomer?.Id, ModalIssueDate, ModalDueDate, ModalStatus, ModalNotes,
         TaxRate, TaxIsFixed, SecurityDeposit, ShippingAmount,
         CustomFeeAmount, CustomFeeIsPercent, DiscountAmount, DiscountIsPercent,
+        CustomFeeLabel ?? string.Empty, SelectedCurrencyCode, SelectedTemplate?.Id,
+        OptPassProcessingFee, OptShowCompanyAddress, OptShowCompanyPhone, OptShowDueDateProminent,
         new Helpers.EquatableArray<LineState>(LineItems.Select(li =>
             new LineState(li.SelectedProduct?.Id, li.Description, li.Quantity, li.UnitPrice))));
 
@@ -402,6 +468,13 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
     public bool HasEditModalChanges => Capture() != _original;
 
     private void CaptureOriginalValues() => _original = Capture();
+
+    /// <summary>
+    /// Whether closing would throw work away. A blank form has work in it once anything is
+    /// entered. A form opened already filled in, to edit or to copy an invoice, has work in it
+    /// only once it differs from how it opened.
+    /// </summary>
+    private bool HasUnsavedWork => _original == null ? HasEnteredData : HasEditModalChanges;
 
     public ObservableCollection<string> StatusOptions { get; } = new(InvoiceStatusExtensions.GetModalOptions());
 
@@ -422,10 +495,9 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
     /// </summary>
     public string SelectedCurrencyCode => CurrencyService.ParseCurrencyCode(SelectedCurrency);
 
-    // Computed totals. Subtotal is the line-items sum (the base for a percentage discount/fee and the
-    // displayed Subtotal line). Tax applies to the subtotal AFTER the invoice-level discount and
-    // taxable custom fee, per industry standard and docs/Calculations.md §4. InvoiceMath owns the
-    // formula so the form, the preview, the saved invoice and the rendered paper can't disagree.
+    protected override int MoneyDecimals => CurrencyInfo.GetByCode(SelectedCurrencyCode).DecimalPlaces;
+
+    // Computed totals. Subtotal is the line-items sum (the base for a percentage discount/fee and the displayed Subtotal line).
     public decimal Subtotal => LineItems.Sum(i => i.Amount);
     public decimal CustomFeeCalculated => InvoiceMath.CustomFee(Subtotal, CustomFeeAmount, CustomFeeIsPercent);
     public decimal DiscountCalculated => InvoiceMath.Discount(Subtotal, DiscountAmount, DiscountIsPercent);
@@ -449,16 +521,12 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
         {
             ModalNotes = value.DefaultNotes;
         }
-        // Adopt the new template's display settings as the starting point for the per-invoice options
-        // (the user can then override them). In edit mode LoadFromInvoice re-applies saved overrides
-        // after the template is set.
+        // Adopt the new template's display settings as the starting point for the per-invoice options (the user can then override them).
         SyncOptionsFromTemplate(value);
         RegeneratePaper();
     }
 
-    // Amount edits come from typing directly on the paper; only recompute totals here. A full
-    // paper re-render would recreate the field mid-keystroke and drop the caret, so the paper is
-    // rebuilt when previewing or saving instead, by which point the caret has moved on.
+    // Amount edits come from typing directly on the paper; only recompute totals here.
     protected override void OnTotalsAmountChanged() => UpdateTotals();
 
     partial void OnSecurityDepositChanged(decimal value)
@@ -899,6 +967,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
 
         // Open modal in view-only preview mode
         ResetForm();
+        _viewingInvoiceId = invoice.Id;
         IsViewOnly = true;
         IsShowingPreview = true;
         ModalTitle = "View Invoice";
@@ -985,7 +1054,10 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
         ModalStatus = nameof(InvoiceStatus.Draft);
 
         IsEditMode = false;
-        ModalTitle = "Create Invoice";
+        ModalTitle = "Duplicate Invoice";
+
+        // So closing an untouched copy does not ask first.
+        CaptureOriginalValues();
 
         ShowForm();
     }
@@ -996,10 +1068,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
     /// </summary>
     private void LoadInvoiceIntoForm(Invoice invoice)
     {
-        // Reset to a clean baseline: clears stale external-source flags
-        // (IsFromRental/IsFromRevenue/IsViewOnly), unsubscribes any line items
-        // left over from a previous modal session, and zeroes validation state.
-        // We then overwrite the relevant fields below from the loaded invoice.
+        // Reset to a clean baseline: stale external-source flags, leftover line-item subscriptions and validation state all go.
         ResetForm();
 
         IsEditMode = true;
@@ -1024,9 +1093,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
         SelectedCurrency = CurrencyService.GetDisplayString(
             string.IsNullOrEmpty(invoice.OriginalCurrency) ? "USD" : invoice.OriginalCurrency);
 
-        // Restore the template this draft was created with, so the preview (and a re-save) keep it
-        // instead of snapping to the default. Set it before LoadOptionsFrom so that its saved overrides
-        // win over the template's defaults; IsEditMode is already true, so this won't clobber the notes.
+        // Restore the template this draft was created with, so the preview (and a re-save) keep it instead of snapping to the default.
         if (!string.IsNullOrEmpty(invoice.TemplateId))
         {
             var savedTemplate = TemplateOptions.FirstOrDefault(t => t.Id == invoice.TemplateId);
@@ -1059,6 +1126,11 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
                 TaxRate = lineItem.TaxRate,
                 InvoiceCurrencyCode = SelectedCurrencyCode
             };
+            // The unit the line was written with wins over the product's current one, which is the
+            // point of storing it. A line saved before units existed falls back to the product's.
+            if (!string.IsNullOrEmpty(lineItem.Unit))
+                displayItem.Unit = lineItem.Unit;
+
             displayItem.PropertyChanged += OnLineItemPropertyChanged;
             LineItems.Add(displayItem);
         }
@@ -1101,21 +1173,16 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
                     "Are you sure you want to delete this invoice?\n\nInvoice: {0}\nAmount: {1}".TranslateFormat(item.Id, item.TotalFormatted)))
                 return;
 
-            var companyData = App.CompanyManager?.CompanyData;
-
-            var invoice = companyData?.Invoices.FirstOrDefault(i => i.Id == item.Id);
+            var invoice = App.CompanyManager?.CompanyData?.Invoices.FirstOrDefault(i => i.Id == item.Id);
             if (invoice == null) return;
 
-            // Clean up linked records: unlink rentals, and remove/unlink revenues
-            UnlinkInvoiceFromRentals(invoice, companyData!);
-            RemoveAutoCreatedRevenue(invoice, companyData!);
+            DeleteInvoice(invoice);
 
-            companyData?.Invoices.Remove(invoice);
-            InvoiceDeleted?.Invoke(this, EventArgs.Empty);
-
-            // Auto-save immediately
+            // Auto-save immediately. The save is a consequence of the delete, so the header says
+            // nothing: "Saved" next to an invoice that just disappeared reads as the wrong outcome.
             if (App.CompanyManager != null)
             {
+                App.SuppressNextSavedFeedback();
                 try { await App.CompanyManager.SaveCompanyAsync(); }
                 catch (Exception ex) { App.ReportInvoiceSaveFailure(ex); }
             }
@@ -1124,6 +1191,53 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
         {
             App.ErrorLogger?.LogError(ex, ErrorCategory.Validation, "Invoice.OpenDeleteConfirm");
         }
+    }
+
+    /// <summary>
+    /// Removes an invoice and everything its removal touches, and records the undo that puts all of
+    /// it back. Separate from the confirmation above so what changes data can be exercised on its own.
+    /// </summary>
+    internal void DeleteInvoice(Invoice invoice)
+    {
+        var companyData = App.CompanyManager?.CompanyData;
+        if (companyData == null) return;
+
+        // Read before the cleanup runs, because these are what undo has to put back: the rentals
+        // that pointed at this invoice, and the revenues that were linked to it.
+        var linkedRentals = companyData.Rentals.Where(r => r.InvoiceIds.Contains(invoice.Id)).ToList();
+        var linkedRevenues = companyData.Revenues.Where(r => r.InvoiceId == invoice.Id).ToList();
+
+        // Clean up linked records: unlink rentals, and remove/unlink revenues
+        UnlinkInvoiceFromRentals(invoice, companyData);
+        RemoveAutoCreatedRevenue(invoice, companyData);
+
+        companyData.Invoices.RemoveRecord(invoice);
+        companyData.MarkAsModified();
+        InvoiceDeleted?.Invoke(this, EventArgs.Empty);
+
+        App.UndoRedoManager.RecordAction(new DelegateAction(
+            $"Delete invoice '{invoice.Id}'",
+            () =>
+            {
+                companyData.Invoices.RestoreRecord(invoice);
+                foreach (var revenue in linkedRevenues)
+                {
+                    companyData.Revenues.RestoreRecord(revenue);
+                    revenue.InvoiceId = invoice.Id;
+                }
+                foreach (var rental in linkedRentals.Where(r => !r.InvoiceIds.Contains(invoice.Id)))
+                    rental.InvoiceIds.Add(invoice.Id);
+                companyData.MarkAsModified();
+                InvoiceSaved?.Invoke(this, EventArgs.Empty);
+            },
+            () =>
+            {
+                UnlinkInvoiceFromRentals(invoice, companyData);
+                RemoveAutoCreatedRevenue(invoice, companyData);
+                companyData.Invoices.RemoveRecord(invoice);
+                companyData.MarkAsModified();
+                InvoiceSaved?.Invoke(this, EventArgs.Empty);
+            }));
     }
 
     #endregion
@@ -1332,6 +1446,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
                 Description = li.Description,
                 Quantity = li.Quantity ?? 0,
                 UnitPrice = li.UnitPrice ?? 0,
+                Unit = li.Unit,
                 Discount = li.Discount,
                 TaxRate = li.TaxRate
             }).ToList()
@@ -1439,9 +1554,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
                 var usage = await usageService.CheckUsageAsync();
                 if (!usage.Allowed)
                 {
-                    // A failed check (offline / server unreachable) reports an ErrorMessage
-                    // rather than a real limit. Show that inline instead of falsely claiming
-                    // the monthly send limit was reached.
+                    // A failed check (offline / server unreachable) reports an ErrorMessage rather than a real limit. Show that inline instead of falsely claiming the monthly send limit was reached.
                     if (!string.IsNullOrEmpty(usage.ErrorMessage))
                     {
                         await ShowSendErrorAsync(usage.ErrorMessage.Translate());
@@ -1478,10 +1591,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
             return;
         }
 
-        // From here down: the user is committed to sending. Flip IsSending so
-        // the modal swaps the preview + footer for a centered spinner. The
-        // 1-2 second silent gap was confusing because nothing visibly happened
-        // after the click.
+        // From here down: the user is committed to sending. Flip IsSending so the modal swaps the preview + footer for a centered spinner.
         IsSending = true;
         try
         {
@@ -1501,9 +1611,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
         var customer = companyData.GetCustomer(SelectedCustomer!.Id!);
         if (customer == null) return;
 
-        // The outer CreateAndSendInvoice already guards on SelectedTemplate
-        // being non-null, but the compiler can't see across method boundaries,
-        // re-assert here so the SendInvoiceAsync call site doesn't warn.
+        // CreateAndSendInvoice already guards SelectedTemplate, but the compiler cannot see across methods, so it is re-asserted here.
         var selectedTemplate = SelectedTemplate;
         if (selectedTemplate == null) return;
 
@@ -1554,6 +1662,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
                 Description = i.Description,
                 Quantity = i.Quantity ?? 0,
                 UnitPrice = i.UnitPrice ?? 0,
+                Unit = i.Unit,
 
                 // Carried through as on a new invoice. An imported draft's lines can hold a
                 // discount, and dropping it here billed more than the total the user confirmed.
@@ -1605,10 +1714,9 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
                     Description = i.Description,
                     Quantity = i.Quantity ?? 0,
                     UnitPrice = i.UnitPrice ?? 0,
+                    Unit = i.Unit,
 
-                    // Written back rather than zeroed. Both are zero on anything this form
-                    // created; an imported line can carry them, and hard-coding zero here
-                    // silently discarded whatever the sheet supplied.
+                    // Written back rather than zeroed. Both are zero on anything this form created; an imported line can carry them, and hard-coding zero here silently discarded whatever the sheet supplied.
                     TaxRate = i.TaxRate,
                     Discount = i.Discount
                 }).ToList()
@@ -1631,18 +1739,14 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
         invoice.OriginalCurrency = SelectedCurrencyCode;
         await ApplyUsdTotalAsync(companyData, invoice);
 
-        // Payment-derived totals (AmountPaid / Balance / BalanceUSD) come
-        // from InvoiceTotalsService so the rule "stored totals always match
-        // the Payment list" is preserved. See docs/Calculations.md §5.
+        // Payment-derived totals (AmountPaid / Balance / BalanceUSD) come from InvoiceTotalsService so the rule "stored totals always match the Payment list" is preserved.
         InvoiceTotalsService.Recalculate(invoice, companyData.Payments);
 
         // Rendered and published with the status it goes out with, so a due date already past prints
         // as overdue (Invoice.IsOverdue) and the portal doesn't receive a draft.
         invoice.Status = InvoiceStatus.Sent;
 
-        // Undoes what this attempt changed and says why it failed. The number goes back only when the
-        // portal can't hold it: reusing one it published would put another invoice behind the link
-        // that customer was emailed.
+        // Undoes what this attempt changed and says why it failed.
         async Task SendFailedAsync(string message, bool mayHavePublished)
         {
             restoreDraft?.Invoke();
@@ -1657,9 +1761,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
             await ShowSendErrorAsync(message);
         }
 
-        // The portal publishes the invoice and sends the email, via sendEmail: true. Reaching
-        // here without one is impossible: CreateAndSendInvoice returns early when the portal is
-        // not configured, and it is this method's only caller.
+        // The portal publishes the invoice and sends the email, via sendEmail: true.
         if (PortalSettings.IsConfigured)
         {
             try
@@ -1735,16 +1837,9 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
         }
 
         // If "Repeat this invoice" was set, create the recurring schedule here too.
-        // The helper no-ops if it isn't recurring or a schedule already exists (e.g. a
-        // recurring draft that was scheduled on save and is now being sent).
         CreateRecurringScheduleIfNeeded(invoice, companyData, new IdGenerator(companyData));
 
-        // Auto-create a Revenue transaction if this invoice isn't already linked to one.
-        // Path A (Revenue → Invoice): revenue already exists, LinkInvoiceToRevenue linked it above.
-        // Path B (Invoice → Revenue): no revenue exists yet, so create one automatically.
-        // A kept deposit is linked to the invoice too, but it is not the invoice's revenue. Counted
-        // here, a deposit kept while the invoice was still a draft stopped the rental charge
-        // itself from ever being recorded.
+        // Auto-create a Revenue transaction if this invoice isn't already linked to one. Path A (Revenue → Invoice): revenue already exists, LinkInvoiceToRevenue linked it above.
         var hasLinkedRevenue = companyData.Revenues.Any(r => r.InvoiceId == invoice.Id && !r.IsKeptDeposit);
         if (!hasLinkedRevenue)
         {
@@ -1835,9 +1930,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
         if (App.ConfirmationDialog == null) return;
 
         IsNestedModalOpen = true;
-        // The caller flushed the live paper edits into the model first. Rebuild PreviewHtml from it
-        // now (while the WebView is hidden, so there's no visible reload) so re-showing the WebView
-        // re-navigates to content that includes those edits instead of a stale paper that drops them.
+        // The caller flushed the live paper edits into the model first.
         RegeneratePaper();
         try
         {
@@ -1962,14 +2055,9 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
             return;
         }
 
-        // In edit mode, check if changes were made; in add mode, check if data was entered
-        var hasUnsavedWork = IsEditMode ? HasEditModalChanges : HasEnteredData;
-
-        if (hasUnsavedWork)
+        if (HasUnsavedWork)
         {
-            // Hide the editable WebView so the confirmation dialog renders above it. The native
-            // WebView renders in its own airspace above Avalonia content, so it otherwise occludes
-            // the dialog.
+            // Hide the editable WebView so the confirmation dialog renders above it. The native WebView renders in its own airspace above Avalonia content, so it otherwise occludes the dialog.
             IsNestedModalOpen = true;
 
             var confirmed = IsEditMode
@@ -2029,14 +2117,43 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
         companyData.RecurringInvoices.Add(schedule);
     }
 
+    private void ShowValidation(string message)
+    {
+        ValidationMessage = message;
+        HasValidationMessage = true;
+    }
+
     [RelayCommand]
     private async Task SaveAsDraft()
     {
-        // A draft goes to nobody, so nothing is required to save one. The customer and the
-        // rest are checked on the send instead.
+        // A draft goes to nobody, so a blank box is fine and the rest is checked on the send, but the customer and product boxes are pickers and text that matched nothing is about to be thrown away.
         HasCustomerError = false;
         ValidationMessage = string.Empty;
         HasValidationMessage = false;
+
+        if (SelectedCustomer == null && !string.IsNullOrWhiteSpace(TypedCustomerName))
+        {
+            HasCustomerError = true;
+            ShowValidation("\"{0}\" is not one of your customers. Pick one from the list, or clear the box."
+                .TranslateFormat(TypedCustomerName.Trim()));
+            return;
+        }
+
+        // Only what was typed here and matched nothing is flagged. A line that arrived with the
+        // draft keeps its description, which is saved either way, and is checked again on the send.
+        var unmatched = IsFromExternalSource
+            ? null
+            : LineItems.FirstOrDefault(li => li.DescriptionTyped
+                && li.SelectedProduct == null
+                && !string.IsNullOrWhiteSpace(li.Description)
+                && string.IsNullOrEmpty(li.RentalRecordId)
+                && string.IsNullOrEmpty(li.RevenueRecordId));
+        if (unmatched != null)
+        {
+            ShowValidation("\"{0}\" is not one of your products. Pick one from the list, or clear the box."
+                .TranslateFormat(unmatched.Description.Trim()));
+            return;
+        }
 
         var companyData = App.CompanyManager?.CompanyData;
         if (companyData == null) return;
@@ -2058,6 +2175,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
             Description = i.Description,
             Quantity = i.Quantity ?? 0,
             UnitPrice = i.UnitPrice ?? 0,
+            Unit = i.Unit,
 
             // Carried through, as on the send path. Zero on anything created here.
             TaxRate = i.TaxRate,
@@ -2112,9 +2230,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
 
         ApplyOptionsTo(invoice);
 
-        // Compute and store invoice-level totals (Subtotal / TaxAmount /
-        // Total). Payment-derived fields are set by InvoiceTotalsService
-        // below, see docs/Calculations.md §5.
+        // Compute and store invoice-level totals (Subtotal / TaxAmount / Total). Payment-derived fields are set by InvoiceTotalsService below, see docs/Calculations.md §5.
         invoice.Subtotal = Subtotal;
         invoice.TaxAmount = TaxAmount;
         invoice.Total = Total;
@@ -2135,11 +2251,44 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
 
         CreateRecurringScheduleIfNeeded(invoice, companyData, idGenerator);
 
-        // Editing an already-published invoice changes what the customer owes,
-        // so the portal needs the new total or it would chase the old one. A
-        // no-op for invoices that were never published, and for brand-new ones
-        // the publish path sends the full record anyway.
+        // Editing an already-published invoice changes what the customer owes, so the portal needs the new total or it would chase the old one.
         App.PortalBalanceSyncService?.Queue(invoice.Id);
+
+        if (existingDraft == null)
+        {
+            var created = invoice;
+            var schedule = companyData.RecurringInvoices.FirstOrDefault(s => s.Id == created.RecurringInvoiceId);
+            App.UndoRedoManager.RecordAction(new DelegateAction(
+                $"Add invoice '{created.Id}'",
+                () =>
+                {
+                    // Sending it emailed the customer and published it to the portal, neither of which undo can take back.
+                    if (created.Status != InvoiceStatus.Draft)
+                    {
+                        App.AddNotification(
+                            "Cannot undo".Translate(),
+                            "This invoice has been sent, so it can no longer be removed.".Translate(),
+                            NotificationType.Warning);
+                        return;
+                    }
+
+                    UnlinkInvoiceFromRentals(created, companyData);
+                    if (schedule != null)
+                        companyData.RecurringInvoices.RemoveRecord(schedule);
+                    companyData.Invoices.RemoveRecord(created);
+                    companyData.MarkAsModified();
+                    InvoiceSaved?.Invoke(this, EventArgs.Empty);
+                },
+                () =>
+                {
+                    companyData.Invoices.RestoreRecord(created);
+                    if (schedule != null)
+                        companyData.RecurringInvoices.RestoreRecord(schedule);
+                    LinkInvoiceToRentals(created, companyData);
+                    companyData.MarkAsModified();
+                    InvoiceSaved?.Invoke(this, EventArgs.Empty);
+                }));
+        }
 
         LastSavedInvoiceId = invoice.Id;
         InvoiceSaved?.Invoke(this, EventArgs.Empty);
@@ -2257,7 +2406,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
                 Discount = li.Discount
             }).ToList(),
             Quantity = totalQuantity,
-            UnitPrice = totalQuantity > 0 ? Math.Round(invoice.Subtotal / totalQuantity, 2) : 0,
+            UnitPrice = totalQuantity > 0 ? Math.Round(invoice.Subtotal / totalQuantity, 2, MidpointRounding.AwayFromZero) : 0,
             Subtotal = invoice.Subtotal,
             Amount = invoice.Subtotal,
             TaxRate = invoice.TaxRate,
@@ -2309,7 +2458,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
             else
             {
                 // Auto-created from the invoice → remove entirely
-                companyData.Revenues.Remove(revenue);
+                companyData.Revenues.RemoveRecord(revenue);
             }
         }
     }
@@ -2317,7 +2466,9 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
     private void ResetForm()
     {
         IsPortalReady = PaymentProviderService.IsPortalReady();
+        TypedCustomerName = string.Empty;
         _editingInvoiceId = string.Empty;
+        _original = null;
         _unansweredSend = null;
         PaperLogo = null;
         IsFromRental = false;
@@ -2384,6 +2535,12 @@ public partial class LineItemDisplayModel : ObservableObject, IPaperLine
     private decimal? _unitPrice;
 
     [ObservableProperty]
+    private string _unit = string.Empty;
+
+    [ObservableProperty]
+    private bool _descriptionTyped;
+
+    [ObservableProperty]
     private bool _hasProductError;
 
     [ObservableProperty]
@@ -2442,6 +2599,8 @@ public partial class LineItemDisplayModel : ObservableObject, IPaperLine
             Description = value.Name;
             if (UnitPrice is null or 0)
                 UnitPrice = value.UnitPrice;
+            Unit = value.Unit;
+            DescriptionTyped = false;
             HasProductError = false;
         }
     }

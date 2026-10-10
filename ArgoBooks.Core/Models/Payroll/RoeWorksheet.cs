@@ -85,9 +85,7 @@ public class RoeWorksheet
     /// <summary>How many pay periods block 15A and 15C cover.</summary>
     public int HoursPeriodCount { get; set; }
 
-    // The blocks below cannot be derived from payroll. They are asked for on the way to an
-    // export and left at their defaults for the worksheet, which is why none of them is
-    // required to render one.
+    // The blocks below cannot be derived from payroll.
 
     /// <summary>Block 16. Asked, never guessed: see RoeReason.</summary>
     public RoeReason? Reason { get; set; }

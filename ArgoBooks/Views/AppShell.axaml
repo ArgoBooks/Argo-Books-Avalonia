@@ -1,4 +1,4 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -78,7 +78,7 @@
                                                HorizontalAlignment="Center" />
                                     <Button Grid.Column="2"
                                             Command="{Binding HeaderViewModel.DismissUnsavedChangesReminderCommand}"
-                                            ToolTip.Tip="Dismiss"
+                                            ToolTip.Tip="{loc:Loc 'Dismiss'}"
                                             Background="{DynamicResource WarningDarkBrush}"
                                             BorderThickness="0"
                                             CornerRadius="4"
@@ -202,7 +202,7 @@
                         Cursor="Hand"
                         VerticalAlignment="Top"
                         Margin="4,10,8,0"
-                        ToolTip.Tip="Dismiss">
+                        ToolTip.Tip="{loc:Loc 'Dismiss'}">
                     <PathIcon Data="{x:Static icons:Icons.Close}"
                               Width="14" Height="14"
                               Foreground="{DynamicResource TextTertiaryBrush}" />
@@ -224,9 +224,7 @@
         <!-- Settings Modal -->
         <modals:SettingsModal DataContext="{Binding SettingsModalViewModel}" />
 
-        <!-- Upgrade Modal. Declared after Settings so it draws on top of it: the
-             Premium prompts inside Settings used to close Settings before opening
-             this, which threw away where the user was for the sake of z-order. -->
+        <!-- Declared after Settings so it draws on top, which lets a Premium prompt inside Settings open it without throwing away where the user was. -->
         <modals:UpgradeModal DataContext="{Binding UpgradeModalViewModel}" />
 
         <!-- Check for Update Modal -->
@@ -270,9 +268,6 @@
 
         <!-- Note: PasswordPromptModal is now at MainWindow level to appear above WelcomeScreen -->
 
-        <!-- Edit Company Modal -->
-        <modals:EditCompanyModal DataContext="{Binding EditCompanyModalViewModel}" />
-
         <!-- Consumer modals (may open mid-level or entity modals on top) -->
         <modals:PaymentModals DataContext="{Binding PaymentModalsViewModel}" />
         <modals:StockAdjustmentsModals DataContext="{Binding StockAdjustmentsModalsViewModel}" />
@@ -307,6 +302,9 @@
         <modals:PayrollModals DataContext="{Binding PayrollModalsViewModel}" />
         <modals:PayRunModals DataContext="{Binding PayRunModalsViewModel}" />
         <modals:YearEndModal DataContext="{Binding YearEndModalViewModel}" />
+
+        <!-- The invoice modal opens this one, so it is declared after it and draws on top. -->
+        <modals:EditCompanyModal DataContext="{Binding EditCompanyModalViewModel}" />
 
         <!-- Unsaved Changes Dialog -->
         <modals:UnsavedChangesDialog DataContext="{Binding UnsavedChangesDialogViewModel}" />

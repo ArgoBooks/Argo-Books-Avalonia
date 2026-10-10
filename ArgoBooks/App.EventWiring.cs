@@ -86,14 +86,7 @@ public partial class App
             _appShellViewModel.ApplyFeatureVisibility(companySettings);
             if (companySettings != null)
             {
-                // Hooked here rather than at the create-company screen so it also covers
-                // existing companies, and companies opened on a second
-                // machine. TrackCompanyProfileAsync ignores repeats within a session.
-                //
-                // The sample company is skipped outright: its name, industry, country and
-                // currency ship with the demo file and are identical on every install, so
-                // reporting them says nothing about this user, and every reader downstream
-                // would otherwise have to know to throw them away.
+                // Hooked here rather than at the create-company screen so it also covers existing companies, and companies opened on a second machine.
                 if (!CompanyManager.IsSampleCompany)
                 {
                     _ = TelemetryManager?.TrackCompanyProfileAsync(
@@ -140,9 +133,7 @@ public partial class App
             // before navigating so the dashboard renders with the right range.
             ChartSettingsService.Instance.LoadForCompany(args.FilePath);
 
-            // This handler is async void, so nothing above it would catch a failure here; it would
-            // leave the loading overlay up. The company is open either way, as it was when the
-            // opening flows did this themselves and showed the same error over the dashboard.
+            // This handler is async void, so nothing above it would catch a failure here; it would leave the loading overlay up.
             var sampleShifted = false;
             Exception? samplePrepareError = null;
             if (CompanyManager.IsSampleCompany)
@@ -171,16 +162,12 @@ public partial class App
             _mainWindowViewModel.HideLoading();
             ReportCompanyOpenTiming(args);
 
-            // Defer non-visual and network work until after the dashboard has painted,
-            // so the company opens as fast as possible. Posted on the UI thread at
-            // Background priority to keep thread affinity but yield to rendering first.
+            // Defer non-visual and network work until after the dashboard has painted, so the company opens as fast as possible.
             Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
             {
                 try
                 {
-                    // Merge the deferred receipts on the UI thread now that the dashboard
-                    // has painted, so the rest of the app sees them and any auto-save below
-                    // writes them back. Save paths also gate on this, so it's safe either way.
+                    // Merge the deferred receipts on the UI thread now that the dashboard has painted, so the rest of the app sees them and any auto-save below writes them back.
                     await CompanyManager.EnsureReceiptsLoadedAsync();
 
                     // Generate any recurring invoices that came due while the app was closed.
@@ -227,9 +214,7 @@ public partial class App
                                 NotificationType.Info);
                         }
 
-                        // Remind about recurring drafts still waiting to be sent: ones generated on an
-                        // earlier open that the user hasn't sent yet. Exclude the ones just generated above
-                        // (they already got the "added to drafts" notice) so the same drafts aren't announced twice.
+                        // Remind about recurring drafts still waiting to be sent: ones generated on an earlier open that the user hasn't sent yet.
                         var pendingRecurringDrafts = CompanyManager.CompanyData.Invoices.Count(
                             i => i.Status == InvoiceStatus.Draft && !string.IsNullOrEmpty(i.RecurringInvoiceId));
                         var awaitingSend = pendingRecurringDrafts - generatedRecurring.Count;
@@ -310,13 +295,7 @@ public partial class App
             NavigationService?.NavigateTo("Welcome");
             _welcomeScreenViewModel?.InitializeTutorialMode();
 
-            // Reset to the global language LAST. This handler is async void, and creating a new
-            // company closes the old one then immediately opens the new one, so this close handler
-            // and the open handler interleave. Keeping the only await at the very end guarantees the
-            // synchronous UI changes above (including the Welcome navigation) all run during the
-            // close, before the open navigates to the Dashboard. If the await sat earlier, this
-            // handler could resume after the open and re-navigate to "Welcome", stranding the
-            // welcome screen inside the freshly opened company's shell.
+            // The global language resets last, because this handler is async void and the close and open handlers interleave when a company is created.
             var globalLanguage = SettingsService?.GlobalSettings.Ui.Language ?? "English";
             await LanguageService.Instance.SetLanguageAsync(globalLanguage);
         };
@@ -359,11 +338,7 @@ public partial class App
             _appShellViewModel.HeaderViewModel.HasUnsavedChanges = true;
         };
 
-        // When the open company's file is renamed during a save, the watcher's
-        // Renamed handler strips the old path from the recent-companies UI caches,
-        // but the new path was only added to settings.json, never to those caches.
-        // Refresh from disk so the welcome screen, file menu, and switcher all see
-        // the new entry.
+        // A save that renames the file strips the old path from the recent-companies caches but adds the new one only to settings.json, so the caches refresh from disk.
         CompanyManager.CompanyRenamed += async (_, _) =>
         {
             await LoadRecentCompaniesAsync();
@@ -498,9 +473,7 @@ public partial class App
             }
         };
 
-        // Customer modals: let the user pick an avatar image. The bitmap is loaded for
-        // an immediate preview; the file is staged and copied/resized into the company
-        // temp directory only when the modal is saved.
+        // Customer modals: let the user pick an avatar image.
         _appShellViewModel.CustomerModalsViewModel.BrowseAvatarRequested += async (_, _) =>
         {
             await PickAvatarAsync(
@@ -534,7 +507,6 @@ public partial class App
             await OpenCompanyFileDialogAsync(desktop);
         };
 
-        // Save
         fileMenu.SaveRequested += async (_, _) =>
         {
             if (CompanyManager?.IsCompanyOpen == true)
@@ -560,7 +532,6 @@ public partial class App
             }
         };
 
-        // Save As
         fileMenu.SaveAsRequested += async (_, _) =>
         {
             if (CompanyManager?.IsCompanyOpen == true)
@@ -852,7 +823,6 @@ public partial class App
             }
         };
 
-        // Wire up edit company modal events
         WireEditCompanyEvents(desktop);
     }
 
@@ -932,9 +902,7 @@ public partial class App
                     // Mark settings as changed
                     settings.ChangesMade = true;
 
-                    // If company name changed, schedule a file rename (skip for sample company).
-                    // The rename is deferred to save time so that closing without saving
-                    // leaves the original file untouched.
+                    // If company name changed, schedule a file rename (skip for sample company). The rename is deferred to save time so that closing without saving leaves the original file untouched.
                     var oldFilePath = CompanyManager.CurrentFilePath;
                     if (nameChanged && CompanyManager.CurrentFilePath != null && !CompanyManager.IsSampleCompany)
                     {
@@ -1097,11 +1065,7 @@ public partial class App
             };
         }
 
-        // Biometric unlock works by storing the password itself in the operating system's
-        // protected store, so any change to the password leaves that copy stale. Without this,
-        // changing a password silently broke fingerprint unlock, removing one left the old
-        // password stored, and a file returned by support recovery still advertised a
-        // biometric option that could never succeed.
+        // Biometric unlock keeps the password in the operating system's protected store, so a password change has to update that copy or fingerprint unlock breaks.
         void SyncBiometricEnrolment(string? newPassword, bool keepEnrolment)
         {
             if (CompanyManager?.CurrentFilePath == null)
@@ -1849,9 +1813,7 @@ public partial class App
                     {
                         _mainWindowViewModel?.HideLoading();
                         ErrorLogger?.LogWarning($"Auto-save before lock failed: {ex.Message}", "AutoSave");
-                        // Do NOT close on a failed save: CloseCompanyAsync discards the working copy and
-                        // every unsaved edit. Abort the lock and keep the session open so the user can
-                        // save manually, matching the window-close path which also refuses to discard.
+                        // Do NOT close on a failed save: CloseCompanyAsync discards the working copy and every unsaved edit.
                         _appShellViewModel.AddNotification(
                             "Auto-lock postponed",
                             "Could not auto-save before locking, so your session stays open to protect unsaved changes. Please save manually.",
@@ -1923,10 +1885,7 @@ public partial class App
         var security = CompanyManager?.CurrentCompanySettings?.Security;
         if (_idleDetectionService == null || security == null) return;
 
-        // The timeout is authoritative: "Never" (0) is off, any positive value is on, and it
-        // requires a password. The separate AutoLockEnabled flag defaults to false while the
-        // default AutoLockMinutes is 5, so trusting it left auto-lock disabled even though the
-        // settings dropdown showed "5 minutes". Derive enablement from the timeout instead.
+        // The timeout is authoritative: "Never" (0) is off, any positive value is on, and it requires a password.
         var autoLockOn = security.AutoLockMinutes > 0 && CompanyManager!.IsEncrypted;
         _idleDetectionService.Configure(autoLockOn, security.AutoLockMinutes);
     }
@@ -1940,11 +1899,7 @@ public partial class App
 
     private static void WireSourceSurveyEvents()
     {
-        // Asked once the second step lands rather than on a finished checklist. The third
-        // step is now a real import, which not everyone will complete, and this survey is
-        // one of the few ways an unattributed install ever reports where it came from.
-        // Both triggers go through ShouldShowSourceSurvey(), which returns false once an
-        // answer is stored, so keeping the completion one as a fallback cannot double-ask.
+        // Asked once the second step lands rather than on a finished checklist.
         TutorialService.Instance.ChecklistItemCompleted += (_, itemId) =>
         {
             if (itemId == TutorialService.ChecklistItems.RecordExpense)

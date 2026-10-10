@@ -1,4 +1,4 @@
-using ArgoBooks.Core.Data;
+﻿using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Localization;
@@ -18,6 +18,13 @@ public abstract partial class ViewModelBase : ObservableObject
 
     [ObservableProperty]
     private string? _busyMessage;
+
+    /// <summary>
+    /// A zero amount in the open company's currency, for the greyed hint in an amount box. The
+    /// boxes that use it filter records that are all in the company's currency, so the symbol is
+    /// the company's rather than any one record's.
+    /// </summary>
+    public string AmountPlaceholder => CurrencyService.Format(0m);
 
     #region Search Debounce
 

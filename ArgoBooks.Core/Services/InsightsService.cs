@@ -46,8 +46,6 @@ public class InsightsService(
     /// </summary>
     private void ResolveDisplayCode(CompanyData companyData) =>
         // The same dates reports check, and that opening a company and changing its currency preload.
-        // Insights converts nothing dated after today, and a future date never has a rate, so one
-        // future-dated invoice or purchase order would otherwise switch the whole run to USD.
         _displayCode = DisplayCurrency.Resolve(
             companyData.Settings.Localization.Currency,
             DisplayCurrency.ReportDates(companyData, null).Where(d => d.Date <= DateTime.Today));
@@ -566,9 +564,7 @@ public class InsightsService(
 
         var historicalStart = dateRange.StartDate.AddDays(-periodDays * 3); // 3x the period for baseline
 
-        // Include the year in the day bucket so a baseline that spans a year boundary
-        // doesn't collapse Jan 5 2024 and Jan 5 2025 into the same statistical bucket.
-        // Use gross + IsCollected so anomaly detection matches dashboard signal.
+        // Include the year in the day bucket so a baseline that spans a year boundary doesn't collapse Jan 5 2024 and Jan 5 2025 into the same statistical bucket.
         var historicalData = companyData.Revenues
             .Where(s => s.Date >= historicalStart && s.Date < dateRange.StartDate)
             .Where(RevenueAggregator.IsCollected)
@@ -675,13 +671,7 @@ public class InsightsService(
         var periodMonths = GetForecastPeriodMonths(dateRange);
         forecast.PeriodMonths = periodMonths;
 
-        // Get monthly data for forecasting. Revenue uses gross (Total) +
-        // paid-only so the forecasted figure matches the Revenue stat card.
-        // Expenses use gross (Total) to match the Expenses stat card. Note:
-        // forecast.ForecastedProfit (computed as forecastedRevenue −
-        // forecastedExpenses below) is an approximation of net profit,
-        // strictly Net Profit uses pre-tax revenue per Calculations.md §2,
-        // but exposing two parallel revenue forecasts adds little signal.
+        // Get monthly data for forecasting. Revenue uses gross (Total) + paid-only so the forecasted figure matches the Revenue stat card.
         var monthlyRevenue = GetMonthlyTotals(
             companyData.Revenues.Where(RevenueAggregator.IsCollected).ToList(),
             s => s.EffectiveTotalUSD);
@@ -715,10 +705,7 @@ public class InsightsService(
             forecast.ForecastedRevenueLower = Math.Max(0, revenueForecast.LowerBounds.Sum() * scaleFactor);
             forecast.ForecastedRevenueUpper = revenueForecast.UpperBounds.Sum() * scaleFactor;
 
-            // Store seasonal pattern info. Require a full year of history (matching DetectSeasonality's
-            // MinimumDataPointsForHoltWinters) before surfacing a seasonal narrative: with fewer points
-            // Holt-Winters fits a 2-3 month "season" to month-to-month noise, so the Forecast card would
-            // claim a pattern the trend-insight path (correctly) stays silent about.
+            // A seasonal narrative needs a full year of history, matching DetectSeasonality, because Holt-Winters fits noise with fewer points.
             if (monthlyRevenue.Count >= 12 && revenueForecast.SeasonalPattern.SeasonalStrength > 0.1)
             {
                 forecast.SeasonalInfo = new SeasonalPatternInfo
@@ -989,15 +976,10 @@ public class InsightsService(
 
     private InsightItem? AnalyzeTopProducts(CompanyData companyData, AnalysisDateRange dateRange)
     {
-        // Use USD-converted amounts by applying each transaction's conversion ratio to its line items.
-        // RevenueDisplay accumulates the same allocation converted to the display currency at each
-        // transaction's own date, so the shown figure is display-currency without disturbing the
-        // USD-based margin ordering.
+        // Each transaction's conversion ratio is applied to its line items, so RevenueDisplay holds the same allocation at each transaction's own date.
         var productSalesData = new Dictionary<string, (decimal Revenue, decimal RevenueDisplay, decimal Cost, decimal Quantity)>();
 
         // Cash-basis: only collected revenue contributes to top-product analysis.
-        // A margin needs both amounts, so a sale still waiting for its revenue's rate, or a line whose
-        // cost price can't be converted yet, is left out rather than counted at no revenue or no cost.
         foreach (var s in companyData.Revenues
                      .Where(s => s.Date >= dateRange.StartDate && s.Date <= dateRange.EndDate)
                      .Where(RevenueAggregator.IsCollected)
@@ -1056,9 +1038,7 @@ public class InsightsService(
     {
         var inactivityThreshold = 60; // days
 
-        // Group Revenues by customer once, capturing both the last purchase date and the
-        // purchase count, so the "previously active" check below is a filter on this list
-        // instead of re-scanning all Revenues per inactive customer.
+        // Revenues are grouped by customer once, carrying the last purchase date and the count, so the check below filters this list rather than rescanning.
         var purchasesByCustomer = companyData.Revenues
             .GroupBy(s => s.CustomerId)
             .Select(g => new { LastPurchase = g.Max(s => s.Date), PurchaseCount = g.Count() })
@@ -1338,8 +1318,6 @@ public class InsightsService(
     private string FormatCurrency(decimal amount)
     {
         // The amount is already in _displayCode (converted at production via ToDisplay/SumDisplay).
-        // Whole units (N0) to keep the narrative style these sentences have always used, with the
-        // display currency's own symbol, invariantly so the output doesn't depend on the machine locale.
         return CurrencyInfo.GetByCode(_displayCode).Symbol
              + amount.ToString("N0", System.Globalization.CultureInfo.InvariantCulture);
     }

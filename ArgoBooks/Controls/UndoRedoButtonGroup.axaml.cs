@@ -4,6 +4,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using ArgoBooks.Converters;
 using ArgoBooks.Localization;
 using ArgoBooks.ViewModels;
 
@@ -23,7 +24,7 @@ public partial class UndoRedoButtonGroup : UserControl
     private int _currentUndoHoverIndex = -1;
     private int _currentRedoHoverIndex = -1;
 
-    private static readonly IBrush HighlightBrush = new SolidColorBrush(Color.FromArgb(40, 59, 130, 246));
+    private static IBrush HighlightBrush => ConverterUtils.AccentTint(40);
     private static readonly IBrush TransparentBrush = Brushes.Transparent;
 
     public UndoRedoButtonGroup()

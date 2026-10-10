@@ -58,9 +58,7 @@ public partial class ErrorLogger : IErrorLogger
         [CallerLineNumber] int callerLine = 0,
         [CallerMemberName] string callerMember = "")
     {
-        // A cancellation isn't a failure: a request cancelled on app close / navigation, or one that
-        // timed out, is expected. Don't record it as an error (TaskCanceledException/OperationCanceled
-        // were cluttering the error log). TaskCanceledException derives from OperationCanceledException.
+        // A cancellation isn't a failure: a request cancelled on app close / navigation, or one that timed out, is expected.
         if (exception is OperationCanceledException)
             return;
 
@@ -197,10 +195,7 @@ public partial class ErrorLogger : IErrorLogger
         // Raise event
         ErrorLogged?.Invoke(this, entry);
 
-        // Report to telemetry. Errors always go up. Warnings only go up when the caller
-        // gave them a code, which is the opt-in: there are dozens of LogWarning calls
-        // across the app and most are local diagnostics with no grouping key, so
-        // uploading them wholesale would bury the ones worth watching.
+        // Report to telemetry. Errors always go up.
         var reportable = entry.Level == LogLevel.Error
             || (entry.Level == LogLevel.Warning && !string.IsNullOrEmpty(entry.ErrorCode));
         if (reportable && TelemetryManager != null)

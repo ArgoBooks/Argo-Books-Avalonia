@@ -109,10 +109,7 @@ public class InventoryValuationServiceTests
         Assert.Equal(0m, InventoryValuationService.TotalValueAsOf(new CompanyData(), new DateTime(2024, 6, 1)));
     }
 
-    // BUG: a stock adjustment made ON the as-of day (with a real time-of-day Timestamp, as every
-    // manual/rental adjustment has) must be INCLUDED in an "as of that day" valuation. The as-of date
-    // is date-only (midnight), so a 9am adjustment currently counts as "after" the as-of date and is
-    // wrongly rolled back. The Balance Sheet "ending today" therefore drops today's stock changes.
+    // BUG: a stock adjustment made ON the as-of day (with a real time-of-day Timestamp, as every manual/rental adjustment has) must be INCLUDED in an "as of that day" valuation.
     [Fact]
     public void StockOnHandAsOf_SameDayTimestampAdjustment_IsIncludedNotRolledBack()
     {
@@ -143,9 +140,7 @@ public class InventoryValuationServiceTests
             InventoryValuationService.TotalValueAsOf(data, new DateTime(2024, 6, 15)));
     }
 
-    // Manual, rental and purchase-order adjustments are stamped in UTC, but the report date is a
-    // local day, so an adjustment belongs to the local day it was made on. A machine set to UTC has
-    // no gap between the two, so this only catches the difference in other time zones.
+    // Manual, rental and purchase-order adjustments are stamped in UTC, but the report date is a local day, so an adjustment belongs to the local day it was made on.
     [Fact]
     public void TotalValueAsOf_UtcTimestamp_CountsOnTheLocalDayItWasMade()
     {

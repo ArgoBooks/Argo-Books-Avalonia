@@ -37,13 +37,10 @@
                                                             SearchText="{Binding ModalCustomerText, Mode=TwoWay}"
                                                             DisplayMemberPath="Name"
                                                             SearchMemberPath="Id"
-                                                            Placeholder="{loc:Loc 'Search customers...'}"
+                                                            Placeholder="{loc:Loc 'Type a new customer, or pick one'}"
                                                             ShowAddNew="True"
                                                             AddNewText="{loc:Loc 'Create new customer'}"
-                                                            AddNewCommand="{Binding OpenCreateCustomerCommand}"
-                                                            EmptyMessage="{loc:Loc 'No customers available.'}"
-                                                            EmptyCreateLinkText="{loc:Loc 'Create one'}"
-                                                            EmptyCreateCommand="{Binding OpenCreateCustomerCommand}" />
+                                                            AddNewCommand="{Binding OpenCreateCustomerCommand}" />
                                 <TextBlock TextWrapping="Wrap" Text="{Binding ModalCustomerError}" Foreground="{DynamicResource ErrorBrush}" FontSize="12"
                                            IsVisible="{Binding ModalCustomerError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                             </StackPanel>
@@ -166,7 +163,7 @@
                                                     </Grid>
                                                     <TextBlock TextWrapping="Wrap" Text="{Binding QuantityError}"
                                                                Foreground="{DynamicResource ErrorBrush}"
-                                                               FontSize="11"
+                                                               FontSize="12"
                                                                IsVisible="{Binding QuantityError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                                 </StackPanel>
                                             </Border>

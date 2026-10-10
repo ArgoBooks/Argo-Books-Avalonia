@@ -83,10 +83,7 @@ public partial class UpgradeModalViewModel : ViewModelBase
 
     #region Pricing
 
-    // The headline figure only, without a currency symbol: the "$" is a separate,
-    // smaller run in the card so the layout matches the website's price block.
-    // Holds the monthly price or the yearly-billed per-month equivalent depending
-    // on the selected cycle, so a single price block serves both.
+    // The headline figure only, without a currency symbol: the "$" is a separate, smaller run in the card so the layout matches the website's price block.
     [ObservableProperty]
     private string _premiumAmountDisplay = "";
 
@@ -235,10 +232,7 @@ public partial class UpgradeModalViewModel : ViewModelBase
 
     private void RefreshPricingDisplay()
     {
-        // Period carries the currency code so it renders as e.g. "CAD/month"
-        // at the same size and color as the period text. We construct it manually so
-        // the slash is preserved and the word stays lowercase regardless of how the
-        // translation pipeline handles "/month" or "month".
+        // Period carries the currency code so it renders as e.g. "CAD/month" at the same size and color as the period text.
         var monthWord = "month".Translate();
         if (!string.IsNullOrEmpty(monthWord) && char.IsUpper(monthWord[0]))
         {
@@ -286,9 +280,7 @@ public partial class UpgradeModalViewModel : ViewModelBase
 
         if (IsYearlyBilling)
         {
-            // The headline figure is the per-month equivalent so it compares
-            // like-for-like against the monthly plan, but the amount actually
-            // charged today has to be stated or checkout comes as a surprise.
+            // The headline figure is the per-month equivalent so it compares with the monthly plan, but what is charged today has to be stated as well.
             PremiumAmountDisplay = string.Format(
                 System.Globalization.CultureInfo.InvariantCulture,
                 "{0:0.00}",
@@ -420,9 +412,7 @@ public partial class UpgradeModalViewModel : ViewModelBase
         EmailError = null;
         IsEmailCaptureStep = false;
 
-        // Out through the success panel's own exit, because that is what raises KeyVerified
-        // and turns premium on in the running app. Closing any other way leaves the customer
-        // on the free tier until they restart.
+        // Out through the success panel's own exit, because that is what raises KeyVerified and turns premium on in the running app.
         ContinueAfterSuccess();
     }
 
@@ -494,11 +484,7 @@ public partial class UpgradeModalViewModel : ViewModelBase
         if (IsVerificationSuccess)
             return;
 
-        // The email step comes after the licence is already active, so a click on the
-        // backdrop must not be treated as abandoning the key entry. LicenseKey is still
-        // populated at this point, so without this guard the click fell through to the
-        // discard-changes prompt and asked the user to confirm throwing away a purchase
-        // they had already completed. Dismissing here is the X button's job.
+        // The email step comes after the licence is already active, so a click on the backdrop must not be treated as abandoning the key entry.
         if (IsEmailCaptureStep)
             return;
 
@@ -638,9 +624,7 @@ public partial class UpgradeModalViewModel : ViewModelBase
         }
         catch (HttpRequestException ex)
         {
-            // Someone trying to redeem a licence and failing is the most expensive network
-            // failure in the app, so it is worth knowing whether it was their connection or
-            // ours. The probe was already running to choose the message.
+            // Someone trying to redeem a licence and failing is the most expensive network failure in the app, so it is worth knowing whether it was their connection or ours.
             _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.LicenseKeyRedeemed, "network");
             VerificationError = (await NetworkFailure.ResolveAndReportAsync(
                 App.ErrorLogger, ex, "License redemption network error", _connectivityService)).Translate();
@@ -704,8 +688,6 @@ public partial class UpgradeModalViewModel : ViewModelBase
         IsLoadingPlans = true;
         HasLoadError = false;
         // Reset IsOffline so this attempt's outcome isn't blended with a previous one.
-        // The catch path re-sets it only on connectivity errors; a non-connectivity
-        // failure (e.g. 5xx) must not leave the offline panel from a prior call visible.
         IsOffline = false;
 
         try

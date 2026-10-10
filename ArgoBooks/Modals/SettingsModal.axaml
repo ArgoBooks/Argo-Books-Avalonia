@@ -1,4 +1,4 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -283,9 +283,7 @@
 
                     <!-- Notifications Tab -->
                     <TabItem Header="{loc:Loc Notifications}">
-                        <!-- Horizontal scrolling disabled so the viewport width is finite. Left on
-                             the default, cards get infinite width during measure and TextWrapping
-                             never kicks in, so longer descriptions run past the toggle. -->
+                        <!-- Horizontal scrolling disabled so the viewport width is finite. -->
                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" AllowAutoHide="False" Margin="24,20,16,20" Padding="0,0,8,0">
                             <StackPanel Spacing="0">
                                 <!-- Extra bottom margin: this StackPanel uses Spacing="4". -->
@@ -693,9 +691,7 @@
                             <StackPanel Spacing="16">
                                 <controls:SampleCompanyNotice IsVisible="{Binding IsSampleCompany}" />
 
-                                <!-- Password - No password set. Plain row, not a status-panel: it sits
-                                     above Biometric Login and Auto-Lock, which are plain, and the one
-                                     boxed setting in the tab read as the odd one out. -->
+                                <!-- Password - No password set. Plain row, not a status-panel: it sits above Biometric Login and Auto-Lock, which are plain, and the one boxed setting in the tab read as the odd one out. -->
                                 <Border Classes="settings-row last"
                                         IsVisible="{Binding !HasPassword}"
                                         IsEnabled="{Binding !IsSampleCompany}">
@@ -954,9 +950,7 @@
                                                 Command="{Binding ChooseBackupFolderCommand}"
                                                 VerticalAlignment="Center" />
                                     </Grid>
-                                    <!-- Plain text, not a warning colour: this is true of the default,
-                                         so flagging it in amber would mean every install opens on what
-                                         looks like a fault. -->
+                                    <!-- Plain text, not a warning colour: this is true of the default, so flagging it in amber would mean every install opens on what looks like a fault. -->
                                     <TextBlock Text="{loc:Loc 'This folder is on the same drive as your company file. Copies here survive a mistake or a damaged file, but not a failed drive. Somewhere on a second drive protects against more.'}"
                                                FontSize="12"
                                                Foreground="{DynamicResource TextTertiaryBrush}"
@@ -969,10 +963,7 @@
                                                IsVisible="{Binding !HasBackupFolder}" />
                                 </StackPanel>
 
-                                <!-- Kept. The actions live on this heading rather than in a panel of
-                                     their own: the empty state below already says there is nothing yet,
-                                     and saying it twice made the tab look like it had a status to
-                                     report when it did not. -->
+                                <!-- The actions live on this heading rather than in a panel of their own, because the empty state below already says there is nothing yet. -->
                                 <StackPanel Spacing="6">
                                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
                                         <TextBlock Grid.Column="0"
@@ -1073,7 +1064,7 @@
                                         <TextBox Grid.Column="0"
                                                  Text="{Binding PendingOwnerEmail, Mode=TwoWay}"
                                                  Classes="form-input"
-                                                 PlaceholderText="you@example.com"
+                                                 PlaceholderText="{loc:Loc 'you@example.com'}"
                                                  HorizontalAlignment="Stretch" />
                                         <Button Grid.Column="1"
                                                 Content="{loc:Loc 'Set'}"
@@ -1084,10 +1075,7 @@
                                                 VerticalAlignment="Stretch" />
                                     </Grid>
 
-                                    <!-- Set state: plain label + Change button. Not boxed like the
-                                         editable inputs, because it cannot be typed into: changing it
-                                         goes through the verified Change flow. Looking like a text box
-                                         invited people to try. -->
+                                    <!-- Set state: plain label + Change button. Not boxed like the editable inputs, because it cannot be typed into: changing it goes through the verified Change flow. -->
                                     <Grid ColumnDefinitions="*,Auto"
                                           MinHeight="{StaticResource FormControlHeight}"
                                           IsVisible="{Binding CompanyEmail, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
@@ -1165,9 +1153,7 @@
                                                FontWeight="Medium"
                                                Foreground="{DynamicResource TextSecondaryBrush}" />
 
-                                    <!-- Gate: a provider can't be connected until both the company name and owner
-                                         email are set. Amber pill, not red text: nothing has gone wrong, there is
-                                         a step still to do. Matches the verify-email prompt in Notifications. -->
+                                    <!-- Gate: a provider can't be connected until both the company name and owner email are set. Amber pill, not red text: nothing has gone wrong, there is a step still to do. -->
                                     <Border Background="{DynamicResource WarningNoticeBgBrush}"
                                             CornerRadius="6"
                                             Padding="8,6"
@@ -1183,7 +1169,7 @@
                                     <Border Classes="status-panel" Classes.on="{Binding StripeConnected}">
                                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16" MinHeight="40">
                                             <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
-                                                <TextBlock Text="Stripe"
+                                                <TextBlock Text="{loc:Loc 'Stripe'}"
                                                            FontSize="14"
                                                            FontWeight="Medium"
                                                            Foreground="{DynamicResource TextPrimaryBrush}" />
@@ -1222,7 +1208,7 @@
                                     <Border Classes="status-panel" Classes.on="{Binding SquareConnected}">
                                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16" MinHeight="40">
                                             <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
-                                                <TextBlock Text="Square"
+                                                <TextBlock Text="{loc:Loc 'Square'}"
                                                            FontSize="14"
                                                            FontWeight="Medium"
                                                            Foreground="{DynamicResource TextPrimaryBrush}" />
@@ -1256,21 +1242,12 @@
                                     </Border>
                                 </StackPanel>
 
-                                <!-- Both switch rows live in ONE grid so the switches share a single column.
-                                     Two Borders each with their own "*,Auto" grid meant two independently
-                                     computed columns, and any difference between them put the switches at
-                                     different x. Sharing the column makes that impossible rather than merely
-                                     unlikely. Row 0 and row 3 carry a label and its switch; the conditional
-                                     sentences sit in rows of their own underneath, in column 0, so showing one
-                                     cannot change the height the switch is centred in. Row 2 is the hairline
-                                     that Border.settings-row used to draw as its bottom edge. -->
+                                <!-- Both switch rows live in ONE grid so the switches share a single column. -->
                                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16"
                                       RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto"
                                       Margin="0,16,0,16">
 
-                                    <!-- Sent by the server, so it arrives with the app closed. Here rather than
-                                         under Notifications because it depends on the owner email verified at
-                                         the top of this tab. -->
+                                    <!-- Sent by the server, so it arrives with the app closed. Here rather than under Notifications because it depends on the owner email verified at the top of this tab. -->
                                     <StackPanel Grid.Row="0" Grid.Column="0" Spacing="2"
                                                 MinHeight="40" VerticalAlignment="Center"
                                                 IsEnabled="{Binding !IsSampleCompany}">
@@ -1290,9 +1267,7 @@
                                                   IsChecked="{Binding PortalEmailOwnerOnPayment}"
                                                   IsEnabled="{Binding PortalOwnerEmailVerified}" />
 
-                                    <!-- Amber-on-amber pill rather than amber text: the plain WarningBrush
-                                         (#F59E0B) has poor contrast against the light-theme SurfaceAlt
-                                         (#E9ECEF). -->
+                                    <!-- Amber-on-amber pill rather than amber text: the plain WarningBrush (#F59E0B) has poor contrast against the light-theme SurfaceAlt (#E9ECEF). -->
                                     <Border Grid.Row="1" Grid.Column="0"
                                             Background="{DynamicResource WarningNoticeBgBrush}"
                                             CornerRadius="6"
@@ -1453,7 +1428,7 @@
                                                                Text="{Binding PatternError}"
                                                                IsVisible="{Binding HasPatternError}"
                                                                Foreground="{DynamicResource ErrorBrush}"
-                                                               FontSize="11"
+                                                               FontSize="12"
                                                                Margin="2,4,0,0"
                                                                TextWrapping="Wrap" />
 
@@ -1462,7 +1437,7 @@
                                                                Text="{Binding CategoryError}"
                                                                IsVisible="{Binding HasCategoryError}"
                                                                Foreground="{DynamicResource ErrorBrush}"
-                                                               FontSize="11"
+                                                               FontSize="12"
                                                                Margin="2,4,0,0"
                                                                TextWrapping="Wrap" />
                                                 </Grid>
@@ -1485,11 +1460,7 @@
                     </TabItem>
 
                     <!-- Mobile App Tab -->
-                    <!-- This is tab index 8 (0-based, count TabItems above: General, Features,
-                         Notifications, Appearance, Security, Backups, Payment Portal, Bank import rules).
-                         Integrations is kept last. Must match SettingsModalViewModel.MobileAppTabIndex,
-                         which gates the pairing poll loop's visibility check - if this tab is ever
-                         reordered, update SettingsTab too. -->
+                    <!-- This is tab index 8 (0-based, count TabItems above: General, Features, Notifications, Appearance, Security, Backups, Payment Portal, Bank import rules). Integrations is kept last. -->
                     <TabItem Header="{loc:Loc 'Mobile app'}"
                              IsVisible="{Binding IsMobileAppTabVisible}">
                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" AllowAutoHide="False" Margin="24,20,16,20" Padding="0,0,8,0">
@@ -1677,17 +1648,15 @@
                                                           IsVisible="{Binding IsSampleCompany}"
                                                           Margin="0,0,0,14" />
 
-                            <!-- One tab per integration. They share no state, and each is long
-                                 enough that stacking them meant scrolling past the whole of one
-                                 to reach the other. -->
+                            <!-- One tab per integration. They share no state, and each is long enough that stacking them meant scrolling past the whole of one to reach the other. -->
                             <TabControl Grid.Row="1" Classes="sub-tabs">
 
-                                <TabItem Header="Stripe">
+                                <TabItem Header="{loc:Loc 'Stripe'}">
                                     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" AllowAutoHide="False" Padding="0,14,8,0">
                                 <!-- IsEnabled sits on the inputs below, not here, so the sample
                                      company keeps a clickable "Full guide" link. -->
                                 <StackPanel Spacing="8">
-                                    <TextBlock Text="Stripe" FontSize="18" FontWeight="SemiBold"
+                                    <TextBlock Text="{loc:Loc 'Stripe'}" FontSize="18" FontWeight="SemiBold"
                                                Foreground="{DynamicResource TextPrimaryBrush}" />
                                     <TextBlock Text="{loc:Loc 'Import your Stripe payouts, charges, fees and refunds into your books.'}"
                                                FontSize="12" TextWrapping="Wrap"
@@ -1744,14 +1713,14 @@
 
                                         <TextBox Text="{Binding StripeKeyInput, Mode=TwoWay}"
                                                  Classes="form-input"
-                                                 PlaceholderText="rk_live_..."
+                                                 PlaceholderText="{loc:Loc 'rk_live_...'}"
                                                  TextWrapping="Wrap"
                                                  AcceptsReturn="False"
                                                  MinHeight="64" Height="64"
                                                  VerticalContentAlignment="Top"
                                                  IsEnabled="{Binding !IsSampleCompany}" />
 
-                                        <TextBlock Text="{Binding StripeIntegrationError}" Foreground="#dc2626" FontSize="12"
+                                        <TextBlock Text="{Binding StripeIntegrationError}" Foreground="{DynamicResource ErrorBrush}" FontSize="12"
                                                    TextWrapping="Wrap"
                                                    IsVisible="{Binding StripeIntegrationError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
 
@@ -1777,7 +1746,7 @@
                                                            TextTrimming="CharacterEllipsis"
                                                            ToolTip.Tip="{Binding StripeIntegrationAccountLabel}"
                                                            Foreground="{DynamicResource TextPrimaryBrush}" />
-                                                <TextBlock Text="{Binding StripeLastSyncedDisplay}" FontSize="11"
+                                                <TextBlock Text="{Binding StripeLastSyncedDisplay}" FontSize="12"
                                                            TextTrimming="CharacterEllipsis"
                                                            Foreground="{DynamicResource TextTertiaryBrush}"
                                                            IsVisible="{Binding StripeLastSyncedDisplay, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
@@ -1790,7 +1759,7 @@
                                                                                  IsSpinning="{Binding IsSyncingStripe}"
                                                                                  SpinnerBrush="{DynamicResource PrimaryBrush}"
                                                                                  VerticalAlignment="Center" />
-                                                        <TextBlock Text="{Binding StripeSyncStatus}" FontSize="11"
+                                                        <TextBlock Text="{Binding StripeSyncStatus}" FontSize="12"
                                                                    VerticalAlignment="Center"
                                                                    Foreground="{DynamicResource TextTertiaryBrush}" />
                                                     </StackPanel>
@@ -1820,18 +1789,18 @@
 
                                     <!-- Free plan. Shown whether or not the API was turned on before, since the server
                                          refuses a key once the subscription behind it has ended. -->
-                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16" IsVisible="{Binding !HasPremium}">
-                                        <TextBlock Grid.Column="0" Text="{loc:Loc 'Requires Premium plan'}"
-                                                   FontSize="12" VerticalAlignment="Center"
+                                    <StackPanel Spacing="8" IsVisible="{Binding !HasPremium}">
+                                        <TextBlock Text="{loc:Loc 'Requires Premium plan'}"
+                                                   FontSize="13" FontWeight="Medium"
                                                    Foreground="{DynamicResource TextSecondaryBrush}" />
-                                        <Button Grid.Column="1"
-                                                Classes="primary-button"
+                                        <!-- Where Connect sits for someone on Premium. -->
+                                        <Button Classes="primary-button"
                                                 Content="{loc:Loc 'Upgrade Now'}"
                                                 Command="{Binding UpgradeNowCommand}"
-                                                MinWidth="140"
+                                                HorizontalAlignment="Left"
                                                 Padding="12,6"
                                                 MinHeight="0" />
-                                    </Grid>
+                                    </StackPanel>
 
                                     <!-- Off state -->
                                     <StackPanel Spacing="8">
@@ -1871,11 +1840,11 @@
                                                                Foreground="{DynamicResource TextPrimaryBrush}" />
                                                     <!-- Under the URL rather than beside the buttons, where it
                                                          was stealing the width the URL needed. -->
-                                                    <TextBlock Text="{Binding ArgoApiLastSyncedDisplay}" FontSize="11"
+                                                    <TextBlock Text="{Binding ArgoApiLastSyncedDisplay}" FontSize="12"
                                                                TextTrimming="CharacterEllipsis"
                                                                Foreground="{DynamicResource TextTertiaryBrush}"
                                                                IsVisible="{Binding ArgoApiLastSyncedDisplay, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                                                    <TextBlock Text="{Binding ArgoApiPendingSummary}" FontSize="11"
+                                                    <TextBlock Text="{Binding ArgoApiPendingSummary}" FontSize="12"
                                                                Foreground="{DynamicResource TextTertiaryBrush}"
                                                                IsVisible="{Binding ArgoApiPendingSummary, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                                 </StackPanel>
@@ -1887,7 +1856,7 @@
                                                                                  IsSpinning="{Binding IsSyncingArgoApi}"
                                                                                  SpinnerBrush="{DynamicResource PrimaryBrush}"
                                                                                  VerticalAlignment="Center" />
-                                                        <TextBlock Text="{Binding ArgoApiSyncStatus}" FontSize="11"
+                                                        <TextBlock Text="{Binding ArgoApiSyncStatus}" FontSize="12"
                                                                    VerticalAlignment="Center"
                                                                    Foreground="{DynamicResource TextTertiaryBrush}" />
                                                     </StackPanel>
@@ -1911,9 +1880,7 @@
                                                        FontSize="12" TextWrapping="Wrap"
                                                        Foreground="{DynamicResource TextTertiaryBrush}" />
 
-                                            <!-- Above the list, not below it. Creating a key is what someone
-                                                 opens this panel to do, and once there are several keys the
-                                                 controls were scrolled off the bottom. -->
+                                            <!-- Above the list, not below it. Creating a key is what someone opens this panel to do, and once there are several keys the controls were scrolled off the bottom. -->
                                             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                                                 <TextBox Grid.Column="0"
                                                          Text="{Binding NewArgoApiKeyLabel, Mode=TwoWay}"
@@ -1926,9 +1893,7 @@
                                                         Padding="12,6" MinHeight="0" />
                                             </Grid>
 
-                                            <!-- Without this the list is simply empty on first open, which
-                                                 reads as something having gone wrong rather than as nothing
-                                                 having been created yet. -->
+                                            <!-- Without this the list is simply empty on first open, which reads as something having gone wrong rather than as nothing having been created yet. -->
                                             <Border Classes="empty-state"
                                                     IsVisible="{Binding HasNoArgoApiKeys}">
                                                 <TextBlock Text="{loc:Loc 'No keys yet. Name one above and create it, then give it to the app or developer that needs to send data in.'}"
@@ -1946,10 +1911,10 @@
                                                                     <StackPanel Grid.Column="0" Spacing="2">
                                                                         <TextBlock Text="{Binding DisplayName}" FontSize="13"
                                                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
-                                                                        <TextBlock Text="{Binding Hint}" FontSize="11"
+                                                                        <TextBlock Text="{Binding Hint}" FontSize="12"
                                                                                    FontFamily="Consolas,monospace"
                                                                                    Foreground="{DynamicResource TextTertiaryBrush}" />
-                                                                        <TextBlock Text="{Binding LastUsedDisplay}" FontSize="11"
+                                                                        <TextBlock Text="{Binding LastUsedDisplay}" FontSize="12"
                                                                                    Foreground="{DynamicResource TextTertiaryBrush}" />
                                                                     </StackPanel>
                                                                     <StackPanel Grid.Column="1" Orientation="Horizontal"
@@ -1967,9 +1932,7 @@
                                                                     </StackPanel>
                                                                 </Grid>
 
-                                                                <!-- Rename state. Only the name is editable: the
-                                                                     secret cannot be shown again and the scopes
-                                                                     decide what the key may do. -->
+                                                                <!-- Rename state. Only the name is editable: the secret cannot be shown again and the scopes decide what the key may do. -->
                                                                 <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8"
                                                                       IsVisible="{Binding IsEditing}">
                                                                     <TextBox Grid.Column="0"
@@ -2016,7 +1979,7 @@
                                         </StackPanel>
                                     </StackPanel>
 
-                                    <TextBlock Text="{Binding ArgoApiError}" Foreground="#dc2626" FontSize="12"
+                                    <TextBlock Text="{Binding ArgoApiError}" Foreground="{DynamicResource ErrorBrush}" FontSize="12"
                                                TextWrapping="Wrap"
                                                IsVisible="{Binding ArgoApiError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                 </StackPanel>
@@ -2095,7 +2058,7 @@
                                         </Border.Styles>
                                     </Border>
                                 </Border>
-                                <TextBlock Grid.Column="1" Text="{Binding PasswordStrengthText}" FontSize="11"
+                                <TextBlock Grid.Column="1" Text="{Binding PasswordStrengthText}" FontSize="12"
                                            Margin="8,0,0,0" VerticalAlignment="Center"
                                            Classes.strength-weak="{Binding IsStrengthWeak}"
                                            Classes.strength-fair="{Binding IsStrengthFair}"
@@ -2217,7 +2180,7 @@
                                         </Border.Styles>
                                     </Border>
                                 </Border>
-                                <TextBlock Grid.Column="1" Text="{Binding PasswordStrengthText}" FontSize="11"
+                                <TextBlock Grid.Column="1" Text="{Binding PasswordStrengthText}" FontSize="12"
                                            Margin="8,0,0,0" VerticalAlignment="Center"
                                            Classes.strength-weak="{Binding IsStrengthWeak}"
                                            Classes.strength-fair="{Binding IsStrengthFair}"
@@ -2400,9 +2363,7 @@
             <Setter Property="BorderThickness" Value="1,0,0,0" />
         </Style>
 
-        <!-- Tab Item Styling - nav rail rows.
-             Fully retemplated so there is no selection pipe and every row keeps
-             the same height in all states (no jump when a tab is selected). -->
+        <!-- Tab Item Styling - nav rail rows. Fully retemplated so there is no selection pipe and every row keeps the same height in all states (no jump when a tab is selected). -->
         <Style Selector="TabItem">
             <Setter Property="FontSize" Value="13.5" />
             <Setter Property="FontWeight" Value="Medium" />
@@ -2445,12 +2406,7 @@
             <Setter Property="Foreground" Value="{DynamicResource PrimaryBrush}" />
         </Style>
 
-        <!-- Sub-tabs inside a settings panel (Integrations).
-             The rules above are all built for the left-hand rail: a fixed 190px
-             strip, full-width pill rows, and a divider down the left edge of the
-             content. A nested strip inherits every one of them and comes out as
-             stretched pills in a narrow column, so each has to be undone here
-             rather than simply added to. -->
+        <!-- Sub-tabs inside a settings panel (Integrations). -->
         <Style Selector="TabControl.sub-tabs /template/ ItemsPresenter#PART_ItemsPresenter">
             <!-- NaN is how a fixed Width is released back to auto. -->
             <Setter Property="Width" Value="NaN" />

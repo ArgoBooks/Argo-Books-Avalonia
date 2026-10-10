@@ -473,9 +473,7 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
     /// <summary>
     /// Opens the create rental item modal on top of the current modal.
     /// </summary>
-    // One-shot handlers for the "create entity from this modal" flows. Stored so a cancelled create
-    // (which never raises the *Saved event) can be detached before the next attempt, instead of
-    // leaking onto the singleton create-modal VMs. See CreateModalSubscription.
+    // One-shot handlers for the "create entity from this modal" flows.
     private EventHandler? _itemSavedHandler;
     private EventHandler? _customerSavedHandler;
 
@@ -566,9 +564,7 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
         _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.RentalRecordCreated);
         companyData.MarkAsModified();
 
-        // Returning a rental records no undo step, so this one can still be on top of the stack
-        // after the items are back. Undoing it then would put the units into stock a second time
-        // and remove a rental whose payment and kept deposit are already in the books.
+        // Returning a rental records no undo step, so this one can still be on top of the stack after the items are back.
         App.UndoRedoManager.RecordAction(new GuardedDelegateAction(
             $"Create rental '{rental.Id}'",
             () =>
@@ -886,10 +882,7 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
         var notes = string.IsNullOrWhiteSpace(ReturnNotes) ? rental.Notes
             : string.IsNullOrWhiteSpace(rental.Notes) ? ReturnNotes.Trim()
             : $"{rental.Notes}\n\nReturn notes: {ReturnNotes.Trim()}";
-        // A rental already paid stays paid, and keeps the revenue it was paid into. The tick
-        // adds a payment the return is collecting now; it does not restate what came before,
-        // and writing it straight over the flag left a paid rental reading unpaid with its
-        // revenue row orphaned.
+        // A rental already paid stays paid, and keeps the revenue it was paid into.
         var paidBefore = rental.Paid;
         var after = new ReturnFields(RentalStatus.Returned, ReturnDate?.DateTime, ReturnTotalCost + extraCharges, refund,
             paidBefore || ReturnMarkAsPaid, extraCharges,
@@ -1004,9 +997,7 @@ public partial class RentalRecordsModalsViewModel : ViewModelBase
             return;
         }
 
-        // There is no card payment to refund against, so the money goes back however it came
-        // in. Said out loud because the rental already records the deposit as returned, and
-        // nothing else would mention that the returning is still the user's to do.
+        // There is no card payment to refund against, so the money goes back however it came in.
         _ = App.ShowWarningDialogAsync(
             "Return the deposit yourself".Translate(),
             "This invoice was not paid online, so Argo Books cannot send {0} back. Return it the same way you took it."

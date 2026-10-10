@@ -7,9 +7,8 @@ using Xunit;
 namespace ArgoBooks.Tests.Services;
 
 /// <summary>
-/// Invoices paid by hand before the fix left their revenue unpaid, and portal refunds marked the
-/// revenue of a paid invoice unpaid. The open-time heal counts that revenue again, and only ever
-/// upgrades: it never takes a revenue out of the totals.
+/// The open-time heal counts the revenue of a paid invoice again, whether it was paid by hand or
+/// refunded through the portal, and only ever upgrades: it never takes a revenue out of the totals.
 /// </summary>
 public class InvoiceRevenueHealTests
 {

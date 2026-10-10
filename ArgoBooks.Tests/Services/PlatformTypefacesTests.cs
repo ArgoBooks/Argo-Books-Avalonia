@@ -9,9 +9,7 @@ namespace ArgoBooks.Tests.Services;
 /// </summary>
 public class PlatformTypefacesTests
 {
-    // On Windows the system default family is Segoe UI itself. Treating "resolved to the default"
-    // as "not installed" rejected the one font we wanted and drew everything in whatever came next
-    // on the list, such as DejaVu Sans in bold where LibreOffice is installed.
+    // On Windows the system default family is Segoe UI itself.
     [Fact]
     public void AFontThatIsTheSystemDefault_StillMatchesWhenAskedForByName()
     {

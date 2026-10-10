@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Common;
@@ -34,6 +34,27 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     /// The transaction type name (e.g., "Expense" or "Revenue").
     /// </summary>
     protected abstract string TransactionTypeName { get; }
+
+    /// <summary>The shape of a generated id, shown in the box on the add form: "PUR-xxx", "REV-xxx".</summary>
+    protected abstract string IdPlaceholderText { get; }
+
+    /// <summary>Whether another record of this kind already holds the id.</summary>
+    protected abstract bool IsIdTaken(CompanyData companyData, string id);
+
+    /// <summary>
+    /// The record's own id. Filled in on the edit form and editable, so a business can number its
+    /// records the way it already does. Left blank on the add form, where one is generated on save.
+    /// </summary>
+    [ObservableProperty]
+    private string _modalId = string.Empty;
+
+    [ObservableProperty]
+    private string? _modalIdError;
+
+    public string ModalIdPlaceholder => IdPlaceholderText;
+
+    /// <summary>What was typed in the id box, or null to leave the id to the generator.</summary>
+    protected string? RequestedId => string.IsNullOrWhiteSpace(ModalId) ? null : ModalId.Trim();
 
     /// <summary>
     /// The entity name for the counterparty (e.g., "Supplier" or "Customer").
@@ -279,34 +300,42 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     // ReSharper disable NotAccessedPositionalProperty.Local
     private sealed record LineState(
         string? ProductId, string? CategoryId, string Description, decimal? Quantity, decimal? UnitPrice,
-        string ItemText, string CategoryText);
+        string ItemText, string CategoryText, string? LocationId);
 
     private sealed record EditState(
-        DateTimeOffset? Date, string? CounterpartyId, string? CategoryId, decimal TaxAmount, decimal Shipping,
-        decimal Discount, decimal Fee, string PaymentMethod, string Notes, Helpers.EquatableArray<LineState> LineItems);
+        DateTimeOffset? Date, string? CounterpartyId, string NewCounterpartyName, string? CategoryId, decimal TaxAmount, decimal Shipping,
+        decimal Discount, decimal Fee, string PaymentMethod, string Notes, string? ReceiptPath,
+        Helpers.EquatableArray<LineState> LineItems);
     // ReSharper restore NotAccessedPositionalProperty.Local
 
-    // The form as the edit modal opened, for change detection.
+    // The form as it opened filled in from a record, for change detection. Null on a blank form.
     private EditState? _original;
 
+    // The box's text counts only with nothing picked. Picked, it is that record's own name, which
+    // the box fills in for itself some time after the form has loaded.
     private EditState Capture() => new(
-        ModalDate, SelectedCounterparty?.Id, SelectedCategory?.Id, ModalTaxAmount, ModalShipping,
-        ModalDiscount, ModalFee, SelectedPaymentMethod, ModalNotes,
+        ModalDate, SelectedCounterparty?.Id,
+        SelectedCounterparty == null ? CounterpartyText?.Trim() ?? string.Empty : string.Empty,
+        SelectedCategory?.Id, ModalTaxAmount, ModalShipping,
+        ModalDiscount, ModalFee, SelectedPaymentMethod, ModalNotes, ReceiptFilePath,
         new Helpers.EquatableArray<LineState>(LineItems.Select(li => new LineState(
             li.SelectedProduct?.Id, li.SelectedCategory?.Id, li.Description, li.Quantity, li.UnitPrice,
-            li.ItemText?.Trim() ?? string.Empty, li.CategoryText?.Trim() ?? string.Empty))));
+            li.ItemText?.Trim() ?? string.Empty, li.CategoryText?.Trim() ?? string.Empty,
+            li.SelectedLocation?.Id))));
 
     /// <summary>
     /// Returns true if any data has been entered in the Add modal.
     /// </summary>
     public bool HasEnteredData =>
         SelectedCounterparty != null ||
+        !string.IsNullOrWhiteSpace(CounterpartyText) ||
         SelectedCategory != null ||
         !string.IsNullOrWhiteSpace(ModalNotes) ||
         ModalTaxAmount > 0 ||
         ModalShipping > 0 ||
         ModalDiscount > 0 ||
         ModalFee > 0 ||
+        !string.IsNullOrEmpty(ReceiptFilePath) ||
         LineItems.Any(li => li.SelectedProduct != null || li.SelectedCategory != null || !string.IsNullOrWhiteSpace(li.Description) || (li.UnitPrice ?? 0) > 0 ||
                             !string.IsNullOrWhiteSpace(li.ItemText) || !string.IsNullOrWhiteSpace(li.CategoryText));
 
@@ -319,6 +348,13 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     /// Captures the current form state as original values for change detection.
     /// </summary>
     protected void CaptureOriginalValues() => _original = Capture();
+
+    /// <summary>
+    /// Whether closing would throw work away. A blank form has work in it once anything is
+    /// entered. A form opened already filled in, to edit or to copy a record, has work in it
+    /// only once it differs from how it opened.
+    /// </summary>
+    private bool HasUnsavedWork => _original == null ? HasEnteredData : HasEditModalChanges;
 
     // Computed totals
     public decimal Subtotal => LineItems.Count > 0
@@ -426,11 +462,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         OnPropertyChanged(nameof(FeeAmountFormatted));
         OnPropertyChanged(nameof(TotalFormatted));
 
-        // The stored-total mismatch is a load-time data-integrity check (it flags AI-scanned or
-        // imported transactions whose stored total didn't match their line items - see the call in
-        // the edit-load path). Once the user edits, they are defining the values themselves, so
-        // re-checking the new total against the now-stale stored total just produces a false warning
-        // (e.g. changing an expense from $10 to $100 warned that $100 != the stored $10). Clear it.
+        // The stored-total mismatch is a load-time integrity check for scanned or imported transactions, so it has no place once the user is editing.
         HasTotalMismatchWarning = false;
         TotalMismatchWarningMessage = string.Empty;
     }
@@ -591,6 +623,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
                 Name = product.Name,
                 Description = product.Description,
                 UnitPrice = UseCostPrice ? product.CostPrice : product.UnitPrice,
+                Unit = product.UnitOfMeasure,
                 CategoryId = product.CategoryId,
                 SupplierId = product.SupplierId
             });
@@ -639,18 +672,21 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     /// </summary>
     public void OpenDuplicateModal(TDisplayItem? item)
     {
-        if (item == null || LoadIntoForm(item) == null) return;
+        if (item == null || LoadIntoForm(item) is not { } original) return;
 
         _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.RecordDuplicated, TransactionTypeName.ToLowerInvariant());
         TrackCreateOpened();
 
         EditingTransactionId = string.Empty;
         IsEditMode = false;
-        ModalTitle = $"Add {TransactionTypeName}";
+        // Named after the record being copied, as the edit form is named after the one being edited.
+        ModalTitle = $"Duplicate {TransactionTypeName} {original.Id}";
         SaveButtonText = $"Add {TransactionTypeName}";
         ModalDate = DateTimeOffset.Now;
         ReceiptFilePath = null;
         ReceiptFileName = "No receipt attached";
+        // Taken again now the date has moved, so closing an untouched copy does not ask first.
+        CaptureOriginalValues();
         // The mismatch warning stays. The copy is saved at what its lines add up to, so when the
         // original's total was something else, this is the only sign the two will differ.
         IsAddEditModalOpen = true;
@@ -862,6 +898,27 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     [RelayCommand]
     protected abstract void ConfirmItemStatus();
 
+    /// <summary>
+    /// Records the step that takes back a returned or lost status, with the reason and note from
+    /// the status dialog on its history entry. Taking the status back deletes the record they
+    /// would otherwise be kept on, so the history is the only place left for why it was done.
+    /// They are stored as typed, in English like the entry's own description.
+    /// </summary>
+    protected void RecordStatusUndo(IUndoableAction action)
+    {
+        var lines = new List<string>();
+        if (!string.IsNullOrWhiteSpace(SelectedItemStatusReason))
+            lines.Add($"Reason: {SelectedItemStatusReason}");
+        if (!string.IsNullOrWhiteSpace(ItemStatusNotes))
+            lines.Add($"Note: {ItemStatusNotes.Trim()}");
+
+        var history = App.EventLogService;
+        history?.SetPendingNote(string.Join("\n", lines));
+        App.UndoRedoManager.RecordAction(action);
+        // Nothing was recorded if recording is switched off. The note must not wait for the next change.
+        history?.SetPendingNote(null);
+    }
+
     protected static LostDamagedReason MapToLostDamagedReason(string reason)
     {
         return reason.ToLowerInvariant() switch
@@ -890,10 +947,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     [RelayCommand]
     protected async Task RequestCloseAddEditModalAsync()
     {
-        // In edit mode, check if changes were made; in add mode, check if data was entered
-        var hasUnsavedWork = IsEditMode ? HasEditModalChanges : HasEnteredData;
-
-        if (hasUnsavedWork)
+        if (HasUnsavedWork)
         {
             var confirmed = IsEditMode
                 ? await ConfirmDiscardEditsAsync()
@@ -962,6 +1016,19 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         var companyData = App.CompanyManager?.CompanyData;
         if (companyData == null) return;
 
+        ModalIdError = null;
+        if (IsEditMode && RequestedId == null)
+        {
+            ModalIdError = "ID cannot be empty.".Translate();
+            return;
+        }
+
+        if (RequestedId is { } requested && requested != EditingTransactionId && IsIdTaken(companyData, requested))
+        {
+            ModalIdError = $"Another {TransactionTypeName.ToLowerInvariant()} already uses this ID.".Translate();
+            return;
+        }
+
         List<TypedLine>? typedLines = null;
         if (AllowsTypedItems)
         {
@@ -975,14 +1042,18 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
             }
         }
 
-        IsSavingTransaction = true;
+        var currentCurrency = FormCurrencyCode;
+        var transactionDate = ModalDate?.DateTime ?? DateTime.Now;
+
+        // The saving screen covers the wait for an exchange rate, which is the only thing a save waits on.
+        var waitsOnRate = UsdConversion.CachedRate(currentCurrency, transactionDate) == null;
+
+        IsSavingTransaction = waitsOnRate;
         try
         {
             // Yield to let the UI render the loading indicator
-            await Task.Delay(1);
-
-            var currentCurrency = FormCurrencyCode;
-            var transactionDate = ModalDate?.DateTime ?? DateTime.Now;
+            if (waitsOnRate)
+                await Task.Delay(1);
 
             if (!UsdConversion.IsUsd(currentCurrency) && ExchangeRateService.Instance == null)
             {
@@ -1005,7 +1076,8 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
 
             if (IsEditMode)
             {
-                SaveEditedTransaction(companyData);
+                if (!SaveEditedTransaction(companyData))
+                    return;
             }
             else
             {
@@ -1056,7 +1128,8 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     }
 
     protected abstract void SaveNewTransaction(CompanyData companyData);
-    protected abstract void SaveEditedTransaction(CompanyData companyData);
+    /// <summary>Returns false when the save was refused, which leaves the form open on its message.</summary>
+    protected abstract bool SaveEditedTransaction(CompanyData companyData);
 
     protected List<LineItem> CreateModelLineItems()
     {
@@ -1101,6 +1174,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
             Name = product.Name,
             Description = product.Description,
             UnitPrice = UseCostPrice ? product.CostPrice : product.UnitPrice,
+            Unit = product.UnitOfMeasure,
             CategoryId = product.CategoryId
         };
     }
@@ -1252,7 +1326,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         created.Add(product);
         _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ProductCreated);
 
-        var option = new ProductOption { Id = id, Name = name, UnitPrice = price, CategoryId = category?.Id };
+        var option = new ProductOption { Id = id, Name = name, UnitPrice = price, Unit = product.UnitOfMeasure, CategoryId = category?.Id };
         ProductOptions.Add(option);
         return option;
     }
@@ -1329,7 +1403,10 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
 
     protected void ResetForm()
     {
+        ModalId = string.Empty;
+        ModalIdError = null;
         EditingTransactionId = string.Empty;
+        _original = null;
         SetEntryCurrency(null);
         ModalDate = DateTimeOffset.Now;
         SelectedCounterparty = null;
@@ -1388,9 +1465,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
 
     #region Navigation Commands
 
-    // One-shot handlers for the "create entity from this modal" flows. Stored so a cancelled create
-    // (which never raises the *Saved event) can be detached before the next attempt, instead of
-    // leaking onto the singleton create-modal VMs. See CreateModalSubscription.
+    // One-shot handlers for the "create entity from this modal" flows.
     private EventHandler? _supplierSavedHandler;
     private EventHandler? _customerSavedHandler;
     private EventHandler? _categorySavedHandler;
@@ -1890,6 +1965,7 @@ public class ProductOption
     public string Name { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public decimal UnitPrice { get; set; }
+    public string Unit { get; set; } = string.Empty;
     public string? SupplierId { get; set; }
     public string? CategoryId { get; set; }
     public override string ToString() => Name;

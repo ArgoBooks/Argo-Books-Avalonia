@@ -222,8 +222,6 @@ public class SpreadsheetAnalysisServiceTests
     public void ParseTier2Response_UnrecognizedWrapperKey_ReturnsNull()
     {
         // The AI wrapped its array under "records" instead of a bare array or an "entities" key.
-        // This unrecognized structure must be treated as a failure (null) so the caller counts it,
-        // rather than returning an empty result that silently imports zero rows with no warning.
         var method = typeof(SpreadsheetAnalysisService).GetMethod("ParseTier2Response",
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
         const string json = """{"records":[{"name":"Acme"}]}""";

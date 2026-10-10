@@ -64,9 +64,7 @@ public class PayrollRateValidatorTests
     [Fact]
     public void ABracketConstantThatBreaksContinuity_IsRejected()
     {
-        // At each boundary the bracket below and the bracket above must produce the same tax.
-        // A wrong constant shifts every income above that boundary and looks entirely ordinary
-        // on the page.
+        // At each boundary the bracket below and the bracket above must produce the same tax. A wrong constant shifts every income above that boundary and looks entirely ordinary on the page.
         PayrollRateTable table = Shipped();
         table.Federal.Brackets[1].ConstantK += 500m;
 

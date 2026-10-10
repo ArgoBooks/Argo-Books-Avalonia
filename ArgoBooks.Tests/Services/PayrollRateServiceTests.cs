@@ -72,9 +72,7 @@ public class PayrollRateServiceTests : IDisposable
     [Fact]
     public void APayDateWithNoEdition_ComesBackNullRatherThanTheNearestOne()
     {
-        // The important refusal. There is deliberately no fallback to the most recent edition:
-        // a run calculated on the wrong year's rates is wrong in a way nobody notices until
-        // CRA assesses it.
+        // The important refusal. There is deliberately no fallback to the most recent edition: a run calculated on the wrong year's rates is wrong in a way nobody notices until CRA assesses it.
         Assert.Null(Service().GetForDate(new DateTime(2031, 3, 1)));
         Assert.Null(Service().GetForDate(new DateTime(2019, 3, 1)));
     }
@@ -92,9 +90,7 @@ public class PayrollRateServiceTests : IDisposable
     [Fact]
     public void TheTwoHalvesOf2026_MeetWithNoGapAndNoOverlap()
     {
-        // CRA publishes twice a year and the halves have to abut exactly. A gap leaves a pay date
-        // that cannot be calculated at all; an overlap makes which edition applies depend on the
-        // order the files happened to load.
+        // CRA publishes twice a year and the halves have to abut exactly.
         PayrollRateTable january = Service().GetForDate(new DateTime(2026, 3, 15))!;
         PayrollRateTable july = Service().GetForDate(new DateTime(2026, 8, 15))!;
 
@@ -108,10 +104,7 @@ public class PayrollRateServiceTests : IDisposable
     [Fact]
     public void TheJanuaryEdition_CarriesTheUnproratedFiguresForTheThreeProvincesThatChanged()
     {
-        // BC, NL and PE all changed retroactively to 1 January 2026, so the JULY edition carries
-        // prorated figures to catch the year up and the January one carries the originals, which
-        // are what was actually withheld from January to June. Getting these the wrong way round
-        // is invisible: both sets are plausible numbers for the same province in the same year.
+        // BC, NL and PE changed retroactively to 1 January 2026, so the July edition carries prorated figures and January the originals.
         PayrollRateTable jan = Service().GetForDate(new DateTime(2026, 3, 15))!;
         PayrollRateTable jul = Service().GetForDate(new DateTime(2026, 8, 15))!;
 
@@ -139,9 +132,7 @@ public class PayrollRateServiceTests : IDisposable
     [Fact]
     public void TheAnnualFigures_AreIdenticalInBothHalves()
     {
-        // CPP, CPP2, EI, QPP and QPIP are set once a year. A July edition that disagreed with the
-        // January one about a ceiling would make an employee's year-to-date stop adding up at the
-        // halfway point.
+        // CPP, CPP2, EI, QPP and QPIP are set once a year.
         PayrollRateTable jan = Service().GetForDate(new DateTime(2026, 3, 15))!;
         PayrollRateTable jul = Service().GetForDate(new DateTime(2026, 8, 15))!;
 
@@ -201,9 +192,7 @@ public class PayrollRateServiceTests : IDisposable
     [Fact]
     public void AFileWithNoEditionId_IsNotAnEdition()
     {
-        // Valid JSON that parses into an empty table. Accepting it would put a nameless edition
-        // in the list that covers no date and shadows nothing, which is harmless, and a second
-        // one would then collide with it on the empty id, which is not.
+        // Valid JSON that parses into an empty table.
         WriteCached("nameless.json", "{ }");
 
         Assert.NotNull(Service().GetForDate(new DateTime(2026, 8, 15)));

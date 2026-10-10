@@ -12,7 +12,8 @@ namespace ArgoBooks.Core.Services;
 /// </summary>
 public class ReportChartDataService(CompanyData? companyData, ReportFilters filters)
 {
-    private readonly Dictionary<ChartDataType, object> _cache = new();
+    // Keyed on the level too, so a country result is never served to a request for states.
+    private readonly Dictionary<(ChartDataType, GeoLevel), object> _cache = new();
 
     /// <summary>
     /// Gets the date range based on filters (delegates to shared ReportFilters.GetDateRange).
@@ -163,9 +164,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
 
         var (startDate, endDate) = GetDateRange();
 
-        // ProfitCalculator owns the formula (pre-tax revenue − expenses −
-        // pre-tax refunds), keyed by the day each component happened. See
-        // docs/Calculations.md §2 and §8.
+        // ProfitCalculator owns the formula (pre-tax revenue − expenses − pre-tax refunds), keyed by the day each component happened. See docs/Calculations.md §2 and §8.
         return ProfitCalculator.CalculateNetProfitByDayUSD(companyData, startDate, endDate)
             .OrderBy(kv => kv.Key)
             .Select(kv => new ChartDataPoint
@@ -349,9 +348,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
             return new ChartDataPoint
             {
                 Label = month.ToString("MMM yyyy"),
-                // Match the paired "Average Transaction Value" chart, which
-                // averages only collected revenue. Counting unpaid invoices
-                // here would make Count * Avg disagree with Total Revenue.
+                // Match the paired "Average Transaction Value" chart, which averages only collected revenue. Counting unpaid invoices here would make Count * Avg disagree with Total Revenue.
                 Value = companyData.Revenues
                     .Where(RevenueAggregator.IsCollected)
                     .Count(s => s.Date >= clampedStart && s.Date <= clampedEnd),
@@ -500,16 +497,42 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
     /// <summary>
     /// Gets sales by customer country.
     /// </summary>
-    public List<ChartDataPoint> GetRevenueByCountryOfOrigin(Func<decimal, DateTime, decimal>? toDisplay = null)
+    public List<ChartDataPoint> GetRevenueByCountryOfOrigin(
+        Func<decimal, DateTime, decimal>? toDisplay = null, GeoLevel level = GeoLevel.Country,
+        Func<string?, string?, string?>? regionName = null)
     {
-        return GetRevenueByCustomerCountry(toDisplay);
+        return GetRevenueByCustomerCountry(toDisplay, level, regionName);
     }
+
+    // A region or a city name means little alone, so each one carries what contains it.
+    private static string GeoLabel(Address? address, GeoLevel level, Func<string?, string?, string?>? regionName)
+    {
+        if (address == null) return "Unknown";
+
+        var region = string.IsNullOrWhiteSpace(address.State)
+            ? string.Empty
+            : regionName?.Invoke(address.Country, address.State) ?? address.State;
+
+        return level switch
+        {
+            GeoLevel.City => Join(address.City, string.IsNullOrWhiteSpace(region) ? address.Country : region),
+            GeoLevel.Region => Join(region, address.Country),
+            _ => string.IsNullOrWhiteSpace(address.Country) ? "Unknown" : address.Country
+        };
+    }
+
+    private static string Join(string? name, string? within) =>
+        string.IsNullOrWhiteSpace(name) ? "Unknown"
+        : string.IsNullOrWhiteSpace(within) ? name
+        : $"{name}, {within}";
 
     /// <summary>
     /// Gets sales grouped by customer country.
     /// Used for geographic distribution charts showing where customers are located.
     /// </summary>
-    public List<ChartDataPoint> GetRevenueByCustomerCountry(Func<decimal, DateTime, decimal>? toDisplay = null)
+    public List<ChartDataPoint> GetRevenueByCustomerCountry(
+        Func<decimal, DateTime, decimal>? toDisplay = null, GeoLevel level = GeoLevel.Country,
+        Func<string?, string?, string?>? regionName = null)
     {
         if (companyData?.Revenues == null)
             return [];
@@ -526,7 +549,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
             .GroupBy(s =>
             {
                 var customer = companyData.GetCustomer(s.CustomerId ?? "");
-                return customer?.Address.Country ?? "Unknown";
+                return GeoLabel(customer?.Address, level, regionName);
             })
             .Select(g => new ChartDataPoint
             {
@@ -591,7 +614,9 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
     /// <summary>
     /// Gets purchases by supplier country.
     /// </summary>
-    public List<ChartDataPoint> GetExpensesByCountryOfDestination(Func<decimal, DateTime, decimal>? toDisplay = null)
+    public List<ChartDataPoint> GetExpensesByCountryOfDestination(
+        Func<decimal, DateTime, decimal>? toDisplay = null, GeoLevel level = GeoLevel.Country,
+        Func<string?, string?, string?>? regionName = null)
     {
         if (companyData?.Expenses == null)
             return [];
@@ -607,7 +632,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
             .GroupBy(p =>
             {
                 var supplier = companyData.GetSupplier(p.SupplierId ?? "");
-                return supplier?.Address.Country ?? "Unknown";
+                return GeoLabel(supplier?.Address, level, regionName);
             })
             .Select(g => new ChartDataPoint
             {
@@ -718,9 +743,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
 
         var allMonths = GetMonthsBetween(startDate, endDate).ToList();
 
-        // Cash-basis: only count shipping on revenue rows that were actually
-        // collected. Unpaid invoices shouldn't influence the shipping average,
-        // see Calculations.md §2 Rule 2.
+        // Cash-basis: only count shipping on revenue rows that were actually collected. Unpaid invoices shouldn't influence the shipping average, see Calculations.md §2 Rule 2.
         var monthsWithData = allMonths.Where(month =>
         {
             var monthStart = new DateTime(month.Year, month.Month, 1);
@@ -931,9 +954,7 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
 
         var (startDate, endDate) = GetDateRange();
 
-        // Lifetime value = collected revenue per customer. Unpaid invoices
-        // would inflate every bucket and misclassify which segment a
-        // customer falls into.
+        // Lifetime value = collected revenue per customer. Unpaid invoices would inflate every bucket and misclassify which segment a customer falls into.
         var customerRevenue = companyData.Revenues
             .Where(s => s.Date >= startDate && s.Date <= endDate && !string.IsNullOrEmpty(s.CustomerId))
             .Where(RevenueAggregator.IsCollected)
@@ -1877,26 +1898,26 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
     /// Gets chart data for a specific chart type.
     /// Results are cached per chart type for the lifetime of this service instance.
     /// </summary>
-    public object GetChartData(ChartDataType chartType, Func<decimal, DateTime, decimal>? toDisplay = null)
+    public object GetChartData(ChartDataType chartType, Func<decimal, DateTime, decimal>? toDisplay = null,
+        GeoLevel level = GeoLevel.Country, Func<string?, string?, string?>? regionName = null)
     {
-        // When a display converter is supplied (dashboard distribution path), bypass the cache
-        // entirely: a USD result computed earlier (e.g. for the report) must not be served when a
-        // converter is requested, and a converted result must never poison the USD cache.
+        // A supplied converter bypasses the cache both ways: a USD result is never served to a request that wants one converted, and a converted result never enters the USD cache.
         if (toDisplay != null)
-            return ComputeChartData(chartType, toDisplay);
+            return ComputeChartData(chartType, toDisplay, level, regionName);
 
-        if (_cache.TryGetValue(chartType, out var cached))
+        if (_cache.TryGetValue((chartType, level), out var cached))
             return cached;
 
-        var result = ComputeChartData(chartType);
-        _cache[chartType] = result;
+        var result = ComputeChartData(chartType, null, level, regionName);
+        _cache[(chartType, level)] = result;
         return result;
     }
 
     /// <summary>
     /// Computes chart data for a specific chart type.
     /// </summary>
-    private object ComputeChartData(ChartDataType chartType, Func<decimal, DateTime, decimal>? toDisplay = null)
+    private object ComputeChartData(ChartDataType chartType, Func<decimal, DateTime, decimal>? toDisplay = null,
+        GeoLevel level = GeoLevel.Country, Func<string?, string?, string?>? regionName = null)
     {
         return chartType switch
         {
@@ -1919,8 +1940,8 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
 
             // Geographic charts
             ChartDataType.WorldMap => GetWorldMapData(toDisplay),
-            ChartDataType.CountriesOfOrigin => GetRevenueByCountryOfOrigin(toDisplay),
-            ChartDataType.CountriesOfDestination => GetExpensesByCountryOfDestination(toDisplay),
+            ChartDataType.CountriesOfOrigin => GetRevenueByCountryOfOrigin(toDisplay, level, regionName),
+            ChartDataType.CountriesOfDestination => GetExpensesByCountryOfDestination(toDisplay, level, regionName),
             ChartDataType.CompaniesOfOrigin => GetRevenueByCompanyOfOrigin(toDisplay),
             ChartDataType.CompaniesOfDestination => GetRevenueByCompanyOfDestination(toDisplay),
 

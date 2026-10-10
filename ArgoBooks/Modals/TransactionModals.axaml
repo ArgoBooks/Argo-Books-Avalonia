@@ -1,4 +1,4 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -41,7 +41,7 @@
                                ClosingCommand="{Binding RequestCloseAddEditModalCommand}">
             <controls:ModalOverlay.ModalContent>
                 <Border Classes="modal-card"
-                    Width="750"
+                    Width="850"
                     MinHeight="500"
                     MaxHeight="700">
                 <Grid RowDefinitions="Auto,*,Auto">
@@ -54,10 +54,24 @@
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                                     IsVisible="{Binding !IsSavingTransaction}">
                         <StackPanel Margin="24" Spacing="20">
-                            <!-- Date and Payment Method Row -->
+                            <!-- ID and Date Row. The id is generated on save when it is left blank. -->
                             <Grid ColumnDefinitions="*,16,*">
-                                <!-- Date -->
                                 <StackPanel Grid.Column="0" Spacing="6">
+                                    <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}"
+                                               Text="{loc:Loc 'ID'}" />
+                                    <TextBox Text="{Binding ModalId, Mode=TwoWay}"
+                                             Classes="form-input"
+                                             PlaceholderText="{Binding ModalIdPlaceholder}"
+                                             MaxLength="20" />
+                                    <TextBlock Text="{Binding ModalIdError}"
+                                               FontSize="12"
+                                               Foreground="{DynamicResource ErrorTextBrush}"
+                                               TextWrapping="Wrap"
+                                               IsVisible="{Binding ModalIdError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                </StackPanel>
+
+                                <!-- Date -->
+                                <StackPanel Grid.Column="2" Spacing="6">
                                     <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}">
                                         <Run Text="{loc:Loc 'Date'}" /><Run Text=" *" Foreground="{DynamicResource ErrorBrush}" />
                                     </TextBlock>
@@ -65,9 +79,12 @@
                                                 Classes="form-datepicker"
                                                 HorizontalAlignment="Stretch" />
                                 </StackPanel>
+                            </Grid>
 
-                                <!-- Payment Method -->
-                                <StackPanel Grid.Column="2" Spacing="6">
+                            <!-- Payment Method and Counterparty Row. The customer and the supplier
+                                 share the cell: only one of them is ever shown. -->
+                            <Grid ColumnDefinitions="*,16,*">
+                                <StackPanel Grid.Column="0" Spacing="6">
                                     <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}"
                                                Text="{loc:Loc 'Payment Method'}" />
                                     <ComboBox ItemsSource="{Binding PaymentMethodOptions}"
@@ -81,48 +98,42 @@
                                         </ComboBox.ItemTemplate>
                                     </ComboBox>
                                 </StackPanel>
+
+                                <!-- Customer Selection (revenue) -->
+                                <StackPanel Grid.Column="2" Spacing="6" IsVisible="{Binding IsRevenue}">
+                                    <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}"
+                                               Text="{loc:Loc 'Customer'}" />
+                                    <controls:SearchableDropdown ItemsSource="{Binding CounterpartyOptions}"
+                                                                SelectedItem="{Binding SelectedCounterparty}"
+                                                                SearchText="{Binding CounterpartyText, Mode=TwoWay}"
+                                                                DisplayMemberPath="Name"
+                                                                SearchMemberPath="Id"
+                                                                Placeholder="{loc:Loc 'Type a new customer, or pick one'}"
+                                                                HasError="{Binding HasCounterpartyError}"
+                                                                ErrorMessage="{loc:Loc 'Please select a customer.'}"
+                                                                ShowAddNew="True"
+                                                                AddNewText="{loc:Loc 'Create new customer'}"
+                                                                AddNewCommand="{Binding OpenCreateCounterpartyCommand}" />
+                                </StackPanel>
+
+                                <!-- Supplier Selection (expense). Two blocks rather than one with
+                                     bound wording, matching how the filter modal below splits them. -->
+                                <StackPanel Grid.Column="2" Spacing="6" IsVisible="{Binding !IsRevenue}">
+                                    <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}"
+                                               Text="{loc:Loc 'Supplier'}" />
+                                    <controls:SearchableDropdown ItemsSource="{Binding CounterpartyOptions}"
+                                                                SelectedItem="{Binding SelectedCounterparty}"
+                                                                SearchText="{Binding CounterpartyText, Mode=TwoWay}"
+                                                                DisplayMemberPath="Name"
+                                                                SearchMemberPath="Id"
+                                                                Placeholder="{loc:Loc 'Type a new supplier, or pick one'}"
+                                                                HasError="{Binding HasCounterpartyError}"
+                                                                ErrorMessage="{loc:Loc 'Please select a supplier.'}"
+                                                                ShowAddNew="True"
+                                                                AddNewText="{loc:Loc 'Create new supplier'}"
+                                                                AddNewCommand="{Binding OpenCreateCounterpartyCommand}" />
+                                </StackPanel>
                             </Grid>
-
-                            <!-- Customer Selection (revenue) -->
-                            <StackPanel Spacing="6" IsVisible="{Binding IsRevenue}">
-                                <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}"
-                                           Text="{loc:Loc 'Customer'}" />
-                                <controls:SearchableDropdown ItemsSource="{Binding CounterpartyOptions}"
-                                                            SelectedItem="{Binding SelectedCounterparty}"
-                                                            SearchText="{Binding CounterpartyText, Mode=TwoWay}"
-                                                            DisplayMemberPath="Name"
-                                                            SearchMemberPath="Id"
-                                                            Placeholder="{loc:Loc 'Search for a customer...'}"
-                                                            HasError="{Binding HasCounterpartyError}"
-                                                            ErrorMessage="{loc:Loc 'Please select a customer.'}"
-                                                            ShowAddNew="True"
-                                                            AddNewText="{loc:Loc 'Create new customer'}"
-                                                            AddNewCommand="{Binding OpenCreateCounterpartyCommand}"
-                                                            EmptyMessage="{loc:Loc 'No customers found'}"
-                                                            EmptyCreateLinkText="{loc:Loc 'Create one'}"
-                                                            EmptyCreateCommand="{Binding OpenCreateCounterpartyCommand}" />
-                            </StackPanel>
-
-                            <!-- Supplier Selection (expense). Two blocks rather than one with
-                                 bound wording, matching how the filter modal below splits them. -->
-                            <StackPanel Spacing="6" IsVisible="{Binding !IsRevenue}">
-                                <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}"
-                                           Text="{loc:Loc 'Supplier'}" />
-                                <controls:SearchableDropdown ItemsSource="{Binding CounterpartyOptions}"
-                                                            SelectedItem="{Binding SelectedCounterparty}"
-                                                            SearchText="{Binding CounterpartyText, Mode=TwoWay}"
-                                                            DisplayMemberPath="Name"
-                                                            SearchMemberPath="Id"
-                                                            Placeholder="{loc:Loc 'Search for a supplier...'}"
-                                                            HasError="{Binding HasCounterpartyError}"
-                                                            ErrorMessage="{loc:Loc 'Please select a supplier.'}"
-                                                            ShowAddNew="True"
-                                                            AddNewText="{loc:Loc 'Create new supplier'}"
-                                                            AddNewCommand="{Binding OpenCreateCounterpartyCommand}"
-                                                            EmptyMessage="{loc:Loc 'No suppliers found'}"
-                                                            EmptyCreateLinkText="{loc:Loc 'Create one'}"
-                                                            EmptyCreateCommand="{Binding OpenCreateCounterpartyCommand}" />
-                            </StackPanel>
 
                             <!-- Line Items Section -->
                             <StackPanel x:Name="LineItemsSection" Spacing="12">
@@ -149,7 +160,7 @@
                                         CornerRadius="6"
                                         Padding="12,8"
                                         IsVisible="{Binding LineItems.Count, Converter={x:Static local:IntConverters.IsPositive}}">
-                                    <Grid ColumnDefinitions="*,150,70,90,100,40">
+                                    <Grid ColumnDefinitions="*,150,70,130,110,40">
                                         <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,8,0">
                                             <TextBlock Text="{loc:Loc 'Item'}" FontSize="12" FontWeight="Medium"
                                                        Foreground="{DynamicResource TextTertiaryBrush}" />
@@ -167,8 +178,7 @@
                                                    HorizontalAlignment="Left" />
                                         <TextBlock Grid.Column="4" Text="{loc:Loc 'Amount'}" FontSize="12" FontWeight="Medium"
                                                    Foreground="{DynamicResource TextTertiaryBrush}"
-                                                   HorizontalAlignment="Right"
-                                                   Margin="0,0,12,0" />
+                                                   HorizontalAlignment="Left" />
                                     </Grid>
                                 </Border>
 
@@ -179,7 +189,7 @@
                                             <Border Padding="12,8"
                                                     BorderBrush="{DynamicResource BorderBrush}"
                                                     BorderThickness="0,0,0,1">
-                                                <Grid ColumnDefinitions="*,150,70,90,100,40">
+                                                <Grid ColumnDefinitions="*,150,70,130,110,40">
                                                     <StackPanel Grid.Column="0" Margin="0,0,8,0" Spacing="4">
                                                     <controls:SearchableDropdown Classes="compact"
                                                              ItemsSource="{Binding $parent[ItemsControl].((vm:ITransactionModalsViewModel)DataContext).ProductOptions}"
@@ -207,11 +217,7 @@
                                                             </ComboBox.ItemTemplate>
                                                         </ComboBox>
                                                     </StackPanel>
-                                                    <!-- Takes the category for a typed item. A picked product shows its category as text instead,
-                                                         since moving a product between categories belongs on the Products page.
-                                                         Neither box sets an empty-state link: it replaces the text box, and a
-                                                         new company has no products or categories, so nothing could be typed.
-                                                         Creating one stays available at the bottom of each list. -->
+                                                    <!-- Takes the category for a typed item. A picked product shows its category as text instead, since moving a product between categories belongs on the Products page. -->
                                                     <Panel Grid.Column="1" Margin="0,0,8,0">
                                                         <controls:SearchableDropdown Classes="compact"
                                                                  ItemsSource="{Binding $parent[ItemsControl].((vm:ITransactionModalsViewModel)DataContext).CategoryOptions}"
@@ -243,7 +249,7 @@
                                                                    Minimum="0.001"
                                                                    Maximum="999999"
                                                                    FormatString="0.###"
-                                                                   Classes="line-item-input"
+                                                                   Classes="line-item-input line-item-qty"
                                                                    ShowButtonSpinner="False"
                                                                    HorizontalAlignment="Stretch"
                                                                    VerticalAlignment="Top"
@@ -253,7 +259,7 @@
                                                                    Minimum="0"
                                                                    Maximum="999999999"
                                                                    FormatString="N2"
-                                                                   Classes="line-item-input"
+                                                                   Classes="line-item-input line-item-price"
                                                                    ShowButtonSpinner="False"
                                                                    HorizontalAlignment="Stretch"
                                                                    VerticalAlignment="Top"
@@ -264,8 +270,7 @@
                                                                FontWeight="Medium"
                                                                Foreground="{DynamicResource TextPrimaryBrush}"
                                                                VerticalAlignment="Center"
-                                                               HorizontalAlignment="Right"
-                                                               Margin="0,0,12,0" />
+                                                               HorizontalAlignment="Left" />
                                                     <Button Grid.Column="5"
                                                             Classes="icon-button danger"
                                                             VerticalAlignment="Center"
@@ -431,14 +436,14 @@
 
                             <!-- Total Mismatch Warning -->
                             <Border IsVisible="{Binding HasTotalMismatchWarning}"
-                                    Background="#33FFA500"
-                                    BorderBrush="#FFA500"
+                                    Background="{DynamicResource WarningLightBrush}"
+                                    BorderBrush="{DynamicResource WarningBrush}"
                                     BorderThickness="1"
                                     CornerRadius="6"
                                     Padding="12,8">
                                 <TextBlock Text="{Binding TotalMismatchWarningMessage}"
                                            FontSize="12"
-                                           Foreground="#FFA500"
+                                           Foreground="{DynamicResource WarningTextBrush}"
                                            TextWrapping="Wrap" />
                             </Border>
 
@@ -584,7 +589,7 @@
                                         <TextBlock Text="{loc:Loc 'Min'}" FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}" />
                                         <TextBox Text="{Binding FilterAmountMin, Mode=TwoWay}"
                                                  Classes="form-input"
-                                                 PlaceholderText="$0.00"
+                                                 PlaceholderText="{Binding AmountPlaceholder}"
                                                  HorizontalAlignment="Stretch"
                                                  behaviors:NumericInputBehavior.IsDecimalOnly="True"
                                                  MaxLength="13" />
@@ -593,7 +598,7 @@
                                         <TextBlock Text="{loc:Loc 'Max'}" FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}" />
                                         <TextBox Text="{Binding FilterAmountMax, Mode=TwoWay}"
                                                  Classes="form-input"
-                                                 PlaceholderText="$0.00"
+                                                 PlaceholderText="{Binding AmountPlaceholder}"
                                                  HorizontalAlignment="Stretch"
                                                  behaviors:NumericInputBehavior.IsDecimalOnly="True"
                                                  MaxLength="13" />

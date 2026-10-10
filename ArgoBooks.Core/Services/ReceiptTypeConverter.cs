@@ -74,9 +74,7 @@ public static class ReceiptTypeConverter
             && data.PayRuns.Any(p => p.Lines.Any(l => l.ExpenseId == id)))
             return ReceiptSwitchBlock.UsedByPayRun;
 
-        // The statement line names this transaction by id and type. Switched, the line would
-        // point at a record that is gone and the new one would be flagged as matched by a line
-        // going the other way.
+        // The statement line names this transaction by id and type.
         if (transaction.BankMatched)
             return ReceiptSwitchBlock.BankMatched;
 
@@ -229,9 +227,7 @@ public static class ReceiptTypeConverter
     {
         var clones = new List<LineItem>(source.Count);
 
-        // The category the new products are filed under, which is usually one the company already
-        // has. Kept apart from createdCategory: that one is what a revert deletes, so putting a
-        // category we merely looked up into it would delete a category the user has had all along.
+        // The category the new products are filed under, which is usually one the company already has.
         Category? category = null;
 
         foreach (var item in source)

@@ -74,9 +74,7 @@ public sealed class SmoothProgressDriver
     {
         if (t <= 0)
             return 0;
-        // Ease to ~85% by the median (p50) so a run that finishes near its estimate lands high and
-        // the snap to 100% is small, not a jump from the middle. Then 85% -> 95% across p50..p90, and
-        // a slow crawl to the ceiling for the long tail.
+        // Ease to ~85% by the median (p50) so a run that finishes near its estimate lands high and the snap to 100% is small, not a jump from the middle.
         if (t <= _p50Ms)
         {
             double x = t / _p50Ms;

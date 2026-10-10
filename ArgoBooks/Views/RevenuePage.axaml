@@ -137,10 +137,7 @@
                                     Command="{Binding DismissStripeBannerCommand}"
                                     IsVisible="{Binding !IsSyncingStripe}" />
 
-                            <!-- Replaces both buttons while the sync runs. Dismissing
-                                 mid-import would hide the only thing reporting it, and
-                                 a greyed-out button on its own said nothing about the
-                                 fifteen seconds of rate fetching this can spend. -->
+                            <!-- Replaces both buttons while the sync runs, because dismissing mid-import hides the only thing reporting the rate fetching. -->
                             <StackPanel Grid.Column="2" Grid.ColumnSpan="2"
                                         Orientation="Horizontal" Spacing="8"
                                         VerticalAlignment="Center"
@@ -158,9 +155,7 @@
                         </Grid>
                     </Border>
 
-                    <!-- Same shape as the Stripe banner above. This one matters
-                         more: a connected app pushes on its own schedule, so
-                         without it nothing tells the merchant data has arrived. -->
+                    <!-- Same shape as the Stripe banner above. This one matters more: a connected app pushes on its own schedule, so without it nothing tells the merchant data has arrived. -->
                     <Border HorizontalAlignment="Center"
                             Background="{DynamicResource SurfaceAltBrush}"
                             BorderBrush="{DynamicResource PrimaryBrush}"
@@ -194,10 +189,7 @@
                                     Command="{Binding DismissArgoApiBannerCommand}"
                                     IsVisible="{Binding !IsSyncingArgoApi}" />
 
-                            <!-- Replaces both buttons while the sync runs. Dismissing
-                                 mid-import would hide the only thing reporting it, and
-                                 a greyed-out button on its own said nothing about the
-                                 fifteen seconds of rate fetching this can spend. -->
+                            <!-- Replaces both buttons while the sync runs, because dismissing mid-import hides the only thing reporting the rate fetching. -->
                             <StackPanel Grid.Column="2" Grid.ColumnSpan="2"
                                         Orientation="Horizontal" Spacing="8"
                                         VerticalAlignment="Center"

@@ -139,6 +139,16 @@ public enum TableSortOrder
 }
 
 /// <summary>
+/// How far down a geographic chart groups its rows.
+/// </summary>
+public enum GeoLevel
+{
+    Country,
+    Region,
+    City
+}
+
+/// <summary>
 /// Chart data types available in reports.
 /// </summary>
 public enum ChartDataType
@@ -324,6 +334,25 @@ public static class ReportEnumExtensions
             _ => sortOrder.ToString()
         };
     }
+
+    /// <summary>
+    /// The charts that group by where somebody is, and so can be grouped by country, region or city.
+    /// </summary>
+    public static bool GroupsByPlace(this ChartDataType chartType) =>
+        chartType is ChartDataType.CountriesOfOrigin or ChartDataType.CountriesOfDestination;
+
+    /// <summary>
+    /// A chart's display name at the level it groups by, so a chart of regions is called one. Each
+    /// name is spelled out rather than built from the country name, so the translator sees it.
+    /// </summary>
+    public static string GetDisplayName(this ChartDataType chartType, GeoLevel level) => (chartType, level) switch
+    {
+        (ChartDataType.CountriesOfOrigin, GeoLevel.Region) => "Regions of Origin",
+        (ChartDataType.CountriesOfOrigin, GeoLevel.City) => "Cities of Origin",
+        (ChartDataType.CountriesOfDestination, GeoLevel.Region) => "Regions of Destination",
+        (ChartDataType.CountriesOfDestination, GeoLevel.City) => "Cities of Destination",
+        _ => chartType.GetDisplayName()
+    };
 
     /// <summary>
     /// Gets a user-friendly display name for a chart data type.
@@ -515,26 +544,4 @@ public static class ReportEnumExtensions
         ChartDataType.ProductRevenueTrend => "Products",
         _ => "Charts"
     };
-
-    /// <summary>
-    /// Returns an emoji icon representing the category of the chart data type.
-    /// </summary>
-    public static string GetChartIcon(this ChartDataType chartType)
-    {
-        var category = chartType.GetChartCategory();
-        return category switch
-        {
-            "Revenue" => "💰",
-            "Expenses" => "📉",
-            "Financial" => "📊",
-            "Transactions" => "📝",
-            "Geographic" => "🌍",
-            "Accountant" => "🧾",
-            "Customer" => "👥",
-            "Returns" => "↩️",
-            "Losses" => "⚠️",
-            "Taxes" => "🏛️",
-            _ => "📈"
-        };
-    }
 }

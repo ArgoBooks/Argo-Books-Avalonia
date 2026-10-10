@@ -38,9 +38,7 @@ public static class LogoHistory
 
         if (invoices.Count == 0 && quotes.Count == 0) return;
 
-        // The logo is set on every template at once, so the same image arrives here several times
-        // over. It is kept once and shared, which is the point of storing an id on the document
-        // rather than the picture itself.
+        // The logo is set on every template at once, so the same image arrives here several times over.
         var kept = companyData.Settings.RetiredLogos.FirstOrDefault(l => l.Base64 == outgoing);
         if (kept == null)
         {

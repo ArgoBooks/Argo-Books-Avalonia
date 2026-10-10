@@ -155,9 +155,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
     /// </summary>
     private void LoadProductSales(CompanyData data)
     {
-        // Convert each sale at its OWN date during aggregation (Calculations.md Rule 4), so
-        // the per-product and total figures aren't re-priced at a single date. The resulting
-        // amounts are already in the display currency.
+        // Convert each sale at its OWN date during aggregation (Calculations.md Rule 4), so the per-product and total figures aren't re-priced at a single date.
         var complete = CurrencyService.TryComputeDisplay(
             convert => ProductSalesService.GetProductSales(data, StartDate, EndDate, cashBasis: true, convert)
                 .Select(d => new ProductSalesRow(d))
@@ -379,9 +377,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
             onApply: (start, end) =>
             {
                 StartDate = start.Date;
-                // Inclusive end-of-day so transactions stored later in the
-                // user's day (or with a UTC timestamp ahead of local time)
-                // aren't filtered out of stat-card aggregations.
+                // Inclusive end-of-day so transactions stored later in the user's day (or with a UTC timestamp ahead of local time) aren't filtered out of stat-card aggregations.
                 EndDate = end.Date.AddDays(1).AddTicks(-1);
                 HasAppliedCustomRange = true;
                 OnPropertyChanged(nameof(AppliedDateRangeText));
@@ -711,6 +707,49 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
     #endregion
 
     #region Map Mode Toggle
+
+    [ObservableProperty]
+    private GeoLevel _geoLevel = GeoLevel.Country;
+
+    // One bound property per button, because a radio reports whether it is the chosen one.
+    public bool IsGeoByCountry
+    {
+        get => GeoLevel == GeoLevel.Country;
+        set { if (value) GeoLevel = GeoLevel.Country; }
+    }
+
+    public bool IsGeoByRegion
+    {
+        get => GeoLevel == GeoLevel.Region;
+        set { if (value) GeoLevel = GeoLevel.Region; }
+    }
+
+    public bool IsGeoByCity
+    {
+        get => GeoLevel == GeoLevel.City;
+        set { if (value) GeoLevel = GeoLevel.City; }
+    }
+
+    public string CountriesOfOriginTitle =>
+        ChartDataType.CountriesOfOrigin.GetDisplayName(GeoLevel).Translate();
+
+    public string CountriesOfDestinationTitle =>
+        ChartDataType.CountriesOfDestination.GetDisplayName(GeoLevel).Translate();
+
+    partial void OnGeoLevelChanged(GeoLevel value)
+    {
+        OnPropertyChanged(nameof(IsGeoByCountry));
+        OnPropertyChanged(nameof(IsGeoByRegion));
+        OnPropertyChanged(nameof(IsGeoByCity));
+        OnPropertyChanged(nameof(CountriesOfOriginTitle));
+        OnPropertyChanged(nameof(CountriesOfDestinationTitle));
+
+        var data = _companyManager?.CompanyData;
+        if (data == null) return;
+
+        LoadCountriesOfOriginChart(data);
+        LoadCountriesOfDestinationChart(data);
+    }
 
     [ObservableProperty]
     private bool _isMapModeOrigin = true;
@@ -1959,7 +1998,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
 
     private void LoadCountriesOfOriginChart(CompanyData data)
     {
-        var (series, legend) = ChartLoaderService.LoadCountriesOfOriginChart(data, StartDate, EndDate);
+        var (series, legend) = ChartLoaderService.LoadCountriesOfOriginChart(data, StartDate, EndDate, GeoLevel);
         CountriesOfOriginSeries = series;
         CountriesOfOriginLegend = legend;
         HasCountriesOfOriginData = series.Count > 0;
@@ -1983,7 +2022,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
 
     private void LoadCountriesOfDestinationChart(CompanyData data)
     {
-        var (series, legend) = ChartLoaderService.LoadCountriesOfDestinationChart(data, StartDate, EndDate);
+        var (series, legend) = ChartLoaderService.LoadCountriesOfDestinationChart(data, StartDate, EndDate, GeoLevel);
         CountriesOfDestinationSeries = series;
         CountriesOfDestinationLegend = legend;
         HasCountriesOfDestinationData = series.Count > 0;
@@ -2257,9 +2296,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
 
     private void LoadDashboardStatistics(CompanyData data)
     {
-        // Revenue stat uses gross-of-tax (Total) per Calculations.md §2 Rule 1,
-        // refunds subtracted at full amount. Profit/margin use pre-tax revenue
-        // and refunds subtracted at pre-tax portion (handled in ProfitCalculator).
+        // Revenue stat uses gross-of-tax (Total) per Calculations.md §2 Rule 1, refunds subtracted at full amount.
         var totalPurchasesUSD = ExpenseAggregator.SumExpensesUSD(data.Expenses, StartDate, EndDate);
         var grossRevenueUSD = RevenueAggregator.SumCollectedRevenueUSD(data.Revenues, StartDate, EndDate);
         var refundsUSD = RefundAggregator.GetRefundedInDateRangeUSD(data.Payments, StartDate, EndDate);
@@ -2591,11 +2628,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         var revenues = data.Revenues.Where(r => r.Date >= StartDate && r.Date <= EndDate).Where(RevenueAggregator.IsCollected).ToList();
         var expenses = data.Expenses.Where(e => e.Date >= StartDate && e.Date <= EndDate).ToList();
 
-        // EffectiveTaxAmountUSD, not a hand-rolled "USD if we have it, native otherwise".
-        // docs/Calculations.md §3 forbids summing native fields into a USD total. The Effective
-        // property derives the missing figure
-        // from the row's own Total/TotalUSD ratio and yields 0 when there is nothing to derive
-        // it from, so a rate that never arrived reads as nothing rather than as dollars.
+        // EffectiveTaxAmountUSD, not a hand-rolled "USD if we have it, native otherwise". docs/Calculations.md §3 forbids summing native fields into a USD total.
         var grossTaxCollectedUSD = revenues.Sum(r => r.EffectiveTaxAmountUSD);
         var taxCollectedUSD = grossTaxCollectedUSD
             - RefundAggregator.GetRefundedTaxInDateRangeUSD(data.Payments, invoicesById, StartDate, EndDate);
@@ -2686,9 +2719,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
 
         var since = DateTime.Today.AddDays(-90);
 
-        // RefundAnalyticsService converts each refund at its OWN date (Calculations.md Rule 4) with
-        // the converter it is given. A figure whose refunds aren't all priced shows Pending rather
-        // than a number with USD mixed in.
+        // RefundAnalyticsService converts each refund at its OWN date (Calculations.md Rule 4) with the converter it is given.
         string Money(bool complete, decimal amount) => complete ? CurrencyService.Format(amount) : CurrencyService.PendingMarker;
 
         var totalComplete = CurrencyService.TryComputeDisplay(

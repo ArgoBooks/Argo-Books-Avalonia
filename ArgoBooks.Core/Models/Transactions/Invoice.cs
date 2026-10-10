@@ -1,4 +1,4 @@
-using ArgoBooks.Core.Enums;
+﻿using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Common;
 using CommunityToolkit.Mvvm.ComponentModel;
 
@@ -59,7 +59,8 @@ public partial class Invoice : ObservableObject, IRecord
     public decimal Subtotal { get; set; }
 
     /// <summary>
-    /// Tax rate as a decimal.
+    /// Tax rate as a percentage, or a flat amount when <see cref="TaxIsFixed"/> is set. 8 means 8%,
+    /// not 0.08, which is how a product and a line item hold theirs.
     /// </summary>
     [JsonPropertyName("taxRate")]
     public decimal TaxRate { get; set; }
@@ -124,9 +125,7 @@ public partial class Invoice : ObservableObject, IRecord
     [JsonPropertyName("templateId")]
     public string TemplateId { get; set; } = string.Empty;
 
-    // Per-invoice display overrides. Null = inherit the selected template's setting; a value
-    // overrides it for this invoice only, so the invoice's appearance is frozen at creation and
-    // isn't changed by later template edits.
+    // Per-invoice overrides, where null inherits the template, so an invoice's appearance is frozen at creation and later template edits leave it alone.
 
     /// <summary>Override: pass the card processing fee to the customer on online payments.</summary>
     [JsonPropertyName("passProcessingFee")]

@@ -165,10 +165,7 @@ public static class ImportSchemaDefinition
 
             [SpreadsheetSheetType.Invoices] =
             [
-                // Two different values. ID is what payments and line items point at; Invoice # is
-                // what the customer sees on the paperwork, and in this app it is the id with a
-                // hash in front. A sheet that only has Invoice # still works: the importer falls
-                // back to it for the id.
+                // Two different values. ID is what payments and line items point at; Invoice # is what the customer sees on the paperwork, and in this app it is the id with a hash in front.
                 new("ID", "string", "Unique identifier (e.g., INV-2024-00001)", JsonName: "id"),
                 new("Invoice #", "string", "Invoice number shown on the invoice (e.g., #INV-2024-00001). Used as the identifier when there is no ID column", Required: true, JsonName: "invoiceNumber"),
                 new("Customer ID", "string", "Customer identifier", Required: true, JsonName: "customerId"),
@@ -330,9 +327,7 @@ public static class ImportSchemaDefinition
                 new("Unit Price", "decimal", "Price per unit before tax and discount", JsonName: "unitPrice"),
                 new("Tax Rate", "decimal", "Tax rate as a decimal (e.g., 0.08 for 8%)", JsonName: "taxRate"),
                 new("Discount", "decimal", "Discount applied to this line", JsonName: "discount"),
-                // Amount is quantity x price less discount, plus tax. It is exported so the sheet
-                // reads on its own and is deliberately not imported: the line is rebuilt from its
-                // parts, so a stale total in the file cannot contradict them.
+                // Amount is quantity x price less discount, plus tax.
             ],
 
             [SpreadsheetSheetType.PurchaseOrderLineItems] =

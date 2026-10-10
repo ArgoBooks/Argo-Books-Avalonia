@@ -1,10 +1,9 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:ArgoBooks.ViewModels"
              xmlns:controls="using:ArgoBooks.Controls"
-             xmlns:icons="using:ArgoBooks"
              xmlns:loc="using:ArgoBooks.Localization"
              xmlns:local="using:ArgoBooks.Converters"
              mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="700"
@@ -30,17 +29,12 @@
                         </controls:ModalHeader>
 
                         <!-- Content -->
-                        <!-- Horizontal scrolling disabled, as in every other modal. Left enabled,
-                             the ScrollViewer measures its content at infinite width, so nothing
-                             wraps and the long lines push the modal sideways. -->
+                        <!-- Horizontal scrolling disabled, as in every other modal. -->
                         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
                                       HorizontalScrollBarVisibility="Disabled">
                             <StackPanel Margin="24" Spacing="16">
 
-                                <!-- The year leads, because every figure and every problem below
-                                     is for the year chosen here. It sat in the header beside the
-                                     close button, which read as window furniture rather than as
-                                     the control the screen turns on. -->
+                                <!-- The year leads, because every figure and every problem below is for the year chosen here. -->
                                 <StackPanel Spacing="6" HorizontalAlignment="Left" MinWidth="180">
                                     <TextBlock Text="{loc:Loc 'Tax year'}" FontSize="14"
                                                Foreground="{DynamicResource TextSecondaryBrush}" />
@@ -49,9 +43,7 @@
                                               Classes="form-combobox" HorizontalAlignment="Stretch" />
                                 </StackPanel>
 
-                                <!-- Everything wrong, all at once. Fixing these means visiting
-                                     other screens, so the whole list is more useful than the
-                                     first item. -->
+                                <!-- Everything wrong, all at once. Fixing these means visiting other screens, so the whole list is more useful than the first item. -->
                                 <Border Background="{DynamicResource SurfaceAltBrush}" CornerRadius="8" Padding="16"
                                         IsVisible="{Binding HasProblems}">
                                     <StackPanel Spacing="8">
@@ -73,9 +65,7 @@
                                     </StackPanel>
                                 </Border>
 
-                                <!-- Said, not enforced. A missing social insurance number used to
-                                     sit in the list above and disable filing forever, even though
-                                     CRA accepts the slip without one. -->
+                                <!-- Said, not enforced, because CRA accepts a slip without a social insurance number. -->
                                 <Border Background="{DynamicResource SurfaceAltBrush}" CornerRadius="8" Padding="16"
                                         IsVisible="{Binding HasWarnings}">
                                     <StackPanel Spacing="8">
@@ -94,9 +84,7 @@
                                     </StackPanel>
                                 </Border>
 
-                                <!-- The three things CRA needs that pay runs cannot supply.
-                                     Editable here so the reason filing is blocked can be
-                                     fixed where it is reported. -->
+                                <!-- The three things CRA needs that pay runs cannot supply. Editable here so the reason filing is blocked can be fixed where it is reported. -->
                                 <Border Background="{DynamicResource SurfaceAltBrush}" CornerRadius="8" Padding="16">
                                     <StackPanel Spacing="12">
                                         <TextBlock Text="{loc:Loc 'Filing details'}" FontSize="14" FontWeight="SemiBold"
@@ -133,7 +121,7 @@
                                                 <!-- Required by the T619 transmittal record, and the address CRA
                                                      replies to about the filing. Not printed on any slip. -->
                                                 <TextBox Text="{Binding ContactEmail, Mode=TwoWay}" Classes="form-input"
-                                                         PlaceholderText="name@example.com" MaxLength="60" />
+                                                         PlaceholderText="{loc:Loc 'name@example.com'}" MaxLength="60" />
                                                 <TextBlock Text="{Binding ContactEmailError}" FontSize="14"
                                                            TextWrapping="Wrap"
                                                            Foreground="{DynamicResource ErrorBrush}"
@@ -144,10 +132,7 @@
                                             </StackPanel>
                                         </Grid>
 
-                                        <!-- Not needed to file, but this is the only screen that
-                                             holds payroll settings and it drives the deadline on
-                                             the Pay runs page. Assuming regular for an accelerated
-                                             remitter reports a date up to five weeks late. -->
+                                        <!-- Not needed to file, but this is the only screen that holds payroll settings and it drives the deadline on the Pay runs page. -->
                                         <StackPanel Spacing="6">
                                             <TextBlock Text="{loc:Loc 'How often does CRA want your remittances?'}"
                                                        FontSize="14"
@@ -171,10 +156,7 @@
                                     </StackPanel>
                                 </Border>
 
-                                <!-- Original, amendment or cancellation. CRA rejects a return
-                                     that mixes amended and original slips, so the choice
-                                     changes which slips go in the file rather than just a
-                                     code on it. -->
+                                <!-- Original, amendment or cancellation. CRA rejects a return that mixes amended and original slips, so the choice changes which slips go in the file rather than just a code on it. -->
                                 <Border Background="{DynamicResource SurfaceAltBrush}" CornerRadius="8" Padding="16"
                                         IsVisible="{Binding HasRows}">
                                     <StackPanel Spacing="10">
@@ -229,10 +211,7 @@
                                                         BorderThickness="0,0,0,1">
                                                     <Grid ColumnDefinitions="2*,1.2*,1.2*,1.2*,1.2*">
                                                         <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6">
-                                                            <!-- Only when amending. The app has no
-                                                                 record of what was filed last
-                                                                 time, so only the employer knows
-                                                                 which slips actually changed. -->
+                                                            <!-- Only when amending. The app has no record of what was filed last time, so only the employer knows which slips actually changed. -->
                                                             <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
                                                                       VerticalAlignment="Center" MinWidth="0"
                                                                       IsVisible="{Binding $parent[ItemsControl].((vm:YearEndModalViewModel)DataContext).IsAmending}" />
@@ -295,11 +274,7 @@
                                     </StackPanel>
                                 </Border>
 
-                                <!-- The Revenu Quebec half, shown only to an employer who has a
-                                     Quebec employee. It is a second filing rather than a
-                                     variation on the first, so it gets its own problems, its
-                                     own total and its own button rather than sharing the
-                                     footer's. -->
+                                <!-- The Revenu Quebec half, shown only to an employer who has a Quebec employee. -->
                                 <Border Background="{DynamicResource SurfaceAltBrush}" CornerRadius="8" Padding="16"
                                         IsVisible="{Binding HasQuebec}">
                                     <StackPanel Spacing="12">
@@ -321,9 +296,7 @@
                                                        Foreground="{DynamicResource TextTertiaryBrush}" />
                                         </StackPanel>
 
-                                        <!-- Always shown, unlike the problems below it. Nothing the
-                                             employer can enter will clear it, so it is a standing
-                                             notice rather than something to fix. -->
+                                        <!-- Always shown, unlike the problems below it. Nothing the employer can enter will clear it, so it is a standing notice rather than something to fix. -->
                                         <Border Background="{DynamicResource SurfaceAltBrush}"
                                                 BorderBrush="{DynamicResource WarningBrush}"
                                                 BorderThickness="3,0,0,0"

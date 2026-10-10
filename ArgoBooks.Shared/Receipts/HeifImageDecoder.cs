@@ -40,9 +40,7 @@ public static class HeifImageDecoder
 
             var options = new HeifDecodingOptions
             {
-                // Recent iPhones shoot 10-bit HDR HEIC. Without this the decode hands back a
-                // 16-bit surface, which does not match the 8-bit interleaved layout below and
-                // would be read as garbage rather than failing outright.
+                // A recent iPhone shoots 10-bit HDR HEIC, which decodes to a 16-bit surface that the 8-bit layout below would read as garbage.
                 ConvertHdrToEightBit = true,
 
                 // A receipt photo that is slightly malformed is still worth reading. Strict
@@ -70,9 +68,7 @@ public static class HeifImageDecoder
         }
         catch (Exception)
         {
-            // HeifException for a file this build cannot read, DllNotFoundException when the
-            // native library did not ship. Neither is worth failing an import over, and the
-            // caller's fallback is already correct.
+            // HeifException for a file this build cannot read, DllNotFoundException when the native library did not ship.
             return null;
         }
     }

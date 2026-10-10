@@ -60,9 +60,7 @@ public class Rl1Service(PayrollRateService? rates = null)
                 continue;
             }
 
-            // The Quebec part of the year only, read off each line rather than from where the
-            // employee works now: someone who moved in files for their Quebec pay alone, and
-            // someone who moved out still files for the months before they left.
+            // The Quebec part of the year only, read off each line rather than from where the employee works now, since somebody may have moved.
             List<PayRunLine> quebecLines = group.Where(l => IsQuebec(l, employee)).ToList();
             if (quebecLines.Count == 0)
             {
@@ -115,41 +113,22 @@ public class Rl1Service(PayrollRateService? rates = null)
             Address = employee.Address,
             EmploymentIncome = gross,
 
-            // The pay run stores Quebec's pension contributions in the CPP fields, because they
-            // are the same column in the same run and only their destination differs. Boxes B.A
-            // and B.B are where they land.
+            // The pay run stores Quebec's pension contributions in the CPP fields, because they are the same column in the same run and only their destination differs.
             QppContribution = lines.Sum(l => l.CppEmployee),
             AdditionalQppContribution = lines.Sum(l => l.Cpp2Employee),
 
             EiPremium = lines.Sum(l => l.EiEmployee),
 
-            // Box E is the QUEBEC tax alone. The federal half was withheld in the same run but
-            // it is remitted to CRA and reported on the T4, so putting the combined figure here
-            // would have the employee claim a Quebec credit for money Quebec never received.
+            // Box E is the Quebec tax alone, because the federal half is remitted to CRA and reported on the T4.
             QuebecIncomeTax = lines.Sum(l => l.ProvincialTax),
 
-            // Capped at the year's ceilings, for the same reason as the T4's boxes 24 and 26:
-            // someone earning above one stopped contributing part way through the year, and
-            // reporting their whole salary would have Revenu Quebec expect contributions on
-            // money that was never pensionable or eligible.
-            //
-            // From what was actually withheld, as the T4 does: the employee's flag only says they
-            // are exempt now, and zeroing the salary on it alone reported contributions against
-            // no pensionable salary for someone exempt from part way through the year.
+            // Capped at the year's ceilings, as the T4's boxes 24 and 26 are, since somebody earning above one stopped contributing part way through.
             QppPensionableSalary = employee.IsCppExempt && lines.Sum(l => l.CppEmployee + l.Cpp2Employee) == 0m
                 ? 0m
                 : ceilings.CapPensionable(lines.Where(l => !l.CppExempt).Sum(l => l.GrossPay)),
             QpipPremium = qpip,
 
-            // Revenu Quebec is explicit that box I takes "0" when there is none rather than
-            // being left blank, so the figure is always set even when it is nil.
-            //
-            // Nil means no QPIP premium was withheld, NOT that the employee is exempt from EI.
-            // Those were conflated here, and the two exemptions are not the same one: EI
-            // exemption is the owner holding more than 40% of the voting shares, and QPIP has
-            // its own rules and its own base, which is why the calculator withholds QPIP from an
-            // EI exempt Quebec employee. Reading box H against box I is how Revenu Quebec checks
-            // the slip, and a premium in H with a nil I is the one pair that cannot be right.
+            // Revenu Quebec is explicit that box I takes "0" when there is none rather than being left blank, so the figure is always set even when it is nil.
             QpipEligibleSalary = qpip > 0 ? ceilings.CapQpip(gross) : 0m,
 
             EmployerQpp = lines.Sum(l => l.CppEmployer),
@@ -195,9 +174,7 @@ public class Rl1Service(PayrollRateService? rates = null)
                 problems.Add($"{who} has no social insurance number, which is required on the RL-1.");
             }
 
-            // Required, unlike the T4, where the whole address block is optional. RL-1.G-V
-            // section 5.27.1: enter "the individual's last name, followed by the first name and
-            // last known address (including the postal code)".
+            // Required, unlike the T4, where the whole address block is optional.
             if (string.IsNullOrWhiteSpace(slip.Address.City))
             {
                 problems.Add($"{who} has no address. Revenu Quebec requires one on every RL-1 slip.");
@@ -225,10 +202,8 @@ public class Rl1Service(PayrollRateService? rates = null)
     /// "The RL slip does not have an authorization number" is the first entry on Revenu Quebec's
     /// own list of the most common reasons a slip is rejected.
     ///
-    /// This used to be a blocking problem raised only above five slips, on the understanding
-    /// that paper was fine below that. It is not: the authorization rule applies to every paper
-    /// slip a piece of software prints, so the old message let four slips through with the
-    /// implication that mailing them would work. Stated as a permanent notice instead, because
+    /// The authorization rule applies to every paper slip a piece of software prints, whatever
+    /// the count, so four slips are no more mailable than six. Stated as a permanent notice, because
     /// it is a fact about the app rather than a fault in the employer's data, and blocking the
     /// download would take away the figures they still need in order to file properly.
     /// </summary>

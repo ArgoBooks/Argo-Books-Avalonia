@@ -328,9 +328,7 @@ public class SpreadsheetImportInvoiceStatusTests : IDisposable
         Assert.Equal((InvoiceStatus.Partial, 60m), (invoice.Status, invoice.Balance));
     }
 
-    // The AI import replaced an existing invoice with the row, so a row giving only its notes left
-    // it a Draft with nothing paid and nothing owed. It now changes only what the row gives, like
-    // the column import.
+    // The AI import replaced an existing invoice with the row, so a row giving only its notes left it a Draft with nothing paid and nothing owed.
     [Fact]
     public void AiUpdate_ChangesOnlyWhatTheRowGives()
     {

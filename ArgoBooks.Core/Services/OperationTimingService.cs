@@ -102,9 +102,7 @@ public sealed class OperationTimingService
         }
         catch (OperationCanceledException)
         {
-            // The HttpClient's own request timeout (not a caller cancellation). This is best-effort
-            // startup work, so leave the current priors in place and don't log it as a network error
-            // (otherwise a slow/unreachable endpoint spams the error dashboard on every launch).
+            // The HttpClient's own request timeout (not a caller cancellation).
         }
         catch (Exception ex)
         {

@@ -566,9 +566,7 @@ public partial class QuotesPageViewModel : SortablePageViewModelBase
         companyData.MarkAsModified();
         _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.QuoteConverted);
 
-        // Sending the draft records no undo step of its own, so this one can still be on top of
-        // the stack after the invoice has gone to the customer. Undoing the conversion then would
-        // delete a sent invoice and leave its revenue and payments pointing at nothing.
+        // Sending the draft records no undo step of its own, so this one can still be on top of the stack after the invoice has gone to the customer.
         App.UndoRedoManager.RecordAction(new GuardedDelegateAction(
             $"Convert quote '{item.QuoteNumber}' to invoice",
             () =>

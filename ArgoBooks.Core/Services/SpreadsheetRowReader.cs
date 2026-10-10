@@ -241,10 +241,7 @@ internal static class SpreadsheetRowReader
         if (dayFirst && monthFirst) return DateOrder.Unknown;
         if (dayFirst || monthFirst) return dayFirst ? DateOrder.DayFirst : DateOrder.MonthFirst;
 
-        // Nothing in this column settles it, so look at the sheet's other date columns before the
-        // computer's region. One file is written one way: an Issue Date column of 01/05 beside a
-        // Due Date column holding a 25 is month-first in both. Only columns headed as dates:
-        // an invoice number like 26-01-0007 or a phone number has the same shape and is not one.
+        // Nothing in this column settles it, so look at the sheet's other date columns before the computer's region.
         bool anyDayFirst = false, anyMonthFirst = false;
         for (var column = 0; column < headers.Count; column++)
         {
@@ -266,9 +263,7 @@ internal static class SpreadsheetRowReader
         {
             if (index >= row.Count || row[index] is not string s) continue;
 
-            // A year-first date (2024-03-05) is never ambiguous, so only 1-2 digit leading fields
-            // count. The third field has to look like a year, so text such as "13-5-A" is not
-            // taken for a date.
+            // A year-first date (2024-03-05) is never ambiguous, so only 1-2 digit leading fields count. The third field has to look like a year, so text such as "13-5-A" is not taken for a date.
             var parts = s.Trim().Split('/', '.', '-');
             if (parts.Length < 3 || parts[0].Length > 2 ||
                 !int.TryParse(parts[0], NumberStyles.None, CultureInfo.InvariantCulture, out var first) ||
@@ -291,15 +286,11 @@ internal static class SpreadsheetRowReader
         return day >= 0 && month >= 0 && day < month;
     }
 
-    // Day-first formats, e.g. UK/EU "15/03/2023" or "15.03.2023". Unless the column is known to be
-    // day-first they're tried ONLY after the invariant (month-first) parse fails, so a date that
-    // already parses month-first (like "03/01/2023" -> March 1) is never reinterpreted as day-first.
+    // Day-first formats, e.g. UK/EU "15/03/2023" or "15.03.2023".
     private static readonly string[] DayFirstDateFormats =
         ["d/M/yyyy", "dd/MM/yyyy", "d.M.yyyy", "dd.MM.yyyy", "d-M-yyyy", "dd-MM-yyyy"];
 
-    // Invariant with a day-first short date pattern, which is what orders an ambiguous value with
-    // a time ("05/03/2024 10:30") in the lenient parse. Cloned from invariant so it doesn't depend
-    // on the cultures installed on the machine.
+    // Invariant with a day-first short date pattern, which is what orders an ambiguous value with a time ("05/03/2024 10:30") in the lenient parse.
     private static readonly CultureInfo DayFirstCulture = CreateDayFirstCulture();
 
     private static CultureInfo CreateDayFirstCulture()

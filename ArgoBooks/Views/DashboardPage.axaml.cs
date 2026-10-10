@@ -48,6 +48,25 @@ public partial class DashboardPage : UserControl
 
         // Subscribe to ViewModel events when DataContext changes
         DataContextChanged += OnDataContextChanged;
+
+        EditToolbar.SizeChanged += (_, _) => PlaceSampleCompanyNotice();
+    }
+
+    /// <summary>
+    /// Puts the sample company notice in the same row as the edit mode buttons while that row is
+    /// wide enough to hold all three, and below them when it is not.
+    /// </summary>
+    private void PlaceSampleCompanyNotice()
+    {
+        // The notice does not wrap, so its desired width is the width it needs on one line.
+        var needed = EditToolbarLeft.Bounds.Width + EditToolbarRight.Bounds.Width
+                     + SampleCompanyNotice.DesiredSize.Width + 32;
+        var inline = EditToolbar.Bounds.Width >= needed;
+
+        Grid.SetRow(SampleCompanyNotice, inline ? 0 : 1);
+        Grid.SetColumn(SampleCompanyNotice, inline ? 1 : 0);
+        Grid.SetColumnSpan(SampleCompanyNotice, inline ? 1 : 3);
+        SampleCompanyNotice.Margin = inline ? new Thickness(8, 0, 8, 0) : new Thickness(0, 6, 0, 0);
     }
 
     private void OnDataContextChanged(object? sender, EventArgs e)
@@ -385,8 +404,8 @@ public partial class DashboardPage : UserControl
             {
                 Width = sourceRow.Bounds.Width,
                 Height = sourceRow.Bounds.Height,
-                Background = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.FromArgb(30, 59, 130, 246)),
-                BorderBrush = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.FromRgb(59, 130, 246)),
+                Background = Converters.ConverterUtils.AccentTint(30),
+                BorderBrush = Converters.ConverterUtils.AccentBrush,
                 BorderThickness = new Thickness(2),
                 CornerRadius = new CornerRadius(12),
                 IsHitTestVisible = false,
@@ -507,17 +526,6 @@ public partial class DashboardPage : UserControl
 
         // Build popup content
         SettingsContent.Children.Clear();
-
-        // Header
-        var headerText = new TextBlock
-        {
-            Text = "Settings",
-            FontWeight = Avalonia.Media.FontWeight.SemiBold,
-            FontSize = 13
-        };
-        headerText.SetValue(TextBlock.ForegroundProperty, Application.Current?.FindResource("TextPrimaryBrush") as Avalonia.Media.IBrush ?? Avalonia.Media.Brushes.White);
-        SettingsContent.Children.Add(headerText);
-        SettingsContent.Children.Add(new Separator { Height = 1, Margin = new Thickness(0, 0, 0, 4) });
 
         // Widget-specific config content
         var configView = WidgetSettingsFactory.CreateConfigView(hostVm.WidgetViewModel);

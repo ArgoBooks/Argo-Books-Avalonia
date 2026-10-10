@@ -319,9 +319,7 @@ public partial class PayrollModalsViewModel : ViewModelBase
     {
         decimal rate = Parse(PayRate);
 
-        // The name goes on the T4 as typed, and CRA accepts a narrow set of characters in it. A
-        // comma, which is what someone writing "Smith, John" produces, rejects the whole
-        // submission at the February deadline. Caught here, where it costs nothing to fix.
+        // The name goes on the T4 as typed, and CRA accepts a narrow set of characters in it.
         string badName = Core.Services.Payroll.CraFormat.DisallowedCharacters(Name);
 
         NameError = string.IsNullOrWhiteSpace(Name)
@@ -339,9 +337,7 @@ public partial class PayrollModalsViewModel : ViewModelBase
             ? "The end date cannot be before the start date."
             : string.Empty;
 
-        // Checked but not required. Someone can be hired and paid before their SIN arrives,
-        // and blocking the whole employee record over it would stop payroll running at all.
-        // Year end is where a missing SIN actually becomes a problem, and it is reported there.
+        // Checked but not required. Someone can be hired and paid before their SIN arrives, and blocking the whole employee record over it would stop payroll running at all.
         string sinDigits = new(Sin.Where(char.IsAsciiDigit).ToArray());
         SinError = Sin.Trim().Length > 0 && sinDigits.Length != 9
             ? "A social insurance number is 9 digits."
@@ -384,9 +380,7 @@ public partial class PayrollModalsViewModel : ViewModelBase
     /// </summary>
     private void ValidateAddress()
     {
-        // Everyone writes "K1A 0B1". CRA's format is six characters with no space, and only a
-        // USA or foreign code may carry a dash. Correcting it is kinder than refusing it, and it
-        // is the one field where the right answer is never ambiguous.
+        // Everyone writes "K1A 0B1". CRA's format is six characters with no space, and only a USA or foreign code may carry a dash.
         AddressPostalCode = Core.Services.Payroll.CraFormat
             .NormalizePostalCode(AddressPostalCode, AddressCountry);
 
@@ -702,11 +696,7 @@ public partial class PayrollModalsViewModel : ViewModelBase
             return;
         }
 
-        // Quebec is NOT in the provinces table. It administers its own income tax, pension plan
-        // and parental insurance, so its figures live in their own block and the calculator
-        // dispatches on the code before it ever looks a province up. Reading only the table's
-        // keys therefore leaves QC off the list and makes a fully supported jurisdiction
-        // unselectable.
+        // Quebec is not in the provinces table: it runs its own income tax, pension plan and parental insurance, so it has its own block.
         var codes = table.Provinces.Keys.ToList();
 
         if (table.Quebec != null)

@@ -50,10 +50,7 @@ public class TelemetryManager : ITelemetryManager
         // session end, so a second lock would only add an ordering to get wrong.
         lock (_activityLock)
         {
-            // Split the gap since the last input at the page boundary. Otherwise the first
-            // input on a page opened without a click (the Dashboard after creating a company)
-            // credits it with time spent before it existed, such as the save-file dialog,
-            // and it reports more active time than it was open.
+            // The gap since the last input is split at the page boundary, or the first input on a page opened without a click credits it with earlier time.
             var sinceInput = now - _lastActivityUtc;
             if (sinceInput > TimeSpan.Zero && sinceInput <= IdleThreshold)
             {
@@ -62,10 +59,7 @@ public class TelemetryManager : ITelemetryManager
             }
 
             left = _currentPage;
-            // Active time is already idle-aware, so the difference across the visit is too.
-            // Deriving it rather than running a second timer means one idle rule, not two
-            // that can disagree. Subtracted as ticks and rounded once, so a visit is not
-            // charged the rounding of every input inside it.
+            // Active time is already idle-aware, so the difference across the visit is too. Deriving it rather than running a second timer means one idle rule, not two that can disagree.
             activeOnPage = ToSeconds(_activeTicks - _pageEnteredActiveTicks);
             wallOnPage = (long)(now - _pageEnteredUtc).TotalSeconds;
 
@@ -102,16 +96,7 @@ public class TelemetryManager : ITelemetryManager
                 return;
             }
 
-            // Credit the gap since the previous input, but only if it is short enough to
-            // have been someone reading the screen rather than someone who walked away.
-            // A longer gap contributes nothing at all, which is the whole point: it is why
-            // an app left open overnight cannot inflate the figure.
-            //
-            // Accumulated in ticks rather than whole seconds. Clicks and keystrokes are
-            // usually a fraction of a second apart, and truncating each gap on its own
-            // threw all of that away: three keys a second measured as no activity at all,
-            // and one input every 1.5s as half the time it took. The faster someone
-            // worked, the less of their time was counted.
+            // Credit the gap since the previous input, but only if it is short enough to have been someone reading the screen rather than someone who walked away.
             var gap = now - _lastActivityUtc;
             if (gap > TimeSpan.Zero && gap <= IdleThreshold)
             {
@@ -144,15 +129,16 @@ public class TelemetryManager : ITelemetryManager
     private bool _isInitialized;
 
     private SessionSentinel? _sentinel;
+
+    /// <summary>Set once this session's SessionEnd is on its way, so a second call is a no-op.</summary>
+    private int _sessionEnded;
     private Timer? _heartbeatTimer;
     private int _heartbeatTicks;
     private int _uploadInFlight;
     private long _peakManagedBytes;
     private long _peakWorkingSetBytes;
 
-    // Company profiles already recorded this session, so reopening or re-saving a company
-    // does not record it again. Session-scoped on purpose: a profile per launch is a
-    // reasonable refresh rate for details the user can edit at any time.
+    // Company profiles already recorded this session, so reopening or re-saving a company does not record it again.
     private readonly HashSet<string> _reportedCompanyProfiles = [];
     private readonly Lock _profileGate = new();
     private readonly HashSet<string> _reportedCompanyScales = [];
@@ -219,8 +205,6 @@ public class TelemetryManager : ITelemetryManager
                 }, cancellationToken);
 
                 // Close out any previous run that died without recording its own end.
-                // Done before this session's start so the recovered events, which carry
-                // their original timestamps, read in order against it.
                 await RecoverUncleanSessionsAsync(cancellationToken);
 
                 _sentinel = SessionSentinel.Begin(_platformService, _sessionStartTime, _appVersion, _errorLogger);
@@ -247,6 +231,10 @@ public class TelemetryManager : ITelemetryManager
     public async Task EndSessionAsync(CancellationToken cancellationToken = default)
     {
         if (!_isInitialized)
+            return;
+
+        // One run files one SessionEnd: applying an update ends the session before the installer, and closing the window ends it again if the install did not happen.
+        if (Interlocked.Exchange(ref _sessionEnded, 1) != 0)
             return;
 
         // Stopped first so a heartbeat can't race the sentinel's removal below.
@@ -285,10 +273,7 @@ public class TelemetryManager : ITelemetryManager
             sessionEvent.PeakWorkingSetMb = ToMegabytes(Interlocked.Read(ref _peakWorkingSetBytes));
             await _storageService.RecordEventAsync(sessionEvent, cancellationToken);
 
-            // Only now is the session provably accounted for. Dropping the sentinel any
-            // earlier would lose the session outright if the record above threw; dropping
-            // it later would mean a failed upload got it reported as an unclean exit, even
-            // though the event is safely stored for the next launch to deliver.
+            // Only now is the session provably accounted for.
             _sentinel?.Complete();
             _sentinel = null;
 
@@ -460,9 +445,7 @@ public class TelemetryManager : ITelemetryManager
     {
         try
         {
-            // Keyed on the counts themselves rather than the company, so the row is written
-            // again only when the file has actually changed size. Repeated saves that add
-            // nothing record nothing.
+            // Keyed on the counts themselves rather than the company, so the row is written again only when the file has actually changed size. Repeated saves that add nothing record nothing.
             lock (_profileGate)
             {
                 if (!_reportedCompanyScales.Add(counts.ToString()))
@@ -503,15 +486,7 @@ public class TelemetryManager : ITelemetryManager
     {
         try
         {
-            // One row per company per session. Callers fire this from the company-opened
-            // path, which also runs on every save and on returning from settings, so
-            // without this a long session would record the same profile dozens of times.
-            //
-            // Language is in the key even though it makes a second row possible, because it
-            // is the one field here a user actively changes mid-session, and they change it
-            // in the settings screen whose exit re-fires this. Keyed without it we would
-            // only ever record the language they opened with, which is the opposite of the
-            // question the field exists to answer.
+            // One row per company per session, because callers fire this from the company-opened path, which also runs on every save.
             var key = $"{companyName}|{country}|{currency}|{language}";
             lock (_profileGate)
             {

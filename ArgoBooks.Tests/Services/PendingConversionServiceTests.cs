@@ -185,9 +185,7 @@ public class PendingConversionServiceTests
     [Fact]
     public async Task Process_PendingInvoice_RecomputesBalanceUsdFromPayments_NotImportSnapshot()
     {
-        // A foreign-currency invoice imported without a rate stores a snapshot of its balance. If a
-        // payment is recorded before the rate heals, ApplyConversion converts the STALE snapshot
-        // balance instead of recomputing from the live payments, overstating USD outstanding.
+        // An invoice imported without a rate stores a snapshot of its balance, so a payment recorded before the rate heals converts the stale one.
         var date = new DateTime(2024, 6, 1);
         var ex = new ExchangeRateService(new MockPlatform(), new HttpClient(new AlwaysEurHandler(1.0m)));
 
@@ -270,9 +268,7 @@ public class PendingConversionServiceTests
         Assert.Equal(1980m, expense.TotalUSD);
     }
 
-    // A spreadsheet import changes records and the queue off the UI thread, while the timer's pass
-    // changed the same list on the UI thread. The import now suspends the passes: it waits for one
-    // under way, which stops before its next rate, and none runs until the import is done.
+    // A spreadsheet import changes records and the queue off the UI thread, while the timer's pass changed the same list on the UI thread.
     [Fact]
     public async Task Suspend_WaitsForThePassUnderWay_AndHoldsOffPassesUntilDisposed()
     {

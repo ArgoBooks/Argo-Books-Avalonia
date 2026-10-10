@@ -294,10 +294,7 @@ public class AccountingReportDataServiceTests
     [Fact]
     public void GetReportData_GeneralLedger_RefundPayment_ShowsAmountInLedgerRow()
     {
-        // A refund is stored as a Payment with a negative Amount. The ledger records every payment as
-        // a Debit and only renders a column when its value is > 0, so a refund's negative debit shows
-        // blank in BOTH columns even though the running balance still drops. The amount should be
-        // visible (it belongs in the Credit column).
+        // A refund is stored as a Payment with a negative Amount.
         var data = new CompanyData();
         data.Payments.Add(new Payment
         {
@@ -498,9 +495,7 @@ public class AccountingReportDataServiceTests
     [Fact]
     public void GetReportData_BalanceSheet_ExcludesInvoicesIssuedAfterEndDate()
     {
-        // AR on the Balance Sheet is an "as of the end date" balance, so an open invoice issued AFTER
-        // the report end date must not be counted. Every other current-asset/liability line is date
-        // gated via IsOnOrBeforeEndDate.
+        // AR on the Balance Sheet is an "as of the end date" balance, so an open invoice issued AFTER the report end date must not be counted.
         static Invoice MakeInvoice(string id, DateTime issue, decimal amount) => new()
         {
             Id = id,
@@ -570,10 +565,7 @@ public class AccountingReportDataServiceTests
     [Fact]
     public void GetReportData_IncomeStatement_CountsTransactionWhenAllLineItemsNetToZero()
     {
-        // A fully-discounted sale has line items that net to a $0 subtotal but still carries a
-        // transaction-level Total. The category allocator divides each line item's share by the sum
-        // of line-item subtotals; when that sum is 0 it returned $0 for the whole sale, dropping it
-        // from Total Revenue (and the General Ledger) entirely.
+        // A fully-discounted sale has line items that net to a $0 subtotal but still carries a transaction-level Total.
         var data = new CompanyData();
         data.Revenues.Add(new Revenue
         {
@@ -780,9 +772,7 @@ public class AccountingReportDataServiceTests
     [Fact]
     public void PayrollRemittance_ForAQuebecEmployee_SplitsTheTwoAgenciesApart()
     {
-        // Revenu Quebec collects Quebec income tax, QPP and QPIP; CRA collects federal income
-        // tax and EI. A single combined total is owed to nobody: it overstates the CRA payment
-        // by the whole Quebec side, and never mentions the payment Revenu Quebec is waiting for.
+        // Revenu Quebec collects Quebec income tax, QPP and QPIP; CRA collects federal income tax and EI.
         var result = new AccountingReportDataService(PayrollData("QC", qpip: 9m), PayrollFilters())
             .GetReportData(AccountingReportType.PayrollRemittance);
 

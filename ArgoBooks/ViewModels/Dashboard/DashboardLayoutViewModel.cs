@@ -23,6 +23,9 @@ public partial class DashboardLayoutViewModel : ObservableObject
 
     private DashboardRowViewModel? _targetRowForAdd;
 
+    /// <summary>The company the rows on screen were built for, so another one always reloads them.</summary>
+    private string? _loadedCompanyPath;
+
     public void Initialize(CompanyManager companyManager)
     {
         _companyManager = companyManager;
@@ -32,6 +35,14 @@ public partial class DashboardLayoutViewModel : ObservableObject
         var settings = App.SettingsService?.GlobalSettings;
         var companyPath = companyManager.CurrentFilePath;
 
+        // The page factory calls this on every visit, and a theme change rebuilds the page the same
+        // way, so an edit of this company's dashboard keeps the rows it is being made to.
+        if (IsEditMode && companyPath == _loadedCompanyPath)
+            return;
+
+        // Any other reload replaces those rows, and edit mode belongs to the rows that are going.
+        IsEditMode = false;
+
         // Sample company always gets the default layout
         DashboardLayout? layout = null;
         if (!companyManager.IsSampleCompany && !string.IsNullOrEmpty(companyPath))
@@ -40,6 +51,7 @@ public partial class DashboardLayoutViewModel : ObservableObject
 
         _savedLayout = layout.Clone();
         LoadFromLayout(layout);
+        _loadedCompanyPath = companyPath;
     }
 
     private void LoadFromLayout(DashboardLayout layout)

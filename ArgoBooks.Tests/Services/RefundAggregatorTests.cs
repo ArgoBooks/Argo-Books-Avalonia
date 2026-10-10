@@ -14,9 +14,7 @@ public class RefundAggregatorTests
     [Fact]
     public void GetRefundedInDateRangeUSD_AttributesByRefundDate()
     {
-        // Original payment on May 1, refund on May 20. The refund counts
-        // toward the May 15–25 window even though the original payment
-        // doesn't (cash-basis dating per §8).
+        // Original payment on May 1, refund on May 20. The refund counts toward the May 15–25 window even though the original payment doesn't (cash-basis dating per §8).
         var payments = new[]
         {
             new Payment { Date = new DateTime(2026, 5, 1), Amount = 100m, OriginalCurrency = "USD" },

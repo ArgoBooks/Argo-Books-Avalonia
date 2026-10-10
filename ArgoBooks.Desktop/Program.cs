@@ -6,9 +6,7 @@ namespace ArgoBooks.Desktop;
 
 sealed class Program
 {
-    // Initialization code. Don't use any Avalonia, third-party APIs or any
-    // SynchronizationContext-reliant code before AppMain is called: things aren't initialized
-    // yet and stuff might break.
+    // Initialization code. Don't use any Avalonia, third-party APIs or any SynchronizationContext-reliant code before AppMain is called: things aren't initialized yet and stuff might break.
     [STAThread]
     public static void Main(string[] args)
     {
@@ -17,9 +15,7 @@ sealed class Program
         // Install crash handlers first so a failure anywhere in startup is captured.
         CrashReporter.InstallHandlers();
 
-        // A factory, not an instance. Constructing NetSparkle here would run before
-        // Avalonia is even configured, inside the window where the user is looking at
-        // nothing. App builds it once the splash is on screen.
+        // A factory, not an instance. Constructing NetSparkle here would run before Avalonia is even configured, inside the window where the user is looking at nothing.
         App.UpdateServiceFactory = () => new NetSparkleUpdateService();
 
         BuildAvaloniaApp()

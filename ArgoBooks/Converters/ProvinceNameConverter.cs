@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using ArgoBooks.Localization;
 using Avalonia.Data.Converters;
 
@@ -44,9 +44,8 @@ public class ProvinceNameConverter : IValueConverter
             return string.Empty;
         }
 
-        // Translate falls back to the input when there is no entry, so an untranslated province
-        // name still reads correctly rather than coming out blank.
-        return (Names.TryGetValue(code, out string? name) ? name : code).Translate();
+        // Translate falls back to the input when there is no entry, so an untranslated province name still reads correctly rather than coming out blank. Only the name is translated.
+        return Names.TryGetValue(code, out string? name) ? name.Translate() : code;
     }
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>

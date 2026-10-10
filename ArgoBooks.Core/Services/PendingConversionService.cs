@@ -26,10 +26,7 @@ public class PendingConversionService
     // The company the queue holds entries for. See CurrentCompany.
     private CompanyData? _scopeCompany;
 
-    // Currency and date pairs whose rate could not be had, and when to ask again. The app
-    // retries every 15 seconds, so without this one row that could not be priced asked the
-    // server four times a minute for as long as the app stayed open. Capped low enough that
-    // rows still convert within minutes of the connection coming back.
+    // Currency and date pairs whose rate could not be had, and when to ask again.
     private readonly Dictionary<string, (int Misses, DateTime RetryAtUtc)> _rateBackoff = [];
     private static readonly TimeSpan RateBackoffBase = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan RateBackoffCap = TimeSpan.FromMinutes(10);
@@ -259,9 +256,7 @@ public class PendingConversionService
         if (toProcess.Count == 0)
             return;
 
-        // Price every date the loop below needs in one bulk request, so it converts from the
-        // cache. Each entry otherwise costs its own web request on a cache miss, which is one
-        // per dated row: a few hundred for a company with a year of history.
+        // Price every date the loop below needs in one bulk request, so it converts from the cache.
         var datesToPrice = toProcess
             .Where(e => e.TransactionDate.Date <= DateTime.Today
                         && !string.Equals(e.OriginalCurrency, "USD", StringComparison.OrdinalIgnoreCase)
@@ -278,9 +273,7 @@ public class PendingConversionService
             }
             catch (RateLimitedException)
             {
-                // The loop would hit the same limit one request at a time. Back off only what the
-                // preload was actually asking for: an entry it never covered, a USD one above all,
-                // has nothing to wait for and should still convert on this pass.
+                // The loop would hit the same limit one request at a time.
                 var refused = datesToPrice.ToHashSet();
                 foreach (var entry in toProcess.Where(e => refused.Contains(e.TransactionDate.Date)))
                     RecordRateMiss(RateKey(entry));
@@ -300,9 +293,7 @@ public class PendingConversionService
             if (IsSuspended)
                 break;
 
-            // No rate exists yet for a date that has not happened, so a row dated ahead stays queued
-            // until its own date arrives rather than asking every pass for something that cannot
-            // come back. Compared against the local date, which is what the row was entered in.
+            // No rate exists yet for a date that has not happened, so a row dated ahead stays queued until its own date arrives rather than asking every pass for something that cannot come back.
             if (entry.TransactionDate.Date > DateTime.Today)
                 continue;
 
@@ -312,9 +303,7 @@ public class PendingConversionService
 
             try
             {
-                // Convert ONLY at the exact transaction-date rate (fetching it if missing). Never
-                // fall back to today's or any other date's rate: a row stays pending until its own
-                // date's rate is available. See docs/Calculations.md (Rule 4).
+                // Convert ONLY at the exact transaction-date rate (fetching it if missing).
                 var rate = await exchangeService.GetExchangeRateAsync(
                     entry.OriginalCurrency, "USD", entry.TransactionDate, fetchIfMissing: true);
 
@@ -366,9 +355,7 @@ public class PendingConversionService
                 companyData.PendingConversions.RemoveAll(done.Contains);
             }
 
-            // A healed Payment's EffectiveAmountUSD changes from 0 to a real value, which shifts the
-            // owning invoice's USD balance. Recalculate those invoices so cross-currency outstanding
-            // aggregates aren't left stale until the next company open.
+            // A healed Payment's EffectiveAmountUSD changes from 0 to a real value, which shifts the owning invoice's USD balance.
             var healedInvoiceIds = processed
                 .Where(e => e.TransactionType == PendingConversionType.Payment)
                 .Select(e => companyData.Payments.FirstOrDefault(p => p.Id == e.TransactionId)?.InvoiceId)
@@ -428,9 +415,7 @@ public class PendingConversionService
                 var invoice = companyData.Invoices.FirstOrDefault(i => i.Id == entry.TransactionId);
                 if (invoice == null) return;
                 UsdConversion.Write(invoice, entry, rate);
-                // A payment recorded since the entry was queued makes its balance stale, so the
-                // balance comes from the payments. With none (an imported invoice whose paid amount
-                // is baked into its balance) the queued balance stands.
+                // A payment recorded since the entry was queued makes its balance stale, so the balance comes from the payments.
                 if (companyData.Payments.Any(p => p.InvoiceId == invoice.Id))
                     InvoiceTotalsService.Recalculate(invoice, companyData.Payments);
                 return;

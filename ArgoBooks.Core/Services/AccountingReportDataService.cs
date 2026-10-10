@@ -1,4 +1,4 @@
-using ArgoBooks.Core.Data;
+﻿using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Models.Reports;
@@ -93,9 +93,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
     /// </summary>
     private bool IsInDateRange(DateTime date)
     {
-        // Compare at day granularity: a report date range selects whole days, but a transaction
-        // carries a real time-of-day (DateTimeOffset.Now) and a custom range's end date is midnight,
-        // so a raw `date > EndDate` would drop a transaction entered later on the end day itself.
+        // Compared by day, because a report range selects whole days while a transaction carries a time of day and a custom end date is midnight.
         if (filters.StartDate.HasValue && date.Date < filters.StartDate.Value.Date)
             return false;
         if (filters.EndDate.HasValue && date.Date > filters.EndDate.Value.Date)
@@ -152,9 +150,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             else if (invoice.Total > 0 && paidByEnd.All(p =>
                          string.Equals(p.OriginalCurrency, invoice.OriginalCurrency, StringComparison.OrdinalIgnoreCase)))
             {
-                // The share still owed in the invoice's own currency, valued at the invoice's
-                // rate. Subtracting the payments' USD instead left a balance on a fully paid
-                // invoice whenever a payment was converted at a different day's rate.
+                // The share still owed in the invoice's own currency, valued at the invoice's rate.
                 var owed = Math.Round(invoice.Total - paidByEnd.Sum(p => p.Amount), 2, MidpointRounding.AwayFromZero);
                 balanceUSD = owed <= 0 ? 0m : invoice.EffectiveTotalUSD * Math.Min(1m, owed / invoice.Total);
             }
@@ -163,7 +159,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
                 balanceUSD = Math.Max(0m, invoice.EffectiveTotalUSD - paidByEnd.Sum(p => p.EffectiveAmountUSD));
             }
 
-            if (Math.Round(balanceUSD, 2) > 0)
+            if (Math.Round(balanceUSD, 2, MidpointRounding.AwayFromZero) > 0)
                 receivables.Add((invoice, balanceUSD));
         }
         return receivables;
@@ -490,10 +486,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             return data;
         }
 
-        // Cash = Revenue (Paid, no invoice) + Payments - Expenses, all filtered by date.
-        // Uses post-tax (total) amounts because cash includes tax collected/paid.
-        // Each component is converted at its OWN date, then combined (a derived figure: do not
-        // convert the combined result). See docs/Calculations.md Rule 4.
+        // Cash = Revenue (Paid, no invoice) + Payments - Expenses, all filtered by date. Uses post-tax (total) amounts because cash includes tax collected/paid.
         var cashFromRevenue = companyData.Revenues
             .Where(r => RevenueAggregator.IsCollected(r)
                         && string.IsNullOrEmpty(r.InvoiceId)
@@ -501,8 +494,6 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             .Sum(r => ToDisplay(r.EffectiveTotalUSD, r.Date));
 
         // Everything except revenue-linked, which is already counted by its own Revenue row.
-        // Tested on RevenueId rather than on HAVING an InvoiceId: an imported payment whose
-        // invoice was not in the file has neither id, and is still real cash.
         var cashFromPayments = companyData.Payments
             .Where(p => string.IsNullOrEmpty(p.RevenueId) && IsOnOrBeforeEndDate(p.Date))
             .Sum(p => ToDisplay(p.EffectiveAmountUSD, p.Date));
@@ -516,9 +507,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         var accountsReceivable = GetReceivablesAsOfEndDate()
             .Sum(r => ToDisplay(r.BalanceUSD, r.Invoice.IssueDate));
 
-        // Inventory valued at current unit cost, using stock levels
-        // reconstructed as of the report end date. See docs/Calculations.md §10.
-        // A point-in-time valuation: convert the USD value at the end date.
+        // Inventory valued at current unit cost, using stock levels reconstructed as of the report end date. See docs/Calculations.md §10.
         var inventoryValue = ToDisplay(
             InventoryValuationService.TotalValueAsOf(companyData, EndDateForValuation),
             EndDateForValuation);
@@ -535,9 +524,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
                          && IsOnOrBeforeEndDate(po.OrderDate))
             .Sum(po => ToDisplay(po.EffectiveTotalUSD, po.OrderDate));
 
-        // Sales Tax Payable = tax collected on all revenue, less tax handed back on refunds
-        // (docs/Calculations.md §8), minus input tax credits from expenses.
-        // Components converted at each transaction's own date, then combined (derived figure).
+        // Sales Tax Payable = tax collected on all revenue, less tax handed back on refunds (docs/Calculations.md §8), minus input tax credits from expenses.
         var taxCollected = companyData.Revenues
             .Where(r => IsOnOrBeforeEndDate(r.Date))
             .Sum(r => ToDisplay(r.EffectiveTotalUSD - r.EffectiveSubtotalUSD, r.Date));
@@ -548,9 +535,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             .Sum(e => ToDisplay(e.EffectiveTotalUSD - e.EffectiveSubtotalUSD, e.Date));
         var salesTaxPayable = taxCollected - taxRefunded - taxPaidOnExpenses;
 
-        // A security deposit isn't earned (docs/Calculations.md §4), but the invoice total carrying it
-        // is in cash or receivables from the day it is issued, so it is owed back until it is given
-        // back or kept. Priced at the invoice's rate, as its refunds and kept deposit are.
+        // A security deposit is not earned (docs/Calculations.md §4), but the invoice total carrying it is cash or receivables from the day it is issued.
         var paymentsToDate = companyData.Payments.Where(p => IsOnOrBeforeEndDate(p.Date)).ToList();
         var revenuesToDate = companyData.Revenues.Where(r => IsOnOrBeforeEndDate(r.Date)).ToList();
         var securityDeposits = companyData.Invoices
@@ -761,10 +746,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             return data;
         }
 
-        // Operating Activities
-        // Exclude invoice-linked revenue to avoid double counting with Payments.
-        // Uses post-tax (total) amounts because cash includes tax collected/paid,
-        // consistent with Balance Sheet cash calculation.
+        // Operating Activities Exclude invoice-linked revenue to avoid double counting with Payments.
         var cashFromSales = companyData.Revenues
             .Where(r => RevenueAggregator.IsCollected(r)
                         && string.IsNullOrEmpty(r.InvoiceId)
@@ -937,9 +919,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             }
         }
 
-        // Payments (credits to AR / debits to cash). Refunds are stored as negative payments; route
-        // them to the Credit column as a positive value so the amount is visible (a negative Debit
-        // renders blank), while the running balance (Debit - Credit) stays identical.
+        // Payments (credits to AR / debits to cash).
         foreach (var pmt in companyData.Payments.Where(p => IsInDateRange(p.Date)))
         {
             var customerName = companyData.GetCustomer(pmt.CustomerId)?.Name ?? "Unknown";
@@ -1049,9 +1029,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         if (companyData == null)
             return data;
 
-        // Pass ToDisplay so each line item is converted at its transaction's own date
-        // (Calculations.md Rule 4); the returned RevenueUSD/AvgSalePriceUSD are then already
-        // in DisplayCode (USD identity for the USD-company/fallback path).
+        // ToDisplay converts each line item at its transaction's own date (Calculations.md Rule 4), so the returned USD figures are already in DisplayCode.
         var products = ProductSalesService.GetProductSales(
             companyData,
             RangeStart,
@@ -1690,9 +1668,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
                 RowType = AccountingRowType.GrandTotalRow
             });
 
-            // Stated rather than left to be inferred from a nil line. The health services fund
-            // is a real employer contribution that Revenu Quebec expects with this payment, and
-            // this app does not calculate it, so a total that looks complete would be trusted.
+            // Stated rather than left to be inferred from a nil line.
             data.Rows.Add(new AccountingRow { RowType = AccountingRowType.BlankRow, Values = [""] });
             data.Rows.Add(new AccountingRow
             {
