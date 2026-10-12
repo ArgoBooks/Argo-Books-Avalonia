@@ -14,6 +14,7 @@ namespace ArgoBooks.Tests.Services;
 /// A pending row converts ONLY at its exact transaction-date rate. When that date's rate cannot be
 /// fetched (but today's can), it must stay pending rather than fall back to today's rate.
 /// </summary>
+[Collection("ExchangeRateSingleton")]
 public class PendingConversionServiceTests
 {
     public PendingConversionServiceTests()

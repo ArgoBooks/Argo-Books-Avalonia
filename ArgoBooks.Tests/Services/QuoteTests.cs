@@ -15,6 +15,7 @@ namespace ArgoBooks.Tests.Services;
 /// the same figures the customer agreed to, and the shared templates still printing invoices the
 /// way they always did.
 /// </summary>
+[Collection("ExchangeRateSingleton")]
 public class QuoteTests
 {
     private static FileService CreateService() =>

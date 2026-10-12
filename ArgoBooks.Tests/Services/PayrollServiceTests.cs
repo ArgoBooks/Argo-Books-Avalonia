@@ -15,6 +15,7 @@ namespace ArgoBooks.Tests.Services;
 /// cannot check them, so a mistake here silently produces wrong deductions for anyone
 /// approaching an annual ceiling, which is exactly where payroll errors cost real money.
 /// </summary>
+[Collection("ExchangeRateSingleton")]
 public class PayrollServiceTests
 {
     private static readonly DateTime PayDate = new(2026, 8, 14);

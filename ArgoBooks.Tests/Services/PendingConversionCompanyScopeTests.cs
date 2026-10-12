@@ -15,6 +15,7 @@ namespace ArgoBooks.Tests.Services;
 /// one company's entry replaced the other's, opening a company took in the other's entries, and a
 /// conversion wrote one company's amount onto the other's record.
 /// </summary>
+[Collection("ExchangeRateSingleton")]
 public class PendingConversionCompanyScopeTests
 {
     private const string Id = "PUR-2026-00005";

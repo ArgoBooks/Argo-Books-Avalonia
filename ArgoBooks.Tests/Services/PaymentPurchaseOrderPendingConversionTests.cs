@@ -16,6 +16,7 @@ namespace ArgoBooks.Tests.Services;
 /// later by <see cref="PendingConversionService"/>, never converted at a wrong-date rate. While pending
 /// their USD amount properties report 0 (Calculations.md §3) so they don't contaminate USD aggregates.
 /// </summary>
+[Collection("ExchangeRateSingleton")]
 public class PaymentPurchaseOrderPendingConversionTests
 {
     // USD->EUR = 0.90, so EUR->USD = 1/0.90 and 100 EUR -> 111.11... USD. The USD base is stored at

@@ -10,6 +10,7 @@ namespace ArgoBooks.Tests.Services;
 /// <summary>
 /// Tests for <see cref="RecurringInvoiceService"/> cadence math and idempotent catch-up generation.
 /// </summary>
+[Collection("ExchangeRateSingleton")]
 public class RecurringInvoiceServiceTests
 {
     private static RecurringInvoice MakeSchedule(

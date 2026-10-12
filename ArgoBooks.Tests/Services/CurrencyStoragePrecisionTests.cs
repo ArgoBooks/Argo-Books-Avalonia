@@ -13,6 +13,7 @@ namespace ArgoBooks.Tests.Services;
 /// rounds to 2 decimals at the boundary (<see cref="ExchangeRateService.TryConvertExact"/>); only
 /// the stored base is unrounded. See docs/Calculations.md Rule 3.
 /// </summary>
+[Collection("ExchangeRateSingleton")]
 public class CurrencyStoragePrecisionTests
 {
     // USD->CAD = 1.63 is a rate where the 2dp-rounded base drifts: round(10/1.63, 2) = 6.13,

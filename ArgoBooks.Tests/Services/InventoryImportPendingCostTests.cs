@@ -18,6 +18,7 @@ namespace ArgoBooks.Tests.Services;
 /// used to put 0 in its place and drop the queued cost, and either import could move a record whose
 /// sales were waiting on its cost, which left those sales waiting for good.
 /// </summary>
+[Collection("ExchangeRateSingleton")]
 public class InventoryImportPendingCostTests : IDisposable
 {
     private readonly List<string> _files = [];
