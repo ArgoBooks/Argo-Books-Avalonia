@@ -4,7 +4,7 @@ using Avalonia.Data.Converters;
 namespace ArgoBooks.Converters;
 
 /// <summary>
-/// Converter for binding decimal properties to TextBox.Text or NumericUpDown.Value.
+/// Converter for binding decimal properties to TextBox.Text.
 /// Handles empty/null values by returning 0 for the decimal property.
 /// </summary>
 public class NullableDecimalConverter : IValueConverter
@@ -18,7 +18,7 @@ public class NullableDecimalConverter : IValueConverter
     /// Converts a decimal for display.
     /// For string targets (TextBox): formats as "0.00", or as the format passed as the converter
     /// parameter, which is how a box that shows something other than money picks its own places.
-    /// For decimal? targets (NumericUpDown): passes through directly.
+    /// For decimal targets: passes through directly.
     /// </summary>
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
@@ -26,7 +26,6 @@ public class NullableDecimalConverter : IValueConverter
 
         if (value is decimal d)
         {
-            // NumericUpDown.Value is decimal?, return the value directly
             if (targetType == typeof(decimal?) || targetType == typeof(decimal))
                 return d;
 

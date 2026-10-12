@@ -1,6 +1,5 @@
 <Styles xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:behaviors="using:ArgoBooks.Behaviors">
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <!--
         Argo Books Base Styles
@@ -113,29 +112,6 @@
     <Style Selector="ComboBox:pressed /template/ Border#Background">
         <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}" />
-    </Style>
-
-    <!-- Global NumericUpDown Styling - Compact spin buttons -->
-    <Style Selector="NumericUpDown">
-        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-        <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
-        <Setter Property="MinHeight" Value="{StaticResource FormControlHeightSmall}" />
-        <Setter Property="VerticalContentAlignment" Value="Center" />
-    </Style>
-    <Style Selector="NumericUpDown /template/ ButtonSpinner /template/ RepeatButton#PART_IncreaseButton">
-        <Setter Property="MinWidth" Value="16" />
-        <Setter Property="Width" Value="16" />
-        <Setter Property="Padding" Value="0" />
-    </Style>
-    <Style Selector="NumericUpDown /template/ ButtonSpinner /template/ RepeatButton#PART_DecreaseButton">
-        <Setter Property="MinWidth" Value="16" />
-        <Setter Property="Width" Value="16" />
-        <Setter Property="Padding" Value="0" />
-    </Style>
-    <Style Selector="NumericUpDown /template/ TextBox">
-        <Setter Property="MinWidth" Value="40" />
-        <Setter Property="(behaviors:NumericInputBehavior.IsDecimalOnly)" Value="True" />
     </Style>
 
     <!-- Global CheckBox Styling - Use dynamic accent color with animations -->
@@ -312,26 +288,6 @@
     </Style>
     <Style Selector="TextBox.form-input-compact:focus /template/ Border#PART_BorderElement">
         <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}" />
-    </Style>
-
-    <!-- Standard Form NumericUpDown (matches form-input class naming) -->
-    <Style Selector="NumericUpDown.form-input">
-        <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
-        <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="{StaticResource FormControlCornerRadius}" />
-        <Setter Property="MinHeight" Value="{StaticResource FormControlHeight}" />
-    </Style>
-
-    <!-- Compact Form NumericUpDown (for line items) -->
-    <Style Selector="NumericUpDown.form-input-compact">
-        <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
-        <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="{StaticResource FormControlCornerRadius}" />
-        <Setter Property="MinHeight" Value="{StaticResource FormControlHeightCompact}" />
-        <Setter Property="ShowButtonSpinner" Value="False" />
-        <Setter Property="HorizontalContentAlignment" Value="Center" />
     </Style>
 
 </Styles>

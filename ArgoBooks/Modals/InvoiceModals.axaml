@@ -1,4 +1,4 @@
-﻿<UserControl xmlns="https://github.com/avaloniaui"
+<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -26,13 +26,6 @@
             <Setter Property="CaretBrush" Value="#1A1F2B" />
             <Setter Property="MinHeight" Value="0" />
             <Setter Property="Padding" Value="3,2" />
-        </Style>
-        <Style Selector="NumericUpDown.paper">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderBrush" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Foreground" Value="#1A1F2B" />
-            <Setter Property="MinHeight" Value="0" />
         </Style>
         <Style Selector="TextBlock.sidebar-label">
             <Setter Property="FontSize" Value="11" />

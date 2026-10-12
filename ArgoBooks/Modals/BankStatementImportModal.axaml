@@ -4,6 +4,8 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:ArgoBooks.ViewModels"
              xmlns:controls="using:ArgoBooks.Controls"
+             xmlns:behaviors="using:ArgoBooks.Behaviors"
+             xmlns:local="using:ArgoBooks.Converters"
              xmlns:loc="using:ArgoBooks.Localization"
              mc:Ignorable="d" d:DesignWidth="1080" d:DesignHeight="700"
              x:Class="ArgoBooks.Modals.BankStatementImportModal"
@@ -211,13 +213,14 @@
                                                                IsVisible="{Binding HasProductError}" />
                                                 </StackPanel>
 
-                                                <!-- Amount — narrow, no spinner buttons -->
-                                                <NumericUpDown Grid.Column="3" Margin="8,0,0,0"
-                                                               Value="{Binding Amount, Mode=TwoWay}"
-                                                               FormatString="F2"
-                                                               ShowButtonSpinner="False"
-                                                               HorizontalAlignment="Stretch"
-                                                               VerticalAlignment="Center" />
+                                                <!-- Amount -->
+                                                <TextBox Grid.Column="3" Margin="8,0,0,0"
+                                                         Text="{Binding Amount, Mode=TwoWay, Converter={x:Static local:NullableDecimalConverter.Instance}}"
+                                                         Classes="form-input-compact"
+                                                         behaviors:NumericInputBehavior.IsDecimalOnly="True"
+                                                         MaxLength="13"
+                                                         HorizontalAlignment="Stretch"
+                                                         VerticalAlignment="Center" />
 
                                                 <!-- Expense / Revenue toggle -->
                                                 <Border Grid.Row="0" Grid.Column="4" Margin="8,0,0,0"
