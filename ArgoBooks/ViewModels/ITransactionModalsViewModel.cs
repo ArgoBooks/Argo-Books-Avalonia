@@ -28,6 +28,8 @@ public interface ITransactionModalsViewModel
     IAsyncRelayCommand SaveTransactionCommand { get; }
     bool IsSavingTransaction { get; }
     bool HasValidationMessage { get; }
+    bool IsTotalNegative { get; }
+    string ValidationMessage { get; }
 
     DateTimeOffset? ModalDate { get; set; }
     ObservableCollection<string> PaymentMethodOptions { get; }
@@ -58,7 +60,9 @@ public interface ITransactionModalsViewModel
 
     string ReceiptFileName { get; }
     bool HasReceipt { get; }
+    ObservableCollection<TransactionAttachment> Attachments { get; }
     IAsyncRelayCommand AttachReceiptCommand { get; }
+    IRelayCommand<TransactionAttachment?> RemoveAttachmentCommand { get; }
 
     bool ModalPaid { get; set; }
     string ModalNotes { get; set; }

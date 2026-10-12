@@ -24,6 +24,9 @@
         <Style Selector="TextBlock.total-amount.revenue">
             <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" />
         </Style>
+        <Style Selector="TextBlock.total-amount.revenue.negative">
+            <Setter Property="Foreground" Value="{DynamicResource ErrorBrush}" />
+        </Style>
         <Style Selector="TextBlock.discount-amount">
             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
         </Style>
@@ -137,23 +140,10 @@
 
                             <!-- Line Items Section -->
                             <StackPanel x:Name="LineItemsSection" Spacing="12">
-                                <Grid ColumnDefinitions="*,Auto">
-                                    <TextBlock Grid.Column="0"
-                                               Text="{loc:Loc 'Line Items'}"
-                                               FontSize="14"
-                                               FontWeight="SemiBold"
-                                               Foreground="{DynamicResource TextPrimaryBrush}"
-                                               VerticalAlignment="Center" />
-                                    <Button Grid.Column="1"
-                                            Classes="secondary-button"
-                                            Command="{Binding AddLineItemCommand}">
-                                        <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <PathIcon Data="{x:Static icons:Icons.Add}"
-                                                      Width="14" Height="14" />
-                                            <TextBlock Text="{loc:Loc 'Add Item'}" />
-                                        </StackPanel>
-                                    </Button>
-                                </Grid>
+                                <TextBlock Text="{loc:Loc 'Line Items'}"
+                                           FontSize="14"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}" />
 
                                 <!-- Line Items Header -->
                                 <Border Background="{DynamicResource SurfaceAltBrush}"
@@ -298,6 +288,15 @@
                                                Foreground="{DynamicResource TextSecondaryBrush}"
                                                HorizontalAlignment="Center" />
                                 </Border>
+
+                                <Button Classes="secondary-button"
+                                        HorizontalAlignment="Left"
+                                        Command="{Binding AddLineItemCommand}">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <PathIcon Data="{x:Static icons:Icons.Add}" Width="14" Height="14" />
+                                        <TextBlock Text="{loc:Loc 'Add Item'}" />
+                                    </StackPanel>
+                                </Button>
                             </StackPanel>
 
                             <!-- Tax, Shipping, Discount, Fee Row -->
@@ -346,34 +345,64 @@
                                 </StackPanel>
                             </Grid>
 
-                            <!-- Attach Receipt -->
+                            <!-- Attached documents. One record often has more than one behind it, so they sit as chips that wrap rather than a row each. -->
                             <StackPanel Spacing="6">
-                                <TextBlock FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}"
-                                           Text="{loc:Loc 'Receipt'}" />
-                                <Grid ColumnDefinitions="*,Auto">
-                                    <Border Grid.Column="0"
-                                            Background="{DynamicResource SurfaceAltBrush}"
-                                            BorderBrush="{DynamicResource BorderBrush}"
-                                            BorderThickness="1"
-                                            CornerRadius="6"
-                                            Padding="12,10">
-                                        <TextBlock Text="{Binding ReceiptFileName, FallbackValue='No receipt attached'}"
-                                                   FontSize="14"
-                                                   Foreground="{DynamicResource TextSecondaryBrush}"
-                                                   VerticalAlignment="Center" />
-                                    </Border>
-                                    <Button Grid.Column="1"
-                                            Classes="secondary-button"
-                                            Command="{Binding AttachReceiptCommand}"
-                                            Margin="8,0,0,0">
-                                        <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <PathIcon Data="{x:Static icons:Icons.DocumentBlank}"
-                                                      Width="14" Height="14" />
-                                            <TextBlock Text="{loc:Loc 'Attach'}" IsVisible="{Binding !HasReceipt}" />
-                                            <TextBlock Text="{loc:Loc 'Change'}" IsVisible="{Binding HasReceipt}" />
-                                        </StackPanel>
-                                    </Button>
-                                </Grid>
+                                <TextBlock FontSize="13" FontWeight="Medium"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                           Text="{loc:Loc 'Documents'}" />
+
+                                <TextBlock Text="{loc:Loc 'No documents attached'}"
+                                           FontSize="13"
+                                           Foreground="{DynamicResource TextTertiaryBrush}"
+                                           IsVisible="{Binding !HasReceipt}" />
+
+                                <ItemsControl ItemsSource="{Binding Attachments}" IsVisible="{Binding HasReceipt}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="vm:TransactionAttachment">
+                                            <Border Background="{DynamicResource SurfaceAltBrush}"
+                                                    BorderBrush="{DynamicResource BorderBrush}"
+                                                    BorderThickness="1"
+                                                    CornerRadius="14"
+                                                    Padding="10,3,4,3"
+                                                    Margin="0,0,6,6">
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <PathIcon Data="{x:Static icons:Icons.DocumentBlank}"
+                                                              Width="12" Height="12"
+                                                              Foreground="{DynamicResource TextTertiaryBrush}"
+                                                              VerticalAlignment="Center" />
+                                                    <TextBlock Text="{Binding FileName}"
+                                                               FontSize="13"
+                                                               MaxWidth="190"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               ToolTip.Tip="{Binding FileName}"
+                                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                                               VerticalAlignment="Center" />
+                                                    <Button Classes="icon-button-small"
+                                                            Width="20" Height="20"
+                                                            ToolTip.Tip="{loc:Loc 'Remove'}"
+                                                            Command="{Binding $parent[ItemsControl].((vm:ITransactionModalsViewModel)DataContext).RemoveAttachmentCommand}"
+                                                            CommandParameter="{Binding}">
+                                                        <PathIcon Data="{x:Static icons:Icons.Close}" Width="10" Height="10" />
+                                                    </Button>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <Button Classes="secondary-button"
+                                        HorizontalAlignment="Left"
+                                        Command="{Binding AttachReceiptCommand}">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <PathIcon Data="{x:Static icons:Icons.DocumentBlank}" Width="14" Height="14" />
+                                        <TextBlock Text="{loc:Loc 'Attach'}" />
+                                    </StackPanel>
+                                </Button>
                             </StackPanel>
 
                             <!-- Paid Checkbox (revenue) -->
@@ -429,7 +458,8 @@
                                         <TextBlock Grid.Column="0" Text="{loc:Loc 'Total'}" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
                                         <TextBlock Grid.Column="1" Text="{Binding TotalFormatted}" FontSize="15" FontWeight="Bold"
                                                    Classes="total-amount"
-                                                   Classes.revenue="{Binding IsRevenue}" />
+                                                   Classes.revenue="{Binding IsRevenue}"
+                                                   Classes.negative="{Binding IsTotalNegative}" />
                                     </Grid>
                                 </StackPanel>
                             </Border>
@@ -470,9 +500,11 @@
                             IsVisible="{Binding !IsSavingTransaction}">
                         <Grid ColumnDefinitions="Auto,*,Auto,Auto">
                             <TextBlock Grid.Column="0"
-                                       Text="{loc:Loc 'Please enter all required fields'}"
+                                       Text="{Binding ValidationMessage}"
                                        Foreground="{DynamicResource ErrorBrush}"
                                        FontSize="13"
+                                       MaxWidth="420"
+                                       TextWrapping="Wrap"
                                        VerticalAlignment="Center"
                                        IsVisible="{Binding HasValidationMessage}" />
                             <Button Grid.Column="2"

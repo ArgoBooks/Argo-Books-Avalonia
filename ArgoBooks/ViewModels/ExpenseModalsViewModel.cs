@@ -439,17 +439,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
         };
         UsdConversion.Apply(companyData, expense, SaveRate);
 
-        // Create Receipt if file was attached
-        Receipt? receipt = null;
-        if (!string.IsNullOrEmpty(ReceiptFilePath))
-        {
-            receipt = CreateReceipt(companyData, expenseId, "Expense", SelectedSupplier?.Name ?? "");
-            if (receipt != null)
-            {
-                expense.ReceiptId = receipt.Id;
-                companyData.Receipts.Add(receipt);
-            }
-        }
+        var (addedReceipts, _) = ApplyAttachments(companyData, expense, "Expense", SelectedSupplier?.Name ?? "");
 
         companyData.Expenses.Add(expense);
         _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ExpenseCreated);
@@ -457,15 +447,15 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
         // Adjust inventory for tracked products
         var inventoryResults = AdjustInventoryForLineItems(companyData, expense, modelLineItems, isExpense: true);
 
-        var capturedReceipt = receipt;
+        var capturedReceipts = addedReceipts;
         var action = new DelegateAction(
             $"Add expense {expenseId}",
             () =>
             {
                 companyData.Expenses.RemoveRecord(expense);
                 UsdConversion.Set(companyData, UsdConversion.KeyOf(expense), null);
-                if (capturedReceipt != null)
-                    companyData.Receipts.RemoveRecord(capturedReceipt);
+                foreach (var r in capturedReceipts)
+                    companyData.Receipts.RemoveRecord(r);
                 RevertInventoryAdjustments(companyData, inventoryResults);
                 RaiseTransactionSaved();
             },
@@ -473,8 +463,8 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
             {
                 companyData.Expenses.RestoreRecord(expense);
                 UsdConversion.Requeue(companyData, expense);
-                if (capturedReceipt != null)
-                    companyData.Receipts.RestoreRecord(capturedReceipt);
+                foreach (var r in capturedReceipts)
+                    companyData.Receipts.RestoreRecord(r);
                 inventoryResults = AdjustInventoryForLineItems(companyData, expense, modelLineItems, isExpense: true);
                 RaiseTransactionSaved();
             });
@@ -533,27 +523,13 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
 
         // Handle receipt. The form loads an existing receipt's OriginalFilePath, so only a different
         // path means Change picked a new file.
-        var currentReceipt = string.IsNullOrEmpty(original.ReceiptId)
-            ? null
-            : companyData.Receipts.FirstOrDefault(r => r.Id == original.ReceiptId);
-        Receipt? newReceipt = null;
-        Receipt? replacedReceipt = null;
-        if (!string.IsNullOrEmpty(ReceiptFilePath) && ReceiptFilePath != currentReceipt?.OriginalFilePath)
-        {
-            newReceipt = CreateReceipt(companyData, expense.Id, "Expense", SelectedSupplier?.Name ?? "");
-            if (newReceipt != null)
-            {
-                if (currentReceipt != null && companyData.Receipts.RemoveRecord(currentReceipt))
-                    replacedReceipt = currentReceipt;
-                expense.ReceiptId = newReceipt.Id;
-                companyData.Receipts.Add(newReceipt);
-            }
-        }
+        var (addedReceipts, removedReceipts) = ApplyAttachments(companyData, expense, "Expense", SelectedSupplier?.Name ?? "");
 
         // Adjust inventory with net diff (single adjustment per product)
         var editResults = AdjustInventoryForEdit(companyData, expense, original.LineItems, modelLineItems, isExpense: true);
 
-        var capturedNewReceipt = newReceipt;
+        var capturedAdded = addedReceipts;
+        var capturedRemoved = removedReceipts;
         // Snapshot the NEW state so redo restores the edit itself.
         var edited = CaptureTransactionState(expense);
         var action = new DelegateAction(
@@ -563,10 +539,10 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
                 if (renamedId != oldId) App.CompanyManager?.ChangeExpenseId(expense, oldId);
                 RestoreTransactionState(expense, original);
                 UsdConversion.Restore(companyData, [queueKey], originalQueued);
-                if (capturedNewReceipt != null)
-                    companyData.Receipts.RemoveRecord(capturedNewReceipt);
-                if (replacedReceipt != null)
-                    companyData.Receipts.RestoreRecord(replacedReceipt);
+                foreach (var r in capturedAdded)
+                    companyData.Receipts.RemoveRecord(r);
+                foreach (var r in capturedRemoved)
+                    companyData.Receipts.RestoreRecord(r);
                 RevertInventoryAdjustments(companyData, editResults);
                 RaiseTransactionSaved();
             },
@@ -575,10 +551,10 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
                 if (renamedId != oldId) App.CompanyManager?.ChangeExpenseId(expense, renamedId);
                 RestoreTransactionState(expense, edited);
                 UsdConversion.Restore(companyData, [queueKey], editedQueued);
-                if (replacedReceipt != null)
-                    companyData.Receipts.RemoveRecord(replacedReceipt);
-                if (capturedNewReceipt != null)
-                    companyData.Receipts.RestoreRecord(capturedNewReceipt);
+                foreach (var r in capturedRemoved)
+                    companyData.Receipts.RemoveRecord(r);
+                foreach (var r in capturedAdded)
+                    companyData.Receipts.RestoreRecord(r);
                 editResults = AdjustInventoryForEdit(companyData, expense, original.LineItems, modelLineItems, isExpense: true);
                 RaiseTransactionSaved();
             });

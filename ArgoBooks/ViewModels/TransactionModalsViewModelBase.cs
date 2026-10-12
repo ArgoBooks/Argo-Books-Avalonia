@@ -5,6 +5,7 @@ using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Models.Entities;
 using ArgoBooks.Core.Models.Inventory;
 using ArgoBooks.Core.Models.Telemetry;
+using ArgoBooks.Core.Models.Tracking;
 using ArgoBooks.Core.Models.Transactions;
 using ArgoBooks.Core.Services;
 using ArgoBooks.Localization;
@@ -242,7 +243,13 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     [NotifyPropertyChangedFor(nameof(HasReceipt))]
     private string _receiptFileName = "No receipt attached";
 
-    public bool HasReceipt => !string.IsNullOrEmpty(ReceiptFileName) && ReceiptFileName != "No receipt attached";
+    /// <summary>
+    /// Every document on this transaction. One record often has more than one behind it: a booking
+    /// report saying what was owed and the bank advice saying it arrived.
+    /// </summary>
+    public ObservableCollection<TransactionAttachment> Attachments { get; } = [];
+
+    public bool HasReceipt => Attachments.Count > 0;
 
     [ObservableProperty]
     private bool _hasTotalMismatchWarning;
@@ -304,7 +311,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
 
     private sealed record EditState(
         DateTimeOffset? Date, string? CounterpartyId, string NewCounterpartyName, string? CategoryId, decimal TaxAmount, decimal Shipping,
-        decimal Discount, decimal Fee, string PaymentMethod, string Notes, string? ReceiptPath,
+        decimal Discount, decimal Fee, string PaymentMethod, string Notes, string Attachments,
         Helpers.EquatableArray<LineState> LineItems);
     // ReSharper restore NotAccessedPositionalProperty.Local
 
@@ -317,7 +324,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         ModalDate, SelectedCounterparty?.Id,
         SelectedCounterparty == null ? CounterpartyText?.Trim() ?? string.Empty : string.Empty,
         SelectedCategory?.Id, ModalTaxAmount, ModalShipping,
-        ModalDiscount, ModalFee, SelectedPaymentMethod, ModalNotes, ReceiptFilePath,
+        ModalDiscount, ModalFee, SelectedPaymentMethod, ModalNotes, AttachmentSignature,
         new Helpers.EquatableArray<LineState>(LineItems.Select(li => new LineState(
             li.SelectedProduct?.Id, li.SelectedCategory?.Id, li.Description, li.Quantity, li.UnitPrice,
             li.ItemText?.Trim() ?? string.Empty, li.CategoryText?.Trim() ?? string.Empty,
@@ -335,7 +342,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         ModalShipping > 0 ||
         ModalDiscount > 0 ||
         ModalFee > 0 ||
-        !string.IsNullOrEmpty(ReceiptFilePath) ||
+        Attachments.Count > 0 ||
         LineItems.Any(li => li.SelectedProduct != null || li.SelectedCategory != null || !string.IsNullOrWhiteSpace(li.Description) || (li.UnitPrice ?? 0) > 0 ||
                             !string.IsNullOrWhiteSpace(li.ItemText) || !string.IsNullOrWhiteSpace(li.CategoryText));
 
@@ -365,6 +372,9 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     public decimal ShippingAmount => ModalShipping;
     public decimal FeeAmount => ModalFee;
     public decimal Total => Subtotal + TaxAmount + ShippingAmount + FeeAmount - DiscountAmount;
+
+    /// <summary>Money coming in is shown in green, which is the wrong colour for a total below zero.</summary>
+    public bool IsTotalNegative => Total < 0;
 
     /// <summary>
     /// The currency of the entry being edited when it isn't the company's, otherwise null. An entry
@@ -461,6 +471,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         OnPropertyChanged(nameof(ShippingAmountFormatted));
         OnPropertyChanged(nameof(FeeAmountFormatted));
         OnPropertyChanged(nameof(TotalFormatted));
+        OnPropertyChanged(nameof(IsTotalNegative));
 
         // The stored-total mismatch is a load-time integrity check for scanned or imported transactions, so it has no place once the user is editing.
         HasTotalMismatchWarning = false;
@@ -685,6 +696,8 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         ModalDate = DateTimeOffset.Now;
         ReceiptFilePath = null;
         ReceiptFileName = "No receipt attached";
+        Attachments.Clear();
+        OnPropertyChanged(nameof(HasReceipt));
         // Taken again now the date has moved, so closing an untouched copy does not ask first.
         CaptureOriginalValues();
         // The mismatch warning stays. The copy is saved at what its lines add up to, so when the
@@ -768,6 +781,8 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         UpdateTotals();
 
         // Load receipt info from the Receipt record (not ReferenceNumber, which stores general references like PO numbers)
+        LoadAttachments(transaction);
+
         if (!string.IsNullOrEmpty(transaction.ReceiptId))
         {
             var receipt = App.CompanyManager?.CompanyData?.Receipts.FirstOrDefault(r => r.Id == transaction.ReceiptId);
@@ -1010,6 +1025,15 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
                 : "Please select a product for all line items".Translate();
             HasValidationMessage = true;
             ScrollToLineItemsRequested?.Invoke(this, EventArgs.Empty);
+            return;
+        }
+
+        // A discount bigger than everything else is a refund, which has its own flow, and a line that
+        // adds up to less than nothing is not something to file against a month's takings.
+        if (Total < 0)
+        {
+            ValidationMessage = "The discount is more than the rest of this adds up to. Lower it, or add to the line items.".Translate();
+            HasValidationMessage = true;
             return;
         }
 
@@ -1427,6 +1451,8 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         AddLineItem();
         ReceiptFileName = "No receipt attached";
         ReceiptFilePath = null;
+        Attachments.Clear();
+        OnPropertyChanged(nameof(HasReceipt));
         SaveCurrency = "USD";
         SaveRate = 1m;
         ClearValidationErrors();
@@ -1613,6 +1639,104 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
 
     #region Receipt
 
+    /// <summary>The documents as they stand, so closing a form that gained or lost one asks first.</summary>
+    private string AttachmentSignature =>
+        string.Join("|", Attachments.Select(a => a.Id ?? a.FilePath ?? a.FileName));
+
+    [RelayCommand]
+    private void RemoveAttachment(TransactionAttachment? attachment)
+    {
+        if (attachment == null) return;
+        Attachments.Remove(attachment);
+        OnPropertyChanged(nameof(HasReceipt));
+    }
+
+    /// <summary>Fills the list from the receipts already filed against this transaction.</summary>
+    protected void LoadAttachments(Transaction transaction)
+    {
+        Attachments.Clear();
+        var receipts = App.CompanyManager?.CompanyData?.Receipts
+            .Where(r => r.TransactionId == transaction.Id)
+            .OrderBy(r => r.CreatedAt)
+            .ToList() ?? [];
+        foreach (var receipt in receipts)
+            Attachments.Add(new TransactionAttachment(receipt.Id, receipt.FileName, receipt.OriginalFilePath));
+        OnPropertyChanged(nameof(HasReceipt));
+    }
+
+    /// <summary>
+    /// Writes the list onto the transaction: a receipt for each file newly picked, and the removal of
+    /// any that was taken off the list. ReceiptId follows the first one, which is what the rest of the
+    /// app reads when it wants a single document.
+    /// </summary>
+    protected (List<Receipt> Added, List<Receipt> Removed) ApplyAttachments(
+        CompanyData companyData, Transaction transaction, string transactionType, string counterpartyName)
+    {
+        var added = new List<Receipt>();
+        var removed = new List<Receipt>();
+
+        var kept = Attachments.Where(a => a.Id != null).Select(a => a.Id).ToHashSet();
+        foreach (var receipt in companyData.Receipts.Where(r => r.TransactionId == transaction.Id && !kept.Contains(r.Id)).ToList())
+            if (companyData.Receipts.RemoveRecord(receipt))
+                removed.Add(receipt);
+
+        foreach (var pending in Attachments.Where(a => a.Id == null && a.FilePath != null).ToList())
+        {
+            var receipt = CreateReceipt(companyData, pending.FilePath!, transaction.Id, transactionType, counterpartyName);
+            if (receipt == null) continue;
+            companyData.Receipts.Add(receipt);
+            added.Add(receipt);
+            pending.Id = receipt.Id;
+        }
+
+        transaction.ReceiptId = companyData.Receipts
+            .Where(r => r.TransactionId == transaction.Id)
+            .OrderBy(r => r.CreatedAt)
+            .FirstOrDefault()?.Id;
+
+        return (added, removed);
+    }
+
+    /// <summary>Reads a picked file into a receipt record. Null when the file cannot be read.</summary>
+    protected Receipt? CreateReceipt(
+        CompanyData companyData, string filePath, string transactionId, string transactionType, string supplier)
+    {
+        var fileInfo = new FileInfo(filePath);
+        var fileType = GetFileType(filePath);
+
+        // A receipt is only worth keeping with its file in it.
+        string fileData;
+        try
+        {
+            if (!fileInfo.Exists)
+                throw new FileNotFoundException("The file could not be found.".Translate(), filePath);
+            fileData = Convert.ToBase64String(SharedFileReader.ReadAllBytes(filePath));
+        }
+        catch (Exception ex)
+        {
+            App.ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to read receipt file");
+            App.AddNotification("Warning".Translate(), "Could not attach receipt file: {0}".TranslateFormat(ex.Message), NotificationType.Warning);
+            return null;
+        }
+
+        return new Receipt
+        {
+            Id = new IdGenerator(companyData).NextReceiptId(),
+            TransactionId = transactionId,
+            TransactionType = transactionType,
+            FileName = fileInfo.Name,
+            FileType = fileType,
+            FileSize = fileInfo.Length,
+            FileData = fileData,
+            OriginalFilePath = filePath,
+            Amount = Total,
+            Date = ModalDate?.DateTime ?? DateTime.Now,
+            Supplier = supplier,
+            Source = "Manual",
+            CreatedAt = DateTime.UtcNow
+        };
+    }
+
     [RelayCommand]
     protected async Task AttachReceipt()
     {
@@ -1625,7 +1749,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
             Title = "Select Receipt",
-            AllowMultiple = false,
+            AllowMultiple = true,
             FileTypeFilter =
             [
                 FilePickerTypes.AllSupportedTypes,
@@ -1633,11 +1757,14 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
             ]
         });
 
+        foreach (var file in files)
+            Attachments.Add(new TransactionAttachment(null, file.Name, file.Path.LocalPath));
+
         if (files.Count > 0)
         {
-            var file = files[0];
-            ReceiptFilePath = file.Path.LocalPath;
-            ReceiptFileName = file.Name;
+            ReceiptFilePath = files[0].Path.LocalPath;
+            ReceiptFileName = files[0].Name;
+            OnPropertyChanged(nameof(HasReceipt));
         }
     }
 
@@ -1738,9 +1865,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     protected void DeleteTransactionWithUndo<T>(CompanyData companyData, List<T> list, T transaction, bool isExpense)
         where T : Transaction
     {
-        var receipt = string.IsNullOrEmpty(transaction.ReceiptId)
-            ? null
-            : companyData.Receipts.FirstOrDefault(r => r.Id == transaction.ReceiptId);
+        var receipts = companyData.Receipts.Where(r => r.TransactionId == transaction.Id).ToList();
         var reason = isExpense ? "Expense deleted" : "Revenue deleted";
         var queueKey = UsdConversion.KeyOf(transaction);
         List<StockChange> stockChanges = [];
@@ -1753,7 +1878,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
             () => RaiseTransactionDeleted(),
             onRemove: () =>
             {
-                if (receipt != null)
+                foreach (var receipt in receipts)
                     companyData.Receipts.RemoveRecord(receipt);
                 queued = UsdConversion.Snapshot(companyData, [queueKey]);
                 UsdConversion.Set(companyData, queueKey, null);
@@ -1761,7 +1886,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
             },
             onRestore: () =>
             {
-                if (receipt != null)
+                foreach (var receipt in receipts)
                     companyData.Receipts.RestoreRecord(receipt);
                 UsdConversion.Restore(companyData, [queueKey], queued);
                 RevertInventoryAdjustments(companyData, stockChanges);
@@ -1959,6 +2084,17 @@ public class CounterpartyOption : NamedOption
 /// <summary>
 /// Option class for product selection in line items.
 /// </summary>
+/// <summary>
+/// A document on the form: one already filed, which carries its receipt Id, or one just picked,
+/// which carries the path it will be read from when the transaction is saved.
+/// </summary>
+public partial class TransactionAttachment(string? id, string fileName, string? filePath) : ObservableObject
+{
+    public string? Id { get; set; } = id;
+    public string FileName { get; } = fileName;
+    public string? FilePath { get; } = filePath;
+}
+
 public class ProductOption
 {
     public string? Id { get; set; }
