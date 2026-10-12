@@ -114,7 +114,6 @@ public static class LegacyXlsConverter
                 break;
 
             case CellType.Blank:
-            case CellType.Unknown:
             case CellType.Error:
             default:
                 // Leave the destination cell empty. We deliberately do not try to
