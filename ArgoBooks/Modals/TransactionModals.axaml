@@ -250,15 +250,21 @@
                                                              HorizontalAlignment="Stretch"
                                                              VerticalAlignment="Top"
                                                              Margin="0,0,8,0" />
-                                                    <TextBlock Grid.Column="4"
-                                                               Text="{Binding AmountFormatted}"
-                                                               FontSize="14"
-                                                               FontWeight="Medium"
-                                                               Foreground="{DynamicResource TextPrimaryBrush}"
-                                                               VerticalAlignment="Center"
-                                                               HorizontalAlignment="Left" />
-                                                    <Button Grid.Column="5"
-                                                            Classes="icon-button danger"
+                                                    <!-- Held to the height of a box on this row so a message appearing under one does not carry it down. -->
+                                                    <Border Grid.Column="4"
+                                                            MinHeight="{StaticResource FormControlHeightCompact}"
+                                                            VerticalAlignment="Top">
+                                                        <TextBlock Text="{Binding AmountFormatted}"
+                                                                   FontSize="14"
+                                                                   FontWeight="Medium"
+                                                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                                                   VerticalAlignment="Center"
+                                                                   HorizontalAlignment="Left" />
+                                                    </Border>
+                                                    <Border Grid.Column="5"
+                                                            MinHeight="{StaticResource FormControlHeightCompact}"
+                                                            VerticalAlignment="Top">
+                                                    <Button Classes="icon-button danger"
                                                             VerticalAlignment="Center"
                                                             HorizontalAlignment="Center"
                                                             IsVisible="{Binding $parent[ItemsControl].((vm:ITransactionModalsViewModel)DataContext).LineItems.Count, Converter={x:Static local:IntConverters.IsGreaterThanOne}}"
@@ -268,6 +274,7 @@
                                                         <PathIcon Data="{x:Static icons:Icons.Delete}"
                                                                   Width="14" Height="14" />
                                                     </Button>
+                                                    </Border>
                                                 </Grid>
                                             </Border>
                                         </DataTemplate>
