@@ -16,22 +16,25 @@ public class NullableDecimalConverter : IValueConverter
 
     /// <summary>
     /// Converts a decimal for display.
-    /// For string targets (TextBox): formats as "0.00".
+    /// For string targets (TextBox): formats as "0.00", or as the format passed as the converter
+    /// parameter, which is how a box that shows something other than money picks its own places.
     /// For decimal? targets (NumericUpDown): passes through directly.
     /// </summary>
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
+        var format = parameter as string ?? "0.00";
+
         if (value is decimal d)
         {
             // NumericUpDown.Value is decimal?, return the value directly
             if (targetType == typeof(decimal?) || targetType == typeof(decimal))
                 return d;
 
-            return d.ToString("0.00", culture);
+            return d.ToString(format, culture);
         }
 
         if (targetType == typeof(string))
-            return "0.00";
+            return 0m.ToString(format, culture);
         return 0m;
     }
 

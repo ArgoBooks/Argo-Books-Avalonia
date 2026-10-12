@@ -93,7 +93,7 @@
                     <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}" />
                 </Style>
                 <Style Selector="Border:pointerover:not(.focused):not(.error)">
-                    <Setter Property="BorderBrush" Value="{DynamicResource BorderHoverBrush}" />
+                    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
                 </Style>
             </Border.Styles>
 

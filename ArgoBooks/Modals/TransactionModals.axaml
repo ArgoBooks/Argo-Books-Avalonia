@@ -1,4 +1,4 @@
-﻿<UserControl xmlns="https://github.com/avaloniaui"
+<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -234,26 +234,22 @@
                                                                        ToolTip.Tip="{Binding PickedCategoryName}" />
                                                         </Border>
                                                     </Panel>
-                                                    <NumericUpDown Grid.Column="2"
-                                                                   Value="{Binding Quantity, Mode=TwoWay, TargetNullValue=1}"
-                                                                   Minimum="0.001"
-                                                                   Maximum="999999"
-                                                                   FormatString="0.###"
-                                                                   Classes="line-item-input line-item-qty"
-                                                                   ShowButtonSpinner="False"
-                                                                   HorizontalAlignment="Stretch"
-                                                                   VerticalAlignment="Top"
-                                                                   Margin="0,0,8,0" />
-                                                    <NumericUpDown Grid.Column="3"
-                                                                   Value="{Binding UnitPrice, Mode=TwoWay, TargetNullValue=0}"
-                                                                   Minimum="0"
-                                                                   Maximum="999999999"
-                                                                   FormatString="N2"
-                                                                   Classes="line-item-input line-item-price"
-                                                                   ShowButtonSpinner="False"
-                                                                   HorizontalAlignment="Stretch"
-                                                                   VerticalAlignment="Top"
-                                                                   Margin="0,0,8,0" />
+                                                    <TextBox Grid.Column="2"
+                                                             Text="{Binding Quantity, Mode=TwoWay, Converter={x:Static local:NullableDecimalConverter.Instance}, ConverterParameter=0.###}"
+                                                             Classes="line-item-input line-item-qty"
+                                                             behaviors:NumericInputBehavior.IsDecimalOnly="True"
+                                                             MaxLength="10"
+                                                             HorizontalAlignment="Stretch"
+                                                             VerticalAlignment="Top"
+                                                             Margin="0,0,8,0" />
+                                                    <TextBox Grid.Column="3"
+                                                             Text="{Binding UnitPrice, Mode=TwoWay, Converter={x:Static local:NullableDecimalConverter.Instance}, ConverterParameter=N2}"
+                                                             Classes="line-item-input line-item-price"
+                                                             behaviors:NumericInputBehavior.IsDecimalOnly="True"
+                                                             MaxLength="14"
+                                                             HorizontalAlignment="Stretch"
+                                                             VerticalAlignment="Top"
+                                                             Margin="0,0,8,0" />
                                                     <TextBlock Grid.Column="4"
                                                                Text="{Binding AmountFormatted}"
                                                                FontSize="14"

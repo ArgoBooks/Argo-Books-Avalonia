@@ -79,9 +79,10 @@
         <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
     </Style>
+    <!-- Hover holds the resting colour rather than dropping the rule, because without it the Fluent theme paints its own near-black hover border. -->
     <Style Selector="TextBox:pointerover /template/ Border#PART_BorderElement">
         <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource BorderHoverBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
     </Style>
     <Style Selector="TextBox:focus /template/ Border#PART_BorderElement">
         <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
@@ -99,13 +100,15 @@
         <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
     </Style>
+    <!-- Hover holds the resting colour here too, for the same reason as the text box above. -->
     <Style Selector="ComboBox:pointerover /template/ Border#Background">
         <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource BorderHoverBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
     </Style>
     <Style Selector="ComboBox:focus /template/ Border#Background">
         <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}" />
+        <Setter Property="BorderThickness" Value="2" />
     </Style>
     <Style Selector="ComboBox:pressed /template/ Border#Background">
         <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />

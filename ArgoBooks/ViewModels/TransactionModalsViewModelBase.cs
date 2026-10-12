@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Common;
@@ -2061,14 +2061,30 @@ public abstract partial class TransactionLineItemBase : ObservableObject
             HasProductError = false;
     }
 
+    // A text box takes any number its length allows, so the ceiling on a line item lives here.
+    private const decimal MaxQuantity = 999999m;
+    private const decimal MaxUnitPrice = 999999999m;
+
     partial void OnQuantityChanged(decimal? value)
     {
+        if (value > MaxQuantity)
+        {
+            Quantity = MaxQuantity;
+            return;
+        }
+
         OnPropertyChanged(nameof(Amount));
         OnPropertyChanged(nameof(AmountFormatted));
     }
 
     partial void OnUnitPriceChanged(decimal? value)
     {
+        if (value > MaxUnitPrice)
+        {
+            UnitPrice = MaxUnitPrice;
+            return;
+        }
+
         OnPropertyChanged(nameof(Amount));
         OnPropertyChanged(nameof(AmountFormatted));
     }

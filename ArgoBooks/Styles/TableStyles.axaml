@@ -124,7 +124,7 @@
     </Style>
 
     <!-- Line Item Input (for modals with line items) -->
-    <Style Selector="NumericUpDown.line-item-input">
+    <Style Selector="TextBox.line-item-input">
         <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
@@ -132,31 +132,8 @@
         <Setter Property="Padding" Value="8,6" />
         <Setter Property="FontSize" Value="14" />
         <Setter Property="MinHeight" Value="{StaticResource FormControlHeightCompact}" />
-        <Setter Property="ShowButtonSpinner" Value="False" />
-        <Setter Property="HorizontalContentAlignment" Value="Center" />
-    </Style>
-    <Style Selector="NumericUpDown.line-item-input /template/ TextBox#PART_TextBox">
-        <Setter Property="Padding" Value="8,6" />
-        <Setter Property="TextAlignment" Value="Center" />
-        <Setter Property="Background" Value="Transparent" />
-        <Setter Property="BorderThickness" Value="0" />
-    </Style>
-    <Style Selector="NumericUpDown.line-item-price">
-        <Setter Property="HorizontalContentAlignment" Value="Left" />
-    </Style>
-    <Style Selector="NumericUpDown.line-item-price /template/ TextBox#PART_TextBox">
-        <Setter Property="MaxLength" Value="14" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="TextAlignment" Value="Left" />
-    </Style>
-    <Style Selector="NumericUpDown.line-item-qty">
-        <Setter Property="HorizontalContentAlignment" Value="Left" />
-    </Style>
-    <Style Selector="NumericUpDown.line-item-qty /template/ TextBox#PART_TextBox">
-        <Setter Property="MaxLength" Value="10" />
-        <Setter Property="TextAlignment" Value="Left" />
-    </Style>
-    <Style Selector="NumericUpDown.line-item-input:focus">
-        <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}" />
     </Style>
 
     <!-- Virtualized Table Rows: gives ItemsControl its own ScrollViewer + VirtualizingStackPanel
