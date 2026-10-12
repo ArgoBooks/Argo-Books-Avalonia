@@ -69,7 +69,7 @@
                                     <!-- The native web view draws above Avalonia content, so it steps aside whenever something else has to be on top of it. -->
                                     <MultiBinding Converter="{x:Static BoolConverters.And}">
                                         <Binding Path="IsEditorOpen" />
-                                        <Binding Path="!IsNestedModalOpen" />
+                                        <Binding Path="!IsPaperHiddenForOverlay" />
                                         <Binding Path="ShowEditorBody" />
                                     </MultiBinding>
                                 </controls:InvoicePreviewControl.IsVisible>

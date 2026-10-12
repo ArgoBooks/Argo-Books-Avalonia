@@ -675,7 +675,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
         {
             _webView = new NativeWebView { IsVisible = false };
             // Configured before it is added: attaching it is what builds the environment.
-            WebViewEnvironment.Configure(_webView);
+            WebViewEnvironment.Configure(_webView, WebViewEnvironment.PaperDrawsInsideAvalonia);
             _rootPanel.Children.Insert(0, _webView);
         }
 

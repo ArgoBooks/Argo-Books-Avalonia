@@ -121,7 +121,7 @@
                                         <MultiBinding Converter="{x:Static BoolConverters.And}">
                                             <Binding Path="IsCreateEditModalOpen" />
                                             <Binding Path="!IsViewOnly" />
-                                            <Binding Path="!IsNestedModalOpen" />
+                                            <Binding Path="!IsPaperHiddenForOverlay" />
                                             <Binding Path="!IsShowingSuccess" />
                                             <Binding Path="!IsSending" />
                                         </MultiBinding>

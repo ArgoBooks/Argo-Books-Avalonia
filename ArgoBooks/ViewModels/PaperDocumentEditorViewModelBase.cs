@@ -93,7 +93,11 @@ public abstract partial class PaperDocumentEditorViewModelBase<TLine> : ViewMode
     /// Avalonia content and would cover that modal, so it is hidden meanwhile.
     /// </summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsPaperHiddenForOverlay))]
     private bool _isNestedModalOpen;
+
+    /// <summary>True while the paper has to step aside for a modal above it, which it never does where it is drawn inside Avalonia.</summary>
+    public bool IsPaperHiddenForOverlay => IsNestedModalOpen && !Services.WebViewEnvironment.PaperDrawsInsideAvalonia;
 
     /// <summary>Line items, edited in place on the paper.</summary>
     public ObservableCollection<TLine> LineItems { get; } = [];
