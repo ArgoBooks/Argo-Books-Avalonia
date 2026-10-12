@@ -18,7 +18,7 @@ public class SourceSurveyOptionsServiceTests
         => new(new HttpClient(new ThrowingHandler(ex)));
 
     [Fact]
-    public async Task GetOptionsAsync_ValidJson_ParsesOptionsIncludingFreeform()
+    public async Task GetChoicesAsync_ValidJson_ParsesOptionsIncludingFreeform()
     {
         var service = BuildService(HttpStatusCode.OK,
             "{\"options\":[" +
@@ -27,7 +27,7 @@ public class SourceSurveyOptionsServiceTests
             "{\"key\":\"other\",\"label\":\"Other\",\"freeform\":true}" +
             "]}");
 
-        var options = await service.GetOptionsAsync();
+        var options = (await service.GetChoicesAsync()).Sources;
 
         Assert.Equal(3, options.Count);
         Assert.Equal("google", options[0].Key);
@@ -38,48 +38,48 @@ public class SourceSurveyOptionsServiceTests
     }
 
     [Fact]
-    public async Task GetOptionsAsync_NonSuccessStatus_ReturnsDefaults()
+    public async Task GetChoicesAsync_NonSuccessStatus_ReturnsDefaults()
     {
         var service = BuildService(HttpStatusCode.InternalServerError, "{\"error\":\"boom\"}");
 
-        var options = await service.GetOptionsAsync();
+        var options = (await service.GetChoicesAsync()).Sources;
 
         Assert.Equal(SourceSurveyOptionsService.DefaultOptions, options);
     }
 
     [Fact]
-    public async Task GetOptionsAsync_MalformedJson_ReturnsDefaults()
+    public async Task GetChoicesAsync_MalformedJson_ReturnsDefaults()
     {
         var service = BuildService(HttpStatusCode.OK, "not json at all");
 
-        var options = await service.GetOptionsAsync();
+        var options = (await service.GetChoicesAsync()).Sources;
 
         Assert.Equal(SourceSurveyOptionsService.DefaultOptions, options);
     }
 
     [Fact]
-    public async Task GetOptionsAsync_EmptyList_ReturnsDefaults()
+    public async Task GetChoicesAsync_EmptyList_ReturnsDefaults()
     {
         var service = BuildService(HttpStatusCode.OK, "{\"options\":[]}");
 
-        var options = await service.GetOptionsAsync();
+        var options = (await service.GetChoicesAsync()).Sources;
 
         Assert.Equal(SourceSurveyOptionsService.DefaultOptions, options);
     }
 
     [Fact]
-    public async Task GetOptionsAsync_MissingOptionsKey_ReturnsDefaults()
+    public async Task GetChoicesAsync_MissingOptionsKey_ReturnsDefaults()
     {
         // 2xx with valid JSON but no "options" property.
         var service = BuildService(HttpStatusCode.OK, "{}");
 
-        var options = await service.GetOptionsAsync();
+        var options = (await service.GetChoicesAsync()).Sources;
 
         Assert.Equal(SourceSurveyOptionsService.DefaultOptions, options);
     }
 
     [Fact]
-    public async Task GetOptionsAsync_CallerCancellation_Throws()
+    public async Task GetChoicesAsync_CallerCancellation_Throws()
     {
         var service = BuildService(HttpStatusCode.OK,
             "{\"options\":[{\"key\":\"google\",\"label\":\"Google\"}]}");
@@ -87,11 +87,11 @@ public class SourceSurveyOptionsServiceTests
         cts.Cancel();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => service.GetOptionsAsync(cts.Token));
+            () => service.GetChoicesAsync(cts.Token));
     }
 
     [Fact]
-    public async Task GetOptionsAsync_SkipsEntriesMissingKeyOrLabel()
+    public async Task GetChoicesAsync_SkipsEntriesMissingKeyOrLabel()
     {
         var service = BuildService(HttpStatusCode.OK,
             "{\"options\":[" +
@@ -100,31 +100,49 @@ public class SourceSurveyOptionsServiceTests
             "{\"key\":\"reddit\",\"label\":\"Reddit\"}" +
             "]}");
 
-        var options = await service.GetOptionsAsync();
+        var options = (await service.GetChoicesAsync()).Sources;
 
         Assert.Single(options);
         Assert.Equal("reddit", options[0].Key);
     }
 
     [Fact]
-    public async Task GetOptionsAsync_AllEntriesInvalid_ReturnsDefaults()
+    public async Task GetChoicesAsync_AllEntriesInvalid_ReturnsDefaults()
     {
         var service = BuildService(HttpStatusCode.OK,
             "{\"options\":[{\"key\":\"\",\"label\":\"\"}]}");
 
-        var options = await service.GetOptionsAsync();
+        var options = (await service.GetChoicesAsync()).Sources;
 
         Assert.Equal(SourceSurveyOptionsService.DefaultOptions, options);
     }
 
     [Fact]
-    public async Task GetOptionsAsync_NetworkError_ReturnsDefaults()
+    public async Task GetChoicesAsync_NetworkError_ReturnsDefaults()
     {
         var service = BuildThrowingService(new HttpRequestException("DNS fail"));
 
-        var options = await service.GetOptionsAsync();
+        var options = (await service.GetChoicesAsync()).Sources;
 
         Assert.Equal(SourceSurveyOptionsService.DefaultOptions, options);
+    }
+
+    // A website that has not been updated yet sends no goals. The sources it does send are
+    // kept, and the second question falls back to the goals the app ships with.
+    [Fact]
+    public async Task GetChoicesAsync_TakesGoalsFromTheServer_AndItsOwnWhenThereAreNone()
+    {
+        var withGoals = BuildService(HttpStatusCode.OK,
+            "{\"options\":[{\"key\":\"google\",\"label\":\"Google\"}]," +
+            "\"goals\":[{\"key\":\"tips\",\"label\":\"Track tips\"}]}");
+        var withoutGoals = BuildService(HttpStatusCode.OK,
+            "{\"options\":[{\"key\":\"google\",\"label\":\"Google\"}]}");
+
+        Assert.Equal("tips", Assert.Single((await withGoals.GetChoicesAsync()).Goals).Key);
+
+        var fallback = await withoutGoals.GetChoicesAsync();
+        Assert.Equal("google", Assert.Single(fallback.Sources).Key);
+        Assert.Equal(SourceSurveyOptionsService.DefaultGoals, fallback.Goals);
     }
 
     [Fact]

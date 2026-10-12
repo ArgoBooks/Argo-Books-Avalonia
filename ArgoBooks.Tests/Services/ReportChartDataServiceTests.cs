@@ -226,8 +226,6 @@ public class ReportChartDataServiceTests
     public void GetAverageTransactionValueBySeries_ClampsPartialMonthToFilterWindow()
     {
         // A sale inside the filter window and another in the same calendar month but outside it.
-        // GetRevenueVsExpenses clamps month bounds to the window; this method did not, so the
-        // out-of-window sale leaks into the average. (Revenue defaults to PaymentStatus.Paid.)
         var data = new CompanyData();
         data.Revenues.Add(new Revenue { Id = "R1", Date = new DateTime(2024, 1, 10), Total = 100m, OriginalCurrency = "USD" });
         data.Revenues.Add(new Revenue { Id = "R2", Date = new DateTime(2024, 1, 25), Total = 1000m, OriginalCurrency = "USD" });

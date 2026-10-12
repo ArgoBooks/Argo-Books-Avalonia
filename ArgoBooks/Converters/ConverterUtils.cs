@@ -24,4 +24,18 @@ internal static class ConverterUtils
         }
         return new SolidColorBrush(Color.Parse(fallbackHex));
     }
+
+    /// <summary>
+    /// The accent colour at the given opacity, for highlights drawn in code. Read when it is
+    /// used, not kept, so it follows a change of accent colour in Settings.
+    /// </summary>
+    public static IBrush AccentTint(byte alpha)
+    {
+        var accent = AccentBrush is ISolidColorBrush solid ? solid.Color : Color.Parse(AccentFallback);
+        return new SolidColorBrush(Color.FromArgb(alpha, accent.R, accent.G, accent.B));
+    }
+
+    public static IBrush AccentBrush => ThemeBrush("PrimaryBrush", AccentFallback);
+
+    private const string AccentFallback = "#3B82F6";
 }

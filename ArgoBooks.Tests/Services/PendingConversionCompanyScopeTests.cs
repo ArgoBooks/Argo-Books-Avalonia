@@ -15,6 +15,7 @@ namespace ArgoBooks.Tests.Services;
 /// one company's entry replaced the other's, opening a company took in the other's entries, and a
 /// conversion wrote one company's amount onto the other's record.
 /// </summary>
+[Collection("ExchangeRateSingleton")]
 public class PendingConversionCompanyScopeTests
 {
     private const string Id = "PUR-2026-00005";
@@ -70,9 +71,7 @@ public class PendingConversionCompanyScopeTests
         Assert.Equal(1, service.PendingCount);
     }
 
-    // The queue used to be kept in a file of its own as well, written on every change, and opening
-    // a company preferred that file's entries. An edit made and then thrown away unsaved still had
-    // its entry there, so reopening the company converted the saved record with the discarded amounts.
+    // The queue lives in the company file alone, so opening a company reads the entries that file saved.
     [Fact]
     public async Task ReopeningACompany_ConvertsTheAmountsItsFileSaved_NotAnUnsavedEdits()
     {

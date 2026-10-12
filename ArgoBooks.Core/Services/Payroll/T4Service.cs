@@ -45,10 +45,6 @@ public class T4Service
             ContactPhone = company.PayrollContactPhone ?? company.Phone ?? string.Empty,
 
             // Both for the T619 transmittal that wraps the submission rather than for any slip.
-            // Falls back to the company address, matching ContactPhone above and the year end
-            // screen, which shows that fallback in its box. Without it a company that has only a
-            // general email saw a valid address on screen while validation blocked filing over an
-            // empty one, with nothing to say why.
             ContactEmail = company.PayrollContactEmail ?? company.Email ?? string.Empty,
             LanguageCode = string.Equals(data.Settings.Localization.Language, "French",
                 StringComparison.OrdinalIgnoreCase) ? "F" : "E",
@@ -71,10 +67,7 @@ public class T4Service
                 continue;
             }
 
-            // CRA wants a separate T4 for each province of employment, and each line records the
-            // province it was earned in; the employee's own province is only where they work now.
-            // Earlier slips take their share of the year's ceilings first, because contributions
-            // stop at one annual maximum however many slips the year is split across.
+            // CRA wants a separate T4 for each province of employment, and each line records the province it was earned in; the employee's own province is only where they work now.
             decimal pensionableBefore = 0m;
             decimal insurableBefore = 0m;
 
@@ -125,21 +118,14 @@ public class T4Service
         bool quebec = province == "QC";
         decimal qpip = lines.Sum(l => l.QpipEmployee);
 
-        // Exempt for the WHOLE year, which is what boxes 28 and the nil earnings in 24 and 26
-        // mean. Read from what was actually withheld and not from the employee's current flag:
-        // someone who turns 70 in June has the flag ticked from then on, but contributed from
-        // January to May. Reporting those contributions in box 16 against nil pensionable
-        // earnings with the exemption ticked is the contradiction CRA's PIER review looks for.
+        // Exempt for the WHOLE year, which is what boxes 28 and the nil earnings in 24 and 26 mean.
         decimal cppWithheld = lines.Sum(l => l.CppEmployee) + lines.Sum(l => l.Cpp2Employee);
         decimal eiWithheld = lines.Sum(l => l.EiEmployee);
 
         bool cppExemptAllYear = employee.IsCppExempt && cppWithheld == 0m;
         bool eiExemptAllYear = employee.IsEiExempt && eiWithheld == 0m;
 
-        // Exempt for PART of the year: only the pay earned while contributing is pensionable or
-        // insurable. Counting the exempt months too reports earnings CRA expects contributions
-        // on, which its PIER review then flags as a shortfall. A line saved before the exemption
-        // was recorded on it counts as contributing, as it always did.
+        // Exempt for PART of the year: only the pay earned while contributing is pensionable or insurable.
         decimal pensionableGross = lines.Where(l => !l.CppExempt).Sum(l => l.GrossPay);
         decimal insurableGross = lines.Where(l => !l.EiExempt).Sum(l => l.GrossPay);
 
@@ -159,23 +145,11 @@ public class T4Service
             Cpp2Contributions = lines.Sum(l => l.Cpp2Employee),
             EiPremiums = lines.Sum(l => l.EiEmployee),
 
-            // Box 22 is federal, provincial and territorial tax together, with one exception
-            // stated in as many words by RC4120: "This includes the federal, provincial (except
-            // Quebec), and territorial taxes that apply."
-            //
-            // Quebec income tax is withheld in the same pay run and stored in the same column,
-            // but it is remitted to Revenu Quebec and reported on RL-1 box E. Adding it here
-            // reports the same money on both slips, and the employee claims credit for it twice.
+            // Box 22 is federal, provincial and territorial tax together, with the one exception RC4120 states: not Quebec.
             IncomeTaxDeducted = lines.Sum(l => l.FederalTax)
                                 + (quebec ? 0m : lines.Sum(l => l.ProvincialTax)),
 
-            // Exempt employment reports nil earnings rather than omitting the box, so these
-            // deliberately go to zero rather than to gross.
-            //
-            // Capped at the year's ceiling. Someone earning above it stopped contributing part
-            // way through the year, and reporting their whole salary here would have CRA expect
-            // contributions on money that was never pensionable or insurable. The figure looks
-            // right either way, which is exactly why it needs pinning.
+            // Exempt employment reports nil earnings rather than omitting the box, so these deliberately go to zero rather than to gross. Capped at the year's ceiling.
             InsurableEarnings = eiExemptAllYear
                 ? 0m
                 : ceilings.CapEi(insurableBefore + insurableGross) - ceilings.CapEi(insurableBefore),
@@ -186,22 +160,6 @@ public class T4Service
             QpipPremiums = qpip,
 
             // Tied to whether a premium was actually withheld rather than to the province alone.
-            // RC4120 pairs the two: "If you report an amount in box 55, you have to report
-            // insurable earnings using box 56", and box 28's PPIP tick means no premium was
-            // withheld for the whole period. Earnings with no premium against them is the one
-            // combination that cannot be true.
-            //
-            // RC4120 also carries a list under box 56 of when NOT to report it, which includes
-            // "the insurable earnings are the same as the employment income in box 14" and "the
-            // insurable earnings are over the maximum for the year". Taken literally that would
-            // suppress box 56 in every case this app can produce, since QPIP eligible earnings
-            // here are always gross capped at the ceiling. The two instructions contradict each
-            // other and both are CRA's.
-            //
-            // Settled by the XML specification, which marks prov_insu_ern_amt optional rather
-            // than required. So neither choice is rejected on submission, which leaves the box 55
-            // pairing as the only one of the two phrased as an obligation, and reporting a
-            // redundant figure as the cheaper way to be wrong. Reported.
             QpipInsurableEarnings = quebec && qpip > 0 ? ceilings.CapQpip(gross) : 0m,
             EmployerQpip = lines.Sum(l => l.QpipEmployer),
 
@@ -268,10 +226,7 @@ public class T4Service
                 T4ProblemField.ContactEmail));
         }
 
-        // The employer's own address, which BuildSummary writes as prov_cd, pstl_cd and cntry_cd
-        // just as it does an employee's. Only the employees were being checked, so a company that
-        // typed "Alberta" into a free-text province box passed validation, showed no problems, and
-        // had CRA reject the file over a two-letter code of "AL".
+        // The employer's own address, which BuildSummary writes as prov_cd, pstl_cd and cntry_cd just as it does an employee's.
         bool employerCanadian = string.IsNullOrWhiteSpace(t4.EmployerAddress.Country)
                                 || CraFormat.IsCanada(t4.EmployerAddress.Country);
 
@@ -307,9 +262,7 @@ public class T4Service
                 problems.Add($"{who} has no province of employment, which is required on the slip.");
             }
 
-            // The employee form refuses all of the below. These catch anyone entered before it
-            // did, since a file that has been sitting on disk since an earlier version is exactly
-            // what gets filed without anybody opening the employee again.
+            // The employee form refuses all of the below.
             string badName = CraFormat.DisallowedCharacters(slip.Surname + " " + slip.GivenName);
             if (badName.Length > 0)
             {
@@ -325,10 +278,7 @@ public class T4Service
                 problems.Add($"{who}'s address contains {Describe(badAddress)}, which CRA does not accept.");
             }
 
-            // The address is optional in full, so these only apply once something has been
-            // entered: an employee with no address at all files perfectly well. The province is
-            // only held to the Canadian list when the address is Canadian, or when no country was
-            // recorded, which on a T4 means Canadian.
+            // The address is optional in full, so these only apply once something has been entered: an employee with no address at all files perfectly well.
             bool canadianAddress = string.IsNullOrWhiteSpace(slip.Address.Country)
                                    || CraFormat.IsCanada(slip.Address.Country);
 

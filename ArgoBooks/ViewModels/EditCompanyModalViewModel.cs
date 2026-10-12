@@ -150,9 +150,7 @@ public partial class EditCompanyModalViewModel : ViewModelBase
         !StrEq(Email, _originalEmail) ||
         !StrEq(SelectedCurrency, _originalCurrency);
 
-    // Treats null and empty as equal: clearing a field that was originally empty (null)
-    // leaves a "" behind, which must NOT count as a change. A non-empty value vs empty
-    // is still detected as a real change.
+    // Treats null and empty as equal: clearing a field that was originally empty (null) leaves a "" behind, which must NOT count as a change.
     private static bool StrEq(string? a, string? b) =>
         string.IsNullOrEmpty(a) ? string.IsNullOrEmpty(b) : string.Equals(a, b, StringComparison.Ordinal);
 
@@ -264,11 +262,7 @@ public partial class EditCompanyModalViewModel : ViewModelBase
 
         IsOpen = true;
 
-        // Some TwoWay-bound controls (e.g., ComboBox, CountryInput, PhoneInput) may
-        // write back a normalised or coerced value after the binding settles.
-        // Re-snapshot all originals once the UI thread has processed those updates so
-        // that HasChanges is false immediately after Open(), while still detecting any
-        // genuine change the user makes afterwards.
+        // Some TwoWay-bound controls (e.g., ComboBox, CountryInput, PhoneInput) may write back a normalised or coerced value after the binding settles.
         Dispatcher.UIThread.Post(SnapshotOriginals, DispatcherPriority.Loaded);
     }
 
@@ -453,9 +447,7 @@ public partial class EditCompanyModalViewModel : ViewModelBase
     {
         if (!CanSave) return;
 
-        // Warn (but allow) when the chosen currency doesn't match the country. Only
-        // when the user actually changed the country or currency this session, and not
-        // on the rate-retry path (skipCurrencyValidation), which was already confirmed.
+        // Warn (but allow) when the chosen currency doesn't match the country.
         if (!skipCurrencyValidation &&
             (Country != _originalCountry || SelectedCurrency != _originalCurrency))
         {

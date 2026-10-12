@@ -143,14 +143,10 @@ public class SpreadsheetAnalysisService(
         CancellationToken cancellationToken,
         IProgress<(string detail, double percent)>? progress = null)
     {
-        // Split sheets into batches so a single LLM call never has to map so many columns
-        // that its JSON response exceeds the model's output token budget and gets truncated.
-        // A truncated response fails to parse and would otherwise look like an unreadable file.
+        // Split sheets into batches so a single LLM call never has to map so many columns that its JSON response exceeds the model's output token budget and gets truncated.
         var batches = SplitIntoAnalysisBatches(sheetsData);
 
-        // The visible progress bar is driven by the UI layer from the learned duration estimate
-        // (see EstimatedProgressTicker), so this only reports the status text; percent -1 signals
-        // "no real fraction here" so nothing shows a misleading number.
+        // Only the status text is reported here, because the visible bar is driven by the learned duration estimate, and percent -1 says there is no real fraction.
         progress?.Report(("Analyzing...", -1));
 
         // Analyze batches concurrently; each batch is an independent LLM call.
@@ -260,9 +256,7 @@ public class SpreadsheetAnalysisService(
                     bestUnsupported = unsupported;
                 }
 
-                // Only a known-type-but-low-confidence sheet is worth re-rolling. If none remain,
-                // this result is as good as it gets (any leftover unsupported sheets are confidently
-                // Unknown), so stop.
+                // Only a known-type-but-low-confidence sheet is worth re-rolling. If none remain, this result is as good as it gets (any leftover unsupported sheets are confidently Unknown), so stop.
                 var hasBorderlineKnown = result.Sheets.Any(s =>
                     s.DetectedType != SpreadsheetSheetType.Unknown && s.Confidence < MinTypeConfidence);
                 if (!hasBorderlineKnown)
@@ -284,9 +278,7 @@ public class SpreadsheetAnalysisService(
         var systemPrompt = BuildAnalysisSystemPrompt();
         var userPrompt = BuildAnalysisUserPrompt(batch);
 
-        // The response needs one mapping object per source column, so scale the token budget
-        // by total columns rather than sheet count. gemini-2.5-flash also spends part of this
-        // budget on thinking tokens, so keep generous headroom above the raw mapping size.
+        // The response needs one mapping object per source column, so scale the token budget by total columns rather than sheet count.
         var totalColumns = batch.Sum(s => s.Headers.Count);
         var maxTokens = Math.Max(4000, totalColumns * 200 + batch.Count * 400);
 
@@ -334,10 +326,7 @@ public class SpreadsheetAnalysisService(
         {
             var (result, answered) = await TryProcessChunkAsync(headers, rows, entityType, cancellationToken);
 
-            // An unreadable reply isn't retried: the same rows at temperature 0 would most likely
-            // come back the same, and every answered call counts against the server's rate limit.
-            // A rate limit counts as answered for the same reason: retrying it only spends more of
-            // the budget that just ran out.
+            // An unreadable reply isn't retried: the same rows at temperature 0 would most likely come back the same, and every answered call counts against the server's rate limit.
             if (result != null || answered || attempt >= MaxChunkAttempts)
                 return result;
 
@@ -732,9 +721,7 @@ IMPORTANT:
                 {
                     var sheet = new SheetAnalysis
                     {
-                        // Safe TryGetProperty-based helpers, not the throwing GetProperty: one element
-                        // missing sourceSheetName/detectedType must not throw and discard the WHOLE
-                        // batch (every other field already uses these helpers).
+                        // TryGetProperty rather than the throwing GetProperty, so one element missing a field cannot discard the whole batch.
                         SourceSheetName = GetString(sheetEl, "sourceSheetName"),
                         Confidence = GetDouble(sheetEl, "confidence"),
                     };
@@ -813,9 +800,7 @@ IMPORTANT:
                 SourceRowsProcessed = sourceRowCount,
             };
 
-            // Response should be an array of entity objects, or an object wrapping one under
-            // "entities". Any other shape is unrecognized: return null so the caller counts the chunk
-            // as failed instead of silently importing zero rows with no warning.
+            // Response should be an array of entity objects, or an object wrapping one under "entities".
             if (doc.RootElement.ValueKind == JsonValueKind.Array)
             {
                 foreach (var entity in doc.RootElement.EnumerateArray())
@@ -1248,9 +1233,6 @@ Choose EXTRACT only when you are confident real per-row records are present. Whe
     }
 
     // Assigns every non-structural row to a (type, category) group using the outline markers.
-    // Type comes from the nearest preceding section; category from the nearest preceding Category
-    // header within that section (falling back to the section name). Structural rows (sections,
-    // categories, subtotals) and any rows before the first section are excluded.
     internal static Dictionary<(SpreadsheetSheetType Type, string Category), List<int>> BucketMixedRows(
         int rowCount, IReadOnlyList<MixedRowMarker> markers)
     {
@@ -1404,9 +1386,7 @@ Choose EXTRACT only when you are confident real per-row records are present. Whe
         catch (OperationCanceledException) { throw; }
         catch (Exception ex)
         {
-            // Deliberate UX choice: a read failure here (corrupt/locked/unreadable file) surfaces as a
-            // friendly rejection instead of throwing and crashing the import flow. The error is still
-            // logged via errorLogger so it's not silently swallowed.
+            // Deliberate UX choice: a read failure here (corrupt/locked/unreadable file) surfaces as a friendly rejection instead of throwing and crashing the import flow.
             errorLogger?.LogError(ex, ErrorCategory.Import, "Rescue import: failed to read the file");
             return new ImportRescueResult
             {

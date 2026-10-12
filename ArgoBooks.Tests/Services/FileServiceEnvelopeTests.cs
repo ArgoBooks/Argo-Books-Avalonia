@@ -129,9 +129,7 @@ public class FileServiceEnvelopeTests : IDisposable
     [Fact]
     public async Task RecoveryKey_OpensAFileWhosePasswordIsLost()
     {
-        // The whole point of the feature, proven end to end against a real saved file:
-        // the blob in the footer must hold the same data key that encrypted the archive,
-        // so support can decrypt without ever knowing the password.
+        // Proven end to end against a real saved file: the footer blob must hold the same data key that encrypted the archive.
         using var rsa = RSA.Create(4096);
         var fileService = new FileService(
             _compressionService, _footerService, _encryptionService, rsa.ExportSubjectPublicKeyInfoPem());
@@ -180,9 +178,7 @@ public class FileServiceEnvelopeTests : IDisposable
     [Fact]
     public async Task Save_WithNoRecoveryKeyConfigured_StillProducesAWorkingFile()
     {
-        // An unconfigured build must keep saving and opening files normally, just with
-        // no recovery path. Empty string means "no key", as distinct from null, which
-        // means "use whatever this build has embedded".
+        // An unconfigured build must keep saving and opening files normally, just with no recovery path.
         var fileService = new FileService(
             _compressionService, _footerService, _encryptionService, recoveryPublicKeyPem: "");
 
@@ -203,9 +199,7 @@ public class FileServiceEnvelopeTests : IDisposable
     [Fact]
     public async Task Save_WithPasswordButNoEncryptionService_RefusesInsteadOfWritingPlaintext()
     {
-        // The footer records IsEncrypted from the presence of a password alone. Without this
-        // guard the archive would be written in the clear under a footer claiming encryption,
-        // and the file could never be opened again.
+        // The footer records IsEncrypted from the presence of a password alone, so without this guard the archive is plaintext under a footer claiming otherwise.
         var fileService = new FileService(_compressionService, _footerService, encryptionService: null);
 
         var sourceDirectory = Path.Combine(_workDirectory, $"noservice-{Guid.NewGuid():N}");
@@ -223,9 +217,7 @@ public class FileServiceEnvelopeTests : IDisposable
     [Fact]
     public async Task Save_WithoutPassword_DoesNotAdvertiseBiometricUnlock()
     {
-        // A file returned by support recovery has no password but still carries the old
-        // biometric setting inside its archive. The footer must not offer an unlock that
-        // cannot possibly succeed.
+        // A file returned by support recovery has no password but still carries the old biometric setting inside its archive. The footer must not offer an unlock that cannot possibly succeed.
         var filePath = await SaveWithBiometricSettingAsync(password: null, "recovered-bio.argo");
 
         var footer = await _footerService.ReadFooterAsync(filePath);
@@ -466,9 +458,6 @@ public class KeyEnvelopeTests
     public void EmbeddedRecoveryKey_WhenConfigured_IsParseableAndWraps()
     {
         // Guards against a malformed paste into RecoveryKeyProvider.PublicKeyPem.
-        // TryWrapDataKey swallows parse failures and returns null by design, so without
-        // this test a mangled key would silently ship with recovery disabled and nobody
-        // would find out until a customer needed their file back.
         if (!RecoveryKeyProvider.IsConfigured)
             return;
 
@@ -484,9 +473,7 @@ public class KeyEnvelopeTests
     [Fact]
     public void RecoveryKey_WrapThenUnwrap_ReturnsOriginalKey()
     {
-        // The single most important test here. Wrapping happens on every save while
-        // unwrapping only ever happens in the support tool, so a mismatch between the two
-        // would stay invisible until a customer needed recovery and could not get it.
+        // The most important test here, because wrapping happens on every save while unwrapping only happens in the support tool.
         using var rsa = RSA.Create(4096);
         var publicKeyPem = rsa.ExportSubjectPublicKeyInfoPem();
         var privateKeyPem = rsa.ExportPkcs8PrivateKeyPem();

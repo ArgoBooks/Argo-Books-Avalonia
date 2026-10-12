@@ -60,9 +60,7 @@ public partial class EmojiPickerViewModel : ObservableObject
     public ObservableCollection<EmojiTabItem> Tabs { get; } = [];
     public BatchObservableCollection<EmojiDisplayItem> DisplayedEmojis { get; } = [];
 
-    // Cap search results: the emoji grid is a non-virtualizing WrapPanel where each item is a fairly
-    // heavy Button (context menu + tooltip), so a broad query (e.g. a single letter) that matched
-    // hundreds of emojis was the main source of lag. Most real searches return far fewer than this.
+    // Results are capped because the grid is a non-virtualising WrapPanel of fairly heavy buttons, so a one-letter query would build hundreds.
     private const int MaxSearchResults = 200;
 
     // Emoji -> item lookup, built once, for resolving names of Recent/Favorite emojis.

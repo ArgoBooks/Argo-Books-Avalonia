@@ -1,5 +1,6 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="using:ArgoBooks.Localization"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:ArgoBooks.ViewModels"
@@ -116,7 +117,7 @@
                     <!-- Skip button -->
                     <Button Grid.Column="0"
                             Classes="text-button lg"
-                            Content="Skip"
+                            Content="{loc:Loc 'Skip'}"
                             Command="{Binding SkipTourCommand}"
                             IsVisible="{Binding !IsLastStep}" />
 
@@ -129,7 +130,7 @@
                                 IsVisible="{Binding !IsFirstStep}"
                                 Width="90"
                                 HorizontalContentAlignment="Center">
-                            <TextBlock Text="Back" />
+                            <TextBlock Text="{loc:Loc 'Back'}" />
                         </Button>
 
                         <Button Classes="primary-button"
@@ -137,7 +138,7 @@
                                 Width="90"
                                 HorizontalContentAlignment="Center">
                             <!-- Always "Next", the last slide tells the user the Setup Checklist is the actual final step. -->
-                            <TextBlock Text="Next" />
+                            <TextBlock Text="{loc:Loc 'Next'}" />
                         </Button>
                     </StackPanel>
                 </Grid>

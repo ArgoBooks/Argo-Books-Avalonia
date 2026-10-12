@@ -141,9 +141,7 @@ public partial class RefundModalsViewModel : ObservableObject
         ActiveEmailChangeVm = new EmailChangeModalViewModel(
             refundService, currentOwnerEmail, fileIsEncrypted, verifyFilePassword, currentEmailVerified)
         {
-            // Close runs through CloseEmailChangeModalAsync via fire-and-forget so
-            // we get the same "abort in-flight + invoke onCompleted" semantics
-            // whether the user clicks X, presses Esc, or clicks the backdrop.
+            // Close goes through CloseEmailChangeModalAsync so the X, Esc and the backdrop all abort in flight and invoke onCompleted alike.
             RequestClose = () => _ = CloseEmailChangeModalAsync(),
         };
         _onEmailChangeCompleted = onCompleted;

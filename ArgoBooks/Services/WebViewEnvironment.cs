@@ -65,10 +65,16 @@ public static class WebViewEnvironment
     /// attached to a visual tree: attaching is what builds the environment, and these settings
     /// are read while it is being built.
     /// </summary>
-    public static void Configure(NativeWebView webView)
+    public static void Configure(NativeWebView webView, bool drawInsideAvalonia = false)
     {
-        webView.EnvironmentRequested += OnEnvironmentRequested;
+        webView.EnvironmentRequested += drawInsideAvalonia ? OnInsideAvaloniaEnvironmentRequested : OnEnvironmentRequested;
     }
+
+    /// <summary>
+    /// True where the invoice paper is drawn into Avalonia's own surface and not into a native
+    /// window above it, so a dialog can sit over the paper. Only WebView2 offers this.
+    /// </summary>
+    public static bool PaperDrawsInsideAvalonia => OperatingSystem.IsWindows();
 
     /// <summary>
     /// Stops a web view that failed to start from taking the process down with it. Idempotent;
@@ -90,9 +96,7 @@ public static class WebViewEnvironment
                 return;
             }
 
-            // Handling it leaves the app running with a dead web view, which costs a PDF
-            // thumbnail or an inline invoice preview. Every caller already treats a missing
-            // web view as a failed render, so this degrades onto a path that already exists.
+            // Handling it leaves the app running with a dead web view, which costs a PDF thumbnail or an inline invoice preview.
             e.Handled = true;
             HasFailed = true;
 
@@ -124,6 +128,15 @@ public static class WebViewEnvironment
         if (UserDataFolder != null && e is WindowsWebView2EnvironmentRequestedEventArgs windows)
         {
             windows.UserDataFolder = UserDataFolder;
+        }
+    }
+
+    private static void OnInsideAvaloniaEnvironmentRequested(object? sender, WebViewEnvironmentRequestedEventArgs e)
+    {
+        OnEnvironmentRequested(sender, e);
+        if (e is WindowsWebView2EnvironmentRequestedEventArgs windows)
+        {
+            windows.ExperimentalOffscreen = true;
         }
     }
 

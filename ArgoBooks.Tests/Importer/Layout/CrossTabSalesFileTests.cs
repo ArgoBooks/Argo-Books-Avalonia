@@ -29,9 +29,7 @@ public class CrossTabSalesFileTests
         Assert.True(LayoutGate.NeedsInterpretation(grid),
             "LayoutGate should flag the cross-tab Sales sheet as needing interpretation");
 
-        // 2) The descriptor an LLM would produce for this 4x4 cross-tab:
-        //    header row 0 (Product | Jan | Feb | Mar), Product is the key column,
-        //    the three month columns are spread columns transposed to long form.
+        // The descriptor an LLM would produce for this 4x4 cross-tab: header row 0, Product as the key column, the three months transposed.
         var region = new TableRegion
         {
             HeaderRows = [0],

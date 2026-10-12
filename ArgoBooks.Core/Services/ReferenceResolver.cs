@@ -92,9 +92,7 @@ public static class ReferenceResolver
         return (index[bestKey!], false);
     }
 
-    // -----------------------------------------------------------------------
-    // Helpers
-    // -----------------------------------------------------------------------
+    // --- Helpers ---
 
     /// <summary>
     /// Normalizes a name for comparison: trim, lower-invariant, collapse whitespace,

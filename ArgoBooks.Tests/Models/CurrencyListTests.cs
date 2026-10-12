@@ -18,13 +18,7 @@ public class CurrencyListTests
     [Fact]
     public void SymbolsUseOnlyCharactersEveryPdfFontShips()
     {
-        // A symbol is drawn by whatever font the PDF asks for, and "Helvetica" is a different
-        // font on each platform: Segoe UI stands in for it on Windows, while macOS has the real
-        // Helvetica, which carries Latin, Cyrillic and the currency signs and nothing else. So a
-        // symbol borrowed from a script (฿ Thai, ৳ Bengali, ﷼ Arabic) prints as an empty box on a
-        // Mac even where it looks fine here. Those currencies use letters instead: THB, Tk.
-        //
-        // U+20A0..U+20BF is the Currency Symbols block: ₹ ₩ ₽ ₺ ₴ ₦ ₱ ₨ ₪ ₵ ₫ and the rest.
+        // A symbol is drawn by whatever font the PDF asks for, and Helvetica is a different font per platform: Segoe UI stands in on Windows.
         static bool IsWidelyShipped(char ch) =>
             ch <= 'ſ'                          // Latin, Latin-1, Latin Extended-A (č, ł)
             || (ch >= 'Ѐ' && ch <= 'ӿ')   // Cyrillic (лв, ден, дин)
@@ -43,9 +37,7 @@ public class CurrencyListTests
     [Fact]
     public void EverySymbolHasAGlyphInThePdfFontOnThisMachine()
     {
-        // The rule above is the real guard, since it holds on every platform. This checks the
-        // font this machine actually resolves, which catches a symbol that even the local font
-        // cannot draw. Glyph 0 is .notdef: the blank or box shown for a missing character.
+        // The rule above is the real guard, since it holds on every platform. This checks the font this machine actually resolves, which catches a symbol that even the local font cannot draw.
         using var typeface = SKTypeface.FromFamilyName(PdfFontFamily);
         Assert.NotNull(typeface);
 

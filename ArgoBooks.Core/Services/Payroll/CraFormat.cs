@@ -58,9 +58,7 @@ public static class CraFormat
             return null;
         }
 
-        // The app's own country list first: the names the picker produces plus the aliases people
-        // type (U.S., England, Korea), none of which is what the regional data calls them. Its
-        // code is still checked against the regional data rather than trusted.
+        // The app's own country list first: the names the picker produces plus the aliases people type (U.S., England, Korea), none of which is what the regional data calls them.
         if (Countries.Find(v) is { } country
             && Countries.GetAlpha3Code(country.Code) is { } fromCountry
             && Alpha3Codes.Value.Contains(fromCountry))
@@ -166,9 +164,7 @@ public static class CraFormat
             };
         }
 
-        // Canada, and anything with no country recorded: a T4 address is Canadian unless it says
-        // otherwise, and stripping the separators from a foreign code that turns out to be
-        // Canadian is the fix, while leaving them in is the rejection.
+        // Canada, and anything with no country recorded, because a T4 address is Canadian unless it says otherwise.
         if (country == null || IsCanada(country) || Alpha3Country(country) == null)
         {
             return new string(v.Where(char.IsAsciiLetterOrDigit).ToArray());

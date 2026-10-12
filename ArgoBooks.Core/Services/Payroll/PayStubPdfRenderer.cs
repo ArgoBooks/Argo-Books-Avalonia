@@ -119,10 +119,7 @@ public static class PayStubPdfRenderer
             // Deductions
             col.Item().Column(c =>
             {
-                // A Quebec employee contributes to QPP, not CPP, and to QPIP, which has no
-                // equivalent anywhere else. Both matter here rather than being cosmetic: the
-                // total below is gross minus net, so a withheld premium with no line of its own
-                // leaves the section not adding up in front of the person being paid.
+                // A Quebec employee contributes to QPP, not CPP, and to QPIP, which has no equivalent anywhere else.
                 bool quebec = string.Equals(line.Province, "QC", StringComparison.OrdinalIgnoreCase);
 
                 c.Item().Text("DEDUCTIONS").FontSize(9).SemiBold().FontColor(Colors.Grey.Darken2);

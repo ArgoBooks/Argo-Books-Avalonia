@@ -1,5 +1,6 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="using:ArgoBooks.Localization"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:local="using:ArgoBooks"
@@ -95,7 +96,7 @@
                 <Button Grid.Row="0" Grid.Column="2"
                         Classes="icon-button"
                         Command="{Binding DismissCommand}"
-                        ToolTip.Tip="Dismiss"
+                        ToolTip.Tip="{loc:Loc 'Dismiss'}"
                         Margin="8,0,0,0"
                         VerticalAlignment="Top">
                     <PathIcon Data="{x:Static icons:Icons.Close}"

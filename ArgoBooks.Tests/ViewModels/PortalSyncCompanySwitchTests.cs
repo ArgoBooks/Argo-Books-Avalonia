@@ -60,9 +60,7 @@ public class PortalSyncCompanySwitchTests : IDisposable
         }
     }
 
-    // The sync asks with company A's key and can take up to the 30s client timeout. If company B
-    // is opened meanwhile, A's payments must not be confirmed under B's key, saved into B, or
-    // announced in B. Force sync brings them back when A is next opened.
+    // A sync asking with company A's key can take the full timeout, so opening B meanwhile must not confirm A's payments under B's key.
     [Fact]
     public async Task PaymentsArrivingAfterACompanySwitch_AreNotConfirmedOrApplied()
     {

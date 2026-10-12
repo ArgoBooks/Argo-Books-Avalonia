@@ -37,9 +37,7 @@ public static class PayrollCalculator
             return CalculateBonusOnly(input, ytd, rates);
         }
 
-        // Quebec is handed off whole rather than branched through. Its pension plan, its
-        // parental insurance plan and its income tax formula are all different in kind, so
-        // there is nothing below this line that would apply to it.
+        // Quebec is handed off whole rather than branched through.
         if (string.Equals(input.Province, "QC", StringComparison.OrdinalIgnoreCase))
         {
             return QuebecPayrollCalculator.Calculate(input, ytd, rates);
@@ -58,57 +56,20 @@ public static class PayrollCalculator
                                    out decimal cpp2, out decimal cppUncapped);
         decimal ei = EiForPeriod(gross, ytd, rates, input.IsEiExempt, out decimal eiUncapped);
 
-        // The CPP enhancement, the part of the rate above the historical 4.95% base, is not a
-        // tax credit. It is deducted from income before tax is worked out, and CPP2 is
-        // deducted the same way. Only the base portion feeds the K2 credit below.
-        //
-        // Worth stating because the two effects cancel exactly inside the lowest tax bracket,
-        // so getting this wrong looks correct until an employee earns enough to reach the
-        // second bracket, and then the tax is out by a few dollars every period.
+        // The CPP enhancement, the part of the rate above the historical 4.95% base, is not a tax credit. It is deducted from income before tax is worked out, and CPP2 is deducted the same way.
         decimal enhancedShare = rates.Cpp.RateEmployee > 0
             ? (rates.Cpp.RateEmployee - rates.Cpp.BaseRateEmployee) / rates.Cpp.RateEmployee
             : 0m;
         decimal enhancedCpp = Round(cpp * enhancedShare);
 
-        // Split the period into the part that recurs and the part that does not. Annualising a
-        // bonus as though it were paid every period is the single largest error a payroll
-        // program can make: a $5,000 bonus on $2,400 biweekly annualises to $192,400 instead of
-        // $67,400, pushing the whole year's income four brackets up and over-withholding by
-        // hundreds of dollars on that one pay.
-        //
-        // T4127 factors: B is the non-periodic payment payable now, B1 is the non-periodic
-        // payments already made this year, I is the regular remuneration for the period.
+        // Split the period into the part that recurs and the part that does not.
         (decimal periodicAnnual, decimal currentBonus, decimal priorBonuses) =
             SplitForBonus(input, ytd, gross, periods, enhancedCpp + cpp2);
 
-        // A, for the REGULAR periodic withholding. T4127 chapter 4 step 1 is
-        // A = [P x (I - F - F2 - F5A - U1)] - HD - F1, with no B1 term: year-to-date bonuses
-        // appear only in the bonus calculation below, where they sit on both sides of a
-        // subtraction. Folding B1 in here annualised a bonus that was already taxed in full when
-        // it was paid, so every remaining period of the year re-taxed it.
+        // A, for the REGULAR periodic withholding.
         decimal annual = periodicAnnual;
 
-        // Annual contributions, for the K2 credit. T4127 expresses this as the period's
-        // contribution times the number of periods, capped at the annual maximum, and reduced
-        // to the base portion because the enhancement was already relieved as a deduction.
-        //
-        // Two details decide whether this matches CRA, and both were got wrong once:
-        //
-        // Annualise the UNCAPPED contribution, the one the rate produces before the remaining
-        // annual room is applied. Someone who has already reached the ceiling deducts almost
-        // nothing this period, and annualising that near-zero figure collapses the credit and
-        // spikes their tax. Annualising the uncapped figure and then capping the ANNUAL total
-        // gives them the full maximum, which is what they will actually have contributed.
-        //
-        // Do NOT add the year-to-date figures. Verified against PDOC: the same employee on the
-        // same pay gets the same tax in period 1 and period 7, with year-to-date CPP of 808.74
-        // on the second. Adding it makes the projection creep up to the annual maximum partway
-        // through the year and pin there, quietly under-withholding from that point on.
-        // Annualise the RECURRING pay only. cppUncapped and eiUncapped are computed on the whole
-        // period including any bonus, and a bonus is paid once: annualising it projects a year of
-        // contributions nobody will make, which pins the credit at its maximum and under-withholds
-        // every remaining period. Verified against PDOC, which puts the periodic federal tax on a
-        // 2,000 biweekly with a 5,000 bonus at 163.09; annualising the full 7,000 gives 155.59.
+        // Annual contributions, for the K2 credit.
         decimal recurring = Math.Max(0m, gross - Math.Clamp(input.NonPeriodicPay, 0m, Math.Max(0m, gross)));
         decimal recurringCppUncapped = cppUncapped;
         decimal recurringEiUncapped = eiUncapped;
@@ -124,9 +85,6 @@ public static class PayrollCalculator
         decimal annualEi = Math.Min(recurringEiUncapped * periods, rates.Ei.MaxPremiumEmployee);
 
         // The contributions the bonus itself attracts, NOT annualised, because it is paid once.
-        // They belong in K2 for the with-bonus step only, which is what makes the two steps
-        // differ by more than the bonus. Leaving them out over-taxed a 5,000 bonus by 46.06
-        // federal, the difference between the engine and PDOC that found this.
         decimal bonusCpp = Math.Max(0m, (cppUncapped - recurringCppUncapped)) * (1 - enhancedShare);
         decimal bonusEi = Math.Max(0m, eiUncapped - recurringEiUncapped);
 
@@ -136,26 +94,16 @@ public static class PayrollCalculator
         decimal federal = Round(federalAnnual / periods);
         decimal provincial = Round(provincialAnnual / periods);
 
-        // T4127's TB: tax on the bonus is the annual tax WITH it less the annual tax WITHOUT
-        // it, taken whole rather than divided by the number of periods, because the bonus is
-        // paid once. Everything else about the period is untouched, including the K2 credit,
-        // which the guide leaves on the same annualised contribution for both steps.
+        // T4127's TB: tax on the bonus is the annual tax WITH it less the annual tax WITHOUT it, taken whole rather than divided by the number of periods, because the bonus is paid once.
         if (currentBonus > 0)
         {
-            // Both of T4127's bonus steps put year-to-date bonuses (B1) into A: step 1 with the
-            // payment being made now, step 2 without it. The difference is the tax on this
-            // payment, and B1 cancels except for the bracket it pushes the bonus into, which is
-            // the whole reason it is there.
+            // Both of T4127's bonus steps put year-to-date bonuses (B1) into A: step 1 with the payment being made now, step 2 without it.
             decimal bonusBase = annual + priorBonuses;
             decimal withBonus = bonusBase + currentBonus;
 
             if (withBonus <= rates.Federal.FlatBonusCeiling)
             {
-                // CRA replaces the whole calculation with a flat rate at very low annual
-                // income. Stated as one combined rate rather than a federal and a provincial
-                // part, so it is withheld as federal tax: below this ceiling the formula
-                // produces zero on both sides, and the T4 reports a single combined figure in
-                // box 22 anyway. Total remittance is the same either way.
+                // CRA replaces the whole calculation with a flat rate at very low annual income.
                 federal += Round(currentBonus * rates.Federal.FlatBonusRate);
             }
             else
@@ -241,13 +189,7 @@ public static class PayrollCalculator
         decimal bonus = Math.Clamp(input.NonPeriodicPay, 0m, Math.Max(0m, gross));
         decimal regular = gross - bonus;
 
-        // F5A and F5B. The deduction for the additional pension contributions is split between
-        // the recurring and the one-off pay in proportion to pensionable income, which is
-        // T4127 verbatim:  F5A = F5 x ((PI - B) / PI)  and  F5B = F5 x (B / PI).
-        //
-        // It matters more than its size suggests: F5A is multiplied by the number of pay
-        // periods and F5B is not, so charging the bonus's share to the periodic side would
-        // annualise a deduction that was only ever taken once.
+        // F5A and F5B split the additional-contribution deduction between recurring and one-off pay in proportion to pensionable income, as T4127 states.
         decimal f5b = gross > 0 ? Round(additionalContributions * (bonus / gross)) : 0m;
         decimal f5a = additionalContributions - f5b;
 
@@ -278,9 +220,7 @@ public static class PayrollCalculator
         decimal periodExemption = rates.Cpp.BasicExemptionAnnual / periods;
         decimal pensionable = Math.Max(0, gross - periodExemption);
 
-        // Reported UNCAPPED, before the remaining annual room is applied. What is deducted
-        // this period is capped; what the K2 credit needs to annualise is not. See the note
-        // on annualCpp at the call site.
+        // Reported UNCAPPED, before the remaining annual room is applied. What is deducted this period is capped; what the K2 credit needs to annualise is not.
         cppUncapped = pensionable * rates.Cpp.RateEmployee;
 
         decimal cpp = Round(cppUncapped);
@@ -311,10 +251,7 @@ public static class PayrollCalculator
             return 0m;
         }
 
-        // Capped on the premium rather than on remaining insurable earnings. Those two are
-        // only equivalent when the year-to-date figures agree perfectly, and they rarely do
-        // in real records. CRA's calculator caps the premium, so the last pay period of the
-        // year lands exactly on the annual maximum.
+        // Capped on the premium rather than on remaining insurable earnings. Those two are only equivalent when the year-to-date figures agree perfectly, and they rarely do in real records.
         decimal premium = Round(gross * rates.Ei.RateEmployee);
         uncapped = premium;
 
@@ -338,9 +275,6 @@ public static class PayrollCalculator
         decimal lowest = federal.LowestRateForCredits;
 
         // The employee's TD1 claim, or the full basic personal amount when none is on file.
-        // Deliberately not phased down for income: an employer applies the figure the employee
-        // wrote on their TD1, and reflecting the high-income reduction is the employee's job
-        // when completing that form. CRA's own calculator behaves this way.
         decimal claim = ClaimOrBasic(input.FederalClaimAmount, input.FederalClaimIsZero,
                                      federal.BasicPersonalAmount.Maximum);
 
@@ -372,11 +306,7 @@ public static class PayrollCalculator
         decimal tax = rate * annual - k - lowest * claim - lowest * (annualCpp + annualEi) - employmentCredit;
         tax = Math.Max(0, tax);
 
-        // Ontario charges its surtax on provincial tax rather than on income, so it comes
-        // after. Every band is measured against the ORIGINAL tax: CRA's formula is
-        // 0.20 x (T4 - 5,818) + 0.36 x (T4 - 7,446), both terms reading the same T4.
-        // Accumulating into `tax` inside the loop would feed the first band's result into the
-        // second and overstate the surtax.
+        // Ontario charges its surtax on provincial tax rather than on income, so it comes after.
         if (province.Surtax is { } surtax)
         {
             decimal basicTax = tax;

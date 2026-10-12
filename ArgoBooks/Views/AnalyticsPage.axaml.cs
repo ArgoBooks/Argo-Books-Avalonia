@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -55,43 +56,31 @@ public partial class AnalyticsPage : UserControl
     {
         base.OnLoaded(e);
 
-        // LiveCharts pie charts that load while their tab is collapsed (every tab except
-        // Dashboard is IsVisible=false at startup) sometimes never paint their first frame
-        // when the tab is later shown, leaving a blank circle next to a populated legend.
-        // Watch each pie's effective viewport and force a redraw the moment it actually
-        // becomes visible, which fills in the slices reliably.
+        // A pie handed its series while its tab is collapsed draws nothing, and the size arriving
+        // later does not make LiveCharts look again, so each one is redrawn once it has a size.
         foreach (var pie in this.GetVisualDescendants().OfType<PieChart>())
         {
-            pie.EffectiveViewportChanged -= OnPieChartViewportChanged;
-            pie.EffectiveViewportChanged += OnPieChartViewportChanged;
+            pie.PropertyChanged -= OnPieChartPropertyChanged;
+            pie.PropertyChanged += OnPieChartPropertyChanged;
         }
     }
 
-    /// <summary>
-    /// Pie charts that have already been forced to redraw since becoming visible, so the
-    /// kick fires once per collapsed-to-visible transition rather than on every scroll.
-    /// </summary>
+    /// <summary>Pies already redrawn since they last had a size, so each gets one redraw.</summary>
     private readonly HashSet<PieChart> _renderedPieCharts = new();
 
-    /// <summary>
-    /// Forces a LiveCharts pie chart to redraw when it transitions from collapsed (empty
-    /// viewport) to visible, working around blank pies after a tab switch.
-    /// </summary>
-    private void OnPieChartViewportChanged(object? sender, EffectiveViewportChangedEventArgs e)
+    /// <summary>Redraws a pie once it has a size. Losing the size arms it for the next visit.</summary>
+    private void OnPieChartPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
-        if (sender is not PieChart pie)
+        if (sender is not PieChart pie || e.Property != Visual.BoundsProperty)
             return;
 
-        var isVisible = e.EffectiveViewport.Width > 0 && e.EffectiveViewport.Height > 0;
-        if (!isVisible)
+        if (pie.Bounds.Width <= 0 || pie.Bounds.Height <= 0)
         {
-            // Left the tab (or scrolled out of view): allow the kick to fire again next time.
             _renderedPieCharts.Remove(pie);
             return;
         }
 
-        // Only kick once per visible transition, and after layout settles, so the chart
-        // has a real size before LiveCharts recomputes its geometry.
+        // Posted, so the redraw reads the size it has now rather than the one it is about to get.
         if (_renderedPieCharts.Add(pie))
             Dispatcher.UIThread.Post(() => pie.CoreChart.Update(new ChartUpdateParams()),
                 DispatcherPriority.Background);
@@ -102,7 +91,7 @@ public partial class AnalyticsPage : UserControl
         base.OnUnloaded(e);
 
         foreach (var pie in this.GetVisualDescendants().OfType<PieChart>())
-            pie.EffectiveViewportChanged -= OnPieChartViewportChanged;
+            pie.PropertyChanged -= OnPieChartPropertyChanged;
         _renderedPieCharts.Clear();
 
         if (_previousViewModel != null)

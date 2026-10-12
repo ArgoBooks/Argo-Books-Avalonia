@@ -125,9 +125,7 @@ public class SnapshotRestoreStockUndoTests
         AssertStockAgrees(data, expectedInStock: 10m);
     }
 
-    // The sale undo reads off the queue entry it holds whether the stock's pending cost converted
-    // since. A restore that swapped the entry for a copy hid the conversion, so the undo put the cost
-    // back waiting and queued it again.
+    // The sale undo reads off the queue entry it holds whether the stock's pending cost converted since.
     [Fact]
     public async Task SaleUndo_AfterAnImportUndo_SeesTheStockCostThatConvertedMeanwhile()
     {

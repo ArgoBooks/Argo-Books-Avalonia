@@ -28,9 +28,7 @@ public partial class AppShell : UserControl
     {
         InitializeComponent();
 
-        // Use tunnel strategy to catch all pointer presses on sidebar/header,
-        // even when child controls handle the event. This ensures page-level
-        // context menus (column visibility, chart) close on any sidebar/header click.
+        // Use tunnel strategy to catch all pointer presses on sidebar/header, even when child controls handle the event.
         AppSidebar.AddHandler(PointerPressedEvent, OnSidebarPointerPressed, RoutingStrategies.Tunnel);
         AppHeader.AddHandler(PointerPressedEvent, OnHeaderPointerPressed, RoutingStrategies.Tunnel);
 
@@ -179,9 +177,7 @@ public partial class AppShell : UserControl
     {
         base.OnKeyDown(e);
 
-        // A page that already acted on the key keeps it. The reports designer binds its own
-        // Ctrl+S to saving a template, and on that page saving the template is what the key
-        // should do.
+        // A page that already acted on the key keeps it. The reports designer binds its own Ctrl+S to saving a template, and on that page saving the template is what the key should do.
         if (e.Handled)
             return;
 
@@ -196,12 +192,7 @@ public partial class AppShell : UserControl
                 e.Handled = true;
                 break;
 
-            // Save, routed through the same command as the header's save button so it
-            // answers the same way: "Saved" when something changed, "No changes found"
-            // when nothing did. Saving is never silent, which is the point: a shortcut
-            // that does nothing visible reads as a shortcut that did not work.
-            //
-            // Shift is excluded so Ctrl+Shift+S stays available for Save As.
+            // Save, routed through the same command as the header's save button so it answers the same way: "Saved" when something changed, "No changes found" when nothing did.
             case Key.S when e.KeyModifiers.HasCommand() && !e.KeyModifiers.HasFlag(KeyModifiers.Shift):
                 vm.HeaderViewModel.SaveCommand.Execute(null);
                 e.Handled = true;
@@ -224,9 +215,7 @@ public partial class AppShell : UserControl
                 }
                 break;
 
-            // Undo and redo, the same commands the header's buttons run. Skipped while a text
-            // box has focus so the box keeps its own undo: reverting a saved transaction
-            // because someone wanted their last word back would be the wrong trade.
+            // Undo and redo, the same commands the header's buttons run.
             case Key.Z when e.KeyModifiers.HasCommand() && !IsTypingInText() && !IsModalOpen():
                 if (e.KeyModifiers.HasFlag(KeyModifiers.Shift))
                     vm.HeaderViewModel.UndoRedoViewModel.RedoCommand.Execute(null);

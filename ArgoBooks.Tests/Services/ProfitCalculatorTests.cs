@@ -56,9 +56,7 @@ public class ProfitCalculatorTests
     [Fact]
     public void CalculateNetProfitUSD_FullRefundOfTaxedInvoice_NetsToZero()
     {
-        // Full refund of a tax-bearing
-        // invoice should net to $0, not negative tax.
-        // $86.91 pre-tax revenue − $86.91 pre-tax refund = $0.
+        // Full refund of a tax-bearing invoice should net to $0, not negative tax. $86.91 pre-tax revenue − $86.91 pre-tax refund = $0.
         var data = new CompanyData();
         data.Invoices.Add(new Invoice
         {

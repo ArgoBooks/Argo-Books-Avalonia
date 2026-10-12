@@ -199,10 +199,7 @@ public class PaymentPortalRefundSyncTests
     [Fact]
     public void Sync_BackfillsProviderPaymentId_OnAlreadySyncedRow()
     {
-        // Existing customers had Payment rows synced before this release, with
-        // ProviderPaymentId still null because the field didn't exist. The next
-        // sync touches these rows and backfills the new field (without
-        // creating duplicates) so the Refund button can appear retroactively.
+        // Existing customers had Payment rows synced before this release, with ProviderPaymentId still null because the field didn't exist.
         var (company, invoice, _) = Seed(invoiceTotal: 100m);
 
         // Simulate a pre-update Payment: PortalPaymentId is set (it was synced)

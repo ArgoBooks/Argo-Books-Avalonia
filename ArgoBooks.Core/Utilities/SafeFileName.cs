@@ -5,10 +5,7 @@ namespace ArgoBooks.Core.Utilities;
 /// </summary>
 public static class SafeFileName
 {
-    // A fixed set rather than Path.GetInvalidFileNameChars(): on macOS and Linux that returns only
-    // '/' and NUL, so "Q1: Revenue" saved there kept its colon and made a file Windows can't open.
-    // Files get shared between machines, so a name has to be legal everywhere, not just where it
-    // was written. Control characters are added separately through char.IsControl.
+    // A fixed set rather than Path.GetInvalidFileNameChars(): on macOS and Linux that returns only '/' and NUL, so "Q1: Revenue" saved there kept its colon and made a file Windows can't open.
     private const string WindowsReservedChars = "<>:\"/\\|?*";
 
     /// <summary>

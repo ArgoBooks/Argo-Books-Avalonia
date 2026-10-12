@@ -252,10 +252,7 @@ internal static partial class Program
                     if (occurrences.GetValueOrDefault(name) > 1)
                         continue;
 
-                    // A property on a serialized type is written to and read from disk even
-                    // when no code touches it, so it is reported apart rather than filtered
-                    // out: an orphaned settings field is still worth seeing, it just must
-                    // not be deleted on sight.
+                    // A property on a serialised type is written and read from disk even when no code touches it, so it is reported apart rather than filtered out.
                     string owner = OwnerOf(types, match.Index);
                     bool onDisk = !raw && serializedTypes.Contains(owner);
 

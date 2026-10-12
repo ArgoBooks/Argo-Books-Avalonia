@@ -37,4 +37,26 @@ public static class InstallAttributionReason
             return null;
         }
     }
+
+    /// <summary>
+    /// The id FirstRunReporter gave this computer, which is what the website files the install
+    /// and its survey answers under. Null until the first run has been reported.
+    /// </summary>
+    public static string? ReadMachineUuid()
+    {
+        try
+        {
+            var path = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "ArgoBooks",
+                "machine_uuid.txt");
+            if (!File.Exists(path)) return null;
+            var raw = File.ReadAllText(path).Trim();
+            return Guid.TryParse(raw, out _) ? raw : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
 }

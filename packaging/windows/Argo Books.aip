@@ -18,10 +18,10 @@
     <ROW Property="AppLogoIconDark" Value="applogodark.png" MultiBuildValue="DefaultBuild:ArgoBooksiconwhitebackground.png" Type="1" MsiKey="AppLogoIconDark"/>
     <ROW Property="CTRLS" Value="2"/>
     <ROW Property="Manufacturer" Value="Argo Books"/>
-    <ROW Property="ProductCode" Value="1033:{ECC02EEA-7A5E-45DD-A45A-2EE629D1B3BE} " Type="16"/>
+    <ROW Property="ProductCode" Value="1033:{18F57BE5-086B-4775-B6F4-2BB8233709BA} " Type="16"/>
     <ROW Property="ProductLanguage" Value="1033"/>
     <ROW Property="ProductName" Value="Argo Books"/>
-    <ROW Property="ProductVersion" Value="2.0.19" Options="32"/>
+    <ROW Property="ProductVersion" Value="2.0.20" Options="32"/>
     <ROW Property="RUNAPPLICATION" Value="1" Type="4"/>
     <ROW Property="SecureCustomProperties" Value="OLDPRODUCTS;AI_NEWERPRODUCTFOUND;AI_SETUPEXEPATH;SETUPEXEDIR"/>
     <ROW Property="UpgradeCode" Value="{56B4BFD1-ED8C-4FBE-9562-14EB8B82623C}"/>
@@ -149,7 +149,6 @@
     <ROW Component="RBush.dll" ComponentId="{413CF0B4-28E8-44D6-8F7E-4F720DE04254}" Directory_="APPDIR" Attributes="0" KeyPath="RBush.dll"/>
     <ROW Component="SHORTCUTDIR" ComponentId="{DBA3499E-8CD8-4968-8079-43233C19BC81}" Directory_="SHORTCUTDIR" Attributes="0"/>
     <ROW Component="SixLabors.Fonts.dll" ComponentId="{D119E2EE-E017-48EF-B1A9-A3BB8ADA3B4D}" Directory_="APPDIR" Attributes="0" KeyPath="SixLabors.Fonts.dll"/>
-    <ROW Component="SixLabors.ImageSharp.dll" ComponentId="{9DA9D07E-4FA8-4AC2-AA9E-9CC5DFAF7A2A}" Directory_="APPDIR" Attributes="0" KeyPath="SixLabors.ImageSharp.dll"/>
     <ROW Component="SkiaSharp.HarfBuzz.dll" ComponentId="{230AFEFF-DA0A-4F26-8CDD-86DD471AAD4E}" Directory_="APPDIR" Attributes="0" KeyPath="SkiaSharp.HarfBuzz.dll"/>
     <ROW Component="SkiaSharp.dll" ComponentId="{5EE50643-99F5-4E26-AA35-50521510C2E1}" Directory_="APPDIR" Attributes="0" KeyPath="SkiaSharp.dll"/>
     <ROW Component="System.AppContext.dll" ComponentId="{F12599FE-AE86-4A1A-BCF6-135E39073605}" Directory_="APPDIR" Attributes="0" KeyPath="System.AppContext.dll"/>
@@ -672,7 +671,6 @@
     <ROW File="NPOI.OOXML.dll" Component_="NPOI.OOXML.dll" FileName="NPOIOO~1.DLL|NPOI.OOXML.dll" Version="65535.65535.65535.65535" Attributes="0" SourcePath="..\..\publish\win-x64\NPOI.OOXML.dll" SelfReg="false"/>
     <ROW File="NPOI.OpenXml4Net.dll" Component_="NPOI.OpenXml4Net.dll" FileName="NPOIOP~1.DLL|NPOI.OpenXml4Net.dll" Version="65535.65535.65535.65535" Attributes="0" SourcePath="..\..\publish\win-x64\NPOI.OpenXml4Net.dll" SelfReg="false"/>
     <ROW File="NPOI.OpenXmlFormats.dll" Component_="NPOI.OpenXmlFormats.dll" FileName="NPOIOP~2.DLL|NPOI.OpenXmlFormats.dll" Version="65535.65535.65535.65535" Attributes="0" SourcePath="..\..\publish\win-x64\NPOI.OpenXmlFormats.dll" SelfReg="false"/>
-    <ROW File="SixLabors.ImageSharp.dll" Component_="SixLabors.ImageSharp.dll" FileName="SIXLAB~2.DLL|SixLabors.ImageSharp.dll" Version="65535.65535.65535.65535" Attributes="0" SourcePath="..\..\publish\win-x64\SixLabors.ImageSharp.dll" SelfReg="false"/>
     <ROW File="ZString.dll" Component_="ZString.dll" FileName="ZString.dll" Version="65535.65535.65535.65535" Attributes="0" SourcePath="..\..\publish\win-x64\ZString.dll" SelfReg="false"/>
     <ROW File="ArgoBooks.Shared.dll" Component_="ArgoBooks.Shared.dll" FileName="ARGOBO~2.DLL|ArgoBooks.Shared.dll" Version="65535.65535.65535.65535" Attributes="0" SourcePath="..\..\publish\win-x64\ArgoBooks.Shared.dll" SelfReg="false"/>
     <ROW File="ArgoBooks.Shared.pdb" Component_="ArgoBooks.Shared.dll" FileName="ARGOBO~2.PDB|ArgoBooks.Shared.pdb" Version="65535.65535.65535.65535" Attributes="0" SourcePath="..\..\publish\win-x64\ArgoBooks.Shared.pdb" SelfReg="false"/>
@@ -1118,7 +1116,6 @@
     <ROW Feature_="MainFeature" Component_="NPOI.OOXML.dll"/>
     <ROW Feature_="MainFeature" Component_="NPOI.OpenXml4Net.dll"/>
     <ROW Feature_="MainFeature" Component_="NPOI.OpenXmlFormats.dll"/>
-    <ROW Feature_="MainFeature" Component_="SixLabors.ImageSharp.dll"/>
     <ROW Feature_="MainFeature" Component_="ZString.dll"/>
     <ROW Feature_="MainFeature" Component_="ArgoBooks.Shared.dll"/>
     <ROW Feature_="MainFeature" Component_="Microsoft.Win32.SystemEvents.dll"/>

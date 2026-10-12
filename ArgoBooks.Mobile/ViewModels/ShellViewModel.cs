@@ -32,25 +32,17 @@ public partial class ShellViewModel : ViewModelBase
     private readonly PendingScanOutbox _pendingScanOutbox;
     private readonly Stack<(object Page, string Title, AppTab Tab)> _backStack = new();
 
-    // When the user is reviewing a receipt captured while offline, this holds that image's stable
-    // outbox queue id: it's reused as the pushed transaction's ScanUid (idempotency) and identifies
-    // which queued image to drop once the review is confirmed. Null during a normal online capture.
+    // Holds the outbox queue id of a receipt captured offline, which becomes the pushed transaction's ScanUid for idempotency.
     private string? _activeOfflineQueueId;
 
-    // The company that receipt was captured for, which is not necessarily the active one by the time
-    // it gets reviewed. Null for an online capture (use the active company) and for an item queued
-    // by a build that recorded none.
+    // The company that receipt was captured for, which is not necessarily the active one by the time it gets reviewed.
     private string? _activeOfflineCompanyUid;
 
     // The outbox retry runs from several refresh paths at once (pull-to-refresh, foreground,
     // opening the Capture tab); this keeps them from stacking up duplicate pushes.
     private bool _isRetryingPushes;
 
-    // Shared across every scan (rather than one HttpClient per GeminiReceiptScannerService
-    // instance) so repeated scans reuse connections instead of leaking a fresh HttpClient each time.
-    //
-    // The timeout must be set here: the scanner only applies its own budget to a client it
-    // constructs itself, so an injected one would keep HttpClient's 100 second default.
+    // Shared across every scan (rather than one HttpClient per GeminiReceiptScannerService instance) so repeated scans reuse connections instead of leaking a fresh HttpClient each time.
     private readonly HttpClient _scanHttpClient = new() { Timeout = TimeSpan.FromSeconds(180) };
 
     private readonly DashboardViewModel _dashboard;
@@ -448,9 +440,7 @@ public partial class ShellViewModel : ViewModelBase
         await _capture.RefreshScanUsageAsync();
         await _capture.RefreshOutboxAsync();
 
-        // Keep reviewing any offline captures that remain, so the user clears the whole backlog in
-        // one pass. Not after a failed delivery: it is queued for a retry, and whatever stopped the
-        // push would stop the next scan too.
+        // Keep reviewing any offline captures that remain, so the user clears the whole backlog in one pass.
         if (offlineId != null && delivered && await StartNextOfflineReviewAsync())
         {
             return;

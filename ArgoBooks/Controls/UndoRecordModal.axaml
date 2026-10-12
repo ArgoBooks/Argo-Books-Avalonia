@@ -25,7 +25,7 @@
                                     Background="{DynamicResource WarningLightBrush}">
                                 <PathIcon Data="{x:Static icons:Icons.Returns}"
                                           Width="20" Height="20"
-                                          Foreground="#D97706" />
+                                          Foreground="{DynamicResource WarningDarkBrush}" />
                             </Border>
                             <TextBlock Classes="modal-title" Text="{Binding #Root.Title}" />
                         </StackPanel>

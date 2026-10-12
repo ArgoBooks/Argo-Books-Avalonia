@@ -5,7 +5,6 @@
              xmlns:vm="using:ArgoBooks.ViewModels"
              xmlns:loc="using:ArgoBooks.Localization"
              xmlns:controls="using:ArgoBooks.Controls"
-             xmlns:icons="using:ArgoBooks"
              mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="250"
              x:Class="ArgoBooks.Modals.CustomDateRangeModal"
              x:DataType="vm:CustomDateRangeModalViewModel"

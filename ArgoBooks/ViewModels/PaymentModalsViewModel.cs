@@ -1,4 +1,4 @@
-using ArgoBooks.Localization;
+﻿using ArgoBooks.Localization;
 using ArgoBooks.Services;
 using System.Collections.ObjectModel;
 using ArgoBooks.Core.Data;
@@ -103,12 +103,12 @@ public partial class PaymentModalsViewModel : ViewModelBase
     /// </summary>
     private Payment? _editingPayment;
 
-    private sealed record EditState(string? InvoiceId, string Amount, string PaymentMethod, string ReferenceNumber, string Notes);
+    private sealed record EditState(string? InvoiceId, DateTimeOffset? Date, string Amount, string PaymentMethod, string ReferenceNumber, string Notes);
 
     // The form as the edit modal opened, for change detection.
     private EditState? _original;
 
-    private EditState Capture() => new(ModalInvoiceId, ModalAmount, ModalPaymentMethod, ModalReferenceNumber, ModalNotes);
+    private EditState Capture() => new(ModalInvoiceId, ModalDate, ModalAmount, ModalPaymentMethod, ModalReferenceNumber, ModalNotes);
 
     /// <summary>
     /// Returns true if any data has been entered in the Add modal.
@@ -240,9 +240,7 @@ public partial class PaymentModalsViewModel : ViewModelBase
     /// <summary>
     /// Opens the create invoice modal on top of the current modal.
     /// </summary>
-    // One-shot handler for the "create entity from this modal" flow. Stored so a cancelled create
-    // (which never raises the *Saved event) can be detached before the next attempt, instead of
-    // leaking onto the singleton create-modal VMs. See CreateModalSubscription.
+    // One-shot handler for the "create entity from this modal" flow.
     private EventHandler? _invoiceSavedHandler;
 
     [RelayCommand]
@@ -334,9 +332,7 @@ public partial class PaymentModalsViewModel : ViewModelBase
         UsdConversion.Apply(companyData, newPayment, rate);
         companyData.Payments.Add(newPayment);
         _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.PaymentRecorded);
-        // Recalc the affected invoice's totals + status. Without this the
-        // invoice's AmountPaid / Balance / Status drift out of sync with
-        // the Payment list. See docs/Calculations.md §5.
+        // Recalc the affected invoice's totals + status. Without this the invoice's AmountPaid / Balance / Status drift out of sync with the Payment list. See docs/Calculations.md §5.
         RecalcInvoiceTotals(companyData, newPayment.InvoiceId);
         companyData.MarkAsModified();
 
@@ -658,11 +654,7 @@ public partial class PaymentModalsViewModel : ViewModelBase
         InvoiceTotalsService.Recalculate(invoice, companyData.Payments);
         InvoiceTotalsService.SyncLinkedRevenueStatus(invoice, companyData.Revenues);
 
-        // Every add / edit / delete of a payment funnels through here, and so do
-        // the undo and redo lambdas, so this one call covers them all. Without
-        // it the portal keeps believing a cash-paid invoice is unpaid and the
-        // reminder cron chases a customer who has already paid. Debounced and
-        // best-effort; the periodic reconcile catches anything dropped.
+        // Every add, edit and delete of a payment comes through here, undo and redo included, or the portal keeps believing a cash-paid invoice is unpaid.
         App.PortalBalanceSyncService?.Queue(invoiceId);
     }
 
@@ -679,9 +671,7 @@ public partial class PaymentModalsViewModel : ViewModelBase
         if (companyData?.Invoices == null)
             return;
 
-        // Payments are recorded on sent invoices, as the invoice row offers. A payment on a draft
-        // marked it paid while its revenue, created when it is sent, never existed. A draft that
-        // already has a payment keeps it linked when that payment is edited.
+        // Payments are recorded on sent invoices, as the invoice row offers. A payment on a draft marked it paid while its revenue, created when it is sent, never existed.
         foreach (var invoice in companyData.Invoices
                      .Where(i => i.Status != InvoiceStatus.Draft || i.Id == _editingPayment?.InvoiceId)
                      .OrderByDescending(i => i.IssueDate))
@@ -692,11 +682,14 @@ public partial class PaymentModalsViewModel : ViewModelBase
                 .Where(p => p.InvoiceId == invoice.Id && p.Amount > 0)
                 .Sum(p => p.Amount);
             var amountDue = invoice.Total - totalPaid;
+            var currency = string.IsNullOrEmpty(invoice.OriginalCurrency)
+                ? CurrencyService.CurrentCurrencyCode
+                : invoice.OriginalCurrency;
 
             InvoiceOptions.Add(new InvoiceOption
             {
                 Id = invoice.Id,
-                Display = $"{invoice.Id} - {customerName} (${amountDue:N2} due)",
+                Display = $"{invoice.Id} - {customerName} ({CurrencyInfo.FormatAmount(amountDue, currency)} due)",
                 AmountDue = amountDue
             });
         }

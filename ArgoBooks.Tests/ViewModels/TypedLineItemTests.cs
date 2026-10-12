@@ -256,6 +256,21 @@ public class TypedLineItemTests : ModalViewModelTestBase
     }
 
     [Fact]
+    public async Task TypingANewSupplierName_WhenEditing_CountsAsAChange()
+    {
+        var vm = NewVm();
+        Pick(vm, vm.LineItems[0], "P-WIDGET");
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
+
+        vm.OpenEditModal(new ExpenseDisplayItem { Id = Company.Expenses.Single().Id });
+        Assert.False(vm.HasEditModalChanges);
+
+        vm.CounterpartyText = "Corner Shop";
+
+        Assert.True(vm.HasEditModalChanges);
+    }
+
+    [Fact]
     public void TypingOnlyACategory_CountsAsEnteredData()
     {
         var vm = NewVm();

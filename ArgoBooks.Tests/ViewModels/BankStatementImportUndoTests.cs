@@ -8,9 +8,7 @@ namespace ArgoBooks.Tests.ViewModels;
 
 public class BankStatementImportUndoTests : ModalViewModelTestBase
 {
-    // Two lines from one merchant both update the same learned rule, so the second capture's prior
-    // state is what the first line left. Undo has to walk the captures newest first, or the rule
-    // ends up pointing at the product the undo just removed.
+    // Two lines from one merchant both update the same learned rule, so the second capture's prior state is what the first line left.
     [Fact]
     public async Task UndoingAnImport_PutsARuleTwoLinesUpdatedBackToItsStateBeforeTheImport()
     {

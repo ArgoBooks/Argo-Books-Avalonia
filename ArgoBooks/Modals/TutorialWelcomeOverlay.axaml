@@ -1,5 +1,6 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="using:ArgoBooks.Localization"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:ArgoBooks.ViewModels"
@@ -43,12 +44,12 @@
 
                         <!-- Welcome Text -->
                         <StackPanel Spacing="8" HorizontalAlignment="Center">
-                            <TextBlock Text="Welcome to Argo Books"
+                            <TextBlock Text="{loc:Loc 'Welcome to Argo Books'}"
                                        FontSize="24"
                                        FontWeight="Bold"
                                        Foreground="White"
                                        HorizontalAlignment="Center" />
-                            <TextBlock Text="Let's get you started with a quick tour"
+                            <TextBlock Text="{loc:Loc 'Let','s get you started with a quick tour'}"
                                        FontSize="14"
                                        Foreground="#CCFFFFFF"
                                        HorizontalAlignment="Center" />
@@ -73,11 +74,11 @@
                                           Foreground="{DynamicResource PrimaryBrush}" />
                             </Border>
                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                                <TextBlock Text="Learn the essentials"
+                                <TextBlock Text="{loc:Loc 'Learn the essentials'}"
                                            FontSize="14"
                                            FontWeight="SemiBold"
                                            Foreground="{DynamicResource TextPrimaryBrush}" />
-                                <TextBlock Text="Quick tour of navigation and key features"
+                                <TextBlock Text="{loc:Loc 'Quick tour of navigation and key features'}"
                                            FontSize="13"
                                            Foreground="{DynamicResource TextSecondaryBrush}" />
                             </StackPanel>
@@ -87,18 +88,18 @@
                             <Border Grid.Column="0"
                                     Width="40" Height="40"
                                     CornerRadius="20"
-                                    Background="#E6F4EA"
+                                    Background="{DynamicResource SuccessLightBrush}"
                                     Margin="0,0,16,0">
                                 <PathIcon Data="{x:Static local:Icons.Check}"
                                           Width="20" Height="20"
                                           Foreground="{DynamicResource SuccessBrush}" />
                             </Border>
                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                                <TextBlock Text="Setup checklist"
+                                <TextBlock Text="{loc:Loc 'Setup Checklist'}"
                                            FontSize="14"
                                            FontWeight="SemiBold"
                                            Foreground="{DynamicResource TextPrimaryBrush}" />
-                                <TextBlock Text="Track your progress setting up your business"
+                                <TextBlock Text="{loc:Loc 'Track your progress setting up your business'}"
                                            FontSize="13"
                                            Foreground="{DynamicResource TextSecondaryBrush}" />
                             </StackPanel>
@@ -115,11 +116,11 @@
                                           Foreground="{DynamicResource WarningBrush}" />
                             </Border>
                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                                <TextBlock Text="Helpful hints"
+                                <TextBlock Text="{loc:Loc 'Helpful hints'}"
                                            FontSize="14"
                                            FontWeight="SemiBold"
                                            Foreground="{DynamicResource TextPrimaryBrush}" />
-                                <TextBlock Text="Tips appear as you explore new features"
+                                <TextBlock Text="{loc:Loc 'Tips appear as you explore new features'}"
                                            FontSize="13"
                                            Foreground="{DynamicResource TextSecondaryBrush}" />
                             </StackPanel>
@@ -135,7 +136,7 @@
                     <Grid ColumnDefinitions="*,Auto">
                         <Button Grid.Column="0"
                                 Classes="text-button lg"
-                                Content="Skip for now"
+                                Content="{loc:Loc 'Skip for now'}"
                                 Command="{Binding SkipTutorialCommand}"
                                 HorizontalAlignment="Left" />
 
@@ -144,7 +145,7 @@
                                 Command="{Binding StartTourCommand}"
                                 HorizontalAlignment="Right">
                             <StackPanel Orientation="Horizontal" Spacing="8">
-                                <TextBlock Text="Start Tour"
+                                <TextBlock Text="{loc:Loc 'Start Tour'}"
                                            VerticalAlignment="Center" />
                                 <PathIcon Data="{x:Static local:Icons.ChevronRightNav}"
                                           Width="16" Height="16"

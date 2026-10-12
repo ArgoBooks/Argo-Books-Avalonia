@@ -16,15 +16,7 @@
         <Setter Property="MinWidth" Value="200" />
     </Style>
 
-    <!--
-        Settings panels.
-
-        The settings modal had one grey rectangle doing four unrelated jobs: an item
-        in a list, the state of a connection, an empty list, and a row of toggles.
-        Everything looked equally clickable and equally like a thing you owned. These
-        four give each job its own shape, so the look tells you which it is before
-        you read a word of it.
-    -->
+    <!-- Settings panels. The settings modal had one grey rectangle doing four unrelated jobs: an item in a list, the state of a connection, an empty list, and a row of toggles. -->
 
     <!-- ONE OBJECT you own and can act on: a key, a paired device, a rule.
          Filled and borderless. This is the only role the plain grey card keeps. -->
@@ -34,9 +26,7 @@
         <Setter Property="Padding" Value="12" />
     </Style>
 
-    <!-- THE STATE OF ONE THING, not an item in a list: a connected integration, a
-         password that is or is not set. The accent edge down the left is what tells
-         the two apart at a glance, and it carries the state's own colour. -->
+    <!-- THE STATE OF ONE THING, not an item in a list: a connected integration, a password that is or is not set. -->
     <Style Selector="Border.status-panel">
         <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
@@ -49,9 +39,7 @@
         <Setter Property="BorderBrush" Value="{DynamicResource SuccessBrush}" />
     </Style>
 
-    <!-- NOTHING HERE YET. Outlined rather than filled, because a filled box reads as
-         an item and an empty list that looks like its own first entry is exactly the
-         confusion worth removing. -->
+    <!-- NOTHING HERE YET. Outlined rather than filled, because a filled box reads as an item and an empty list that looks like its own first entry is exactly the confusion worth removing. -->
     <Style Selector="Border.empty-state">
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
@@ -68,9 +56,7 @@
         <Setter Property="TextAlignment" Value="Center" />
     </Style>
 
-    <!-- A LIST OF SETTINGS. Hairline-separated rows sitting straight on the modal.
-         Giving each toggle its own filled card made seven switches look like seven
-         objects, and a panel behind them added a surface the modal did not need. -->
+    <!-- A LIST OF SETTINGS. Hairline-separated rows sitting straight on the modal. -->
     <Style Selector="Border.settings-group">
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="CornerRadius" Value="{StaticResource RadiusMd}" />
@@ -89,12 +75,7 @@
         <Setter Property="BorderThickness" Value="0" />
     </Style>
 
-    <!-- No "On"/"Off" caption. The switch draws the caption inside itself and sits in an
-         Auto column flush to the row's right edge, so the caption being wider for "Off"
-         than "On" comes out of the left and slides the knob every time it is toggled.
-         Without one the control is a single width in both states. The row names the
-         setting and the switch carries its own state, as switches do elsewhere. No
-         explicit Width: it only drags the switch off the margin it should sit against. -->
+    <!-- No On or Off caption: the switch draws its own inside an Auto column, and a wider "Off" would slide the knob as it toggled. -->
     <Style Selector="Border.settings-row ToggleSwitch, ToggleSwitch.settings-switch">
         <Setter Property="OnContent" Value="{x:Null}" />
         <Setter Property="OffContent" Value="{x:Null}" />

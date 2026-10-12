@@ -207,7 +207,7 @@
                                             <TextBlock Text="{loc:Loc Remove}" Foreground="{DynamicResource DangerBrush}" />
                                         </Button>
                                         <TextBlock Text="{loc:Loc 'PNG, JPG up to 5MB'}"
-                                                   FontSize="11"
+                                                   FontSize="12"
                                                    Foreground="{DynamicResource TextTertiaryBrush}" />
                                     </StackPanel>
                                 </Grid>

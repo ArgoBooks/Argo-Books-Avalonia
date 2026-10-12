@@ -92,9 +92,7 @@ public partial class InsightsPageViewModel : ViewModelBase, ICleanupViewModel
     /// </summary>
     public bool ShowTeaser => !HasPremium && !ShowsSampleSnapshot;
 
-    // The sample company's insights, worked out once from the sample as it opened. Held here rather
-    // than recalculated from the open company, so edits, an import or a Save As can't feed it the
-    // user's own figures: on the free plan that would be premium insights for nothing.
+    // The sample company's insights, worked out once from the sample as it opened.
     private static InsightsData? _sampleInsights;
     private static ForecastData? _sampleForecast;
     private static string _sampleAnalysisPeriod = string.Empty;
@@ -847,9 +845,7 @@ public partial class InsightsPageViewModel : ViewModelBase, ICleanupViewModel
 
         try
         {
-            // Ensure today's rate is cached: a couple of "as of now" figures (the overdue-invoice
-            // total, the forecast cards) convert at today's rate, and it isn't in the transaction-date
-            // set that a currency switch preloads.
+            // Today's rate is cached first, because the overdue total and the forecast cards convert at it and a currency switch does not preload it.
             await CurrencyService.TryWarmTodayRateAsync();
 
             // Check if we should run backtesting first
@@ -1029,10 +1025,7 @@ public partial class InsightsPageViewModel : ViewModelBase, ICleanupViewModel
     /// </summary>
     private void ApplyForecastToCards(ForecastData forecast, bool convertFromUsd = true)
     {
-        // Real forecast values are USD projections, so convert them to the display currency at today's
-        // rate ("as of now"; warmed by the caller). The sample teaser passes convertFromUsd: false
-        // because its numbers are illustrative, already in the display currency: format the symbol only,
-        // never convert or show "Pending".
+        // Real forecast values are USD projections, so convert them to the display currency at today's rate ("as of now"; warmed by the caller).
         string Card(decimal amount) => convertFromUsd
             ? FormatForecastAmount(amount)
             : CurrencyService.CurrentSymbol + amount.ToString("N0", System.Globalization.CultureInfo.InvariantCulture);
@@ -1042,8 +1035,6 @@ public partial class InsightsPageViewModel : ViewModelBase, ICleanupViewModel
                              || forecast.ExpectedNewCustomersUpper > forecast.ExpectedNewCustomersLower;
 
         // If bounds aren't meaningful, snap selection back to Baseline so the tab/hint match the cards.
-        // The property setter re-enters this method via OnSelectedScenarioModeIndexChanged, but the second
-        // pass is a no-op (Index already Baseline) so it terminates after one extra render.
         if (SelectedScenarioModeIndex != (int)ForecastScenario.Baseline && !ScenarioToggleEnabled)
         {
             SelectedScenarioModeIndex = (int)ForecastScenario.Baseline;

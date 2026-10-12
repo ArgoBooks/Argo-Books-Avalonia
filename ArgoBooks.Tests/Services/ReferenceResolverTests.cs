@@ -12,9 +12,7 @@ public class ReferenceResolverTests
         Assert.Equal("CUS-1", ReferenceResolver.Resolve("  acme  ltd ", index).MatchedId);
     }
 
-    // "Smith" vs "Smith Plumbing"/"Smith Electrical": Levenshtein ratios are
-    // 5/14 = 0.36 and 5/17 = 0.29 respectively — both well below 0.92.
-    // Neither candidate qualifies, so the result is (null, false) — no mis-link.
+    // "Smith" vs "Smith Plumbing"/"Smith Electrical": Levenshtein ratios are 5/14 = 0.36 and 5/17 = 0.29 respectively — both well below 0.92.
     [Fact]
     public void Resolve_ShortQueryAgainstMultipleLongerNames_ReturnsNoMatch()
     {
@@ -58,12 +56,7 @@ public class ReferenceResolverTests
         Assert.False(r.IsAmbiguous);
     }
 
-    // Two candidates that both score >= 0.92 vs the query and are within 0.05 of each other
-    // trigger the ambiguity rule: (null, IsAmbiguous=true).
-    // "Acme Corp East" (14) vs "Acme Corp East" (14) = 1.0; vs "Acme Corp Wast" (14) = 13/14 = 0.929.
-    // Both exceed 0.92, gap = 1.0 - 0.929 = 0.071 >= 0.05 — so this is NOT a tie.
-    // Use query "Acme Corp Xast": vs "Acme Corp East" dist=1 -> 13/14=0.929; vs "Acme Corp Wast" dist=1 -> 13/14=0.929.
-    // Gap = 0.0 < 0.05 -> IsAmbiguous=true.
+    // Two candidates that both score >= 0.92 vs the query and are within 0.05 of each other trigger the ambiguity rule: (null, IsAmbiguous=true).
     [Fact]
     public void Resolve_TwoNearlyEqualHighScoreCandidates_ReturnsAmbiguous()
     {

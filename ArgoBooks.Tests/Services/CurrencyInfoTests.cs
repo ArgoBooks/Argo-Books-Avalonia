@@ -25,9 +25,7 @@ public class CurrencyInfoTests
     [Fact]
     public void Format_OnNonUsCulture_UsesInvariantGroupingAndDecimal()
     {
-        // The documented output is "$1,234.56" (comma thousands, dot decimal). The N2/N0
-        // interpolation uses CurrentCulture, so on a German locale it would produce "$1.234,56",
-        // a hybrid that is wrong everywhere, including on customer invoices.
+        // The documented output is "$1,234.56" (comma thousands, dot decimal).
         var usd = CurrencyInfo.GetByCode("USD");
 
         var result = WithCulture("de-DE", () => usd.Format(1234.56m));

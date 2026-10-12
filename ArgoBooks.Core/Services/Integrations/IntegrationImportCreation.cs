@@ -60,10 +60,7 @@ public abstract class IntegrationImportCreation
         }
         foreach (var ret in Returns) data.Returns.RemoveRecord(ret);
 
-        // The rows are gone, so their queued currency conversions have nothing left
-        // to convert. Nothing else prunes those: the reconcile pass only drops an
-        // entry whose record exists and is already converted, so one whose record has
-        // been removed would be retried on every pass forever.
+        // The rows are gone, so their queued currency conversions have nothing left to convert.
         ForgetPendingConversions(data);
         UndoIntegrationState(data);
 

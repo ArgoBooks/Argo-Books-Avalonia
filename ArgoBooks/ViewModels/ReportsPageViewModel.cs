@@ -161,9 +161,7 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
                 UndoRedoManager.Clear();
                 LoadTemplate(SelectedTemplateName);
 
-                // Clear radio button selection for point-in-time reports where date range is disabled
-                // (mirrors the logic in OnSelectedTemplateNameChanged, which doesn't fire here
-                // because SelectedTemplateName didn't change)
+                // Clears the radio selection for a point-in-time report, mirroring OnSelectedTemplateNameChanged, which does not fire when the name has not changed.
                 if (!IsDateRangeEnabled)
                 {
                     foreach (var option in DatePresets)
@@ -247,9 +245,7 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
         OnPropertyChanged(nameof(IsTemplatesTabSelected));
         OnPropertyChanged(nameof(IsChartsTabSelected));
 
-        // When switching to the Custom (charts) tab, reset template-specific state
-        // so Balance Sheet's disabled date range doesn't carry over, and the report
-        // name reflects that this is now a custom chart report.
+        // Switching to the Custom charts tab resets template state, so a disabled date range does not carry over and the name reflects a custom report.
         if (IsChartsTabSelected)
         {
             IsDateRangeEnabled = true;
@@ -475,6 +471,7 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
         OnPropertyChanged(nameof(SelectedChartElement));
         OnPropertyChanged(nameof(SelectedChartDataTypeOption));
         OnPropertyChanged(nameof(SelectedChartStyleOption));
+        OnPropertyChanged(nameof(SelectedGeoLevelOption));
         OnPropertyChanged(nameof(SelectedLabelElement));
         OnPropertyChanged(nameof(SelectedImageElement));
         OnPropertyChanged(nameof(SelectedImageFileName));
@@ -494,6 +491,7 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
         OnPropertyChanged(nameof(ShowSectionHeaderColors));
         OnPropertyChanged(nameof(ShowTotalColors));
         OnPropertyChanged(nameof(IsDistributionChartSelected));
+        OnPropertyChanged(nameof(IsGeographicChartSelected));
     }
 
     private void OnElementPropertyChanging(object? sender, ElementPropertyChangingEventArgs e)
@@ -510,9 +508,6 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
                 return;
 
             // For position/size changes, create a coalescing move/resize action.
-            // Rapid changes (e.g., scrolling spinner controls) will be merged into
-            // a single undo entry by the undo manager's coalescing logic.
-            // During canvas drag/resize, SuppressRecording is set so these are skipped.
             if (e.PropertyName is "X" or "Y" or "Width" or "Height")
             {
                 // PropertyChanging fires before the change, so element still has old values
@@ -623,6 +618,27 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
             }
         }
     }
+
+    /// <summary>
+    /// The level the selected chart groups by, for the ComboBox binding.
+    /// </summary>
+    public GeoLevelOption? SelectedGeoLevelOption
+    {
+        get => GeoLevelOptions.FirstOrDefault(o => o.Value == SelectedChartElement.GeoLevel);
+        set
+        {
+            if (value != null && SelectedElement is ChartReportElement chart)
+            {
+                chart.GeoLevel = value.Value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Whether the selected chart groups by where somebody is, which is what a level applies to.
+    /// </summary>
+    public bool IsGeographicChartSelected => SelectedChartElement.ChartType.GroupsByPlace();
 
     // Type checking properties for conditional visibility
     public bool IsChartSelected => SelectedElement is ChartReportElement;
@@ -972,9 +988,7 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
         Configuration.AddElement(element);
         UndoRedoManager.RecordAction(new AddElementAction(Configuration, element));
 
-        // Suppress recording while setting up selection, binding updates from the
-        // properties panel can write back rounded values (e.g. the NumericUpDown
-        // integer display format) which would create a spurious "Move element" action.
+        // Recording is suppressed while selection is set up, because a binding write-back of a rounded value would log a spurious move.
         UndoRedoManager.SuppressRecording = true;
         try
         {
@@ -1462,7 +1476,8 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
             Configuration.Use24HourFormat = TimeZoneService.Is24HourFormat;
             Configuration.CompanyLogoPath = App.CompanyManager?.CurrentCompanyLogoPath;
             Configuration.MaxPieSlices = ChartSettingsService.GetMaxPieSlices();
-            using var renderer = new ReportRenderer(Configuration, companyData, 1f, LanguageServiceTranslationProvider.Instance, App.ErrorLogger);
+            using var renderer = new ReportRenderer(Configuration, companyData, 1f, LanguageServiceTranslationProvider.Instance, App.ErrorLogger,
+                Data.Regions.NameFor);
 
             // Dispose previous page bitmaps
             foreach (var bmp in PreviewPageImages)
@@ -1526,7 +1541,8 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
             Configuration.Use24HourFormat = TimeZoneService.Is24HourFormat;
             Configuration.CompanyLogoPath = App.CompanyManager?.CurrentCompanyLogoPath;
             Configuration.MaxPieSlices = ChartSettingsService.GetMaxPieSlices();
-            using var renderer = new ReportRenderer(Configuration, companyData, PageDimensions.RenderScale, LanguageServiceTranslationProvider.Instance, App.ErrorLogger);
+            using var renderer = new ReportRenderer(Configuration, companyData, PageDimensions.RenderScale, LanguageServiceTranslationProvider.Instance, App.ErrorLogger,
+                Data.Regions.NameFor);
 
             bool success;
             if (SelectedExportFormat == ExportFormat.PDF)
@@ -1770,9 +1786,18 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
                 SelectedChartElement.ChartType = value.Value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(IsDistributionChartSelected));
+                OnPropertyChanged(nameof(IsGeographicChartSelected));
+                OnPropertyChanged(nameof(SelectedGeoLevelOption));
             }
         }
     }
+
+    public ObservableCollection<GeoLevelOption> GeoLevelOptions { get; } =
+    [
+        new(GeoLevel.Country, Loc.Tr("Country")),
+        new(GeoLevel.Region, Loc.Tr("Region")),
+        new(GeoLevel.City, Loc.Tr("City"))
+    ];
 
     public ObservableCollection<ChartStyleOption> ChartStyleOptions { get; } =
     [
@@ -2625,9 +2650,7 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
     /// </summary>
     private void SyncChartElementsWithSelection()
     {
-        // When user is on the Custom (charts) tab, remove all non-chart elements
-        // that may have been added by a previously selected template (summary cards,
-        // accounting tables, labels, images, etc.). This mode is chart-only.
+        // On the Custom charts tab every non-chart element from a previous template goes, since this mode is charts only.
         if (IsChartsTabSelected)
         {
             foreach (var element in Configuration.Elements
@@ -2866,6 +2889,14 @@ public partial class CustomTemplateOption(string name) : ObservableObject
 /// Represents a chart style option with a display name.
 /// </summary>
 public record ChartStyleOption(ReportChartStyle Value, string DisplayName)
+{
+    public override string ToString() => DisplayName;
+}
+
+/// <summary>
+/// Represents a geographic grouping level with a display name.
+/// </summary>
+public record GeoLevelOption(GeoLevel Value, string DisplayName)
 {
     public override string ToString() => DisplayName;
 }

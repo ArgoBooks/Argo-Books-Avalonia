@@ -199,12 +199,7 @@ public class PayrollCalculatorTests
     [Fact]
     public void AnUnknownProvinceCodeThrowsRatherThanGuessing()
     {
-        // Falling back to some other province's table would produce figures that look
-        // plausible and are wrong, which is worse than refusing.
-        //
-        // This test has now named two jurisdictions that stopped being unsupported: Ontario,
-        // then Quebec, each of which I claimed at the time would not go stale. A code that is
-        // not a jurisdiction at all is the only example that actually cannot.
+        // Falling back to some other province's table would produce figures that look plausible and are wrong, which is worse than refusing.
         PayrollInput input = Input(2000m);
         input.Province = "ZZ";
 
@@ -269,18 +264,12 @@ public class PayrollCalculatorTests
         ["biweekly 8000 at cap", 8000m, 26, 74000m,   4200m,   0m, 67500m,   1100m, 1507.74m, 679.59m,  30.45m, 296m, 23.07m, 5463.15m],
 
         // Constant pay, four points across the year. CRA returns identical tax at every one.
-        // This is the set that settled how K2 annualises: anything that makes the credit
-        // depend on what has already been deducted this year breaks every row but the first,
-        // and under-withholds for the rest of the year without disturbing any other case.
         ["2400 period 1",        2400m, 26,     0m,      0m,   0m,     0m,      0m,  223.20m, 108.50m, 134.79m,   0m, 39.12m, 1894.39m],
         ["2400 period 7",        2400m, 26, 14400m, 808.74m,   0m, 14400m, 234.72m,  223.20m, 108.50m, 134.79m,   0m, 39.12m, 1894.39m],
         ["2400 period 13",       2400m, 26, 28800m, 1617.48m,  0m, 28800m, 469.44m,  223.20m, 108.50m, 134.79m,   0m, 39.12m, 1894.39m],
         ["2400 period 20",       2400m, 26, 45600m, 2561.01m,  0m, 45600m, 743.28m,  223.20m, 108.50m, 134.79m,   0m, 39.12m, 1894.39m],
 
-        // CPP2. The first row is the one that matters: year-to-date pensionable earnings sit
-        // below the first ceiling and this single cheque carries them over it, so only the
-        // 1,900 above 74,600 attracts CPP2. That partial crossing is the fiddliest arithmetic
-        // in the engine.
+        // CPP2: the first row is the one that matters, since year-to-date earnings sit below the first ceiling and this cheque carries them over it.
         ["crossing into cpp2",   3500m, 26, 73000m,   4100m,   0m, 68900m, 1123.07m,  429.45m, 208.79m, 130.45m,  76m,  0.00m, 2655.31m],
         ["inside cpp2 band",     3500m, 26, 78000m, 4230.45m, 136m, 68900m, 1123.07m,  420.82m, 204.58m,   0.00m, 140m,  0.00m, 2734.60m],
 
@@ -315,8 +304,6 @@ public class PayrollCalculatorTests
             Rates());
 
         // Compared as one tuple so a failure names the case and shows every figure at once.
-        // Six separate asserts would stop at the first difference, which hides whether one
-        // number drifted or the whole row did.
         Assert.Equal(
             (label, federal, provincial, cpp, cpp2, ei, net),
             (label, r.FederalTax, r.ProvincialTax, r.CppEmployee, r.Cpp2Employee, r.EiEmployee, r.NetPay));
@@ -384,11 +371,7 @@ public class PayrollCalculatorTests
     [Fact]
     public void OntarioSurtaxAndHealthPremium_MatchCraOnlineCalculator()
     {
-        // $6,000 biweekly annualises to about $154,000, which clears both surtax thresholds and
-        // lands in the second-highest health premium band. CRA returns 602.06.
-        //
-        // This is the case that caught the surtax being compounded: applying the 36% band to a
-        // figure that already included the 20% band overstated Ontario tax by about $17 a period.
+        // $6,000 biweekly annualises to about $154,000, which clears both surtax thresholds and lands in the second-highest health premium band. CRA returns 602.06.
         PayrollDeductions r = PayrollCalculator.Calculate(
             new PayrollInput { GrossPay = 6000m, Province = "ON", PayPeriodsPerYear = 26 },
             new PayrollYearToDate(),
@@ -402,10 +385,7 @@ public class PayrollCalculatorTests
     [Fact]
     public void BritishColumbiaTaxReduction_MatchesCraOnlineCalculatorInsideThePhaseOut()
     {
-        // $1,400 biweekly annualises to about $36,071, inside BC's 25,570 to 44,952 taper, so
-        // the credit is partial: 805 - (36,071.10 - 25,570) x 3.56% = 431.16. At $2,400 the
-        // employee is past the taper entirely and the credit is nil, so only an income in the
-        // band tests this at all.
+        // $1,400 biweekly annualises to about $36,071, inside BC's 25,570 to 44,952 taper, so the credit is partial: 805 - (36,071.10 - 25,570) x 3.56% = 431.16.
         PayrollDeductions r = PayrollCalculator.Calculate(
             new PayrollInput { GrossPay = 1400m, Province = "BC", PayPeriodsPerYear = 26 },
             new PayrollYearToDate(),
@@ -419,9 +399,7 @@ public class PayrollCalculatorTests
     [Fact]
     public void YukonCanadaEmploymentAmount_MatchesCraOnlineCalculator()
     {
-        // Yukon is the only jurisdiction granting a provincial Canada Employment Amount. Without
-        // it the territorial tax comes out at 105.25 instead of 101.55, over-deducting $3.70 a
-        // period for every Yukon employee.
+        // Yukon is the only jurisdiction granting a provincial Canada Employment Amount, worth $3.70 a period to every Yukon employee.
         PayrollDeductions r = PayrollCalculator.Calculate(
             new PayrollInput { GrossPay = 2400m, Province = "YT", PayPeriodsPerYear = 26 },
             new PayrollYearToDate(),

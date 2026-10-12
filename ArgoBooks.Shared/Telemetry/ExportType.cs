@@ -1,4 +1,4 @@
-namespace ArgoBooks.Core.Models.Telemetry;
+﻿namespace ArgoBooks.Core.Models.Telemetry;
 
 /// <summary>
 /// Types of export operations.
@@ -9,11 +9,6 @@ public enum ExportType
     /// Excel spreadsheet export.
     /// </summary>
     Excel,
-
-    /// <summary>
-    /// Google Sheets export.
-    /// </summary>
-    GoogleSheets,
 
     /// <summary>
     /// PDF report export.

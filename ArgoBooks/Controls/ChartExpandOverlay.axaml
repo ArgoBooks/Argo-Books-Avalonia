@@ -1,5 +1,6 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="using:ArgoBooks.Localization"
              xmlns:icons="using:ArgoBooks"
              xmlns:controls="using:ArgoBooks.Controls"
              xmlns:vm="using:ArgoBooks.ViewModels"
@@ -105,23 +106,23 @@
                                 VerticalAlignment="Center"
                                 Margin="4,0,0,0">
                             <StackPanel Orientation="Horizontal" Spacing="2">
-                                <RadioButton Content="Day"
+                                <RadioButton Content="{loc:Loc 'Day'}"
                                              x:Name="BucketDay"
                                              GroupName="Granularity"
                                              IsChecked="True"
                                              Classes="granularity-button"
                                              Click="OnGranularityChanged" />
-                                <RadioButton Content="Week"
+                                <RadioButton Content="{loc:Loc 'Week'}"
                                              x:Name="BucketWeek"
                                              GroupName="Granularity"
                                              Classes="granularity-button"
                                              Click="OnGranularityChanged" />
-                                <RadioButton Content="Month"
+                                <RadioButton Content="{loc:Loc 'Month'}"
                                              x:Name="BucketMonth"
                                              GroupName="Granularity"
                                              Classes="granularity-button"
                                              Click="OnGranularityChanged" />
-                                <RadioButton Content="Year"
+                                <RadioButton Content="{loc:Loc 'Year'}"
                                              x:Name="BucketYear"
                                              GroupName="Granularity"
                                              Classes="granularity-button"

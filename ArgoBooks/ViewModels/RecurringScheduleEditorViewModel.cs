@@ -232,7 +232,8 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
                 Id = product.Id,
                 Name = product.Name,
                 Description = product.Description,
-                UnitPrice = side == CategoryType.Expense ? product.CostPrice : product.UnitPrice
+                UnitPrice = side == CategoryType.Expense ? product.CostPrice : product.UnitPrice,
+                Unit = product.UnitOfMeasure
             });
         }
     }
@@ -351,11 +352,7 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
             existing.EndDate = end;
             await ApplyTemplateAsync(existing, amount, start);
 
-            // The next date came from the old start. Until the schedule has run it is simply the
-            // start. After that, everything before the next date is already dealt with, so the new
-            // start's dates pick up from there and a moved start cannot book a period twice. Whether
-            // it has run is read from the schedule, not from its entries, since those can be deleted,
-            // and a skipped or paused-through date moves the next date without leaving an entry.
+            // The next date came from the old start. Until the schedule has run it is simply the start.
             if (startChanged)
             {
                 var hasRun = existing.LastGeneratedAt != null || dateBefore.Date > before.Start.Date;

@@ -1,5 +1,6 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="using:ArgoBooks.Localization"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:ArgoBooks.ViewModels"
@@ -60,7 +61,7 @@
                                       Foreground="{DynamicResource WarningBrush}" />
                         </Border>
                         <TextBlock Grid.Column="1"
-                                   Text="Import Complete"
+                                   Text="{loc:Loc 'Import Complete'}"
                                    FontSize="18"
                                    FontWeight="SemiBold"
                                    Foreground="{DynamicResource TextPrimaryBrush}"
@@ -108,7 +109,7 @@
                                     Padding="16,12"
                                     Margin="0,0,4,0">
                                 <StackPanel HorizontalAlignment="Center" Spacing="2">
-                                    <TextBlock Text="New"
+                                    <TextBlock Text="{loc:Loc 'New'}"
                                                FontSize="12"
                                                Foreground="{DynamicResource TextSecondaryBrush}"
                                                HorizontalAlignment="Center" />
@@ -126,7 +127,7 @@
                                     Padding="16,12"
                                     Margin="4,0">
                                 <StackPanel HorizontalAlignment="Center" Spacing="2">
-                                    <TextBlock Text="Updated"
+                                    <TextBlock Text="{loc:Loc 'Updated'}"
                                                FontSize="12"
                                                Foreground="{DynamicResource TextSecondaryBrush}"
                                                HorizontalAlignment="Center" />
@@ -144,7 +145,7 @@
                                     Padding="16,12"
                                     Margin="4,0,0,0">
                                 <StackPanel HorizontalAlignment="Center" Spacing="2">
-                                    <TextBlock Text="Skipped"
+                                    <TextBlock Text="{loc:Loc 'Skipped'}"
                                                FontSize="12"
                                                Foreground="{DynamicResource TextSecondaryBrush}"
                                                HorizontalAlignment="Center" />
@@ -166,7 +167,7 @@
                                           Width="16" Height="16"
                                           Foreground="{DynamicResource PrimaryBrush}"
                                           VerticalAlignment="Center" />
-                                <TextBlock Text="Please double-check all imported data for accuracy."
+                                <TextBlock Text="{loc:Loc 'Please double-check all imported data for accuracy.'}"
                                            FontSize="12"
                                            Foreground="{DynamicResource TextSecondaryBrush}"
                                            TextWrapping="Wrap"
@@ -176,7 +177,7 @@
 
                         <!-- Per-sheet breakdown (only when multiple sheets) -->
                         <StackPanel Spacing="6" IsVisible="{Binding HasMultipleSheets}">
-                            <TextBlock Text="Per sheet"
+                            <TextBlock Text="{loc:Loc 'Per sheet'}"
                                        FontSize="12"
                                        FontWeight="SemiBold"
                                        Foreground="{DynamicResource TextTertiaryBrush}"
@@ -217,7 +218,7 @@
                                     <PathIcon Data="{x:Static icons:Icons.WarningCircle}"
                                               Width="16" Height="16"
                                               Foreground="{DynamicResource WarningBrush}" />
-                                    <TextBlock Text="Skip Reasons"
+                                    <TextBlock Text="{loc:Loc 'Skip Reasons'}"
                                                FontSize="13"
                                                FontWeight="SemiBold"
                                                Foreground="{DynamicResource TextPrimaryBrush}" />
@@ -246,7 +247,7 @@
                                     <PathIcon Data="{x:Static icons:Icons.InfoOutline}"
                                               Width="16" Height="16"
                                               Foreground="{DynamicResource PrimaryBrush}" />
-                                    <TextBlock Text="Warnings"
+                                    <TextBlock Text="{loc:Loc 'Warnings'}"
                                                FontSize="13"
                                                FontWeight="SemiBold"
                                                Foreground="{DynamicResource TextPrimaryBrush}" />
@@ -276,7 +277,7 @@
                                         <PathIcon Data="{x:Static icons:Icons.WarningCircle}"
                                                   Width="16" Height="16"
                                                   Foreground="{DynamicResource WarningBrush}" />
-                                        <TextBlock Text="Could Not Import"
+                                        <TextBlock Text="{loc:Loc 'Could Not Import'}"
                                                    FontSize="13"
                                                    FontWeight="SemiBold"
                                                    Foreground="{DynamicResource TextPrimaryBrush}"
@@ -284,7 +285,7 @@
                                     </StackPanel>
                                     <Button Grid.Column="2"
                                             Classes="secondary-button"
-                                            Content="Export..."
+                                            Content="{loc:Loc 'Export...'}"
                                             FontSize="12"
                                             Command="{Binding ExportUnimportedCommand}" />
                                 </Grid>
@@ -326,7 +327,7 @@
                         BorderThickness="0,1,0,0">
                     <Grid ColumnDefinitions="*,Auto">
                         <TextBlock Grid.Column="0"
-                                   Text="Please save to persist changes."
+                                   Text="{loc:Loc 'Please save to persist changes.'}"
                                    FontSize="12"
                                    Foreground="{DynamicResource TextTertiaryBrush}"
                                    VerticalAlignment="Center"

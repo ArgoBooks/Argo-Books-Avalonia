@@ -116,9 +116,7 @@ public static class AtomicFile
             }
             catch (Exception ex) when ((ex is IOException || ex is UnauthorizedAccessException) && attempt < MaxAttempts)
             {
-                // Destination briefly locked by AV / indexer / backup. Back off (without
-                // blocking the calling thread) and retry. The last attempt's failure is not
-                // caught here, so it propagates to the caller.
+                // Destination briefly locked by AV / indexer / backup. Back off (without blocking the calling thread) and retry.
                 await Task.Delay(50 * attempt, cancellationToken);
             }
         }

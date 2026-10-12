@@ -22,11 +22,7 @@
     <Color x:Key="BorderDarkColor">#1F2937</Color>
     <Color x:Key="BorderHoverColor">#6B7280</Color>
 
-    <!-- Text Colors.
-         Secondary/tertiary are intentionally the same near-white as primary: the muted grays did
-         not contrast well on dark surfaces, so body/label/helper text all reads white in dark mode.
-         Genuinely-muted roles keep their own colors: placeholders (InputPlaceholderColor), disabled
-         text (TextDisabledColor), and the sidebar's muted text (SidebarTextMutedColor). -->
+    <!-- Secondary and tertiary are the same near-white as primary on purpose, because the muted greys did not contrast on dark surfaces. -->
     <Color x:Key="TextPrimaryColor">#F9FAFB</Color>
     <Color x:Key="TextSecondaryColor">#F9FAFB</Color>
     <Color x:Key="TextTertiaryColor">#F9FAFB</Color>
@@ -77,10 +73,7 @@
     <Color x:Key="WarningIconBgColor">#78350F</Color>
     <Color x:Key="InfoIconBgColor">#164E63</Color>
 
-    <!-- Warning notice pill (a banner carrying body text, not an icon chip). The
-         WarningLight/WarningText pair in Colors.axaml is theme-invariant, so its
-         cream fill glares against a dark modal. Muted amber over the dark surface
-         instead, with light amber text on top. -->
+    <!-- Warning notice pill (a banner carrying body text, not an icon chip). -->
     <Color x:Key="WarningNoticeBgColor">#3D2B14</Color>
     <Color x:Key="WarningNoticeTextColor">#FCD34D</Color>
 

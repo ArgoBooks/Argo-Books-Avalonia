@@ -29,9 +29,7 @@ public class SettingsPortalRefreshTests : IDisposable
         }
     }
 
-    // The status refresh starts as Settings opens. Portal fields the user changes before it
-    // answers only apply on Save, so the refresh must write back what the server told it and
-    // nothing else, or Close without saving keeps the edits.
+    // The status refresh starts as Settings opens.
     [Fact]
     public async Task StatusRefresh_WritesServerStateButNotUnsavedPortalEdits()
     {

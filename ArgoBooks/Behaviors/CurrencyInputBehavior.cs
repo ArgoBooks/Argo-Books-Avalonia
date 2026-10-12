@@ -129,12 +129,7 @@ public static class CurrencyInputBehavior
 
         string digits = new(text.Where(char.IsDigit).ToArray());
 
-        // The decimal separator, which may be the one the machine uses rather than the one the
-        // box was written with.
-        //
-        // The first separator with no more trailing digits than the currency has decimals. A
-        // grouping separator always has exactly three after it, so this tells them apart without
-        // consulting a culture: "1,234" is a thousand, "1234,56" is a decimal.
+        // The decimal separator, which may be the one the machine uses rather than the one the box was written with.
         int dot = -1;
 
         if (places > 0)
@@ -251,17 +246,7 @@ public static class CurrencyInputBehavior
             string tail = cleaned[(lastSeparator + 1)..];
             bool bothKinds = cleaned.Contains('.') && cleaned.Contains(',');
 
-            // Grouping only when it cannot be a decimal point: both kinds present means the last
-            // one is decimal, and a repeated separator can only be grouping. That leaves a single
-            // separator with exactly three digits after it, which is read as grouping.
-            //
-            // Not the machine's separator, which is the tempting answer and the wrong one. These
-            // boxes are written by CurrencyInfo.Format and Format below, both deliberately
-            // InvariantCulture so a customer-facing invoice never renders a hybrid like
-            // "$1.234,56". A zero-decimal currency therefore sits in the box as "Ft52,000" with
-            // no decimal point at all, and asking a comma-decimal machine would read that as 52.
-            // Money is never quoted to three decimals here either, since Format only ever writes
-            // N0 or N2.
+            // Grouping only when it cannot be a decimal point: both kinds present means the last one is decimal, and a repeated separator can only be grouping.
             bool isGrouping = !bothKinds && tail.Length == 3;
 
             string whole = cleaned[..lastSeparator].Replace(".", string.Empty).Replace(",", string.Empty);

@@ -15,11 +15,11 @@ public class RevenueModalsViewModelTests : ModalViewModelTestBase
     /// <summary>Stands in for the file picker, which the real Attach/Change button opens.</summary>
     private sealed class ReceiptPickingRevenueVm : RevenueModalsViewModel
     {
-        public void PickReceiptFile(string path)
-        {
-            ReceiptFilePath = path;
-            ReceiptFileName = Path.GetFileName(path);
-        }
+        public void PickReceiptFile(string path) =>
+            Attachments.Add(new TransactionAttachment(null, Path.GetFileName(path), path));
+
+        /// <summary>Taking a document off the list, which the real form does with the X beside it.</summary>
+        public void DropAttachments() => Attachments.Clear();
     }
 
     private static string TempReceiptFile(string name, byte[] bytes)
@@ -172,6 +172,7 @@ public class RevenueModalsViewModelTests : ModalViewModelTestBase
         var oldReceipt = Company.Receipts.Single();
 
         vm.OpenEditModal(new RevenueDisplayItem { Id = revenue.Id });
+        vm.DropAttachments();
         vm.PickReceiptFile(TempReceiptFile("second.png", [4, 5, 6]));
         await vm.SaveTransactionCommand.ExecuteAsync(null);
 

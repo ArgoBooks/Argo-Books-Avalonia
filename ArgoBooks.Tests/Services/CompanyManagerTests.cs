@@ -184,9 +184,7 @@ public class CompanyManagerTests : IDisposable
     [Fact]
     public async Task SaveCompanyAs_ClearsPendingRename()
     {
-        // A rename queued (deferred) before a Save As must not survive it: the rename target applied
-        // to the OLD file path, so leaving it set makes a later normal Save move the just-saved-as
-        // file to the rename target (or fail "file exists").
+        // A rename queued before a Save As must not survive it, since the target applied to the old path and a later save would move the new file.
         var originalPath = Path.Combine(Path.GetTempPath(), $"argo-cm-{Guid.NewGuid():N}.argo");
         var renameTarget = Path.Combine(Path.GetTempPath(), $"argo-cm-{Guid.NewGuid():N}.argo");
         var saveAsPath = Path.Combine(Path.GetTempPath(), $"argo-cm-{Guid.NewGuid():N}.argo");

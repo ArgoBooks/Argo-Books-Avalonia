@@ -72,6 +72,13 @@ public class CompanySettings
     [JsonPropertyName("costOfGoodsStartedVersion")]
     public string? CostOfGoodsStartedVersion { get; set; }
 
+    /// <summary>
+    /// Set when the invoice editor's prompt about blank company details is dismissed, for the user
+    /// who leaves the address, phone and email off their invoices deliberately.
+    /// </summary>
+    [JsonPropertyName("companyDetailsPromptDismissed")]
+    public bool CompanyDetailsPromptDismissed { get; set; }
+
     [JsonPropertyName("company")]
     public CompanyInfo Company { get; set; } = new();
     [JsonPropertyName("features")]

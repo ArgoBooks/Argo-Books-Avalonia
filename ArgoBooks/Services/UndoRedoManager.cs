@@ -345,10 +345,7 @@ public class UndoRedoManager : ObservableObject, IUndoRedoManager
     /// </summary>
     private void DropRefusedUndo(IUndoableAction action)
     {
-        // The step stays done. If the save included it, what is left on the stack is still the
-        // saved company. If not, its change now sits unsaved on top of every earlier point, so
-        // going back to one of them is no longer going back to the file. A save point ahead, on
-        // the redo stack, is still reached by redoing up to it.
+        // The step stays done: if the save included it the stack is still the saved company, and if not its change sits unsaved above every earlier point.
         if (ReferenceEquals(_savedState, action))
             _savedState = SavePoint;
         else if (_savedState == null || !_redoStack.Contains(_savedState))

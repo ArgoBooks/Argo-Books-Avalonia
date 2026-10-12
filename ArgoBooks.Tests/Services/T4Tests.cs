@@ -108,13 +108,7 @@ public class T4Tests
     [Fact]
     public void IncomeTax_ExcludesQuebecTax_ForAQuebecEmployee()
     {
-        // RC4120 on box 22, in as many words: "This includes the federal, provincial (except
-        // Quebec), and territorial taxes that apply."
-        //
-        // Quebec income tax is withheld in the same run and stored in the same column, but it
-        // goes to Revenu Quebec and is reported on RL-1 box E. Adding it here reports the same
-        // money on both slips, and the employee claims credit for it twice. The figure looks
-        // entirely reasonable either way, which is why it needs pinning.
+        // RC4120 on box 22 in as many words: the federal, provincial except Quebec, and territorial taxes that apply.
         CompanyData data = Data(Person());
         data.Employees[0].Province = "QC";
         data.PayRuns.Add(Run("PR-0001", new DateTime(2026, 7, 3), "EMP-001", 2000m, fed: 200m, prov: 90m, province: "QC"));
@@ -125,9 +119,7 @@ public class T4Tests
     [Fact]
     public void AnEmployeeWhoMovedProvinces_GetsASeparateSlipForEach()
     {
-        // CRA wants one T4 per province of employment. Reading the employee's current province
-        // put a year of Ontario pay on a single Quebec slip: Ontario CPP in the QPP box, and the
-        // Ontario tax dropped from box 22 as though it had been paid to Revenu Quebec.
+        // CRA wants one T4 per province of employment.
         CompanyData data = Data(Person());
         data.Employees[0].Province = "QC";
         data.PayRuns.Add(Run("PR-0001", new DateTime(2026, 3, 6), "EMP-001", 2000m,
@@ -169,9 +161,7 @@ public class T4Tests
     [Fact]
     public void TwoSlipsForOnePerson_ShareOneYearsCeilings()
     {
-        // Contributions stop at the year's maximum across both provinces, so the earnings behind
-        // them stop there too. Capping each slip on its own would report more pensionable and
-        // insurable earnings than the year allows, against contributions that never reached them.
+        // Contributions stop at the year's maximum across both provinces, so the earnings behind them stop there too.
         EarningsCeilings ceilings = EarningsCeilings.For(new PayrollRateService(), 2026);
         decimal pensionableMax = ceilings.CapPensionable(decimal.MaxValue);
         decimal insurableMax = ceilings.CapEi(decimal.MaxValue);
@@ -193,14 +183,7 @@ public class T4Tests
     [Fact]
     public void Box26_IsCappedAtTheAdditionalMaximum_NotTheFirstCeiling()
     {
-        // The intuitive reading is that earnings above the YMPE belong to CPP2 and are reported
-        // in box 16A, so box 26 should stop at the first ceiling. RC4120 says otherwise: report
-        // the pensionable earnings "up to the additional maximum pensionable earnings for the
-        // year", which is the YAMPE.
-        //
-        // Capping at the YMPE understates the box for exactly the population that has CPP2 in
-        // box 16A, and CRA's PIER review then finds a CPP2 contribution charged on earnings the
-        // slip says were never reached.
+        // The intuitive reading is that earnings above the YMPE belong to CPP2 and are reported in box 16A, so box 26 should stop at the first ceiling.
         PayrollRateTable rates = new PayrollRateService().GetForDate(new DateTime(2026, 12, 31))!;
         decimal betweenTheCeilings = (rates.Cpp.YmpeCeiling + rates.Cpp2.YampeCeiling) / 2m;
 
@@ -216,9 +199,7 @@ public class T4Tests
     [Fact]
     public void Box56_IsAbsent_WhenNoQpipPremiumWasWithheld()
     {
-        // RC4120 pairs boxes 55 and 56: "If you report an amount in box 55, you have to report
-        // insurable earnings using box 56." Insurable earnings with no premium against them is
-        // the one combination that cannot be true, and box 28's PPIP tick says the opposite.
+        // RC4120 pairs boxes 55 and 56, so insurable earnings with no premium against them is the one combination to catch.
         CompanyData data = Data(Person());
         data.Employees[0].Province = "QC";
         data.PayRuns.Add(Run("PR-0001", new DateTime(2026, 7, 3), "EMP-001", 2000m, province: "QC"));
@@ -395,10 +376,7 @@ public class T4Tests
     [Fact]
     public void Boxes24And26_AreCappedAtTheYearsCeilings_ForAHighEarner()
     {
-        // Boxes 24 and 26 report the portion of pay that was actually insurable and pensionable,
-        // not gross. Someone on $200,000 stopped contributing part way through the year, and a
-        // slip reporting the whole salary there looks entirely reasonable while leaving CRA to
-        // find the premiums short against the earnings.
+        // Boxes 24 and 26 report the portion of pay that was actually insurable and pensionable, not gross.
         CompanyData data = Data(Person());
         data.PayRuns.Add(Run("PR-0001", new DateTime(2026, 7, 3), "EMP-001", 200_000m));
 
@@ -454,11 +432,7 @@ public class T4Tests
     [Fact]
     public void TheDocumentIsASubmissionCarryingATransmittalAndThenTheReturn()
     {
-        // CRA's T619 specification, 2026V4: every electronic filing is a Submission whose first
-        // child is the T619 and whose returns follow it. Writing the Return on its own, which is
-        // what this did, produces a file the upload rejects: there is nothing in it saying who
-        // is transmitting. The failure lands at the February deadline, on a file that looks
-        // complete because every slip inside it is.
+        // CRA's T619 specification, 2026V4: every electronic filing is a Submission whose first child is the T619 and whose returns follow it.
         XDocument doc = T4XmlWriter.Build(WithOneSlip());
 
         Assert.Equal("Submission", doc.Root!.Name.LocalName);
@@ -468,10 +442,7 @@ public class T4Tests
     [Fact]
     public void TheDeclaredEncodingIsTheOneTheFileIsActuallyWrittenIn()
     {
-        // Save(TextWriter) takes the declaration from the writer, and a StringWriter is UTF-16,
-        // so the document announced utf-16 while the export wrote the bytes as UTF-8. A file
-        // that lies about its own encoding is a parse failure at the other end, and the other
-        // end here is CRA's upload.
+        // Save(TextWriter) takes the declaration from the writer, and a StringWriter is UTF-16, so the document announced utf-16 while the export wrote the bytes as UTF-8.
         string xml = T4XmlWriter.BuildString(WithOneSlip());
 
         Assert.Contains("encoding=\"utf-8\"", xml, StringComparison.OrdinalIgnoreCase);
@@ -497,9 +468,7 @@ public class T4Tests
     [Fact]
     public void TheTransmitterAccountNumber_IsTheSameOneAsTheSummary()
     {
-        // CRA: "Must be the same BN15 as the one used to sign in with a WAC or MyBA". A small
-        // employer files their own return, so the transmitter and the employer are one and the
-        // same and the number cannot be allowed to drift between the two places it appears.
+        // CRA: "Must be the same BN15 as the one used to sign in with a WAC or MyBA".
         T4Return t4 = WithOneSlip();
 
         Assert.Equal(
@@ -560,9 +529,7 @@ public class T4Tests
     [Fact]
     public void AMissingContactEmail_StopsTheFiling()
     {
-        // Required by the T619, and the one field of it this app did not already hold. Without
-        // it the submission is rejected, so it belongs with the other refusals rather than being
-        // discovered on upload.
+        // Required by the T619 and the one field the app did not hold, so a submission without it is rejected.
         CompanyData data = Data(Person());
         data.Settings.Company.PayrollContactEmail = string.Empty;
         data.PayRuns.Add(Run("PR-0001", new DateTime(2026, 7, 3), "EMP-001", 2000m));
@@ -753,9 +720,7 @@ public class T4Tests
     [Fact]
     public void TheSummaryCppTotalsExcludeQuebecsQpp()
     {
-        // CRA states QPP must not be included in the CPP totals, and there is no QPP total on
-        // the T4 Summary at all: it goes to Revenu Quebec on the RL-1 Summary instead. So a
-        // mixed employer totals less here than the sum of their slips, correctly.
+        // CRA states QPP must not be included in the CPP totals, and there is no QPP total on the T4 Summary at all: it goes to Revenu Quebec on the RL-1 Summary instead.
         CompanyData data = Data(Person(), Person("EMP-002", "Alex Jones"));
         data.Employees[1].Province = "QC";
 
@@ -778,9 +743,7 @@ public class T4Tests
     [Fact]
     public void AMissingSin_WarnsButDoesNotBlockFiling()
     {
-        // CRA defines all zeroes for this case and the XML writer files it, so refusing to file
-        // was this app enforcing a rule stricter than the one it implements. It also could not
-        // be cleared from the year end screen, which left the export button permanently dead.
+        // CRA defines all zeroes for this case and the XML writer files it, so refusing to file was this app enforcing a rule stricter than the one it implements.
         CompanyData data = Data(Person(sin: string.Empty));
         data.PayRuns.Add(Run("PR-0001", new DateTime(2026, 7, 3), "EMP-001", 2000m));
 

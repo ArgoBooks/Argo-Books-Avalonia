@@ -224,10 +224,7 @@ public partial class EmailChangeModalViewModel : ObservableObject
             CurrentStep = Step.EnterPassword;
             return;
         }
-        // Unencrypted file: send the change request and let it advance to
-        // EnterOldCode on success. Awaiting (instead of fire-and-forget)
-        // ensures we don't sit on the code-entry step when the request
-        // failed (network error, EMAIL_IN_USE, COOLDOWN_ACTIVE, etc.).
+        // Unencrypted file: send the change request and let it advance to EnterOldCode on success.
         await RequestEmailChangeAsync(passwordVerified: false);
     }
 
@@ -273,9 +270,7 @@ public partial class EmailChangeModalViewModel : ObservableObject
             _changeId = result.ChangeId;
             MaskedOldEmail = result.MaskedOldEmail;
 
-            // An address that was never verified cannot receive anything, so the server skips
-            // it and sends straight to the new one. Asking for a code from an unreachable
-            // inbox is an unopenable lock.
+            // An address that was never verified cannot receive anything, so the server skips it and sends straight to the new one. Asking for a code from an unreachable inbox is an unopenable lock.
             if (!result.OldEmailVerificationRequired)
             {
                 MaskedNewEmail = result.MaskedNewEmail;
@@ -329,10 +324,7 @@ public partial class EmailChangeModalViewModel : ObservableObject
                 return;
             }
 
-            // Mirror the new email into local CompanyData and persist (scoped
-            // save (only appSettings.json) so other in-memory edits stay
-            // un-flushed). Without this, a restart leaves the UI showing
-            // the OLD email even though the server has the new one.
+            // The new address goes into local CompanyData and is saved on its own, or a restart shows the old one while the server has the new.
             var companyData = App.CompanyManager?.CompanyData;
             if (companyData != null && !string.IsNullOrWhiteSpace(result.NewEmail))
             {
@@ -345,9 +337,7 @@ public partial class EmailChangeModalViewModel : ObservableObject
                 }
             }
 
-            // Capture the server-authoritative value for the coordinator's
-            // completion callback (don't fall back to the user's NewEmail
-            // string, which may differ by trim/case).
+            // Capture the server-authoritative value for the coordinator's completion callback (don't fall back to the user's NewEmail string, which may differ by trim/case).
             ConfirmedNewEmail = result.NewEmail;
             CurrentStep = Step.Success;
             StatusMessage = $"Owner email is now {result.NewEmail}. The OLD address received a revert link valid for 30 days.";

@@ -1,4 +1,4 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -39,13 +39,10 @@
                                                             SearchText="{Binding SelectedSupplierText, Mode=TwoWay}"
                                                             DisplayMemberPath="Name"
                                                             SearchMemberPath="Id"
-                                                            Placeholder="{loc:Loc 'Search suppliers...'}"
+                                                            Placeholder="{loc:Loc 'Type a new supplier, or pick one'}"
                                                             ShowAddNew="True"
                                                             AddNewText="{loc:Loc 'Create new supplier'}"
-                                                            AddNewCommand="{Binding OpenCreateSupplierCommand}"
-                                                            EmptyMessage="{loc:Loc 'No suppliers.'}"
-                                                            EmptyCreateLinkText="{loc:Loc 'Create one'}"
-                                                            EmptyCreateCommand="{Binding OpenCreateSupplierCommand}" />
+                                                            AddNewCommand="{Binding OpenCreateSupplierCommand}" />
                                 <TextBlock Text="{loc:Loc 'Please select a supplier.'}"
                                            FontSize="12" Foreground="{DynamicResource ErrorBrush}"
                                            IsVisible="{Binding HasSupplierError}" />
@@ -593,7 +590,7 @@
                                         </Grid>
                                         <TextBox Text="{Binding SendRecipientEmail, Mode=TwoWay}"
                                                  Classes="form-input"
-                                                 PlaceholderText="supplier@example.com" />
+                                                 PlaceholderText="{loc:Loc 'supplier@example.com'}" />
                                     </StackPanel>
 
                                     <!-- Cc / Bcc -->
@@ -603,14 +600,14 @@
                                                        Foreground="{DynamicResource TextSecondaryBrush}" />
                                             <TextBox Text="{Binding SendCcEmail, Mode=TwoWay}"
                                                      Classes="form-input"
-                                                     PlaceholderText="cc@example.com" />
+                                                     PlaceholderText="{loc:Loc 'cc@example.com'}" />
                                         </StackPanel>
                                         <StackPanel Spacing="6">
                                             <TextBlock Text="{loc:Loc 'Bcc'}" FontSize="13" FontWeight="Medium"
                                                        Foreground="{DynamicResource TextSecondaryBrush}" />
                                             <TextBox Text="{Binding SendBccEmail, Mode=TwoWay}"
                                                      Classes="form-input"
-                                                     PlaceholderText="bcc@example.com" />
+                                                     PlaceholderText="{loc:Loc 'bcc@example.com'}" />
                                         </StackPanel>
                                     </StackPanel>
 
@@ -684,7 +681,7 @@
                                     </StackPanel>
                                     <!-- Zoomable / pannable PDF preview -->
                                     <Border Grid.Row="0"
-                                            Background="#1A000000"
+                                            Background="{DynamicResource SurfaceAltBrush}"
                                             Margin="8,8,8,4"
                                             CornerRadius="4"
                                             ClipToBounds="True"

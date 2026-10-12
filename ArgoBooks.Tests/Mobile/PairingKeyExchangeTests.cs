@@ -31,9 +31,7 @@ public class PairingKeyExchangeTests
 
         var ciphertextBase64 = PairingKeyExchange.EncryptSyncKey(keyPair.PublicKeyBase64, syncKey);
 
-        // ThrowsAny, not Throws: the point is that the wrong key cannot decrypt, and the
-        // platform decides which CryptographicException says so. macOS raises the
-        // AppleCrypto-specific subclass, which an exact type match rejects.
+        // ThrowsAny, not Throws: the point is that the wrong key cannot decrypt, and the platform decides which CryptographicException says so.
         Assert.ThrowsAny<CryptographicException>(() => otherKeyPair.DecryptSyncKey(ciphertextBase64));
     }
 

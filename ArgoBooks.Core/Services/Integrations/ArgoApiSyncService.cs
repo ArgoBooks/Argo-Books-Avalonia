@@ -90,11 +90,7 @@ public class ArgoApiSyncService
 
         var external = await ResolveExternalRefsAsync(key, preview, ct);
 
-        // Appended, not prepended: Import() already walks categories, customers,
-        // suppliers and products before anything that points at them, so adding to the
-        // end of each list keeps that ordering intact. They also count toward
-        // TotalObjects, so the merchant is told these are coming rather than finding
-        // them afterwards.
+        // Appended rather than prepended, because Import() walks categories, customers, suppliers and products before anything pointing at them.
         return preview with
         {
             ExternalRefs = external.Refs,
@@ -190,14 +186,7 @@ public class ArgoApiSyncService
 
             resolved[id] = new ArgoExternalRef(id, localRef, Read("name"), Read("email"));
 
-            // An object that has never been imported and carries no local record is one
-            // the merchant has no way of getting: it is not pending, so it is absent from
-            // the preview, and there is nothing local to match it against. Pull it in so
-            // it is created alongside the row that needs it.
-            //
-            // Only 'pending' qualifies. 'imported' already has a local_ref to resolve
-            // against, and 'rejected' was refused on purpose: recreating that as a side
-            // effect of accepting something else would undo the refusal silently.
+            // An object never imported and with no local record is one the merchant cannot reach, so it is neither pending nor recoverable.
             var status = obj.Value.TryGetProperty("import", out var st)
                          && st.TryGetProperty("status", out var sv)
                          && sv.ValueKind == JsonValueKind.String
@@ -268,9 +257,7 @@ public class ArgoApiSyncService
             return creation;
         }
 
-        // Cache the rates for the dates about to land, or every row on a day the
-        // cache does not already hold shows "Pending" in place of its amount and
-        // never recovers, because nothing refetches rates for rows already saved.
+        // Rates for the dates about to land are cached first, or every row on an uncached day shows Pending and never recovers.
         await IntegrationRates.EnsureAsync(
             preview.RateAmounts,
             data.Settings.Localization.Currency,
@@ -304,11 +291,7 @@ public class ArgoApiSyncService
         }
         catch
         {
-            // The claim may well have committed and only the response been lost.
-            // Rolling back on that would leave the objects imported on the server
-            // with nothing in the books, and the next sync would not even list
-            // them, because they are no longer pending. Silent loss. So ask the
-            // server what actually happened before throwing the work away.
+            // The claim may have committed with only the response lost, so rolling back would leave objects imported on the server and nothing in the books.
             if (await TryAdoptCommittedClaimAsync(data, creation, ct))
                 return await FinishImportAsync(data, creation);
 
@@ -339,11 +322,9 @@ public class ArgoApiSyncService
     /// <summary>
     /// The idempotency key for one claim: new every time.
     ///
-    /// It used to be worked out from the object ids, so that a repeat of the same claim got the
-    /// server's stored answer. But the server keeps that answer for a day, and the same objects
-    /// are claimed again whenever an import is undone and run again. The second claim was then
-    /// answered with the first one's batch, which the undo had already released, and nothing was
-    /// claimed: the objects stayed in the queue and the next sync imported them a second time. A
+    /// Not worked out from the object ids: the server keeps its answer for a day, and the same
+    /// objects are claimed again whenever an import is undone and run again, so the second claim
+    /// would be answered with the first one's batch, which the undo had already released. A
     /// stored refusal was replayed the same way, so one failed claim blocked the import for a day.
     ///
     /// Nothing here sends a claim twice. A claim whose answer goes missing is settled by asking

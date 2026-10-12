@@ -147,9 +147,7 @@ public class T4XmlSchemaTests
     [Fact]
     public void EveryElement_CarriesAValue()
     {
-        // CRA added this in October 2025: an optional element present but empty rejects the
-        // whole submission. The schema does not catch it, because an empty element is still
-        // structurally valid, so it needs asserting separately.
+        // CRA added this in October 2025: an optional element present but empty rejects the whole submission.
         CompanyData data = Company();
         data.Employees.Add(Person("EMP-001", "Dana Smith", "046454286", "AB"));
         data.PayRuns.Add(Run("PR-0001", new DateTime(2026, 7, 3), "EMP-001", "Dana Smith", "AB"));
@@ -167,9 +165,7 @@ public class T4XmlSchemaTests
     [Fact]
     public void TheVendoredSchemas_AreTheEditionTheWriterWasBuiltFor()
     {
-        // Guards the pairing rather than either half: the schema files and the specification
-        // the writer follows are revised together every January, and updating one without the
-        // other is silent until a submission is rejected.
+        // Guards the pairing rather than either half, since the schema and the specification are revised together every January.
         string header = File.ReadAllText(Path.Combine(SchemaDirectory, "T619_T4.xsd"));
 
         Assert.Contains($"Version#:\t{SchemaVersion}", header);

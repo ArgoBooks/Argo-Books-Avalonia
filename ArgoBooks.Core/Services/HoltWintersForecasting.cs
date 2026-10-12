@@ -78,9 +78,7 @@ public class HoltWintersForecasting
         var forecasts = new List<double>();
         for (int h = 1; h <= periodsToForecast; h++)
         {
-            // The seasonal estimate for horizon h lives at smoothedSeasonals[n + (h - 1) % seasonLength]
-            // (the current season block occupies indices [n, n + seasonLength), same as finalSeasonals
-            // below).
+            // The seasonal estimate for horizon h sits at smoothedSeasonals[n + (h - 1) % seasonLength], the current season block.
             int seasonIndex = (h - 1) % seasonLength;
             double seasonalFactor = smoothedSeasonals[n + seasonIndex];
             // Damped trend: phi + phi^2 + ... + phi^h

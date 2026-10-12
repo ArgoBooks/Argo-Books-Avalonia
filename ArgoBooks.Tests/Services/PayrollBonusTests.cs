@@ -88,9 +88,7 @@ public class PayrollBonusTests
         decimal bonusTax = asBonus.FederalTax + asBonus.ProvincialTax;
         decimal annualisedTax = annualised.FederalTax + annualised.ProvincialTax;
 
-        // On these figures it is $1,896.88 against $2,101.08: annualising takes an extra $204
-        // out of one pay, around 11%. The employee gets it back at year end, which is exactly
-        // why the error survives being looked at.
+        // On these figures it is $1,896.88 against $2,101.08: annualising takes an extra $204 out of one pay, around 11%.
         Assert.True(annualisedTax > bonusTax * 1.10m,
             $"a bonus withheld {bonusTax:F2}, annualising it withheld {annualisedTax:F2}");
     }
@@ -106,9 +104,7 @@ public class PayrollBonusTests
         PayrollDeductions before = PayrollCalculator.Calculate(Input(2400m), ytd, rates);
         PayrollDeductions during = PayrollCalculator.Calculate(Input(7400m, bonus: 5000m), ytd, rates);
 
-        // The year-to-date has to move, or the third call never learns a bonus was paid and this
-        // test cannot fail for the reason it exists. It did not, which is how a bonus being
-        // re-taxed in every later period got through with a test named for exactly that.
+        // The year-to-date has to move, or the third call never learns a bonus was paid and this test cannot fail for the reason it exists.
         ytd.PensionableEarnings += 7400m;
         ytd.InsurableEarnings += 7400m;
         ytd.CppEmployee += during.CppEmployee;
@@ -124,9 +120,7 @@ public class PayrollBonusTests
     [Fact]
     public void ABonusThatCrossesABracket_IsTaxedAcrossBothParts()
     {
-        // $58,523 is the top of the lowest federal bracket. A bonus that straddles it must be
-        // taxed partly at 14% and partly at 20.5%, which is what taking the difference of two
-        // annual figures does for free and what a single marginal rate would get wrong.
+        // $58,523 is the top of the lowest federal bracket.
         PayrollRateTable rates = Rates();
         var ytd = new PayrollYearToDate();
 
@@ -176,9 +170,7 @@ public class PayrollBonusTests
     [Fact]
     public void ABonusOnAVeryLowAnnualIncome_IsTaxedAtTheFlatRate()
     {
-        // T4127: where annual taxable income including the bonus is $5,000 or less, the whole
-        // calculation is replaced by a flat rate rather than run through the brackets, which
-        // would produce nothing at all this far below the personal amount.
+        // T4127: annual taxable income of $5,000 or less takes a flat rate rather than the brackets.
         PayrollRateTable rates = Rates();
 
         PayrollDeductions d = PayrollCalculator.Calculate(
@@ -191,9 +183,7 @@ public class PayrollBonusTests
     [Fact]
     public void ABonusJustOverTheCeiling_GoesBackToTheFormula()
     {
-        // Immediately above the ceiling the brackets take over, and this far below the personal
-        // amount they produce nothing. The flat rate is a floor CRA applies only underneath it,
-        // so the tax must DROP as income crosses the line rather than continuing to climb.
+        // Immediately above the ceiling the brackets take over, and this far below the personal amount they produce nothing.
         PayrollRateTable rates = Rates();
 
         PayrollDeductions under = PayrollCalculator.Calculate(
@@ -223,9 +213,7 @@ public class PayrollBonusTests
     [Fact]
     public void TheDeductionForAdditionalContributions_IsSplitInProportionToPay()
     {
-        // T4127's F5A and F5B: F5A = F5 x ((PI - B) / PI) and F5B = F5 x (B / PI). The split
-        // matters out of proportion to its size, because F5A gets multiplied by the number of
-        // pay periods and F5B does not.
+        // T4127's F5A and F5B: F5A = F5 x ((PI - B) / PI) and F5B = F5 x (B / PI).
         (decimal periodic, decimal bonus, _) = PayrollCalculator.SplitForBonus(
             Input(1000m, bonus: 400m), new PayrollYearToDate(),
             gross: 1000m, periods: 26, additionalContributions: 10m);
@@ -276,9 +264,7 @@ public class PayrollBonusTests
     [Fact]
     public void CppAndEi_AreStillChargedOnTheWholeBonus()
     {
-        // The split is an income tax rule only. A bonus is pensionable and insurable in full,
-        // and it is included with the regular pay for the period here, so the pay period's
-        // basic exemption is allowed exactly once as normal.
+        // The split is an income tax rule only: a bonus is pensionable and insurable in full and sits with the regular pay for the period.
         PayrollRateTable rates = Rates();
         var ytd = new PayrollYearToDate();
 
@@ -296,9 +282,7 @@ public class PayrollBonusTests
     [Fact]
     public void ARealPayRunWithABonus_StillWithholdsLessThanAnnualisingIt()
     {
-        // The same comparison as above but with contributions live, so the K2 credit and the
-        // enhanced-contribution deduction are both in play. The conclusion must not depend on
-        // having switched them off.
+        // The same comparison as above but with contributions live, so the K2 credit and the enhanced-contribution deduction are both in play.
         PayrollRateTable rates = Rates();
         var ytd = new PayrollYearToDate();
 
@@ -323,9 +307,7 @@ public class PayrollBonusTests
     [InlineData("YT")]
     public void EveryProvincesOwnRules_ApplyToTheBonusToo(string province)
     {
-        // The difference is taken on the finished provincial tax, so a surtax, a health premium
-        // or a tapering reduction is reflected in what a bonus costs. Taking the difference on
-        // the basic tax and adding the extras afterwards would get all three wrong.
+        // The difference is taken on the finished provincial tax, so a surtax, a health premium or a tapering reduction is reflected in what a bonus costs.
         PayrollRateTable rates = Rates();
         var ytd = new PayrollYearToDate();
 
@@ -348,9 +330,7 @@ public class PayrollBonusTests
     [Fact]
     public void AQuebecBonusUnderRevenuQuebecsThreshold_IsTaxedAtTheFlatRate()
     {
-        // Revenu Quebec states the rule the other way round from CRA and at a much higher
-        // ceiling: where annual remuneration including the bonus is $18,952 or less, withhold a
-        // flat 7% rather than running the formula.
+        // Revenu Quebec states the rule the other way round from CRA and far higher: 7% flat where annual remuneration is $18,952 or less.
         PayrollRateTable rates = Rates();
         QuebecRates qc = rates.Quebec!;
         var ytd = new PayrollYearToDate();
@@ -407,9 +387,7 @@ public class PayrollBonusTests
         PayrollDeductions d = PayrollCalculator.Calculate(
             Quebec(150m, bonus: 50m, periods: 12), new PayrollYearToDate(), rates);
 
-        // The federal side deducts only the additional QPP, which is nil for an exempt
-        // employee, so the whole $50 is taxable there. Quebec's deduction for workers comes off
-        // the provincial calculation and not this one.
+        // The federal side deducts only the additional QPP, which is nil for an exempt employee, so the whole $50 is taxable there.
         Assert.Equal(Math.Round(50m * rates.Quebec!.FederalFlatBonusRate, 2), d.FederalTax);
     }
 
@@ -460,10 +438,7 @@ public class PayrollBonusTests
     [Fact]
     public void VacationPay_IsLeftAsRegularIncome()
     {
-        // CRA's definition of a non-periodic payment covers vacation pay taken as money instead
-        // of time off. The field here is more often the percentage added to every cheque, which
-        // does recur, so it is deliberately annualised. Pinned because it is a judgement rather
-        // than something the formula decides.
+        // CRA's definition of a non-periodic payment covers vacation pay taken as money instead of time off.
         CompanyData data = CompanyWithEmployee();
         var service = new PayrollService();
 
@@ -512,10 +487,7 @@ public class PayrollBonusTests
     [Fact]
     public void ABonusPaidInARunOfItsOwn_IsTaxedOnTopOfTheSalary()
     {
-        // $10,000 to an Alberta employee on $62,400 a year, paid on its own cheque. With no
-        // regular pay in the run there was nothing to annualise, so the bonus was taxed as though
-        // it were the whole year's income and fell under the personal amount: nothing withheld,
-        // against roughly $2,900 when the same bonus rides on a regular pay.
+        // $10,000 to an Alberta employee on $62,400 a year, paid on its own cheque.
         CompanyData data = CompanyWithEmployee();
         var service = new PayrollService();
 

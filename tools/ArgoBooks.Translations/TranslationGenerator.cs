@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using ArgoBooks.Data;
@@ -23,12 +23,7 @@ public partial class TranslationGenerator
     [GeneratedRegex(@"\{loc:Loc\s+([^}]+)\}")]
     private static partial Regex LocExtensionRegex();
 
-    // Strips whole-line C# comments (// ... and /// ...). Only matches when the //
-    // is at the start of a line (after optional whitespace), so URLs inside string
-    // literals like "https://example.com" aren't truncated and any .Translate() calls
-    // sharing the line aren't silently dropped. End-of-line comments after code are
-    // left intact, picking up a stray translatable string from one would produce a
-    // visible spurious entry, which is preferable to silently losing a real one.
+    // Strips whole-line comments only, matching at the start of a line, so a URL inside a string literal survives.
     [GeneratedRegex(@"(?m)^[\t ]*//.*$")]
     private static partial Regex LineCommentRegex();
 
@@ -74,11 +69,7 @@ public partial class TranslationGenerator
     [GeneratedRegex(@"\[\s*""([^""]+)""")]
     private static partial Regex ArrayItemStartRegex();
 
-    // Continuation strings inside an array literal: matches `, "value"` only when the
-    // following token is another quoted string or a closing `]`. This filters out method
-    // call arguments like `Load("Page", "Column", true)` where the next token after a
-    // string is a non-string parameter, while still catching real array literals like
-    // `["A", "B", "C"]`.
+    // Continuation strings inside an array literal: matches `, "value"` only when the following token is another quoted string or a closing `]`.
     [GeneratedRegex(@",\s*""([^""]+)""(?=\s*(?:,\s*""|\]))")]
     private static partial Regex ArrayItemContinueRegex();
 
@@ -171,6 +162,7 @@ public partial class TranslationGenerator
         var csFiles = Directory.GetFiles(sourceDirectory, "*.cs", SearchOption.AllDirectories);
         foreach (var file in csFiles)
         {
+            if (DataOnlyFiles.Contains(Path.GetFileName(file))) continue;
             CollectFromCsFile(file, strings);
         }
 
@@ -182,6 +174,7 @@ public partial class TranslationGenerator
             var coreFiles = Directory.GetFiles(coreDirectory, "*.cs", SearchOption.AllDirectories);
             foreach (var file in coreFiles)
             {
+                if (DataOnlyFiles.Contains(Path.GetFileName(file))) continue;
                 CollectFromCsFile(file, strings);
             }
         }
@@ -400,9 +393,7 @@ public partial class TranslationGenerator
                 }
             }
 
-            // Find string array items: ["Item1", "Item2", "Item3"], used for ComboBox options
-            // Restricted to ViewModel/Service/Enum/Configuration files because plain arrays
-            // appear in many non-UI contexts and would generate noise.
+            // Finds string array items for combo box options, restricted to view model, service, enum and configuration files.
             if (filePath.Contains("Enum") || filePath.Contains("Service") || filePath.Contains("ViewModel") || filePath.Contains("Configuration"))
             {
                 var arrayStartMatches = ArrayItemStartRegex().Matches(content);
@@ -442,14 +433,51 @@ public partial class TranslationGenerator
         if (LooksLikeCodeIdentifier(text))
             return;
 
-        // Display strings start with an uppercase letter or a digit. Skip lowercase-leading
-        // strings, those are usually internal parsing tokens (e.g., the "this month" /
-        // "last 30 days" arms in ReportConfiguration's case-insensitive switch).
+        // A short run of capitals is a code rather than a label, such as a province, country, currency or payroll code.
+        if (IsShortCode(text))
+            return;
+
+        // Skip text with no letters in it: a bare number or a percentage band read out of a data
+        // table. There is nothing in it for a translator to translate.
+        if (!text.Any(char.IsLetter))
+            return;
+
+        // Display strings start with an uppercase letter or a digit.
         if (!char.IsUpper(text[0]) && !char.IsDigit(text[0]))
             return;
 
         AddString(strings, text);
     }
+
+    /// <summary>
+    /// Files that hold data rather than labels. Nothing in them is ever handed to the translator,
+    /// so every string the blanket patterns find in them is dead weight in all 54 files: a demo
+    /// company's street addresses, the aged receivables column headings, which the report renderer
+    /// draws exactly as given, and the box labels on the T4 and record of employment, which are
+    /// printed on a government form and have to stay as the form has them.
+    /// </summary>
+    private static readonly HashSet<string> DataOnlyFiles = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "SampleCompanyService.cs",
+        "AccountingReportDataService.cs",
+        "T4PdfRenderer.cs",
+        "RoePdfRenderer.cs",
+    };
+
+    /// <summary>The short runs of capitals that really are shown to people.</summary>
+    private static readonly HashSet<string> CodeShapedLabels =
+        new(StringComparer.Ordinal) { "OK", "ID", "AI", "SKU", "PDF", "CSV", "HST", "GST", "PST", "QST", "VAT" };
+
+    /// <summary>
+    /// Returns true for a short run of capitals with no lowercase in it, which in this codebase is
+    /// a code rather than something anyone reads: AB, QC, JPY, CPP, SIN. The handful that are real
+    /// labels are listed in <see cref="CodeShapedLabels"/>.
+    /// </summary>
+    private static bool IsShortCode(string text) =>
+        text.Length <= 5
+        && text.Any(char.IsLetter)
+        && text.All(c => char.IsUpper(c) || char.IsDigit(c))
+        && !CodeShapedLabels.Contains(text);
 
     /// <summary>
     /// Returns true if the text looks like a PascalCase or camelCase code identifier
@@ -541,6 +569,19 @@ public partial class TranslationGenerator
     /// <summary>
     /// Adds a string to the collection if valid.
     /// </summary>
+    /// <summary>
+    /// True when the text opens with a numbered placeholder, as "{0} items waiting" does, rather
+    /// than with a binding or an expression.
+    /// </summary>
+    private static bool StartsWithCount(string text)
+    {
+        if (text.Length < 4 || text[0] != '{') return false;
+
+        var i = 1;
+        while (i < text.Length && char.IsAsciiDigit(text[i])) i++;
+        return i > 1 && i < text.Length && text[i] == '}';
+    }
+
     private void AddString(Dictionary<string, string> strings, string text)
     {
         // Decode C# escape sequences captured as literal text by the regex extractors,
@@ -550,8 +591,10 @@ public partial class TranslationGenerator
         if (string.IsNullOrWhiteSpace(text))
             return;
 
-        // Skip if it looks like a variable or placeholder
-        if (text.StartsWith('{') || text.Contains("{{"))
+        // Skip if it looks like a variable or placeholder. A numbered placeholder is not one: a
+        // message that opens with its own count, such as "{0} invoices are overdue.", is ordinary
+        // text that the code asked to translate, and its singular partner is already translated.
+        if ((text.StartsWith('{') && !StartsWithCount(text)) || text.Contains("{{"))
             return;
 
         // Skip hex color codes (e.g., "#3B82F6", "#FFF")
@@ -742,10 +785,7 @@ public partial class TranslationGenerator
                 var sourceText = batch[i];
                 var translatedText = i < translatedBatch.Count ? translatedBatch[i] : englishStrings[key];
 
-                // Detect when Azure returned the source unchanged. Multi-word phrases that
-                // come back identical are usually mis-detection by Azure (e.g., "Select Premium").
-                // Allowlisted entries (legitimate loanwords like "Status" in Polish, or
-                // global brand names / font families) are skipped.
+                // Detect when Azure returned the source unchanged. Multi-word phrases that come back identical are usually mis-detection by Azure (e.g., "Select Premium").
                 var isAllowlisted = (allowlistForLang?.Contains(sourceText) ?? false)
                                     || (globalAllowlist?.Contains(sourceText) ?? false);
                 if (string.Equals(translatedText, sourceText, StringComparison.Ordinal) &&
@@ -802,9 +842,7 @@ public partial class TranslationGenerator
         return batches;
     }
 
-    // Max attempts when Azure returns 429 (Too Many Requests). F0 (free tier) has
-    // tight per-minute throttles independent of the 2M-char monthly cap; S1 rarely
-    // 429s but we honor it there too for resilience.
+    // Max attempts when Azure returns 429 (Too Many Requests).
     private const int MaxRateLimitRetries = 6;
 
     /// <summary>

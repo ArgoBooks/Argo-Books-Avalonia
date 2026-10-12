@@ -9,9 +9,7 @@ namespace ArgoBooks.Tests.ViewModels;
 
 public class BankCategoryRuleRowTests
 {
-    // The category picker is a SearchableDropdown that shows its SearchText. A loaded rule must seed
-    // both the selected category AND the search text, otherwise the picker renders empty even though a
-    // category is selected - which made imported bank rules look like they had no category.
+    // The category picker is a SearchableDropdown that shows its SearchText.
     [Fact]
     public void Constructor_WithResolvableCategory_SeedsSelectedCategoryAndSearchText()
     {

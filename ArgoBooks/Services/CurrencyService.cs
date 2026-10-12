@@ -209,9 +209,7 @@ public static class CurrencyService
         var target = CurrentCurrencyCode;
         foreach (var item in items)
         {
-            // Already in the display currency: use the original amount as-is, no conversion needed. A
-            // row still waiting for its USD value counts 0 until it converts, as it does in every USD
-            // total (Calculations.md §3), so a card agrees with its % change and with Net Profit.
+            // Already in the display currency: use the original amount as-is, no conversion needed.
             if (string.Equals(target, originalCurrency(item), StringComparison.OrdinalIgnoreCase))
             {
                 if (!IsPendingConversion(item))

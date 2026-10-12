@@ -34,6 +34,11 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
     #region Abstract Property Implementations
 
     protected override string TransactionTypeName => "Revenue";
+
+    protected override string IdPlaceholderText => "REV-xxx";
+
+    protected override bool IsIdTaken(CompanyData companyData, string id) =>
+        companyData.Revenues.Any(r => r.Id == id);
     protected override string CounterpartyName => "Customer";
     protected override CategoryType CategoryTypeFilter => CategoryType.Revenue;
     protected override bool UseCostPrice => false;
@@ -131,6 +136,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
         if (item == null || LoadIntoForm(item) is not Revenue revenue) return;
 
         EditingTransactionId = revenue.Id;
+        ModalId = revenue.Id;
         IsEditMode = true;
         ModalTitle = $"Edit Revenue {revenue.Id}";
         SaveButtonText = "Save Changes";
@@ -322,7 +328,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
                 if (record != null)
                 {
                     companyData.LostDamaged.RemoveRecord(record);
-                    App.UndoRedoManager.RecordAction(new DelegateAction(
+                    RecordStatusUndo(new DelegateAction(
                         $"Undo lost/damaged status for revenue '{revenue.Id}'",
                         () =>
                         {
@@ -345,7 +351,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
                 if (record != null)
                 {
                     companyData.Returns.RemoveRecord(record);
-                    App.UndoRedoManager.RecordAction(new DelegateAction(
+                    RecordStatusUndo(new DelegateAction(
                         $"Undo returned status for revenue '{revenue.Id}'",
                         () =>
                         {
@@ -436,7 +442,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
     protected override void SaveNewTransaction(CompanyData companyData)
     {
         var date = ModalDate?.DateTime ?? DateTime.Now;
-        var revenueId = new Core.Data.IdGenerator(companyData).NextRevenueId(date);
+        var revenueId = RequestedId ?? new Core.Data.IdGenerator(companyData).NextRevenueId(date);
 
         var (description, totalQuantity, averageUnitPrice) = GetLineItemSummary();
         var modelLineItems = CreateModelLineItems();
@@ -468,17 +474,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
         };
         UsdConversion.Apply(companyData, revenue, SaveRate);
 
-        // Create Receipt if file was attached
-        Receipt? receipt = null;
-        if (!string.IsNullOrEmpty(ReceiptFilePath))
-        {
-            receipt = CreateReceipt(companyData, revenueId, "Revenue", SelectedCustomer?.Name ?? "");
-            if (receipt != null)
-            {
-                revenue.ReceiptId = receipt.Id;
-                companyData.Receipts.Add(receipt);
-            }
-        }
+        var (addedReceipts, _) = ApplyAttachments(companyData, revenue, "Revenue", SelectedCustomer?.Name ?? "");
 
         companyData.Revenues.Add(revenue);
         _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.RevenueCreated);
@@ -486,15 +482,15 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
         // Adjust inventory for tracked products
         var inventoryResults = AdjustInventoryForLineItems(companyData, revenue, modelLineItems, isExpense: false);
 
-        var capturedReceipt = receipt;
+        var capturedReceipts = addedReceipts;
         var action = new DelegateAction(
             $"Add revenue {revenueId}",
             () =>
             {
                 companyData.Revenues.RemoveRecord(revenue);
                 UsdConversion.Set(companyData, UsdConversion.KeyOf(revenue), null);
-                if (capturedReceipt != null)
-                    companyData.Receipts.RemoveRecord(capturedReceipt);
+                foreach (var r in capturedReceipts)
+                    companyData.Receipts.RemoveRecord(r);
                 RevertInventoryAdjustments(companyData, inventoryResults);
                 RaiseTransactionSaved();
             },
@@ -502,8 +498,8 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
             {
                 companyData.Revenues.RestoreRecord(revenue);
                 UsdConversion.Requeue(companyData, revenue);
-                if (capturedReceipt != null)
-                    companyData.Receipts.RestoreRecord(capturedReceipt);
+                foreach (var r in capturedReceipts)
+                    companyData.Receipts.RestoreRecord(r);
                 inventoryResults = AdjustInventoryForLineItems(companyData, revenue, modelLineItems, isExpense: false);
                 RaiseTransactionSaved();
             });
@@ -518,10 +514,18 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
         TutorialService.Instance.CompleteChecklistItem(TutorialService.ChecklistItems.RecordRevenue);
     }
 
-    protected override void SaveEditedTransaction(CompanyData companyData)
+    protected override bool SaveEditedTransaction(CompanyData companyData)
     {
         var revenue = companyData.Revenues.FirstOrDefault(s => s.Id == EditingTransactionId);
-        if (revenue == null) return;
+        if (revenue == null) return false;
+
+        var oldId = revenue.Id;
+        var renamedId = RequestedId ?? oldId;
+        if (renamedId != oldId)
+        {
+            try { App.CompanyManager?.ChangeRevenueId(revenue, renamedId); }
+            catch (Exception ex) { ModalIdError = ex.Message; return false; }
+        }
 
         // Store original values for undo
         var original = CaptureTransactionState(revenue);
@@ -566,50 +570,38 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
 
         // Handle receipt. The form loads an existing receipt's OriginalFilePath, so only a different
         // path means Change picked a new file.
-        var currentReceipt = string.IsNullOrEmpty(original.ReceiptId)
-            ? null
-            : companyData.Receipts.FirstOrDefault(r => r.Id == original.ReceiptId);
-        Receipt? newReceipt = null;
-        Receipt? replacedReceipt = null;
-        if (!string.IsNullOrEmpty(ReceiptFilePath) && ReceiptFilePath != currentReceipt?.OriginalFilePath)
-        {
-            newReceipt = CreateReceipt(companyData, revenue.Id, "Revenue", SelectedCustomer?.Name ?? "");
-            if (newReceipt != null)
-            {
-                if (currentReceipt != null && companyData.Receipts.RemoveRecord(currentReceipt))
-                    replacedReceipt = currentReceipt;
-                revenue.ReceiptId = newReceipt.Id;
-                companyData.Receipts.Add(newReceipt);
-            }
-        }
+        var (addedReceipts, removedReceipts) = ApplyAttachments(companyData, revenue, "Revenue", SelectedCustomer?.Name ?? "");
 
         // Adjust inventory with net diff (single adjustment per product)
         var editResults = AdjustInventoryForEdit(companyData, revenue, original.LineItems, modelLineItems, isExpense: false);
 
-        var capturedNewReceipt = newReceipt;
+        var capturedAdded = addedReceipts;
+        var capturedRemoved = removedReceipts;
         // Snapshot the NEW state so redo restores the edit itself.
         var edited = CaptureTransactionState(revenue);
         var action = new DelegateAction(
             $"Edit revenue {EditingTransactionId}",
             () =>
             {
+                if (renamedId != oldId) App.CompanyManager?.ChangeRevenueId(revenue, oldId);
                 RestoreTransactionState(revenue, original);
                 UsdConversion.Restore(companyData, [queueKey], originalQueued);
-                if (capturedNewReceipt != null)
-                    companyData.Receipts.RemoveRecord(capturedNewReceipt);
-                if (replacedReceipt != null)
-                    companyData.Receipts.RestoreRecord(replacedReceipt);
+                foreach (var r in capturedAdded)
+                    companyData.Receipts.RemoveRecord(r);
+                foreach (var r in capturedRemoved)
+                    companyData.Receipts.RestoreRecord(r);
                 RevertInventoryAdjustments(companyData, editResults);
                 RaiseTransactionSaved();
             },
             () =>
             {
+                if (renamedId != oldId) App.CompanyManager?.ChangeRevenueId(revenue, renamedId);
                 RestoreTransactionState(revenue, edited);
                 UsdConversion.Restore(companyData, [queueKey], editedQueued);
-                if (replacedReceipt != null)
-                    companyData.Receipts.RemoveRecord(replacedReceipt);
-                if (capturedNewReceipt != null)
-                    companyData.Receipts.RestoreRecord(capturedNewReceipt);
+                foreach (var r in capturedRemoved)
+                    companyData.Receipts.RemoveRecord(r);
+                foreach (var r in capturedAdded)
+                    companyData.Receipts.RestoreRecord(r);
                 editResults = AdjustInventoryForEdit(companyData, revenue, original.LineItems, modelLineItems, isExpense: false);
                 RaiseTransactionSaved();
             });
@@ -619,6 +611,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
         RaiseTransactionSaved();
 
         ShowEditInventoryNotifications(editResults);
+        return true;
     }
 
     private Receipt? CreateReceipt(CompanyData companyData, string transactionId, string transactionType, string supplier)
@@ -628,9 +621,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
         var fileInfo = new FileInfo(ReceiptFilePath);
         var fileType = GetFileType(ReceiptFilePath);
 
-        // A receipt is only worth keeping with its file in it. A file that has gone since it was
-        // picked (an online-only cloud file, a phone or network drive that dropped) used to be
-        // attached empty with no warning, and then opened blank.
+        // A receipt is only worth keeping with its file in it.
         string fileData;
         try
         {

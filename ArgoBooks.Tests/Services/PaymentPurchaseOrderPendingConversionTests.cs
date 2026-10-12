@@ -16,6 +16,7 @@ namespace ArgoBooks.Tests.Services;
 /// later by <see cref="PendingConversionService"/>, never converted at a wrong-date rate. While pending
 /// their USD amount properties report 0 (Calculations.md §3) so they don't contaminate USD aggregates.
 /// </summary>
+[Collection("ExchangeRateSingleton")]
 public class PaymentPurchaseOrderPendingConversionTests
 {
     // USD->EUR = 0.90, so EUR->USD = 1/0.90 and 100 EUR -> 111.11... USD. The USD base is stored at
@@ -223,8 +224,6 @@ public class PaymentPurchaseOrderPendingConversionTests
     public async Task ImportTimeConversion_EqualsHealTimeConversion_ToTheCent()
     {
         // A foreign row can be converted immediately at import, or imported pending and healed later.
-        // Both paths must store IDENTICAL USD (full precision, no rounding) so the value never shifts
-        // when a pending row heals. See docs/Calculations.md Rule 3.
         var date = DateTime.Today.AddMonths(-1);
         var ex = new ExchangeRateService(new MockPlatform(), new HttpClient(new AlwaysEurHandler(UsdToEur)));
         await ex.GetExchangeRateAsync("USD", "EUR", date);

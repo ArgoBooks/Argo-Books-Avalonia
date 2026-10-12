@@ -1,11 +1,10 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:ArgoBooks.ViewModels"
              xmlns:local="using:ArgoBooks"
              xmlns:conv="using:ArgoBooks.Converters"
-             xmlns:controls="using:ArgoBooks.Controls"
              xmlns:loc="using:ArgoBooks.Localization"
              mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="400"
              x:Class="ArgoBooks.Controls.SetupChecklist"
@@ -32,7 +31,7 @@
                 <Grid ColumnDefinitions="*,Auto">
                     <!-- Title and Progress -->
                     <StackPanel Grid.Column="0" Spacing="4">
-                        <TextBlock Text="Getting Started"
+                        <TextBlock Text="{loc:Loc 'Getting Started'}"
                                    FontSize="16"
                                    FontWeight="SemiBold"
                                    Foreground="{DynamicResource TextPrimaryBrush}" />
@@ -45,7 +44,7 @@
                     <Button Grid.Column="1"
                             Classes="icon-button-small"
                             Command="{Binding DismissChecklistCommand}"
-                            ToolTip.Tip="Dismiss checklist">
+                            ToolTip.Tip="{loc:Loc 'Dismiss checklist'}">
                         <PathIcon Data="{x:Static local:Icons.Close}"
                                   Width="14" Height="14" />
                     </Button>
@@ -147,7 +146,7 @@
                             <StackPanel Spacing="8" HorizontalAlignment="Center">
                                 <Border Width="48" Height="48"
                                         CornerRadius="24"
-                                        Background="#E6F4EA"
+                                        Background="{DynamicResource SuccessLightBrush}"
                                         HorizontalAlignment="Center">
                                     <PathIcon Data="{x:Static local:Icons.Check}"
                                               Width="24" Height="24"

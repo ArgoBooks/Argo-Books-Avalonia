@@ -68,9 +68,7 @@ public class PayrollRateUpdateServiceTests : IDisposable
     [Fact]
     public async Task AValidEdition_IsCachedAndUsableWithoutARestart()
     {
-        // The point of the whole feature. Downloading is not enough: PayrollRateService caches
-        // its parsed editions, so without the Invalidate afterwards the new file sits on disk
-        // and nothing sees it until the app is restarted.
+        // Downloading is not enough, because PayrollRateService caches its parsed editions until Invalidate is called.
         PayrollRateService rates = Rates();
         Assert.Null(rates.GetForDate(new DateTime(2027, 3, 1)));
 
@@ -83,9 +81,7 @@ public class PayrollRateUpdateServiceTests : IDisposable
     [Fact]
     public async Task AnEditionThatContradictsItself_IsNotWrittenAtAll()
     {
-        // A CPP maximum that does not follow from its own rate. This is the case the validator
-        // exists for, and the file must not reach the cache directory even once: anything on
-        // disk is picked up ahead of the embedded copy on the next load.
+        // A CPP maximum that does not follow from its own rate.
         string broken = ValidEdition().Replace("\"maxContributionEmployee\": 4290.00", "\"maxContributionEmployee\": 9999.00");
         PayrollRateService rates = Rates();
 
@@ -181,9 +177,7 @@ public class PayrollRateUpdateServiceTests : IDisposable
     [InlineData(2027, 3, 15, "2027-01")]
     public void TheEditionAPayDateNeeds_IsDerivedFromTheDate(int y, int m, int d, string expected)
     {
-        // CRA names its editions by the half of the year they take effect in, so the id a pay
-        // date needs can be worked out without having the table that would tell you. That is
-        // the point: this is used precisely when no table is loaded.
+        // CRA names its editions by the half of the year they take effect in, so the id a pay date needs can be worked out without having the table that would tell you.
         Assert.Equal(expected, PayrollRateUpdateService.EditionIdFor(new DateTime(y, m, d)));
     }
 

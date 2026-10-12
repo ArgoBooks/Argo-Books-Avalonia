@@ -40,9 +40,7 @@ public class SpreadsheetImportInvoiceTests
     [Fact]
     public void ImportInvoices_DayFirstIssueDate_ParsesInsteadOfDefaultingToMinValue()
     {
-        // A UK/EU date like 15/03/2023 (the 15th) can't be read month-first, so the invariant parse
-        // fails and the date silently became DateTime.MinValue (0001-01-01). Because 15 can't be a
-        // month, the day-first reading is unambiguous and should be used.
+        // A UK date such as 15/03/2023 cannot be read month-first, so an invariant parse fails and the date would silently become MinValue.
         var data = new CompanyData();
         var headers = new List<string> { "Invoice #", "Issue Date", "Total" };
         var rows = new List<List<object?>>

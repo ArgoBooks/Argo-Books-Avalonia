@@ -83,11 +83,7 @@ public class InvoiceTotalsCalculationTests
     [Fact]
     public void ALineDiscount_ComesOffTheSubtotal()
     {
-        // §4: Subtotal = SUM over LineItem of (Quantity x UnitPrice - Discount). The form has no
-        // box for a per-line discount, so this only ever arrives on an imported line; the
-        // spreadsheet importer reads a Discount column for every invoice line and the exporter
-        // writes one. It used to be ignored by every total in the app and then erased on the
-        // next save.
+        // Section 4: subtotal is the sum of quantity by unit price less discount, and a per-line discount only ever arrives on an imported line.
         var vm = new InvoiceModalsViewModel();
         vm.LineItems.Add(new LineItemDisplayModel { Quantity = 10, UnitPrice = 100m, Discount = 50m });
         vm.TaxRate = 10m;
@@ -101,9 +97,7 @@ public class InvoiceTotalsCalculationTests
     [Fact]
     public void APerLineTaxRate_DoesNotAddToTheSubtotal()
     {
-        // §4 is explicit that the invoice header rate produces the stored tax: "line items each
-        // carry a TaxRate but the invoice header rate is what's stored as the final tax". Rolling
-        // a line's own rate into the subtotal would have the header rate charged on top of it.
+        // §4 is explicit that the invoice header rate produces the stored tax: "line items each carry a TaxRate but the invoice header rate is what's stored as the final tax".
         var vm = new InvoiceModalsViewModel();
         vm.LineItems.Add(new LineItemDisplayModel { Quantity = 10, UnitPrice = 100m, TaxRate = 0.13m });
         vm.TaxRate = 10m;

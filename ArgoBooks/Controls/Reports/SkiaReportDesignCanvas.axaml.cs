@@ -380,7 +380,8 @@ public partial class SkiaReportDesignCanvas : UserControl
         Configuration.Use24HourFormat = TimeZoneService.Is24HourFormat;
         Configuration.CompanyLogoPath = App.CompanyManager?.CurrentCompanyLogoPath;
         Configuration.MaxPieSlices = ChartSettingsService.GetMaxPieSlices();
-        using var renderer = new ReportRenderer(Configuration, companyData, 1f, LanguageServiceTranslationProvider.Instance, App.ErrorLogger);
+        using var renderer = new ReportRenderer(Configuration, companyData, 1f, LanguageServiceTranslationProvider.Instance, App.ErrorLogger,
+            Data.Regions.NameFor);
         renderer.ComputeContinuationPlan();
         _continuationPlan = renderer.GetContinuationPlan();
 
@@ -1017,9 +1018,7 @@ public partial class SkiaReportDesignCanvas : UserControl
             ? (viewportHeight - oldExtent.Height) / 2
             : 0;
 
-        // Calculate the mouse position in content space
-        // When scrolled: add scroll offset
-        // When centered: subtract centering offset (scroll offset is 0)
+        // Calculate the mouse position in content space When scrolled: add scroll offset When centered: subtract centering offset (scroll offset is 0)
         var mousePosInContent = new Point(
             mousePosInViewport.X + oldOffset.X - centeringOffsetX,
             mousePosInViewport.Y + oldOffset.Y - centeringOffsetY

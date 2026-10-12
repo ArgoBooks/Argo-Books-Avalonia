@@ -101,9 +101,7 @@ public static class NetworkFailure
             }
             else
             {
-                // The internet works and the call still failed, so it is our end: either
-                // our host is unreachable while the rest of the internet is fine, or it
-                // answered and the answer was a failure. Both are ours to fix.
+                // The internet works and the call still failed, so it is our end: either our host is unreachable while the rest of the internet is fine, or it answered and the answer was a failure.
                 errorLogger.LogError(exception, ErrorCategory.Network, context);
             }
         }
@@ -128,10 +126,7 @@ public static class NetworkFailure
             return exception.GetType().Name;
         }
 
-        // HttpRequestError separates a name-resolution failure from a refused connection
-        // from a TLS problem, which is the difference between "no internet", "our host is
-        // down" and "something is intercepting the connection" (corporate proxies and
-        // some antivirus TLS inspection show up here).
+        // HttpRequestError separates name resolution from a refused connection from a TLS problem, which is no internet, our host down, or interception.
         return httpException.HttpRequestError switch
         {
             HttpRequestError.NameResolutionError => "DnsFailure",

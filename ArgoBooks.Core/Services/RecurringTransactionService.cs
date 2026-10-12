@@ -182,9 +182,7 @@ public static class RecurringTransactionService
                     var entry = CloneFor(schedule, occurrence, data, rates, takenIds.Value);
                     generated.Add(entry);
 
-                    // A generated entry is a real purchase or sale, so it moves stock as one saved
-                    // by hand does. Without this a schedule for a stocked product left the stock
-                    // count and the cost of goods sold untouched, however many times it ran.
+                    // A generated entry is a real purchase or sale, so it moves stock like one saved by hand, where a stocked product otherwise left stock and COGS untouched.
                     var moved = InventoryStockService.Apply(data, entry.LineItems, entry, isPurchase: entry is Expense);
                     if (stockChanges != null) stockChanges[entry] = moved;
                     schedule.LastGeneratedAt = DateTime.UtcNow;

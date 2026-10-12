@@ -16,9 +16,7 @@
     </Design.DataContext>
 
     <Panel>
-    <!-- Frozen and blurred behind the upgrade teaser, so the shape of a filled-in payroll shows
-         through but nothing on the page can be read, clicked, sorted or searched.
-         The blur itself is applied in code-behind, since Effect is not settable from a binding. -->
+    <!-- Frozen and blurred behind the upgrade teaser, so the shape of a filled-in payroll shows through but nothing on the page can be read, clicked, sorted or searched. -->
     <Grid x:Name="ContentRoot" RowDefinitions="*" IsHitTestVisible="{Binding !ShowTeaser}">
         <Grid Grid.Row="0" RowDefinitions="Auto,*" Margin="24">
 
@@ -31,16 +29,12 @@
                                    Value="{Binding YearToDateGross}"
                                    Icon="{x:Static icons:Icons.Dollar}"
                                    IconColor="Success" />
-                <!-- What was owed for the year so far, employee and employer sides together, to
-                     CRA and Revenu Quebec combined. The Payroll Remittance report breaks it down
-                     by period and by agency. -->
+                <!-- What was owed for the year so far, employee and employer sides together, to CRA and Revenu Quebec combined. The Payroll Remittance report breaks it down by period and by agency. -->
                 <controls:StatCard Label="{loc:Loc 'Remittance this year'}"
                                    Value="{Binding YearToDateRemittance}"
                                    Icon="{x:Static icons:Icons.BarChart}"
                                    IconColor="Warning" />
-                <!-- The one figure here that is an instruction rather than a total: the amount to
-                     send and the day to send it by. The card cannot know whether it has been
-                     paid, so it shows the deadline rather than pretending to be a to-do. -->
+                <!-- The one figure here that is an instruction rather than a total: the amount to send and the day to send it by. -->
                 <controls:StatCard Label="{Binding RemittanceDueLabel}"
                                    Value="{Binding RemittanceDue}"
                                    SecondaryText="{Binding RemittanceDueQuebec}"
@@ -79,9 +73,7 @@
                             Command="{Binding OpenYearEndCommand}" />
                 </table:ArgoTable.ExtraButtonsContent>
 
-                <!-- Only for a lapsed subscriber, who keeps a usable page because their real runs
-                     and their T4s are still here. A free user who has never run payroll gets the
-                     teaser overlay instead. -->
+                <!-- Only for a lapsed subscriber, who keeps a usable page because their real runs and their T4s are still here. A free user who has never run payroll gets the teaser overlay instead. -->
                 <table:ArgoTable.InfoBannerContent>
                     <Border Background="{DynamicResource SurfaceAltBrush}"
                             Padding="24,14"
@@ -179,10 +171,7 @@
                                                              ShowSeparator="False">
                                             <table:ArgoTableCell.CellContent>
                                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center" Spacing="4">
-                                                    <!-- View shows one document covering everyone, for
-                                                         checking. Download writes one file per person,
-                                                         to hand to that person. Different outputs, so
-                                                         both buttons earn their place. -->
+                                                    <!-- View shows one document covering everyone, for checking. Download writes one file per person, to hand to that person. Different outputs, so both buttons earn their place. -->
                                                     <Button Classes="icon-button" ToolTip.Tip="{loc:Loc 'View pay stubs'}"
                                                             IsEnabled="{Binding IsApproved}"
                                                             Command="{Binding $parent[ItemsControl].((vm:PayRunsPageViewModel)DataContext).ViewStubsCommand}"

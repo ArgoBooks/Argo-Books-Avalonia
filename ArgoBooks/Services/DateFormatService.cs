@@ -43,9 +43,7 @@ public static class DateFormatService
     /// <returns>The formatted date string.</returns>
     public static string Format(DateTime date)
     {
-        // InvariantCulture so the format's '/' renders as a literal slash. Without it, '/' is the
-        // locale's date-separator placeholder and a German locale would show '.' for a user who
-        // explicitly chose MM/DD/YYYY.
+        // InvariantCulture, so the format's '/' is a literal slash rather than the locale's separator, which a German locale would draw as '.'.
         return date.ToString(GetDotNetFormat(CurrentFormat), System.Globalization.CultureInfo.InvariantCulture);
     }
 

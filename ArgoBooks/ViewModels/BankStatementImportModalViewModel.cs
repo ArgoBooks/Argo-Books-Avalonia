@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.AI;
@@ -41,14 +41,10 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
     /// <summary>Message shown in the modal's loading state (PDF read phase vs categorize phase).</summary>
     [ObservableProperty] private string _loadingMessage = "Categorizing your statement...";
 
-    // The bar % where the categorize phase begins. For a PDF import the read phase fills 0..this and
-    // categorize fills this..100, so the whole import is ONE continuous bar. Stays 0 for CSV/Excel
-    // (parsing is instant), where categorize fills the whole bar.
+    // The bar % where the categorize phase begins. For a PDF import the read phase fills 0..this and categorize fills this..100, so the whole import is ONE continuous bar.
     private double _categorizeProgressFloor;
 
-    // True once a PDF import has charged its single "bank" AI import at extraction, so the follow-up
-    // categorization pass neither re-checks the limit nor charges again. Stays false for CSV/Excel,
-    // which pay their one credit at the categorization step instead.
+    // True once a PDF import has charged its single "bank" AI import at extraction, so the follow-up categorization pass neither re-checks the limit nor charges again.
     private bool _pdfExtractionCharged;
 
     /// <summary>True when the AI categorization pass was skipped, so the rows were left for the user.</summary>
@@ -71,9 +67,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
     public ObservableCollection<Supplier> AvailableSuppliers { get; } = [];
     public ObservableCollection<Customer> AvailableCustomers { get; } = [];
 
-    // --- Pending-product editor (opened from a row's "New" chip or "Create one") ---------------
-    // Edits a row's pending new product (name + category) without creating any entity; everything
-    // is applied to the row and only materialized when the statement is imported.
+    // --- Pending-product editor, opened from a row's New chip ---
     public ObservableCollection<Category> ProductEditorCategories { get; } = [];
     private ImportLineRow? _editingRow;
 
@@ -88,9 +82,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
         if (!string.IsNullOrWhiteSpace(value)) ProductEditorNameError = false;
     }
 
-    // -----------------------------------------------------------------------
-    // Entry point
-    // -----------------------------------------------------------------------
+    // --- Entry point ---
 
     /// <summary>
     /// Parses <paramref name="filePath"/> and opens the modal for user review. Returns once the
@@ -135,9 +127,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
                 return;
             }
 
-            // Local header detection only knows English column names, so a statement in any other
-            // language reaches here with nothing wrong with it. Same backup the Bank Matching page
-            // import uses: null means the user is out of bank imports and has been told so.
+            // Local header detection only knows English column names, so a statement in any other language reaches here with nothing wrong with it.
             if (lines.Count == 0)
             {
                 var aiLines = await App.TryAiParseBankStatementAsync(filePath, isCsv, parser);
@@ -161,10 +151,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
 
         _validationAttempted = false;
 
-        // Show the modal in its loading state, run deterministic + AI categorization, then reveal the
-        // table. For a PDF the modal is already open from the reading phase and the bar is partway
-        // along (_categorizeProgressFloor): keep it there so the import is one continuous bar instead
-        // of two. For CSV/Excel the floor is 0 and categorize fills the whole bar.
+        // Show the modal in its loading state, run deterministic + AI categorization, then reveal the table.
         LoadingMessage = "Categorizing your statement...".Translate();
         CategorizeProgress = _categorizeProgressFloor;
         ShowCategorizeProgress = _categorizeProgressFloor > 0;
@@ -178,9 +165,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
         IsLoading = false;
     }
 
-    // -----------------------------------------------------------------------
-    // Commands
-    // -----------------------------------------------------------------------
+    // --- Commands ---
 
     [RelayCommand]
     private async Task Import()
@@ -214,6 +199,14 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
             });
             if (result != ConfirmationResult.Primary)
                 return;
+        }
+
+        // Every record stores a USD equivalent, so rows go in pending unless the rate for their own date is already cached, and a statement is mostly dates the cache has never seen.
+        var companyCurrency = data.Settings.Localization.Currency;
+        if (!string.Equals(companyCurrency, "USD", StringComparison.OrdinalIgnoreCase)
+            && !await App.EnsureImportRatesAsync(toImport.Select(r => r.Date.Date).Distinct().ToList(), "bank"))
+        {
+            return;
         }
 
         // Past every gate, so this is the last moment the books look the way they did before.
@@ -262,10 +255,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
     [RelayCommand]
     private async Task Cancel()
     {
-        // Confirm discard like other modals whenever an import is in flight: either rows are already
-        // parsed (spreadsheet, and the AI-categorization phase), or an import is still loading with no
-        // rows yet (a PDF extraction reads "Reading PDF statement..." before any rows exist). Checking
-        // Rows.Count alone silently closed the modal mid-PDF-extraction with no prompt.
+        // Discard is confirmed whenever an import is in flight, whether rows are already parsed or a file is still loading with none yet.
         if ((Rows.Count > 0 || IsLoading) && !await ConfirmDiscardNewAsync())
             return;
         _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ImportAbandoned, $"bank:preview:{Rows.Count}");
@@ -297,9 +287,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
 
             var categoryId = data.GetProduct(productId)?.CategoryId ?? string.Empty;
 
-            // A bank import rule exists to auto-assign a CATEGORY (that's the Bank import rules tab's
-            // whole purpose). If the resolved product has no category, there's nothing for the rule
-            // to assign, so don't create a blank-category rule that just clutters the list.
+            // A bank import rule exists to assign a category, so a resolved product without one gives the rule nothing to assign.
             if (string.IsNullOrEmpty(categoryId)) continue;
 
             var token = MerchantNormalizer.Normalize(res.Line.Description);
@@ -321,9 +309,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
         return ruleCaptures;
     }
 
-    // -----------------------------------------------------------------------
-    // AI categorization (batched, runs after the modal opens)
-    // -----------------------------------------------------------------------
+    // --- AI categorization (batched, runs after the modal opens) ---
 
     private async Task CategorizeWithAiAsync()
     {
@@ -336,9 +322,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
         try
         {
             using var usage = new UsageLimitService(UsageLimit.AiImports("bank"), App.LicenseService, App.ErrorLogger);
-            // PDF imports already paid their single bank-import credit at extraction, so they neither
-            // re-check the limit nor charge again here. CSV/Excel imports pay their one credit at this
-            // step, so they check availability first.
+            // PDF imports already paid their single bank-import credit at extraction, so they neither re-check the limit nor charge again here.
             if (!_pdfExtractionCharged)
             {
                 var check = await usage.CheckUsageAsync();
@@ -363,10 +347,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
                 return;
             }
 
-            // Build the request and call the model off the UI thread. Assembling the request from
-            // every existing product/category/supplier/customer and JSON-serializing them into the
-            // prompt is synchronous and was freezing the loading spinner (~0.5s) on companies with
-            // a lot of data. ApplySuggestions runs back on the UI thread (it touches bound rows).
+            // Build the request and call the model off the UI thread.
             ShowCategorizeProgress = true;
             // Continue the one bar from where the read phase left off (0 for CSV/Excel, 60 for PDF).
             var floor = _categorizeProgressFloor;
@@ -387,11 +368,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
                 return;
             }
 
-            // The Gemini call already ran and cost a credit, so record usage even if the user has since
-            // closed the modal. Skipping it on close would let a start/cancel loop make real AI calls
-            // without ever consuming quota. (The server's own per-identity rate limit still caps the
-            // absolute number of calls, so this is about quota fairness, not an unbounded bill.)
-            // PDF imports are exempt: they already charged their single bank-import credit at extraction.
+            // The Gemini call already ran and cost a credit, so record usage even if the user has since closed the modal.
             if (!_pdfExtractionCharged)
                 await usage.IncrementUsageAsync();
 
@@ -453,10 +430,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
         {
             var row = pending[i];
 
-            // Match strictly by the AI's explicit line index (the prompt requires the model to echo
-            // it for every line). Positional fallback was unsafe: when a batch fails its lines are
-            // omitted from the merged list, so this row would borrow a different line's suggestion.
-            // An unmatched row is left blank for the user to fill in.
+            // Match strictly by the AI's explicit line index (the prompt requires the model to echo it for every line).
             if (!byIndex.TryGetValue(row.Index, out var s))
                 continue;
 
@@ -470,10 +444,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
                 }
                 if (!row.HasProduct && !string.IsNullOrWhiteSpace(s.NewProductName))
                 {
-                    // Only trust a categoryId that resolves to a real category. The model is asked to echo
-                    // an existing id, but sometimes returns a hallucinated id or a category *name* in this
-                    // field; in that case treat the value as a new-category name so a real category gets
-                    // created rather than a dangling id landing on the product and its learned rule.
+                    // Only trust a categoryId that resolves to a real category.
                     var existingCat = string.IsNullOrEmpty(s.ProductCategoryId) ? null : data.GetCategory(s.ProductCategoryId);
                     var categoryId = existingCat?.Id;
                     var newCatName = existingCat != null
@@ -510,9 +481,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
     private static string? CategoryNameFor(CompanyData data, Product product) =>
         string.IsNullOrEmpty(product.CategoryId) ? null : data.GetCategory(product.CategoryId)?.Name;
 
-    // -----------------------------------------------------------------------
-    // Undo / Redo
-    // -----------------------------------------------------------------------
+    // --- Undo / Redo ---
 
     private void UndoImport(CompanyData data, BankImportCreation creation,
         List<RuleLearningCapture> ruleCaptures, IdCounters preCounters, IdCounters postCounters)
@@ -571,9 +540,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
         App.CompanyManager?.MarkAsChanged();
     }
 
-    // -----------------------------------------------------------------------
-    // Populate / deterministic pre-fill
-    // -----------------------------------------------------------------------
+    // --- Populate / deterministic pre-fill ---
 
     private void PopulateRows(List<BankStatementLine> lines)
     {
@@ -596,7 +563,15 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
             if (data != null)
                 ApplyDeterministicPrefill(data, row);
 
-            row.PropertyChanged += (_, _) => RefreshState();
+            row.PropertyChanged += (_, e) =>
+            {
+                RefreshState();
+                if (e.PropertyName is nameof(ImportLineRow.NewCounterpartyName)
+                    or nameof(ImportLineRow.CreateAsRevenue))
+                {
+                    SyncTypedCounterparties();
+                }
+            };
             Rows.Add(row);
         }
 
@@ -709,9 +684,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
         return null;
     }
 
-    // -----------------------------------------------------------------------
-    // "Create one" — open standard create modals and select the new entity on the row
-    // -----------------------------------------------------------------------
+    // --- "Create one" — open standard create modals and select the new entity on the row ---
 
     /// <summary>
     /// Opens the lightweight editor for a row's pending new product. Lets the user set the product
@@ -849,11 +822,71 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
                 AvailableProducts.Add(p);
     }
 
-    private void ReloadSuppliers() =>
+    private void ReloadSuppliers()
+    {
         OptionLoader.Fill(AvailableSuppliers, OptionLoader.Suppliers(App.CompanyManager?.CompanyData));
+        SyncTypedCounterparties();
+    }
 
-    private void ReloadCustomers() =>
+    private void ReloadCustomers()
+    {
         OptionLoader.Fill(AvailableCustomers, OptionLoader.Customers(App.CompanyManager?.CompanyData));
+        SyncTypedCounterparties();
+    }
+
+    /// <summary>
+    /// Offers a name typed on one row in every other row's picker, so a statement with ten lines
+    /// from one supplier is assigned by picking rather than by typing the name ten times. Typing
+    /// it again is safe, since the import finds a supplier by name before creating one, but a
+    /// second spelling makes a second record, and nothing else here helps you stay consistent.
+    ///
+    /// The entries stand for a name, not a record, so they carry no id. Picking one therefore
+    /// means the same as typing it, which is what UseTypedCounterparty relies on.
+    /// </summary>
+    private void SyncTypedCounterparties()
+    {
+        var data = App.CompanyManager?.CompanyData;
+
+        var suppliers = TypedNames(r => !r.CreateAsRevenue)
+            .Where(n => data?.Suppliers.Any(x => NameIs(x.Name, n)) != true)
+            .ToList();
+        SyncOffered(AvailableSuppliers, suppliers, x => x.Name, x => string.IsNullOrEmpty(x.Id),
+            n => new Supplier { Name = n });
+
+        var customers = TypedNames(r => r.CreateAsRevenue)
+            .Where(n => data?.Customers.Any(x => NameIs(x.Name, n)) != true)
+            .ToList();
+        SyncOffered(AvailableCustomers, customers, x => x.Name, x => string.IsNullOrEmpty(x.Id),
+            n => new Customer { Name = n });
+    }
+
+    private static bool NameIs(string? a, string b) => string.Equals(a?.Trim(), b, StringComparison.OrdinalIgnoreCase);
+
+    private List<string> TypedNames(Func<ImportLineRow, bool> forKind) =>
+        Rows.Where(r => forKind(r) && !string.IsNullOrWhiteSpace(r.NewCounterpartyName))
+            .Select(r => r.NewCounterpartyName!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+    private static void SyncOffered<T>(
+        ObservableCollection<T> list,
+        List<string> names,
+        Func<T, string?> nameOf,
+        Func<T, bool> isOffered,
+        Func<string, T> make) where T : class
+    {
+        for (var i = list.Count - 1; i >= 0; i--)
+        {
+            if (isOffered(list[i]) && !names.Any(n => NameIs(nameOf(list[i]), n)))
+                list.RemoveAt(i);
+        }
+
+        foreach (var name in names)
+        {
+            if (!list.Any(x => NameIs(nameOf(x), name)))
+                list.Add(make(name));
+        }
+    }
 
     private void RefreshState()
     {
@@ -940,9 +973,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
         return extracted;
     }
 
-    // -----------------------------------------------------------------------
-    // Nested helper types (rule capture)
-    // -----------------------------------------------------------------------
+    // --- Nested helper types (rule capture) ---
 
     private sealed record RulePriorState(
         string CategoryId,
@@ -1040,9 +1071,7 @@ public partial class ImportLineRow : ObservableObject
     [RelayCommand] private void SetExpense() => CreateAsRevenue = false;
     [RelayCommand] private void SetRevenue() => CreateAsRevenue = true;
 
-    // -----------------------------------------------------------------------
-    // Apply helpers (called by the parent VM after deterministic / AI resolution)
-    // -----------------------------------------------------------------------
+    // --- Apply helpers (called by the parent VM after deterministic / AI resolution) ---
 
     public void SetExistingProduct(Product product, string? categoryName)
     {
@@ -1098,16 +1127,54 @@ public partial class ImportLineRow : ObservableObject
 
     public void SetNewCounterparty(string name)
     {
+        // Push null to the pickers first (they clear their text), as SetNewProduct does.
+        _resolvedSupplierObject = null;
+        _resolvedCustomerObject = null;
+        OnPropertyChanged(nameof(ResolvedSupplierObject));
+        OnPropertyChanged(nameof(ResolvedCustomerObject));
         ResolvedCounterpartyId = null;
         NewCounterpartyName = name;
-        CounterpartySearchText = name;
         HasCounterpartyError = false;
+        OnPropertyChanged(nameof(HasCounterparty));
+        CounterpartySearchText = name;
+    }
+
+    partial void OnCounterpartySearchTextChanged(string? value) => UseTypedCounterparty();
+
+    // A supplier picked for an expense is not a customer, and the other way round, so a row
+    // switched between the two goes by what its box says.
+    partial void OnCreateAsRevenueChanged(bool value) => UseTypedCounterparty();
+
+    /// <summary>
+    /// With nothing picked for the kind of row this is, the name in the box stands for a supplier
+    /// or customer to be found or created by that name on import, as typing one does on the other
+    /// forms.
+    /// </summary>
+    private void UseTypedCounterparty()
+    {
+        var name = CounterpartySearchText?.Trim() ?? string.Empty;
+        var (pickedId, pickedName) = CreateAsRevenue
+            ? (_resolvedCustomerObject?.Id, _resolvedCustomerObject?.Name)
+            : (_resolvedSupplierObject?.Id, _resolvedSupplierObject?.Name);
+
+        // A pick counts only while the box still shows it. The two boxes share their text, so
+        // one can be typed over through the other without its own pick being cleared.
+        if (pickedName?.Trim() != name)
+            pickedId = null;
+
+        // A name typed on another row is offered here with no id behind it, so picking it means
+        // what typing it means: the import finds or creates that supplier or customer by name.
+        if (string.IsNullOrEmpty(pickedId))
+            pickedId = null;
+
+        ResolvedCounterpartyId = pickedId;
+        NewCounterpartyName = pickedId != null || name.Length == 0 ? null : name;
+        if (HasCounterparty)
+            HasCounterpartyError = false;
         OnPropertyChanged(nameof(HasCounterparty));
     }
 
-    // -----------------------------------------------------------------------
-    // Delegate callbacks — set by BankStatementImportModalViewModel after construction
-    // -----------------------------------------------------------------------
+    // --- Delegate callbacks — set by BankStatementImportModalViewModel after construction ---
 
     public Action? OpenCreateProduct { get; set; }
     public Action? OpenCreateCounterparty { get; set; }
@@ -1128,16 +1195,21 @@ public partial class ImportLineRow : ObservableObject
         get => _resolvedProductObject;
         set
         {
-            if (SetProperty(ref _resolvedProductObject, value) && value != null)
+            if (!SetProperty(ref _resolvedProductObject, value))
+                return;
+
+            // Null is the box dropping its pick because it was typed over or emptied. Keeping
+            // the id would import the row under a product it no longer shows.
+            ResolvedProductId = value?.Id;
+            CategoryDisplay = value == null ? null : ProductCategoryNameLookup?.Invoke(value);
+            if (value != null)
             {
-                ResolvedProductId = value.Id;
                 IsNewProduct = false;
                 NewProductName = null;
                 NewProductCategoryId = null;
                 NewProductCategoryName = null;
-                CategoryDisplay = ProductCategoryNameLookup?.Invoke(value);
-                OnPropertyChanged(nameof(HasProduct));
             }
+            OnPropertyChanged(nameof(HasProduct));
         }
     }
 
@@ -1150,12 +1222,9 @@ public partial class ImportLineRow : ObservableObject
         get => _resolvedSupplierObject;
         set
         {
-            if (SetProperty(ref _resolvedSupplierObject, value) && value != null)
-            {
-                ResolvedCounterpartyId = value.Id;
-                NewCounterpartyName = null;
-                OnPropertyChanged(nameof(HasCounterparty));
-            }
+            // Typing over a pick clears it here, and what was typed takes its place.
+            if (SetProperty(ref _resolvedSupplierObject, value))
+                UseTypedCounterparty();
         }
     }
 
@@ -1165,12 +1234,8 @@ public partial class ImportLineRow : ObservableObject
         get => _resolvedCustomerObject;
         set
         {
-            if (SetProperty(ref _resolvedCustomerObject, value) && value != null)
-            {
-                ResolvedCounterpartyId = value.Id;
-                NewCounterpartyName = null;
-                OnPropertyChanged(nameof(HasCounterparty));
-            }
+            if (SetProperty(ref _resolvedCustomerObject, value))
+                UseTypedCounterparty();
         }
     }
 }

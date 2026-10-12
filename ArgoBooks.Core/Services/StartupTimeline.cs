@@ -170,9 +170,7 @@ public static class StartupTimeline
 
         var elapsed = (DateTime.UtcNow - start).TotalMilliseconds;
 
-        // A machine suspended mid-launch, or a clock corrected by NTP between process start
-        // and now, produces a figure that describes the clock rather than the app. Drop
-        // those instead of letting them drag an average around.
+        // A machine suspended mid-launch, or a clock corrected by NTP between process start and now, produces a figure that describes the clock rather than the app.
         if (elapsed < 0 || elapsed > TimeSpan.FromMinutes(10).TotalMilliseconds)
         {
             return null;
@@ -237,9 +235,7 @@ public static class StartupTimeline
         }
         catch (Exception)
         {
-            // No stamp readable or writable, so the split is unknowable for this launch.
-            // Cold is the safer default: it keeps an unmeasurable launch out of the warm
-            // bucket, where it would drag the warm figure up and hide a real regression.
+            // No stamp is readable or writable, so the split is unknowable and cold is the safer default, keeping it out of the warm figures.
             return true;
         }
     }

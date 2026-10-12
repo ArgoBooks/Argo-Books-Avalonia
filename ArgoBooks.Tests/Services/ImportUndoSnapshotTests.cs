@@ -48,9 +48,7 @@ public class ImportUndoSnapshotTests
         Assert.Equal(revenueId, Assert.Single(data.PendingConversions).TransactionId);
     }
 
-    // Restoring a snapshot swaps every record for a copy. A bank import's undo, further back on the
-    // stack, removed its rows by reference, so after that it left them in the books, and its redo
-    // added a second row with the same id.
+    // Restoring a snapshot swaps every record for a copy.
     [Fact]
     public void BankImportUndoAndRedo_AfterASnapshotRestore_MatchTheRowsById()
     {
@@ -119,9 +117,7 @@ public class ImportUndoSnapshotTests
         Assert.Equal("L2", lines[1].Id);
     }
 
-    // Undo restores the whole company, so it must not run once something has been added that has
-    // no undo step of its own: an invoice sent after the import would vanish and its number be
-    // given out again.
+    // Undo restores the whole company, so it must not run once something without its own undo step has been added, such as an invoice sent after the import.
     [Fact]
     public void ARecordAddedAfterTheImport_IsSeenAsNewAgainstTheImportsSnapshot()
     {

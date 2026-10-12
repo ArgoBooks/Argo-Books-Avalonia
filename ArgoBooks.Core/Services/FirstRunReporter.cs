@@ -110,12 +110,7 @@ public sealed class FirstRunReporter
             {
                 await WriteMarker(markerPath, token != null ? "token" : "no_token", cancellationToken);
 
-                // Without a token this install is anonymous, and on macOS that is every
-                // install. Opening the welcome page in the default browser is the only
-                // exact link left: that browser still holds the argo_visitor_id cookie
-                // from the visit that produced the download, so the server sees the
-                // machine id and the visitor in one request and joins them. Ordered
-                // after the POST because the page attaches to the row it just created.
+                // Without a token this install is anonymous, and on macOS that is every install.
                 if (token == null)
                 {
                     OpenWelcomePage(machineUuid);
@@ -140,9 +135,7 @@ public sealed class FirstRunReporter
         }
         catch (Exception ex)
         {
-            // Network exceptions (offline, DNS, timeout, TLS) reach here. Count
-            // them toward MaxRetryAttempts so we eventually give up instead of
-            // retrying on every launch forever.
+            // Network exceptions (offline, DNS, timeout, TLS) reach here. Count them toward MaxRetryAttempts so we eventually give up instead of retrying on every launch forever.
             if (attemptsPath != null && !postCompleted)
             {
                 IncrementAttemptCount(attemptsPath, attempts + 1);
@@ -182,9 +175,7 @@ public sealed class FirstRunReporter
                 return null;
             }
 
-            // macOS has no route: the .zip is expanded before first launch, so the
-            // bundle carries neither the archive's name nor a recorded source URL.
-            // Attribution there happens through the welcome page instead.
+            // macOS has no route: the .zip is expanded before first launch, so the bundle carries neither the archive's name nor a recorded source URL.
             if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
                 return null;

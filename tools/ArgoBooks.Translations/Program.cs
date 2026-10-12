@@ -65,7 +65,6 @@ if (!Directory.Exists(sourceDir))
     return 1;
 }
 
-// Create output directory
 Directory.CreateDirectory(outputDir);
 
 // Create generator
@@ -110,11 +109,7 @@ Console.WriteLine("Step 1: Collecting translatable strings...");
 var strings = generator.CollectStrings(sourceDir);
 Console.WriteLine($"\nFound {strings.Count} translatable strings.\n");
 
-// Warn about key collisions caused by 50-char truncation in GetStringKey.
-// Only the first source text wins; collided strings won't get translated separately.
-// Suppress "safe" collisions where all variants normalize to the same letters/digits
-// (e.g., "Tax ($)" vs "Tax", "Select Logo..." vs "Select Logo", "ID" vs "Id"), those
-// share a sensible single translation by design.
+// Warn about key collisions caused by 50-char truncation in GetStringKey. Only the first source text wins; collided strings won't get translated separately.
 if (generator.KeyCollisions.Count > 0)
 {
     static string LooseNormalize(string s) =>

@@ -210,10 +210,7 @@ public class InsightsServiceTests
     [Fact]
     public async Task DisplayCurrency_NonUsdCompanyWithRates_ConvertsAtTransactionDateAndUsesSymbol()
     {
-        // A EUR company with the exact-date USD->EUR rate cached for every conversion date resolves to
-        // EUR: amounts convert at each transaction's own date (100 USD * 0.90 = 90 EUR on Date1) and
-        // format with the euro symbol, not a hardcoded "$". Today is one of the dates reports check,
-        // and opening a company always fetches it.
+        // A EUR company with every conversion date cached resolves to EUR, converting each transaction at its own date.
         var service = await SeededServiceAsync(Date1, DateTime.Today);
         var prior = SetInstance(service);
         try
@@ -264,9 +261,7 @@ public class InsightsServiceTests
     [Fact]
     public async Task DisplayCurrency_MissingRate_FallsBackToUsd()
     {
-        // Same EUR company, but one transaction date (Date2) has no cached exact-date rate (only Date1
-        // is seeded). Because a needed date can't be converted, the whole run falls back to USD:
-        // amounts stay unconverted and format with "$" (the all-or-nothing rule reports use).
+        // The same company with one date uncached falls back to USD for the whole run, because a needed date cannot be converted.
         var service = await SeededServiceAsync(Date1);
         var prior = SetInstance(service);
         try

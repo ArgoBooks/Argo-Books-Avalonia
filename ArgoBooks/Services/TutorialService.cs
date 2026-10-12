@@ -81,6 +81,11 @@ public class TutorialService
     public event EventHandler<bool>? SourceSurveyVisibilityChanged;
 
     /// <summary>
+    /// Event raised when the question asked on closing the app should be shown.
+    /// </summary>
+    public event EventHandler? ExitSurveyRequested;
+
+    /// <summary>
     /// Gets or sets whether the completion guidance overlay should be shown.
     /// </summary>
     public bool ShowCompletionGuidance
@@ -305,9 +310,7 @@ public class TutorialService
         SaveSettings();
         ChecklistItemCompleted?.Invoke(this, itemId);
 
-        // Anonymous onboarding telemetry: report which step was finished, so the
-        // setup funnel shows where users stop rather than only who reached the
-        // end. The Contains guard above means each step reports at most once.
+        // Anonymous onboarding telemetry: report which step was finished, so the setup funnel shows where users stop rather than only who reached the end.
         _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ChecklistStepCompleted, itemId);
 
         // Only while the checklist is on screen: the guidance points the user back to its next step,
@@ -463,18 +466,22 @@ public class TutorialService
     }
 
     /// <summary>
-    /// Whether the source survey should be presented to this user. True only when
-    /// FirstRunReporter has run and recorded a no-token install, and the user
-    /// hasn't already answered or dismissed.
+    /// Whether the survey still has "Where did you hear about Argo Books?" to ask. True only
+    /// when FirstRunReporter has run and recorded a no-token install, and the user hasn't
+    /// already answered or dismissed.
     /// </summary>
-    public bool ShouldShowSourceSurvey()
-    {
-        if (Settings.SourceSurveyAnswer != null) return false;
-        if (Settings.IsSourceSurveyDismissed) return false;
+    public bool ShouldAskSurveySource() =>
+        SurveyPrompts.ShouldAskSource(Settings, InstallAttributionReason.ReadFirstRunMarkerReason());
 
-        var reason = InstallAttributionReason.ReadFirstRunMarkerReason();
-        return reason == "no_token";
-    }
+    /// <summary>
+    /// Whether the survey still has "What do you mainly want to use it for?" to ask. Unlike the
+    /// source, this is asked of an install that arrived through a tracked link too.
+    /// </summary>
+    public bool ShouldAskSurveyGoal() =>
+        SurveyPrompts.ShouldAskGoal(Settings, InstallAttributionReason.ReadFirstRunMarkerReason());
+
+    /// <summary>Whether the survey has anything left to ask this user.</summary>
+    public bool ShouldShowSourceSurvey() => ShouldAskSurveySource() || ShouldAskSurveyGoal();
 
     /// <summary>
     /// Requests the survey overlay to open if <see cref="ShouldShowSourceSurvey"/> is true.
@@ -490,20 +497,61 @@ public class TutorialService
     }
 
     /// <summary>
-    /// Persists the user's survey answer and closes the overlay. Caller is responsible
-    /// for POSTing the answer to the server before invoking this.
+    /// Persists the user's survey answers and closes the overlay. Either is null when it was
+    /// not asked. Caller is responsible for POSTing them to the server before invoking this.
     /// </summary>
-    public void MarkSourceSurveyAnswered(string answer)
+    public void MarkSourceSurveyAnswered(string? source, string? goal)
     {
         var settings = _globalSettingsService?.GetSettings();
         if (settings?.Tutorial != null)
         {
-            settings.Tutorial.SourceSurveyAnswer = answer;
+            if (source != null) settings.Tutorial.SourceSurveyAnswer = source;
+            if (goal != null) settings.Tutorial.SurveyGoalAnswer = goal;
             settings.Tutorial.HasShownSourceSurvey = true;
             SaveSettings();
         }
         SourceSurveyVisibilityChanged?.Invoke(this, false);
     }
+
+    private TaskCompletionSource? _exitSurvey;
+
+    /// <summary>
+    /// Whether to ask, as the app closes, what the person was hoping to do. See
+    /// <see cref="SurveyPrompts.ShouldAskOnExit"/>.
+    /// </summary>
+    public bool ShouldAskOnExit(CompanyUse use)
+    {
+        var completed = Settings.CompletedChecklistItems;
+        var hasRecordedBefore = completed.Contains(ChecklistItems.RecordExpense)
+                                || completed.Contains(ChecklistItems.RecordRevenue);
+
+        return SurveyPrompts.ShouldAskOnExit(
+            Settings, InstallAttributionReason.ReadFirstRunMarkerReason(), hasRecordedBefore, use);
+    }
+
+    /// <summary>
+    /// Shows the closing question and completes once it has been answered or skipped. It is
+    /// recorded as asked before it is shown, so whatever happens next it is not asked again.
+    /// </summary>
+    public Task AskExitSurveyAsync()
+    {
+        var settings = _globalSettingsService?.GetSettings();
+        if (settings?.Tutorial != null)
+        {
+            settings.Tutorial.HasAskedExitSurvey = true;
+            SaveSettings();
+        }
+
+        if (ExitSurveyRequested == null)
+            return Task.CompletedTask;
+
+        _exitSurvey = new TaskCompletionSource();
+        ExitSurveyRequested.Invoke(this, EventArgs.Empty);
+        return _exitSurvey.Task;
+    }
+
+    /// <summary>Lets the app carry on closing once the closing question is done with.</summary>
+    public void CompleteExitSurvey() => _exitSurvey?.TrySetResult();
 
     /// <summary>
     /// Closes the survey overlay without recording an answer or a dismissal. Used when a

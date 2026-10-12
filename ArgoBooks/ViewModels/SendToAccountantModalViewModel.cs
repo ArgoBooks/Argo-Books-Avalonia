@@ -410,7 +410,7 @@ public partial class SendToAccountantModalViewModel : ViewModelBase
                 var rendered = await Task.Run(async () =>
                 {
                     using var renderer = new ReportRenderer(config, data, PageDimensions.RenderScale,
-                        LanguageServiceTranslationProvider.Instance, App.ErrorLogger);
+                        LanguageServiceTranslationProvider.Instance, App.ErrorLogger, Data.Regions.NameFor);
                     return await renderer.ExportToPdfAsync(path);
                 });
                 if (rendered)

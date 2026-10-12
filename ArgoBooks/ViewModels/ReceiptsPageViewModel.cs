@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using ArgoBooks.Controls.ColumnWidths;
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
@@ -346,9 +346,7 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
 
     private async void LoadReceipts()
     {
-        // Receipts load in the background after a company opens; make sure they're
-        // merged before reading them. EnsureReceiptsLoadedAsync completes synchronously
-        // once merged, so this only actually waits on the first call right after open.
+        // Receipts load in the background after a company opens; make sure they're merged before reading them.
         var manager = App.CompanyManager;
         if (manager != null)
         {
@@ -402,9 +400,7 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
 
             ScanUsage = string.Empty;
 
-            // Every failure path in CheckUsageAsync returns a zero limit, so a hidden label and a
-            // genuine "no allowance configured" look identical from here. Recorded rather than
-            // swallowed.
+            // Every failure path in CheckUsageAsync returns a zero limit, so a hidden label and a genuine "no allowance configured" look identical from here. Recorded rather than swallowed.
             App.ErrorLogger?.LogWarning(
                 $"Scan usage unavailable: {usage.ErrorMessage ?? "no limit returned"}",
                 "ReceiptsPageViewModel.RefreshScanUsageAsync",
@@ -1076,11 +1072,4 @@ public partial class ReceiptDisplayItem : ObservableObject
                          FileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase);
 
     public bool HasImage => !string.IsNullOrEmpty(ImagePath);
-
-    private static string FormatFileSize(long bytes)
-    {
-        if (bytes < 1024) return $"{bytes} B";
-        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
-        return $"{bytes / (1024.0 * 1024.0):F1} MB";
-    }
 }

@@ -15,9 +15,7 @@ public static class ReceiptImageHelper
             ".jpg" or ".jpeg" => "image/jpeg",
             ".png" => "image/png",
             ".webp" => "image/webp",
-            // iPhones shoot HEIC by default. Skia cannot decode it, so these files reach
-            // the vision API as their original bytes rather than as preprocessed JPEG,
-            // which is why the content type has to survive rather than be assumed.
+            // Skia cannot decode HEIC, so those files reach the vision API as their original bytes, which is why the content type has to be right.
             ".heic" => "image/heic",
             ".heif" => "image/heif",
             ".pdf" => "application/pdf",
@@ -107,11 +105,7 @@ public static class ReceiptImageHelper
         using var codec = SKCodec.Create(stream);
         if (codec == null)
         {
-            // Skia could not read it. HEIF is the case that matters, and it is detected by
-            // the decode failing rather than by the extension, so a HEIC file someone has
-            // renamed to .jpg is still handled. Converting to JPEG and starting again means
-            // orientation, contrast and sharpening all still apply, exactly as for any
-            // other photo.
+            // Skia could not read it, and HEIF is detected by the decode failing rather than the extension, so a renamed HEIC still works.
             var asJpeg = HeifImageDecoder.TryConvertToJpeg(imageData);
             if (asJpeg != null)
                 return PreprocessForOcr(asJpeg, Path.ChangeExtension(fileName, ".jpg"), out convertedToJpeg);
@@ -229,8 +223,6 @@ public static class ReceiptImageHelper
     public static bool ResizeAndSaveAsPng(string sourcePath, string destPath, int maxDimension)
     {
         // Read the EXIF origin via SKCodec, then decode pixels separately from the path.
-        // Phone JPEGs encode rotation in EXIF rather than re-encoding the pixels, so
-        // portrait photos would otherwise end up sideways at the avatar size.
         SKEncodedOrigin origin;
         using (var orientationStream = SharedFileReader.OpenRead(sourcePath))
         using (var codec = SKCodec.Create(orientationStream))

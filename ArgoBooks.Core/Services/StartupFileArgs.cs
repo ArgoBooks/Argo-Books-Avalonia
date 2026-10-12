@@ -26,12 +26,7 @@ public static class StartupFileArgs
             if (string.IsNullOrWhiteSpace(raw))
                 continue;
 
-            // Avalonia and the .NET host consume switches from the same array. A leading '/' is
-            // not tested for: it introduces a switch on Windows but begins every absolute path on
-            // Linux and macOS, which is exactly what a file manager passes for a double-clicked
-            // .argo, so rejecting it left the whole feature dead there. The extension test below
-            // already turns away a Windows switch, which would have to be named something.argo
-            // and exist on disk to get any further.
+            // Avalonia and the .NET host consume switches from the same array.
             var candidate = raw.Trim().Trim('"');
             if (candidate.Length == 0 || candidate[0] == '-')
                 continue;

@@ -364,8 +364,6 @@ public partial class YearEndModalViewModel : ViewModelBase
     partial void OnSelectedYearChanged(int? value)
     {
         // Ignore the transient null the ComboBox reports while the year list is being refilled.
-        // Rebuilding then would wipe the screen and, worse, leave it wiped if the refill picked
-        // the same year and so raised no second change.
         if (value.HasValue && !_refillingYears)
         {
             Rebuild();
@@ -379,11 +377,7 @@ public partial class YearEndModalViewModel : ViewModelBase
     {
         CompanyData? data = App.CompanyManager?.CompanyData;
 
-        // Back to an original filing. This view model is a shell singleton, so an amendment
-        // filed earlier in the session left the Amendment radio and its note still set, and
-        // Rebuild deliberately re-applies the previous slip selection by employee id. Reopening
-        // Year end would then export another amended return, or a cancellation, instead of an
-        // original.
+        // This view model is a shell singleton, so an amendment filed earlier in the session leaves its radio and note set until Rebuild re-applies them.
         FilingType = T4ReportType.Original;
         AmendmentNote = string.Empty;
 
@@ -420,13 +414,7 @@ public partial class YearEndModalViewModel : ViewModelBase
 
         _detailsOnOpen = CurrentDetails();
 
-        // Reselect before lifting the guard, so the whole refill produces exactly one rebuild
-        // here rather than one from the setter and another from this call.
-        //
-        // Clearing AvailableYears makes the ComboBox drop its selection, and assigning the same
-        // year back raises no change, so the control sat blank while this held a good year:
-        // filing worked, the box just looked empty. Going through null first makes the
-        // assignment a real change every time. OnSelectedYearChanged ignores the null.
+        // Reselect before lifting the guard, so the whole refill produces exactly one rebuild here rather than one from the setter and another from this call.
         SelectedYear = null;
         SelectedYear = AvailableYears[0];
         _refillingYears = false;
@@ -677,9 +665,7 @@ public partial class YearEndModalViewModel : ViewModelBase
             directory = ExportFolderHelper.Resolve(
                 directory, $"RL-1 {rl1.TaxYear}", rl1.Slips.Count + 1);
 
-            // The slip code is printed on the PDF so the employer keys the right one in. Unlike
-            // the T4 there is no per-slip selection: these are printed and re-keyed by hand, so
-            // the employer chooses which ones to actually send.
+            // The slip code is printed on the PDF so the employer keys the right one in.
             rl1.SlipCode = FilingType switch
             {
                 T4ReportType.Amendment => Rl1SlipCode.Amended,

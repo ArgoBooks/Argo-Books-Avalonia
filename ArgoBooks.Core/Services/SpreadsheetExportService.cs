@@ -33,11 +33,7 @@ public class SpreadsheetExportService
 
         _country = companyData.Settings.Company.Country;
 
-        // Building the workbook runs off the calling thread, not just saving it. Composing a
-        // sheet per data type for a whole company is where the seconds go, and doing that on the
-        // UI thread meant the caller's loading overlay was set and then never painted: the
-        // window simply froze until the file appeared. The PDF export below has always worked
-        // this way.
+        // Building the workbook runs off the calling thread, not just saving it.
         await Task.Run(() =>
         {
             using var workbook = new XLWorkbook();
@@ -76,9 +72,7 @@ public class SpreadsheetExportService
 
         _country = companyData.Settings.Company.Country;
 
-        // Off the calling thread for the same reason as the Excel export above: the text is
-        // built a row at a time out of the whole company, and the caller cannot paint a loading
-        // overlay while that happens on its own thread.
+        // Off the calling thread like the Excel export, because the text is built a row at a time out of the whole company.
         string csv = await Task.Run(() =>
         {
             var sb = new StringBuilder();
@@ -182,9 +176,7 @@ public class SpreadsheetExportService
                 }
                 else if (value is DateTime dt)
                 {
-                    // DateTime.MinValue is the "no date" sentinel (e.g. an un-returned rental's Return
-                    // Date is exported as `ReturnDate ?? DateTime.MinValue`). Leave the cell blank
-                    // instead of writing a bogus 0001/1899 date; mirrors FormatValue (CSV/PDF path).
+                    // DateTime.MinValue is the "no date" sentinel (e.g. an un-returned rental's Return Date is exported as `ReturnDate ?? DateTime.MinValue`).
                     if (dt != DateTime.MinValue)
                     {
                         cell.Value = dt;
@@ -368,10 +360,7 @@ public class SpreadsheetExportService
         // invoice off this sheet meant looking CUS-003 up somewhere else first.
         var customerNames = NameLookup(data.Customers, c => c.Id, c => c.Name);
 
-        // ID and Invoice # are two different values: INV-2026-00001 and #INV-2026-00001. Only
-        // the first appears anywhere else, so exporting only the second left the payments sheet
-        // pointing at invoice ids that were nowhere on the invoices sheet, and re-importing put
-        // the display number in the id field and prefixed every invoice with a hash.
+        // ID and Invoice # are two different values: INV-2026-00001 and #INV-2026-00001.
         var headers = new[] { "ID", "Invoice #", "Customer ID", "Customer Name", "Issue Date", "Due Date", "Subtotal", "Tax", "Total", "Paid", "Balance", "Status", "Currency" };
         var filtered = data.Invoices.Where(i => IsInDateRange(i.IssueDate, startDate, endDate));
         var rows = filtered.Select(i => new object[]
@@ -425,11 +414,7 @@ public class SpreadsheetExportService
 
     private (string[] Headers, List<object[]> Rows) GetExpensesData(CompanyData data, DateTime? startDate, DateTime? endDate)
     {
-        // The name sits beside the id so a sheet of scanned receipts can be read on its own,
-        // without holding it next to the Suppliers sheet to find out who SUP-014 is.
-        //
-        // Presentation only. Supplier ID is still what identifies the supplier, and the Expenses
-        // import schema does not carry a name column, so a re-imported export is unchanged.
+        // The name sits beside the id so a sheet of scanned receipts can be read on its own, without holding it next to the Suppliers sheet to find out who SUP-014 is. Presentation only.
         var supplierNames = NameLookup(data.Suppliers, s => s.Id, s => s.Name);
 
         var headers = new[] { "ID", "Date", "Supplier ID", "Supplier Name", "Product", "Quantity", "Unit Price", "Tax", "Shipping", "Total", "Reference", "Payment Method", "Currency" };
@@ -552,9 +537,7 @@ public class SpreadsheetExportService
         // same reason: Customer ID identifies the customer, this just saves the cross-reference.
         var customerNames = NameLookup(data.Customers, c => c.Id, c => c.Name);
 
-        // The same four columns the expenses sheet was missing, for the same reasons.
-        // Invoice ID ties a revenue to the invoice it was collected on. Without it the invoice's
-        // revenue came back as a stray sale and the importer made a second one for the invoice.
+        // The same four columns the expenses sheet was missing, where the invoice id is what ties a revenue to the invoice it was collected on.
         var headers = new[] { "ID", "Date", "Customer ID", "Customer Name", "Invoice ID", "Product", "Quantity", "Unit Price", "Tax", "Shipping", "Total", "Reference", "Payment Status", "Kept Deposit", "Currency" };
         var filtered = data.Revenues.Where(s => IsInDateRange(s.Date, startDate, endDate));
         var rows = filtered.Select(s => new object[]

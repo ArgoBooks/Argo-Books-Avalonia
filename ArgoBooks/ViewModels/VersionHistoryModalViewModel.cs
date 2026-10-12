@@ -57,6 +57,11 @@ public partial class VersionHistoryItem : ObservableObject
     /// </summary>
     public bool HasChanges => Event.Changes is { Count: > 0 };
 
+    /// <summary>The reason and note given for the change, where the app asked for them.</summary>
+    public string? Note => Event.Note;
+
+    public bool HasNote => !string.IsNullOrEmpty(Event.Note);
+
     // Action-kind flags that pick the timeline icon for this entry. Each entry matches exactly one.
     public bool IsAddedEntry => Action == AuditAction.Added;
     public bool IsDeletedEntry => Action == AuditAction.Deleted;

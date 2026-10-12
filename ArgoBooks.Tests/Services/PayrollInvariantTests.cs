@@ -314,9 +314,7 @@ public class PayrollInvariantTests
     [MemberData(nameof(Frequencies))]
     public void AHighEarner_LandsExactlyOnEveryAnnualMaximum(int periods)
     {
-        // 120,000 a year clears the EI maximum insurable earnings, the CPP ceiling and the
-        // CPP2 ceiling, so all three must finish the year exactly on their maximum. Not near
-        // it: over-deducting means money owed back, under-deducting means a T4 that fails.
+        // 120,000 a year clears the EI maximum insurable earnings, the CPP ceiling and the CPP2 ceiling, so all three must finish the year exactly on their maximum.
         PayrollRateTable rates = Rates();
         var year = RunYear(120000m / periods, periods, rates);
 
@@ -341,9 +339,7 @@ public class PayrollInvariantTests
     [MemberData(nameof(Frequencies))]
     public void AYearOfCpp_MatchesTheRateAppliedToPensionableEarnings(int periods)
     {
-        // The year's contributions must equal (earnings - the annual basic exemption) times
-        // the rate, give or take a cent of rounding per period. A basic exemption applied per
-        // period rather than annually would show up here as a large gap.
+        // The year's contributions must equal (earnings - the annual basic exemption) times the rate, give or take a cent of rounding per period.
         PayrollRateTable rates = Rates();
         var year = RunYear(50000m / periods, periods, rates);
 
@@ -367,12 +363,7 @@ public class PayrollInvariantTests
     [Fact]
     public void TheSameSalary_CostsTheSameTaxWhicheverFrequencyItIsPaidAt()
     {
-        // 62,400 divides evenly into all four frequencies, so any difference here is the
-        // engine's rather than an artefact of an uneven period amount.
-        //
-        // A dollar is the bound because that is what per-period rounding can produce across
-        // fifty-two periods. Anything larger means the annualisation has become sensitive to
-        // something it should not see.
+        // 62,400 divides evenly into all four frequencies, so any difference here is the engine's rather than an artefact of an uneven period amount.
         PayrollRateTable rates = Rates();
         var nets = new List<decimal>();
 

@@ -211,9 +211,7 @@ public partial class StockAdjustmentsPageViewModel : SortablePageViewModelBase
             App.StockAdjustmentsModalsViewModel.FiltersCleared += OnFiltersCleared;
         }
 
-        // Subscribe to timezone/time format changes to refresh time display. Use a named handler (not
-        // a lambda) so Cleanup can unsubscribe it; TimeZoneService is static, so a leaked lambda would
-        // keep this VM alive for the whole process.
+        // Subscribe to timezone/time format changes to refresh time display.
         TimeZoneService.TimeSettingsChanged += OnTimeSettingsChanged;
     }
 

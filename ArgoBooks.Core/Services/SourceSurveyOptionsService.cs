@@ -3,7 +3,7 @@ using System.Net.Http.Json;
 namespace ArgoBooks.Core.Services;
 
 /// <summary>
-/// A single answer option for the "Where did you hear about Argo Books?" survey.
+/// A single answer option for a survey question.
 /// <paramref name="Key"/> is the stable identifier POSTed to and stored by the
 /// server; <paramref name="Label"/> is the (English) display text;
 /// <paramref name="Freeform"/> marks the option that reveals the freeform text box.
@@ -11,10 +11,16 @@ namespace ArgoBooks.Core.Services;
 public sealed record SurveyOption(string Key, string Label, bool Freeform);
 
 /// <summary>
-/// Fetches the source-survey answer options from the website so new options
-/// (e.g. a newly launched platform) appear in already-installed apps without a
-/// release. On any failure the service returns a bundled default list, so the
-/// survey always renders even offline.
+/// The choices for the app's two questions: where the person heard about Argo Books, and what
+/// they came to do.
+/// </summary>
+public sealed record SurveyChoices(IReadOnlyList<SurveyOption> Sources, IReadOnlyList<SurveyOption> Goals);
+
+/// <summary>
+/// Fetches the survey choices from the website so new ones (e.g. a newly
+/// launched platform) appear in already-installed apps without a release. On
+/// any failure the service returns the bundled default lists, so the survey
+/// always renders even offline.
 /// </summary>
 public sealed class SourceSurveyOptionsService
 {
@@ -43,6 +49,25 @@ public sealed class SourceSurveyOptionsService
         new SurveyOption("other",       "Other",        true),
     };
 
+    /// <summary>
+    /// The goals baked into the app, used the same way as <see cref="DefaultOptions"/>. Keys must
+    /// stay in sync with the "goals" list in the server's <c>config/survey-options.json</c>.
+    /// </summary>
+    public static IReadOnlyList<SurveyOption> DefaultGoals { get; } = new[]
+    {
+        new SurveyOption("invoices",  "Send invoices and get paid",            false),
+        new SurveyOption("track",     "Track income and expenses",             false),
+        new SurveyOption("receipts",  "Scan and store receipts",               false),
+        new SurveyOption("switch",    "Move from QuickBooks or a spreadsheet", false),
+        new SurveyOption("inventory", "Manage stock or rentals",               false),
+        new SurveyOption("payroll",   "Run payroll",                           false),
+        new SurveyOption("looking",   "Just looking around",                   false),
+        new SurveyOption("other",     "Something else",                        true),
+    };
+
+    /// <summary>Both bundled lists, returned whenever the server cannot be used.</summary>
+    public static SurveyChoices Defaults { get; } = new(DefaultOptions, DefaultGoals);
+
     public SourceSurveyOptionsService(HttpClient httpClient, IErrorLogger? errorLogger = null)
     {
         _httpClient = httpClient;
@@ -50,13 +75,14 @@ public sealed class SourceSurveyOptionsService
     }
 
     /// <summary>
-    /// GETs the survey options from the website. Returns the parsed server list
-    /// on success, or <see cref="DefaultOptions"/> on any failure (network error,
-    /// timeout, non-2xx, malformed JSON, or empty list). Only throws
-    /// <see cref="OperationCanceledException"/> when the caller cancels
-    /// <paramref name="cancellationToken"/>.
+    /// GETs the survey choices from the website. Returns the parsed server lists
+    /// on success, or <see cref="Defaults"/> on any failure (network error,
+    /// timeout, non-2xx, malformed JSON, or an empty source list). A response
+    /// with no usable goals, as an older server gives, keeps its sources and takes
+    /// the bundled goals. Only throws <see cref="OperationCanceledException"/>
+    /// when the caller cancels <paramref name="cancellationToken"/>.
     /// </summary>
-    public async Task<IReadOnlyList<SurveyOption>> GetOptionsAsync(
+    public async Task<SurveyChoices> GetChoicesAsync(
         CancellationToken cancellationToken = default)
     {
         try
@@ -67,24 +93,17 @@ public sealed class SourceSurveyOptionsService
             {
                 _errorLogger?.LogWarning(
                     $"SourceSurveyOptionsService received HTTP {(int)response.StatusCode}",
-                    context: "SourceSurveyOptionsService.GetOptionsAsync");
-                return DefaultOptions;
+                    context: "SourceSurveyOptionsService.GetChoicesAsync");
+                return Defaults;
             }
 
             var payload = await response.Content.ReadFromJsonAsync<OptionsPayload>(cancellationToken);
-            var options = payload?.Options;
-            if (options == null || options.Count == 0)
-                return DefaultOptions;
+            var sources = Parse(payload?.Options);
+            if (sources.Count == 0)
+                return Defaults;
 
-            var parsed = new List<SurveyOption>(options.Count);
-            foreach (var o in options)
-            {
-                if (string.IsNullOrWhiteSpace(o.Key) || string.IsNullOrWhiteSpace(o.Label))
-                    continue;
-                parsed.Add(new SurveyOption(o.Key!, o.Label!, o.Freeform));
-            }
-
-            return parsed.Count > 0 ? parsed : DefaultOptions;
+            var goals = Parse(payload?.Goals);
+            return new SurveyChoices(sources, goals.Count > 0 ? goals : DefaultGoals);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -96,19 +115,34 @@ public sealed class SourceSurveyOptionsService
         {
             // HttpClient timeout (not a caller cancellation): fall back like any
             // other transient failure so the survey still renders.
-            return DefaultOptions;
+            return Defaults;
         }
         catch (Exception ex)
         {
-            NetworkFailure.Report(_errorLogger, ex, "SourceSurveyOptionsService.GetOptionsAsync");
-            return DefaultOptions;
+            NetworkFailure.Report(_errorLogger, ex, "SourceSurveyOptionsService.GetChoicesAsync");
+            return Defaults;
         }
+    }
+
+    private static List<SurveyOption> Parse(List<OptionDto>? options)
+    {
+        var parsed = new List<SurveyOption>(options?.Count ?? 0);
+        foreach (var o in options ?? [])
+        {
+            if (string.IsNullOrWhiteSpace(o.Key) || string.IsNullOrWhiteSpace(o.Label))
+                continue;
+            parsed.Add(new SurveyOption(o.Key!, o.Label!, o.Freeform));
+        }
+        return parsed;
     }
 
     private sealed class OptionsPayload
     {
         [JsonPropertyName("options")]
         public List<OptionDto>? Options { get; set; }
+
+        [JsonPropertyName("goals")]
+        public List<OptionDto>? Goals { get; set; }
     }
 
     private sealed class OptionDto

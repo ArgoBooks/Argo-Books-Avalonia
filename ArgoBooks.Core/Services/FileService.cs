@@ -91,7 +91,6 @@ public class FileService(
             await WriteJsonAsync(companyDir, "employees.json", companyData.Employees, cancellationToken);
             await WriteJsonAsync(companyDir, "payRuns.json", companyData.PayRuns, cancellationToken);
 
-            // Create receipts subdirectory
             Directory.CreateDirectory(Path.Combine(companyDir, "receipts"));
 
             await SaveCompanyAsync(filePath, companyDir, null, cancellationToken);
@@ -114,9 +113,7 @@ public class FileService(
         var footer = await footerService.ReadFooterAsync(filePath, cancellationToken)
             ?? throw new InvalidDataException("Invalid file format or corrupted file.");
 
-        // Guard: a file written by a newer build may use an envelope layout this build
-        // doesn't understand. Check before touching the crypto, otherwise the failure
-        // surfaces as a bogus "wrong password" instead of "your app is out of date".
+        // Guard: a file written by a newer build may use an envelope layout this build doesn't understand.
         if (footer.FormatVersion > FileFormatConstants.FormatVersion)
             throw new CompanyFileTooNewException(footer.Version, AppInfo.VersionNumber);
 
@@ -184,9 +181,7 @@ public class FileService(
         byte[]? dataKey = null;
         try
         {
-            // Constant-time check first, so a wrong password reports itself as a wrong
-            // password rather than as a GCM tag mismatch, which the caller could not tell
-            // apart from a corrupt file.
+            // Constant-time check first, so a wrong password reports itself as a wrong password rather than as a GCM tag mismatch, which the caller could not tell apart from a corrupt file.
             var expected = Convert.FromBase64String(footer.PasswordHash);
             if (!CryptographicOperations.FixedTimeEquals(verifyHash, expected))
                 throw new UnauthorizedAccessException("Invalid password.");
@@ -240,13 +235,7 @@ public class FileService(
         await using var compressedStream = await compressionService.CompressGZipAsync(
             tarStream, cancellationToken: cancellationToken);
 
-        // Encrypt if password provided.
-        //
-        // From format version 2 the archive is encrypted with a randomly generated data key
-        // instead of directly with the password-derived key. The data key is then stored
-        // wrapped under the password, and additionally under the recovery public key when
-        // this build has one configured. That gives support a way to open a file whose
-        // password has been lost, while the password itself stays unrecoverable.
+        // Encrypt if password provided. From format version 2 the archive is encrypted with a randomly generated data key instead of directly with the password-derived key.
         Stream contentStream = compressedStream;
         string? salt = null;
         string? iv = null;
@@ -256,10 +245,7 @@ public class FileService(
         string? recoveryBlob = null;
         string? recoveryKeyId = null;
 
-        // Guard: the footer records IsEncrypted purely from whether a password was given, so
-        // a password with no encryption service would write the archive in the clear while
-        // claiming to be encrypted, producing a file that can never be opened again. Refuse
-        // rather than silently destroying the user's data.
+        // The footer records IsEncrypted from whether a password was given, so a password without an encryption service would write plaintext claiming to be encrypted.
         if (!string.IsNullOrEmpty(password) && encryptionService == null)
             throw new InvalidOperationException("Encryption service not available.");
 
@@ -315,10 +301,7 @@ public class FileService(
             CompanyName = GetCompanyNameFromDirectory(tempDirectory, cachedSettings),
             Accountants = await GetAccountantNamesAsync(tempDirectory, cancellationToken),
             ModifiedAt = DateTime.UtcNow,
-            // Biometric unlock substitutes for typing the password, so it is meaningless
-            // without one. A file recovered by support comes back with no password but may
-            // still carry the old setting inside the archive; refusing to advertise it here
-            // stops the open screen offering an unlock that cannot work.
+            // Biometric unlock substitutes for typing the password, so it is meaningless without one.
             BiometricEnabled = !string.IsNullOrEmpty(password) && GetBiometricEnabledFromDirectory(cachedSettings),
             LogoThumbnail = GenerateLogoThumbnail(tempDirectory)
         };
@@ -390,9 +373,7 @@ public class FileService(
         if (filePath == null || !File.Exists(filePath))
             return default;
 
-        // Streamed, because receipts.json holds every receipt's bytes as base64 and the
-        // intermediate string is twice that again in UTF-16. Retried on a lock: these files were
-        // written moments ago by the extractor, which is when a scanner looks at them.
+        // Streamed, because receipts.json holds every receipt's bytes as base64 and the intermediate string is twice that again in UTF-16.
         await using var stream = await AtomicFile.OpenReadAsync(
             filePath,
             bufferSize: 64 * 1024,
@@ -493,9 +474,7 @@ public class FileService(
         var rentalsTask           = ReadJsonAsync<List<Models.Rentals.RentalRecord>>(tempDirectory, "rentals.json", cancellationToken);
         var returnsTask           = ReadJsonAsync<List<Models.Tracking.Return>>(tempDirectory, "returns.json", cancellationToken);
         var lostDamagedTask       = ReadJsonAsync<List<Models.Tracking.LostDamaged>>(tempDirectory, "lostDamaged.json", cancellationToken);
-        // Receipts carry base64 image data and can dominate load time, but nothing on
-        // the dashboard needs them. When loadReceipts is false the caller loads them
-        // separately (see LoadReceiptsAsync) so they stay off the critical open path.
+        // Receipts carry base64 image data and can dominate load time, but nothing on the dashboard needs them.
         var receiptsTask          = loadReceipts
             ? ReadJsonAsync<List<Models.Tracking.Receipt>>(tempDirectory, "receipts.json", cancellationToken)
             : Task.FromResult<List<Models.Tracking.Receipt>?>([]);
@@ -515,10 +494,7 @@ public class FileService(
         var pairedDevicesTask     = ReadJsonAsync<List<Models.Tracking.PairedDevice>>(tempDirectory, "pairedDevices.json", cancellationToken);
         var ingestedScanUidsTask  = ReadJsonAsync<List<string>>(tempDirectory, "ingestedScanUids.json", cancellationToken);
 
-        // Validate version BEFORE awaiting the rest. If the file was saved by a newer app
-        // version, the other data files may contain enum values or fields this build can't
-        // deserialize, and we'd surface that as an opaque JSON exception. Awaiting just the
-        // settings task here lets us throw a clear "update Argo Books" error instead.
+        // The version is checked before the rest is awaited, because a file from a newer build may hold enum values this one cannot deserialise.
         Task[] otherReads =
         [
             idCountersTask, customersTask, productsTask, suppliersTask,
@@ -609,9 +585,7 @@ public class FileService(
         CompanyData data,
         CancellationToken cancellationToken = default)
     {
-        // Stamp the running app's version into the file so a future older app can detect
-        // that the file is too new for it to safely open. This runs on every save path
-        // because all save flows route through here.
+        // Stamp the running app's version into the file so a future older app can detect that the file is too new for it to safely open.
         data.Settings.AppVersion = AppInfo.VersionNumber;
 
         // Every file is serialized before the first await, so the snapshot is taken in one go on
@@ -649,16 +623,8 @@ public class FileService(
         Add("pendingConversions.json", data.PendingConversions);
         Add("forecastRecords.json", data.ForecastRecords);
         Add("bankImportSessions.json", data.BankImportSessions);
-
-        // Payroll. Added late, and their absence was silent: CompanyData carried both lists, every
-        // payroll screen read and wrote them happily, and nothing failed. They simply never
-        // reached the .argo file, so every employee and pay run was lost on close.
         Add("employees.json", data.Employees);
         Add("payRuns.json", data.PayRuns);
-
-        // Mobile sync. Both were read and written all session and reached no file, so a paired
-        // phone vanished on close and the ingested-capture list could not de-dupe across a
-        // restart, which is the whole reason it is stored rather than held in memory.
         Add("pairedDevices.json", data.PairedDevices);
         Add("ingestedScanUids.json", data.IngestedScanUids);
 
@@ -672,12 +638,7 @@ public class FileService(
             }
         }, cancellationToken);
 
-        // Deliberately does NOT call data.MarkAsSaved() here: this only stages JSON into the temp
-        // directory, and the data isn't durable until the caller commits the .argo file via
-        // SaveCompanyAsync. Marking saved before that commit means a failed commit (AV quarantine,
-        // full disk, IO error) would leave HasUnsavedChanges false and silently risk data loss.
-        // Callers mark saved only after the commit succeeds; backup/payment-sync paths intentionally
-        // never mark saved.
+        // Deliberately does not mark the data saved, because this only stages JSON into the temp directory and nothing is durable until the caller commits.
     }
 
     /// <inheritdoc />

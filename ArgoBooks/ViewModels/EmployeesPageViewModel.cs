@@ -70,9 +70,7 @@ public partial class EmployeesPageViewModel : SortablePageViewModelBase
     {
         Load();
 
-        // The modal lives on the shell rather than on this page, so a save has to tell the
-        // list to refresh. Without this a newly added employee only appears after navigating
-        // away and back.
+        // The modal lives on the shell rather than on this page, so a save has to tell the list to refresh. Without this a newly added employee only appears after navigating away and back.
         if (App.PayrollModalsViewModel is { } modals)
         {
             modals.EmployeeSaved += OnEmployeeSaved;

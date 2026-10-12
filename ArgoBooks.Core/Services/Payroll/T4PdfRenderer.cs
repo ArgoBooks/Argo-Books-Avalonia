@@ -95,9 +95,7 @@ public static class T4PdfRenderer
                     {
                         Box(rows, 14, "Employment income", slip.EmploymentIncome, bold: true);
 
-                        // A Quebec employee contributes to QPP, which lives in different boxes.
-                        // Printing it against box 16 would not merely be mislabelled, it would
-                        // disagree with the slip filed for them.
+                        // A Quebec employee contributes to QPP, which lives in different boxes. Printing it against box 16 would not merely be mislabelled, it would disagree with the slip filed for them.
                         Box(rows, slip.IsQuebec ? "17" : "16",
                             slip.IsQuebec ? "Employee's QPP contributions" : "Employee's CPP contributions",
                             slip.CppContributions);
@@ -224,10 +222,7 @@ public static class T4PdfRenderer
                     });
                 });
 
-                // What the employer should already have sent CRA across the year. Putting it
-                // here is the point of the summary: a difference against what was actually
-                // remitted is the thing that needs explaining, and it is easier to see now
-                // than after CRA asks.
+                // What the employer should already have sent CRA across the year.
                 decimal remittable = t4.TotalEmployeeCpp + t4.TotalEmployeeCpp2 + t4.TotalEmployerCpp
                                      + t4.TotalEmployerCpp2 + t4.TotalEmployeeEi + t4.TotalEmployerEi
                                      + t4.TotalIncomeTax;

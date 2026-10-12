@@ -175,9 +175,7 @@ public class PairingCoordinator
             }
             catch (HttpRequestException)
             {
-                // Transient network failure mid-poll (e.g. phone switching WiFi/cellular during the
-                // up-to-2-minute wait). Don't abort pairing - keep polling until the deadline and
-                // fall back to the same timeout message as a key that never arrives.
+                // Transient network failure mid-poll (e.g. phone switching WiFi/cellular during the up-to-2-minute wait).
                 ciphertext = null;
             }
 

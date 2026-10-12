@@ -64,9 +64,7 @@ public class BankLineImportServiceTests
         Assert.Contains(result.CreatedEntities, e => e is Category);
     }
 
-    // A category id that doesn't exist (e.g. the AI echoed a hallucinated id or a category name) must
-    // not be stamped onto the product/rule as a dangling reference - it should resolve by name instead,
-    // otherwise the Bank import rules settings show the rule with an empty (unresolvable) category.
+    // A category id that does not exist must not be stamped on as a dangling reference, and should resolve by name instead.
     [Fact]
     public void CreateFromLines_UnresolvableCategoryIdWithName_ResolvesByNameNotDangling()
     {

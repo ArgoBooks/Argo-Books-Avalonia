@@ -91,3 +91,4 @@ Developer tools in `tools/`, separate from the app.
 | [ArgoBooks.Translations](tools/ArgoBooks.Translations/README.md) | Regenerating the language files or working on the translation tooling |
 | [ArgoBooks.Recovery](tools/ArgoBooks.Recovery/README.md) | Opening a company file whose password is lost. Internal, never ships with the app |
 | [ArgoBooks.UnusedCode](tools/ArgoBooks.UnusedCode/README.md) | Hunting for members that nothing in the solution references |
+| [ArgoBooks.RegionFlags](tools/ArgoBooks.RegionFlags/README.md) | Refreshing the province and state flags, or adding a region to the address pickers |

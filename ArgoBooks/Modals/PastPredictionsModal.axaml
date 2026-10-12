@@ -1,5 +1,6 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="using:ArgoBooks.Localization"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:ArgoBooks.ViewModels"
@@ -32,11 +33,11 @@
                         BorderThickness="0,0,0,1">
                     <Grid ColumnDefinitions="*,Auto">
                         <StackPanel Grid.Column="0">
-                            <TextBlock Text="Past Predictions"
+                            <TextBlock Text="{loc:Loc 'Past Predictions'}"
                                        FontSize="18"
                                        FontWeight="SemiBold"
                                        Foreground="{DynamicResource TextPrimaryBrush}" />
-                            <TextBlock Text="Historical forecast accuracy and comparison to actual results"
+                            <TextBlock Text="{loc:Loc 'Historical forecast accuracy and comparison to actual results'}"
                                        FontSize="13"
                                        Foreground="{DynamicResource TextSecondaryBrush}" />
                         </StackPanel>
@@ -64,7 +65,7 @@
                                     Padding="16"
                                     Margin="0,0,8,0">
                                 <StackPanel HorizontalAlignment="Center" Spacing="4">
-                                    <TextBlock Text="Overall Accuracy"
+                                    <TextBlock Text="{loc:Loc 'Overall Accuracy'}"
                                                FontSize="12"
                                                Foreground="{DynamicResource TextSecondaryBrush}"
                                                HorizontalAlignment="Center" />
@@ -98,7 +99,7 @@
                                     Padding="16"
                                     Margin="4,0">
                                 <StackPanel HorizontalAlignment="Center" Spacing="4">
-                                    <TextBlock Text="Live Predictions"
+                                    <TextBlock Text="{loc:Loc 'Live Predictions'}"
                                                FontSize="12"
                                                Foreground="{DynamicResource TextSecondaryBrush}"
                                                HorizontalAlignment="Center" />
@@ -107,7 +108,7 @@
                                                FontWeight="Bold"
                                                Foreground="{DynamicResource PrimaryBrush}"
                                                HorizontalAlignment="Center" />
-                                    <TextBlock Text="validated"
+                                    <TextBlock Text="{loc:Loc 'validated'}"
                                                FontSize="12"
                                                Foreground="{DynamicResource TextTertiaryBrush}"
                                                HorizontalAlignment="Center" />
@@ -121,7 +122,7 @@
                                     Padding="16"
                                     Margin="8,0,0,0">
                                 <StackPanel HorizontalAlignment="Center" Spacing="4">
-                                    <TextBlock Text="Backtested"
+                                    <TextBlock Text="{loc:Loc 'Backtested'}"
                                                FontSize="12"
                                                Foreground="{DynamicResource TextSecondaryBrush}"
                                                HorizontalAlignment="Center" />
@@ -130,7 +131,7 @@
                                                FontWeight="Bold"
                                                Foreground="{DynamicResource VioletBrush}"
                                                HorizontalAlignment="Center" />
-                                    <TextBlock Text="simulated"
+                                    <TextBlock Text="{loc:Loc 'simulated'}"
                                                FontSize="12"
                                                Foreground="{DynamicResource TextTertiaryBrush}"
                                                HorizontalAlignment="Center" />
@@ -146,23 +147,23 @@
                             <StackPanel Orientation="Horizontal" Spacing="24" HorizontalAlignment="Center">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <Border Width="12" Height="12" CornerRadius="6" Background="{DynamicResource PrimaryBrush}" />
-                                    <TextBlock Text="Live Prediction"
+                                    <TextBlock Text="{loc:Loc 'Live Prediction'}"
                                                FontSize="12"
                                                Foreground="{DynamicResource TextSecondaryBrush}"
                                                VerticalAlignment="Center" />
-                                    <TextBlock Text="(Made before the period, then validated)"
-                                               FontSize="11"
+                                    <TextBlock Text="{loc:Loc '(Made before the period, then validated)'}"
+                                               FontSize="12"
                                                Foreground="{DynamicResource TextTertiaryBrush}"
                                                VerticalAlignment="Center" />
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <Border Width="12" Height="12" CornerRadius="6" Background="{DynamicResource VioletBrush}" />
-                                    <TextBlock Text="Backtested"
+                                    <TextBlock Text="{loc:Loc 'Backtested'}"
                                                FontSize="12"
                                                Foreground="{DynamicResource TextSecondaryBrush}"
                                                VerticalAlignment="Center" />
-                                    <TextBlock Text="(Simulated using historical data)"
-                                               FontSize="11"
+                                    <TextBlock Text="{loc:Loc '(Simulated using historical data)'}"
+                                               FontSize="12"
                                                Foreground="{DynamicResource TextTertiaryBrush}"
                                                VerticalAlignment="Center" />
                                 </StackPanel>
@@ -183,7 +184,7 @@
                                               Width="28" Height="28"
                                               Foreground="{DynamicResource TextTertiaryBrush}" />
                                 </Border>
-                                <TextBlock Text="No Past Predictions"
+                                <TextBlock Text="{loc:Loc 'No Past Predictions'}"
                                            FontSize="16"
                                            FontWeight="SemiBold"
                                            Foreground="{DynamicResource TextPrimaryBrush}"
@@ -210,15 +211,15 @@
                                         Background="{DynamicResource SurfaceAltBrush}"
                                         CornerRadius="8,8,0,0">
                                     <Grid ColumnDefinitions="100,80,100,100,80,100,100,80,80">
-                                        <TextBlock Grid.Column="0" Text="Period" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                        <TextBlock Grid.Column="1" Text="Type" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                        <TextBlock Grid.Column="2" Text="Forecast Rev" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" HorizontalAlignment="Right" />
-                                        <TextBlock Grid.Column="3" Text="Actual Rev" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" HorizontalAlignment="Right" />
-                                        <TextBlock Grid.Column="4" Text="Accuracy" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" HorizontalAlignment="Right" />
-                                        <TextBlock Grid.Column="5" Text="Forecast Exp" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" HorizontalAlignment="Right" />
-                                        <TextBlock Grid.Column="6" Text="Actual Exp" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" HorizontalAlignment="Right" />
-                                        <TextBlock Grid.Column="7" Text="Accuracy" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" HorizontalAlignment="Right" />
-                                        <TextBlock Grid.Column="8" Text="Confidence" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" HorizontalAlignment="Right" />
+                                        <TextBlock Grid.Column="0" Text="{loc:Loc 'Period'}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        <TextBlock Grid.Column="1" Text="{loc:Loc 'Type'}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        <TextBlock Grid.Column="2" Text="{loc:Loc 'Forecast Rev'}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" HorizontalAlignment="Right" />
+                                        <TextBlock Grid.Column="3" Text="{loc:Loc 'Actual Rev'}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" HorizontalAlignment="Right" />
+                                        <TextBlock Grid.Column="4" Text="{loc:Loc 'Accuracy'}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" HorizontalAlignment="Right" />
+                                        <TextBlock Grid.Column="5" Text="{loc:Loc 'Forecast Exp'}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" HorizontalAlignment="Right" />
+                                        <TextBlock Grid.Column="6" Text="{loc:Loc 'Actual Exp'}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" HorizontalAlignment="Right" />
+                                        <TextBlock Grid.Column="7" Text="{loc:Loc 'Accuracy'}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" HorizontalAlignment="Right" />
+                                        <TextBlock Grid.Column="8" Text="{loc:Loc 'Confidence'}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" HorizontalAlignment="Right" />
                                     </Grid>
                                 </Border>
 
@@ -248,7 +249,7 @@
                                                             <SolidColorBrush Color="{Binding TypeBadgeColor}" Opacity="0.15" />
                                                         </Border.Background>
                                                         <TextBlock Text="{Binding TypeLabel}"
-                                                                   FontSize="10"
+                                                                   FontSize="11"
                                                                    FontWeight="SemiBold"
                                                                    VerticalAlignment="Center">
                                                             <TextBlock.Foreground>
@@ -351,14 +352,14 @@
                                 <StackPanel Orientation="Horizontal" Spacing="20" HorizontalAlignment="Center">
                                     <StackPanel Orientation="Horizontal" Spacing="6">
                                         <Border Width="12" Height="3" Background="{DynamicResource PrimaryBrush}" CornerRadius="1" VerticalAlignment="Center" />
-                                        <TextBlock Text="Revenue Accuracy"
+                                        <TextBlock Text="{loc:Loc 'Revenue Accuracy'}"
                                                    FontSize="11"
                                                    Foreground="{DynamicResource TextSecondaryBrush}"
                                                    VerticalAlignment="Center" />
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" Spacing="6">
                                         <Border Width="12" Height="3" Background="{DynamicResource VioletBrush}" CornerRadius="1" VerticalAlignment="Center" />
-                                        <TextBlock Text="Expenses Accuracy"
+                                        <TextBlock Text="{loc:Loc 'Expenses Accuracy'}"
                                                    FontSize="11"
                                                    Foreground="{DynamicResource TextSecondaryBrush}"
                                                    VerticalAlignment="Center" />
@@ -383,7 +384,7 @@
                                            TextWrapping="Wrap"
                                            FontSize="12"
                                            Foreground="{DynamicResource TextSecondaryBrush}"
-                                           Text="Live predictions were made before the forecast period began and then compared to actual results. Backtested predictions were simulated using historical data to help calibrate the forecasting model. Both types contribute to the overall accuracy measurement." />
+                                           Text="{loc:Loc 'Live predictions were made before the forecast period began and then compared to actual results. Backtested predictions were simulated using historical data to help calibrate the forecasting model. Both types contribute to the overall accuracy measurement.'}" />
                             </Grid>
                         </Border>
                     </StackPanel>
@@ -397,7 +398,7 @@
                     <Button Classes="primary-button"
                             HorizontalAlignment="Right"
                             Command="{Binding CloseCommand}">
-                        <TextBlock Text="Close" />
+                        <TextBlock Text="{loc:Loc 'Close'}" />
                     </Button>
                 </Border>
             </Grid>

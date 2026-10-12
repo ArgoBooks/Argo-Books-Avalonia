@@ -1,4 +1,4 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -84,7 +84,7 @@
                                         Margin="0,-5,0,0"
                                         VerticalAlignment="Center"
                                         Command="{Binding ShowPredictionInfoCommand}"
-                                        ToolTip.Tip="How predictions are calculated">
+                                        ToolTip.Tip="{loc:Loc 'How predictions are calculated'}">
                                     <PathIcon Data="{x:Static local:Icons.Info}"
                                               Width="18" Height="18"
                                               Foreground="{DynamicResource TextSecondaryBrush}" />
@@ -161,7 +161,7 @@
                                           Width="28" Height="28"
                                           Foreground="{DynamicResource TextTertiaryBrush}" />
                             </Border>
-                            <TextBlock Text="Insufficient Data"
+                            <TextBlock Text="{loc:Loc 'Insufficient Data'}"
                                        FontSize="16"
                                        FontWeight="SemiBold"
                                        Foreground="{DynamicResource TextPrimaryBrush}"
@@ -211,7 +211,7 @@
                                 <PathIcon Data="{x:Static icons:Icons.BarChart}"
                                           Width="14" Height="14"
                                           Foreground="{DynamicResource TextPrimaryBrush}" />
-                                <TextBlock Text="Revenue Forecast:"
+                                <TextBlock Text="{loc:Loc 'Revenue Forecast:'}"
                                            FontSize="12"
                                            Foreground="{DynamicResource TextPrimaryBrush}"
                                            VerticalAlignment="Center" />
@@ -228,7 +228,7 @@
                                     <PathIcon Data="{x:Static local:Icons.Check}"
                                               Width="14" Height="14"
                                               Foreground="{DynamicResource PrimaryBrush}" />
-                                    <TextBlock Text="Historical Accuracy:"
+                                    <TextBlock Text="{loc:Loc 'Historical Accuracy:'}"
                                                FontSize="12"
                                                Foreground="{DynamicResource TextPrimaryBrush}"
                                                VerticalAlignment="Center" />
@@ -243,9 +243,9 @@
                                             Margin="4,0,0,0"
                                             VerticalAlignment="Center"
                                             Command="{Binding ShowPastPredictionsCommand}"
-                                            ToolTip.Tip="View past predictions and their accuracy">
+                                            ToolTip.Tip="{loc:Loc 'View past predictions and their accuracy'}">
                                         <StackPanel Orientation="Horizontal" Spacing="4">
-                                            <TextBlock Text="View Details"
+                                            <TextBlock Text="{loc:Loc 'View Details'}"
                                                        FontSize="11"
                                                        Foreground="{DynamicResource PrimaryBrush}"
                                                        TextDecorations="Underline"
@@ -270,7 +270,7 @@
                                     <PathIcon Data="{x:Static local:Icons.Clock}"
                                               Width="14" Height="14"
                                               Foreground="{DynamicResource VioletBrush}" />
-                                    <TextBlock Text="Seasonal Pattern:"
+                                    <TextBlock Text="{loc:Loc 'Seasonal Pattern:'}"
                                                FontSize="12"
                                                Foreground="{DynamicResource TextPrimaryBrush}"
                                                VerticalAlignment="Center" />
@@ -287,7 +287,7 @@
                             <!-- Accuracy description (visible when no accuracy data yet) -->
                             <TextBlock IsVisible="{Binding !HasAccuracyData}"
                                        Text="{Binding AccuracyDescription}"
-                                       FontSize="11"
+                                       FontSize="12"
                                        FontStyle="Italic"
                                        Foreground="{DynamicResource TextPrimaryBrush}"
                                        TextWrapping="Wrap" />
@@ -297,7 +297,7 @@
                     <!-- Disclaimer -->
                     <TextBlock IsVisible="{Binding !HasInsufficientData}"
                                Text="{loc:Loc 'Disclaimer: These forecasts are estimates and should not be relied upon. Actual results often vary.'}"
-                               FontSize="11"
+                               FontSize="12"
                                FontStyle="Italic"
                                Foreground="{DynamicResource TextTertiaryBrush}"
                                TextWrapping="Wrap" />
@@ -391,7 +391,7 @@
                                                    FontSize="16"
                                                    FontWeight="SemiBold"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
-                                        <TextBlock Text="No revenue trends detected"
+                                        <TextBlock Text="{loc:Loc 'No revenue trends detected'}"
                                                    FontSize="13"
                                                    Foreground="{DynamicResource TextTertiaryBrush}" />
                                     </StackPanel>
@@ -484,7 +484,7 @@
                                                    FontSize="16"
                                                    FontWeight="SemiBold"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
-                                        <TextBlock Text="No anomalies detected"
+                                        <TextBlock Text="{loc:Loc 'No anomalies detected'}"
                                                    FontSize="13"
                                                    Foreground="{DynamicResource TextTertiaryBrush}" />
                                     </StackPanel>
@@ -574,7 +574,7 @@
                                                    FontSize="16"
                                                    FontWeight="SemiBold"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
-                                        <TextBlock Text="No recommendations at this time"
+                                        <TextBlock Text="{loc:Loc 'No recommendations at this time'}"
                                                    FontSize="13"
                                                    Foreground="{DynamicResource TextTertiaryBrush}" />
                                     </StackPanel>
@@ -735,7 +735,7 @@
                 </Border>
 
                 <!-- Title -->
-                <TextBlock Text="Analyzing Historical Data"
+                <TextBlock Text="{loc:Loc 'Analyzing Historical Data'}"
                            FontSize="20"
                            FontWeight="SemiBold"
                            Foreground="{DynamicResource TextPrimaryBrush}"
@@ -772,7 +772,7 @@
                 </StackPanel>
 
                 <!-- Description -->
-                <TextBlock Text="Testing predictions against historical outcomes to measure accuracy..."
+                <TextBlock Text="{loc:Loc 'Testing predictions against historical outcomes to measure accuracy...'}"
                            FontSize="12"
                            Foreground="{DynamicResource TextTertiaryBrush}"
                            HorizontalAlignment="Center"

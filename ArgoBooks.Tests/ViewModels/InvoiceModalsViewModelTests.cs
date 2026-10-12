@@ -60,9 +60,7 @@ public class InvoiceModalsViewModelTests : ModalViewModelTestBase
     [Fact]
     public async Task CreateAndSendInvoice_LineItemWithoutAProduct_ShowsAProductError()
     {
-        // Customer deliberately has no email so, before the fix, the send path stops at the email check
-        // (never reaching the confirm dialog) with a non-product error; after the fix the product check
-        // fires first. Either way this stays headless-safe.
+        // The customer deliberately has no email, so the send path stops at the email check before the product check is reached.
         Company.Customers.Add(new Customer { Id = "CUST-1", Name = "Acme" });
         var vm = new InvoiceModalsViewModel();
         vm.OpenCreateModal();

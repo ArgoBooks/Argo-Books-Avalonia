@@ -8,16 +8,6 @@ namespace ArgoBooks.Services;
 /// read-only history and persists events to the company file via CompanyData.EventLog. Toolbar
 /// undo/redo (Ctrl+Z/Ctrl+Y) is recorded as its own history entries; there is no per-event undo.
 /// </summary>
-/// <remarks>
-/// FUTURE MULTI-ACCOUNTANT SUPPORT:
-/// When multi-accountant support is added:
-/// 1. Set AccountantId/AccountantName on each event from the current session's accountant.
-/// 2. Add filtering by accountant to GetEvents/GetGroupedEvents.
-/// 3. Enforce permissions before allowing undo of another accountant's actions
-///    (e.g., only admins can undo other accountants' changes).
-/// 4. For sync, the event log becomes the unit of replication, merge event logs
-///    from multiple clients using timestamp ordering and conflict detection.
-/// </remarks>
 public class EventLogService
 {
     private readonly List<AuditEvent> _events = [];
@@ -26,6 +16,7 @@ public class EventLogService
     private readonly int _maxEventCount;
     private UndoRedoManager? _undoRedoManager;
     private Dictionary<string, FieldChange>? _pendingChanges;
+    private string? _pendingNote;
 
     /// <summary>
     /// Raised when an event is recorded or modified (for UI updates).
@@ -164,6 +155,16 @@ public class EventLogService
     }
 
     /// <summary>
+    /// Sets a note to be attached to the next recorded event, whatever its kind. Call this
+    /// immediately before RecordAction, and only when that call is certain to follow: a note
+    /// left pending would be attached to whatever unrelated change came next.
+    /// </summary>
+    public void SetPendingNote(string? note)
+    {
+        _pendingNote = string.IsNullOrWhiteSpace(note) ? null : note;
+    }
+
+    /// <summary>
     /// Records a new audit event linked to an undoable action.
     /// </summary>
     /// <param name="action">The undoable action (for selective undo support).</param>
@@ -179,7 +180,8 @@ public class EventLogService
         AuditAction auditAction,
         string entityType = "",
         string entityName = "",
-        Dictionary<string, FieldChange>? changes = null)
+        Dictionary<string, FieldChange>? changes = null,
+        string? note = null)
     {
         var evt = new AuditEvent
         {
@@ -189,7 +191,8 @@ public class EventLogService
             EntityType = entityType,
             EntityName = entityName,
             Description = description,
-            Changes = changes
+            Changes = changes,
+            Note = note
         };
 
         _events.Add(evt);
@@ -217,13 +220,17 @@ public class EventLogService
 
         _pendingChanges = null;
 
+        var note = _pendingNote;
+        _pendingNote = null;
+
         return RecordEvent(
             action,
             action.Description,
             auditAction,
             entityType,
             entityName: entityName,
-            changes: changes);
+            changes: changes,
+            note: note);
     }
 
     /// <summary>

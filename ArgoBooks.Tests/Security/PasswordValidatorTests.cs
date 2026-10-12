@@ -592,9 +592,7 @@ public class PasswordValidatorTests
     [Fact]
     public void GetStrengthScore_FourRepeatingChars_StillOnlyMinus5()
     {
-        // "aaaa" has repeating chars (aaa detected at position 0 and 1)
-        // but penalty is applied once via the boolean check
-        // 4*3=12 + 10 (lower) - 5 (repeating) = 17
+        // "aaaa" has repeating chars (aaa detected at position 0 and 1) but penalty is applied once via the boolean check 4*3=12 + 10 (lower) - 5 (repeating) = 17
         var score = PasswordValidator.GetStrengthScore("aaaa");
         Assert.Equal(17, score);
     }

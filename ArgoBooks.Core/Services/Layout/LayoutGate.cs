@@ -111,9 +111,7 @@ public static class LayoutGate
         if (grid.Shapes[firstDenseRow].NumericFraction >= NumericHeaderThreshold)
             return true;
 
-        // Rule 4: the first dense row is mostly period labels (text cross-tab whose columns
-        // are time periods, e.g. Product | Jan | Feb | Mar). Structurally this looks like a
-        // clean table, so the other rules miss it; the messiness is semantic.
+        // Rule 4: the first dense row is mostly period labels, a text cross-tab whose columns are months, which otherwise looks like a clean table.
         if (HasPeriodHeaderRow(grid, firstDenseRow))
             return true;
 

@@ -110,9 +110,7 @@ public static class RefundAnalyticsService
     public static IReadOnlyList<ProductRefundTotal> TopRefundedProducts(
         CompanyData company, DateTime since, int top, Func<decimal, DateTime, decimal>? toDisplay = null)
     {
-        // Sum refund amounts per invoice, then share each across the invoice's line items the way
-        // any amount is (LineAllocation). This is an approximation: the true refunded line items are
-        // stored in the server's line_items_json snapshot but not surfaced to the desktop.
+        // Sum refund amounts per invoice, then share each across the invoice's line items the way any amount is (LineAllocation).
         var convert = toDisplay ?? IdentityUSD;
         var byProduct = new Dictionary<string, decimal>();
         var refundsByInvoice = company.Payments

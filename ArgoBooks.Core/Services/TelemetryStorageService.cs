@@ -96,9 +96,7 @@ public class TelemetryStorageService : ITelemetryStorageService
 
         await WithFreshStateAsync(async () =>
         {
-            // Counted from what this call actually flipped, not from the id set. A sibling
-            // instance may have uploaded some of these already, and adding the whole set
-            // regardless is how the running total drifted above the real one.
+            // Counted from what this call actually flipped, not from the id set.
             var newlyMarked = 0;
             foreach (var wrapper in _events.Where(e => idSet.Contains(e.Event.DataId)))
             {
@@ -130,9 +128,7 @@ public class TelemetryStorageService : ITelemetryStorageService
         await _lock.WaitAsync(cancellationToken);
         try
         {
-            // Held across the delete so a sibling instance cannot be mid-write and put the
-            // file straight back. This is the user asking us to erase their data from
-            // Settings, so it has to actually stick.
+            // Held across the delete so a sibling instance cannot be mid-write and put the file straight back.
             using var fileLock = await TelemetryFileLock.AcquireAsync(
                 GetTelemetryDirectory(), _errorLogger, cancellationToken);
 
@@ -254,9 +250,7 @@ public class TelemetryStorageService : ITelemetryStorageService
             await using var stream = File.OpenRead(path);
             var loaded = await JsonSerializer.DeserializeAsync<List<StoredEventWrapper>>(stream, _jsonOptions, cancellationToken);
 
-            // The converter answers an event it cannot read with null. Kept, that entry broke
-            // every query over the list, all of which read Event, so pending events stopped
-            // uploading for good. Dropping it costs that one event and nothing else.
+            // The converter answers an event it cannot read with null. Kept, that entry broke every query over the list, all of which read Event, so pending events stopped uploading for good.
             var events = new List<TelemetryEventWrapper>();
             foreach (var stored in loaded ?? [])
             {
@@ -304,9 +298,7 @@ public class TelemetryStorageService : ITelemetryStorageService
         var path = GetEventsFilePath();
         EnsureDirectoryExists(path);
 
-        // Callers reach here holding the cross-instance lock, so no sibling is writing at
-        // the same time. The per-process scratch name stays regardless: it keeps the swap
-        // atomic against antivirus and indexers, which do not honour our lock.
+        // Callers reach here holding the cross-instance lock, so no sibling is writing at the same time.
         var tempPath = AtomicFile.TempPathFor(path);
         try
         {
@@ -517,10 +509,7 @@ public class TelemetryStorageService : ITelemetryStorageService
 
             var json = root.GetRawText();
 
-            // One unreadable event used to fail the whole List<TelemetryEvent>, taking every
-            // other event in the file with it. That is reachable whenever a build reads a file
-            // written by a newer one: an enum value it does not have, such as a FeatureName
-            // added since, throws here. Losing one event is acceptable, losing the batch is not.
+            // Each event is read on its own, so one unreadable event cannot take the rest of the file with it.
             try
             {
                 return Deserialize(dataType, json, options);
@@ -544,9 +533,7 @@ public class TelemetryStorageService : ITelemetryStorageService
                 TelemetryDataType.Startup => JsonSerializer.Deserialize<StartupEvent>(json, options),
                 TelemetryDataType.PageView => JsonSerializer.Deserialize<PageViewEvent>(json, options),
                 TelemetryDataType.CompanyScale => JsonSerializer.Deserialize<CompanyScaleEvent>(json, options),
-                // Writing uses the runtime type, so a type missing here still reaches disk and
-                // is then dropped on the next launch: pending events survive a restart only if
-                // they can be read back. Add every new event type in both places.
+                // Writing uses the runtime type, so a type missing here still reaches disk and is then dropped on the next launch: pending events survive a restart only if they can be read back.
                 _ => null
             };
         }

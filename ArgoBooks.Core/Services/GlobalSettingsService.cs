@@ -122,9 +122,7 @@ public class GlobalSettingsService : IGlobalSettingsService
                 _platformService.EnsureDirectoryExists(directory);
             }
 
-            // Write atomically: write to temp, then move. A crash mid-write would
-            // otherwise leave a truncated settings.json and lose recent companies,
-            // theme, and language on next launch.
+            // Write atomically: write to temp, then move. A crash mid-write would otherwise leave a truncated settings.json and lose recent companies, theme, and language on next launch.
             var tempPath = AtomicFile.TempPathFor(settingsPath);
             try
             {
@@ -146,11 +144,7 @@ public class GlobalSettingsService : IGlobalSettingsService
                     try { File.Delete(tempPath); } catch { /* best effort */ }
                 }
 
-                // Only transient filesystem interference is treated as best-effort. Settings
-                // persistence has many fire-and-forget callers (theme/sidebar/column toggles),
-                // so an AV/indexer lock or a quarantined temp on first run must not surface as
-                // an unobserved task exception that crashes startup. Anything else, including
-                // cancellation and serialization bugs, propagates so it can be seen and fixed.
+                // Only transient filesystem interference is treated as best-effort.
                 if (ex is not IOException and not UnauthorizedAccessException)
                     throw;
 

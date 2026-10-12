@@ -126,10 +126,7 @@ public static class CurrencyCellDetector
             cleaned = cleaned[1..].Trim();
         }
 
-        // Strip currency symbols/codes only where they actually decorate the amount: at the
-        // start or end of the string. A blind Replace anywhere in the string would corrupt a
-        // non-money value that happens to contain a token substring (e.g. an ISO code embedded
-        // in other text), since ParseAmount is shared by GetDecimal for columns like Tax/Discount.
+        // Strip currency symbols/codes only where they actually decorate the amount: at the start or end of the string.
         bool stripped = true;
         while (stripped && cleaned.Length > 0)
         {

@@ -70,13 +70,7 @@ public class HoltWintersForecastingTests
     [Fact]
     public void ForecastAdditive_NonMultipleOfSeasonLength_UsesCorrectSeasonForForecast()
     {
-        // Regression: the seasonal index for the forecast was computed as n + (n + h - 1) % m, which
-        // only equals the correct n + (h - 1) % m when the data length n is an exact multiple of the
-        // season length m. For other lengths the forecast borrowed the WRONG season's factor.
-        //
-        // A strongly periodic, no-trend series with season length 3: high, low, mid (120, 0, 60),
-        // repeated. n = 10 (not a multiple of 3), so the next value is at season position 1 ("low"),
-        // whose true value is 0. The buggy index instead reads season position 2 ("mid" = 60).
+        // The seasonal index was computed as n + (n + h - 1) % m, which equals the correct n + (h - 1) % m only when n is a multiple of the season.
         var data = new List<decimal>
         {
             120m, 0m, 60m,

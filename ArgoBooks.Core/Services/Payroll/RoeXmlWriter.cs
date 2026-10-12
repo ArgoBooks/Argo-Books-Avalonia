@@ -134,9 +134,7 @@ public static partial class RoeXmlWriter
             problems.Add("Block 5 needs the CRA payroll account number in the form 123456789RP0001, set on the company.");
         }
 
-        // FN and LN are both minOccurs="1", so one token is not a usable name here even though
-        // it reads like one. Reported rather than padded: a blank FN would validate against the
-        // schema and then be a Record of Employment with no first name on it.
+        // FN and LN are both minOccurs="1", so one token is not a usable name here even though it reads like one.
         if (SplitName(sheet.EmployeeName) is null)
         {
             problems.Add("Block 9 needs the employee's first and last name.");

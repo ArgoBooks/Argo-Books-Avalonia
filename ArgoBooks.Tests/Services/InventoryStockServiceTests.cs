@@ -220,8 +220,7 @@ public class InventoryStockServiceTests
         Assert.Equal(2m, item.UnitCost);
     }
 
-    // Saved while the product didn't track stock, so the purchase never added any. Editing it used to
-    // take the quantity back off before adding it again, which left stock where it was.
+    // Saved while the product did not track stock, so the purchase added none, and editing it has to add its quantity rather than reverse one that was never there.
     [Fact]
     public void Edit_OfAPurchaseThatNeverMovedStock_AddsItsStock()
     {

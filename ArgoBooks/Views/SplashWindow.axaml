@@ -1,5 +1,6 @@
-<Window xmlns="https://github.com/avaloniaui"
+﻿<Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:loc="using:ArgoBooks.Localization"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="420" d:DesignHeight="240"
@@ -27,15 +28,13 @@
                    Width="64"
                    Height="64"
                    HorizontalAlignment="Center" />
-            <TextBlock Text="Argo Books"
+            <TextBlock Text="{loc:Loc 'Argo Books'}"
                        FontSize="22"
                        FontWeight="SemiBold"
                        Foreground="{DynamicResource TextPrimaryBrush}"
                        HorizontalAlignment="Center" />
-            <!-- Static text rather than an animated progress bar. The UI thread is fully
-                 occupied building the service graph for the few seconds this is on screen, so
-                 nothing here can animate. A frozen spinner reads as a hang; plain text does not. -->
-            <TextBlock Text="Starting..."
+            <!-- Static text rather than an animated progress bar. The UI thread is fully occupied building the service graph for the few seconds this is on screen, so nothing here can animate. -->
+            <TextBlock Text="{loc:Loc 'Starting...'}"
                        FontSize="13"
                        Foreground="{DynamicResource TextTertiaryBrush}"
                        HorizontalAlignment="Center" />

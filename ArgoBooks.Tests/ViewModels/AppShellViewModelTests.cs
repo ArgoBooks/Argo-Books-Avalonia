@@ -33,9 +33,7 @@ public class AppShellViewModelTests : ModalViewModelTestBase
     [Fact]
     public void SetPlanStatus_BeforeTheInvoiceScreenExists_StillMakesItPremium()
     {
-        // The invoice modals are only built when Invoices is first opened, which for a customer with
-        // a saved licence is long after startup applied the plan. Getting this wrong sends a paying
-        // customer through the free-tier send limit for the rest of the session.
+        // The invoice modals are only built when Invoices is first opened, which for a customer with a saved licence is long after startup applied the plan.
         _viewModel.SetPlanStatus(true);
 
         Assert.True(_viewModel.InvoiceModalsViewModel.HasPremium);

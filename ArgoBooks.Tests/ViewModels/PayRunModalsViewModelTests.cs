@@ -128,9 +128,7 @@ public class PayRunModalsViewModelTests : ModalViewModelTestBase
     [Fact]
     public void APeriodThatEndsBeforeItStarts_IsRefused()
     {
-        // Every annual figure is divided across the pay periods, so the period itself never
-        // enters the arithmetic and a backwards one calculates perfectly happily. It only shows
-        // up later, on a pay stub and in the 27 periods an ROE reads back.
+        // Every annual figure is divided across the pay periods, so the period itself never enters the arithmetic and a backwards one calculates perfectly happily.
         Company.Employees.Add(Person());
 
         var vm = new PayRunModalsViewModel();
@@ -143,9 +141,7 @@ public class PayRunModalsViewModelTests : ModalViewModelTestBase
         vm.NextCommand.Execute(null);
         Assert.Equal(1, vm.Step);
 
-        // Said once, next to the date that is wrong. Copying it into BlockingError as well put
-        // the same sentence on screen twice, in two different places, the moment Next was
-        // pressed.
+        // Said once, next to the date that is wrong. Copying it into BlockingError as well put the same sentence on screen twice, in two different places, the moment Next was pressed.
         Assert.Empty(vm.BlockingError);
     }
 
@@ -181,9 +177,7 @@ public class PayRunModalsViewModelTests : ModalViewModelTestBase
     [Fact]
     public void APayDateNowhereNearThePeriod_IsWarnedAbout()
     {
-        // A pay date in 2026 against a period in 2024 calculates happily, because the pay date
-        // only picks the rate edition and the period never enters the arithmetic. It is also
-        // exactly what a mistyped year looks like, and the year is the digit nobody re-reads.
+        // A pay date in 2026 against a period in 2024 calculates happily, because the pay date only picks the rate edition and the period never enters the arithmetic.
         Company.Employees.Add(Person());
 
         var vm = new PayRunModalsViewModel();
@@ -225,10 +219,7 @@ public class PayRunModalsViewModelTests : ModalViewModelTestBase
     [Fact]
     public void APeriodAlreadyPaid_IsWarnedAboutRatherThanBlocked()
     {
-        // Deliberately a warning. A second run over the same period is usually a mistake and
-        // occasionally exactly right: a correction, or a bonus paid separately. Blocking it would
-        // be wrong the first time somebody needs one, and there is no way for the app to tell the
-        // two apart.
+        // Deliberately a warning. A second run over the same period is usually a mistake and occasionally exactly right: a correction, or a bonus paid separately.
         Company.Employees.Add(Person());
         Company.PayRuns.Add(ApprovedRun("PR-0001", new DateTime(2026, 8, 3), new DateTime(2026, 8, 16)));
 

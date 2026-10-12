@@ -12,14 +12,10 @@ public partial class App : Application
 
     private ISingleViewApplicationLifetime? _singleView;
 
-    // Avalonia's Android host captures ISingleViewApplicationLifetime.MainView once at startup, so
-    // reassigning MainView later is silently ignored (nothing navigates). Instead MainView is set
-    // ONCE to this persistent container and every Show* swaps its Content.
+    // Avalonia's Android host captures ISingleViewApplicationLifetime.MainView once at startup, so reassigning MainView later is silently ignored (nothing navigates).
     private ContentControl? _rootView;
 
-    // The lock screen is an overlay: swapping MainView back to whatever was showing before the
-    // lock (rather than always rebuilding the shell) keeps the shell's navigation state intact
-    // across a resume-triggered lock/unlock.
+    // The lock screen is an overlay, so swapping MainView back to what was showing keeps the shell's navigation state across a resume.
     private Control? _contentBeforeLock;
     private bool _isLockShowing;
 
@@ -27,10 +23,7 @@ public partial class App : Application
     // offline-capture outbox without rebuilding the shell - null until ShowShellAsync completes.
     private ShellViewModel? _shellViewModel;
 
-    // Guards the resume-triggered lock check against the very first OnResume, which Android
-    // fires immediately after OnCreate/OnFrameworkInitializationCompleted on cold start - that
-    // path is handled by TryResumeSessionAsync itself, so the resume handler no-ops until the
-    // initial cold-start decision has actually been made.
+    // Guards against the first OnResume, which Android fires straight after OnCreate on a cold start, a path handled elsewhere.
     private bool _initialFlowComplete;
 
     public App()
@@ -91,9 +84,7 @@ public partial class App : Application
         // revocation (which drops back to the pairing screen) without waiting for a manual pull.
         _ = _current?._shellViewModel?.RefreshCommand.ExecuteAsync(null);
 
-        // Refresh the "captured while offline" review prompt as soon as the app comes back
-        // to the foreground, rather than waiting for the user to pull-to-refresh. Nothing is
-        // auto-posted - the user reviews each queued receipt (see ShellViewModel.StartOfflineReviewAsync).
+        // Refresh the "captured while offline" review prompt as soon as the app comes back to the foreground, rather than waiting for the user to pull-to-refresh.
         _ = _current?._shellViewModel?.RefreshOfflineQueueAsync();
     }
 
@@ -206,10 +197,7 @@ public partial class App : Application
         }
         catch (Exception ex)
         {
-            // Building the shell (secure-store reads, app-data paths, sync client) can fail. Without
-            // this guard the fire-and-forget caller would swallow it, stranding the user on the
-            // pairing screen's "Connected" label with no feedback. Log it and, on the pairing path,
-            // surface it so the failure is visible instead of a dead screen.
+            // Building the shell can fail on a secure-store read or a path, and a fire-and-forget caller would swallow it and strand the user on pairing.
             Android.Util.Log.Error("ArgoBooks", $"Shell setup failed: {ex}");
             if (pairingViewModel != null)
                 Dispatcher.UIThread.Post(() => pairingViewModel.ReportShellOpenFailed(ex.Message));
@@ -226,10 +214,7 @@ public partial class App : Application
             ShowPairing();
         });
 
-        // Navigate to the shell first so a successful pairing always lands on the dashboard. The
-        // shell has its own loading / "waiting for first sync" states, so the initial snapshot load
-        // running (or failing) after this doesn't strand the user on the pairing screen with a
-        // "Connected" label.
+        // Navigate to the shell first so a successful pairing always lands on the dashboard.
         Dispatcher.UIThread.Post(() =>
         {
             try

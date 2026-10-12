@@ -46,9 +46,7 @@ public static class CaptureIngestService
         var subtotal = tx.Total - tx.Tax;
         var amount = subtotal > 0 ? subtotal : tx.Total;
 
-        // A receipt the scan read no items from still has its total and its photo, and the phone
-        // has already told its owner it was added. It goes in as one line for the whole amount.
-        // Refusing it made the sync take it for unreadable and delete it from the queue.
+        // A receipt the scan read no items from still has its total and its photo, and the phone has already told its owner it was added. It goes in as one line for the whole amount.
         if (lineItems.Count == 0)
         {
             lineItems.Add(new LineItem

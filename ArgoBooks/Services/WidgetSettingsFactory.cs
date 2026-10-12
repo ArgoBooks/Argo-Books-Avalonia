@@ -19,7 +19,7 @@ public static class WidgetSettingsFactory
         TopCustomersWidgetViewModel => CreateTopCustomersConfig(),
         LowStockAlertsWidgetViewModel => CreateThresholdConfig(),
         UpcomingInvoicesWidgetViewModel => CreateDaysAheadConfig(),
-        UnifiedChartWidgetViewModel chart when chart.IsDistribution => CreateChartStyleConfig(),
+        UnifiedChartWidgetViewModel chart when chart.IsDistribution => CreateChartConfig(chart),
         _ => null
     };
 
@@ -105,15 +105,28 @@ public static class WidgetSettingsFactory
         return panel;
     }
 
-    private static Control CreateChartStyleConfig()
+    private static Control CreateChartConfig(UnifiedChartWidgetViewModel chart)
     {
         var panel = new StackPanel { Spacing = 8 };
         panel.Children.Add(Label("Chart style"));
-        var combo = new ComboBox { HorizontalAlignment = HorizontalAlignment.Stretch };
-        combo.Bind(ComboBox.ItemsSourceProperty, new Avalonia.Data.Binding("ChartStyleOptions"));
-        combo.Bind(ComboBox.SelectedItemProperty, new Avalonia.Data.Binding("ChartStyle"));
-        panel.Children.Add(combo);
+        panel.Children.Add(Dropdown("ChartStyleOptions", "ChartStyle"));
+
+        // Only the two charts that group by where somebody is can be asked for a smaller area.
+        if (chart.IsGeographic)
+        {
+            panel.Children.Add(Label("Group by"));
+            panel.Children.Add(Dropdown("GeoLevelOptions", "GeoLevelOption"));
+        }
+
         return panel;
+    }
+
+    private static ComboBox Dropdown(string itemsPath, string selectedPath)
+    {
+        var combo = new ComboBox { HorizontalAlignment = HorizontalAlignment.Stretch };
+        combo.Bind(ComboBox.ItemsSourceProperty, new Avalonia.Data.Binding(itemsPath));
+        combo.Bind(ComboBox.SelectedItemProperty, new Avalonia.Data.Binding(selectedPath));
+        return combo;
     }
 
     private static TextBlock Label(string text) => new()

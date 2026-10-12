@@ -243,7 +243,7 @@
                                                     PointerReleased="OnChartPointerReleased"
                                                                  Items="{Binding RevenueDistributionLegend}"
                                                                  MaxHeightOverride="240"
-                                                                 Width="200"
+                                                                 Width="240"
                                                                  Margin="8,0,0,0"
                                                                  VerticalAlignment="Center" />
                                     </Grid>
@@ -316,7 +316,7 @@
                                                     PointerReleased="OnChartPointerReleased"
                                                                  Items="{Binding ExpensesDistributionLegend}"
                                                                  MaxHeightOverride="240"
-                                                                 Width="200"
+                                                                 Width="240"
                                                                  Margin="8,0,0,0"
                                                                  VerticalAlignment="Center" />
                                     </Grid>
@@ -334,6 +334,26 @@
                 <!-- Geographic Tab Content -->
                 <StackPanel Margin="24" Spacing="24"
                             IsVisible="{Binding IsGeographicTabSelected}">
+                    <!-- The map below keeps drawing countries, because it has no smaller geography to draw. -->
+                    <Border HorizontalAlignment="Right"
+                            Background="{DynamicResource SurfaceAltBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="2">
+                        <StackPanel Orientation="Horizontal" Spacing="2">
+                            <RadioButton Content="{loc:Loc Country}"
+                                         IsChecked="{Binding IsGeoByCountry}"
+                                         Classes="segmented-button" />
+                            <RadioButton Content="{loc:Loc Region}"
+                                         IsChecked="{Binding IsGeoByRegion}"
+                                         Classes="segmented-button" />
+                            <RadioButton Content="{loc:Loc City}"
+                                         IsChecked="{Binding IsGeoByCity}"
+                                         Classes="segmented-button" />
+                        </StackPanel>
+                    </Border>
+
                     <!-- Row 1: Countries/Companies of Origin -->
                     <Grid ColumnDefinitions="*,*" Height="300">
                         <!-- Countries of Origin Chart -->
@@ -348,7 +368,7 @@
                                 <!-- Pie Chart with custom legend -->
                                 <Grid RowDefinitions="Auto,*" IsVisible="{Binding HasCountriesOfOriginData}">
                                     <TextBlock Grid.Row="0"
-                                               Text="{loc:Loc 'Countries of Origin'}"
+                                               Text="{Binding CountriesOfOriginTitle}"
                                                HorizontalAlignment="Center"
                                                FontSize="16"
                                                FontWeight="SemiBold"
@@ -366,7 +386,7 @@
                                                     PointerReleased="OnChartPointerReleased"
                                                                  Items="{Binding CountriesOfOriginLegend}"
                                                                  MaxHeightOverride="240"
-                                                                 Width="200"
+                                                                 Width="240"
                                                                  Margin="8,0,0,0"
                                                                  VerticalAlignment="Center" />
                                     </Grid>
@@ -399,6 +419,7 @@
                                                Margin="0,8,0,4" />
                                     <Grid Grid.Row="1" ColumnDefinitions="*,Auto">
                                         <lvc:PieChart Grid.Column="0"
+                                                      Tag="{x:Static enums:ChartDataType.CompaniesOfOrigin}"
                                                       PointerPressed="OnChartPointerPressed"
                                                     PointerReleased="OnChartPointerReleased"
                                                       Series="{Binding CompaniesOfOriginSeries}"
@@ -408,7 +429,7 @@
                                                     PointerReleased="OnChartPointerReleased"
                                                                  Items="{Binding CompaniesOfOriginLegend}"
                                                                  MaxHeightOverride="240"
-                                                                 Width="200"
+                                                                 Width="240"
                                                                  Margin="8,0,0,0"
                                                                  VerticalAlignment="Center" />
                                     </Grid>
@@ -436,7 +457,7 @@
                                 <!-- Pie Chart with custom legend -->
                                 <Grid RowDefinitions="Auto,*" IsVisible="{Binding HasCountriesOfDestinationData}">
                                     <TextBlock Grid.Row="0"
-                                               Text="{loc:Loc 'Countries of Destination'}"
+                                               Text="{Binding CountriesOfDestinationTitle}"
                                                HorizontalAlignment="Center"
                                                FontSize="16"
                                                FontWeight="SemiBold"
@@ -454,7 +475,7 @@
                                                     PointerReleased="OnChartPointerReleased"
                                                                  Items="{Binding CountriesOfDestinationLegend}"
                                                                  MaxHeightOverride="240"
-                                                                 Width="200"
+                                                                 Width="240"
                                                                  Margin="8,0,0,0"
                                                                  VerticalAlignment="Center" />
                                     </Grid>
@@ -497,7 +518,7 @@
                                                     PointerReleased="OnChartPointerReleased"
                                                                  Items="{Binding CompaniesOfDestinationLegend}"
                                                                  MaxHeightOverride="240"
-                                                                 Width="200"
+                                                                 Width="240"
                                                                  Margin="8,0,0,0"
                                                                  VerticalAlignment="Center" />
                                     </Grid>
@@ -534,14 +555,7 @@
                                             Background="{DynamicResource SurfaceAltBrush}"
                                             CornerRadius="6"
                                             Padding="4">
-                                        <!-- No GroupName: these two radios share this StackPanel parent, so
-                                             Avalonia groups them by container. Their IsChecked is two-way bound to
-                                             IsMapModeOrigin/IsMapModeDestination (strict inverses in the VM), which
-                                             already enforces mutual exclusion. Setting GroupName routes them through
-                                             Avalonia's RadioButtonGroupManager, which never releases detached radios;
-                                             because this page is rebuilt on every theme change (RefreshCurrentPage),
-                                             that leaked hundreds of thousands of entries and froze the UI for ~20s
-                                             when the group was next iterated. -->
+                                        <!-- No GroupName: these two radios share this StackPanel parent, so Avalonia groups them by container. -->
                                         <StackPanel Orientation="Horizontal" Spacing="4">
                                             <RadioButton Content="{loc:Loc Origin}"
                                                          IsChecked="{Binding IsMapModeOrigin}"
@@ -661,7 +675,7 @@
                                                     PointerReleased="OnChartPointerReleased"
                                                                  Items="{Binding AccountantsTransactionsLegend}"
                                                                  MaxHeightOverride="240"
-                                                                 Width="200"
+                                                                 Width="240"
                                                                  Margin="8,0,0,0"
                                                                  VerticalAlignment="Center" />
                                     </Grid>
@@ -892,7 +906,7 @@
                                                     PointerReleased="OnChartPointerReleased"
                                                                  Items="{Binding TopCustomersLegend}"
                                                                  MaxHeightOverride="240"
-                                                                 Width="200"
+                                                                 Width="240"
                                                                  Margin="8,0,0,0"
                                                                  VerticalAlignment="Center" />
                                     </Grid>
@@ -935,7 +949,7 @@
                                                     PointerReleased="OnChartPointerReleased"
                                                                  Items="{Binding CustomerPaymentStatusLegend}"
                                                                  MaxHeightOverride="240"
-                                                                 Width="200"
+                                                                 Width="240"
                                                                  Margin="8,0,0,0"
                                                                  VerticalAlignment="Center" />
                                     </Grid>
@@ -1038,7 +1052,7 @@
                                                     PointerReleased="OnChartPointerReleased"
                                                                  Items="{Binding ActiveInactiveCustomersLegend}"
                                                                  MaxHeightOverride="240"
-                                                                 Width="200"
+                                                                 Width="240"
                                                                  Margin="8,0,0,0"
                                                                  VerticalAlignment="Center" />
                                     </Grid>
@@ -1224,7 +1238,7 @@
                                                                  PointerReleased="OnChartPointerReleased"
                                                                  Items="{Binding TaxByCategoryLegend}"
                                                                  MaxHeightOverride="240"
-                                                                 Width="200"
+                                                                 Width="240"
                                                                  Margin="8,0,0,0"
                                                                  VerticalAlignment="Center" />
                                     </Grid>
@@ -1268,7 +1282,7 @@
                                                                  PointerReleased="OnChartPointerReleased"
                                                                  Items="{Binding TaxByProductLegend}"
                                                                  MaxHeightOverride="240"
-                                                                 Width="200"
+                                                                 Width="240"
                                                                  Margin="8,0,0,0"
                                                                  VerticalAlignment="Center" />
                                     </Grid>
@@ -1401,7 +1415,7 @@
                                                     PointerReleased="OnChartPointerReleased"
                                                                  Items="{Binding ReturnReasonsLegend}"
                                                                  MaxHeightOverride="240"
-                                                                 Width="200"
+                                                                 Width="240"
                                                                  Margin="8,0,0,0"
                                                                  VerticalAlignment="Center" />
                                     </Grid>
@@ -1474,7 +1488,7 @@
                                                     PointerReleased="OnChartPointerReleased"
                                                                  Items="{Binding ReturnsByCategoryLegend}"
                                                                  MaxHeightOverride="240"
-                                                                 Width="200"
+                                                                 Width="240"
                                                                  Margin="8,0,0,0"
                                                                  VerticalAlignment="Center" />
                                     </Grid>
@@ -1520,7 +1534,7 @@
                                                     PointerReleased="OnChartPointerReleased"
                                                                  Items="{Binding ReturnsByProductLegend}"
                                                                  MaxHeightOverride="240"
-                                                                 Width="200"
+                                                                 Width="240"
                                                                  Margin="8,0,0,0"
                                                                  VerticalAlignment="Center" />
                                     </Grid>
@@ -1656,7 +1670,7 @@
                                                     PointerReleased="OnChartPointerReleased"
                                                                  Items="{Binding LossReasonsLegend}"
                                                                  MaxHeightOverride="240"
-                                                                 Width="200"
+                                                                 Width="240"
                                                                  Margin="8,0,0,0"
                                                                  VerticalAlignment="Center" />
                                     </Grid>
@@ -1729,7 +1743,7 @@
                                                     PointerReleased="OnChartPointerReleased"
                                                                  Items="{Binding LossesByCategoryLegend}"
                                                                  MaxHeightOverride="240"
-                                                                 Width="200"
+                                                                 Width="240"
                                                                  Margin="8,0,0,0"
                                                                  VerticalAlignment="Center" />
                                     </Grid>
@@ -1775,7 +1789,7 @@
                                                     PointerReleased="OnChartPointerReleased"
                                                                  Items="{Binding LossesByProductLegend}"
                                                                  MaxHeightOverride="240"
-                                                                 Width="200"
+                                                                 Width="240"
                                                                  Margin="8,0,0,0"
                                                                  VerticalAlignment="Center" />
                                     </Grid>
@@ -2124,6 +2138,8 @@
         <!-- Segmented Button (RadioButton) -->
         <Style Selector="RadioButton.segmented-button">
             <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
             <Setter Property="Padding" Value="12,6" />
             <Setter Property="CornerRadius" Value="4" />
@@ -2133,6 +2149,8 @@
             <Setter Property="Template">
                 <ControlTemplate>
                     <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
                             CornerRadius="{TemplateBinding CornerRadius}"
                             Padding="{TemplateBinding Padding}">
                         <ContentPresenter Content="{TemplateBinding Content}"
@@ -2148,6 +2166,7 @@
         </Style>
         <Style Selector="RadioButton.segmented-button:checked">
             <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}" />
             <Setter Property="Foreground" Value="{DynamicResource PrimaryBrush}" />
         </Style>
     </UserControl.Styles>

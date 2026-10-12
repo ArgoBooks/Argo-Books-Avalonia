@@ -8,10 +8,7 @@
              x:DataType="controls:SidebarSection">
 
     <StackPanel Spacing="0">
-        <!-- Section header. The whole strip is the toggle, not just the arrow: a 20px
-             target for the most-used control in the sidebar was needlessly small. Margin
-             and padding split the old 15 so the hover strip lines up with the nav items
-             below while the text stays exactly where it was. -->
+        <!-- Section header. The whole strip is the toggle, not just the arrow: a 20px target for the most-used control in the sidebar was needlessly small. -->
         <Button Classes="section-header"
                 HorizontalAlignment="Stretch"
                 HorizontalContentAlignment="Stretch"

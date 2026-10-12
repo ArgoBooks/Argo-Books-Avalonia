@@ -232,9 +232,7 @@ public partial class PayRunsPageViewModel : SortablePageViewModelBase
         {
             string symbol = CurrencyService.CurrentSymbol;
 
-            // One entry per employee, each holding a closure rather than bytes. Nothing is
-            // rendered until a name is chosen, and the viewer's cache keeps a second look at
-            // the same person instant.
+            // One entry per employee, each holding a closure rather than bytes. Nothing is rendered until a name is chosen, and the viewer's cache keeps a second look at the same person instant.
             var documents = run.Lines.Select(line => new ViewerDocument
             {
                 Name = line.EmployeeName,
@@ -496,9 +494,7 @@ public partial class PayRunsPageViewModel : SortablePageViewModelBase
     {
         int year = DateTime.Today.Year;
 
-        // Money totals include voided runs, because their reversals are included too and the
-        // pair cancels to zero. The count does not: a voided run and its reversal are not two
-        // more payrolls the owner ran.
+        // Money totals include voided runs, because their reversals are included too and the pair cancels to zero.
         List<PayRun> thisYear = _all
             .Where(r => r.Status != PayRunStatus.Draft && r.PayDate.Year == year)
             .ToList();

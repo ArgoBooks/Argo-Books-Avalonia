@@ -57,9 +57,7 @@ public static class Rl1PdfRenderer
                         right.Item().AlignRight().Text("Tax year").FontSize(9).FontColor(Colors.Grey.Darken2);
                     });
                 });
-                // On the page rather than only in the app, because the PDF is what gets saved,
-                // emailed and looked at again in February, by which time whatever the export
-                // screen said is long gone.
+                // On the page rather than only in the app, because the PDF is what gets saved, emailed and read again in February.
                 col.Item().PaddingTop(8).Background(Colors.Amber.Lighten4).Padding(8)
                     .Text(Rl1Service.FilingNotice).FontSize(8).FontColor(Colors.Grey.Darken4);
 
@@ -115,10 +113,7 @@ public static class Rl1PdfRenderer
 
                         Box(rows, "C", "Employment insurance premium", slip.EiPremium);
 
-                        // Boxes D and F only appear when there is something in them. Argo Books
-                        // does not collect registered pension plan contributions or union dues,
-                        // so in practice they never do, and printing two permanent zeroes would
-                        // suggest the employer has both and contributed nothing.
+                        // Boxes D and F only appear when there is something in them.
                         if (slip.RppContribution > 0)
                         {
                             Box(rows, "D", "Registered pension plan contribution", slip.RppContribution);
@@ -190,9 +185,7 @@ public static class Rl1PdfRenderer
                         right.Item().AlignRight().Text("Tax year").FontSize(9).FontColor(Colors.Grey.Darken2);
                     });
                 });
-                // On the page rather than only in the app, because the PDF is what gets saved,
-                // emailed and looked at again in February, by which time whatever the export
-                // screen said is long gone.
+                // On the page rather than only in the app, because the PDF is what gets saved, emailed and read again in February.
                 col.Item().PaddingTop(8).Background(Colors.Amber.Lighten4).Padding(8)
                     .Text(Rl1Service.FilingNotice).FontSize(8).FontColor(Colors.Grey.Darken4);
 
@@ -244,8 +237,6 @@ public static class Rl1PdfRenderer
                 });
 
                 // Said plainly because it is the single most likely way this summary is wrong.
-                // The health services fund contribution is a real employer liability that Argo
-                // Books does not calculate, so the figure above is not the whole remittance.
                 col.Item().Text(
                         "This total covers QPP, QPIP and Quebec income tax only. It does NOT include the "
                         + "contribution to the health services fund, the contribution related to labour "

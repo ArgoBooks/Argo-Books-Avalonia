@@ -774,10 +774,7 @@ public partial class SettingsModalViewModel : ViewModelBase
             return;
         }
 
-        // Nothing is pushed here on purpose. These sit among the other
-        // Notifications toggles, which all apply on Save, so pushing on toggle
-        // would make Close-without-saving silently keep the change and skip the
-        // unsaved-changes prompt. SaveAsync sends them.
+        // Nothing is pushed here on purpose: these apply on Save like the other Notifications toggles, so pushing would keep a change after Close.
         OnPropertyChanged(nameof(HasUnsavedChanges));
     }
 
@@ -1272,10 +1269,7 @@ public partial class SettingsModalViewModel : ViewModelBase
                     PortalSettings.ActivateApiKey(portalSettings);
                 }
 
-                // If the server says verification is required, open the
-                // verify-email modal so the user can enter the 6-digit code
-                // emailed to them. Until they do, refund endpoints will return
-                // 412 (email_not_verified).
+                // If the server says verification is required, open the verify-email modal so the user can enter the 6-digit code emailed to them.
                 if (result.EmailVerificationRequired)
                 {
                     ShowEmailVerificationModal(ownerEmail);
@@ -1399,9 +1393,7 @@ public partial class SettingsModalViewModel : ViewModelBase
         _isLoadingPortalSettings = true;
         PortalCompanyName = settings.CompanyName ?? string.Empty;
         PortalNotifyOnPayment = settings.NotifyOnPayment;
-        // Cached values only. RefreshProviderStatusAsync below overwrites these
-        // from the server, which is authoritative because the reminder cron and
-        // the payment webhooks read its copy while this app is closed.
+        // Cached values only, since RefreshProviderStatusAsync overwrites them from the server, which the cron and the webhooks read while the app is closed.
         PortalEmailOwnerOnPayment = settings.EmailOwnerOnPayment;
         PortalSendPaymentReminders = settings.SendPaymentReminders;
         PortalRemindersEnabledAt = settings.RemindersEnabledAt;
@@ -1435,11 +1427,7 @@ public partial class SettingsModalViewModel : ViewModelBase
         var portalService = App.PaymentPortalService;
         if (portalService == null) return;
 
-        // The key lives in the company file and is copied into the process cache on company
-        // open. If that copy is missing this returned early and never asked the server, which
-        // left the tab claiming nothing was connected and the owner email unverified until
-        // the company was closed and reopened. Re-prime from the file rather than trusting
-        // the open path to have done it.
+        // The key lives in the company file and is cached on open, and a missing cache copy still has to ask the server rather than report nothing.
         if (!PortalSettings.IsConfigured)
         {
             PortalSettings.ActivateApiKey(App.CompanyManager?.CompanyData?.Settings.PaymentPortal);
@@ -1488,11 +1476,7 @@ public partial class SettingsModalViewModel : ViewModelBase
             // Load portal company name and logo from server
             if (status.Success)
             {
-                // Server wins for the email preferences: it is what the cron and
-                // the webhooks actually read. This is also what restores them
-                // after a reinstall or on a second machine. Null when talking to
-                // a server that predates the preferences block, in which case
-                // the cached local values stand.
+                // Server wins for the email preferences: it is what the cron and the webhooks actually read. This is also what restores them after a reinstall or on a second machine.
                 if (status.Preferences != null)
                 {
                     ApplyPortalPreferences(status.Preferences);
@@ -1552,9 +1536,7 @@ public partial class SettingsModalViewModel : ViewModelBase
                         _ => false
                     };
 
-                    // A merchant/account ID in the DB is what makes the connection
-                    // real. Emails are informational and may be blank (Stripe Express
-                    // accounts, Square locations without a business_email, etc.).
+                    // A merchant/account ID in the DB is what makes the connection real. Emails are informational and may be blank (Stripe Express accounts, Square locations without a business_email, etc.).
                     if (connected)
                     {
                         // Dispatch property updates to the UI thread to ensure bindings refresh
@@ -1743,9 +1725,7 @@ public partial class SettingsModalViewModel : ViewModelBase
         {
             Process.Start(new ProcessStartInfo
             {
-                // The documentation page, not the marketing page. Someone who has
-                // already opened Settings has decided to connect it and wants the
-                // steps, not the pitch.
+                // The documentation page, not the marketing page. Someone who has already opened Settings has decided to connect it and wants the steps, not the pitch.
                 FileName = "https://argorobots.com/documentation/pages/integrations/stripe-integration.php",
                 UseShellExecute = true
             });
@@ -1882,8 +1862,6 @@ public partial class SettingsModalViewModel : ViewModelBase
             var deviceId = LicenseAuthHelper.GetDeviceId() ?? string.Empty;
 
             // Registering the company is idempotent; minting a key is not.
-            // Turning the feature on twice used to leave a spare key behind on
-            // every press, so the key is only made when there is not one already.
             api.AccountId = await client.EnsureAccountAsync(
                 api.CompanyUid!, data.Settings.Company.Name, licenseKey, deviceId);
 
@@ -1949,9 +1927,7 @@ public partial class SettingsModalViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            // Local state is still cleared below: the merchant asked to turn it
-            // off, and leaving it half-on because the network hiccuped is worse
-            // than a key that outlives the setting. Surfaced so they can retry.
+            // Local state is still cleared below: the merchant asked to turn it off, and leaving it half-on because the network hiccuped is worse than a key that outlives the setting.
             ArgoApiError = "Some keys could not be revoked: {0}".TranslateFormat(ex.Message);
             App.ErrorLogger?.LogError(ex, ErrorCategory.Api, "Revoking Argo Books API keys failed");
         }
@@ -1983,9 +1959,7 @@ public partial class SettingsModalViewModel : ViewModelBase
             ArgoApiKeys.Clear();
             if (!doc.RootElement.TryGetProperty("keys", out var keys)) return;
 
-            // The key this app minted for itself is not one the merchant hands
-            // out, and revoking it would cut the app off from its own review
-            // queue with no obvious way back.
+            // The key this app minted for itself is not one the merchant hands out, and revoking it would cut the app off from its own review queue with no obvious way back.
             var ownHint = ArgoApiKeyHint(api.DesktopKey);
             var strays = new List<string>();
 
@@ -2004,10 +1978,7 @@ public partial class SettingsModalViewModel : ViewModelBase
 
                 if (label == ArgoApiClient.DesktopKeyLabel)
                 {
-                    // Ours. Anything with our label that is NOT the key we hold
-                    // is a leftover from the days when enabling twice minted a
-                    // spare. Nothing can use it, and it occupies one of the ten
-                    // key slots, so retire it.
+                    // Ours. Anything with our label that is NOT the key we hold is a leftover from the days when enabling twice minted a spare.
                     if (ownHint == null || hint != ownHint)
                     {
                         strays.Add(k.GetProperty("id").GetString() ?? string.Empty);
@@ -2109,9 +2080,7 @@ public partial class SettingsModalViewModel : ViewModelBase
             NewArgoApiKeyLabel = string.Empty;
             await RefreshArgoApiKeysAsync();
 
-            // Straight onto the clipboard, then shown. This is the only moment the
-            // secret exists outside the server's hash of it, and a message box is not
-            // selectable, so telling someone to retype it would not be a plan.
+            // Straight onto the clipboard, then shown.
             var copied = await App.CopyToClipboardAsync(secret);
             var advice = copied
                 ? "Copied to your clipboard. This is the only time it can be shown, so paste it somewhere safe before closing this.".Translate()
@@ -2161,9 +2130,7 @@ public partial class SettingsModalViewModel : ViewModelBase
                 LicenseAuthHelper.GetLicenseKey() ?? string.Empty,
                 LicenseAuthHelper.GetDeviceId() ?? string.Empty);
 
-            // Gone rather than greyed out. A deleted key can never work again,
-            // so leaving it on screen only invites the question of why it is
-            // still there.
+            // Gone rather than greyed out. A deleted key can never work again, so leaving it on screen only invites the question of why it is still there.
             ArgoApiKeys.Remove(row);
             HasNoArgoApiKeys = ArgoApiKeys.Count == 0;
         }
@@ -2331,9 +2298,7 @@ public partial class SettingsModalViewModel : ViewModelBase
         foreach (var cat in data.Categories.OrderBy(c => c.Name))
             AvailableBankCategories.Add(cat);
 
-        // Edit detached copies so typing / add / delete only affect a draft. The live rules in
-        // company settings are replaced on Save and left untouched on Cancel, so closing the
-        // modal without saving leaves no changes (and no unsaved-changes asterisk).
+        // Edit detached copies so typing / add / delete only affect a draft.
         foreach (var r in data.BankCategoryRules)
             BankCategoryRules.Add(new BankCategoryRuleRow(CloneRule(r), AvailableBankCategories));
 
@@ -2874,12 +2839,7 @@ public partial class SettingsModalViewModel : ViewModelBase
         CancelPairingPoll();
         IsPhoneJustPaired = false;
 
-        // Create the CTS BEFORE the CreatePairingAsync network round-trip, and pass its token
-        // in, so that a close/tab-change while that request is in flight actually cancels it
-        // (OnIsOpenChanged/OnSelectedTabIndexChanged both call CancelPairingPoll, which cancels
-        // and disposes whatever CTS is currently assigned to _pairingCts). Without this, the
-        // token wouldn't exist yet for those handlers to cancel, and the key could be delivered
-        // after the pairing screen was already closed.
+        // The CTS is created before the network round-trip and its token passed in, so closing or changing tab mid-flight really cancels it.
         var pairingCts = new CancellationTokenSource();
         _pairingCts = pairingCts;
 
@@ -2912,10 +2872,7 @@ public partial class SettingsModalViewModel : ViewModelBase
                 return;
             }
 
-            // The pairing screen may have been closed, navigated away from, or superseded by a
-            // fresh "Connect a phone" click while the request above was in flight. Re-check
-            // before showing the QR/short code or starting the poll: if the screen is no longer
-            // visible, the key must not be shown or delivered.
+            // The pairing screen may have closed or been superseded while the request was in flight, so it is re-checked before the code is shown.
             if (!ShouldContinuePairing(pairingCts.Token.IsCancellationRequested, IsOpen, SelectedTabIndex))
             {
                 // Only clean up if nothing else (a fresh click, CancelPairingPoll) already did.
@@ -2936,9 +2893,7 @@ public partial class SettingsModalViewModel : ViewModelBase
         }
         catch (OperationCanceledException)
         {
-            // Expected: the pairing screen was closed/navigated away from (or superseded by a
-            // fresh "Connect a phone" click) while CreatePairingAsync was in flight. The CTS was
-            // already cancelled and disposed by whichever handler triggered this; nothing to do.
+            // Expected: the pairing screen was closed/navigated away from (or superseded by a fresh "Connect a phone" click) while CreatePairingAsync was in flight.
         }
         catch (Exception ex)
         {
@@ -2991,11 +2946,7 @@ public partial class SettingsModalViewModel : ViewModelBase
 
                 if (status?.PhonePublicKey is not { Length: > 0 } phonePublicKey) continue;
 
-                // Defense in depth: re-check the same guard used in ConnectPhoneAsync right
-                // before encrypting/delivering the key. ct is normally already cancelled by the
-                // time the screen closes (CancelPairingPoll), which would have thrown out of the
-                // Delay/GetPairingStatusAsync calls above, but this closes the gap if that ever
-                // isn't true so the key is never delivered to a screen the user can't see.
+                // Defense in depth: re-check the same guard used in ConnectPhoneAsync right before encrypting/delivering the key.
                 if (!ShouldContinuePairing(ct.IsCancellationRequested, IsOpen, SelectedTabIndex)) return;
 
                 var mobileSync = App.CompanyManager?.CompanyData?.Settings.MobileSync;
@@ -3007,10 +2958,7 @@ public partial class SettingsModalViewModel : ViewModelBase
 
                 await Dispatcher.UIThread.InvokeAsync(async () =>
                 {
-                    // The pairing token has now been consumed, so drop the QR/short code. If it were
-                    // kept, it would reappear the moment IsPhoneJustPaired is cleared later (e.g. when
-                    // the paired device is revoked), instead of falling back to the "Connect a phone"
-                    // default.
+                    // The pairing token is spent, so the code is dropped: kept, it would reappear the moment IsPhoneJustPaired is cleared.
                     QrImage = null;
                     ShortCodeDisplay = string.Empty;
                     IsShortCodeRevealed = false;
@@ -3019,11 +2967,7 @@ public partial class SettingsModalViewModel : ViewModelBase
                 });
                 _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.PhonePaired);
 
-                // Push the first snapshot immediately. The phone polls /snapshot and shows
-                // "Waiting for your desktop to sync" until one exists, and the only other uploader
-                // (App.AutoMobileSyncAsync) is triggered by desktop navigation to the Receipts
-                // page. Without this, a successful pairing leaves the phone stuck on that
-                // placeholder until the user happens to open that page.
+                // The first snapshot goes up at once, because the phone shows "Waiting for your desktop to sync" until one exists.
                 await App.AutoMobileSyncAsync();
                 return;
             }
@@ -3111,10 +3055,7 @@ public partial class SettingsModalViewModel : ViewModelBase
         var syncService = App.SyncService;
         if (string.IsNullOrEmpty(companyUid) || syncService == null) return;
 
-        // Revoking the last phone makes the server delete what it is holding for this company,
-        // including receipts the phone sent that have not been brought in yet. Bring them in
-        // first, and stop if any are left: the sync leaves a receipt on the server until it is
-        // saved in the company file, and skips the save while there are unsaved changes.
+        // Revoking the last phone makes the server delete what it is holding for this company, including receipts the phone sent that have not been brought in yet.
         if (PairedDevices.Count <= 1)
         {
             await App.AutoMobileSyncAsync();
@@ -3181,9 +3122,7 @@ public partial class SettingsModalViewModel : ViewModelBase
         ShowPayrollSection != _originalShowPayrollSection ||
         ComputeBankRulesSignature() != _originalBankRulesSignature;
 
-    // Baselines for the two server-side email preferences. They live among the
-    // Notifications toggles, so they take part in the same unsaved-changes
-    // prompt rather than applying the instant they are flipped.
+    // Baselines for the two server-side email preferences.
     private bool _originalPortalSendPaymentReminders;
     private bool _originalPortalEmailOwnerOnPayment = true;
 
@@ -3526,8 +3465,6 @@ public partial class SettingsModalViewModel : ViewModelBase
         _originalShowPayrollSection = ShowPayrollSection;
 
         // The server owns these two, so Save is what actually applies them.
-        // Fire-and-forget: the reconcile on next open corrects a dropped push,
-        // and blocking Save on a network round trip would be worse.
         _ = PushPortalPreferencesAsync();
 
         // Save language, date format and currency to company settings
@@ -3555,9 +3492,7 @@ public partial class SettingsModalViewModel : ViewModelBase
             // Save payment portal settings
             SavePortalSettings();
 
-            // Commit the bank-rule drafts into company settings. Blank rows (no pattern) are
-            // dropped so an unfilled "Add rule" is discarded. Replacing the list is how the draft
-            // (with adds, edits, and deletes) becomes the live set, only on Save.
+            // Commit the bank-rule drafts into company settings. Blank rows (no pattern) are dropped so an unfilled "Add rule" is discarded.
             settings.BankCategoryRules.Clear();
             foreach (var row in BankCategoryRules)
             {
@@ -3570,11 +3505,6 @@ public partial class SettingsModalViewModel : ViewModelBase
             App.ApplyPortalSyncInterval();
 
             // Persist ONLY the settings file (appSettings.json) to the .argo.
-            // SaveSettingsOnlyAsync writes just the settings, leaving the other
-            // domain files and any outstanding ChangesMade flag untouched. Using
-            // the full SaveCompanyAsync here would flush every in-memory edit to
-            // disk and clear the unsaved-changes banner, so a theme-only change
-            // would "save the entire app" instead of just the setting.
             if (App.CompanyManager?.IsCompanyOpen == true && !App.CompanyManager.IsSampleCompany)
             {
                 await App.CompanyManager.SaveSettingsOnlyAsync();
@@ -3644,9 +3574,7 @@ public partial class SettingsModalViewModel : ViewModelBase
                         await App.SettingsService!.SaveGlobalSettingsAsync();
                     }
 
-                    // Show error message. A debug build talks to the dev server, which usually has no
-                    // translation files; say so there, since "check your connection" sends a developer
-                    // looking in the wrong place. Never shown in a release build, so not translated.
+                    // A debug build talks to the dev server, which usually has no translation files, so "check your connection" would send a developer the wrong way.
                     var missingOnDev = ApiConfig.IsSandbox && LanguageService.Instance.LastDownloadNotPublished;
                     await App.ShowWarningDialogAsync(
                         missingOnDev
@@ -3973,9 +3901,7 @@ public partial class SettingsModalViewModel : ViewModelBase
     [RelayCommand]
     private void UpgradeNow()
     {
-        // Settings stays open behind it. Closing it meant coming back from the
-        // upgrade prompt dropped you at the dashboard, having lost the tab you were
-        // on and any unsaved change you had made there.
+        // Settings stays open behind it, or coming back from the upgrade prompt drops you at the dashboard without your tab or your unsaved change.
         UpgradeRequested?.Invoke(this, EventArgs.Empty);
     }
 
@@ -4081,11 +4007,7 @@ public partial class SettingsModalViewModel : ViewModelBase
         IsSettingOwnerEmail = true;
         try
         {
-            // Setting the owner email hits an authenticated portal endpoint, so the company must
-            // already be registered (i.e. have an API key). Registration used to be triggered lazily
-            // by the first Connect, but the owner email is now required *before* connecting, so
-            // auto-register here first (same pattern as the logo upload). Without this the very first
-            // action on a fresh company fails with "Invalid or missing API key".
+            // Setting the owner email hits an authenticated portal endpoint, so the company must already be registered (i.e. have an API key).
             if (!PortalSettings.IsConfigured)
             {
                 var portalService = App.PaymentPortalService;
@@ -4107,11 +4029,7 @@ public partial class SettingsModalViewModel : ViewModelBase
     {
         var result = await refundService.SetInitialOwnerEmailAsync(email);
 
-        // Recovery path: server says email is already set on the company,
-        // but the local .argo doesn't have it.
-        // The 409 response includes the existing email, if it matches
-        // what the user just typed, silently reconcile local state. If it
-        // differs, surface the existing email so the user can act.
+        // Recovery path: server says email is already set on the company, but the local .argo doesn't have it.
         if (!result.Ok && result.ErrorCode == "OWNER_EMAIL_ALREADY_SET")
         {
             var existing = result.OwnerEmail?.Trim();
@@ -4129,9 +4047,7 @@ public partial class SettingsModalViewModel : ViewModelBase
                     ? "An owner email is already on file. Use the Change flow to update it.".Translate()
                     : $"This portal account already has the owner email {existing}. Use the Change flow to update it.".Translate());
 
-            // Even on the "different email" branch, the local .argo may still
-            // be out of sync, pull the server's value down so the UI reflects
-            // reality and the refund pre-flight stops false-blocking.
+            // Even on the "different email" branch, the local .argo may still be out of sync, pull the server's value down so the UI reflects reality and the refund pre-flight stops false-blocking.
             if (!string.IsNullOrEmpty(existing))
             {
                 await ReconcileOwnerEmailAsync(companyData, existing);
@@ -4148,16 +4064,7 @@ public partial class SettingsModalViewModel : ViewModelBase
             return;
         }
 
-        // Server sent a code to the new email; pop the verify modal so the
-        // user can confirm it. The masked email comes back in the response
-        // so we display the same masking server-side.
-        //
-        // Nothing is mirrored or persisted locally yet: the server holds the
-        // address as pending and only writes owner_email once the code is
-        // confirmed. If the user closes the modal without verifying, no email
-        // is set anywhere and they can simply retry (PendingOwnerEmail keeps
-        // their typed value). Mirror-and-persist happens in the OnVerified
-        // callback via ReconcileOwnerEmailAsync.
+        // Server sent a code to the new email; pop the verify modal so the user can confirm it. The masked email comes back in the response so we display the same masking server-side.
         App.RefundModalsViewModel?.OpenVerifyEmailModal(
             result.MaskedEmail,
             onVerified: () => _ = ReconcileOwnerEmailAsync(companyData, email));
@@ -4236,27 +4143,17 @@ public partial class SettingsModalViewModel : ViewModelBase
 
         var portalService = App.PaymentPortalService;
 
-        // Same reason as SetInitialOwnerEmailAsync: every step of the change flow is an
-        // authenticated portal call. A company can reach Change rather than Set purely
-        // because its own settings carry an email, which says nothing about whether a
-        // portal account exists. The sample company is exactly that case, and without
-        // this the flow opens and then fails with "Invalid or missing API key".
+        // Same reason as SetInitialOwnerEmailAsync: every step of the change flow is an authenticated portal call.
         if (!PortalSettings.IsConfigured)
         {
             if (portalService == null) return;
             if (!await TryRegisterPortalAsync(portalService)) return;
         }
 
-        // Pre-flight sync: if the settings modal was already open when the owner
-        // email changed on the server (e.g. a revert link was used), starting the
-        // change flow from the stale local value would confuse the user. Pull the
-        // authoritative email first. Best-effort: CheckStatusAsync swallows its own
-        // network errors and returns Success=false, in which case we keep local.
+        // Synced first, because the owner email may have changed on the server while Settings was open and the stale local value would confuse the flow.
         if (portalService != null && PortalSettings.IsConfigured)
         {
-            // Cap the pre-flight so a bad network can't make the button feel
-            // like it hung (the client's own timeout is 30s). On timeout the
-            // call returns Success=false and we simply keep the local value.
+            // Cap the pre-flight so a bad network can't make the button feel like it hung (the client's own timeout is 30s).
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(6));
             var status = await portalService.CheckStatusAsync(cts.Token);
             if (status.Success)
@@ -4271,9 +4168,7 @@ public partial class SettingsModalViewModel : ViewModelBase
             return;
         }
 
-        // Hand off to the AppShell-level RefundModals coordinator. On success
-        // it invokes the callback below, which mirrors the new email into the
-        // local Company settings and marks the file dirty.
+        // Hand off to the AppShell-level RefundModals coordinator. On success it invokes the callback below, which mirrors the new email into the local Company settings and marks the file dirty.
         App.RefundModalsViewModel?.OpenEmailChangeModal(
             currentEmail,
             companyManager.IsEncrypted,
@@ -4372,9 +4267,7 @@ public class BankCategoryRuleRow : ObservableObject
     {
         Rule = rule;
         _selectedCategory = allCategories.FirstOrDefault(c => c.Id == rule.CategoryId);
-        // The category picker is a SearchableDropdown, which shows its SearchText. Seed it with the
-        // selected category's name; without this a loaded rule renders an empty picker even though a
-        // category IS selected - which made imported rules look like they had no category.
+        // The category picker is a SearchableDropdown, which shows its SearchText.
         _categorySearchText = _selectedCategory?.Name;
     }
 

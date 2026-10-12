@@ -99,9 +99,7 @@
                 </Grid>
             </Border>
 
-            <!-- Main Content Card using ArgoTable.
-                 ShowColumnHeaders follows the view: grid view has no columns, so the header
-                 strip rendered as an empty band above the cards. -->
+            <!-- Main Content Card using ArgoTable. ShowColumnHeaders follows the view: grid view has no columns, so the header strip rendered as an empty band above the cards. -->
             <table:ArgoTable Grid.Row="2"
                                 Title="{loc:Loc 'Receipt Archive'}"
                                 ItemsSource="{Binding Receipts}"
@@ -129,10 +127,7 @@
                                 EmptyMessage="{loc:Loc 'Receipts from transactions will appear here. You can also scan receipts using AI.'}"
                                 TableGridSizeChanged="OnTableSizeChanged">
 
-                <!-- The monthly scan allowance. Not a stat card: it is a standing fact about the
-                     account rather than a figure from this company file, and it is what decides
-                     whether the next scan works. Hidden until it is known, so a failed lookup
-                     shows nothing rather than a misleading zero. -->
+                <!-- The monthly scan allowance. Not a stat card: it is a standing fact about the account rather than a figure from this company file, and it is what decides whether the next scan works. -->
                 <table:ArgoTable.HeaderInfoContent>
                     <TextBlock Text="{Binding ScanUsage}"
                                FontSize="12"
@@ -213,10 +208,7 @@
                 <table:ArgoTable.RowsContent>
                     <Panel Background="Transparent"
                            PointerPressed="OnTableBackgroundPressed">
-                        <!-- Grid View. ArgoTable's own ScrollViewer is horizontal only, so each
-                             rows slot brings its own vertical one. The list view gets that from the
-                             table-rows style; a WrapPanel of cards cannot use that style because it
-                             also forces a VirtualizingStackPanel. -->
+                        <!-- Grid View. ArgoTable's own ScrollViewer is horizontal only, so each rows slot brings its own vertical one. -->
                         <ScrollViewer IsVisible="{Binding IsGridView}"
                                       VerticalScrollBarVisibility="Auto"
                                       HorizontalScrollBarVisibility="Disabled">
@@ -288,7 +280,7 @@
                                                                           Width="11" Height="11"
                                                                           Foreground="White" />
                                                                 <TextBlock Text="{Binding PageCount}"
-                                                                           FontSize="10"
+                                                                           FontSize="11"
                                                                            FontWeight="Bold"
                                                                            Foreground="White"
                                                                            VerticalAlignment="Center" />
@@ -409,7 +401,7 @@
                                                                 Padding="6,2"
                                                                 IsVisible="{Binding IsAiScanned}">
                                                             <TextBlock Text="{loc:Loc 'AI'}"
-                                                                       FontSize="10"
+                                                                       FontSize="11"
                                                                        FontWeight="Bold"
                                                                        Foreground="{DynamicResource PurpleDarkBrush}" />
                                                         </Border>
@@ -528,7 +520,7 @@
     </controls:ColumnVisibilityMenu>
 
     <!-- Drag-Drop Overlay -->
-    <Border Background="#E0FFFFFF"
+    <Border Background="{DynamicResource LoadingOverlayBrush}"
             IsVisible="{Binding IsDragOver}"
             IsHitTestVisible="False">
         <Border Background="{DynamicResource PrimaryLightBrush}"
@@ -573,21 +565,14 @@
             <Setter Property="Background" Value="{DynamicResource PrimaryLightBrush}" />
         </Style>
 
-        <!-- Selection mode header styling.
-             PrimaryLightBrush is a fixed pale blue with no dark variant, and it cannot be given
-             one: ThemeService.ApplyAccentColor writes the key straight into Application.Resources
-             when an accent is chosen, which outranks any theme dictionary. So the bar is built
-             from brushes that already flip with the theme, and keeps its identity from a primary
-             edge rather than a primary fill. -->
+        <!-- PrimaryLightBrush is a fixed pale blue with no dark variant and cannot be given one, since ApplyAccentColor writes the key into Application.Resources. -->
         <Style Selector="Border.selection-mode">
             <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}" />
             <Setter Property="BorderThickness" Value="3,0,0,0" />
         </Style>
 
-        <!-- The close button sat at the default icon foreground, which is near-white in dark
-             theme and was invisible on the pale blue fill. Pinned to the text colour so it
-             contrasts with the surface in both themes. -->
+        <!-- The close button sat at the default icon foreground, which is near-white in dark theme and was invisible on the pale blue fill. -->
         <Style Selector="Border.selection-mode Button.icon-button PathIcon">
             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
         </Style>

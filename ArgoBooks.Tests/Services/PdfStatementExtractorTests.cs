@@ -23,8 +23,6 @@ public class PdfStatementExtractorTests
     public void ParseRows_AmbiguousDate_UsesInvariantCultureRegardlessOfLocale()
     {
         // The date parse must be culture-independent (like every other parse in the codebase).
-        // "02/03/2023" is February 3 under InvariantCulture (month-first) but March 2 under a
-        // day-first locale like en-GB. Parsing must not depend on the machine's locale.
         const string json = """{"success":true,"lines":[{"date":"02/03/2023","description":"Coffee","amount":-5.00}]}""";
 
         var rows = WithCulture("en-GB", () => PdfStatementExtractor.ParseRows(json));

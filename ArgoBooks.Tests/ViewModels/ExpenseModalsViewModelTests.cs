@@ -16,11 +16,11 @@ public class ExpenseModalsViewModelTests : ModalViewModelTestBase
     /// <summary>Stands in for the file picker, which the real Attach/Change button opens.</summary>
     private sealed class ReceiptPickingExpenseVm : ExpenseModalsViewModel
     {
-        public void PickReceiptFile(string path)
-        {
-            ReceiptFilePath = path;
-            ReceiptFileName = Path.GetFileName(path);
-        }
+        public void PickReceiptFile(string path) =>
+            Attachments.Add(new TransactionAttachment(null, Path.GetFileName(path), path));
+
+        /// <summary>Taking a document off the list, which the real form does with the X beside it.</summary>
+        public void DropAttachments() => Attachments.Clear();
     }
 
     private static string TempReceiptFile(string name, byte[] bytes)
@@ -209,6 +209,7 @@ public class ExpenseModalsViewModelTests : ModalViewModelTestBase
         var oldReceipt = Company.Receipts.Single();
 
         vm.OpenEditModal(new ExpenseDisplayItem { Id = expense.Id });
+        vm.DropAttachments();
         vm.PickReceiptFile(TempReceiptFile("second.png", [4, 5, 6]));
         await vm.SaveTransactionCommand.ExecuteAsync(null);
 
@@ -223,6 +224,113 @@ public class ExpenseModalsViewModelTests : ModalViewModelTestBase
         Redo();
         Assert.Same(newReceipt, Assert.Single(Company.Receipts));
         Assert.Equal(newReceipt.Id, expense.ReceiptId);
+    }
+
+    /// <summary>
+    /// Discarding closes the form through the same reset the save does, and a document picked but
+    /// never saved has to go with everything else rather than turn up on the next one.
+    /// </summary>
+    [Fact]
+    public void ClosingTheForm_DropsDocumentsThatWereNeverSaved()
+    {
+        var vm = NewExpenseVmWithProduct();
+        FillLineItem(vm, 100m);
+        vm.PickReceiptFile(TempReceiptFile("picked.png", [1, 2, 3]));
+
+        vm.CloseAddEditModalCommand.Execute(null);
+
+        Assert.Empty(vm.Attachments);
+        Assert.False(vm.HasReceipt);
+        Assert.Empty(Company.Receipts);
+    }
+
+    /// <summary>
+    /// A discount larger than the lines would file a negative amount against the month, which the
+    /// table then had to show as something. Saving stops instead and says why.
+    /// </summary>
+    [Fact]
+    public async Task ADiscountLargerThanTheLines_IsRefused()
+    {
+        var vm = NewExpenseVmWithProduct();
+        FillLineItem(vm, 100m);
+        vm.ModalDiscount = 500m;
+
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
+
+        Assert.Empty(Company.Expenses);
+        Assert.True(vm.HasValidationMessage);
+        Assert.True(vm.IsAddEditModalOpen);
+    }
+
+    [Fact]
+    public async Task ADiscountEqualToTheLines_IsAllowed()
+    {
+        var vm = NewExpenseVmWithProduct();
+        FillLineItem(vm, 100m);
+        vm.ModalDiscount = 100m;
+
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
+
+        var expense = Assert.Single(Company.Expenses);
+        Assert.Equal(0m, expense.Total);
+    }
+
+    [Fact]
+    public async Task AddExpense_WithTwoDocuments_KeepsBoth()
+    {
+        var vm = NewExpenseVmWithProduct();
+        FillLineItem(vm, 100m);
+        vm.PickReceiptFile(TempReceiptFile("booking-report.pdf", [1, 2, 3]));
+        vm.PickReceiptFile(TempReceiptFile("bank-advice.pdf", [4, 5, 6]));
+
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
+
+        var expense = Company.Expenses.Single();
+        Assert.Equal(2, Company.Receipts.Count);
+        Assert.All(Company.Receipts, r => Assert.Equal(expense.Id, r.TransactionId));
+
+        // What the rest of the app reads when it wants one document.
+        Assert.Equal(Company.Receipts[0].Id, expense.ReceiptId);
+    }
+
+    [Fact]
+    public async Task EditExpense_AddingASecondDocument_LeavesTheFirstAlone()
+    {
+        var vm = NewExpenseVmWithProduct();
+        FillLineItem(vm, 100m);
+        vm.PickReceiptFile(TempReceiptFile("first.png", [1, 2, 3]));
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
+        var expense = Company.Expenses.Single();
+        var first = Company.Receipts.Single();
+
+        vm.OpenEditModal(new ExpenseDisplayItem { Id = expense.Id });
+        vm.PickReceiptFile(TempReceiptFile("second.png", [4, 5, 6]));
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
+
+        Assert.Equal(2, Company.Receipts.Count);
+        Assert.Same(first, Company.Receipts[0]);
+        Assert.Equal(first.Id, expense.ReceiptId);
+
+        Undo();
+        Assert.Same(first, Assert.Single(Company.Receipts));
+    }
+
+    [Fact]
+    public async Task DeletingAnExpense_TakesEveryDocumentWithIt()
+    {
+        var vm = NewExpenseVmWithProduct();
+        FillLineItem(vm, 100m);
+        vm.PickReceiptFile(TempReceiptFile("one.png", [1]));
+        vm.PickReceiptFile(TempReceiptFile("two.png", [2]));
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
+        var expense = Company.Expenses.Single();
+
+        vm.DeleteExpense(expense.Id);
+
+        Assert.Empty(Company.Receipts);
+
+        Undo();
+        Assert.Equal(2, Company.Receipts.Count);
     }
 
     [Fact]

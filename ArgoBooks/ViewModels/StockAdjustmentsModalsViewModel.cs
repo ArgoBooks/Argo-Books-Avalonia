@@ -192,9 +192,7 @@ public partial class StockAdjustmentsModalsViewModel : ViewModelBase
     /// <summary>
     /// Opens the create inventory item modal on top of the current modal.
     /// </summary>
-    // One-shot handler for the "create entity from this modal" flow. Stored so a cancelled create
-    // (which never raises the *Saved event) can be detached before the next attempt, instead of
-    // leaking onto the singleton create-modal VMs. See CreateModalSubscription.
+    // One-shot handler for the "create entity from this modal" flow.
     private EventHandler? _itemSavedHandler;
 
     [RelayCommand]

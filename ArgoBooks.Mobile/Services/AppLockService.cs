@@ -43,9 +43,7 @@ public class AppLockService
         var canAuthenticate = manager.CanAuthenticate(allowedAuthenticators);
         if (canAuthenticate != BiometricManager.BiometricSuccess)
         {
-            // No biometric hardware, nothing enrolled, and no device PIN/pattern/password set
-            // either. There is no OS-level way to lock the app in that state, so don't trap the
-            // user behind a lock screen they can never satisfy - let them straight in.
+            // No biometric hardware, nothing enrolled, and no device PIN/pattern/password set either.
             tcs.SetResult(true);
             return tcs.Task;
         }
@@ -57,9 +55,7 @@ public class AppLockService
         var promptInfo = new BiometricPrompt.PromptInfo.Builder()
             .SetTitle(title)
             .SetAllowedAuthenticators(allowedAuthenticators)
-            // A negative/cancel button is mutually exclusive with DeviceCredential in
-            // SetAllowedAuthenticators - the system prompt supplies its own way back (device
-            // back gesture), so no SetNegativeButtonText call here.
+            // A negative button and DeviceCredential are mutually exclusive in SetAllowedAuthenticators, and the system prompt has its own way back.
             .Build();
 
         prompt.Authenticate(promptInfo);
@@ -85,9 +81,7 @@ public class AppLockService
         public override void OnAuthenticationError(int errorCode, Java.Lang.ICharSequence errString)
         {
             base.OnAuthenticationError(errorCode, errString);
-            // Covers user cancellation, lockout after too many attempts, and any other terminal
-            // error - the prompt is closed either way, so resolve as "not authenticated" and let
-            // the lock screen's Unlock button re-trigger it.
+            // Covers cancellation, lockout and any other terminal error alike: the prompt is closed either way, so it resolves as not authenticated.
             _tcs.TrySetResult(false);
         }
 

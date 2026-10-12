@@ -487,6 +487,10 @@ public class PortalLineItem
     [JsonPropertyName("quantity")]
     public decimal Quantity { get; set; }
 
+    /// <summary>What one of these is, when the product states one: kg, hr, Box.</summary>
+    [JsonPropertyName("unit")]
+    public string Unit { get; set; } = string.Empty;
+
     [JsonPropertyName("unitPrice")]
     public decimal UnitPrice { get; set; }
 

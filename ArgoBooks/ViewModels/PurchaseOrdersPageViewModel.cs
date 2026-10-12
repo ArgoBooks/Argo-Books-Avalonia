@@ -278,10 +278,7 @@ public partial class PurchaseOrdersPageViewModel : SortablePageViewModelBase
         TotalOrders = _allOrders.Count;
         PendingOrders = _allOrders.Count(o => o.Status == PurchaseOrderStatus.Pending);
         OnOrderCount = _allOrders.Count(o => o.Status == PurchaseOrderStatus.OnOrder || o.Status == PurchaseOrderStatus.Sent);
-        // Sum in USD (the normalized base) so mixed-currency POs aren't added as if same-currency,
-        // then render in the display currency at today's rate. Pending POs contribute 0 until they
-        // heal (Calculations.md §3).
-        // Convert each PO at its OWN order date before summing (Calculations.md Rule 4).
+        // Sum in USD (the normalized base) so mixed-currency POs aren't added as if same-currency, then render in the display currency at today's rate.
         TotalValue = CurrencyService.TrySumDisplayFromUSD(
             _allOrders, o => o.Total, o => o.OriginalCurrency, o => o.TotalUSD, o => o.OrderDate, out var poTotalDisplay)
             ? CurrencyService.Format(poTotalDisplay)
@@ -375,9 +372,7 @@ public partial class PurchaseOrdersPageViewModel : SortablePageViewModelBase
                 Subtotal = order.Subtotal,
                 ShippingCost = order.ShippingCost,
                 Total = order.Total,
-                // Currency-aware like the Payments list: convert the order's original-currency total
-                // to the display currency at its order date, and show "Pending" when that exact-date
-                // rate is unavailable (a future-dated PO whose conversion hasn't healed yet).
+                // Converted at the order's own date like the Payments list, showing Pending when that exact-date rate is unavailable.
                 TotalDisplay = CurrencyService.FormatWithOriginal(
                     order.Total, order.OriginalCurrency, order.EffectiveTotalUSD, order.OrderDate),
                 OriginalCurrency = order.OriginalCurrency,

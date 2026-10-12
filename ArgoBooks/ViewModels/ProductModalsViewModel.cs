@@ -351,9 +351,7 @@ public partial class ProductModalsViewModel : ViewModelBase
         CloseAddModal();
     }
 
-    // One-shot handlers for the "create entity from this modal" flows. Stored so a cancelled create
-    // (which never raises the *Saved event) can be detached before the next attempt, instead of
-    // leaking onto the singleton create-modal VMs. See CreateModalSubscription.
+    // One-shot handlers for the "create entity from this modal" flows.
     private EventHandler? _categorySavedHandler;
     private EventHandler? _supplierSavedHandler;
 
@@ -624,9 +622,7 @@ public partial class ProductModalsViewModel : ViewModelBase
         if (oldOverstockThreshold != newOverstockThreshold) changes["Overstock Threshold"] = new FieldChange { OldValue = oldOverstockThreshold.ToString(), NewValue = newOverstockThreshold.ToString() };
         if (changes.Count > 0) App.EventLogService?.SetPendingChanges(changes);
 
-        // Apply the Id rename FIRST so a failure doesn't leave the product with new
-        // field values but the old Id. Validation already prevents conflicts; this
-        // ordering is defense-in-depth.
+        // Apply the Id rename FIRST so a failure doesn't leave the product with new field values but the old Id. Validation already prevents conflicts; this ordering is defense-in-depth.
         if (hasIdChange)
         {
             try

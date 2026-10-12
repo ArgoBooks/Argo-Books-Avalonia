@@ -1,6 +1,5 @@
 <Styles xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:behaviors="using:ArgoBooks.Behaviors">
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <!--
         Argo Books Base Styles
@@ -34,10 +33,7 @@
         <Color x:Key="HighlightAnimationColor">#3060A5FA</Color>
     </Styles.Resources>
 
-    <!-- ToolTip: force theme-aware colors so tooltip text/surface track the active theme.
-         Foreground cascades to the tooltip's text, so the inner TextBlock needs no separate
-         setter. (Sidebar tooltips also need SidebarItem's text styles scoped to .label so
-         they don't leak into the tooltip popup.) -->
+    <!-- ToolTip: force theme-aware colors so tooltip text/surface track the active theme. Foreground cascades to the tooltip's text, so the inner TextBlock needs no separate setter. -->
     <Style Selector="ToolTip">
         <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
@@ -82,9 +78,10 @@
         <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
     </Style>
+    <!-- Hover holds the resting colour rather than dropping the rule, because without it the Fluent theme paints its own near-black hover border. -->
     <Style Selector="TextBox:pointerover /template/ Border#PART_BorderElement">
         <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource BorderHoverBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
     </Style>
     <Style Selector="TextBox:focus /template/ Border#PART_BorderElement">
         <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
@@ -102,40 +99,19 @@
         <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
     </Style>
+    <!-- Hover holds the resting colour here too, for the same reason as the text box above. -->
     <Style Selector="ComboBox:pointerover /template/ Border#Background">
         <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource BorderHoverBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
     </Style>
     <Style Selector="ComboBox:focus /template/ Border#Background">
         <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}" />
+        <Setter Property="BorderThickness" Value="2" />
     </Style>
     <Style Selector="ComboBox:pressed /template/ Border#Background">
         <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}" />
-    </Style>
-
-    <!-- Global NumericUpDown Styling - Compact spin buttons -->
-    <Style Selector="NumericUpDown">
-        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-        <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
-        <Setter Property="MinHeight" Value="{StaticResource FormControlHeightSmall}" />
-        <Setter Property="VerticalContentAlignment" Value="Center" />
-    </Style>
-    <Style Selector="NumericUpDown /template/ ButtonSpinner /template/ RepeatButton#PART_IncreaseButton">
-        <Setter Property="MinWidth" Value="16" />
-        <Setter Property="Width" Value="16" />
-        <Setter Property="Padding" Value="0" />
-    </Style>
-    <Style Selector="NumericUpDown /template/ ButtonSpinner /template/ RepeatButton#PART_DecreaseButton">
-        <Setter Property="MinWidth" Value="16" />
-        <Setter Property="Width" Value="16" />
-        <Setter Property="Padding" Value="0" />
-    </Style>
-    <Style Selector="NumericUpDown /template/ TextBox">
-        <Setter Property="MinWidth" Value="40" />
-        <Setter Property="(behaviors:NumericInputBehavior.IsDecimalOnly)" Value="True" />
     </Style>
 
     <!-- Global CheckBox Styling - Use dynamic accent color with animations -->
@@ -247,9 +223,7 @@
         <Setter Property="MinHeight" Value="{StaticResource FormControlHeight}" />
     </Style>
 
-    <!-- form-combobox applied to a Button (e.g. the category icon "Choose..." picker). The selector
-         above only matches ComboBox, so such a Button fell back to the default (gray) button. Give it
-         the same surface/border form-control look, including hover, so it fits the light theme. -->
+    <!-- form-combobox applied to a Button (e.g. the category icon "Choose..." picker). The selector above only matches ComboBox, so such a Button fell back to the default (gray) button. -->
     <Style Selector="Button.form-combobox">
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="{StaticResource FormControlCornerRadius}" />
@@ -314,26 +288,6 @@
     </Style>
     <Style Selector="TextBox.form-input-compact:focus /template/ Border#PART_BorderElement">
         <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}" />
-    </Style>
-
-    <!-- Standard Form NumericUpDown (matches form-input class naming) -->
-    <Style Selector="NumericUpDown.form-input">
-        <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
-        <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="{StaticResource FormControlCornerRadius}" />
-        <Setter Property="MinHeight" Value="{StaticResource FormControlHeight}" />
-    </Style>
-
-    <!-- Compact Form NumericUpDown (for line items) -->
-    <Style Selector="NumericUpDown.form-input-compact">
-        <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
-        <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="{StaticResource FormControlCornerRadius}" />
-        <Setter Property="MinHeight" Value="{StaticResource FormControlHeightCompact}" />
-        <Setter Property="ShowButtonSpinner" Value="False" />
-        <Setter Property="HorizontalContentAlignment" Value="Center" />
     </Style>
 
 </Styles>

@@ -30,10 +30,7 @@ internal static class CreateModalSubscription
         if (slot is not null)
             unsubscribe(slot);
 
-        // Cannot capture the ref parameter 'slot' inside the handler lambda (CS1628), so the handler
-        // only detaches itself from the event on fire; it does not null out the caller's field. That
-        // is enough to prevent both the leak and a stale re-fire: the delegate is off the event after
-        // firing, and the next RearmOnce detaches whatever is stored in 'slot' before arming again.
+        // Cannot capture the ref parameter 'slot' inside the handler lambda (CS1628), so the handler only detaches itself from the event on fire; it does not null out the caller's field.
         EventHandler handler = null!;
         handler = (_, _) =>
         {

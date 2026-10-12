@@ -1,4 +1,4 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -87,9 +87,7 @@
                                            MaxWidth="360" />
                             </StackPanel>
 
-                            <!-- Plan Cards (only shown when loaded successfully).
-                                 Layout mirrors the website's pricing cards (partials/pricing-cards.php):
-                                 chip + "Plan", pitch, price block, CTA, list lead-in, features. -->
+                            <!-- Plan Cards (only shown when loaded successfully). -->
                             <StackPanel Margin="24,16,24,20" Spacing="16" IsVisible="{Binding ShowPlans}">
 
                                 <!-- Billing cycle toggle (above both cards, centered) -->
@@ -209,10 +207,7 @@
                                         <!-- Pitch -->
                                         <TextBlock Classes="plan-pitch" Text="{Binding PremiumPlanPitch}" />
 
-                                        <!-- Price. One block for both cycles rather than two swapped blocks:
-                                             only the number and the line below it change, and the struck-out
-                                             line always occupies its row (hidden on monthly), so switching
-                                             cycle never shifts the CTA underneath. -->
+                                        <!-- One price block for both cycles, since only the number and the line below change, and the struck-out line keeps its row so nothing shifts. -->
                                         <StackPanel Classes="price-block">
                                             <!-- Only the figures slide on a cycle switch. The billing note
                                                  below sits outside this panel so it stays put. -->
@@ -378,10 +373,7 @@
                     </Grid>
 
                     <!-- Success Animation View -->
-                    <!-- Email capture. Only shown for a key the server holds no address for,
-                         which means a batch sold through a reseller. Premium is already active
-                         by the time this appears: this step collects a contact address, it does
-                         not stand between the customer and what they paid for. -->
+                    <!-- Email capture. Only shown for a key the server holds no address for, which means a batch sold through a reseller. -->
                     <StackPanel IsVisible="{Binding IsEmailCaptureStep}"
                                 VerticalAlignment="Center"
                                 HorizontalAlignment="Center"
@@ -409,7 +401,7 @@
                         <StackPanel Spacing="6">
                             <TextBox Text="{Binding CustomerEmail, Mode=TwoWay}"
                                      Classes="form-input"
-                                     PlaceholderText="you@example.com"
+                                     PlaceholderText="{loc:Loc 'you@example.com'}"
                                      MaxLength="255" />
                             <TextBlock Text="{Binding EmailError}"
                                        FontSize="12"
@@ -473,7 +465,7 @@
                                 <Border.Background>
                                     <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
                                         <GradientStop Color="{StaticResource SuccessColor}" Offset="0" />
-                                        <GradientStop Color="#16A34A" Offset="1" />
+                                        <GradientStop Color="{StaticResource SuccessDarkColor}" Offset="1" />
                                     </LinearGradientBrush>
                                 </Border.Background>
                                 <Border.RenderTransform>
@@ -583,9 +575,7 @@
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
 
-        <!-- One-line pitch under the plan name. The fixed minimum height keeps the
-             price blocks level across both cards when the two pitches wrap to a
-             different number of lines. -->
+        <!-- One-line pitch under the plan name. The fixed minimum height keeps the price blocks level across both cards when the two pitches wrap to a different number of lines. -->
         <Style Selector="TextBlock.plan-pitch">
             <Setter Property="FontSize" Value="13" />
             <Setter Property="LineHeight" Value="19" />
@@ -722,10 +712,7 @@
             <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
         </Style>
 
-        <!-- "Save $X" pill on the annual toggle button. Tinted only while that
-             option is active, so the inactive tab stays visually quiet. The idle
-             fill is SurfacePressed rather than SurfaceAlt, which is the same colour
-             as the toggle track in the dark theme and left the pill invisible. -->
+        <!-- "Save $X" pill on the annual toggle button. Tinted only while that option is active, so the inactive tab stays visually quiet. -->
         <Style Selector="Border.save-pill">
             <Setter Property="Background" Value="{DynamicResource SurfacePressedBrush}" />
             <Setter Property="CornerRadius" Value="10" />
@@ -734,7 +721,7 @@
         </Style>
 
         <Style Selector="Border.save-pill TextBlock">
-            <Setter Property="FontSize" Value="10" />
+            <Setter Property="FontSize" Value="11" />
             <Setter Property="FontWeight" Value="Bold" />
             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
         </Style>

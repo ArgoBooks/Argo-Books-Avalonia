@@ -90,11 +90,7 @@ public static class TimeZoneService
     /// <returns>Formatted date and time string (e.g., "Jan 5, 2024 at 2:30 PM" or "Jan 5, 2024 at 14:30").</returns>
     public static string FormatDateTime(DateTime dateTime)
     {
-        // History entries (and other server-derived timestamps) are stored
-        // as DateTime.UtcNow with Kind=Utc. Without converting we'd show
-        // UTC time as if it were local, events would appear hours in the
-        // future for users west of UTC. Local/Unspecified pass through
-        // unchanged so manually-entered dates aren't shifted.
+        // A server timestamp is stored as UTC, so without converting it a user west of UTC sees events hours in the future.
         if (dateTime.Kind == DateTimeKind.Utc)
             dateTime = dateTime.ToLocalTime();
         var timeFormat = Is24HourFormat ? "HH:mm" : "h:mm tt";

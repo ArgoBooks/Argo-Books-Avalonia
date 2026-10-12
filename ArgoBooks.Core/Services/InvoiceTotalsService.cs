@@ -24,9 +24,7 @@ public static class InvoiceTotalsService
     public static void RecalculateFromPayments(
         Invoice invoice, IEnumerable<Payment> allPayments)
     {
-        // Normalize currency comparison: treat null/empty as "USD" and
-        // compare case-insensitively. This matches the historical inline
-        // logic in PaymentPortalService.
+        // Normalize currency comparison: treat null/empty as "USD" and compare case-insensitively. This matches the historical inline logic in PaymentPortalService.
         var invoiceCurrency = string.IsNullOrEmpty(invoice.OriginalCurrency)
             ? "USD" : invoice.OriginalCurrency;
 
@@ -48,9 +46,7 @@ public static class InvoiceTotalsService
             .Where(p => p.IsRefund && MatchesInvoiceCurrency(p))
             .Sum(p => Math.Abs(p.Amount));
 
-        // Balance: remaining owed. Refunds don't raise the balance, once
-        // the customer paid, returning their money doesn't make them owe
-        // again.
+        // Balance: remaining owed. Refunds don't raise the balance, once the customer paid, returning their money doesn't make them owe again.
         invoice.Balance = Math.Max(0, invoice.Total - invoice.AmountPaid);
 
         // Keep USD fields in sync when we have a conversion ratio.
@@ -114,9 +110,7 @@ public static class InvoiceTotalsService
             return;
         }
 
-        // Invoice.IsPaidInFull, not Balance <= 0: a total carrying a fraction of a cent leaves a
-        // balance that reads $0.00 but is not zero, and the invoice stayed Partial, and eventually
-        // Overdue, while the revenue it is linked to already counted as collected.
+        // Invoice.IsPaidInFull rather than Balance <= 0, because a fraction of a cent reads as $0.00 while leaving the invoice Partial and then Overdue.
         if (invoice.IsPaidInFull && invoice.AmountPaid > 0)
         {
             invoice.Status = InvoiceStatus.Paid;
@@ -150,9 +144,7 @@ public static class InvoiceTotalsService
         if (invoice.AmountRefunded + 0.01m < invoice.Total)
             return InvoiceStatus.PartiallyRefunded;
 
-        // Refund covers a full invoice value. Distinguish "single
-        // pay + fee, fully refunded" from "pay → refund → pay again":
-        // the latter leaves a net of at least one invoice value.
+        // Refund covers a full invoice value. Distinguish "single pay + fee, fully refunded" from "pay → refund → pay again": the latter leaves a net of at least one invoice value.
         var netPaid = invoice.AmountPaid - invoice.AmountRefunded;
         return netPaid + 0.01m < invoice.Total
             ? InvoiceStatus.Refunded

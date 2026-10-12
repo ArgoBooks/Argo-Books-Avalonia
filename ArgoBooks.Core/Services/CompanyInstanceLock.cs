@@ -63,9 +63,7 @@ public sealed class CompanyInstanceLock : IDisposable
         }
         catch (Exception)
         {
-            // Any other problem (permissions, a broken temp dir, etc.) must NOT block a legitimate
-            // open. Fail open: report the lock as acquired so the user can still work. The worst
-            // case degrades to the pre-existing behavior (no cross-instance guard).
+            // Any other problem (permissions, a broken temp dir, etc.) must NOT block a legitimate open. Fail open: report the lock as acquired so the user can still work.
             _handle = null;
             LockedPath = null;
             return true;
@@ -143,9 +141,7 @@ public sealed class CompanyInstanceLock : IDisposable
     private static string Canonicalize(string path)
     {
         var full = Path.GetFullPath(path);
-        // Windows and macOS file systems are case-insensitive by default, so normalize case there
-        // to map the same file (opened via different-case paths) onto one lock. Linux is
-        // case-sensitive, so leave it as-is.
+        // Windows and macOS file systems are case-insensitive by default, so normalize case there to map the same file (opened via different-case paths) onto one lock.
         return OperatingSystem.IsLinux() ? full : full.ToLowerInvariant();
     }
 

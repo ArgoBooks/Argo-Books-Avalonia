@@ -58,8 +58,6 @@ public sealed class LayoutNormalizationService(IGeminiService geminiService, IEr
             return xlsxPath;
 
         // Best-effort sweep of temp files left by previous imports so they don't accumulate.
-        // Only files older than an hour are removed, so an in-flight (or concurrent) run's file
-        // is never deleted out from under it.
         CleanupStaleTempFiles();
 
         try
@@ -196,10 +194,7 @@ public sealed class LayoutNormalizationService(IGeminiService geminiService, IEr
 
             if (rows.Count == 0)
             {
-                // No data rows survived extraction (e.g. a header-only result, or a wide region
-                // whose key columns were missing so every row was skipped). A header-only table is
-                // useless for import, so fall back to a faithful copy rather than emit a blank sheet
-                // and silently lose the data.
+                // No data rows survived extraction (e.g. a header-only result, or a wide region whose key columns were missing so every row was skipped).
                 errorLogger?.LogWarning(
                     $"Layout extraction produced an empty table for sheet '{srcSheet.Name}'; copying as-is",
                     nameof(LayoutNormalizationService));

@@ -1,3 +1,4 @@
+using ArgoBooks.Converters;
 using ArgoBooks.ViewModels.Dashboard;
 using Avalonia;
 using Avalonia.Controls;
@@ -34,8 +35,8 @@ public class DashboardDragDropManager
     private const double AutoScrollMargin = 50;
     private const double AutoScrollSpeed = 8;
 
-    private static readonly SolidColorBrush BlueBrush = new(Color.FromRgb(59, 130, 246));
-    private static readonly SolidColorBrush RedBrush = new(Color.FromRgb(239, 68, 68));
+    private static IBrush AccentBrush => ConverterUtils.AccentBrush;
+    private static IBrush RefusedBrush => ConverterUtils.ThemeBrush("ErrorBrush", "#DC2626");
 
     public DashboardDragDropManager(
         List<DashboardRowPanel> rowPanels,
@@ -127,8 +128,8 @@ public class DashboardDragDropManager
         {
             Width = sourceWidth,
             Height = sourceHeight,
-            Background = new SolidColorBrush(Color.FromArgb(30, 59, 130, 246)),
-            BorderBrush = BlueBrush,
+            Background = ConverterUtils.AccentTint(30),
+            BorderBrush = AccentBrush,
             BorderThickness = new Thickness(2),
             CornerRadius = new CornerRadius(12),
             IsHitTestVisible = false,
@@ -163,7 +164,7 @@ public class DashboardDragDropManager
 
         if (targetRowPanel == _sourceRowPanel)
         {
-            _dragGhost.BorderBrush = BlueBrush;
+            _dragGhost.BorderBrush = AccentBrush;
             _dragGhost.Height = _originalGhostHeight;
             _crossRowTargetPanel = null;
             UpdateSameRowPreview(ghostRect);
@@ -180,7 +181,7 @@ public class DashboardDragDropManager
         }
         else
         {
-            _dragGhost.BorderBrush = BlueBrush;
+            _dragGhost.BorderBrush = AccentBrush;
             _dragGhost.Height = _originalGhostHeight;
             _crossRowTargetPanel = null;
             ResetPreviewTransforms();
@@ -288,12 +289,12 @@ public class DashboardDragDropManager
 
         if (!targetRowVm.CanFit(sourceRowVm.Widgets[_dragSourceIndex].Size))
         {
-            _dragGhost.BorderBrush = RedBrush;
+            _dragGhost.BorderBrush = RefusedBrush;
             _crossRowTargetPanel = null;
             return;
         }
 
-        _dragGhost.BorderBrush = BlueBrush;
+        _dragGhost.BorderBrush = AccentBrush;
         _crossRowTargetPanel = targetRowPanel;
     }
 

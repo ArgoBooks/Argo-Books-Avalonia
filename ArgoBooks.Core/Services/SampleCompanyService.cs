@@ -112,9 +112,7 @@ public class SampleCompanyService
                 importOptions,
                 cancellationToken);
 
-            // The spreadsheet importer auto-creates Revenue records for paid invoices,
-            // but the XLSX Revenue sheet already contains all the financial data we need.
-            // Remove these duplicates and properly link invoices to existing revenues instead.
+            // The spreadsheet importer auto-creates Revenue records for paid invoices, but the XLSX Revenue sheet already contains all the financial data we need.
             RemoveAutoCreatedInvoiceRevenues(context.CompanyData);
 
             // Patch rental records with financial data from rental items
@@ -124,9 +122,7 @@ public class SampleCompanyService
             // Link invoices to existing revenue records by customer + closest date.
             LinkInvoicesToRevenues(context.CompanyData);
 
-            // Add additional active rental records for richer sample data
-            // Use the data's max date as the reference point (not DateTime.Today)
-            // so that TimeShiftSampleData can shift these dates along with everything else.
+            // Dated from the data's own max date rather than today, so TimeShiftSampleData moves these along with everything else.
             var maxDate = FindMaxDate(context.CompanyData);
             if (maxDate == DateTime.MinValue)
                 maxDate = DateTime.Today;
@@ -143,7 +139,6 @@ public class SampleCompanyService
             // Save company data to temp directory
             await _fileService.SaveCompanyDataAsync(companyDir, context.CompanyData, cancellationToken);
 
-            // Create receipts subdirectory
             Directory.CreateDirectory(Path.Combine(companyDir, "receipts"));
 
             var sampleFilePath = GetSampleCompanyPath();
@@ -629,9 +624,7 @@ public class SampleCompanyService
 
         var payroll = new PayrollService();
 
-        // Oldest first, because each run's deductions depend on the year-to-date the ones before
-        // it produced. Building them newest first would put everybody at a zero starting point
-        // and quietly under-deduct against the annual ceilings.
+        // Oldest first, because each run's deductions depend on the year-to-date the ones before it produced.
         for (int period = SamplePayPeriods - 1; period >= 0; period--)
         {
             DateTime payDate = referenceDate.AddDays(-14 * period);
@@ -674,9 +667,7 @@ public class SampleCompanyService
     /// </summary>
     private static void CompletePayrollDetails(List<Employee> employees, DateTime fallbackHireDate)
     {
-        // Cycled rather than all one province, so the sample exercises more than a single tax
-        // table. Quebec is left out on purpose: it brings QPP, QPIP and a second slip, which is a
-        // lot of machinery to switch on in a file people open to look around.
+        // Cycled rather than all one province, so the sample exercises more than a single tax table.
         (string Province, string Street, string City, string PostalCode)[] places =
         [
             ("ON", "118 Bay Street", "Toronto", "M5J2N8"),
@@ -903,14 +894,7 @@ public class SampleCompanyService
             employee.UpdatedAt = Shift(employee.UpdatedAt);
         }
 
-        // The wage expenses these produced are in data.Expenses and were shifted above, so the
-        // runs have to move by the same offset or a pay run and the expense it created would end
-        // up on different days.
-        //
-        // Only the dates move. The deductions stay exactly as they were calculated, which means a
-        // shift across a year boundary leaves figures worked out under the previous year's rates.
-        // That is the same compromise every other record here makes, and re-running payroll on
-        // open would be worse: the numbers on a sample pay stub would change under the reader.
+        // The wage expenses these produced were shifted above, so the runs move by the same offset or a run and its expense land on different days.
         foreach (var run in data.PayRuns)
         {
             run.PayDate = Shift(run.PayDate);

@@ -111,10 +111,7 @@ public class PayrollService(PayrollRateService? rateService = null)
                 continue;
             }
 
-            // An hourly employee's base pay is derived from their hours rather than typed, but
-            // it still has to be stored: a pay stub shows the earnings lines adding up to
-            // gross, and leaving this at zero makes the stub fail to reconcile in front of the
-            // person being paid.
+            // An hourly employee's base pay comes from their hours but still has to be stored, because a stub shows the earnings lines adding up to gross.
             if (employee.PayType == PayType.Hourly)
             {
                 line.BasePay = Math.Round(line.HoursWorked * employee.PayRate, 2, MidpointRounding.AwayFromZero);
@@ -129,12 +126,7 @@ public class PayrollService(PayrollRateService? rateService = null)
                 {
                     GrossPay = gross,
 
-                    // Only the bonus is treated as non-periodic. Vacation pay is left as
-                    // regular income: CRA's definition covers vacation pay taken as money
-                    // INSTEAD of time off, but the common case here is the 4% added to every
-                    // cheque, which does recur. Annualising a bonus is a large error in one
-                    // direction; treating a recurring 4% as one-off would be an error in the
-                    // other.
+                    // Only the bonus is treated as non-periodic.
                     NonPeriodicPay = line.Bonus,
                     RegularPayPerPeriod = RegularPayPerPeriod(data, employee, run),
                     Province = employee.Province,
@@ -491,9 +483,7 @@ public class PayrollService(PayrollRateService? rateService = null)
                 Notes: $"Net pay for {run.PeriodStart:yyyy-MM-dd} to {run.PeriodEnd:yyyy-MM-dd} ({run.Id}).",
                 OriginalCurrency: companyCurrency));
 
-            // Pay is worked out in the company's currency. Its USD base is that amount at the pay
-            // date's rate like any other expense, so totals across currencies add up; screens in
-            // the company's currency still show the amount paid (docs/Calculations.md Rule 4).
+            // Pay is worked out in the company's currency.
             UsdConversion.Apply(data, expense, UsdConversion.CachedRate(companyCurrency, run.PayDate));
 
             data.Expenses.Add(expense);
@@ -556,10 +546,7 @@ public class PayrollService(PayrollRateService? rateService = null)
             });
         }
 
-        // The wage expenses are removed rather than reversed. They were written by this app,
-        // not observed in the world, and a voided run is one whose money never left. Leaving
-        // a matching pair of plus and minus expenses would double the transaction count on
-        // every report for no gain.
+        // The wage expenses are removed rather than reversed. They were written by this app, not observed in the world, and a voided run is one whose money never left.
         List<Expense> wages = run.Lines
             .Where(l => l.ExpenseId is { Length: > 0 })
             .SelectMany(l => data.Expenses.Where(e => e.Id == l.ExpenseId))

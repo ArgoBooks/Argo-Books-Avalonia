@@ -104,17 +104,11 @@ public static class QuebecPayrollCalculator
             : 0m;
         decimal deductibleQpp = Round(qpp * additionalShare) + qpp2;
 
-        // Both H and CSA are period-level deductions charged on the whole of this period's pay,
-        // so both are split between the recurring and the one-off part in proportion to it.
-        // T4127 spells that split out for the federal equivalent of CSA; TP-1015.F does not
-        // state it for H, and splitting is the only reading that does not annualise a deduction
-        // taken once.
+        // Both H and CSA are period-level deductions charged on the whole of this period's pay, so both are split between the recurring and the one-off part in proportion to it.
         (decimal periodicAnnual, decimal bonus, decimal priorBonuses) =
             PayrollCalculator.SplitForBonus(input, ytd, gross, periods, deductibleQpp + workerDeduction);
 
-        // Year-to-date bonuses stay out of the periodic base. They belong to the bonus
-        // calculation below, on both sides of its subtraction, and folding them in here re-taxed
-        // a bonus already taxed in full when it was paid, every period for the rest of the year.
+        // Year-to-date bonuses stay out of the periodic base.
         decimal annual = periodicAnnual;
         decimal annualTax = AnnualQuebecTax(annual, input, qc);
         decimal tax = Round(annualTax / periods);
@@ -197,9 +191,7 @@ public static class QuebecPayrollCalculator
         decimal annualTax = AnnualFederalTax(annual, annualQpp, annualEi, annualQpip, input, rates, qc);
         decimal tax = Round(annualTax / periods);
 
-        // The federal share of a bonus, on CRA's rule rather than Quebec's: T4127 states the
-        // same flat-rate shortcut under the same ceiling, at 10% for Quebec instead of 15%.
-        // That 10% is a published figure, not the 15% with the abatement applied to it.
+        // The federal share of a bonus, on CRA's rule rather than Quebec's: T4127 states the same flat-rate shortcut under the same ceiling, at 10% for Quebec instead of 15%.
         if (bonus > 0)
         {
             decimal bonusBase = annual + priorBonuses;

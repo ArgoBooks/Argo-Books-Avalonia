@@ -48,7 +48,21 @@ var isoCode = Loc.CurrentIsoCode;  // e.g., "fr"
 var name = Loc.CurrentLanguage;     // e.g., "French"
 ```
 
-Put changing values in placeholders (`{0}`, `{1}`) and translate the whole sentence. Don't join two translated pieces together, because word order differs between languages.
+Put changing values in placeholders (`{0}`, `{1}`) and translate the whole sentence. Don't join two translated pieces together.
+
+### Why the placeholder goes to the translator
+
+It looks wasteful to send `"{0} invoices are overdue."` when only the words need translating, and it is tempting to translate `"invoices are overdue"` on its own and glue the count on in code. That does not work, for two reasons.
+
+The first is that the words around the number change to suit it. Russian writes "2 счёта" but "5 счетов", and the ending depends on the number that will sit in front of it. A translator handed the words alone cannot pick the right form, because nothing in front of them says what the count is. The same is true of gender and case in most of the languages here.
+
+The second is word order. The translator does not know `{0}` is a number. It treats it as a word it does not recognise, the way it treats an unfamiliar name, and it carries it to wherever its own grammar puts it. Because the placeholders are numbered rather than positional, a sentence that comes back rearranged still puts the right value in each slot: `{0}` is always the first argument, wherever it ended up.
+
+How often that matters depends on the language. Hindi, Bengali, Japanese, Chinese and Korean move a placeholder in about a third of the messages that have one. Russian moves eight out of two hundred and seven. Swedish and Danish move none. So word order is the smaller of the two reasons, and the changing words around the number is the bigger one.
+
+**What the translator cannot do** is choose a plural form, because it never sees the count. The code picks between a singular and a plural sentence itself, as in `"1 invoice is overdue."` against `"{0} invoices are overdue."`, which covers the two forms English has. Languages with three forms, such as Russian and Polish, read correctly for the larger counts and slightly off for two or three. Fixing that properly needs plural rules per language and has not been done.
+
+**When a number stays in the app.** A number that is not part of the sentence's grammar is never sent to the translator. The step labels on the pay run form are written as a `Run` holding "1. " beside a `Run` holding the translated word, because nothing about "Period" changes when the step number does, and no language needs to move it.
 
 `ArgoBooks.Core` can't translate, because the language service lives in the app. A message Core hands to a screen is a `public const string`, which the translation tool collects, and the screen translates it with `.Translate()` when it shows it. Text that comes from the server can't be translated and is shown as sent.
 

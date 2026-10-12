@@ -196,11 +196,7 @@ internal static class MacAuthenticator
         }
         finally
         {
-            // The block and its descriptor are deliberately never freed. LocalAuthentication keeps
-            // the block until it replies and releases it afterwards on its own queue, so nothing on
-            // this side runs provably after its last use. Freeing it here let an answer that came
-            // after the timeout call into freed memory, and even an on-time answer raced the
-            // release. It is 48 bytes per prompt, and a global block is meant to live that long.
+            // The block and its descriptor are deliberately never freed.
             if (block != IntPtr.Zero)
                 Pending.TryRemove(block, out _);
 

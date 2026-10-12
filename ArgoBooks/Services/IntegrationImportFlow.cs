@@ -102,10 +102,7 @@ public static class IntegrationImportFlow
 
             await WarmRatesAsync(data, preview.RateAmounts, host);
 
-            // Three answers, not two. Cancel leaves everything queued for next time, which is the
-            // right response to "not now" but a poor one to "never": without Discard an unwanted
-            // object is re-offered on every sync forever, and the app that sent it cannot tell
-            // refusal from inattention.
+            // Three answers, not two: without Discard an unwanted object is offered again on every sync, where Cancel only means not now.
             var choice = await ConfirmAsync(new ConfirmationDialogOptions
             {
                 Title = "Import from the Argo Books API".Translate(),

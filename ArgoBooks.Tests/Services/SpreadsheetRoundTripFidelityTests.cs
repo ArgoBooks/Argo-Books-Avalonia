@@ -456,9 +456,7 @@ public class SpreadsheetRoundTripFidelityTests : IDisposable
     [InlineData("Purchase Orders")]
     public async Task EverySheetThatCanCarryACurrency_PrintsIt(string sheet)
     {
-        // The importer has accepted a Currency column on all five of these for a long time; the
-        // export simply never wrote one. A sheet showing 1,200 with no indication it is euros is
-        // a wrong report before it is a lossy one.
+        // The importer has accepted a Currency column on all five of these for a long time; the export simply never wrote one.
         CompanyData source = Source();
         source.PurchaseOrders.Add(new PurchaseOrder
         {
@@ -631,9 +629,7 @@ public class SpreadsheetRoundTripFidelityTests : IDisposable
     [Fact]
     public async Task PayRunsAreExportedButNotImported()
     {
-        // Deliberate. An approved run's figures are frozen so a stub reprinted next year still
-        // matches the one the employee was handed; reading them back from a sheet anybody could
-        // have edited would defeat that.
+        // Deliberate: an approved run's figures are frozen so a reprinted stub still matches, and a sheet anybody could edit must not overwrite them.
         CompanyData source = Source();
         source.Employees.Add(Dana());
         source.PayRuns.Add(new PayRun

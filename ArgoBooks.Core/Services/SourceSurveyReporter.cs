@@ -4,13 +4,14 @@ using System.Runtime.InteropServices;
 namespace ArgoBooks.Core.Services;
 
 /// <summary>
-/// Posts the post-onboarding "Where did you hear about Argo Books?" answer to
-/// the website. The answer updates the existing <c>app_first_run</c> row for
-/// this machine on the server, so installs without a referral token can still
-/// be attributed to a source.
+/// Posts the app's survey answers to the website: where the person heard about
+/// Argo Books, what they came to do, and what they say when asked on closing the
+/// app with nothing recorded. Each updates the existing <c>app_first_run</c> row
+/// for this machine on the server, so installs without a referral token can
+/// still be attributed to a source.
 ///
-/// Idempotency lives in <c>TutorialSettings.SourceSurveyAnswer</c> on the
-/// client and in a server-side <c>WHERE source_survey_answer IS NULL</c> guard.
+/// Idempotency lives in <c>TutorialSettings</c> on the client and in
+/// server-side <c>IS NULL</c> guards on each column.
 /// </summary>
 public sealed class SourceSurveyReporter
 {
@@ -31,30 +32,54 @@ public sealed class SourceSurveyReporter
     }
 
     /// <summary>
-    /// POSTs the survey answer. Returns true on HTTP 2xx, false otherwise.
-    /// Network errors are caught and logged.
+    /// POSTs the survey answers: the source, the goal, or both, each null when it
+    /// was not asked. Returns true on HTTP 2xx, false otherwise. Network errors
+    /// are caught and logged.
     /// </summary>
-    public async Task<bool> ReportAsync(
-        string answer,
+    public Task<bool> ReportAsync(
+        string? answer,
         string machineUuid,
         string? otherText = null,
-        CancellationToken cancellationToken = default)
+        string? goal = null,
+        string? goalOtherText = null,
+        CancellationToken cancellationToken = default) =>
+        PostAsync(new SurveyPayload
+        {
+            Event = "signup_survey",
+            Platform = GetPlatformKey(),
+            AppVersion = _appVersion,
+            MachineUuid = machineUuid,
+            Answer = answer,
+            // The caller supplies the text only for a freeform option; the server stores it only for keys flagged freeform.
+            OtherText = otherText,
+            Goal = goal,
+            GoalOtherText = goalOtherText,
+        }, cancellationToken);
+
+    /// <summary>
+    /// POSTs what someone said when asked, on closing the app with nothing
+    /// recorded, what they were hoping to do: a goal, a note on what got in the
+    /// way, or both.
+    /// </summary>
+    public Task<bool> ReportExitAsync(
+        string? goal,
+        string? note,
+        string machineUuid,
+        CancellationToken cancellationToken = default) =>
+        PostAsync(new SurveyPayload
+        {
+            Event = "exit_survey",
+            Platform = GetPlatformKey(),
+            AppVersion = _appVersion,
+            MachineUuid = machineUuid,
+            Answer = goal,
+            OtherText = note,
+        }, cancellationToken);
+
+    private async Task<bool> PostAsync(SurveyPayload payload, CancellationToken cancellationToken)
     {
         try
         {
-            var payload = new SurveyPayload
-            {
-                Event = "signup_survey",
-                Platform = GetPlatformKey(),
-                AppVersion = _appVersion,
-                MachineUuid = machineUuid,
-                Answer = answer,
-                // The caller supplies otherText only for a freeform option; the
-                // server stores it only for keys flagged freeform. Forwarding it
-                // as-given keeps freeform working regardless of the option's key.
-                OtherText = otherText,
-            };
-
             var url = $"{ApiConfig.BaseUrl}{EndpointPath}";
             using var response = await _httpClient.PostAsJsonAsync(url, payload, cancellationToken);
 
@@ -109,9 +134,15 @@ public sealed class SourceSurveyReporter
         public string MachineUuid { get; set; } = string.Empty;
 
         [JsonPropertyName("answer")]
-        public string Answer { get; set; } = string.Empty;
+        public string? Answer { get; set; }
 
         [JsonPropertyName("other_text")]
         public string? OtherText { get; set; }
+
+        [JsonPropertyName("goal")]
+        public string? Goal { get; set; }
+
+        [JsonPropertyName("goal_other_text")]
+        public string? GoalOtherText { get; set; }
     }
 }

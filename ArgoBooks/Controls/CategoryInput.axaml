@@ -14,12 +14,9 @@
                                  SearchText="{Binding #Root.SearchText, Mode=TwoWay}"
                                  DisplayMemberPath="Name"
                                  EnterSelectsBestMatch="True"
-                                 Placeholder="{loc:Loc 'Search categories...'}"
+                                 Placeholder="{loc:Loc 'Type a new category, or pick one'}"
                                  ShowAddNew="{Binding #Root.OpenCategoriesPageCommand, Converter={x:Static ObjectConverters.IsNotNull}}"
                                  AddNewText="{loc:Loc 'Create new category'}"
-                                 AddNewCommand="{Binding #Root.OpenCategoriesPageCommand}"
-                                 EmptyMessage="{loc:Loc 'No categories.'}"
-                                 EmptyCreateLinkText="{loc:Loc 'Create one'}"
-                                 EmptyCreateCommand="{Binding #Root.OpenCategoriesPageCommand}" />
+                                 AddNewCommand="{Binding #Root.OpenCategoriesPageCommand}" />
 
 </UserControl>

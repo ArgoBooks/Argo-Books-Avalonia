@@ -111,9 +111,7 @@ public abstract partial class ChartContextMenuViewModelBase : ViewModelBase
     private void ExportToGoogleSheets()
     {
         IsChartContextMenuOpen = false;
-        // Tracked here rather than in each override: every chart on every page routes
-        // through this command, so one call covers them all and a new chart type gets
-        // the tracking for free.
+        // Tracked here rather than in each override: every chart on every page routes through this command, so one call covers them all and a new chart type gets the tracking for free.
         _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ChartExportedToGoogleSheets);
         OnExportToGoogleSheets();
     }

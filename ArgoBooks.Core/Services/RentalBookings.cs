@@ -1,4 +1,4 @@
-using ArgoBooks.Core.Data;
+﻿using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
 using ArgoBooks.Core.Models.Inventory;
 using ArgoBooks.Core.Models.Rentals;
@@ -90,7 +90,7 @@ public static class RentalBookings
 
     /// <summary>A line's deposit is per unit.</summary>
     public static decimal TotalDeposit(IEnumerable<RentalLineItem> lines) =>
-        Math.Round(lines.Sum(line => line.SecurityDeposit * line.Quantity), 2);
+        Math.Round(lines.Sum(line => line.SecurityDeposit * line.Quantity), 2, MidpointRounding.AwayFromZero);
 
     public static int UnitsOut(IEnumerable<RentalRecord> rentals, string rentalItemId) =>
         rentals.Where(HoldsStock).Sum(r => UnitsOf(r, rentalItemId));

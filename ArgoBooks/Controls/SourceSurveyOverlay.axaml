@@ -2,13 +2,20 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:local="using:ArgoBooks"
              xmlns:controls="using:ArgoBooks.Controls"
-             xmlns:icons="using:ArgoBooks"
              xmlns:loc="using:ArgoBooks.Localization"
              mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="500"
              x:Class="ArgoBooks.Controls.SourceSurveyOverlay"
              x:DataType="controls:SourceSurveyOverlayViewModel">
+
+    <UserControl.Styles>
+        <Style Selector="TextBlock.question">
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+    </UserControl.Styles>
 
     <controls:ModalOverlay x:Name="Overlay"
                            CloseOnBackdropClick="False"
@@ -19,7 +26,7 @@
                     BorderThickness="2"
                     CornerRadius="16"
                     Padding="32,28"
-                    MaxWidth="460"
+                    MaxWidth="560"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center"
                     BoxShadow="0 4 20 0 #26000000">
@@ -27,23 +34,24 @@
 
                     <!-- Title + subtitle -->
                     <StackPanel Spacing="8">
-                        <TextBlock Text="{loc:Loc 'Where did you hear about Argo Books?'}"
+                        <TextBlock Text="{Binding Title}"
                                    FontSize="20"
                                    FontWeight="SemiBold"
                                    Foreground="{DynamicResource TextPrimaryBrush}"
                                    TextWrapping="Wrap" />
-                        <TextBlock Text="{loc:Loc 'A quick one-question survey to help us know how people are finding us.'}"
+                        <TextBlock Text="{loc:Loc 'Your answers tell us how people find Argo Books and what they need from it.'}"
                                    FontSize="13"
                                    Foreground="{DynamicResource TextSecondaryBrush}"
                                    TextWrapping="Wrap" />
                     </StackPanel>
 
-                    <!-- Options (sourced from the server, falling back to bundled defaults) -->
-                    <StackPanel Spacing="6">
-                        <ItemsControl ItemsSource="{Binding Options}">
+                    <!-- Where they heard about it. Left out when the install came through a tracked link, or was answered in an earlier version. -->
+                    <StackPanel Spacing="8" IsVisible="{Binding AskSource}">
+                        <TextBlock Classes="question" Text="{loc:Loc 'Where did you hear about Argo Books?'}" />
+                        <ItemsControl ItemsSource="{Binding Source.Options}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
-                                    <StackPanel Spacing="6" />
+                                    <UniformGrid Columns="3" />
                                 </ItemsPanelTemplate>
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
@@ -56,11 +64,35 @@
                         </ItemsControl>
 
                         <!-- Freeform input shown when a freeform option is selected -->
-                        <TextBox IsVisible="{Binding IsFreeformSelected}"
-                                 Text="{Binding OtherText, Mode=TwoWay}"
+                        <TextBox IsVisible="{Binding Source.IsFreeformSelected}"
+                                 Text="{Binding Source.OtherText, Mode=TwoWay}"
                                  PlaceholderText="{loc:Loc 'Tell us where you heard about us'}"
-                                 MaxLength="200"
-                                 Margin="28,4,0,0" />
+                                 MaxLength="200" />
+                    </StackPanel>
+
+                    <!-- What they came to do. Longer choices, so two across and free to wrap. -->
+                    <StackPanel Spacing="8" IsVisible="{Binding AskGoal}">
+                        <TextBlock Classes="question" Text="{loc:Loc 'What do you mainly want to use it for?'}" />
+                        <ItemsControl ItemsSource="{Binding Goal.Options}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <UniformGrid Columns="2" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="controls:SurveyOptionItem">
+                                    <RadioButton GroupName="SurveyGoalOption"
+                                                 IsChecked="{Binding IsSelected, Mode=TwoWay}">
+                                        <TextBlock Text="{Binding Label}" TextWrapping="Wrap" />
+                                    </RadioButton>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBox IsVisible="{Binding Goal.IsFreeformSelected}"
+                                 Text="{Binding Goal.OtherText, Mode=TwoWay}"
+                                 PlaceholderText="{loc:Loc 'Tell us what you want to do'}"
+                                 MaxLength="200" />
                     </StackPanel>
 
                     <!-- Inline error message (POST failure / no reporter / no machine_uuid) -->
@@ -70,9 +102,7 @@
                                FontSize="12"
                                TextWrapping="Wrap" />
 
-                    <!-- Actions: Submit is the only path until a submit failure, after which
-                         a Cancel button appears so the user isn't trapped. Cancelling closes
-                         the overlay but leaves the dashboard banner prompting them to answer. -->
+                    <!-- Actions: Submit is the only path until a submit failure, after which a Cancel button appears so the user isn't trapped. -->
                     <StackPanel Orientation="Horizontal"
                                 Spacing="12"
                                 HorizontalAlignment="Right"

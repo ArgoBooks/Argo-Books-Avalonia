@@ -33,9 +33,7 @@ public partial class App
             "Trying to organize the file...".Translate(),
             0, rescueCts, ConfirmCancelAsync);
 
-        // RescueAsync reports the row total once, up front (the file total), and then per-sheet totals
-        // during extraction. Capture the first report's total (the stable file-wide figure) so the large
-        // file warning doesn't flip back off once a multi-sheet file's smaller per-sheet totals arrive.
+        // RescueAsync reports the row total once, up front (the file total), and then per-sheet totals during extraction.
         int? fileTotal = null;
         var rescueProgress = new Progress<(int processed, int total)>(p =>
         {

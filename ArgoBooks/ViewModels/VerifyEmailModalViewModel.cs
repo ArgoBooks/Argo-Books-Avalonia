@@ -35,10 +35,7 @@ public partial class VerifyEmailModalViewModel : ObservableObject
         _refundService = refundService;
         MaskedEmail = maskedEmail;
 
-        // A code is always freshly sent right before this modal opens (registration / set-email),
-        // so start the resend button already on cooldown. Otherwise Resend is clickable the instant
-        // the modal appears, letting the user fire off a second email immediately (and re-opening
-        // the modal would reset the throttle each time).
+        // A code is always sent just before this modal opens, so Resend starts on cooldown rather than being clickable at once.
         StartResendCooldown(ResendCooldownSecondsInitial);
     }
 

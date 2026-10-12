@@ -143,9 +143,7 @@ public class FileServiceTests
     [Fact]
     public async Task SaveCompanyDataAsync_StagesToTemp_DoesNotMarkSaved()
     {
-        // Regression: SaveCompanyDataAsync only stages JSON into the temp directory; the data isn't
-        // durable until the caller commits the .argo file via SaveCompanyAsync. Marking saved here
-        // would hide a failed commit and risk silent data loss, so the dirty flag must survive.
+        // SaveCompanyDataAsync only stages JSON into the temp directory, so the data is not durable until the caller commits the .argo file.
         var service = CreateService();
         var data = new CompanyData();
         data.MarkAsModified();

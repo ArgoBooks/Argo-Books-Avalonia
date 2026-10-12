@@ -246,9 +246,7 @@ public class RoeXmlTests
     [InlineData("(306) 555-1234", "306", "5551234")]
     public void Block16_TakesTheNationalNumber_HoweverItWasEntered(string entered, string area, string number)
     {
-        // The phone control hands back a dial-code prefixed value, and people paste all four of
-        // these. Taking the first ten digits of an eleven digit number shifts every digit one
-        // place left and produces a valid looking wrong number.
+        // The phone control hands back a dial-code prefixed value, and people paste all four of these.
         RoeWorksheet sheet = Sheet();
         sheet.ContactPhone = entered;
 
@@ -316,9 +314,7 @@ public class RoeXmlTests
     [Fact]
     public void TheDeclarationSaysTheEncodingTheFileIsActuallyIn()
     {
-        // Save(TextWriter) takes the declaration from the writer, and a plain StringWriter says
-        // UTF-16 however the characters are written out afterwards. The file then announces an
-        // encoding it is not in, which nothing here notices and the parser at the far end does.
+        // Save(TextWriter) takes the declaration from the writer, and a plain StringWriter says UTF-16 however the characters are written out afterwards.
         string xml = RoeXmlWriter.BuildString(Sheet(), Version);
 
         Assert.StartsWith("<?xml", xml, StringComparison.Ordinal);
@@ -445,13 +441,7 @@ public class RoeXmlTests
     [Fact]
     public void ValidatesAgainstTheServiceCanadaSchema()
     {
-        // Service Canada distributes this through ROE Web rather than publishing it, so it
-        // cannot be vendored the way CRA's package is. Drop PayrollExtractXmlV2.xsd into
-        // ArgoBooks.Tests/Schemas/ServiceCanada and this starts checking on the next run.
-        //
-        // Passing while the file is absent is deliberate but is not a result. Until it is
-        // there, the layout is only as right as Appendix D was read, which is what every other
-        // test in this file is guarding.
+        // Service Canada distributes this through ROE Web rather than publishing it, so it cannot be vendored the way CRA's package is.
         if (!File.Exists(SchemaFile))
         {
             return;
