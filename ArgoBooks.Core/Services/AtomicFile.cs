@@ -95,6 +95,30 @@ public static class AtomicFile
     /// Callers that hold real user data should let the rethrow surface as a "couldn't save" error.
     /// </para>
     /// </summary>
+    /// <summary>
+    /// The same swap for a caller that cannot await, such as a render callback handed to a library
+    /// as a plain delegate. Blocks the calling thread for the backoff, so it belongs on a worker.
+    /// </summary>
+    public static void Replace(string tempPath, string finalPath, bool overwrite = true)
+    {
+        for (var attempt = 1; attempt <= MaxAttempts; attempt++)
+        {
+            try
+            {
+                File.Move(tempPath, finalPath, overwrite);
+                return;
+            }
+            catch (FileNotFoundException)
+            {
+                throw;
+            }
+            catch (Exception ex) when ((ex is IOException || ex is UnauthorizedAccessException) && attempt < MaxAttempts)
+            {
+                Thread.Sleep(50 * attempt);
+            }
+        }
+    }
+
     public static async Task ReplaceAsync(
         string tempPath,
         string finalPath,

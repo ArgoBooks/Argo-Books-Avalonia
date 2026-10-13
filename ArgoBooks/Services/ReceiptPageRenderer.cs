@@ -96,8 +96,14 @@ public static class ReceiptPageRenderer
 
     private static void WriteKeyedPageCount(string key, int count)
     {
-        try { File.WriteAllText(PageCountMarkerPath(key), count.ToString()); }
-        catch { /* non-critical cache marker */ }
+        var path = PageCountMarkerPath(key);
+        var temp = AtomicFile.TempPathFor(path);
+        try
+        {
+            File.WriteAllText(temp, count.ToString());
+            AtomicFile.Replace(temp, path);
+        }
+        catch { AtomicFile.TryDeleteTemp(temp); /* non-critical cache marker */ }
     }
 
     private static int? ReadPageCount(string key)
@@ -146,7 +152,11 @@ public static class ReceiptPageRenderer
                     // file it cannot draw showed an empty viewer with no explanation.
                     if (ReceiptImageHelper.ToDisplayable(bytes) is not { } image)
                         return [];
-                    await File.WriteAllBytesAsync(imgPath, image);
+                    // Swapped in rather than written in place: a cached page is reused because the
+                    // file is there, so a partial write would be shown as the page from then on.
+                    var tempImg = AtomicFile.TempPathFor(imgPath);
+                    await File.WriteAllBytesAsync(tempImg, image);
+                    await AtomicFile.ReplaceAsync(tempImg, imgPath);
                 }
                 onPage?.Report((0, imgPath));
                 return [imgPath];
@@ -199,7 +209,13 @@ public static class ReceiptPageRenderer
         void WriteAndReport(int index, byte[] jpeg)
         {
             var p = KeyedPagePath(key, index);
-            try { File.WriteAllBytes(p, jpeg); } catch { return; }
+            var temp = AtomicFile.TempPathFor(p);
+            try
+            {
+                File.WriteAllBytes(temp, jpeg);
+                AtomicFile.Replace(temp, p);
+            }
+            catch { AtomicFile.TryDeleteTemp(temp); return; }
             onPage?.Report((index, p));
         }
 

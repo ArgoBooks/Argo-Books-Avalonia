@@ -333,8 +333,12 @@ public sealed class FirstRunReporter
     {
         try
         {
-            await File.WriteAllTextAsync(path,
+            // A marker that fails to land means the install reports itself again on the next
+            // launch, which puts the same install in the funnel twice.
+            var temp = AtomicFile.TempPathFor(path);
+            await File.WriteAllTextAsync(temp,
                 $"reported_at={DateTime.UtcNow:O}\nreason={reason}\n", ct);
+            await AtomicFile.ReplaceAsync(temp, path, cancellationToken: ct);
         }
         catch
         {
