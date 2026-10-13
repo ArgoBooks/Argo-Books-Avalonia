@@ -308,6 +308,13 @@
                                                                FontSize="13"
                                                                Foreground="{DynamicResource TextSecondaryBrush}"
                                                                TextTrimming="CharacterEllipsis"
+                                                               Margin="0,0,0,2" />
+
+                                                    <!-- Shown when the record holds more than one document, which this row opens together -->
+                                                    <TextBlock Text="{Binding DocumentCountLabel}"
+                                                               IsVisible="{Binding IsOneOfASet}"
+                                                               FontSize="11"
+                                                               Foreground="{DynamicResource TextTertiaryBrush}"
                                                                Margin="0,0,0,8" />
 
                                                     <!-- Type Badge and Amount Row -->

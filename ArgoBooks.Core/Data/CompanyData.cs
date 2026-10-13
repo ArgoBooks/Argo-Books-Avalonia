@@ -422,6 +422,33 @@ public class CompanyData
     public Receipt? GetReceipt(string id) => _receiptLookup.Get(Receipts, id);
 
     /// <summary>
+    /// Every document kept against one expense or sale, oldest first.
+    /// </summary>
+    /// <param name="transaction">The record the documents belong to.</param>
+    /// <param name="transactionType">"Expense" or "Revenue". A sale and an expense can hold the
+    /// same id, so the kind is part of the lookup. A receipt saved without a kind matches either,
+    /// since hiding it would be worse than showing it twice.</param>
+    public List<Receipt> ReceiptsFor(Transaction transaction, string transactionType)
+    {
+        var documents = Receipts
+            .Where(r => r.TransactionId == transaction.Id
+                        && (r.TransactionType == transactionType || string.IsNullOrEmpty(r.TransactionType)))
+            .OrderBy(r => r.CreatedAt)
+            .ToList();
+
+        // A document attached when a record could hold only one is named from the record's side
+        // alone, so without this it would vanish from the form, the viewer and the accountant pack.
+        if (!string.IsNullOrEmpty(transaction.ReceiptId)
+            && documents.All(r => r.Id != transaction.ReceiptId)
+            && GetReceipt(transaction.ReceiptId) is { } named)
+        {
+            documents.Insert(0, named);
+        }
+
+        return documents;
+    }
+
+    /// <summary>
     /// Gets an invoice template by ID.
     /// </summary>
     public InvoiceTemplate? GetInvoiceTemplate(string id) =>

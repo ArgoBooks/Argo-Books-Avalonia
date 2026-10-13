@@ -46,16 +46,24 @@ public static class AccountantPack
         var seen = new HashSet<string>();
         var result = new List<(string EntryName, Receipt Receipt)>();
 
-        var transactions = data.Expenses.Cast<Transaction>().Concat(data.Revenues)
-            .Where(t => t.Date.Date >= start.Date && t.Date.Date <= end.Date && !string.IsNullOrEmpty(t.ReceiptId))
-            .OrderBy(t => t.Date);
+        var transactions = data.Expenses.Cast<Transaction>().Select(t => (Txn: t, Kind: "Expense"))
+            .Concat(data.Revenues.Select(t => (Txn: (Transaction)t, Kind: "Revenue")))
+            .Where(x => x.Txn.Date.Date >= start.Date && x.Txn.Date.Date <= end.Date)
+            .OrderBy(x => x.Txn.Date);
 
-        foreach (var t in transactions)
+        foreach (var (t, kind) in transactions)
         {
-            if (!seen.Add(t.ReceiptId!) || data.GetReceipt(t.ReceiptId!) is not { FileData.Length: > 0 } receipt)
-                continue;
+            var receipts = data.ReceiptsFor(t, kind).Where(r => r.FileData is { Length: > 0 }).ToList();
 
-            result.Add(($"Receipts/{t.Date:yyyy-MM-dd} {t.Id}{Path.GetExtension(receipt.FileName)}", receipt));
+            for (var i = 0; i < receipts.Count; i++)
+            {
+                if (!seen.Add(receipts[i].Id))
+                    continue;
+
+                // A record with several documents would otherwise write them all to one entry name.
+                var suffix = receipts.Count > 1 ? $" ({i + 1})" : string.Empty;
+                result.Add(($"Receipts/{t.Date:yyyy-MM-dd} {t.Id}{suffix}{Path.GetExtension(receipts[i].FileName)}", receipts[i]));
+            }
         }
 
         return result;
