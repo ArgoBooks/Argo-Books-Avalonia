@@ -11,6 +11,7 @@ Version 2.0 is a complete rewrite on [Avalonia UI](https://avaloniaui.net/). Ver
 - **AI Receipt Scanning**: Take a photo of any receipt with your phone or upload from your computer. Our AI automatically extracts vendor, date, amount, and line items with 99% accuracy.
 - **Invoicing**: Create, send, and track invoices with ease. Customize templates, set payment terms, and get paid faster.
 - **Expense & Revenue Tracking**: An intuitive interface makes recording expenses and revenue simple. Smart input validation prevents errors before they happen.
+- **Payroll**: Run Canadian payroll from the same books. Deductions follow the current CRA tables, every pay run produces a stub for each employee, and year end builds the T4 slips, the summary and the XML you file. Records of employment are generated when someone leaves.
 - **Customer Management**: Keep track of customer information, purchase history, and preferences.
 - **Predictive Analytics**: Analyzes your historical data to forecast sales trends, identify seasonal patterns, and help you make data-driven decisions.
 - **Inventory Management**: Track stock levels, set reorder points, and never run out of your best-selling items. Real-time visibility across all your products.
