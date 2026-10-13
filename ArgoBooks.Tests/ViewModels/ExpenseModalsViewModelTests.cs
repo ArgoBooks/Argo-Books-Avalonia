@@ -293,6 +293,55 @@ public class ExpenseModalsViewModelTests : ModalViewModelTestBase
         Assert.Equal(Company.Receipts[0].Id, expense.ReceiptId);
     }
 
+    /// <summary>
+    /// The receipts page lists a document by its record's amount, supplier and date, and filters and
+    /// sorts on them. A document attached before an edit would otherwise keep the old figures and
+    /// show the wrong amount beside the record it belongs to.
+    /// </summary>
+    [Fact]
+    public async Task EditingAnExpenseAmount_CarriesItOntoDocumentsAlreadyAttached()
+    {
+        var vm = NewExpenseVmWithProduct();
+        FillLineItem(vm, 100m);
+        vm.PickReceiptFile(TempReceiptFile("booking-report.pdf", [1, 2, 3]));
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
+
+        var expense = Company.Expenses.Single();
+        Assert.Equal(100m, Company.Receipts.Single().Amount);
+
+        vm.OpenEditModal(new ExpenseDisplayItem { Id = expense.Id });
+        FillLineItem(vm, 250m);
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
+
+        Assert.Equal(expense.Total, Company.Receipts.Single().Amount);
+        Assert.Equal(250m, Company.Receipts.Single().Amount);
+    }
+
+    /// <summary>
+    /// Undo puts the record's old amount back, so the documents on it have to come back too, or the
+    /// receipts page keeps showing the amount of an edit that no longer exists.
+    /// </summary>
+    [Fact]
+    public async Task UndoingAnAmountEdit_TakesTheDocumentsBackWithIt()
+    {
+        var vm = NewExpenseVmWithProduct();
+        FillLineItem(vm, 100m);
+        vm.PickReceiptFile(TempReceiptFile("booking-report.pdf", [1, 2, 3]));
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
+
+        var expense = Company.Expenses.Single();
+        vm.OpenEditModal(new ExpenseDisplayItem { Id = expense.Id });
+        FillLineItem(vm, 250m);
+        await vm.SaveTransactionCommand.ExecuteAsync(null);
+        Assert.Equal(250m, Company.Receipts.Single().Amount);
+
+        App.UndoRedoManager.Undo();
+        Assert.Equal(100m, Company.Receipts.Single().Amount);
+
+        App.UndoRedoManager.Redo();
+        Assert.Equal(250m, Company.Receipts.Single().Amount);
+    }
+
     [Fact]
     public async Task EditExpense_AddingASecondDocument_LeavesTheFirstAlone()
     {

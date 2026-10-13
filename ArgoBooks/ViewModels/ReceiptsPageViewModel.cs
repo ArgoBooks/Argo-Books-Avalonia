@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using ArgoBooks.Controls.ColumnWidths;
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Enums;
@@ -183,11 +183,22 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
     {
         if (receipt == null) return;
 
-        var title = $"Receipt #{receipt.Id}";
+        var title = receipt.IsOneOfASet && receipt.TransactionId.Length > 0
+            ? $"Documents for {receipt.TransactionId}"
+            : $"Receipt #{receipt.Id}";
         if (!string.IsNullOrEmpty(receipt.Supplier))
             title += $"\n{receipt.Supplier}";
 
-        App.ReceiptViewerModal?.Show(receipt.Id, title);
+        var companyData = App.CompanyManager?.CompanyData;
+        var documents = receipt.DocumentIds
+            .Select(id => companyData?.GetReceipt(id))
+            .OfType<Receipt>()
+            .ToList();
+
+        if (documents.Count == 0)
+            return;
+
+        App.ReceiptViewerModal?.ShowReceiptSet(title, documents);
     }
 
     #endregion
@@ -485,6 +496,14 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
             filtered = filtered.Where(r => r.Date <= filterDateTo.Value.DateTime);
         }
 
+        // The page lists records, not files, so a record's documents collapse onto one row. A
+        // document with no record stands on its own. Grouped on what passed the filters, so the
+        // count on a row matches what the filters asked for.
+        var grouped = filtered
+            .GroupBy(r => string.IsNullOrEmpty(r.TransactionId) ? "receipt:" + r.Id : r.TransactionType + "|" + r.TransactionId)
+            .ToDictionary(g => g.Key, g => g.OrderBy(r => r.CreatedAt).ToList());
+        filtered = grouped.Values.Select(g => g[0]);
+
         // Sorted on the receipt itself, not the row: rows are built after paging so the page
         // only pays for the images it shows.
         var sortedFiltered = filtered.ToList().ApplySort(
@@ -506,6 +525,8 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
         // Create display items with cached image paths (no file I/O for cache hits)
         var displayItems = pagedReceipts.Select(receipt => new ReceiptDisplayItem
         {
+            DocumentIds = grouped[string.IsNullOrEmpty(receipt.TransactionId) ? "receipt:" + receipt.Id : receipt.TransactionType + "|" + receipt.TransactionId]
+                .Select(r => r.Id).ToList(),
             Id = receipt.Id,
             TransactionId = receipt.TransactionId,
             TransactionType = receipt.TransactionType,
@@ -764,12 +785,15 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
 
             foreach (var item in selectedReceipts)
             {
-                var receipt = companyData.Receipts.FirstOrDefault(r => r.Id == item.Id);
-                if (receipt == null) continue;
+                foreach (var id in item.DocumentIds)
+                {
+                    var receipt = companyData.Receipts.FirstOrDefault(r => r.Id == id);
+                    if (receipt == null) continue;
 
-                var baseName = $"Receipt_{item.Id}_{item.DateFormatted.Replace(",", "").Replace(" ", "_")}";
-                if (WriteExportFile(receipt, exportFolder, baseName) != null)
-                    exportedCount++;
+                    var baseName = $"Receipt_{id}_{item.DateFormatted.Replace(",", "").Replace(" ", "_")}";
+                    if (WriteExportFile(receipt, exportFolder, baseName) != null)
+                        exportedCount++;
+                }
             }
 
             if (exportedCount > 0)
@@ -801,7 +825,8 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
         {
             // The stored file, not the preview image. The preview is a rendered page for a PDF and
             // a converted JPEG for a HEIC photo, and there is none for a file that cannot be drawn.
-            var stored = App.CompanyManager?.CompanyData?.Receipts.FirstOrDefault(r => r.Id == receipt.Id);
+            var companyData = App.CompanyManager?.CompanyData;
+            var stored = companyData?.Receipts.FirstOrDefault(r => r.Id == receipt.Id);
             if (string.IsNullOrEmpty(stored?.FileData)) return;
 
             var topLevel = Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
@@ -809,6 +834,30 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
                 : null;
 
             if (topLevel?.StorageProvider == null) return;
+
+            // A row standing for several documents saves all of them, since saving only the first
+            // without saying so would look like the rest were never attached.
+            if (receipt.IsOneOfASet && companyData != null)
+            {
+                var chosen = await topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+                {
+                    Title = "Save Receipts".Translate(),
+                    AllowMultiple = false
+                });
+                if (chosen.Count == 0) return;
+
+                var saved = 0;
+                foreach (var id in receipt.DocumentIds)
+                {
+                    var document = companyData.Receipts.FirstOrDefault(r => r.Id == id);
+                    if (document != null && WriteExportFile(document, chosen[0].Path.LocalPath, $"Receipt_{id}") != null)
+                        saved++;
+                }
+
+                if (saved > 0)
+                    App.AddNotification("Success", "Receipt saved successfully", NotificationType.Success);
+                return;
+            }
 
             var sourceExtension = Path.GetExtension(stored.FileName);
             if (string.IsNullOrEmpty(sourceExtension))
@@ -850,7 +899,11 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
 
         try
         {
-            await ConfirmAndDeleteReceiptAsync(item.Id);
+            foreach (var id in item.DocumentIds.ToList())
+            {
+                if (!await ConfirmAndDeleteReceiptAsync(id, item.DocumentCount))
+                    return;
+            }
         }
         catch (Exception ex)
         {
@@ -862,14 +915,18 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
     /// Asks, then deletes a receipt and unlinks it from its transaction, with undo. Shared by the
     /// receipts list and the receipt viewer. Returns true when the receipt was deleted.
     /// </summary>
-    internal static async Task<bool> ConfirmAndDeleteReceiptAsync(string receiptId)
+    /// <param name="receiptId">The document to delete.</param>
+    /// <param name="onRecord">How many documents the record holds, so the question says what goes.</param>
+    internal static async Task<bool> ConfirmAndDeleteReceiptAsync(string receiptId, int onRecord = 1)
     {
         var companyData = App.CompanyManager?.CompanyData;
         var receipt = companyData?.Receipts.FirstOrDefault(r => r.Id == receiptId);
         if (companyData == null || receipt == null) return false;
 
         var isLinked = !string.IsNullOrEmpty(receipt.TransactionId);
-        var message = "Are you sure you want to delete this receipt?\n\nID: {0}\nSupplier: {1}".TranslateFormat(receipt.Id, receipt.Supplier);
+        var message = onRecord > 1
+            ? "Are you sure you want to delete all {0} documents on this record?".TranslateFormat(onRecord)
+            : "Are you sure you want to delete this receipt?\n\nID: {0}\nSupplier: {1}".TranslateFormat(receipt.Id, receipt.Supplier);
         if (isLinked)
         {
             message += "\n\n" + "This receipt is linked to a {0} transaction ({1}). The receipt will be removed from the transaction.".TranslateFormat(
@@ -881,15 +938,32 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
         RemoveWithUndo(companyData, companyData.Receipts, receipt, $"Delete receipt {receipt.Id}", notify: null,
             onRemove: () =>
             {
-                if (isLinked) SetTransactionReceiptId(companyData, receipt.TransactionType, receipt.TransactionId, null);
+                if (isLinked) RepointTransactionReceipt(companyData, receipt.TransactionType, receipt.TransactionId);
             },
             onRestore: () =>
             {
-                if (isLinked) SetTransactionReceiptId(companyData, receipt.TransactionType, receipt.TransactionId, receipt.Id);
+                if (isLinked) RepointTransactionReceipt(companyData, receipt.TransactionType, receipt.TransactionId);
             });
 
         App.CompanyManager?.MarkAsChanged();
         return true;
+    }
+
+    /// <summary>
+    /// Points a record at the oldest of the documents it still holds, or at nothing once the last
+    /// one goes. The record names one document for everything that still reads a single one.
+    /// </summary>
+    private static void RepointTransactionReceipt(Core.Data.CompanyData companyData, string transactionType, string? transactionId)
+    {
+        if (string.IsNullOrEmpty(transactionId)) return;
+
+        var next = companyData.Receipts
+            .Where(r => r.TransactionId == transactionId
+                        && (r.TransactionType == transactionType || string.IsNullOrEmpty(r.TransactionType)))
+            .OrderBy(r => r.CreatedAt)
+            .FirstOrDefault();
+
+        SetTransactionReceiptId(companyData, transactionType, transactionId, next?.Id);
     }
 
     private static void SetTransactionReceiptId(Core.Data.CompanyData companyData, string transactionType, string? transactionId, string? receiptId)
@@ -952,7 +1026,9 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
             if (!await ConfirmDeleteAsync("Delete Receipts".Translate(), message)) return;
 
             var receiptsToDelete = selectedReceipts
-                .Select(displayItem => companyData.Receipts.FirstOrDefault(r => r.Id == displayItem.Id))
+                .SelectMany(displayItem => displayItem.DocumentIds)
+                .Distinct()
+                .Select(id => companyData.Receipts.FirstOrDefault(r => r.Id == id))
                 .OfType<Receipt>()
                 .ToList();
             if (receiptsToDelete.Count == 0) return;
@@ -963,7 +1039,7 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
                 {
                     companyData.Receipts.RemoveRecord(receipt);
                     if (!string.IsNullOrEmpty(receipt.TransactionId))
-                        SetTransactionReceiptId(companyData, receipt.TransactionType, receipt.TransactionId, null);
+                        RepointTransactionReceipt(companyData, receipt.TransactionType, receipt.TransactionId);
                 }
             }
 
@@ -973,7 +1049,7 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
                 {
                     companyData.Receipts.RestoreRecord(receipt);
                     if (!string.IsNullOrEmpty(receipt.TransactionId))
-                        SetTransactionReceiptId(companyData, receipt.TransactionType, receipt.TransactionId, receipt.Id);
+                        RepointTransactionReceipt(companyData, receipt.TransactionType, receipt.TransactionId);
                 }
             }
 
@@ -1042,6 +1118,19 @@ public partial class ReceiptDisplayItem : ObservableObject
 
     [ObservableProperty]
     private int _pageCount = 1;
+
+    /// <summary>
+    /// Every document this row stands for, oldest first. One entry unless the record holds several.
+    /// </summary>
+    public List<string> DocumentIds { get; init; } = [];
+
+    public int DocumentCount => DocumentIds.Count;
+
+    /// <summary>True only when the record holds more than one document.</summary>
+    public bool IsOneOfASet => DocumentCount > 1;
+
+    /// <summary>Shown on a row standing for several documents.</summary>
+    public string DocumentCountLabel => "{0} documents".TranslateFormat(DocumentCount);
 
     partial void OnImagePathChanged(string value)
     {

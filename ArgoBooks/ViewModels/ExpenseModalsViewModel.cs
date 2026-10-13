@@ -538,6 +538,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
             {
                 if (renamedId != oldId) App.CompanyManager?.ChangeExpenseId(expense, oldId);
                 RestoreTransactionState(expense, original);
+                SyncDocumentsToRecord(companyData, expense, "Expense");
                 UsdConversion.Restore(companyData, [queueKey], originalQueued);
                 foreach (var r in capturedAdded)
                     companyData.Receipts.RemoveRecord(r);
@@ -550,6 +551,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
             {
                 if (renamedId != oldId) App.CompanyManager?.ChangeExpenseId(expense, renamedId);
                 RestoreTransactionState(expense, edited);
+                SyncDocumentsToRecord(companyData, expense, "Expense");
                 UsdConversion.Restore(companyData, [queueKey], editedQueued);
                 foreach (var r in capturedRemoved)
                     companyData.Receipts.RemoveRecord(r);
@@ -566,6 +568,11 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
         ShowEditInventoryNotifications(editResults);
         return true;
     }
+
+    protected override string CounterpartyNameOf(CompanyData companyData, Transaction transaction) =>
+        transaction is Expense expense && !string.IsNullOrEmpty(expense.SupplierId)
+            ? companyData.GetSupplier(expense.SupplierId)?.Name ?? string.Empty
+            : string.Empty;
 
     private Receipt? CreateReceipt(CompanyData companyData, string transactionId, string transactionType, string supplier)
     {

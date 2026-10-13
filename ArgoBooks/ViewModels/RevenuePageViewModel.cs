@@ -723,11 +723,16 @@ public RevenuePageViewModel()
 
         var companyData = App.CompanyManager?.CompanyData;
         var revenue = companyData?.Revenues.FirstOrDefault(s => s.Id == item.Id);
-        if (revenue == null || string.IsNullOrEmpty(revenue.ReceiptId))
+        if (revenue == null)
             return;
 
-        // The viewer renders all pages (PDFs) from the receipt's stored data.
-        App.ReceiptViewerModal?.Show(revenue.ReceiptId, $"Receipt for {item.Id}");
+        var receipts = companyData!.ReceiptsFor(revenue, "Revenue");
+        if (receipts.Count == 0)
+            return;
+
+        // The viewer pages between them, and renders only the one on screen.
+        App.ReceiptViewerModal?.ShowReceiptSet(
+            receipts.Count == 1 ? $"Receipt for {item.Id}" : $"Documents for {item.Id}", receipts);
     }
 
     #endregion

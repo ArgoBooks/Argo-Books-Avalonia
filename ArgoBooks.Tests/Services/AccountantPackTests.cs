@@ -49,6 +49,60 @@ public class AccountantPackTests
         Assert.Single(receipts, r => r.Receipt.Id == "RCP-2");
     }
 
+    /// <summary>
+    /// A record can hold several documents, for instance the booking report and the bank transfer
+    /// that paid it. Sending one of them leaves the accountant short of the evidence for the entry.
+    /// </summary>
+    [Fact]
+    public void ReceiptsInRange_SendsEveryDocumentOnARecord()
+    {
+        var data = new CompanyData();
+        var expense = new Expense { Id = "EXP-9", Date = new DateTime(2025, 5, 2) };
+        data.Expenses.Add(expense);
+        data.Receipts.Add(new Receipt
+        {
+            Id = "RCP-A", TransactionId = "EXP-9", TransactionType = "Expense",
+            FileName = "booking.pdf", FileData = Base64("a"), CreatedAt = new DateTime(2025, 5, 2, 9, 0, 0)
+        });
+        data.Receipts.Add(new Receipt
+        {
+            Id = "RCP-B", TransactionId = "EXP-9", TransactionType = "Expense",
+            FileName = "transfer.pdf", FileData = Base64("b"), CreatedAt = new DateTime(2025, 5, 2, 10, 0, 0)
+        });
+
+        var receipts = AccountantPack.ReceiptsInRange(data, new DateTime(2025, 1, 1), new DateTime(2025, 12, 31));
+
+        Assert.Equal(
+            ["Receipts/2025-05-02 EXP-9 (1).pdf", "Receipts/2025-05-02 EXP-9 (2).pdf"],
+            receipts.Select(r => r.EntryName));
+    }
+
+    /// <summary>
+    /// A sale and an expense can hold the same id, so one's documents must not travel with the other.
+    /// </summary>
+    [Fact]
+    public void ReceiptsInRange_KeepsASaleAndAnExpenseWithTheSameIdApart()
+    {
+        var data = new CompanyData();
+        data.Expenses.Add(new Expense { Id = "T-1", Date = new DateTime(2025, 4, 1) });
+        data.Revenues.Add(new Revenue { Id = "T-1", Date = new DateTime(2025, 4, 2) });
+        data.Receipts.Add(new Receipt
+        {
+            Id = "RCP-X", TransactionId = "T-1", TransactionType = "Expense",
+            FileName = "bought.pdf", FileData = Base64("x")
+        });
+        data.Receipts.Add(new Receipt
+        {
+            Id = "RCP-Y", TransactionId = "T-1", TransactionType = "Revenue",
+            FileName = "sold.pdf", FileData = Base64("y")
+        });
+
+        var receipts = AccountantPack.ReceiptsInRange(data, new DateTime(2025, 1, 1), new DateTime(2025, 12, 31));
+
+        Assert.Equal(["Receipts/2025-04-01 T-1.pdf", "Receipts/2025-04-02 T-1.pdf"], receipts.Select(r => r.EntryName));
+        Assert.Equal(["RCP-X", "RCP-Y"], receipts.Select(r => r.Receipt.Id));
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("a")]

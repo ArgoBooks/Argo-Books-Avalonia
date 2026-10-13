@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using ArgoBooks.Core.Enums;
+using ArgoBooks.Core.Models.Tracking;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
 using Avalonia;
@@ -78,10 +79,22 @@ public partial class ReceiptViewerModalViewModel : ViewModelBase
 
     partial void OnSelectedDocumentChanged(ViewerDocument? value)
     {
-        if (value != null)
+        if (value == null)
+            return;
+
+        if (value.ReceiptId is { Length: > 0 } receiptId)
         {
-            _ = ShowSelectedDocumentAsync(value);
+            // Delete and the type switch act on whichever document is on screen.
+            ReceiptId = receiptId;
+            _documentBytes = null;
+            _documentFileName = value.FileName;
+            TransactionType = App.CompanyManager?.CompanyData?.GetReceipt(receiptId)?.TransactionType ?? string.Empty;
+            ReceiptPages.Clear();
+            _ = LoadPagesAsync(receiptId);
+            return;
         }
+
+        _ = ShowSelectedDocumentAsync(value);
     }
 
     /// <summary>
@@ -207,6 +220,42 @@ public partial class ReceiptViewerModalViewModel : ViewModelBase
     }
 
     /// <summary>
+    /// Shows every document kept against one expense or sale, through the same picker as a set of
+    /// generated documents. One document shows without a picker, so the caller does not have to
+    /// care how many there are.
+    /// </summary>
+    /// <param name="title">Shown in the header.</param>
+    /// <param name="receipts">The receipts, in the order they should be offered.</param>
+    public void ShowReceiptSet(string title, IEnumerable<Receipt> receipts)
+    {
+        _documentBytes = null;
+        _documentFileName = string.Empty;
+        CanDelete = true;
+        LoadingMessage = "Loading receipt...";
+        EmptyMessage = "Receipt preview not available";
+        Title = title;
+        IsFullscreen = false;
+        ReceiptPages.Clear();
+
+        Documents.Clear();
+        foreach (Receipt receipt in receipts)
+        {
+            Documents.Add(new ViewerDocument
+            {
+                Name = receipt.FileName,
+                FileName = receipt.FileName,
+                ReceiptId = receipt.Id
+            });
+        }
+        OnPropertyChanged(nameof(HasDocumentSet));
+
+        IsOpen = true;
+
+        // Assigning this renders it, through OnSelectedDocumentChanged.
+        SelectedDocument = Documents.FirstOrDefault();
+    }
+
+    /// <summary>
     /// Renders one document from the set.
     ///
     /// The render token is taken before the bytes are produced, not after, so a slow render for
@@ -223,6 +272,9 @@ public partial class ReceiptViewerModalViewModel : ViewModelBase
 
         try
         {
+            if (document.LoadAsync == null)
+                return;
+
             byte[] bytes = await document.LoadAsync();
 
             if (token != _renderToken)

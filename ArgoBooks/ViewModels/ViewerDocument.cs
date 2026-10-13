@@ -17,9 +17,16 @@ public class ViewerDocument
 
     /// <summary>
     /// Builds the PDF. Called on the UI thread, so implementations hand the actual rendering to
-    /// a background task; QuestPDF composition is slow enough to be felt.
+    /// a background task; QuestPDF composition is slow enough to be felt. Null on a stored
+    /// receipt, which is read from the company file by <see cref="ReceiptId"/> instead.
     /// </summary>
-    public required Func<Task<byte[]>> LoadAsync { get; init; }
+    public Func<Task<byte[]>>? LoadAsync { get; init; }
+
+    /// <summary>
+    /// Set when this entry is a receipt already in the books, so the viewer renders it the way it
+    /// renders a single receipt and keeps delete and type switching working on the one on screen.
+    /// </summary>
+    public string? ReceiptId { get; init; }
 
     /// <summary>Shown in the picker, so the display can be a plain string binding.</summary>
     public override string ToString() => Name;

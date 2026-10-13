@@ -657,11 +657,16 @@ public ExpensesPageViewModel()
 
         var companyData = App.CompanyManager?.CompanyData;
         var expense = companyData?.Expenses.FirstOrDefault(p => p.Id == item.Id);
-        if (expense == null || string.IsNullOrEmpty(expense.ReceiptId))
+        if (expense == null)
             return;
 
-        // The viewer renders all pages (PDFs) from the receipt's stored data.
-        App.ReceiptViewerModal?.Show(expense.ReceiptId, $"Receipt for {item.Id}");
+        var receipts = companyData!.ReceiptsFor(expense, "Expense");
+        if (receipts.Count == 0)
+            return;
+
+        // The viewer pages between them, and renders only the one on screen.
+        App.ReceiptViewerModal?.ShowReceiptSet(
+            receipts.Count == 1 ? $"Receipt for {item.Id}" : $"Documents for {item.Id}", receipts);
     }
 
     #endregion

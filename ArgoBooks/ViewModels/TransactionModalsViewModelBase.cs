@@ -1655,10 +1655,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     protected void LoadAttachments(Transaction transaction)
     {
         Attachments.Clear();
-        var receipts = App.CompanyManager?.CompanyData?.Receipts
-            .Where(r => r.TransactionId == transaction.Id)
-            .OrderBy(r => r.CreatedAt)
-            .ToList() ?? [];
+        var receipts = App.CompanyManager?.CompanyData?.ReceiptsFor(transaction, TransactionTypeName) ?? [];
         foreach (var receipt in receipts)
             Attachments.Add(new TransactionAttachment(receipt.Id, receipt.FileName, receipt.OriginalFilePath));
         OnPropertyChanged(nameof(HasReceipt));
@@ -1676,7 +1673,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         var removed = new List<Receipt>();
 
         var kept = Attachments.Where(a => a.Id != null).Select(a => a.Id).ToHashSet();
-        foreach (var receipt in companyData.Receipts.Where(r => r.TransactionId == transaction.Id && !kept.Contains(r.Id)).ToList())
+        foreach (var receipt in companyData.ReceiptsFor(transaction, transactionType).Where(r => !kept.Contains(r.Id)))
             if (companyData.Receipts.RemoveRecord(receipt))
                 removed.Add(receipt);
 
@@ -1689,12 +1686,30 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
             pending.Id = receipt.Id;
         }
 
-        transaction.ReceiptId = companyData.Receipts
-            .Where(r => r.TransactionId == transaction.Id)
-            .OrderBy(r => r.CreatedAt)
-            .FirstOrDefault()?.Id;
+        var documents = companyData.ReceiptsFor(transaction, transactionType);
+        transaction.ReceiptId = documents.FirstOrDefault()?.Id;
+
+        SyncDocumentsToRecord(companyData, transaction, transactionType);
 
         return (added, removed);
+    }
+
+    /// <summary>The name the documents on a record carry: its supplier, or its customer.</summary>
+    protected abstract string CounterpartyNameOf(CompanyData companyData, Transaction transaction);
+
+    /// <summary>
+    /// Writes the record's figures onto its documents. The receipts page lists a document by them and
+    /// filters and sorts on them, so a save, an undo and a redo all have to reach the documents.
+    /// </summary>
+    protected void SyncDocumentsToRecord(CompanyData companyData, Transaction transaction, string transactionType)
+    {
+        var counterparty = CounterpartyNameOf(companyData, transaction);
+        foreach (var document in companyData.ReceiptsFor(transaction, transactionType))
+        {
+            document.Amount = transaction.Total;
+            document.Supplier = counterparty;
+            document.Date = transaction.Date;
+        }
     }
 
     /// <summary>Reads a picked file into a receipt record. Null when the file cannot be read.</summary>

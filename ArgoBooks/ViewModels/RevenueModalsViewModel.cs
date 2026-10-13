@@ -585,6 +585,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
             {
                 if (renamedId != oldId) App.CompanyManager?.ChangeRevenueId(revenue, oldId);
                 RestoreTransactionState(revenue, original);
+                SyncDocumentsToRecord(companyData, revenue, "Revenue");
                 UsdConversion.Restore(companyData, [queueKey], originalQueued);
                 foreach (var r in capturedAdded)
                     companyData.Receipts.RemoveRecord(r);
@@ -597,6 +598,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
             {
                 if (renamedId != oldId) App.CompanyManager?.ChangeRevenueId(revenue, renamedId);
                 RestoreTransactionState(revenue, edited);
+                SyncDocumentsToRecord(companyData, revenue, "Revenue");
                 UsdConversion.Restore(companyData, [queueKey], editedQueued);
                 foreach (var r in capturedRemoved)
                     companyData.Receipts.RemoveRecord(r);
@@ -613,6 +615,11 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
         ShowEditInventoryNotifications(editResults);
         return true;
     }
+
+    protected override string CounterpartyNameOf(CompanyData companyData, Transaction transaction) =>
+        transaction is Revenue revenue && !string.IsNullOrEmpty(revenue.CustomerId)
+            ? companyData.GetCustomer(revenue.CustomerId)?.Name ?? string.Empty
+            : string.Empty;
 
     private Receipt? CreateReceipt(CompanyData companyData, string transactionId, string transactionType, string supplier)
     {
