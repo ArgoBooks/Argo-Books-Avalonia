@@ -8,7 +8,9 @@ using Avalonia.VisualTree;
 using ArgoBooks.Services;
 using ArgoBooks.ViewModels;
 using LiveChartsCore.Kernel;
+using LiveChartsCore.Kernel.Sketches;
 using LiveChartsCore.SkiaSharpView.Avalonia;
+using LiveChartsGeneratedCode;
 
 namespace ArgoBooks.Views;
 
@@ -56,43 +58,77 @@ public partial class AnalyticsPage : UserControl
     {
         base.OnLoaded(e);
 
-        // A pie handed its series while its tab is collapsed draws nothing, and the size arriving
-        // later does not make LiveCharts look again, so each one is redrawn once it has a size.
-        foreach (var pie in this.GetVisualDescendants().OfType<PieChart>())
+        // LiveCharts drops a redraw when the chart has painted no frame since its last one, as a chart on a hidden tab has not, so a chart that gets a size is redrawn until one goes through.
+        foreach (var chart in this.GetVisualDescendants().OfType<SourceGenChart>())
         {
-            pie.PropertyChanged -= OnPieChartPropertyChanged;
-            pie.PropertyChanged += OnPieChartPropertyChanged;
+            chart.PropertyChanged -= OnChartPropertyChanged;
+            chart.PropertyChanged += OnChartPropertyChanged;
+            chart.CoreChart.UpdateStarted -= OnChartDrawn;
+            chart.CoreChart.UpdateStarted += OnChartDrawn;
         }
     }
 
-    /// <summary>Pies already redrawn since they last had a size, so each gets one redraw.</summary>
-    private readonly HashSet<PieChart> _renderedPieCharts = new();
+    private const int MaxRedrawTries = 20;
 
-    /// <summary>Redraws a pie once it has a size. Losing the size arms it for the next visit.</summary>
-    private void OnPieChartPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    /// <summary>Charts given a size that LiveCharts has not drawn at yet, with how many redraws each has been asked for.</summary>
+    private readonly Dictionary<SourceGenChart, int> _chartsAwaitingDraw = new();
+
+    private DispatcherTimer? _redrawTimer;
+
+    private void OnChartPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
-        if (sender is not PieChart pie || e.Property != Visual.BoundsProperty)
+        if (sender is not SourceGenChart chart || e.Property != Visual.BoundsProperty)
             return;
 
-        if (pie.Bounds.Width <= 0 || pie.Bounds.Height <= 0)
+        if (chart.Bounds.Width <= 0 || chart.Bounds.Height <= 0)
         {
-            _renderedPieCharts.Remove(pie);
+            _chartsAwaitingDraw.Remove(chart);
             return;
         }
 
-        // Posted, so the redraw reads the size it has now rather than the one it is about to get.
-        if (_renderedPieCharts.Add(pie))
-            Dispatcher.UIThread.Post(() => pie.CoreChart.Update(new ChartUpdateParams()),
-                DispatcherPriority.Background);
+        _chartsAwaitingDraw[chart] = 0;
+        _redrawTimer ??= new DispatcherTimer(TimeSpan.FromMilliseconds(100), DispatcherPriority.Background, RetryRedraws);
+        _redrawTimer.Start();
+    }
+
+    /// <summary>Only a draw with a real size raises UpdateStarted, so it marks the chart done.</summary>
+    private void OnChartDrawn(IChartView view)
+    {
+        if (view is SourceGenChart chart)
+            _chartsAwaitingDraw.Remove(chart);
+    }
+
+    private void RetryRedraws(object? sender, EventArgs e)
+    {
+        foreach (var (chart, tries) in _chartsAwaitingDraw.ToList())
+        {
+            if (tries >= MaxRedrawTries)
+            {
+                _chartsAwaitingDraw.Remove(chart);
+                continue;
+            }
+
+            _chartsAwaitingDraw[chart] = tries + 1;
+            // Painting a frame is what lets LiveCharts accept the next redraw.
+            chart.CoreCanvas.Invalidate();
+            chart.CoreChart.Update(new ChartUpdateParams { Throttling = false });
+        }
+
+        if (_chartsAwaitingDraw.Count == 0)
+            _redrawTimer?.Stop();
     }
 
     protected override void OnUnloaded(RoutedEventArgs e)
     {
         base.OnUnloaded(e);
 
-        foreach (var pie in this.GetVisualDescendants().OfType<PieChart>())
-            pie.PropertyChanged -= OnPieChartPropertyChanged;
-        _renderedPieCharts.Clear();
+        foreach (var chart in this.GetVisualDescendants().OfType<SourceGenChart>())
+        {
+            chart.PropertyChanged -= OnChartPropertyChanged;
+            chart.CoreChart.UpdateStarted -= OnChartDrawn;
+        }
+        _redrawTimer?.Stop();
+        _chartsAwaitingDraw.Clear();
 
         if (_previousViewModel != null)
         {
