@@ -558,7 +558,8 @@ public partial class MainWindow : Window
     /// Width as a layout constraint rather than a hint, so a width saved on a wider screen would
     /// lay the page out to that width inside a narrower window, and everything past the window's
     /// edge would be cut off until something forced a fresh layout. The size is clamped to the
-    /// screen for the same reason.
+    /// screen for the same reason. The layout bug is https://github.com/AvaloniaUI/Avalonia/issues/22283,
+    /// fixed by https://github.com/AvaloniaUI/Avalonia/pull/22284; the clamp stays useful after it ships.
     /// </summary>
     private void ApplyRestoredSize(MainWindowViewModel viewModel)
     {
