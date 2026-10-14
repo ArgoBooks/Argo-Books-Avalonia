@@ -1,5 +1,6 @@
 ﻿using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using ArgoBooks.Controls;
@@ -45,6 +46,8 @@ public partial class MainWindow : Window
             dragRegion.PointerPressed += OnTitleBarPointerPressed;
         }
 
+
+        AddHandler(GotFocusEvent, ClosePopupsLeftByTab, RoutingStrategies.Bubble, handledEventsToo: true);
 
         // Subscribe to window events for state persistence
         Opened += OnWindowOpened;
@@ -167,6 +170,24 @@ public partial class MainWindow : Window
         }
 
         base.OnKeyDown(e);
+    }
+
+    /// <summary>Closes a pop-up when Tab takes focus out of it and the control it drops from, as a click outside it already does.</summary>
+    private void ClosePopupsLeftByTab(object? sender, FocusChangedEventArgs e)
+    {
+        if (e.NavigationMethod != NavigationMethod.Tab || e.NewFocusedElement is not Visual target)
+            return;
+
+        foreach (var popup in this.GetVisualDescendants().OfType<Popup>().Where(p => p.IsOpen && p.IsLightDismissEnabled).ToList())
+        {
+            var owner = popup.GetVisualParent();
+            if (owner != null && owner.IsVisualAncestorOf(target))
+                continue;
+            if (popup.Child is { } child && (child == target || child.IsVisualAncestorOf(target)))
+                continue;
+
+            popup.SetCurrentValue(Popup.IsOpenProperty, false);
+        }
     }
 
     private bool IsAnyModalOpen() =>

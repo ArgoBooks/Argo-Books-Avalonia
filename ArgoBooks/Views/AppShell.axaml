@@ -113,13 +113,13 @@
         <!-- Panels at root level (need full window coverage for click-away backdrop) -->
 
         <!-- Quick Actions Panel -->
-        <panels:QuickActionsPanel DataContext="{Binding QuickActionsViewModel}" />
+        <panels:QuickActionsPanel x:Name="QuickActionsPanelControl" DataContext="{Binding QuickActionsViewModel}" />
 
         <!-- File Menu Panel -->
-        <panels:FileMenuPanel DataContext="{Binding FileMenuPanelViewModel}" />
+        <panels:FileMenuPanel x:Name="FileMenuPanelControl" DataContext="{Binding FileMenuPanelViewModel}" />
 
         <!-- Notification Panel -->
-        <panels:NotificationPanel DataContext="{Binding NotificationPanelViewModel}" />
+        <panels:NotificationPanel x:Name="NotificationPanelControl" DataContext="{Binding NotificationPanelViewModel}" />
 
         <!-- Notification Toast Popup -->
         <Border x:Name="NotificationToastBorder"
@@ -211,10 +211,10 @@
         </Border>
 
         <!-- Help Panel -->
-        <panels:HelpPanel DataContext="{Binding HelpPanelViewModel}" />
+        <panels:HelpPanel x:Name="HelpPanelControl" DataContext="{Binding HelpPanelViewModel}" />
 
         <!-- Company Switcher Panel (positioned relative to sidebar) -->
-        <panels:CompanySwitcherPanel DataContext="{Binding CompanySwitcherPanelViewModel}" />
+        <panels:CompanySwitcherPanel x:Name="CompanySwitcherPanelControl" DataContext="{Binding CompanySwitcherPanelViewModel}" />
 
         <!-- Chart Expand Overlay (full-window modal for expanded chart viewing) -->
         <controls:ChartExpandOverlay />

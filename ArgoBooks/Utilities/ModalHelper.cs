@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -19,6 +20,12 @@ public static class ModalHelper
         Dispatcher.UIThread.Post(() =>
         {
             var topLevel = TopLevel.GetTopLevel(control);
+
+            // Focus that has already moved to something still on screen, as Tab out of a panel does, stays where it went.
+            if (topLevel?.FocusManager?.GetFocusedElement() is Visual { IsEffectivelyVisible: true } focused
+                && focused is not TopLevel && focused != control && !control.IsVisualAncestorOf(focused))
+                return;
+
             if (topLevel != null)
             {
                 var appShell = topLevel.GetVisualDescendants()
