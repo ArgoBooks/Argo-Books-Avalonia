@@ -81,8 +81,7 @@
                 Margin="40"
                 HorizontalAlignment="Stretch"
                 VerticalAlignment="Stretch"
-                BoxShadow="0 8 32 0 #40000000"
-                PointerPressed="OnModalContentClick">
+                BoxShadow="0 8 32 0 #40000000">
             <Grid RowDefinitions="Auto,*">
                 <!-- Header (granularity toggle + close button) -->
                 <Border Grid.Row="0"

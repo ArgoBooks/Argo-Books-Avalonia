@@ -1054,10 +1054,5 @@ public partial class ChartExpandOverlay : UserControl
         CloseOverlay();
     }
 
-    private void OnModalContentClick(object? sender, PointerPressedEventArgs e)
-    {
-        e.Handled = true;
-    }
-
     #endregion
 }

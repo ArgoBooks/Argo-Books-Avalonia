@@ -2,7 +2,6 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using Avalonia.Layout;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using ArgoBooks.Services;
@@ -137,8 +136,6 @@ public partial class AnalyticsPage : UserControl
             _previousViewModel = null;
         }
     }
-
-    private AnalyticsPageViewModel? ViewModel => DataContext as AnalyticsPageViewModel;
 
     /// <summary>
     /// Handles right-click on charts to show the context menu.
