@@ -384,6 +384,11 @@ public partial class SearchableDropdown : UserControl, INotifyPropertyChanged
     /// </summary>
     private int TotalFilteredCount => FilteredPriorityItems.Count + FilteredItems.Count;
 
+    /// <summary>Stands for the "create new" row in <see cref="HighlightedItem"/>, which comes after the last item when the arrow keys reach it.</summary>
+    public static readonly object AddNewEntry = new();
+
+    private bool IsAddNewHighlighted => ShowAddNew && _highlightedIndex == TotalFilteredCount;
+
     /// <summary>
     /// Gets an item by combined index (priority items first, then regular items).
     /// </summary>
@@ -618,6 +623,13 @@ public partial class SearchableDropdown : UserControl, INotifyPropertyChanged
             case Key.Enter:
                 if (IsDropdownOpen)
                 {
+                    if (IsAddNewHighlighted)
+                    {
+                        AddNewInternalCommand.Execute(null);
+                        e.Handled = true;
+                        break;
+                    }
+
                     var itemToSelect = _highlightedIndex >= 0 ? GetItemByIndex(_highlightedIndex)
                         : EnterSelectsBestMatch ? FindEnterMatch()
                         : null;
@@ -662,7 +674,7 @@ public partial class SearchableDropdown : UserControl, INotifyPropertyChanged
 
     private void MoveHighlight(int direction)
     {
-        var totalCount = TotalFilteredCount;
+        var totalCount = TotalFilteredCount + (ShowAddNew ? 1 : 0);
         if (totalCount == 0)
             return;
 
@@ -674,13 +686,14 @@ public partial class SearchableDropdown : UserControl, INotifyPropertyChanged
         else if (_highlightedIndex >= totalCount)
             _highlightedIndex = 0;
 
-        HighlightedItem = GetItemByIndex(_highlightedIndex);
+        HighlightedItem = IsAddNewHighlighted ? AddNewEntry : GetItemByIndex(_highlightedIndex);
         ScrollToHighlightedItem();
     }
 
     private void ScrollToHighlightedItem()
     {
-        if (_itemsScrollViewer == null || HighlightedItem == null)
+        // The "create new" row is pinned below the list, so it is always in view.
+        if (_itemsScrollViewer == null || HighlightedItem == null || HighlightedItem == AddNewEntry)
             return;
 
         // Estimate item height (approximately 40px per item based on padding)
