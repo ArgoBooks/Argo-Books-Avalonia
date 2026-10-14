@@ -19,7 +19,8 @@ namespace ArgoBooks.Services;
 /// created from NativeWebView.OnAttached(), which is async void, so a failure is re-thrown onto
 /// the dispatcher rather than returned to the caller: it bypasses every try/catch around the
 /// call site and terminates the process. A machine with no WebView2 runtime installed fails the
-/// same way, and no user data folder can prevent that one.
+/// same way, and no user data folder can prevent that one. The guard, <see cref="HasFailed"/>
+/// and <see cref="Failed"/> exist for https://github.com/AvaloniaUI/Avalonia.Controls.WebView/issues/100.
 /// </summary>
 public static class WebViewEnvironment
 {

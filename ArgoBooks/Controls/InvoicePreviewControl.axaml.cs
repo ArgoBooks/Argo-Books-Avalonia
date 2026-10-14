@@ -628,7 +628,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
 
     private void InitializePlatformPreview()
     {
-        // A web view that already failed to start fails the same way silently, so the exception never arrives here and the check stands in for it.
+        // A web view that already failed to start fails the same way silently, so the exception never arrives here and the check stands in for it (https://github.com/AvaloniaUI/Avalonia.Controls.WebView/issues/100).
         if (PlatformSupportsInlineWebView && !WebViewEnvironment.HasFailed)
         {
             ActivateWebView();
@@ -641,7 +641,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
 
     /// <summary>
     /// The web view died after this control activated it, so the preview is showing nothing.
-    /// Swap it for the fallback the Linux path already uses.
+    /// Swap it for the fallback the Linux path already uses (https://github.com/AvaloniaUI/Avalonia.Controls.WebView/issues/100).
     /// </summary>
     private void OnWebViewFailed(object? sender, EventArgs e)
     {
