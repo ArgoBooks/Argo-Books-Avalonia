@@ -97,7 +97,6 @@
                                 <ComboBox Grid.Column="1"
                                           ItemsSource="{Binding ActionFilters}"
                                           SelectedItem="{Binding SelectedActionFilter}"
-                                          PlaceholderText="{loc:Loc 'All Actions'}"
                                           Classes="filter-combo"
                                           MinWidth="110"
                                           Margin="0,0,8,0"
@@ -107,7 +106,6 @@
                                 <ComboBox Grid.Column="2"
                                           ItemsSource="{Binding EntityTypeFilters}"
                                           SelectedItem="{Binding SelectedEntityTypeFilter}"
-                                          PlaceholderText="{loc:Loc 'All Types'}"
                                           Classes="filter-combo"
                                           MinWidth="110"
                                           MaxDropDownHeight="200" />
