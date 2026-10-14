@@ -69,6 +69,8 @@ public partial class MainWindow : Window
 
 
         AddHandler(GotFocusEvent, ClosePopupsLeftByTab, RoutingStrategies.Bubble, handledEventsToo: true);
+        AddHandler(GotFocusEvent, (_, _) => _lastFocused = FocusManager?.GetFocusedElement(), RoutingStrategies.Bubble, handledEventsToo: true);
+        Activated += RestoreFocusAfterActivation;
 
         // Subscribe to window events for state persistence
         Opened += OnWindowOpened;
@@ -194,6 +196,34 @@ public partial class MainWindow : Window
     }
 
     /// <summary>Closes a pop-up when Tab takes focus out of it and the control it drops from, as a click outside it already does.</summary>
+    private IInputElement? _lastFocused;
+
+    /// <summary>Gives focus back after a file picker, which Avalonia cannot do while the button that opened it is disabled by its still-running command.</summary>
+    private void RestoreFocusAfterActivation(object? sender, EventArgs e) =>
+        Dispatcher.UIThread.Post(() =>
+        {
+            var current = FocusManager?.GetFocusedElement();
+            if ((current != null && current != this) || _lastFocused is not InputElement { IsEffectivelyVisible: true } last)
+                return;
+
+            if (last.IsEffectivelyEnabled)
+            {
+                last.Focus();
+                return;
+            }
+
+            void OnEnabled(object? s, AvaloniaPropertyChangedEventArgs change)
+            {
+                if (change.Property != IsEffectivelyEnabledProperty || !last.IsEffectivelyEnabled)
+                    return;
+                last.PropertyChanged -= OnEnabled;
+                var now = FocusManager?.GetFocusedElement();
+                if (now == null || now == this)
+                    last.Focus();
+            }
+            last.PropertyChanged += OnEnabled;
+        }, DispatcherPriority.Input);
+
     private void ClosePopupsLeftByTab(object? sender, FocusChangedEventArgs e)
     {
         if (e.NavigationMethod != NavigationMethod.Tab || e.NewFocusedElement is not Visual target)
