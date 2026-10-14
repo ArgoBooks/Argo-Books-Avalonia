@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Threading;
+using ArgoBooks.Utilities;
 using ArgoBooks.ViewModels;
 
 namespace ArgoBooks.Panels;
@@ -14,6 +15,7 @@ public partial class CompanySwitcherPanel : UserControl
 {
     private CompanySwitcherPanelViewModel? _previousVm;
     private PropertyChangedEventHandler? _propertyChangedHandler;
+    private IInputElement? _opener;
 
     public CompanySwitcherPanel()
     {
@@ -37,6 +39,7 @@ public partial class CompanySwitcherPanel : UserControl
                     {
                         if (vm.IsOpen)
                         {
+                            _opener = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement();
                             // Animate in
                             Dispatcher.UIThread.Post(() =>
                             {
@@ -89,6 +92,9 @@ public partial class CompanySwitcherPanel : UserControl
             case Key.Escape:
                 vm.CloseCommand.Execute(null);
                 e.Handled = true;
+                break;
+            case Key.Tab:
+                ModalHelper.LeavePanelOnTab(e, _opener, () => vm.CloseCommand.Execute(null));
                 break;
         }
     }

@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 
@@ -34,5 +35,19 @@ public static class ModalHelper
                 appShell?.Focus();
             }
         }, DispatcherPriority.Background);
+    }
+
+    /// <summary>Closes a header panel on Tab and moves focus on from the button that opened it, the way Tab leaves a drop-down menu.</summary>
+    public static void LeavePanelOnTab(KeyEventArgs e, IInputElement? opener, Action close)
+    {
+        var direction = (e.KeyModifiers & KeyModifiers.Shift) != 0 ? NavigationDirection.Previous : NavigationDirection.Next;
+        close();
+        e.Handled = true;
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (opener is InputElement { IsEffectivelyVisible: true, IsEffectivelyEnabled: true } element && element.Focus())
+                TopLevel.GetTopLevel(element)?.FocusManager?.TryMoveFocus(direction);
+        });
     }
 }

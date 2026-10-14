@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Threading;
+using ArgoBooks.Utilities;
 using ArgoBooks.ViewModels;
 
 namespace ArgoBooks.Panels;
@@ -14,6 +15,7 @@ public partial class HelpPanel : UserControl
 {
     private int _focusedIndex = -1;
     private readonly int _menuItemCount = 6; // Total menu items (0-5)
+    private IInputElement? _opener;
     private HelpPanelViewModel? _previousVm;
     private PropertyChangedEventHandler? _propertyChangedHandler;
 
@@ -39,6 +41,7 @@ public partial class HelpPanel : UserControl
                     {
                         if (vm.IsOpen)
                         {
+                            _opener = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement();
                             Dispatcher.UIThread.Post(() =>
                             {
                                 HelpPanelBorder.Opacity = 1;
@@ -97,6 +100,9 @@ public partial class HelpPanel : UserControl
             case Key.Escape:
                 vm.CloseCommand.Execute(null);
                 e.Handled = true;
+                break;
+            case Key.Tab:
+                ModalHelper.LeavePanelOnTab(e, _opener, () => vm.CloseCommand.Execute(null));
                 break;
         }
     }

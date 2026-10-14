@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Threading;
+using ArgoBooks.Utilities;
 using ArgoBooks.ViewModels;
 
 namespace ArgoBooks.Panels;
@@ -14,6 +15,7 @@ public partial class FileMenuPanel : UserControl
 {
     private int _focusedIndex = -1;
     private readonly int _menuItemCount = 10; // Total menu items (0-9)
+    private IInputElement? _opener;
     private readonly int _submenuItemCount = 4; // Submenu items (0-3)
     private int _submenuFocusedIndex = -1;
     private bool _isInSubmenu;
@@ -44,6 +46,7 @@ public partial class FileMenuPanel : UserControl
                     {
                         if (vm.IsOpen)
                         {
+                            _opener = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement();
                             // Animate in
                             Dispatcher.UIThread.Post(() =>
                             {
@@ -204,6 +207,13 @@ public partial class FileMenuPanel : UserControl
                     ExitSubmenu();
                 }
                 e.Handled = true;
+                break;
+            case Key.Tab:
+                ModalHelper.LeavePanelOnTab(e, _opener, () =>
+                {
+                    vm.IsRecentSubmenuOpen = false;
+                    vm.CloseCommand.Execute(null);
+                });
                 break;
         }
     }
