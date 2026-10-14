@@ -14,7 +14,8 @@
              x:Class="ArgoBooks.Views.AppShell"
              x:DataType="vm:AppShellViewModel"
              Background="{DynamicResource BackgroundBrush}"
-             Focusable="True">
+             Focusable="True"
+             KeyboardNavigation.IsTabStop="False">
 
     <Design.DataContext>
         <vm:AppShellViewModel />

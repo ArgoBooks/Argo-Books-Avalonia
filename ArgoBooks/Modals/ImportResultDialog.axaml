@@ -10,7 +10,8 @@
              mc:Ignorable="d" d:DesignWidth="500" d:DesignHeight="600"
              x:Class="ArgoBooks.Modals.ImportResultDialog"
              x:DataType="vm:ImportResultDialogViewModel"
-             Focusable="True">
+             Focusable="True"
+             KeyboardNavigation.IsTabStop="False">
 
     <controls:ModalOverlay IsOpen="{Binding IsOpen}"
                            ClosingCommand="{Binding CloseCommand}">

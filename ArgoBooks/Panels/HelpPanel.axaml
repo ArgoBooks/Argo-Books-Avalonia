@@ -30,6 +30,7 @@
                 Margin="0,60,20,0"
                 BoxShadow="0 4 20 0 #26000000"
                 Focusable="True"
+                KeyboardNavigation.IsTabStop="False"
                 KeyDown="HelpPanel_KeyDown"
                 Opacity="0"
                 RenderTransformOrigin="1,0">

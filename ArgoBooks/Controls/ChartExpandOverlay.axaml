@@ -6,6 +6,7 @@
              xmlns:vm="using:ArgoBooks.ViewModels"
              x:Class="ArgoBooks.Controls.ChartExpandOverlay"
              Focusable="True"
+             KeyboardNavigation.IsTabStop="False"
              IsVisible="False"
              HorizontalAlignment="Stretch"
              VerticalAlignment="Stretch">

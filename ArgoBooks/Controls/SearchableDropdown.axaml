@@ -10,7 +10,8 @@
              mc:Ignorable="d" d:DesignWidth="300" d:DesignHeight="300"
              x:Class="ArgoBooks.Controls.SearchableDropdown"
              x:DataType="controls:SearchableDropdown"
-             Focusable="True">
+             Focusable="True"
+             KeyboardNavigation.IsTabStop="False">
 
     <UserControl.Resources>
         <converters:HighlightBrushMultiConverter x:Key="HighlightBrushMultiConverter" />
