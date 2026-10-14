@@ -9,8 +9,8 @@ namespace ArgoBooks.Controls;
 
 /// <summary>
 /// Cross-platform invoice preview control.
-/// On Windows/macOS: Uses NativeWebView for high-quality HTML rendering with zoom/pan.
-/// On Linux: Shows a fallback with option to view in browser (NativeWebView doesn't embed inline on Linux).
+/// Renders the invoice HTML in a NativeWebView with zoom and pan on Windows, macOS and Linux.
+/// Shows a fallback with an option to view it in the browser when the web view cannot start.
 /// </summary>
 public partial class InvoicePreviewControl : UserControl
 {
