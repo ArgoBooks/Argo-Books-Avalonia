@@ -13,7 +13,7 @@ namespace ArgoBooks.Panels;
 public partial class HelpPanel : UserControl
 {
     private int _focusedIndex = -1;
-    private readonly int _menuItemCount = 5; // Total menu items (0-4)
+    private readonly int _menuItemCount = 6; // Total menu items (0-5)
     private HelpPanelViewModel? _previousVm;
     private PropertyChangedEventHandler? _propertyChangedHandler;
 
