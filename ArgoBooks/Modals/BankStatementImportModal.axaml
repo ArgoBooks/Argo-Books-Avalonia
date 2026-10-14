@@ -103,12 +103,13 @@
                             <ItemsControl ItemsSource="{Binding Rows}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate DataType="vm:ImportLineRow">
+                                        <!-- The right margin is the header's 16px scrollbar gutter, so the row and its separator line stop short of the scrollbar. -->
                                         <Border Padding="0,4"
+                                                Margin="0,0,16,0"
                                                 BorderBrush="{DynamicResource BorderBrush}"
                                                 BorderThickness="0,0,0,1">
-                                            <!-- Same column layout as the header row above (trailing 16px = scrollbar gutter).
-                                                 Row 0 holds the aligned controls; row 1 holds the notes under them. -->
-                                            <Grid ColumnDefinitions="28,90,230,185,110,245,16" RowDefinitions="Auto,Auto">
+                                            <!-- Same columns as the header row above. Row 0 holds the aligned controls; row 1 holds the notes under them. -->
+                                            <Grid ColumnDefinitions="28,90,230,185,110,245" RowDefinitions="Auto,Auto">
 
                                                 <!-- Include checkbox -->
                                                 <CheckBox Grid.Column="0"
