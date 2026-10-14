@@ -609,24 +609,10 @@ public partial class SearchableDropdown : UserControl, INotifyPropertyChanged
                 break;
 
             case Key.Tab:
-                if (IsDropdownOpen && TotalFilteredCount > 0)
-                {
-                    // Tab navigates down through items (Shift+Tab navigates up)
-                    if ((e.KeyModifiers & KeyModifiers.Shift) != 0)
-                    {
-                        MoveHighlight(-1);
-                    }
-                    else
-                    {
-                        MoveHighlight(1);
-                    }
-                    e.Handled = true;
-                }
-                else
-                {
-                    // If dropdown is closed, let Tab move focus naturally
-                    IsDropdownOpen = false;
-                }
+                // Tab leaves the field as it does anywhere else, taking an item picked out with the arrow keys on the way.
+                if (IsDropdownOpen && _highlightedIndex >= 0 && GetItemByIndex(_highlightedIndex) is { } highlighted)
+                    SelectItem(highlighted);
+                IsDropdownOpen = false;
                 break;
 
             case Key.Enter:
