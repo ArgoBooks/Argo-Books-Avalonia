@@ -23,6 +23,16 @@ public partial class MainWindow : Window
     {
         // A drop-down menu opens in its own pop-up window, where Tab only goes round its items, so Tab closes it and moves on from the button that opened it.
         InputElement.KeyDownEvent.AddClassHandler<MenuFlyoutPresenter>(LeaveMenuOnTab);
+        KeyboardNavigation.TabOnceActiveElementProperty.Changed.AddClassHandler<TabControl>(KeepTabStripOnItsOwnTab);
+    }
+
+    /// <summary>Works around Avalonia issue 22003, where a tab strip remembers a control from the tab's page and Tab then skips the strip and the page controls before it.</summary>
+    private static void KeepTabStripOnItsOwnTab(TabControl tabs, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.NewValue is not Control remembered || tabs.IndexFromContainer(remembered) >= 0)
+            return;
+
+        KeyboardNavigation.SetTabOnceActiveElement(tabs, tabs.ContainerFromIndex(tabs.SelectedIndex));
     }
 
     private static void LeaveMenuOnTab(MenuFlyoutPresenter menu, KeyEventArgs e)
