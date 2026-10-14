@@ -167,8 +167,7 @@
            PlacementTarget="{Binding #DropdownBorder}"
            Placement="Bottom"
            PlacementGravity="BottomLeft"
-           IsLightDismissEnabled="True"
-           WindowManagerAddShadowHint="False">
+           IsLightDismissEnabled="True">
 
         <Border Background="{DynamicResource SurfaceBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
