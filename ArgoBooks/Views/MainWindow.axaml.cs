@@ -88,6 +88,10 @@ public partial class MainWindow : Window
 
         if (this.FindControl<StackPanel>("WindowControls") is { } windowControls)
             windowControls.IsVisible = false;
+
+        // With no custom title bar to stay clear of, the dialogs cover the whole window.
+        if (this.FindControl<Panel>("OverlayLayer") is { } overlayLayer)
+            overlayLayer.Margin = default;
     }
 
 
