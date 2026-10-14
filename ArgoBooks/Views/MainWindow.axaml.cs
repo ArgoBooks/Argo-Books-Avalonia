@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 using ArgoBooks.Controls;
 using ArgoBooks.Core.Services;
 using ArgoBooks.Localization;
@@ -18,6 +19,26 @@ namespace ArgoBooks.Views;
 /// </summary>
 public partial class MainWindow : Window
 {
+    static MainWindow()
+    {
+        // A drop-down menu opens in its own pop-up window, where Tab only goes round its items, so Tab closes it and moves on from the button that opened it.
+        InputElement.KeyDownEvent.AddClassHandler<MenuFlyoutPresenter>(LeaveMenuOnTab);
+    }
+
+    private static void LeaveMenuOnTab(MenuFlyoutPresenter menu, KeyEventArgs e)
+    {
+        if (e.Key != Key.Tab)
+            return;
+
+        var top = TopLevel.GetTopLevel(menu);
+        var window = top is PopupRoot popup ? popup.ParentTopLevel : top;
+        var direction = (e.KeyModifiers & KeyModifiers.Shift) != 0 ? NavigationDirection.Previous : NavigationDirection.Next;
+
+        menu.Close();
+        e.Handled = true;
+        Dispatcher.UIThread.Post(() => window?.FocusManager?.TryMoveFocus(direction));
+    }
+
     public MainWindow()
     {
         InitializeComponent();
