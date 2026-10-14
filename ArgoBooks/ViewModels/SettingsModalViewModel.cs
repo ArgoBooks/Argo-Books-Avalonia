@@ -379,23 +379,6 @@ public partial class SettingsModalViewModel : ViewModelBase
     public string CurrentPasswordVisibilityIcon => IsCurrentPasswordVisible ? Icons.EyeOff : Icons.Eye;
 
     /// <summary>
-    /// Mask characters for the password boxes, cleared while a password is revealed.
-    ///
-    /// Revealing is done by dropping the mask character rather than by setting
-    /// RevealPassword, because Avalonia 12.0.5 treats any box with a mask character as a
-    /// password box and silently disables Ctrl+Arrow word movement, Ctrl+Shift+Arrow
-    /// selection and Ctrl+Backspace, regardless of RevealPassword. Clearing the character
-    /// makes it an ordinary text box again, so those shortcuts work while it is revealed.
-    /// </summary>
-    public char NewPasswordMaskChar => IsNewPasswordVisible ? '\0' : '*';
-
-    /// <inheritdoc cref="NewPasswordMaskChar" />
-    public char ConfirmPasswordMaskChar => IsConfirmPasswordVisible ? '\0' : '*';
-
-    /// <inheritdoc cref="NewPasswordMaskChar" />
-    public char CurrentPasswordMaskChar => IsCurrentPasswordVisible ? '\0' : '*';
-
-    /// <summary>
     /// Width in pixels for the strength bar, scaled to fit the password modal content area.
     /// </summary>
     public double PasswordStrengthBarWidth => PasswordStrengthScore / 100.0 * 290;
@@ -438,19 +421,16 @@ public partial class SettingsModalViewModel : ViewModelBase
     partial void OnIsNewPasswordVisibleChanged(bool value)
     {
         OnPropertyChanged(nameof(NewPasswordVisibilityIcon));
-        OnPropertyChanged(nameof(NewPasswordMaskChar));
     }
 
     partial void OnIsConfirmPasswordVisibleChanged(bool value)
     {
         OnPropertyChanged(nameof(ConfirmPasswordVisibilityIcon));
-        OnPropertyChanged(nameof(ConfirmPasswordMaskChar));
     }
 
     partial void OnIsCurrentPasswordVisibleChanged(bool value)
     {
         OnPropertyChanged(nameof(CurrentPasswordVisibilityIcon));
-        OnPropertyChanged(nameof(CurrentPasswordMaskChar));
     }
 
     // Flag to prevent firing AutoLockSettingsChanged when syncing UI with company settings

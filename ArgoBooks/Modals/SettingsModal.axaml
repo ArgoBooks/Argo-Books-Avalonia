@@ -2027,7 +2027,8 @@
                                 <Grid ColumnDefinitions="*,Auto">
                                     <TextBox Grid.Column="0"
                                              Text="{Binding NewPassword}"
-                                             PasswordChar="{Binding NewPasswordMaskChar}"
+                                             PasswordChar="*"
+                                             RevealPassword="{Binding IsNewPasswordVisible}"
                                              Classes="password-field"
                                              MaxLength="64" />
                                     <Button Grid.Column="1"
@@ -2086,7 +2087,8 @@
                                 <Grid ColumnDefinitions="*,Auto">
                                     <TextBox Grid.Column="0"
                                              Text="{Binding ConfirmPassword}"
-                                             PasswordChar="{Binding ConfirmPasswordMaskChar}"
+                                             PasswordChar="*"
+                                             RevealPassword="{Binding IsConfirmPasswordVisible}"
                                              Classes="password-field"
                                              MaxLength="64" />
                                     <Button Grid.Column="1"
@@ -2129,7 +2131,8 @@
                                     <TextBox Grid.Column="0"
                                              x:Name="ChangeCurrentPasswordTextBox"
                                              Text="{Binding CurrentPassword}"
-                                             PasswordChar="{Binding CurrentPasswordMaskChar}"
+                                             PasswordChar="*"
+                                             RevealPassword="{Binding IsCurrentPasswordVisible}"
                                              Classes="password-field"
                                              MaxLength="64" />
                                     <Button Grid.Column="1"
@@ -2149,7 +2152,8 @@
                                 <Grid ColumnDefinitions="*,Auto">
                                     <TextBox Grid.Column="0"
                                              Text="{Binding NewPassword}"
-                                             PasswordChar="{Binding NewPasswordMaskChar}"
+                                             PasswordChar="*"
+                                             RevealPassword="{Binding IsNewPasswordVisible}"
                                              Classes="password-field"
                                              MaxLength="64" />
                                     <Button Grid.Column="1"
@@ -2208,7 +2212,8 @@
                                 <Grid ColumnDefinitions="*,Auto">
                                     <TextBox Grid.Column="0"
                                              Text="{Binding ConfirmPassword}"
-                                             PasswordChar="{Binding ConfirmPasswordMaskChar}"
+                                             PasswordChar="*"
+                                             RevealPassword="{Binding IsConfirmPasswordVisible}"
                                              Classes="password-field"
                                              MaxLength="64" />
                                     <Button Grid.Column="1"
@@ -2253,7 +2258,8 @@
                                     <TextBox Grid.Column="0"
                                              x:Name="RemoveCurrentPasswordTextBox"
                                              Text="{Binding CurrentPassword}"
-                                             PasswordChar="{Binding CurrentPasswordMaskChar}"
+                                             PasswordChar="*"
+                                             RevealPassword="{Binding IsCurrentPasswordVisible}"
                                              Classes="password-field"
                                              MaxLength="64" />
                                     <Button Grid.Column="1"
@@ -2288,7 +2294,6 @@
             <Setter Property="Padding" Value="12,10" />
             <Setter Property="FontSize" Value="14" />
             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-            <!-- PasswordChar is bound per field, not set here, so revealing can clear it. -->
         </Style>
         <Style Selector="TextBox.password-field /template/ Border#PART_BorderElement">
             <Setter Property="Background" Value="Transparent" />

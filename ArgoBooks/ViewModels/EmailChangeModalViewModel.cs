@@ -173,21 +173,9 @@ public partial class EmailChangeModalViewModel : ObservableObject
 
     public string FilePasswordVisibilityIcon => IsFilePasswordVisible ? Icons.EyeOff : Icons.Eye;
 
-    /// <summary>
-    /// Mask character for the file password box, cleared while the password is revealed.
-    ///
-    /// Revealing is done by dropping the mask character rather than by setting
-    /// RevealPassword, because Avalonia 12.0.5 treats any box with a mask character as a
-    /// password box and silently disables Ctrl+Arrow word movement, Ctrl+Shift+Arrow
-    /// selection and Ctrl+Backspace, regardless of RevealPassword. Clearing the character
-    /// makes it an ordinary text box again, so those shortcuts work while it is revealed.
-    /// </summary>
-    public char FilePasswordMaskChar => IsFilePasswordVisible ? '\0' : '•';
-
     partial void OnIsFilePasswordVisibleChanged(bool value)
     {
         OnPropertyChanged(nameof(FilePasswordVisibilityIcon));
-        OnPropertyChanged(nameof(FilePasswordMaskChar));
     }
 
     [RelayCommand]

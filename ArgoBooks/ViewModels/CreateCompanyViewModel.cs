@@ -112,19 +112,6 @@ public partial class CreateCompanyViewModel : ViewModelBase
 
     public string ConfirmPasswordVisibilityIcon => IsConfirmPasswordVisible ? Icons.EyeOff : Icons.Eye;
 
-    /// <summary>
-    /// Mask character for the password box, cleared while the password is revealed.
-    ///
-    /// Revealing is done by dropping the mask character rather than by setting
-    /// RevealPassword, because Avalonia 12.0.5 treats any box with a mask character as a
-    /// password box and silently disables Ctrl+Arrow word movement, Ctrl+Shift+Arrow
-    /// selection and Ctrl+Backspace, regardless of RevealPassword. Clearing the character
-    /// makes it an ordinary text box again, so those shortcuts work while it is revealed.
-    /// </summary>
-    public char PasswordMaskChar => IsPasswordVisible ? '\0' : '*';
-
-    /// <inheritdoc cref="PasswordMaskChar" />
-    public char ConfirmPasswordMaskChar => IsConfirmPasswordVisible ? '\0' : '*';
 
     public bool IsStrengthWeak => PasswordStrengthScore < 40;
 
@@ -397,13 +384,11 @@ public partial class CreateCompanyViewModel : ViewModelBase
     partial void OnIsPasswordVisibleChanged(bool value)
     {
         OnPropertyChanged(nameof(PasswordVisibilityIcon));
-        OnPropertyChanged(nameof(PasswordMaskChar));
     }
 
     partial void OnIsConfirmPasswordVisibleChanged(bool value)
     {
         OnPropertyChanged(nameof(ConfirmPasswordVisibilityIcon));
-        OnPropertyChanged(nameof(ConfirmPasswordMaskChar));
     }
 
     [RelayCommand]
