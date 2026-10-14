@@ -12,56 +12,20 @@
              x:DataType="vm:BankStatementImportModalViewModel">
 
     <UserControl.Styles>
-        <!-- Expense / Revenue type toggle buttons (mirrors BankMatchingPage type-toggle-button style) -->
-        <Style Selector="Button.type-toggle-button">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Padding" Value="10,6" />
-            <Setter Property="FontSize" Value="12" />
-            <Setter Property="FontWeight" Value="Medium" />
-            <Setter Property="CornerRadius" Value="4" />
-            <Setter Property="Cursor" Value="Hand" />
+        <!-- The sign of the amount is what makes a line an expense or revenue, so it is coloured to be read at a glance. The hover and focus forms are repeated because the theme sets its own colour for each. -->
+        <Style Selector="TextBox.money-in, TextBox.money-in:pointerover, TextBox.money-in:focus">
+            <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" />
         </Style>
-        <Style Selector="Button.type-toggle-button /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="Transparent" />
-        </Style>
-        <Style Selector="Button.type-toggle-button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
-        </Style>
-        <Style Selector="Button.type-toggle-button.selected">
-            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-        </Style>
-        <Style Selector="Button.type-toggle-button.selected /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
-        </Style>
-        <Style Selector="Button.type-toggle-button.selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+        <Style Selector="TextBox.money-out, TextBox.money-out:pointerover, TextBox.money-out:focus">
+            <Setter Property="Foreground" Value="{DynamicResource ErrorBrush}" />
         </Style>
 
-        <!-- Read-only category chip (existing product) -->
-        <Style Selector="Border.category-chip">
+        <!-- Marks a product, category, supplier or customer that does not exist yet and is created on import. -->
+        <Style Selector="Border.new-badge">
             <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
             <Setter Property="CornerRadius" Value="4" />
             <Setter Property="Padding" Value="6,1" />
             <Setter Property="VerticalAlignment" Value="Center" />
-        </Style>
-
-        <!-- Clickable category chip (new product) -->
-        <Style Selector="Button.category-chip-button">
-            <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}" />
-            <Setter Property="CornerRadius" Value="4" />
-            <Setter Property="Padding" Value="6,1" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-        </Style>
-        <Style Selector="Button.category-chip-button /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="Transparent" />
-        </Style>
-        <Style Selector="Button.category-chip-button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
         </Style>
 
         <!-- Modal width: full while reviewing, compact while the loading spinner shows -->
@@ -110,7 +74,7 @@
 
                             <!-- Column header labels — same column layout as data rows.
                                  Trailing 16px column is a gutter so the row scrollbar doesn't overlap the Supplier/Customer box. -->
-                            <Grid Grid.Row="0" ColumnDefinitions="28,90,245,110,165,250,16" Margin="0,0,0,6">
+                            <Grid Grid.Row="0" ColumnDefinitions="28,90,230,185,110,245,16" Margin="0,0,0,6">
                                 <TextBlock Grid.Column="1"
                                            Text="{loc:Loc Date}"
                                            FontSize="12" FontWeight="SemiBold"
@@ -120,11 +84,11 @@
                                            FontSize="12" FontWeight="SemiBold"
                                            Foreground="{DynamicResource TextSecondaryBrush}" />
                                 <TextBlock Grid.Column="3" Margin="8,0,0,0"
-                                           Text="{loc:Loc Amount}"
+                                           Text="{loc:Loc 'Category'}"
                                            FontSize="12" FontWeight="SemiBold"
                                            Foreground="{DynamicResource TextSecondaryBrush}" />
                                 <TextBlock Grid.Column="4" Margin="8,0,0,0"
-                                           Text="{loc:Loc Type}"
+                                           Text="{loc:Loc Amount}"
                                            FontSize="12" FontWeight="SemiBold"
                                            Foreground="{DynamicResource TextSecondaryBrush}" />
                                 <TextBlock Grid.Column="5" Margin="8,0,0,0"
@@ -143,8 +107,8 @@
                                                 BorderBrush="{DynamicResource BorderBrush}"
                                                 BorderThickness="0,0,0,1">
                                             <!-- Same column layout as the header row above (trailing 16px = scrollbar gutter).
-                                                 Row 0 holds the aligned controls; row 1 holds the category chip under the product. -->
-                                            <Grid ColumnDefinitions="28,90,245,110,165,250,16" RowDefinitions="Auto,Auto">
+                                                 Row 0 holds the aligned controls; row 1 holds the notes under them. -->
+                                            <Grid ColumnDefinitions="28,90,230,185,110,245,16" RowDefinitions="Auto,Auto">
 
                                                 <!-- Include checkbox -->
                                                 <CheckBox Grid.Column="0"
@@ -167,44 +131,22 @@
                                                            VerticalAlignment="Top"
                                                            Margin="0,2,0,0" />
 
-                                                <!-- Product (carries the category) -->
+                                                <!-- Product. A name that is not picked from the list is created on import. -->
                                                 <controls:SearchableDropdown
                                                     Grid.Row="0" Grid.Column="2" Margin="8,0,0,0" VerticalAlignment="Center"
                                                     Classes="compact"
-                                                    Placeholder="{loc:Loc 'Search for a product...'}"
+                                                    Placeholder="{loc:Loc 'Type a new product, or pick one'}"
                                                     ItemsSource="{Binding $parent[ItemsControl].((vm:BankStatementImportModalViewModel)DataContext).AvailableProducts}"
                                                     SelectedItem="{Binding ResolvedProductObject, Mode=TwoWay}"
                                                     SearchText="{Binding ProductSearchText, Mode=TwoWay}"
                                                     DisplayMemberPath="Name"
                                                     SearchMemberPath="Id"
-                                                    ShowAddNew="True"
-                                                    AddNewText="{loc:Loc 'Create one'}"
-                                                    AddNewCommand="{Binding CreateNewProductCommand}"
                                                     HasError="{Binding HasProductError}" />
 
-                                                <!-- Category chip under the product (new = click to edit, existing = read-only) -->
                                                 <StackPanel Grid.Row="1" Grid.Column="2" Orientation="Horizontal" Spacing="6" Margin="8,2,0,0">
-                                                    <!-- New product: click to edit its name and category -->
-                                                    <Button IsVisible="{Binding IsNewProduct}"
-                                                            Classes="category-chip-button"
-                                                            Command="{Binding CreateNewProductCommand}">
-                                                        <StackPanel Orientation="Horizontal" Spacing="4">
-                                                            <TextBlock Text="{loc:Loc 'New'}" FontSize="11" FontWeight="SemiBold"
-                                                                       Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center" />
-                                                            <TextBlock Text="{loc:Loc 'click to edit'}" FontSize="11"
-                                                                       Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
-                                                        </StackPanel>
-                                                    </Button>
-                                                    <!-- Existing product: read-only category chip -->
-                                                    <Border Classes="category-chip">
-                                                        <Border.IsVisible>
-                                                            <MultiBinding Converter="{x:Static BoolConverters.And}">
-                                                                <Binding Path="!IsNewProduct" />
-                                                                <Binding Path="CategoryDisplay" Converter="{x:Static StringConverters.IsNotNullOrEmpty}" />
-                                                            </MultiBinding>
-                                                        </Border.IsVisible>
-                                                        <TextBlock Text="{Binding CategoryDisplay}" FontSize="11"
-                                                                   Foreground="{DynamicResource TextSecondaryBrush}" />
+                                                    <Border Classes="new-badge" IsVisible="{Binding IsNewProduct}">
+                                                        <TextBlock Text="{loc:Loc 'New'}" FontSize="11" FontWeight="SemiBold"
+                                                                   Foreground="{DynamicResource PrimaryBrush}" />
                                                     </Border>
                                                     <!-- Validation message here (not inside the picker) so it doesn't push the picker up -->
                                                     <TextBlock Text="{loc:Loc 'Please select or create a product.'}"
@@ -213,39 +155,43 @@
                                                                IsVisible="{Binding HasProductError}" />
                                                 </StackPanel>
 
-                                                <!-- Amount -->
-                                                <TextBox Grid.Column="3" Margin="8,0,0,0"
+                                                <!-- Category. A picked product brings its own, so it reads as plain text; only a product being created gets a box. -->
+                                                <TextBlock Grid.Row="0" Grid.Column="3" Margin="18,0,0,0"
+                                                           Text="{Binding CategorySearchText}"
+                                                           IsVisible="{Binding !IsCategoryEditable}"
+                                                           FontSize="13"
+                                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           VerticalAlignment="Center" />
+                                                <controls:SearchableDropdown
+                                                    Grid.Row="0" Grid.Column="3" Margin="8,0,0,0" VerticalAlignment="Center"
+                                                    Classes="compact"
+                                                    IsVisible="{Binding IsCategoryEditable}"
+                                                    Placeholder="{loc:Loc 'Type a new category, or pick one'}"
+                                                    ItemsSource="{Binding CategoryOptions}"
+                                                    SelectedItem="{Binding ResolvedCategoryObject, Mode=TwoWay}"
+                                                    SearchText="{Binding CategorySearchText, Mode=TwoWay}"
+                                                    DisplayMemberPath="Name" />
+
+                                                <Border Grid.Row="1" Grid.Column="3" Margin="8,2,0,0"
+                                                        Classes="new-badge"
+                                                        HorizontalAlignment="Left"
+                                                        IsVisible="{Binding IsNewCategory}">
+                                                    <TextBlock Text="{loc:Loc 'New'}" FontSize="11" FontWeight="SemiBold"
+                                                               Foreground="{DynamicResource PrimaryBrush}" />
+                                                </Border>
+
+                                                <!-- Amount. Its sign is what makes the line an expense or revenue, so the box takes a minus. -->
+                                                <TextBox Grid.Column="4" Margin="8,0,0,0"
                                                          Text="{Binding Amount, Mode=TwoWay, Converter={x:Static local:NullableDecimalConverter.Instance}}"
                                                          Classes="form-input-compact"
+                                                         Classes.money-in="{Binding CreateAsRevenue}"
+                                                         Classes.money-out="{Binding !CreateAsRevenue}"
                                                          behaviors:NumericInputBehavior.IsDecimalOnly="True"
+                                                         behaviors:NumericInputBehavior.AllowNegative="True"
                                                          MaxLength="13"
                                                          HorizontalAlignment="Stretch"
                                                          VerticalAlignment="Center" />
-
-                                                <!-- Expense / Revenue toggle -->
-                                                <Border Grid.Row="0" Grid.Column="4" Margin="8,0,0,0"
-                                                        Background="{DynamicResource SurfaceAltBrush}"
-                                                        CornerRadius="6" Padding="4"
-                                                        HorizontalAlignment="Stretch"
-                                                        VerticalAlignment="Center">
-                                                    <UniformGrid Columns="2">
-                                                        <Button Content="{loc:Loc Expense}"
-                                                                Command="{Binding SetExpenseCommand}"
-                                                                Classes="type-toggle-button"
-                                                                HorizontalAlignment="Stretch"
-                                                                Classes.selected="{Binding !CreateAsRevenue}"
-                                                                ToolTip.Tip="{loc:Loc 'Create as expense'}" />
-                                                        <Button Content="{loc:Loc Revenue}"
-                                                                Command="{Binding SetRevenueCommand}"
-                                                                Classes="type-toggle-button"
-                                                                HorizontalAlignment="Stretch"
-                                                                Margin="2,0,0,0"
-                                                                Classes.selected="{Binding CreateAsRevenue}"
-                                                                ToolTip.Tip="{loc:Loc 'Create as revenue'}" />
-                                                    </UniformGrid>
-                                                </Border>
-
-                                                <!-- Category is shown read-only on the Product cell; it follows the selected product. -->
 
                                                 <!-- Supplier / Customer column -->
                                                 <Grid Grid.Row="0" Grid.Column="5" Margin="8,0,0,0"
@@ -286,7 +232,7 @@
                                                      party, or the validation message. These are mutually exclusive. -->
                                                 <StackPanel Grid.Row="1" Grid.Column="5" Orientation="Horizontal" Spacing="6" Margin="8,2,0,0">
                                                     <!-- New counterparty: will be created on import -->
-                                                    <Border Classes="category-chip"
+                                                    <Border Classes="new-badge"
                                                             IsVisible="{Binding NewCounterpartyName, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
                                                         <TextBlock Text="{loc:Loc 'New'}" FontSize="11" FontWeight="SemiBold"
                                                                    Foreground="{DynamicResource PrimaryBrush}" />
@@ -371,53 +317,6 @@
         </controls:ModalOverlay.ModalContent>
     </controls:ModalOverlay>
 
-    <!-- Pending-product editor: set a new product's name + category without creating anything until import -->
-    <controls:ModalOverlay IsOpen="{Binding IsProductEditorOpen}"
-                           ClosingCommand="{Binding CancelProductEditorCommand}">
-        <controls:ModalOverlay.ModalContent>
-            <Border Background="{DynamicResource SurfaceBrush}"
-                    BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="1" CornerRadius="12"
-                    Width="420" VerticalAlignment="Center" HorizontalAlignment="Center">
-                <StackPanel Margin="24" Spacing="18">
-                    <TextBlock Text="{loc:Loc 'Edit product'}" FontSize="18" FontWeight="SemiBold"
-                               Foreground="{DynamicResource TextPrimaryBrush}" />
-
-                    <StackPanel Spacing="6">
-                        <TextBlock Text="{loc:Loc 'Product'}" FontSize="13"
-                                   Foreground="{DynamicResource TextSecondaryBrush}" />
-                        <TextBox Text="{Binding ProductEditorName, Mode=TwoWay}"
-                                 Classes="form-input"
-                                 PlaceholderText="{loc:Loc 'Product name'}"
-                                 MaxLength="100" />
-                        <TextBlock Text="{loc:Loc 'Please enter a product name.'}" FontSize="12"
-                                   Foreground="{DynamicResource ErrorBrush}"
-                                   IsVisible="{Binding ProductEditorNameError}" />
-                    </StackPanel>
-
-                    <StackPanel Spacing="6">
-                        <TextBlock Text="{loc:Loc 'Category'}" FontSize="13"
-                                   Foreground="{DynamicResource TextSecondaryBrush}" />
-                        <controls:SearchableDropdown
-                            ItemsSource="{Binding ProductEditorCategories}"
-                            SelectedItem="{Binding ProductEditorCategoryObject, Mode=TwoWay}"
-                            SearchText="{Binding ProductEditorCategorySearchText, Mode=TwoWay}"
-                            DisplayMemberPath="Name"
-                            Placeholder="{loc:Loc 'Select or type a new category...'}" />
-                        <TextBlock Text="{loc:Loc 'Type a new name to create a category on import.'}"
-                                   FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}" />
-                    </StackPanel>
-
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12">
-                        <Button Classes="secondary-button" Content="{loc:Loc Cancel}"
-                                Command="{Binding CancelProductEditorCommand}" />
-                        <Button Classes="primary-button" Content="{loc:Loc Save}"
-                                Command="{Binding SaveProductEditorCommand}" />
-                    </StackPanel>
-                </StackPanel>
-            </Border>
-        </controls:ModalOverlay.ModalContent>
-    </controls:ModalOverlay>
     </Panel>
 
 </UserControl>
