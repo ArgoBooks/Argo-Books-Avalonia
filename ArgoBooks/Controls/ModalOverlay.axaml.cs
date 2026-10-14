@@ -4,6 +4,8 @@ using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Data;
 using Avalonia.Input;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
 using ArgoBooks.Utilities;
 
 namespace ArgoBooks.Controls;
@@ -16,6 +18,7 @@ public partial class ModalOverlay : UserControl
     private Panel? _overlayPanel;
     private ContentPresenter? _modalContentPresenter;
     private bool _contentPresented;
+    private IInputElement? _focusBeforeOpen;
 
     #region Styled Properties
 
@@ -183,14 +186,49 @@ public partial class ModalOverlay : UserControl
 
         if (isOpen)
         {
-            Focus();
+            _focusBeforeOpen = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement();
+            TakeFocus();
             Opened?.Invoke(this, EventArgs.Empty);
         }
         else
         {
             Closed?.Invoke(this, EventArgs.Empty);
-            ModalHelper.ReturnFocusToAppShell(this);
+            ReturnFocus();
         }
+    }
+
+    /// <summary>Moves focus into the modal, so Tab, Escape and Enter act on it and not on the screen behind.</summary>
+    private void TakeFocus()
+    {
+        // Posted, because the modal is only laid out after this change, and a control not yet shown cannot take focus.
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (!IsOpen || _overlayPanel is not { IsEffectivelyVisible: true } panel)
+                return;
+
+            // A field the modal's own code focused while it opened keeps that focus.
+            if (TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is Visual focused
+                && panel.IsVisualAncestorOf(focused))
+                return;
+
+            panel.Focus();
+        }, DispatcherPriority.Loaded);
+    }
+
+    /// <summary>Hands focus back to a modal still open beneath this one, or else to the app shell so its shortcuts work again.</summary>
+    private void ReturnFocus()
+    {
+        var previous = _focusBeforeOpen;
+        _focusBeforeOpen = null;
+
+        if (previous is InputElement { IsEffectivelyVisible: true, IsEffectivelyEnabled: true } element
+            && element.GetVisualAncestors().OfType<ModalOverlay>().Any(m => m != this && m.IsOpen))
+        {
+            Dispatcher.UIThread.Post(() => element.Focus(), DispatcherPriority.Background);
+            return;
+        }
+
+        ModalHelper.ReturnFocusToAppShell(this);
     }
 
     private void OnBackdropPointerPressed(object? sender, PointerPressedEventArgs e)
