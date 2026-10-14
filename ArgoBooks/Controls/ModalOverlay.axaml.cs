@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Data;
 using Avalonia.Input;
+using Avalonia.LogicalTree;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using ArgoBooks.Utilities;
@@ -19,6 +20,12 @@ public partial class ModalOverlay : UserControl
     private ContentPresenter? _modalContentPresenter;
     private bool _contentPresented;
     private IInputElement? _focusBeforeOpen;
+
+    // Open modals in the order they opened, so the one on top is the last.
+    private static readonly List<ModalOverlay> OpenModals = [];
+
+    /// <summary>The modal the user is working in: the most recently opened one still on screen.</summary>
+    public static ModalOverlay? Topmost => OpenModals.LastOrDefault(m => m.IsOpen && m.IsEffectivelyVisible);
 
     #region Styled Properties
 
@@ -145,6 +152,25 @@ public partial class ModalOverlay : UserControl
         _modalContentPresenter.Content = ModalContent;
     }
 
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        OpenModals.Remove(this);
+    }
+
+    /// <summary>True for anything in the modal, including a pop-up list opened from one of its controls.</summary>
+    public bool Holds(Visual target) =>
+        _overlayPanel != null
+        && (_overlayPanel == target || _overlayPanel.IsVisualAncestorOf(target) || _overlayPanel.IsLogicalAncestorOf(target));
+
+    /// <summary>The controls Tab stops on in the modal, in the order they appear.</summary>
+    public List<InputElement> TabStops() =>
+        _modalContentPresenter == null
+            ? []
+            : _modalContentPresenter.GetVisualDescendants().OfType<InputElement>()
+                .Where(e => e.Focusable && e.IsEffectivelyVisible && e.IsEffectivelyEnabled && KeyboardNavigation.GetIsTabStop(e))
+                .ToList();
+
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
@@ -184,6 +210,10 @@ public partial class ModalOverlay : UserControl
         if (_overlayPanel != null)
             _overlayPanel.IsVisible = isOpen;
 
+        OpenModals.Remove(this);
+        if (isOpen)
+            OpenModals.Add(this);
+
         if (isOpen)
         {
             _focusBeforeOpen = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement();
@@ -197,7 +227,7 @@ public partial class ModalOverlay : UserControl
         }
     }
 
-    /// <summary>Moves focus into the modal, so Tab, Escape and Enter act on it and not on the screen behind.</summary>
+    /// <summary>Moves focus into the modal, so Escape and Enter act on it and not on the screen behind.</summary>
     private void TakeFocus()
     {
         // Posted, because the modal is only laid out after this change, and a control not yet shown cannot take focus.
