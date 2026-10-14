@@ -126,6 +126,7 @@
         <Border x:Name="NotificationToastBorder"
                 DataContext="{Binding HeaderViewModel}"
                 IsHitTestVisible="{Binding ShowNotificationToast}"
+                IsEnabled="{Binding ShowNotificationToast}"
                 Background="{DynamicResource SurfaceBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="1"

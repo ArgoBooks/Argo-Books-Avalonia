@@ -4,7 +4,6 @@ using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Data;
 using Avalonia.Input;
-using Avalonia.LogicalTree;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using ArgoBooks.Utilities;
@@ -20,12 +19,6 @@ public partial class ModalOverlay : UserControl
     private ContentPresenter? _modalContentPresenter;
     private bool _contentPresented;
     private IInputElement? _focusBeforeOpen;
-
-    // Open modals in the order they opened, so the one on top is the last.
-    private static readonly List<ModalOverlay> OpenModals = [];
-
-    /// <summary>The modal the user is working in: the most recently opened one still on screen.</summary>
-    public static ModalOverlay? Topmost => OpenModals.LastOrDefault(m => m.IsOpen && m.IsEffectivelyVisible);
 
     #region Styled Properties
 
@@ -152,25 +145,6 @@ public partial class ModalOverlay : UserControl
         _modalContentPresenter.Content = ModalContent;
     }
 
-    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
-    {
-        base.OnDetachedFromVisualTree(e);
-        OpenModals.Remove(this);
-    }
-
-    /// <summary>True for anything in the modal, including a pop-up list opened from one of its controls.</summary>
-    public bool Holds(Visual target) =>
-        _overlayPanel != null
-        && (_overlayPanel == target || _overlayPanel.IsVisualAncestorOf(target) || _overlayPanel.IsLogicalAncestorOf(target));
-
-    /// <summary>The controls Tab stops on in the modal, in the order they appear.</summary>
-    public List<InputElement> TabStops() =>
-        _modalContentPresenter == null
-            ? []
-            : _modalContentPresenter.GetVisualDescendants().OfType<InputElement>()
-                .Where(e => e.Focusable && e.IsEffectivelyVisible && e.IsEffectivelyEnabled && KeyboardNavigation.GetIsTabStop(e))
-                .ToList();
-
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
@@ -200,6 +174,15 @@ public partial class ModalOverlay : UserControl
             RequestClose();
             e.Handled = true;
         }
+        // Cycle only keeps Tab inside once a control in the modal has focus, so Tab from the modal itself steps in to its first control, or its last on Shift+Tab.
+        else if (e.Key == Key.Tab && IsOpen && e.Source == _overlayPanel && _modalContentPresenter != null)
+        {
+            var target = (e.KeyModifiers & KeyModifiers.Shift) != 0
+                ? FocusManager.FindLastFocusableElement(_modalContentPresenter)
+                : FocusManager.FindFirstFocusableElement(_modalContentPresenter);
+            target?.Focus(NavigationMethod.Tab, e.KeyModifiers);
+            e.Handled = true;
+        }
     }
 
     private void OnIsOpenChanged(bool isOpen)
@@ -209,10 +192,6 @@ public partial class ModalOverlay : UserControl
 
         if (_overlayPanel != null)
             _overlayPanel.IsVisible = isOpen;
-
-        OpenModals.Remove(this);
-        if (isOpen)
-            OpenModals.Add(this);
 
         if (isOpen)
         {

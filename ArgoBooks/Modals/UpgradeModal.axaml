@@ -502,7 +502,8 @@
                         <Panel x:Name="ContinueButtonPanel"
                                HorizontalAlignment="Center"
                                Opacity="0"
-                               IsHitTestVisible="{Binding ShowContinueButton}">
+                               IsHitTestVisible="{Binding ShowContinueButton}"
+                               IsEnabled="{Binding ShowContinueButton}">
                             <Panel.RenderTransform>
                                 <TranslateTransform Y="20" />
                             </Panel.RenderTransform>

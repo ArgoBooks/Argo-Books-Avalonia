@@ -48,7 +48,6 @@ public partial class MainWindow : Window
 
 
         AddHandler(GotFocusEvent, ClosePopupsLeftByTab, RoutingStrategies.Bubble, handledEventsToo: true);
-        AddHandler(GettingFocusEvent, KeepTabInsideModal, RoutingStrategies.Bubble, handledEventsToo: true);
 
         // Subscribe to window events for state persistence
         Opened += OnWindowOpened;
@@ -171,20 +170,6 @@ public partial class MainWindow : Window
         }
 
         base.OnKeyDown(e);
-    }
-
-    /// <summary>Keeps Tab inside the modal on top: focus about to leave it wraps round to the modal's own first or last control.</summary>
-    private void KeepTabInsideModal(object? sender, FocusChangingEventArgs e)
-    {
-        if (e.NavigationMethod != NavigationMethod.Tab || e.NewFocusedElement is not Visual target
-            || ModalOverlay.Topmost is not { } modal || modal.Holds(target))
-            return;
-
-        var stops = modal.TabStops();
-        if (stops.Count == 0)
-            e.TryCancel();
-        else
-            e.TrySetNewFocusedElement((e.KeyModifiers & KeyModifiers.Shift) != 0 ? stops[^1] : stops[0]);
     }
 
     /// <summary>Closes a pop-up when Tab takes focus out of it and the control it drops from, as a click outside it already does.</summary>

@@ -5,13 +5,14 @@
              VerticalAlignment="Stretch">
 
     <Panel>
-        <!-- An open modal holds focus here so its keys reach it, and it is no tab stop itself so Tab never outlines the whole modal. -->
+        <!-- An open modal holds focus here so its keys reach it; Cycle keeps Tab among its controls, and it is no tab stop itself so Tab never outlines the whole modal. -->
         <Panel x:Name="OverlayPanel"
                HorizontalAlignment="Stretch"
                VerticalAlignment="Stretch"
                IsVisible="False"
                Focusable="True"
-               KeyboardNavigation.IsTabStop="False">
+               KeyboardNavigation.IsTabStop="False"
+               KeyboardNavigation.TabNavigation="Cycle">
 
             <!-- Semi-transparent backdrop -->
             <Border Background="{DynamicResource OverlayBrush}"
