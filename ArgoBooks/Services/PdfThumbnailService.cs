@@ -197,6 +197,10 @@ public sealed class PdfThumbnailService
         // Dispose any previous failed init to avoid leaking windows
         CleanupWebView();
 
+        // A web view that failed to start fails again the same way, so each later thumbnail would wait out the navigation timeout for nothing (https://github.com/AvaloniaUI/Avalonia.Controls.WebView/issues/100).
+        if (WebViewEnvironment.HasFailed)
+            return;
+
         // macOS suspends the web view of a fully offscreen window, and a suspended WKWebView never finishes a canvas render, so page.render() hangs.
         var hideBySize = OperatingSystem.IsMacOS();
 
@@ -254,9 +258,14 @@ public sealed class PdfThumbnailService
         _webView.WebMessageReceived += OnReadyMessage;
         _webView.NavigationCompleted += OnNavCompleted;
 
+        // A web view that fails to start never navigates, so its failure ends the wait instead of the timeout (https://github.com/AvaloniaUI/Avalonia.Controls.WebView/issues/100).
+        void OnWebViewFailed(object? sender, EventArgs e) => navTcs.TrySetResult(false);
+        WebViewEnvironment.Failed += OnWebViewFailed;
+
         _webView.NavigateToString(RendererHtml, new Uri("https://localhost/pdfrender"));
 
         var navCompleted = await Task.WhenAny(navTcs.Task, Task.Delay(15000));
+        WebViewEnvironment.Failed -= OnWebViewFailed;
         if (navCompleted != navTcs.Task || !navTcs.Task.Result)
         {
             System.Diagnostics.Debug.WriteLine($"PdfThumbnail INIT: navigation failed or timed out");
