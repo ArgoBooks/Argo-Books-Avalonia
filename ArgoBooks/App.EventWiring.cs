@@ -1651,6 +1651,7 @@ public partial class App
 
             if (!await ConfirmImportFileAsync(new ImportFilePromptOptions
             {
+                Key = "spreadsheet",
                 Title = "Import a spreadsheet".Translate(),
                 Description = "Argo Books reads the file and works out what each column means, so it does not need tidying up first.".Translate(),
                 Points =

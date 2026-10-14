@@ -3470,6 +3470,7 @@ public partial class App : Application
 
         if (!await ConfirmImportFileAsync(new ImportFilePromptOptions
         {
+            Key = "bank-statement",
             Title = "Import a bank statement".Translate(),
             Description = "Argo Books reads the statement and creates the expenses and revenue from it.".Translate(),
             Points =
@@ -3520,6 +3521,7 @@ public partial class App : Application
 
         if (!await ConfirmImportFileAsync(new ImportFilePromptOptions
         {
+            Key = "bank-statement-check",
             Title = "Check a statement against your books".Translate(),
             Description = "Argo Books compares the statement to what you have already recorded, so you can see what is missing or recorded twice.".Translate(),
             Points =
