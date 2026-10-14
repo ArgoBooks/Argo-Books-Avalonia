@@ -5,6 +5,7 @@
              xmlns:vm="using:ArgoBooks.ViewModels"
              xmlns:loc="using:ArgoBooks.Localization"
              xmlns:icons="using:ArgoBooks"
+             xmlns:controls="using:ArgoBooks.Controls"
              mc:Ignorable="d" d:DesignWidth="500" d:DesignHeight="500"
              x:Class="ArgoBooks.Panels.QuickActionsPanel"
              x:DataType="vm:QuickActionsViewModel">
@@ -286,19 +287,14 @@
 
     <Panel IsVisible="{Binding IsOpen}">
         <!-- Modal Mode: Full overlay with centered panel -->
-        <Panel IsVisible="{Binding !IsDropdownMode}">
-            <!-- Semi-transparent backdrop for click-away -->
-            <Border Background="{DynamicResource OverlayBrush}"
-                    IsHitTestVisible="True"
-                    PointerPressed="Backdrop_PointerPressed">
-                <Border.Transitions>
-                    <Transitions>
-                        <DoubleTransition Property="Opacity" Duration="0:0:0.2" Easing="CubicEaseOut" />
-                    </Transitions>
-                </Border.Transitions>
-            </Border>
-
-            <!-- Modal centered on screen -->
+        <controls:ModalOverlay ClosingCommand="{Binding CloseCommand}">
+            <controls:ModalOverlay.IsOpen>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                    <Binding Path="IsOpen" />
+                    <Binding Path="!IsDropdownMode" />
+                </MultiBinding>
+            </controls:ModalOverlay.IsOpen>
+            <controls:ModalOverlay.ModalContent>
             <Border x:Name="ModalBorder"
                     Background="{DynamicResource SurfaceBrush}"
                     BorderBrush="{DynamicResource BorderBrush}"
@@ -324,7 +320,8 @@
                 <ContentControl Content="{Binding}"
                                 ContentTemplate="{StaticResource PanelContentTemplate}" />
             </Border>
-        </Panel>
+            </controls:ModalOverlay.ModalContent>
+        </controls:ModalOverlay>
 
         <!-- Dropdown Mode: No backdrop, positioned below header searchbox -->
         <Panel IsVisible="{Binding IsDropdownMode}">
