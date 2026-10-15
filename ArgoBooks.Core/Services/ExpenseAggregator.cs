@@ -31,6 +31,10 @@ public static class ExpenseAggregator
     /// totals rule (docs/Calculations.md Rule 4). Pass <c>CurrencyService.GetDisplayAmount</c>.
     /// For a USD display currency this equals <see cref="SumExpensesUSD"/>.
     /// </summary>
+    /// <summary>Whether an expense in the range is still waiting for its rate, which a display total counts as 0 and so must show as Pending.</summary>
+    public static bool AnyWaiting(IEnumerable<Expense> expenses, DateTime start, DateTime end) =>
+        expenses.Any(e => e.IsPendingConversion && e.Date >= start && e.Date <= end);
+
     public static decimal SumExpensesDisplay(
         IEnumerable<Expense> expenses, DateTime start, DateTime end, Func<decimal, DateTime, decimal> toDisplay)
     {

@@ -36,6 +36,10 @@ public static class RefundAggregator
     /// its OWN date via <paramref name="toDisplay"/> before summing (docs/Calculations.md Rule 4).
     /// Pass <c>CurrencyService.GetDisplayAmount</c>. Equals the USD sum for a USD display currency.
     /// </summary>
+    /// <summary>Whether a refund in the range is still waiting for its rate, which a display total counts as 0 and so must show as Pending.</summary>
+    public static bool AnyRefundWaiting(IEnumerable<Payment> allPayments, DateTime start, DateTime end) =>
+        allPayments.Any(p => p.IsRefund && p.IsPendingConversion && p.Date >= start && p.Date <= end);
+
     public static decimal GetRefundedInDateRangeDisplay(
         IEnumerable<Payment> allPayments, DateTime start, DateTime end, Func<decimal, DateTime, decimal> toDisplay)
     {
