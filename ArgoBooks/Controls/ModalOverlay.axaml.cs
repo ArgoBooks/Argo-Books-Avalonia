@@ -175,14 +175,23 @@ public partial class ModalOverlay : UserControl
             e.Handled = true;
         }
         // Cycle only keeps Tab inside once a control in the modal has focus, so Tab from the modal itself steps in to its first control, or its last on Shift+Tab.
-        else if (e.Key == Key.Tab && IsOpen && e.Source == _overlayPanel && _modalContentPresenter != null)
+        else if (e.Key == Key.Tab && IsOpen && e.Source == _overlayPanel)
         {
-            var target = (e.KeyModifiers & KeyModifiers.Shift) != 0
-                ? FocusManager.FindLastFocusableElement(_modalContentPresenter)
-                : FocusManager.FindFirstFocusableElement(_modalContentPresenter);
-            target?.Focus(NavigationMethod.Tab, e.KeyModifiers);
+            StepIn(e.KeyModifiers);
             e.Handled = true;
         }
+    }
+
+    /// <summary>Focuses the modal's first control, or its last when Shift is held, as Tab into the modal would.</summary>
+    public bool StepIn(KeyModifiers modifiers)
+    {
+        if (!IsOpen || _modalContentPresenter == null)
+            return false;
+
+        var target = (modifiers & KeyModifiers.Shift) != 0
+            ? FocusManager.FindLastFocusableElement(_modalContentPresenter)
+            : FocusManager.FindFirstFocusableElement(_modalContentPresenter);
+        return target?.Focus(NavigationMethod.Tab, modifiers) == true;
     }
 
     private void OnIsOpenChanged(bool isOpen)
@@ -237,8 +246,19 @@ public partial class ModalOverlay : UserControl
             return;
         }
 
+        // A modal opened alongside another, or from inside a web view, remembers nothing in the one beneath it, which still needs focus.
+        if (TopLevel.GetTopLevel(this) is { } top && FindTopmost(top, except: this) is { } beneath)
+        {
+            beneath.TakeFocus();
+            return;
+        }
+
         ModalHelper.ReturnFocusToAppShell(this);
     }
+
+    /// <summary>The open modal drawn above the others, which is the last one in the window's visual tree.</summary>
+    public static ModalOverlay? FindTopmost(TopLevel top, ModalOverlay? except = null) =>
+        top.GetVisualDescendants().OfType<ModalOverlay>().LastOrDefault(m => m != except && m.IsOpen && m.IsEffectivelyVisible);
 
     private void OnBackdropPointerPressed(object? sender, PointerPressedEventArgs e)
     {

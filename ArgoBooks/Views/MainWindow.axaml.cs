@@ -79,6 +79,7 @@ public partial class MainWindow : Window
 
 
         AddHandler(GotFocusEvent, ClosePopupsLeftByTab, RoutingStrategies.Bubble, handledEventsToo: true);
+        AddHandler(KeyDownEvent, StepIntoModalOnTab, RoutingStrategies.Tunnel);
         AddHandler(GotFocusEvent, (_, _) => _lastFocused = FocusManager?.GetFocusedElement(), RoutingStrategies.Bubble, handledEventsToo: true);
         Activated += RestoreFocusAfterActivation;
 
@@ -249,6 +250,16 @@ public partial class MainWindow : Window
 
             popup.SetCurrentValue(Popup.IsOpenProperty, false);
         }
+    }
+
+    /// <summary>Starts Tab inside the open modal when nothing has focus, as after a web view held the keyboard, because Avalonia clears focus when Windows hands it to the web view.</summary>
+    private void StepIntoModalOnTab(object? sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Tab || FocusManager?.GetFocusedElement() is { } focused && focused != this)
+            return;
+
+        if (ModalOverlay.FindTopmost(this) is { } modal)
+            e.Handled = modal.StepIn(e.KeyModifiers);
     }
 
     private bool IsAnyModalOpen() =>
