@@ -33,6 +33,7 @@
 
         <!-- Tutorial card -->
         <Border CornerRadius="12"
+                KeyboardNavigation.TabNavigation="Cycle"
                 Width="420"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center"
@@ -129,7 +130,8 @@
                                 <TextBlock Text="{loc:Loc 'Back'}" />
                             </Button>
 
-                            <Button Classes="primary-button"
+                            <Button x:Name="NextButton"
+                                    Classes="primary-button"
                                     Command="{Binding NextStepCommand}"
                                     Width="90"
                                     HorizontalContentAlignment="Center">

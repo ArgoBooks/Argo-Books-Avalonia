@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using ArgoBooks.Helpers;
+using ArgoBooks.Utilities;
 using ArgoBooks.ViewModels;
 
 namespace ArgoBooks.Modals;
@@ -61,6 +62,12 @@ public partial class AppTourOverlay : UserControl
         {
             // When tour opens, calculate initial bounds after layout
             Dispatcher.UIThread.Post(UpdateHighlightBounds, DispatcherPriority.Loaded);
+            // Focus on the card keeps Tab among its buttons rather than the app behind it.
+            Dispatcher.UIThread.Post(() => NextButton.Focus(), DispatcherPriority.Loaded);
+        }
+        else if (e.PropertyName == nameof(AppTourViewModel.IsOpen))
+        {
+            ModalHelper.ReturnFocusToAppShell(this);
         }
     }
 

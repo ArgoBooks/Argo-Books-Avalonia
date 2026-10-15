@@ -31,6 +31,9 @@ public partial class ModalOverlay : UserControl
     public static readonly StyledProperty<bool> CloseOnEscapeProperty =
         AvaloniaProperty.Register<ModalOverlay, bool>(nameof(CloseOnEscape), true);
 
+    public static readonly StyledProperty<bool> TakesFocusProperty =
+        AvaloniaProperty.Register<ModalOverlay, bool>(nameof(TakesFocus), true);
+
     public static readonly StyledProperty<object?> ModalContentProperty =
         AvaloniaProperty.Register<ModalOverlay, object?>(nameof(ModalContent));
 
@@ -63,6 +66,13 @@ public partial class ModalOverlay : UserControl
     {
         get => GetValue(CloseOnEscapeProperty);
         set => SetValue(CloseOnEscapeProperty, value);
+    }
+
+    /// <summary>False for a message the user is meant to act around, such as the tutorial pointing at the sidebar, so the modal neither takes focus nor holds Tab.</summary>
+    public bool TakesFocus
+    {
+        get => GetValue(TakesFocusProperty);
+        set => SetValue(TakesFocusProperty, value);
     }
 
     /// <summary>
@@ -205,13 +215,15 @@ public partial class ModalOverlay : UserControl
         if (isOpen)
         {
             _focusBeforeOpen = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement();
-            TakeFocus();
+            if (TakesFocus)
+                TakeFocus();
             Opened?.Invoke(this, EventArgs.Empty);
         }
         else
         {
             Closed?.Invoke(this, EventArgs.Empty);
-            ReturnFocus();
+            if (TakesFocus)
+                ReturnFocus();
         }
     }
 
@@ -258,7 +270,7 @@ public partial class ModalOverlay : UserControl
 
     /// <summary>The open modal drawn above the others, which is the last one in the window's visual tree.</summary>
     public static ModalOverlay? FindTopmost(TopLevel top, ModalOverlay? except = null) =>
-        top.GetVisualDescendants().OfType<ModalOverlay>().LastOrDefault(m => m != except && m.IsOpen && m.IsEffectivelyVisible);
+        top.GetVisualDescendants().OfType<ModalOverlay>().LastOrDefault(m => m != except && m.IsOpen && m.TakesFocus && m.IsEffectivelyVisible);
 
     private void OnBackdropPointerPressed(object? sender, PointerPressedEventArgs e)
     {

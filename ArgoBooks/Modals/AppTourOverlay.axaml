@@ -36,6 +36,7 @@
 
         <!-- Tour step card - use nested borders to prevent corner clipping -->
         <Border CornerRadius="12"
+                KeyboardNavigation.TabNavigation="Cycle"
                 Width="400"
                 MinHeight="340"
                 HorizontalAlignment="Center"
@@ -133,7 +134,8 @@
                             <TextBlock Text="{loc:Loc 'Back'}" />
                         </Button>
 
-                        <Button Classes="primary-button"
+                        <Button x:Name="NextButton"
+                                Classes="primary-button"
                                 Command="{Binding NextStepCommand}"
                                 Width="90"
                                 HorizontalContentAlignment="Center">
