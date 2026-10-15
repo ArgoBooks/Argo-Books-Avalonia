@@ -1527,7 +1527,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
 
             if (isRevenue)
             {
-                var revenueId = new Core.Data.IdGenerator(companyData).NextRevenueId(transactionDate);
+                var revenueId = new IdGenerator(companyData).NextRevenueId(transactionDate);
 
                 var revenue = new Revenue
                 {
@@ -1560,7 +1560,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             }
             else
             {
-                var expenseId = new Core.Data.IdGenerator(companyData).NextExpenseId(transactionDate);
+                var expenseId = new IdGenerator(companyData).NextExpenseId(transactionDate);
 
                 var expense = new Expense
                 {
@@ -1875,9 +1875,9 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
                 Style = SKPaintStyle.Stroke
             };
 
-            using var headerFont = new SKFont(Core.Services.PlatformTypefaces.Resolve("Arial", SKFontStyle.Bold), 42f);
-            using var bodyFont = new SKFont(Core.Services.PlatformTypefaces.Resolve("Arial", SKFontStyle.Normal), body);
-            using var totalFont = new SKFont(Core.Services.PlatformTypefaces.Resolve("Arial", SKFontStyle.Bold), 34f);
+            using var headerFont = new SKFont(PlatformTypefaces.Resolve("Arial", SKFontStyle.Bold), 42f);
+            using var bodyFont = new SKFont(PlatformTypefaces.Resolve("Arial", SKFontStyle.Normal), body);
+            using var totalFont = new SKFont(PlatformTypefaces.Resolve("Arial", SKFontStyle.Bold), 34f);
 
             var mid = width / 2f;
             const float left = margin;
@@ -2563,7 +2563,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
     {
         var currency = ScanCurrencyCode;
         var expenseDate = ExtractedDate?.DateTime ?? DateTime.Now;
-        var expenseId = new Core.Data.IdGenerator(companyData).NextExpenseId(expenseDate);
+        var expenseId = new IdGenerator(companyData).NextExpenseId(expenseDate);
 
         var expense = new Expense
         {
@@ -2637,7 +2637,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
     {
         var currency = ScanCurrencyCode;
         var revenueDate = ExtractedDate?.DateTime ?? DateTime.Now;
-        var revenueId = new Core.Data.IdGenerator(companyData).NextRevenueId(revenueDate);
+        var revenueId = new IdGenerator(companyData).NextRevenueId(revenueDate);
 
         var revenue = new Revenue
         {
@@ -2788,7 +2788,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
 
             category = new Category
             {
-                Id = new Core.Data.IdGenerator(companyData).NextCategoryId(CategoryType.Expense),
+                Id = new IdGenerator(companyData).NextCategoryId(CategoryType.Expense),
                 Name = categoryName,
                 Type = CategoryType.Expense,
                 Description = aiCategory?.Description
@@ -2797,7 +2797,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             _createdCategoryForUndo = category;
         }
 
-        var newId = new Core.Data.IdGenerator(companyData).NextProductId();
+        var newId = new IdGenerator(companyData).NextProductId();
 
         var newProduct = new Product
         {
@@ -3281,7 +3281,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         var companyData = App.CompanyManager?.CompanyData;
         if (companyData == null) return;
 
-        var newId = new Core.Data.IdGenerator(companyData).NextSupplierId();
+        var newId = new IdGenerator(companyData).NextSupplierId();
 
         // Create supplier
         var newSupplier = new Supplier

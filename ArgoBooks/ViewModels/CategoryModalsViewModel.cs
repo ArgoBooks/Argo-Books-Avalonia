@@ -238,7 +238,7 @@ public partial class CategoryModalsViewModel : ViewModelBase
         if (companyData == null) return;
 
         var categoryType = _isExpensesTab ? CategoryType.Expense : CategoryType.Revenue;
-        var newId = new Core.Data.IdGenerator(companyData).NextCategoryId(categoryType);
+        var newId = new IdGenerator(companyData).NextCategoryId(categoryType);
         var parentId = IsAddingSubCategory ? _addingSubCategoryParent?.Id : null;
 
         var newCategory = new Category

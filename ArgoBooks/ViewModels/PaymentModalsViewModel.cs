@@ -271,7 +271,7 @@ public partial class PaymentModalsViewModel : ViewModelBase
     /// company's display currency instead silently drops payments on any invoice not in that currency.
     /// Unlinked payments fall back to the company display currency.
     /// </summary>
-    private string ResolvePaymentCurrency(Core.Data.CompanyData companyData)
+    private string ResolvePaymentCurrency(CompanyData companyData)
     {
         if (!string.IsNullOrEmpty(ModalInvoiceId))
         {
@@ -287,10 +287,10 @@ public partial class PaymentModalsViewModel : ViewModelBase
     /// rate, gone once it doesn't. The service drops an entry whose payment is missing, so undo
     /// and redo have to move the entry with the payment or a redone payment waits forever.
     /// </summary>
-    private static void QueueConversion(Core.Data.CompanyData companyData, Payment payment) =>
+    private static void QueueConversion(CompanyData companyData, Payment payment) =>
         UsdConversion.Requeue(companyData, payment);
 
-    private static void ForgetConversion(Core.Data.CompanyData companyData, Payment payment) =>
+    private static void ForgetConversion(CompanyData companyData, Payment payment) =>
         UsdConversion.Set(companyData, UsdConversion.KeyOf(payment), null);
 
     public async Task SaveNewPayment()
@@ -302,7 +302,7 @@ public partial class PaymentModalsViewModel : ViewModelBase
         if (companyData == null)
             return;
 
-        var newId = new Core.Data.IdGenerator(companyData).NextPaymentId();
+        var newId = new IdGenerator(companyData).NextPaymentId();
 
         var paymentMethod = PaymentMethodExtensions.ParseDisplayName(ModalPaymentMethod);
 
@@ -646,7 +646,7 @@ public partial class PaymentModalsViewModel : ViewModelBase
     /// No-op when invoiceId is null/empty or the invoice can't be found
     /// (the payment isn't tied to an invoice).
     /// </summary>
-    private static void RecalcInvoiceTotals(Core.Data.CompanyData companyData, string? invoiceId)
+    private static void RecalcInvoiceTotals(CompanyData companyData, string? invoiceId)
     {
         if (string.IsNullOrEmpty(invoiceId)) return;
         var invoice = companyData.GetInvoice(invoiceId);

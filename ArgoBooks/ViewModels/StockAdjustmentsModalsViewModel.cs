@@ -286,7 +286,7 @@ public partial class StockAdjustmentsModalsViewModel : ViewModelBase
         {
             var adjustmentRecord = new StockAdjustment
             {
-                Id = new Core.Data.IdGenerator(companyData).NextStockAdjustmentId(),
+                Id = new IdGenerator(companyData).NextStockAdjustmentId(),
                 InventoryItemId = inventoryItem.Id,
                 AdjustmentType = adjustmentTypeEnum,
                 Quantity = quantity,

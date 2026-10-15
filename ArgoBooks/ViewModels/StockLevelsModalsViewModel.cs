@@ -402,7 +402,7 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
         {
             var adjustmentRecord = new StockAdjustment
             {
-                Id = new Core.Data.IdGenerator(companyData).NextStockAdjustmentId(),
+                Id = new IdGenerator(companyData).NextStockAdjustmentId(),
                 InventoryItemId = inventoryItem.Id,
                 AdjustmentType = AdjustmentType switch
                 {
@@ -676,7 +676,7 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
 
         var newItem = new InventoryItem
         {
-            Id = new Core.Data.IdGenerator(companyData).NextInventoryItemId(),
+            Id = new IdGenerator(companyData).NextInventoryItemId(),
             ProductId = product.Id,
             Sku = sku,
             LocationId = location.Id,

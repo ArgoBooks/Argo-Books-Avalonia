@@ -76,7 +76,7 @@ public partial class AnalyticsPage : UserControl
 
     private void OnChartPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
-        if (sender is not SourceGenChart chart || e.Property != Visual.BoundsProperty)
+        if (sender is not SourceGenChart chart || e.Property != BoundsProperty)
             return;
 
         if (chart.Bounds.Width <= 0 || chart.Bounds.Height <= 0)

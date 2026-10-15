@@ -14,7 +14,7 @@ namespace ArgoBooks.Core.Models.Portal;
 public class PortalDateTimeConverter : JsonConverter<DateTime>
 {
     public override DateTime Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        => PortalDateTimeConverter.Parse(ref reader) ?? default;
+        => Parse(ref reader) ?? default;
 
     public override void Write(Utf8JsonWriter writer, DateTime value, JsonSerializerOptions options)
         => writer.WriteStringValue(value);

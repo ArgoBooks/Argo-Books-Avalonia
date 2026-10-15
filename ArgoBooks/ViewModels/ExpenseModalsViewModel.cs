@@ -409,7 +409,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
     protected override void SaveNewTransaction(CompanyData companyData)
     {
         var date = ModalDate?.DateTime ?? DateTime.Now;
-        var expenseId = RequestedId ?? new Core.Data.IdGenerator(companyData).NextExpenseId(date);
+        var expenseId = RequestedId ?? new IdGenerator(companyData).NextExpenseId(date);
 
         var (description, totalQuantity, averageUnitPrice) = GetLineItemSummary();
         var modelLineItems = CreateModelLineItems();

@@ -568,14 +568,14 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
             () =>
             {
                 companyData.PurchaseOrders.RemoveRecord(order);
-                Core.Services.UsdConversion.Set(companyData, Core.Services.UsdConversion.KeyOf(order), null);
+                UsdConversion.Set(companyData, UsdConversion.KeyOf(order), null);
                 companyData.MarkAsModified();
                 OrderSaved?.Invoke(this, EventArgs.Empty);
             },
             () =>
             {
                 companyData.PurchaseOrders.RestoreRecord(order);
-                Core.Services.UsdConversion.Requeue(companyData, order);
+                UsdConversion.Requeue(companyData, order);
                 companyData.MarkAsModified();
                 OrderSaved?.Invoke(this, EventArgs.Empty);
             }));
@@ -592,8 +592,8 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
     private static void ApplyDisplayCurrency(CompanyData companyData, PurchaseOrder order)
     {
         order.OriginalCurrency = CurrencyService.CurrentCurrencyCode;
-        Core.Services.UsdConversion.Apply(companyData, order,
-            Core.Services.UsdConversion.CachedRate(order.OriginalCurrency, order.OrderDate));
+        UsdConversion.Apply(companyData, order,
+            UsdConversion.CachedRate(order.OriginalCurrency, order.OrderDate));
     }
 
     private string? SaveEditedOrder(CompanyData companyData, decimal shipping)
@@ -664,7 +664,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
                 editedOrder.OriginalCurrency = oldOriginalCurrency;
                 editedOrder.TotalUSD = oldTotalUSD;
                 editedOrder.IsPendingConversion = oldIsPendingConversion;
-                Core.Services.UsdConversion.Requeue(companyData, editedOrder);
+                UsdConversion.Requeue(companyData, editedOrder);
                 companyData.MarkAsModified();
                 OrderSaved?.Invoke(this, EventArgs.Empty);
             },
@@ -681,7 +681,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
                 editedOrder.OriginalCurrency = newOriginalCurrency;
                 editedOrder.TotalUSD = newTotalUSD;
                 editedOrder.IsPendingConversion = newIsPendingConversion;
-                Core.Services.UsdConversion.Requeue(companyData, editedOrder);
+                UsdConversion.Requeue(companyData, editedOrder);
                 companyData.MarkAsModified();
                 OrderSaved?.Invoke(this, EventArgs.Empty);
             }));
@@ -948,8 +948,8 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
 
             RemoveWithUndo(companyData, companyData.PurchaseOrders, order, $"Delete order '{item.PoNumber}'",
                 () => OrderDeleted?.Invoke(this, EventArgs.Empty),
-                onRemove: () => Core.Services.UsdConversion.Set(companyData, Core.Services.UsdConversion.KeyOf(order), null),
-                onRestore: () => Core.Services.UsdConversion.Requeue(companyData, order));
+                onRemove: () => UsdConversion.Set(companyData, UsdConversion.KeyOf(order), null),
+                onRestore: () => UsdConversion.Requeue(companyData, order));
         }
         catch (Exception ex)
         {

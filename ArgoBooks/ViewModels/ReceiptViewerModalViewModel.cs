@@ -389,7 +389,7 @@ public partial class ReceiptViewerModalViewModel : ViewModelBase
     {
         if (string.IsNullOrEmpty(ReceiptId)) return;
 
-        if (await Services.ReceiptTypeSwitchService.SwitchAsync(ReceiptId))
+        if (await ReceiptTypeSwitchService.SwitchAsync(ReceiptId))
         {
             TransactionType = SwitchTargetType;
         }

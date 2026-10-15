@@ -555,7 +555,7 @@ public class PaymentPortalService : IDisposable
         quote.RespondedAt = answeredAt;
         quote.ResponseNote = responseNote;
         quote.UpdatedAt = DateTime.UtcNow;
-        quote.History.Add(new Models.Common.InvoiceHistoryEntry
+        quote.History.Add(new InvoiceHistoryEntry
         {
             Action = parsed == QuoteStatus.Accepted ? "Accepted" : "Declined",
             Details = string.IsNullOrWhiteSpace(responseNote)

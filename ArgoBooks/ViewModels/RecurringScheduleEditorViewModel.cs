@@ -298,7 +298,7 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
         {
             var created = new RecurringTransaction
             {
-                Id = new Core.Data.IdGenerator(data).NextRecurringTransactionId(),
+                Id = new IdGenerator(data).NextRecurringTransactionId(),
                 Type = _side,
                 Frequency = (Frequency)FrequencyIndex,
                 StartDate = start,
@@ -414,7 +414,7 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
     /// and undoing this save must not delete an entry another schedule legitimately produced.
     /// </returns>
     private static IReadOnlyList<Transaction> GenerateDueNow(
-        Core.Data.CompanyData data, RecurringTransaction saved, Dictionary<Transaction, List<StockChange>> stock)
+        CompanyData data, RecurringTransaction saved, Dictionary<Transaction, List<StockChange>> stock)
     {
         // The saved schedule goes last. Undo puts stock back to what it was before these
         // entries, which is only right while nothing after them has moved the same stock.
@@ -429,7 +429,7 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
     }
 
     private static void RemoveGenerated(
-        Core.Data.CompanyData data, IReadOnlyList<Transaction> generated,
+        CompanyData data, IReadOnlyList<Transaction> generated,
         Dictionary<Transaction, List<StockChange>> stock)
     {
         // Newest first, so stock two entries both moved is put back in the order it was taken.
@@ -447,7 +447,7 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
 
     /// <summary>An entry converted before the undo keeps its USD figure, so only one still waiting queues again.</summary>
     private static void RestoreGenerated(
-        Core.Data.CompanyData data, IReadOnlyList<Transaction> generated,
+        CompanyData data, IReadOnlyList<Transaction> generated,
         Dictionary<Transaction, List<StockChange>> stock)
     {
         foreach (var entry in generated)

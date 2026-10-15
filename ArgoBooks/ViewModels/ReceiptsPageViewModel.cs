@@ -953,7 +953,7 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
     /// Points a record at the oldest of the documents it still holds, or at nothing once the last
     /// one goes. The record names one document for everything that still reads a single one.
     /// </summary>
-    private static void RepointTransactionReceipt(Core.Data.CompanyData companyData, string transactionType, string? transactionId)
+    private static void RepointTransactionReceipt(CompanyData companyData, string transactionType, string? transactionId)
     {
         if (string.IsNullOrEmpty(transactionId)) return;
 
@@ -966,7 +966,7 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
         SetTransactionReceiptId(companyData, transactionType, transactionId, next?.Id);
     }
 
-    private static void SetTransactionReceiptId(Core.Data.CompanyData companyData, string transactionType, string? transactionId, string? receiptId)
+    private static void SetTransactionReceiptId(CompanyData companyData, string transactionType, string? transactionId, string? receiptId)
     {
         Core.Models.Transactions.Transaction? transaction = transactionType switch
         {

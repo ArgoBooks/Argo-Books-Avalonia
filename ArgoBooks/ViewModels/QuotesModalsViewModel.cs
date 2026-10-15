@@ -902,7 +902,7 @@ public partial class QuotesModalsViewModel : PaperDocumentEditorViewModelBase<Qu
             {
                 symbol = CurrencyService.GetSymbol(code),
                 code,
-                decimals = Core.Models.Common.CurrencyInfo.GetByCode(code).DecimalPlaces,
+                decimals = CurrencyInfo.GetByCode(code).DecimalPlaces,
                 deposit = 0m,
                 portal = false,
                 passFee = false,

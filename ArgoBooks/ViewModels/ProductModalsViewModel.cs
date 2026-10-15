@@ -417,7 +417,7 @@ public partial class ProductModalsViewModel : ViewModelBase
         }
         else
         {
-            newId = new Core.Data.IdGenerator(companyData).NextProductId();
+            newId = new IdGenerator(companyData).NextProductId();
         }
 
         var reorderPoint = decimal.TryParse(ModalReorderPoint, out var rp) ? rp : 0;

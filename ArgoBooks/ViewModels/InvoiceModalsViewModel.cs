@@ -127,7 +127,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
             if (string.IsNullOrWhiteSpace(id))
                 id = "Invoice";
 
-            return string.Join("-", id.Split(System.IO.Path.GetInvalidFileNameChars())) + ".pdf";
+            return string.Join("-", id.Split(Path.GetInvalidFileNameChars())) + ".pdf";
         }
     }
 
@@ -2371,7 +2371,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
     /// </summary>
     internal static void CreateRevenueFromInvoice(Invoice invoice, CompanyData companyData)
     {
-        var revenueId = new Core.Data.IdGenerator(companyData).NextRevenueId(invoice.IssueDate);
+        var revenueId = new IdGenerator(companyData).NextRevenueId(invoice.IssueDate);
 
         var description = invoice.LineItems.Count switch
         {

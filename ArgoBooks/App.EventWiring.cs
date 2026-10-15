@@ -290,7 +290,7 @@ public partial class App
 
             // Clear cached page ViewModels to ensure fresh state when opening a new company
             ClearPageCaches();
-            ViewModels.InsightsPageViewModel.ClearSampleSnapshot();
+            InsightsPageViewModel.ClearSampleSnapshot();
 
             NavigationService?.NavigateTo("Welcome");
             _welcomeScreenViewModel?.InitializeTutorialMode();

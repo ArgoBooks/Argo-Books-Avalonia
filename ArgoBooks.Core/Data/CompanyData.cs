@@ -491,7 +491,7 @@ public class IdCounters
     // Every counter the company file saves, read off its JSON contract so a counter added later is
     // copied, rewound and raised with the rest without being listed here.
     private static readonly (Func<object, object?> Get, Action<object, object?> Set)[] All =
-        System.Text.Json.JsonSerializerOptions.Default.GetTypeInfo(typeof(IdCounters)).Properties
+        JsonSerializerOptions.Default.GetTypeInfo(typeof(IdCounters)).Properties
             .Where(p => p.PropertyType == typeof(int) && p.Get != null && p.Set != null)
             .Select(p => (p.Get!, p.Set!))
             .ToArray();

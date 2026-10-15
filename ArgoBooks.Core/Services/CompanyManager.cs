@@ -2207,16 +2207,16 @@ public class CompanyManager : IDisposable
         {
             if (OperatingSystem.IsWindows())
             {
-                System.Diagnostics.Process.Start("explorer.exe", $"/select,\"{CurrentFilePath}\"");
+                Process.Start("explorer.exe", $"/select,\"{CurrentFilePath}\"");
             }
             else if (OperatingSystem.IsMacOS())
             {
-                System.Diagnostics.Process.Start("open", $"-R \"{CurrentFilePath}\"");
+                Process.Start("open", $"-R \"{CurrentFilePath}\"");
             }
             else if (OperatingSystem.IsLinux())
             {
                 // Try common file managers
-                System.Diagnostics.Process.Start("xdg-open", directory);
+                Process.Start("xdg-open", directory);
             }
         }
         catch

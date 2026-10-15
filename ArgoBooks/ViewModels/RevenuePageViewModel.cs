@@ -1100,7 +1100,7 @@ public partial class RevenueDisplayItem : ObservableObject
     public string PendingConversionHint => CurrencyService.BuildPendingConversionHint(Total, OriginalCurrency, Date);
 
     // "-" stands in for a missing customer.
-    public string CustomerInitials => CustomerName == "-" ? "?" : Helpers.InitialsHelper.From(CustomerName);
+    public string CustomerInitials => CustomerName == "-" ? "?" : InitialsHelper.From(CustomerName);
 
     public bool IsReturned => StatusDisplay == "Returned";
     public bool IsPartialReturn => StatusDisplay == "Partial Return";

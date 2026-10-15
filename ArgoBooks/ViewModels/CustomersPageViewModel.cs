@@ -511,7 +511,7 @@ public partial class CustomerDisplayItem : ObservableObject
     /// <summary>
     /// Gets the initials from the customer name for avatar display.
     /// </summary>
-    public string Initials => Helpers.InitialsHelper.From(Name);
+    public string Initials => InitialsHelper.From(Name);
 
     [ObservableProperty]
     private bool _isHighlighted;

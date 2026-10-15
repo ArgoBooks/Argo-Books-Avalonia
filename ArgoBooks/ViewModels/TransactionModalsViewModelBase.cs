@@ -1320,7 +1320,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     {
         var category = new Category
         {
-            Id = new Core.Data.IdGenerator(companyData).NextCategoryId(CategoryTypeFilter),
+            Id = new IdGenerator(companyData).NextCategoryId(CategoryTypeFilter),
             Name = name,
             Type = CategoryTypeFilter
         };
@@ -1335,7 +1335,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
 
     private ProductOption CreateProduct(CompanyData companyData, string name, decimal price, CategoryOption? category, List<Product> created)
     {
-        var id = new Core.Data.IdGenerator(companyData).NextProductId();
+        var id = new IdGenerator(companyData).NextProductId();
         var product = new Product
         {
             Id = id,

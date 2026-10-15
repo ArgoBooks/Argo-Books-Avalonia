@@ -22,7 +22,7 @@ public partial class MainWindow : Window
     static MainWindow()
     {
         // A drop-down menu opens in its own pop-up window, where Tab only goes round its items, so Tab closes it and moves on from the button that opened it.
-        InputElement.KeyDownEvent.AddClassHandler<MenuFlyoutPresenter>(LeaveMenuOnTab);
+        KeyDownEvent.AddClassHandler<MenuFlyoutPresenter>(LeaveMenuOnTab);
         KeyboardNavigation.TabOnceActiveElementProperty.Changed.AddClassHandler<TabControl>(KeepTabStripOnItsOwnTab);
     }
 
@@ -40,7 +40,7 @@ public partial class MainWindow : Window
         if (e.Key != Key.Tab)
             return;
 
-        var top = TopLevel.GetTopLevel(menu);
+        var top = GetTopLevel(menu);
         var window = top is PopupRoot popup ? popup.ParentTopLevel : top;
         var direction = (e.KeyModifiers & KeyModifiers.Shift) != 0 ? NavigationDirection.Previous : NavigationDirection.Next;
 
@@ -54,11 +54,11 @@ public partial class MainWindow : Window
         InitializeComponent();
 
         // Count input for the session's active time. Tunnelling, so a click or key press still registers when a child control handles it and the event never bubbles back up here.
-        AddHandler(InputElement.KeyDownEvent, OnAnyInput, RoutingStrategies.Tunnel);
-        AddHandler(InputElement.PointerPressedEvent, OnAnyInput, RoutingStrategies.Tunnel);
+        AddHandler(KeyDownEvent, OnAnyInput, RoutingStrategies.Tunnel);
+        AddHandler(PointerPressedEvent, OnAnyInput, RoutingStrategies.Tunnel);
 
-        AddHandler(InputElement.KeyDownEvent, BlockKeysWhileLoading, RoutingStrategies.Tunnel);
-        AddHandler(InputElement.TextInputEvent, BlockKeysWhileLoading, RoutingStrategies.Tunnel);
+        AddHandler(KeyDownEvent, BlockKeysWhileLoading, RoutingStrategies.Tunnel);
+        AddHandler(TextInputEvent, BlockKeysWhileLoading, RoutingStrategies.Tunnel);
 
         // Subscribe to DataContext changes to ensure content is set
         DataContextChanged += OnDataContextChanged;

@@ -442,7 +442,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
     protected override void SaveNewTransaction(CompanyData companyData)
     {
         var date = ModalDate?.DateTime ?? DateTime.Now;
-        var revenueId = RequestedId ?? new Core.Data.IdGenerator(companyData).NextRevenueId(date);
+        var revenueId = RequestedId ?? new IdGenerator(companyData).NextRevenueId(date);
 
         var (description, totalQuantity, averageUnitPrice) = GetLineItemSummary();
         var modelLineItems = CreateModelLineItems();

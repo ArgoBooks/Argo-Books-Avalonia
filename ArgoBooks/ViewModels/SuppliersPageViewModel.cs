@@ -312,7 +312,7 @@ public partial class SuppliersPageViewModel : SortablePageViewModelBase
                 Address = addressString,
                 Country = string.IsNullOrWhiteSpace(supplier.Address.Country) ? "-" : supplier.Address.Country,
                 ProductCount = productCount,
-                Initials = Helpers.InitialsHelper.From(supplier.Name),
+                Initials = InitialsHelper.From(supplier.Name),
                 IsHighlighted = supplier.Id == HighlightTransactionId
             };
         }).ToList();

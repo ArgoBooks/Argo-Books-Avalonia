@@ -57,11 +57,11 @@ public sealed class BackupService(IErrorLogger? errorLogger = null)
         {
             var beside = string.IsNullOrEmpty(companyFilePath)
                 ? null
-                : System.IO.Path.GetDirectoryName(companyFilePath);
+                : Path.GetDirectoryName(companyFilePath);
             var root = string.IsNullOrEmpty(beside)
                 ? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
                 : beside;
-            return System.IO.Path.Combine(root, "Argo Books Backups");
+            return Path.Combine(root, "Argo Books Backups");
         }
         catch
         {
@@ -94,7 +94,7 @@ public sealed class BackupService(IErrorLogger? errorLogger = null)
 
             Directory.CreateDirectory(folder);
 
-            var path = System.IO.Path.Combine(
+            var path = Path.Combine(
                 folder,
                 $"{CompanyManager.ToCompanyFileName(companyName)}{Marker}{DateTime.Now:yyyyMMdd-HHmmss}{Extension}");
 
@@ -124,7 +124,7 @@ public sealed class BackupService(IErrorLogger? errorLogger = null)
             return [.. new DirectoryInfo(folder)
                 .EnumerateFiles("*" + Extension)
                 .Where(f => f.Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
-                            && Stamp.IsMatch(System.IO.Path.GetFileNameWithoutExtension(f.Name)[prefix.Length..]))
+                            && Stamp.IsMatch(Path.GetFileNameWithoutExtension(f.Name)[prefix.Length..]))
                 .Select(f => new BackupFile(f.FullName, f.LastWriteTimeUtc, f.Length))
                 .OrderByDescending(b => b.TakenAtUtc)];
         }
@@ -141,7 +141,7 @@ public sealed class BackupService(IErrorLogger? errorLogger = null)
     /// </summary>
     public static string CompanyNameOf(string backupPath)
     {
-        var name = System.IO.Path.GetFileNameWithoutExtension(backupPath);
+        var name = Path.GetFileNameWithoutExtension(backupPath);
         var at = name.LastIndexOf(Marker, StringComparison.OrdinalIgnoreCase);
         return at > 0 && Stamp.IsMatch(name[(at + Marker.Length)..]) ? name[..at] : name;
     }

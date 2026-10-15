@@ -695,7 +695,7 @@ public class SampleCompanyService
 
             if (string.IsNullOrWhiteSpace(employee.Address.City))
             {
-                employee.Address = new Models.Common.Address
+                employee.Address = new Address
                 {
                     Street = street,
                     City = city,

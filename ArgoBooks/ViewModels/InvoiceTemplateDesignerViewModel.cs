@@ -610,7 +610,7 @@ public partial class InvoiceTemplateDesignerViewModel : ViewModelBase
         else
         {
             // Create new template
-            var id = new Core.Data.IdGenerator(companyData).NextInvoiceTemplateId();
+            var id = new IdGenerator(companyData).NextInvoiceTemplateId();
             var template = new InvoiceTemplate { Id = id };
             UpdateTemplateFromForm(template);
             template.CreatedAt = DateTime.UtcNow;
