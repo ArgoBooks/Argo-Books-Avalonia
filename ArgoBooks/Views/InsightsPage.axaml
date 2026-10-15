@@ -25,8 +25,9 @@
     </UserControl.Styles>
 
     <Panel>
-    <!-- Main Content -->
+    <!-- Main Content. Disabled while a backtest runs, so Tab cannot reach it behind the progress screen. -->
     <ScrollViewer x:Name="ContentScrollViewer"
+                  IsEnabled="{Binding !IsRunningBacktest}"
                   VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled"
                   IsHitTestVisible="{Binding !ShowTeaser}">

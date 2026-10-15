@@ -79,7 +79,8 @@ public partial class MainWindow : Window
 
 
         AddHandler(GotFocusEvent, ClosePopupsLeftByTab, RoutingStrategies.Bubble, handledEventsToo: true);
-        AddHandler(KeyDownEvent, StepIntoModalOnTab, RoutingStrategies.Tunnel);
+        // Runs even after the loading screen's key block has handled Tab, since it is what moves Tab onto that screen.
+        AddHandler(KeyDownEvent, StepIntoModalOnTab, RoutingStrategies.Tunnel, handledEventsToo: true);
         AddHandler(GotFocusEvent, (_, _) => _lastFocused = FocusManager?.GetFocusedElement(), RoutingStrategies.Bubble, handledEventsToo: true);
         Activated += RestoreFocusAfterActivation;
 
@@ -165,9 +166,11 @@ public partial class MainWindow : Window
         if (DataContext is not MainWindowViewModel { IsLoading: true })
             return;
 
+        // The loading screen's own Cancel button keeps its keys too, so Enter and Space can press it.
         if (e.Source is Visual { IsEffectivelyVisible: true } source
             && (source.FindAncestorOfType<Modals.ConfirmationDialog>(includeSelf: true) != null
-                || source.FindAncestorOfType<Modals.UnsavedChangesDialog>(includeSelf: true) != null))
+                || source.FindAncestorOfType<Modals.UnsavedChangesDialog>(includeSelf: true) != null
+                || source == LoadingOverlay || LoadingOverlay.IsVisualAncestorOf(source)))
             return;
 
         e.Handled = true;
@@ -252,14 +255,68 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>Starts Tab inside the open modal when nothing has focus, as after a web view held the keyboard, because Avalonia clears focus when Windows hands it to the web view.</summary>
+    /// <summary>Sends Tab to the loading screen while it shows, and into the open modal when nothing has focus, as after a web view held the keyboard.</summary>
     private void StepIntoModalOnTab(object? sender, KeyEventArgs e)
     {
-        if (e.Key != Key.Tab || FocusManager?.GetFocusedElement() is { } focused && focused != this)
+        if (e.Key != Key.Tab)
             return;
 
-        if (ModalOverlay.FindTopmost(this) is { } modal)
+        var focused = FocusManager?.GetFocusedElement();
+
+        // A modal or menu closing as loading starts can hand focus back behind the screen, so Tab goes to its Cancel button from wherever focus is.
+        if (LoadingOverlay.IsVisible)
+        {
+            if (focused is not Visual visual || visual == LoadingOverlay || !LoadingOverlay.IsVisualAncestorOf(visual))
+                e.Handled = TabIntoLoadingOverlay();
+            return;
+        }
+
+        if ((focused == null || focused == this) && ModalOverlay.FindTopmost(this) is { } modal)
             e.Handled = modal.StepIn(e.KeyModifiers);
+    }
+
+    private IInputElement? _focusBeforeLoading;
+
+    /// <summary>Tab onto the loading screen highlights its Cancel button, when it has one.</summary>
+    private bool TabIntoLoadingOverlay() =>
+        LoadingCancelButton.IsVisible ? LoadingCancelButton.Focus(NavigationMethod.Tab) : LoadingOverlay.Focus();
+
+    private void OnLoadingChanged(MainWindowViewModel viewModel, string? property)
+    {
+        if (!viewModel.IsLoading && property != nameof(MainWindowViewModel.IsLoading))
+            return;
+
+        if (viewModel.IsLoading)
+        {
+            var focused = FocusManager?.GetFocusedElement();
+            if (focused != LoadingOverlay && (focused is not Visual visual || !LoadingOverlay.IsVisualAncestorOf(visual)))
+                _focusBeforeLoading = focused;
+            // The screen itself takes focus, with nothing highlighted, so keys stop reaching what is behind it. Posted, because it is only laid out after it is shown.
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (!viewModel.IsLoading)
+                    return;
+
+                var current = FocusManager?.GetFocusedElement() as Visual;
+                if (current == null || (current != LoadingOverlay && !LoadingOverlay.IsVisualAncestorOf(current)))
+                    LoadingOverlay.Focus();
+            }, DispatcherPriority.Loaded);
+            return;
+        }
+
+        var previous = _focusBeforeLoading;
+        _focusBeforeLoading = null;
+        Dispatcher.UIThread.Post(() =>
+        {
+            // Focus the user has already moved somewhere else stays there.
+            if (FocusManager?.GetFocusedElement() is Visual { IsEffectivelyVisible: true } current && current != this)
+                return;
+
+            if (previous is InputElement { IsEffectivelyVisible: true, IsEffectivelyEnabled: true } element)
+                element.Focus();
+            else
+                Utilities.ModalHelper.ReturnFocusToAppShell(this);
+        }, DispatcherPriority.Background);
     }
 
     private bool IsAnyModalOpen() =>
@@ -642,6 +699,11 @@ public partial class MainWindow : Window
         if (e.PropertyName == nameof(MainWindowViewModel.CurrentView) && DataContext is MainWindowViewModel viewModel)
         {
             UpdateMainContent(viewModel.CurrentView);
+        }
+        else if (e.PropertyName is nameof(MainWindowViewModel.IsLoading) or nameof(MainWindowViewModel.IsLoadingCancellable)
+                 && DataContext is MainWindowViewModel loadingViewModel)
+        {
+            OnLoadingChanged(loadingViewModel, e.PropertyName);
         }
     }
 

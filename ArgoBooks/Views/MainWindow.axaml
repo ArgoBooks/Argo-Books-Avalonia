@@ -197,11 +197,12 @@
             </Border>
 
             <!-- Main Content Area -->
-            <ContentControl x:Name="MainContent" Content="{Binding CurrentView}" />
+            <!-- Disabled under the loading screen, so Tab cannot reach the page behind it. -->
+            <ContentControl x:Name="MainContent" Content="{Binding CurrentView}" IsEnabled="{Binding !IsLoading}" />
         </DockPanel>
 
         <!-- Welcome Screen (full-screen overlay when no company is open) -->
-        <Panel IsVisible="{Binding ShowWelcomeScreen}" ZIndex="150">
+        <Panel IsVisible="{Binding ShowWelcomeScreen}" IsEnabled="{Binding !IsLoading}" ZIndex="150">
             <views:WelcomeScreen DataContext="{Binding WelcomeScreenViewModel}" />
         </Panel>
 
@@ -262,10 +263,15 @@
                                         VerticalAlignment="Stretch"
                                         ZIndex="220" />
 
-            <Border IsVisible="{Binding IsLoading}"
+            <!-- Holds focus while it shows, so Tab reaches its Cancel button rather than the modal or page behind it. -->
+            <Border x:Name="LoadingOverlay"
+                    IsVisible="{Binding IsLoading}"
                     Background="{DynamicResource OverlayBrush}"
                     ZIndex="225"
-                    IsHitTestVisible="True">
+                    IsHitTestVisible="True"
+                    Focusable="True"
+                    KeyboardNavigation.IsTabStop="False"
+                    KeyboardNavigation.TabNavigation="Cycle">
                 <Border Background="{DynamicResource SurfaceBrush}"
                         CornerRadius="12"
                         Padding="40,28"
@@ -295,7 +301,8 @@
                                    FontSize="{StaticResource FontSizeSm}"
                                    Foreground="{DynamicResource TextTertiaryBrush}"
                                    HorizontalAlignment="Center" />
-                        <Button Content="{loc:Loc Cancel}"
+                        <Button x:Name="LoadingCancelButton"
+                                Content="{loc:Loc Cancel}"
                                 Classes="secondary"
                                 IsVisible="{Binding IsLoadingCancellable}"
                                 Command="{Binding CancelLoadingCommand}"
