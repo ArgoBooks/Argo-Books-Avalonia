@@ -6,6 +6,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Threading;
+using ArgoBooks.Utilities;
 
 namespace ArgoBooks.Controls;
 
@@ -123,6 +124,8 @@ public partial class AnimatedContextMenu : UserControl, INotifyPropertyChanged
 
     #endregion
 
+    private IInputElement? _focusBeforeOpen;
+
     public AnimatedContextMenu()
     {
         InitializeComponent();
@@ -139,12 +142,15 @@ public partial class AnimatedContextMenu : UserControl, INotifyPropertyChanged
 
             if (IsOpen)
             {
+                _focusBeforeOpen = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement();
                 // Calculate adjusted position and animate in
                 Dispatcher.UIThread.Post(() =>
                 {
                     CalculateAdjustedPosition(animationBorder);
                     animationBorder.Opacity = 1;
                     animationBorder.RenderTransform = new TranslateTransform(0, 0);
+                    // The menu holds focus so its keys reach it; the arrows then pick an item.
+                    animationBorder.Focus();
                 }, DispatcherPriority.Render);
             }
             else
@@ -220,6 +226,38 @@ public partial class AnimatedContextMenu : UserControl, INotifyPropertyChanged
     /// </summary>
     private void OnOverlayPointerPressed(object? sender, PointerPressedEventArgs e)
     {
+        Close();
+        e.Handled = true;
+    }
+
+    private void OnMenuKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (sender is not Visual menu)
+            return;
+
+        switch (e.Key)
+        {
+            case Key.Down:
+                ModalHelper.StepThroughButtons(menu, 1);
+                e.Handled = true;
+                break;
+            case Key.Up:
+                ModalHelper.StepThroughButtons(menu, -1);
+                e.Handled = true;
+                break;
+            case Key.Escape:
+                Close();
+                _focusBeforeOpen?.Focus();
+                e.Handled = true;
+                break;
+            case Key.Tab:
+                ModalHelper.LeavePanelOnTab(e, _focusBeforeOpen, Close);
+                break;
+        }
+    }
+
+    private void Close()
+    {
         if (CloseCommand?.CanExecute(null) == true)
         {
             CloseCommand.Execute(null);
@@ -229,6 +267,5 @@ public partial class AnimatedContextMenu : UserControl, INotifyPropertyChanged
             // Fallback: directly set IsOpen to false
             IsOpen = false;
         }
-        e.Handled = true;
     }
 }
