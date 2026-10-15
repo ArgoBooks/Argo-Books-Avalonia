@@ -30,6 +30,9 @@
                 VerticalAlignment="Top"
                 Margin="0,60,20,0"
                 BoxShadow="0 4 16 0 #30000000"
+                Focusable="True"
+                KeyboardNavigation.IsTabStop="False"
+                KeyDown="NotificationPanel_KeyDown"
                 Opacity="0"
                 RenderTransformOrigin="1,0">
             <Border.RenderTransform>

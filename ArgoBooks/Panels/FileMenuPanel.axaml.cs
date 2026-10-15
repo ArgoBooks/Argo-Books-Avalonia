@@ -227,12 +227,6 @@ public partial class FileMenuPanel : UserControl
             _focusedIndex = index;
     }
 
-    /// <summary>The recent companies and Clear recent, in the order they appear.</summary>
-    private List<Button> SubmenuButtons() =>
-        RecentSubmenu.GetVisualDescendants().OfType<Button>()
-            .Where(b => b.IsEffectivelyVisible && b.IsEffectivelyEnabled)
-            .ToList();
-
     private void EnterSubmenu()
     {
         if (DataContext is not FileMenuPanelViewModel vm)
@@ -242,7 +236,7 @@ public partial class FileMenuPanel : UserControl
         // Posted, because the list has only just been shown and its buttons cannot take focus before they are laid out.
         Dispatcher.UIThread.Post(() =>
         {
-            if (SubmenuButtons().FirstOrDefault() is { } first && first.Focus(NavigationMethod.Directional))
+            if (ModalHelper.VisibleButtons(RecentSubmenu).FirstOrDefault() is { } first && first.Focus(NavigationMethod.Directional))
                 _isInSubmenu = true;
         }, DispatcherPriority.Loaded);
     }
@@ -254,22 +248,9 @@ public partial class FileMenuPanel : UserControl
         FocusMenuItem(_focusedIndex);
     }
 
-    private void NavigateSubmenuUp() => MoveInSubmenu(-1);
+    private void NavigateSubmenuUp() => ModalHelper.StepThroughButtons(RecentSubmenu, -1);
 
-    private void NavigateSubmenuDown() => MoveInSubmenu(1);
-
-    private void MoveInSubmenu(int step)
-    {
-        var buttons = SubmenuButtons();
-        if (buttons.Count == 0)
-            return;
-
-        var current = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is Button focused ? buttons.IndexOf(focused) : -1;
-        var next = current < 0
-            ? (step > 0 ? 0 : buttons.Count - 1)
-            : (current + step + buttons.Count) % buttons.Count;
-        buttons[next].Focus(NavigationMethod.Directional);
-    }
+    private void NavigateSubmenuDown() => ModalHelper.StepThroughButtons(RecentSubmenu, 1);
 
     private void ActivateCurrentSubmenuItem()
     {
