@@ -261,8 +261,7 @@
                         IsVisible="{Binding HasFilteredRecentCompanies}" />
 
                 <!-- Clear Recent -->
-                <Button x:Name="SubmenuItem3"
-                        Classes="menu-item"
+                <Button Classes="menu-item"
                         Command="{Binding ClearRecentCommand}"
                         IsVisible="{Binding HasFilteredRecentCompanies}">
                     <Grid ColumnDefinitions="Auto,*">
