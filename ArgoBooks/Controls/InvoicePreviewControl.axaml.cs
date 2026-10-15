@@ -674,6 +674,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
         if (_webView == null)
         {
             _webView = new NativeWebView { IsVisible = false };
+            // Tab cannot leave a web view on Avalonia once the page has the keyboard (https://github.com/AvaloniaUI/Avalonia.Controls.WebView/issues/76).
             // Configured before it is added: attaching it is what builds the environment.
             WebViewEnvironment.Configure(_webView, WebViewEnvironment.PaperDrawsInsideAvalonia);
             _rootPanel.Children.Insert(0, _webView);
