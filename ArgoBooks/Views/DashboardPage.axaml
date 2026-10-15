@@ -339,6 +339,8 @@
                 ZIndex="201"
                 HorizontalAlignment="Left"
                 VerticalAlignment="Top"
+                KeyboardNavigation.TabNavigation="Cycle"
+                KeyDown="OnSettingsPopupKeyDown"
                 BoxShadow="0 4 16 0 #30000000">
             <StackPanel Spacing="8">
                 <TextBlock Text="{loc:Loc 'Settings'}"

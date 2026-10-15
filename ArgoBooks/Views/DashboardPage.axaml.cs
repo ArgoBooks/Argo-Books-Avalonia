@@ -26,6 +26,7 @@ public partial class DashboardPage : UserControl
     private readonly List<(WidgetViewModelBase Vm, PropertyChangedEventHandler Handler)> _widgetVisibilitySubscriptions = [];
     private WidgetHostViewModel? _settingsTarget;
     private DashboardRowViewModel? _settingsTargetRow;
+    private Button? _settingsOpener;
 
     // Row drag state
     private bool _isRowDragging;
@@ -512,6 +513,7 @@ public partial class DashboardPage : UserControl
     private void ShowSettingsPopup(WidgetHostViewModel hostVm, WidgetHost widgetHost, Button? settingsBtn, DashboardLayoutViewModel layoutVm)
     {
         _settingsTarget = hostVm;
+        _settingsOpener = settingsBtn;
 
         // Find which row this widget belongs to
         _settingsTargetRow = null;
@@ -580,6 +582,10 @@ public partial class DashboardPage : UserControl
 
         SettingsBackdrop.IsVisible = true;
         SettingsPopup.IsVisible = true;
+        // Posted, because the pop-up's controls cannot take focus before they are laid out.
+        Avalonia.Threading.Dispatcher.UIThread.Post(
+            () => Avalonia.Input.FocusManager.FindFirstFocusableElement(SettingsPopup)?.Focus(),
+            Avalonia.Threading.DispatcherPriority.Loaded);
 
         // Wire backdrop click
         SettingsBackdrop.PointerPressed -= OnSettingsBackdropPressed;
@@ -592,8 +598,21 @@ public partial class DashboardPage : UserControl
         e.Handled = true;
     }
 
+    private void OnSettingsPopupKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Escape)
+            return;
+
+        CloseSettingsPopup();
+        e.Handled = true;
+    }
+
     private void CloseSettingsPopup()
     {
+        // Focus inside the pop-up would be left on a hidden control, so it goes back to the gear that opened it.
+        var focusWasInside = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is Visual focused
+                             && Avalonia.VisualTree.VisualExtensions.IsVisualAncestorOf(SettingsPopup, focused);
+
         SettingsBackdrop.IsVisible = false;
         SettingsPopup.IsVisible = false;
         if (_settingsTarget != null)
@@ -603,6 +622,10 @@ public partial class DashboardPage : UserControl
         }
         _settingsTargetRow = null;
         SettingsContent.Children.Clear();
+
+        if (focusWasInside)
+            _settingsOpener?.Focus();
+        _settingsOpener = null;
     }
 
     private void BuildSizeButtons(StackPanel panel, WidgetHostViewModel hostVm, DashboardLayoutViewModel layoutVm)
