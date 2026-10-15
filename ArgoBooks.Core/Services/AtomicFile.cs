@@ -87,8 +87,8 @@ public static class AtomicFile
     /// short async backoff when the destination is transiently locked, then giving up and
     /// rethrowing if the lock persists.
     /// <para>
-    /// The rename is the only swap used: on the same volume <see cref="File.Move(string, string, bool)"/>
-    /// is atomic, so <paramref name="finalPath"/> is always either the old file or the new one,
+    /// The swap is a single step, <see cref="File.Replace(string, string, string?, bool)"/> over an existing file on
+    /// Windows and a rename otherwise, so <paramref name="finalPath"/> is always either the old file or the new one,
     /// never a half-written mix. A non-atomic copy fallback is deliberately NOT used: it would
     /// truncate the destination and risk corrupting a company file if interrupted, and it rarely
     /// helps anyway because a lock strong enough to fail the rename also fails a copy's open-for-write.
@@ -105,7 +105,7 @@ public static class AtomicFile
         {
             try
             {
-                File.Move(tempPath, finalPath, overwrite);
+                Swap(tempPath, finalPath, overwrite);
                 return;
             }
             catch (FileNotFoundException)
@@ -129,7 +129,7 @@ public static class AtomicFile
         {
             try
             {
-                File.Move(tempPath, finalPath, overwrite);
+                Swap(tempPath, finalPath, overwrite);
                 return;
             }
             catch (FileNotFoundException)
@@ -144,5 +144,24 @@ public static class AtomicFile
                 await Task.Delay(50 * attempt, cancellationToken);
             }
         }
+    }
+
+    /// <summary>Replaces an existing file in place on Windows, so Explorer still sees the same file and leaves its desktop icon where it was.</summary>
+    private static void Swap(string tempPath, string finalPath, bool overwrite)
+    {
+        if (overwrite && OperatingSystem.IsWindows() && File.Exists(finalPath))
+        {
+            try
+            {
+                File.Replace(tempPath, finalPath, destinationBackupFileName: null, ignoreMetadataErrors: true);
+                return;
+            }
+            catch (IOException) when (!File.Exists(finalPath) && File.Exists(tempPath))
+            {
+                // ReplaceFile can remove the old file and then fail to rename the new one, which leaves only the rename below to finish.
+            }
+        }
+
+        File.Move(tempPath, finalPath, overwrite);
     }
 }
