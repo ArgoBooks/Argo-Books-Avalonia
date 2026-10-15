@@ -2065,13 +2065,13 @@ public class CompanyManager : IDisposable
     }
 
     /// <summary>
-    /// Saves only the payment-sync-related files (payments, invoices, revenues, id counters, settings)
-    /// to the temp directory and repackages the .argo file, without triggering a full company save
-    /// workflow (no CompanySaving/CompanySaved events, no MarkAsSaved).
+    /// Writes the whole company to its file after a background sync added records, without the full save
+    /// workflow (no CompanySaving/CompanySaved events, no MarkAsSaved). It writes nothing while the user has
+    /// unsaved edits, since those would be committed along with the sync.
     /// </summary>
     /// <returns>
     /// Whether <paramref name="companyData"/> was written to its file. False when it is no longer the
-    /// open company or no company file is open, in which case nothing was saved.
+    /// open company, no company file is open, or the user has unsaved edits, in which case nothing was saved.
     /// </returns>
     public async Task<bool> SavePaymentSyncAsync(CompanyData companyData, CancellationToken cancellationToken = default)
     {
@@ -2087,6 +2087,10 @@ public class CompanyManager : IDisposable
             // Merge deferred receipts before writing receipts.json (see SaveCompanyAsync).
             await EnsureReceiptsLoadedAsync();
             if (!ReferenceEquals(CompanyData, companyData) || CurrentFilePath == null || _currentTempDirectory == null)
+                return false;
+
+            // Checked again here as well as by the caller, because the user can make an edit while this waits for the lock and the receipts.
+            if (HasUnsavedChanges)
                 return false;
 
             var companyDir = GetCompanyDirectory(_currentTempDirectory);

@@ -417,6 +417,66 @@ public class CompanyManagerTests : IDisposable
 
     #endregion
 
+    #region Payment Sync Save Tests
+
+    /// <summary>
+    /// A background sync writes the whole company, so it must write nothing while the user has unsaved
+    /// edits, or closing without saving could no longer throw those edits away.
+    /// </summary>
+    [Fact]
+    public async Task SavePaymentSync_WithUnsavedEdits_WritesNothing()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"argo-cm-{Guid.NewGuid():N}.argo");
+        try
+        {
+            await _manager.CreateCompanyAsync(path, "Acme");
+            await _manager.SaveCompanyAsync();
+
+            _manager.CompanyData!.Customers.Add(new Customer { Id = "CUS-UNSAVED", Name = "Unsaved edit" });
+            _manager.MarkAsChanged();
+
+            Assert.False(await _manager.SavePaymentSyncAsync(_manager.CompanyData));
+
+            await _manager.CloseCompanyAsync();
+            Assert.True(await _manager.OpenCompanyAsync(path));
+            Assert.DoesNotContain(_manager.CompanyData!.Customers, c => c.Id == "CUS-UNSAVED");
+        }
+        finally
+        {
+            await _manager.CloseCompanyAsync();
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    /// <summary>
+    /// With nothing unsaved, the records a sync added are written and survive reopening.
+    /// </summary>
+    [Fact]
+    public async Task SavePaymentSync_WithNoUnsavedEdits_WritesTheSyncedRecords()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"argo-cm-{Guid.NewGuid():N}.argo");
+        try
+        {
+            await _manager.CreateCompanyAsync(path, "Acme");
+            await _manager.SaveCompanyAsync();
+
+            _manager.CompanyData!.Customers.Add(new Customer { Id = "CUS-SYNCED", Name = "From the portal" });
+
+            Assert.True(await _manager.SavePaymentSyncAsync(_manager.CompanyData));
+
+            await _manager.CloseCompanyAsync();
+            Assert.True(await _manager.OpenCompanyAsync(path));
+            Assert.Contains(_manager.CompanyData!.Customers, c => c.Id == "CUS-SYNCED");
+        }
+        finally
+        {
+            await _manager.CloseCompanyAsync();
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    #endregion
+
     #region Company File Name Tests
 
     /// <summary>
