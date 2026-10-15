@@ -579,17 +579,22 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
     /// </summary>
     private void FlagAlreadyImported(CompanyData data)
     {
-        var existing = new HashSet<string>(StringComparer.Ordinal);
+        // Counted, not just looked up, so two identical purchases with one already in the books flag only one of them.
+        var existing = new Dictionary<string, int>(StringComparer.Ordinal);
+        void Hold(string key) => existing[key] = existing.GetValueOrDefault(key) + 1;
         foreach (var e in data.Expenses)
-            existing.Add(TxKey(isRevenue: false, e.Date, e.Total, e.Description));
+            Hold(TxKey(isRevenue: false, e.Date, e.Total, e.Description));
         foreach (var r in data.Revenues)
-            existing.Add(TxKey(isRevenue: true, r.Date, r.Total, r.Description));
+            Hold(TxKey(isRevenue: true, r.Date, r.Total, r.Description));
 
         foreach (var row in Rows)
         {
             var key = TxKey(row.CreateAsRevenue, row.Date.DateTime, row.Amount, row.Description);
-            if (existing.Contains(key))
+            if (existing.TryGetValue(key, out var count) && count > 0)
+            {
+                existing[key] = count - 1;
                 row.AlreadyImported = true;
+            }
         }
     }
 

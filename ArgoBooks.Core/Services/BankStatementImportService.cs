@@ -262,7 +262,8 @@ public class BankStatementImportService(IErrorLogger? errorLogger = null)
 
             // Canonical signed amount: negative = money out, positive = money in.
             // Prefer an explicit signed Amount column; otherwise derive from Credit - Debit.
-            var amount = signedAmount ?? ((credit ?? 0m) - (debit ?? 0m));
+            // Some banks write debits as negative numbers, which subtracted as they are would turn spending into income.
+            var amount = signedAmount ?? (Math.Abs(credit ?? 0m) - Math.Abs(debit ?? 0m));
 
             result.Add(new BankStatementLine
             {
