@@ -380,19 +380,31 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
 
         // Store old values for undo
         var oldInStock = inventoryItem.InStock;
+        var oldOpeningUnits = inventoryItem.OpeningUnits;
         var oldStatus = inventoryItem.Status;
 
         // Calculate new stock
         var newStock = AdjustmentType switch
         {
             "Add" => inventoryItem.InStock + quantity,
-            "Remove" => Math.Max(0, inventoryItem.InStock - quantity),
+            "Remove" => inventoryItem.InStock - quantity,
             "Set" => quantity,
             _ => inventoryItem.InStock
         };
 
+        // Refused rather than stopped at zero, the same as on the Stock Adjustments page.
+        if (newStock < 0)
+        {
+            AdjustmentError = "Cannot remove {0} items. Only {1} in stock.".TranslateFormat(quantity, inventoryItem.InStock);
+            HasAdjustmentQuantityError = true;
+            return;
+        }
+
+        var newOpeningUnits = InventoryStockService.OpeningUnitsAfter(inventoryItem, newStock);
+
         // Apply the change
         inventoryItem.InStock = newStock;
+        inventoryItem.OpeningUnits = newOpeningUnits;
         inventoryItem.Status = inventoryItem.CalculateStatus();
         inventoryItem.LastUpdated = DateTime.UtcNow;
         App.CheckAndNotifyStockStatus(inventoryItem, oldInStock);
@@ -411,10 +423,10 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
                     "Set" => Core.Enums.AdjustmentType.Set,
                     _ => Core.Enums.AdjustmentType.Add
                 },
-                // Store the quantity that was actually applied. A "Remove" clamps NewStock at 0, so the user-entered amount can exceed what was removed.
-                Quantity = AdjustmentType == "Remove" ? oldInStock - newStock : quantity,
+                Quantity = quantity,
                 PreviousStock = oldInStock,
                 NewStock = newStock,
+                OpeningUnitsChange = newOpeningUnits - oldOpeningUnits,
                 Reason = AdjustmentReason,
                 Timestamp = DateTime.UtcNow
             };
@@ -430,6 +442,7 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
                 () =>
                 {
                     inventoryItem.InStock = oldInStock;
+                    inventoryItem.OpeningUnits = oldOpeningUnits;
                     inventoryItem.Status = oldStatus;
                     App.CheckAndNotifyStockStatus(inventoryItem, newStock);
                     companyData.StockAdjustments.RemoveRecord(adjustmentRecord);
@@ -439,6 +452,7 @@ public partial class StockLevelsModalsViewModel : ViewModelBase
                 () =>
                 {
                     inventoryItem.InStock = newStock;
+                    inventoryItem.OpeningUnits = newOpeningUnits;
                     inventoryItem.Status = inventoryItem.CalculateStatus();
                     App.CheckAndNotifyStockStatus(inventoryItem, oldInStock);
                     companyData.StockAdjustments.RestoreRecord(adjustmentRecord);

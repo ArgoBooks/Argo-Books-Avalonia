@@ -276,8 +276,12 @@ public partial class StockAdjustmentsModalsViewModel : ViewModelBase
             return;
         }
 
+        var oldOpeningUnits = inventoryItem.OpeningUnits;
+        var newOpeningUnits = Core.Services.InventoryStockService.OpeningUnitsAfter(inventoryItem, newStock);
+
         // Apply the change
         inventoryItem.InStock = newStock;
+        inventoryItem.OpeningUnits = newOpeningUnits;
         inventoryItem.Status = inventoryItem.CalculateStatus();
         inventoryItem.LastUpdated = DateTime.UtcNow;
 
@@ -292,6 +296,7 @@ public partial class StockAdjustmentsModalsViewModel : ViewModelBase
                 Quantity = quantity,
                 PreviousStock = oldInStock,
                 NewStock = newStock,
+                OpeningUnitsChange = newOpeningUnits - oldOpeningUnits,
                 Reason = AdjustmentReason,
                 ReferenceNumber = string.IsNullOrWhiteSpace(ReferenceNumber) ? null : ReferenceNumber.Trim(),
                 Timestamp = DateTime.UtcNow
@@ -312,6 +317,7 @@ public partial class StockAdjustmentsModalsViewModel : ViewModelBase
                 () =>
                 {
                     itemToUndo.InStock = oldInStock;
+                    itemToUndo.OpeningUnits = oldOpeningUnits;
                     itemToUndo.Status = oldStatus;
                     companyData.StockAdjustments.RemoveRecord(adjustmentRecord);
                     companyData.MarkAsModified();
@@ -320,6 +326,7 @@ public partial class StockAdjustmentsModalsViewModel : ViewModelBase
                 () =>
                 {
                     itemToUndo.InStock = newStock;
+                    itemToUndo.OpeningUnits = newOpeningUnits;
                     itemToUndo.Status = itemToUndo.CalculateStatus();
                     companyData.StockAdjustments.RestoreRecord(adjustmentRecord);
                     companyData.MarkAsModified();
@@ -431,6 +438,7 @@ public partial class StockAdjustmentsModalsViewModel : ViewModelBase
                 return;
 
             var oldInventoryStock = inventoryItem?.InStock;
+            var oldInventoryOpeningUnits = inventoryItem?.OpeningUnits;
             var oldInventoryStatus = inventoryItem?.Status;
 
             RemoveWithUndo(companyData, companyData.StockAdjustments, adjustment, $"Delete adjustment for '{item.ProductName}'",
@@ -443,6 +451,7 @@ public partial class StockAdjustmentsModalsViewModel : ViewModelBase
                     // PreviousStock is only correct if this is the most recent adjustment for the item;
                     // with later adjustments present, that snapshot leaves stock and the ledger inconsistent.
                     inventoryItem.InStock -= adjustment.NewStock - adjustment.PreviousStock;
+                    inventoryItem.OpeningUnits = Math.Max(0, inventoryItem.OpeningUnits - adjustment.OpeningUnitsChange);
                     inventoryItem.Status = inventoryItem.CalculateStatus();
                     inventoryItem.LastUpdated = DateTime.UtcNow;
                 },
@@ -451,6 +460,7 @@ public partial class StockAdjustmentsModalsViewModel : ViewModelBase
                     if (inventoryItem == null || !oldInventoryStock.HasValue) return;
 
                     inventoryItem.InStock = oldInventoryStock.Value;
+                    inventoryItem.OpeningUnits = oldInventoryOpeningUnits ?? inventoryItem.OpeningUnits;
                     inventoryItem.Status = oldInventoryStatus ?? inventoryItem.CalculateStatus();
                 });
         }

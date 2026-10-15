@@ -45,6 +45,12 @@ public class StockAdjustment : IRecord
     public decimal NewStock { get; set; }
 
     /// <summary>
+    /// Change the adjustment made to the stock's opening units, negative when it took some out, so deleting it can put them back.
+    /// </summary>
+    [JsonPropertyName("openingUnitsChange")]
+    public decimal OpeningUnitsChange { get; set; }
+
+    /// <summary>
     /// Reason for adjustment.
     /// </summary>
     [JsonPropertyName("reason")]
