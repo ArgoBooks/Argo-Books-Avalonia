@@ -1359,6 +1359,8 @@ public partial class App : Application
             // A web view that cannot start throws from an async void attach handler, which lands on the dispatcher as an unhandled exception and ends the process (https://github.com/AvaloniaUI/Avalonia.Controls.WebView/issues/100).
             WebViewEnvironment.InstallDispatcherGuard(errorLogger);
 
+            Helpers.ChartRedraw.Register();
+
             // Before any window exists: RequestedThemeVariant is "Default" (follows the OS) until the saved theme is applied, so applying it late flashes the wrong palette.
             SettingsService = new GlobalSettingsService(errorLogger);
             try

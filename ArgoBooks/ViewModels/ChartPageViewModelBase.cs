@@ -138,6 +138,18 @@ public abstract partial class ChartPageViewModelBase : ChartContextMenuViewModel
     public string DateRangeDisplayText => ChartSettings.DateRangeDisplayText;
 
     /// <summary>
+    /// Works out the selected preset's dates again before a reload, since they go stale past midnight
+    /// and All Time starts at the earliest transaction, which moves when transactions are added.
+    /// </summary>
+    protected void RefreshPresetDates()
+    {
+        ChartSettings.UpdateDateRangeFromSelection();
+        OnPropertyChanged(nameof(StartDate));
+        OnPropertyChanged(nameof(EndDate));
+        OnPropertyChanged(nameof(DateRangeDisplayText));
+    }
+
+    /// <summary>
     /// Gets whether the custom date range option is selected.
     /// </summary>
     public bool IsCustomDateRange => SelectedDateRange == DateRangePreset.CustomRange.GetDisplayName();

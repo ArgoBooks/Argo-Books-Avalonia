@@ -1401,8 +1401,7 @@ public partial class AnalyticsPageViewModel : ChartPageViewModelBase, ICleanupVi
         var data = _companyManager?.CompanyData;
         if (data == null) return;
 
-        // A preset's dates go stale when the app is left open past midnight (see the dashboard).
-        ChartSettings.UpdateDateRangeFromSelection();
+        RefreshPresetDates();
 
         var tab = SelectedTabIndex;
         // A style-only reload redraws the cartesian charts of an already-loaded tab; a tab that

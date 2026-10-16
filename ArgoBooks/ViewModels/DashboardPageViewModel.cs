@@ -427,8 +427,7 @@ public partial class DashboardPageViewModel : ChartPageViewModelBase, ICleanupVi
         var data = _companyManager?.CompanyData;
         if (data == null || !IsOnScreen) return;
 
-        // A preset's dates are worked out when it is picked.
-        ChartSettings.UpdateDateRangeFromSelection();
+        RefreshPresetDates();
 
         // Correct rental statuses before displaying
         CorrectRentalStatuses(data);
