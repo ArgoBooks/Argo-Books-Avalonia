@@ -232,7 +232,7 @@ public class BankStatementImportService(IErrorLogger? errorLogger = null)
         Assign(ColBalance, h => h.Contains("balance") || h.Contains("bal"));
         Assign(ColAmount, h => h is "amount" or "value" or "amt" || (h.Contains("amount") && !h.Contains("tax")));
         Assign(ColReference, h => h.Contains("reference") || h is "ref" || h.Contains("ref no") || h.Contains("cheque") || h.Contains("check") || h.Contains("trans id") || h.Contains("transaction id"));
-        Assign(ColDescription, h => h.Contains("desc") || h.Contains("memo") || h.Contains("narrative") || h.Contains("detail") || h.Contains("particular") || h.Contains("payee") || h.Contains("name") || h.Contains("transaction"));
+        Assign(ColDescription, h => h.Contains("desc") || h.Contains("memo") || h.Contains("narrat") || h.Contains("detail") || h.Contains("particular") || h.Contains("payee") || h.Contains("name") || h.Contains("transaction"));
     }
 
     private static List<BankStatementLine> BuildLines(List<string> headers, List<List<object?>> rows, CancellationToken cancellationToken)
