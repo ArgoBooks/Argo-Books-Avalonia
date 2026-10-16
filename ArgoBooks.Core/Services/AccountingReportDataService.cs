@@ -966,7 +966,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
 
                 data.Rows.Add(new AccountingRow
                 {
-                    Label = entry.Date.ToString("MMM dd, yyyy"),
+                    Label = entry.Date.ToString(Data.DateFormats.Short),
                     Values =
                     [
                         entry.Description,
@@ -1281,31 +1281,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
             _ => AccountingTradition.US
         };
 
-        // Determine tax system (orthogonal to accounting tradition)
-        var taxSystem = normalized switch
-        {
-            "UNITED KINGDOM" or "FRANCE" or "GERMANY" or "ITALY" or "SPAIN" or "NETHERLANDS"
-            or "BELGIUM" or "AUSTRIA" or "SWEDEN" or "NORWAY" or "DENMARK" or "FINLAND"
-            or "IRELAND" or "PORTUGAL" or "GREECE" or "SWITZERLAND" or "POLAND"
-            or "CZECH REPUBLIC" or "CZECHIA" or "HUNGARY" or "ROMANIA" or "BULGARIA" or "CROATIA"
-            or "SLOVAKIA" or "SLOVENIA" or "LITHUANIA" or "LATVIA" or "ESTONIA"
-            or "LUXEMBOURG" or "MALTA" or "CYPRUS" or "SOUTH AFRICA" or "KENYA"
-            or "NIGERIA" or "GHANA" or "ZIMBABWE" or "BOTSWANA"
-            or "BANGLADESH" or "SRI LANKA" or "JAMAICA" or "TRINIDAD AND TOBAGO"
-            or "TURKEY" or "RUSSIA" or "UKRAINE" or "BRAZIL"
-            or "ARGENTINA" or "CHILE" or "COLOMBIA" or "MEXICO" or "PERU"
-            or "ISRAEL" or "UNITED ARAB EMIRATES" or "SAUDI ARABIA" or "THAILAND"
-            or "VIETNAM" or "INDONESIA" or "PHILIPPINES" or "SOUTH KOREA"
-            or "CHINA" or "TAIWAN" or "ICELAND" => TaxSystem.VAT,
-
-            "CANADA" => TaxSystem.GstHst,
-            "INDIA" or "SINGAPORE" or "MALAYSIA" or "AUSTRALIA" or "NEW ZEALAND"
-            or "PAKISTAN" => TaxSystem.GST,
-            "JAPAN" => TaxSystem.JCT,
-            "UNITED STATES" or "PUERTO RICO" => TaxSystem.SalesTax,
-
-            _ => TaxSystem.Tax
-        };
+        var taxSystem = TaxSystems.For(country);
 
         var terms = new AccountingTerms();
 
@@ -1690,7 +1666,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         return data;
 
         static bool IsQuebecLine(Models.Payroll.PayRunLine line) =>
-            string.Equals(line.Province, "QC", StringComparison.OrdinalIgnoreCase);
+            Payroll.CraFormat.IsQuebec(line.Province);
 
         AccountingRow Row(string label, decimal value) => new()
         {

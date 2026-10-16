@@ -64,13 +64,4 @@ public interface IFileService
     /// <param name="data">Object to serialize</param>
     /// <param name="cancellationToken">Cancellation token</param>
     Task WriteJsonAsync<T>(string tempDirectory, string fileName, T data, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Extracts the company logo from a .argo file without fully opening it.
-    /// Returns null for files without a logo.
-    /// </summary>
-    /// <param name="filePath">Path to the .argo file</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Logo image bytes, or null if not available</returns>
-    Task<byte[]?> ExtractLogoFromFileAsync(string filePath, CancellationToken cancellationToken = default);
 }

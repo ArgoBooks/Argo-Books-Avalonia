@@ -32,7 +32,7 @@
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <!-- DPAPI, for credential storage on Windows. -->
     <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="10.0.12" />
-    <PackageVersion Include="System.Security.Cryptography.Xml" Version="10.0.12" />
+    <PackageVersion Include="System.Security.Cryptography.Xml" Version="10.0.13" />
 
     <!-- The Avalonia 12 preview, because the stable line is built against Avalonia 11 and crashes when a chart control is constructed. -->
     <PackageVersion Include="LiveChartsCore.SkiaSharpView" Version="2.0.1-av12.1" />
@@ -43,6 +43,8 @@
     <!-- HEIC decoding, which Skia does not do on Windows or Linux and which every photo off an iPhone needs. The Runtime package bundles one library where the per-rid ones ship untrimmable aom and x265 beside it, costing 15 MB. -->
     <PackageVersion Include="LibHeifSharp" Version="3.2.0" />
     <PackageVersion Include="LibHeif.Native.Runtime" Version="1.20.2" />
+    <!-- TIFF decoding for receipts from office scanners, which Skia does not read. Fully managed, so it needs no native library on any platform. -->
+    <PackageVersion Include="BitMiracle.LibTiff.NET" Version="2.4.660" />
 
     <PackageVersion Include="QuestPDF" Version="2026.2.4" />
     <PackageVersion Include="ClosedXML" Version="0.105.1" />

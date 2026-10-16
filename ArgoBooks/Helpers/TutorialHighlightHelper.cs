@@ -22,8 +22,8 @@ public class TutorialStep
 /// </summary>
 public static class TutorialHighlightHelper
 {
-    private const double BorderThickness = 3;
-    private const double EdgeOffset = 8;
+    internal const double BorderThickness = 3;
+    internal const double EdgeOffset = 8;
 
     /// <summary>
     /// Finds a named control in the visual tree.
@@ -61,7 +61,7 @@ public static class TutorialHighlightHelper
             var overlayWidth = overlay.Bounds.Width;
             var overlayHeight = overlay.Bounds.Height;
 
-            // Inset with edge clamping (same as AppTourOverlay)
+            // Inset with edge clamping
             var leftOffset = topLeft.X <= EdgeOffset ? EdgeOffset - 3 : 0;
             var topOffset = topLeft.Y <= EdgeOffset ? EdgeOffset - 1 : BorderThickness - 1;
             var rightOffset = bottomRight.X >= overlayWidth - EdgeOffset ? EdgeOffset : BorderThickness;

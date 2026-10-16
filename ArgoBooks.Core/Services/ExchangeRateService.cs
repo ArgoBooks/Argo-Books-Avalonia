@@ -25,7 +25,7 @@ public class ExchangeRateService
     /// <summary>How many repair requests may be in flight at once. See PreloadRatesAsync.</summary>
     private const int MaxParallelRateFetches = 6;
 
-    private static readonly string BaseUrl = $"{ApiConfig.BaseUrl}/api/exchange-rates.php";
+    private static readonly string RatesUrl = $"{ApiConfig.BaseUrl}/api/exchange-rates.php";
     private static readonly string BatchUrl = $"{ApiConfig.BaseUrl}/api/exchange-rates-batch.php";
     private const string BaseCurrency = "USD"; // All rates are relative to USD
 
@@ -462,8 +462,8 @@ public class ExchangeRateService
 
                 var isToday = date.Date == DateTime.Today;
                 var endpoint = isToday
-                    ? BaseUrl
-                    : $"{BaseUrl}?date={DateKey(date)}";
+                    ? RatesUrl
+                    : $"{RatesUrl}?date={DateKey(date)}";
 
                 using var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
 

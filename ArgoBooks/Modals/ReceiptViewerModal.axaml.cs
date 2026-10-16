@@ -4,9 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using Avalonia.Media;
 using Avalonia.Threading;
-using Avalonia.VisualTree;
 using ArgoBooks.Helpers;
 using ArgoBooks.ViewModels;
 
@@ -27,14 +25,9 @@ public partial class ReceiptViewerModal : UserControl
     private Slider? _zoomSlider;
     private TextBlock? _zoomPercentText;
     private bool _eventsSubscribed;
-    private bool _updatingSlider;
     private ReceiptViewerModalViewModel? _subscribedVm;
 
-    // Zoom settings
-    private double _zoomLevel = 1.0;
-    private const double MinZoom = 0.25;
-    private const double MaxZoom = 4.0;
-    private const double ZoomStep = 0.25;
+    private readonly PreviewZoom _zoom;
 
     // Panning (any mouse button drag)
     private bool _isPanning;
@@ -45,6 +38,9 @@ public partial class ReceiptViewerModal : UserControl
 
     public ReceiptViewerModal()
     {
+        // The scroll viewer has 16 px of padding on each side.
+        _zoom = new PreviewZoom(() => _imageScrollViewer, () => _zoomTransformControl, () => _pagesContainer,
+            () => _zoomSlider, () => _zoomPercentText, fitPadding: 32);
         InitializeComponent();
     }
 
@@ -136,15 +132,7 @@ public partial class ReceiptViewerModal : UserControl
             _overscrollHelper = new OverscrollHelper(_zoomTransformControl);
         }
 
-        // Initialize slider value
-        if (_zoomSlider != null)
-        {
-            _updatingSlider = true;
-            _zoomSlider.Value = _zoomLevel;
-            _updatingSlider = false;
-        }
-
-        UpdateZoomDisplay();
+        _zoom.ShowLevel();
     }
 
     #region Event Handlers
@@ -186,201 +174,22 @@ public partial class ReceiptViewerModal : UserControl
 
     #region Zoom
 
-    private void ApplyZoom()
-    {
-        if (_zoomTransformControl == null) return;
-        _zoomTransformControl.LayoutTransform = new ScaleTransform(_zoomLevel, _zoomLevel);
-        UpdateZoomDisplay();
-    }
-
-    private void UpdateZoomDisplay()
-    {
-        // Update slider (without triggering the event)
-        if (_zoomSlider != null && !_updatingSlider)
-        {
-            _updatingSlider = true;
-            _zoomSlider.Value = _zoomLevel;
-            _updatingSlider = false;
-        }
-
-        // Update percentage text
-        if (_zoomPercentText != null)
-        {
-            _zoomPercentText.Text = $"{_zoomLevel:P0}";
-        }
-    }
-
-    private void ZoomIn() => ZoomTowardsCenter(true);
-    private void ZoomOut() => ZoomTowardsCenter(false);
+    private void ZoomIn() => _zoom.ZoomTowardsCenter(true);
+    private void ZoomOut() => _zoom.ZoomTowardsCenter(false);
+    private void ResetZoom() => _zoom.Reset();
+    private void ZoomToFit() => _zoom.FitToWindow(measureAtFullSize: true);
 
     private void ZoomIn_Click(object? sender, RoutedEventArgs e) => ZoomIn();
     private void ZoomOut_Click(object? sender, RoutedEventArgs e) => ZoomOut();
-
-    private void ZoomSlider_ValueChanged(object? sender, RangeBaseValueChangedEventArgs e)
-    {
-        if (_updatingSlider) return;
-
-        ZoomToLevel(e.NewValue);
-    }
-
-    /// <summary>
-    /// Zooms to a specific level while maintaining center focus.
-    /// </summary>
-    private void ZoomToLevel(double newZoom)
-    {
-        if (_imageScrollViewer == null || _zoomTransformControl == null) return;
-
-        var oldZoom = _zoomLevel;
-        newZoom = Math.Clamp(newZoom, MinZoom, MaxZoom);
-
-        if (Math.Abs(oldZoom - newZoom) < 0.001) return;
-
-        // Get the center of the viewport in content coordinates
-        var viewportCenterX = _imageScrollViewer.Viewport.Width / 2;
-        var viewportCenterY = _imageScrollViewer.Viewport.Height / 2;
-
-        var contentCenterX = (_imageScrollViewer.Offset.X + viewportCenterX) / oldZoom;
-        var contentCenterY = (_imageScrollViewer.Offset.Y + viewportCenterY) / oldZoom;
-
-        _zoomLevel = newZoom;
-        ApplyZoom();
-        _zoomTransformControl.UpdateLayout();
-
-        // Calculate new offset to keep the same content point at center
-        var newOffsetX = contentCenterX * newZoom - viewportCenterX;
-        var newOffsetY = contentCenterY * newZoom - viewportCenterY;
-
-        var maxX = Math.Max(0, _imageScrollViewer.Extent.Width - _imageScrollViewer.Viewport.Width);
-        var maxY = Math.Max(0, _imageScrollViewer.Extent.Height - _imageScrollViewer.Viewport.Height);
-
-        _imageScrollViewer.Offset = new Vector(
-            Math.Clamp(newOffsetX, 0, maxX),
-            Math.Clamp(newOffsetY, 0, maxY)
-        );
-    }
-
-    private void ResetZoom()
-    {
-        _zoomLevel = 1.0;
-        ApplyZoom();
-    }
-
-    private void FitToWindow_Click(object? sender, RoutedEventArgs e)
-    {
-        ZoomToFit();
-    }
-
-    /// <summary>
-    /// Zooms to fit the entire image in the viewport.
-    /// </summary>
-    private void ZoomToFit()
-    {
-        if (_imageScrollViewer == null || _pagesContainer == null || _zoomTransformControl == null) return;
-
-        // Measure the stacked pages container at zoom 1.0 to get its natural DIP size
-        // (using pixel size would be wrong on HiDPI displays)
-        _zoomLevel = 1.0;
-        ApplyZoom();
-        _zoomTransformControl.UpdateLayout();
-
-        var imageWidth = _pagesContainer.Bounds.Width;
-        var imageHeight = _pagesContainer.Bounds.Height;
-
-        if (imageWidth <= 0 || imageHeight <= 0) return;
-
-        // Get viewport size (accounting for padding)
-        var viewportWidth = _imageScrollViewer.Bounds.Width - 32; // 16px padding on each side
-        var viewportHeight = _imageScrollViewer.Bounds.Height - 32;
-
-        if (viewportWidth <= 0 || viewportHeight <= 0) return;
-
-        // Calculate zoom to fit both width and height
-        var scaleX = viewportWidth / imageWidth;
-        var scaleY = viewportHeight / imageHeight;
-
-        // Use a very low minimum so fit-to-window works for any image size/orientation
-        _zoomLevel = Math.Clamp(Math.Min(scaleX, scaleY), 0.01, MaxZoom);
-        ApplyZoom();
-    }
-
-    private void ZoomTowardsCenter(bool zoomIn)
-    {
-        var newZoom = zoomIn
-            ? Math.Min(_zoomLevel + ZoomStep, MaxZoom)
-            : Math.Max(_zoomLevel - ZoomStep, MinZoom);
-
-        ZoomToLevel(newZoom);
-    }
+    private void ZoomSlider_ValueChanged(object? sender, RangeBaseValueChangedEventArgs e) => _zoom.OnSliderChanged(e.NewValue);
+    private void FitToWindow_Click(object? sender, RoutedEventArgs e) => ZoomToFit();
 
     private void OnScrollViewerPointerWheelChanged(object? sender, PointerWheelEventArgs e)
     {
         var delta = e.Delta.Y;
         if (delta != 0)
-        {
-            var viewportPoint = e.GetPosition(_imageScrollViewer);
-            ZoomAtPoint(delta > 0, viewportPoint);
-        }
+            _zoom.ZoomAtPoint(delta > 0, e.GetPosition(_imageScrollViewer));
         e.Handled = true;
-    }
-
-    private void ZoomAtPoint(bool zoomIn, Point viewportPoint)
-    {
-        if (_imageScrollViewer == null || _zoomTransformControl == null) return;
-
-        var oldZoom = _zoomLevel;
-        var newZoom = zoomIn
-            ? Math.Min(oldZoom + ZoomStep, MaxZoom)
-            : Math.Max(oldZoom - ZoomStep, MinZoom);
-
-        if (Math.Abs(oldZoom - newZoom) < 0.001) return;
-
-        // Account for centering when content is smaller than viewport
-        var oldExtent = _imageScrollViewer.Extent;
-        var viewportWidth = _imageScrollViewer.Viewport.Width;
-        var viewportHeight = _imageScrollViewer.Viewport.Height;
-        var oldOffset = _imageScrollViewer.Offset;
-
-        var centeringOffsetX = oldExtent.Width < viewportWidth
-            ? (viewportWidth - oldExtent.Width) / 2
-            : 0;
-        var centeringOffsetY = oldExtent.Height < viewportHeight
-            ? (viewportHeight - oldExtent.Height) / 2
-            : 0;
-
-        // Calculate mouse position in content space
-        var contentX = viewportPoint.X + oldOffset.X - centeringOffsetX;
-        var contentY = viewportPoint.Y + oldOffset.Y - centeringOffsetY;
-
-        // Convert to unscaled coordinates
-        var unscaledX = contentX / oldZoom;
-        var unscaledY = contentY / oldZoom;
-
-        _zoomLevel = newZoom;
-        ApplyZoom();
-        _zoomTransformControl.UpdateLayout();
-
-        // Calculate new offset to keep mouse position at same content point
-        var newExtent = _imageScrollViewer.Extent;
-        var newCenteringOffsetX = newExtent.Width < viewportWidth
-            ? (viewportWidth - newExtent.Width) / 2
-            : 0;
-        var newCenteringOffsetY = newExtent.Height < viewportHeight
-            ? (viewportHeight - newExtent.Height) / 2
-            : 0;
-
-        var newContentX = unscaledX * newZoom;
-        var newContentY = unscaledY * newZoom;
-
-        var newOffsetX = newContentX - viewportPoint.X + newCenteringOffsetX;
-        var newOffsetY = newContentY - viewportPoint.Y + newCenteringOffsetY;
-
-        var maxX = Math.Max(0, newExtent.Width - viewportWidth);
-        var maxY = Math.Max(0, newExtent.Height - viewportHeight);
-
-        _imageScrollViewer.Offset = new Vector(
-            Math.Clamp(newOffsetX, 0, maxX),
-            Math.Clamp(newOffsetY, 0, maxY)
-        );
     }
 
     #endregion
@@ -392,7 +201,7 @@ public partial class ReceiptViewerModal : UserControl
         if (_imageScrollViewer == null) return;
 
         // Don't start panning when the press lands on a scroll bar, let it scroll normally.
-        if (IsOnScrollBar(e.Source)) return;
+        if (PreviewZoom.IsOnScrollBar(e.Source)) return;
 
         var point = e.GetCurrentPoint(_imageScrollViewer);
         if (point.Properties.IsLeftButtonPressed
@@ -406,20 +215,6 @@ public partial class ReceiptViewerModal : UserControl
             _imageScrollViewer.Cursor = new Cursor(StandardCursorType.Hand);
             e.Handled = true;
         }
-    }
-
-    /// <summary>
-    /// True if the event source is a scroll bar (or a part of one, e.g. the drag thumb).
-    /// </summary>
-    private static bool IsOnScrollBar(object? source)
-    {
-        var current = source as Visual;
-        while (current != null)
-        {
-            if (current is ScrollBar) return true;
-            current = current.GetVisualParent();
-        }
-        return false;
     }
 
     private void OnPreviewPointerMoved(object? sender, PointerEventArgs e)

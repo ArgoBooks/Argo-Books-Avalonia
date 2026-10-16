@@ -56,15 +56,14 @@ public static class IntegrationRates
         if (rates == null) return;
 
         var displayNeedsRates =
-            !string.IsNullOrWhiteSpace(displayCurrency) &&
-            !string.Equals(displayCurrency, "USD", StringComparison.OrdinalIgnoreCase);
+            !UsdConversion.IsUsd(displayCurrency);
 
         var today = DateTime.Today;
 
         // Future dates are unpriceable, not missing. They stay pending until the
         // day arrives, which is the documented behaviour rather than a failure.
         var needed = rows
-            .Where(r => displayNeedsRates || !string.Equals(r.Currency, "USD", StringComparison.OrdinalIgnoreCase))
+            .Where(r => displayNeedsRates || !UsdConversion.IsUsd(r.Currency))
             .Select(r => r.Date.Date)
             .Where(d => d <= today)
             .Distinct()

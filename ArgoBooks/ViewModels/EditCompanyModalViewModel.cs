@@ -7,6 +7,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using ArgoBooks.Core.Models.Common;
 
 namespace ArgoBooks.ViewModels;
 
@@ -197,7 +198,7 @@ public partial class EditCompanyModalViewModel : ViewModelBase
         LogoPath = null;
 
         // Load currency
-        var currencyDisplayString = CurrencyService.GetDisplayString(currencyCode ?? "CAD");
+        var currencyDisplayString = CurrencyInfo.GetByCode(currencyCode ?? "CAD").DisplayString;
         _originalCurrency = currencyDisplayString;
         SelectedCurrency = currencyDisplayString;
         HasCurrencyError = false;
@@ -451,7 +452,7 @@ public partial class EditCompanyModalViewModel : ViewModelBase
         if (!skipCurrencyValidation &&
             (Country != _originalCountry || SelectedCurrency != _originalCurrency))
         {
-            var selectedCode = CurrencyService.ParseCurrencyCode(SelectedCurrency);
+            var selectedCode = CurrencyInfo.ParseCodeFromDisplayString(SelectedCurrency);
             if (!await CurrencyCountryMatcher.ConfirmIfMismatchAsync(Country, selectedCode))
                 return;
         }
@@ -478,7 +479,7 @@ public partial class EditCompanyModalViewModel : ViewModelBase
             }
 
             // Preload exchange rates for the new currency
-            var newCurrencyCode = CurrencyService.ParseCurrencyCode(SelectedCurrency);
+            var newCurrencyCode = CurrencyInfo.ParseCodeFromDisplayString(SelectedCurrency);
             _currencyLoadingCts?.Cancel();
             _currencyLoadingCts = new CancellationTokenSource();
             CurrencyLoadingProgress = 0;
@@ -536,7 +537,7 @@ public partial class EditCompanyModalViewModel : ViewModelBase
         // If currency changed, save it to company settings and notify
         if (currencyChanged)
         {
-            var newCurrencyCode = CurrencyService.ParseCurrencyCode(SelectedCurrency);
+            var newCurrencyCode = CurrencyInfo.ParseCodeFromDisplayString(SelectedCurrency);
             var settings = App.CompanyManager?.CompanyData?.Settings;
             if (settings != null)
             {
@@ -572,7 +573,7 @@ public partial class EditCompanyModalViewModel : ViewModelBase
     private async Task<bool> PreloadExchangeRatesForCurrencyAsync(string currencyCode, CancellationToken cancellationToken = default)
     {
         // Skip if USD (no conversion needed)
-        if (string.Equals(currencyCode, "USD", StringComparison.OrdinalIgnoreCase))
+        if (UsdConversion.IsUsd(currencyCode))
             return true;
 
         CurrencyLoadingProgress = 0;

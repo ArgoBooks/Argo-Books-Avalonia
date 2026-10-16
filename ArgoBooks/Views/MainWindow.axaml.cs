@@ -1,7 +1,9 @@
 ﻿using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 using ArgoBooks.Controls;
 using ArgoBooks.Core.Services;
 using ArgoBooks.Localization;
@@ -17,16 +19,46 @@ namespace ArgoBooks.Views;
 /// </summary>
 public partial class MainWindow : Window
 {
+    static MainWindow()
+    {
+        // A drop-down menu opens in its own pop-up window, where Tab only goes round its items, so Tab closes it and moves on from the button that opened it.
+        KeyDownEvent.AddClassHandler<MenuFlyoutPresenter>(LeaveMenuOnTab);
+        KeyboardNavigation.TabOnceActiveElementProperty.Changed.AddClassHandler<TabControl>(KeepTabStripOnItsOwnTab);
+    }
+
+    /// <summary>Works around Avalonia issue 22003, where a tab strip remembers a control from the tab's page and Tab then skips the strip and the page controls before it.</summary>
+    private static void KeepTabStripOnItsOwnTab(TabControl tabs, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.NewValue is not Control remembered || tabs.IndexFromContainer(remembered) >= 0)
+            return;
+
+        KeyboardNavigation.SetTabOnceActiveElement(tabs, tabs.ContainerFromIndex(tabs.SelectedIndex));
+    }
+
+    private static void LeaveMenuOnTab(MenuFlyoutPresenter menu, KeyEventArgs e)
+    {
+        if (e.Key != Key.Tab)
+            return;
+
+        var top = GetTopLevel(menu);
+        var window = top is PopupRoot popup ? popup.ParentTopLevel : top;
+        var direction = (e.KeyModifiers & KeyModifiers.Shift) != 0 ? NavigationDirection.Previous : NavigationDirection.Next;
+
+        menu.Close();
+        e.Handled = true;
+        Dispatcher.UIThread.Post(() => window?.FocusManager?.TryMoveFocus(direction));
+    }
+
     public MainWindow()
     {
         InitializeComponent();
 
         // Count input for the session's active time. Tunnelling, so a click or key press still registers when a child control handles it and the event never bubbles back up here.
-        AddHandler(InputElement.KeyDownEvent, OnAnyInput, RoutingStrategies.Tunnel);
-        AddHandler(InputElement.PointerPressedEvent, OnAnyInput, RoutingStrategies.Tunnel);
+        AddHandler(KeyDownEvent, OnAnyInput, RoutingStrategies.Tunnel);
+        AddHandler(PointerPressedEvent, OnAnyInput, RoutingStrategies.Tunnel);
 
-        AddHandler(InputElement.KeyDownEvent, BlockKeysWhileLoading, RoutingStrategies.Tunnel);
-        AddHandler(InputElement.TextInputEvent, BlockKeysWhileLoading, RoutingStrategies.Tunnel);
+        AddHandler(KeyDownEvent, BlockKeysWhileLoading, RoutingStrategies.Tunnel);
+        AddHandler(TextInputEvent, BlockKeysWhileLoading, RoutingStrategies.Tunnel);
 
         // Subscribe to DataContext changes to ensure content is set
         DataContextChanged += OnDataContextChanged;
@@ -45,6 +77,12 @@ public partial class MainWindow : Window
             dragRegion.PointerPressed += OnTitleBarPointerPressed;
         }
 
+
+        AddHandler(GotFocusEvent, ClosePopupsLeftByTab, RoutingStrategies.Bubble, handledEventsToo: true);
+        // Runs even after the loading screen's key block has handled Tab, since it is what moves Tab onto that screen.
+        AddHandler(KeyDownEvent, StepIntoModalOnTab, RoutingStrategies.Tunnel, handledEventsToo: true);
+        AddHandler(GotFocusEvent, (_, _) => _lastFocused = FocusManager?.GetFocusedElement(), RoutingStrategies.Bubble, handledEventsToo: true);
+        Activated += RestoreFocusAfterActivation;
 
         // Subscribe to window events for state persistence
         Opened += OnWindowOpened;
@@ -88,6 +126,10 @@ public partial class MainWindow : Window
 
         if (this.FindControl<StackPanel>("WindowControls") is { } windowControls)
             windowControls.IsVisible = false;
+
+        // With no custom title bar to stay clear of, the dialogs cover the whole window.
+        if (this.FindControl<Panel>("OverlayLayer") is { } overlayLayer)
+            overlayLayer.Margin = default;
     }
 
 
@@ -124,9 +166,11 @@ public partial class MainWindow : Window
         if (DataContext is not MainWindowViewModel { IsLoading: true })
             return;
 
+        // The loading screen's own Cancel button keeps its keys too, so Enter and Space can press it.
         if (e.Source is Visual { IsEffectivelyVisible: true } source
             && (source.FindAncestorOfType<Modals.ConfirmationDialog>(includeSelf: true) != null
-                || source.FindAncestorOfType<Modals.UnsavedChangesDialog>(includeSelf: true) != null))
+                || source.FindAncestorOfType<Modals.UnsavedChangesDialog>(includeSelf: true) != null
+                || source == LoadingOverlay || LoadingOverlay.IsVisualAncestorOf(source)))
             return;
 
         e.Handled = true;
@@ -163,6 +207,116 @@ public partial class MainWindow : Window
         }
 
         base.OnKeyDown(e);
+    }
+
+    /// <summary>Closes a pop-up when Tab takes focus out of it and the control it drops from, as a click outside it already does.</summary>
+    private IInputElement? _lastFocused;
+
+    /// <summary>Gives focus back after a file picker, which Avalonia cannot do while the button that opened it is disabled by its still-running command.</summary>
+    private void RestoreFocusAfterActivation(object? sender, EventArgs e) =>
+        Dispatcher.UIThread.Post(() =>
+        {
+            var current = FocusManager?.GetFocusedElement();
+            if ((current != null && current != this) || _lastFocused is not InputElement { IsEffectivelyVisible: true } last)
+                return;
+
+            if (last.IsEffectivelyEnabled)
+            {
+                last.Focus();
+                return;
+            }
+
+            void OnEnabled(object? s, AvaloniaPropertyChangedEventArgs change)
+            {
+                if (change.Property != IsEffectivelyEnabledProperty || !last.IsEffectivelyEnabled)
+                    return;
+                last.PropertyChanged -= OnEnabled;
+                var now = FocusManager?.GetFocusedElement();
+                if (now == null || now == this)
+                    last.Focus();
+            }
+            last.PropertyChanged += OnEnabled;
+        }, DispatcherPriority.Input);
+
+    private void ClosePopupsLeftByTab(object? sender, FocusChangedEventArgs e)
+    {
+        if (e.NavigationMethod != NavigationMethod.Tab || e.NewFocusedElement is not Visual target)
+            return;
+
+        foreach (var popup in this.GetVisualDescendants().OfType<Popup>().Where(p => p.IsOpen && p.IsLightDismissEnabled).ToList())
+        {
+            var owner = popup.GetVisualParent();
+            if (owner != null && owner.IsVisualAncestorOf(target))
+                continue;
+            if (popup.Child is { } child && (child == target || child.IsVisualAncestorOf(target)))
+                continue;
+
+            popup.SetCurrentValue(Popup.IsOpenProperty, false);
+        }
+    }
+
+    /// <summary>Sends Tab to the loading screen while it shows, and into the open modal when nothing has focus, as after a web view held the keyboard.</summary>
+    private void StepIntoModalOnTab(object? sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Tab)
+            return;
+
+        var focused = FocusManager?.GetFocusedElement();
+
+        // A modal or menu closing as loading starts can hand focus back behind the screen, so Tab goes to its Cancel button from wherever focus is.
+        if (LoadingOverlay.IsVisible)
+        {
+            if (focused is not Visual visual || visual == LoadingOverlay || !LoadingOverlay.IsVisualAncestorOf(visual))
+                e.Handled = TabIntoLoadingOverlay();
+            return;
+        }
+
+        if ((focused == null || focused == this) && ModalOverlay.FindTopmost(this) is { } modal)
+            e.Handled = modal.StepIn(e.KeyModifiers);
+    }
+
+    private IInputElement? _focusBeforeLoading;
+
+    /// <summary>Tab onto the loading screen highlights its Cancel button, when it has one.</summary>
+    private bool TabIntoLoadingOverlay() =>
+        LoadingCancelButton.IsVisible ? LoadingCancelButton.Focus(NavigationMethod.Tab) : LoadingOverlay.Focus();
+
+    private void OnLoadingChanged(MainWindowViewModel viewModel, string? property)
+    {
+        if (!viewModel.IsLoading && property != nameof(MainWindowViewModel.IsLoading))
+            return;
+
+        if (viewModel.IsLoading)
+        {
+            var focused = FocusManager?.GetFocusedElement();
+            if (focused != LoadingOverlay && (focused is not Visual visual || !LoadingOverlay.IsVisualAncestorOf(visual)))
+                _focusBeforeLoading = focused;
+            // The screen itself takes focus, with nothing highlighted, so keys stop reaching what is behind it. Posted, because it is only laid out after it is shown.
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (!viewModel.IsLoading)
+                    return;
+
+                var current = FocusManager?.GetFocusedElement() as Visual;
+                if (current == null || (current != LoadingOverlay && !LoadingOverlay.IsVisualAncestorOf(current)))
+                    LoadingOverlay.Focus();
+            }, DispatcherPriority.Loaded);
+            return;
+        }
+
+        var previous = _focusBeforeLoading;
+        _focusBeforeLoading = null;
+        Dispatcher.UIThread.Post(() =>
+        {
+            // Focus the user has already moved somewhere else stays there.
+            if (FocusManager?.GetFocusedElement() is Visual { IsEffectivelyVisible: true } current && current != this)
+                return;
+
+            if (previous is InputElement { IsEffectivelyVisible: true, IsEffectivelyEnabled: true } element)
+                element.Focus();
+            else
+                Utilities.ModalHelper.ReturnFocusToAppShell(this);
+        }, DispatcherPriority.Background);
     }
 
     private bool IsAnyModalOpen() =>
@@ -472,7 +626,8 @@ public partial class MainWindow : Window
     /// Width as a layout constraint rather than a hint, so a width saved on a wider screen would
     /// lay the page out to that width inside a narrower window, and everything past the window's
     /// edge would be cut off until something forced a fresh layout. The size is clamped to the
-    /// screen for the same reason.
+    /// screen for the same reason. The layout bug is https://github.com/AvaloniaUI/Avalonia/issues/22283,
+    /// fixed by https://github.com/AvaloniaUI/Avalonia/pull/22284; the clamp stays useful after it ships.
     /// </summary>
     private void ApplyRestoredSize(MainWindowViewModel viewModel)
     {
@@ -544,6 +699,11 @@ public partial class MainWindow : Window
         if (e.PropertyName == nameof(MainWindowViewModel.CurrentView) && DataContext is MainWindowViewModel viewModel)
         {
             UpdateMainContent(viewModel.CurrentView);
+        }
+        else if (e.PropertyName is nameof(MainWindowViewModel.IsLoading) or nameof(MainWindowViewModel.IsLoadingCancellable)
+                 && DataContext is MainWindowViewModel loadingViewModel)
+        {
+            OnLoadingChanged(loadingViewModel, e.PropertyName);
         }
     }
 

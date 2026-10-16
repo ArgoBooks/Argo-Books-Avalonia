@@ -185,7 +185,7 @@ public partial class App : Application
         ShellViewModel shellViewModel;
         try
         {
-            var client = new MobileSyncClient(null, MobileApiConfig.BaseUrl);
+            var client = new MobileSyncClient(null, ArgoBooks.Core.Services.ApiConfig.BaseUrl);
             var secureStore = new MauiSecureStore();
             var pairedCompanyStore = new PairedCompanyStore(secureStore);
             var cache = new FileSnapshotCache(FileSystem.Current.AppDataDirectory);

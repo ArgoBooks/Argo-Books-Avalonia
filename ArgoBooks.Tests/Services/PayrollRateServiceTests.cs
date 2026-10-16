@@ -232,7 +232,6 @@ public class PayrollRateServiceTests : IDisposable
     {
         public PlatformType Platform => PlatformType.Linux;
         public string GetAppDataPath() => cachePath;
-        public string GetTempPath() => Path.GetTempPath();
         public string GetCachePath() => cachePath;
         public void EnsureDirectoryExists(string path) => Directory.CreateDirectory(path);
         public bool SupportsFileSystem => true;

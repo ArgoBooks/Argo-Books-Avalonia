@@ -6,6 +6,7 @@ namespace ArgoBooks.Core.Services;
 ///
 /// Debug builds automatically use the sandbox environment.
 /// Release builds always use production: users can never access sandbox mode.
+/// It lives in Shared so the phone app is built against the same hosts, which pairing needs.
 /// </summary>
 public static class ApiConfig
 {

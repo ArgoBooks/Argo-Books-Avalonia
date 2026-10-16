@@ -120,7 +120,7 @@ public static class PayStubPdfRenderer
             col.Item().Column(c =>
             {
                 // A Quebec employee contributes to QPP, not CPP, and to QPIP, which has no equivalent anywhere else.
-                bool quebec = string.Equals(line.Province, "QC", StringComparison.OrdinalIgnoreCase);
+                bool quebec = CraFormat.IsQuebec(line.Province);
 
                 c.Item().Text("DEDUCTIONS").FontSize(9).SemiBold().FontColor(Colors.Grey.Darken2);
                 c.Item().PaddingTop(6).Column(rows =>
@@ -158,7 +158,7 @@ public static class PayStubPdfRenderer
             // Year to date, which is what an employee checks a stub against.
             col.Item().Column(c =>
             {
-                bool quebec = string.Equals(line.Province, "QC", StringComparison.OrdinalIgnoreCase);
+                bool quebec = CraFormat.IsQuebec(line.Province);
 
                 c.Item().Text("YEAR TO DATE").FontSize(9).SemiBold().FontColor(Colors.Grey.Darken2);
                 c.Item().PaddingTop(6).Column(rows =>
@@ -215,5 +215,5 @@ public static class PayStubPdfRenderer
             }
         });
 
-    private static string Money(decimal value, string symbol) => $"{symbol}{value:N2}";
+    private static string Money(decimal value, string symbol) => MoneyFormat.Format(value, symbol, 2);
 }

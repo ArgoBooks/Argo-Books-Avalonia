@@ -1,3 +1,4 @@
+using ArgoBooks.Core.Services;
 namespace ArgoBooks.Core.Models.Common;
 
 /// <summary>
@@ -90,7 +91,7 @@ public class MonetaryValue
             result = OriginalAmount;
             return true;
         }
-        if (string.Equals(targetCurrency, "USD", StringComparison.OrdinalIgnoreCase))
+        if (UsdConversion.IsUsd(targetCurrency))
         {
             result = AmountUSD;
             return true;

@@ -5,19 +5,13 @@ namespace ArgoBooks.Core.Platform;
 /// </summary>
 public abstract class BasePlatformService : IPlatformService
 {
-    private const string AppName = "ArgoBooks";
+    protected const string ApplicationName = "ArgoBooks";
 
     /// <inheritdoc />
     public abstract PlatformType Platform { get; }
 
     /// <inheritdoc />
     public abstract string GetAppDataPath();
-
-    /// <inheritdoc />
-    public virtual string GetTempPath()
-    {
-        return CombinePaths(Path.GetTempPath(), AppName);
-    }
 
     /// <inheritdoc />
     public virtual string GetCachePath()
@@ -103,9 +97,4 @@ public abstract class BasePlatformService : IPlatformService
 
     /// <inheritdoc />
     public virtual StringComparer PathComparer => StringComparer.Ordinal;
-
-    /// <summary>
-    /// Gets the application name used in paths.
-    /// </summary>
-    protected static string ApplicationName => AppName;
 }

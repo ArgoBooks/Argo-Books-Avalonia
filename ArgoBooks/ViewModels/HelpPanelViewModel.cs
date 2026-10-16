@@ -1,6 +1,7 @@
 using ArgoBooks.Core.Platform;
 using ArgoBooks.Services;
 using ApiConfig = ArgoBooks.Core.Services.ApiConfig;
+using WebsiteUrls = ArgoBooks.Core.Services.WebsiteUrls;
 using AppInfo = ArgoBooks.Core.Services.AppInfo;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -49,28 +50,28 @@ public partial class HelpPanelViewModel : ViewModelBase
     private void OpenWhatsNew()
     {
         Close();
-        OpenUrl($"{ApiConfig.BaseUrl}/whats-new/");
+        UrlHelper.SafeOpenUrl(WebsiteUrls.WhatsNew);
     }
 
     [RelayCommand]
     private void OpenDocumentation()
     {
         Close();
-        OpenUrl($"{ApiConfig.BaseUrl}/documentation/");
+        UrlHelper.SafeOpenUrl($"{ApiConfig.BaseUrl}/documentation/");
     }
 
     [RelayCommand]
     private void OpenCommunity()
     {
         Close();
-        OpenUrl($"{ApiConfig.BaseUrl}/community/");
+        UrlHelper.SafeOpenUrl($"{ApiConfig.BaseUrl}/community/");
     }
 
     [RelayCommand]
     private void OpenSupport()
     {
         Close();
-        OpenUrl($"{ApiConfig.BaseUrl}/contact-us/");
+        UrlHelper.SafeOpenUrl(WebsiteUrls.ContactUs);
     }
 
     [RelayCommand]
@@ -93,14 +94,6 @@ public partial class HelpPanelViewModel : ViewModelBase
     {
         Close();
         TutorialService.Instance.ShowSetupChecklist();
-    }
-
-    /// <summary>
-    /// Opens a URL in the default browser.
-    /// </summary>
-    private static void OpenUrl(string url)
-    {
-        UrlHelper.SafeOpenUrl(url);
     }
 
     #endregion

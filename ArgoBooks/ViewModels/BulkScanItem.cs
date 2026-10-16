@@ -22,7 +22,12 @@ public enum BulkScanStatus
 public partial class BulkScanItem : ObservableObject
 {
     /// <summary>
-    /// Original file path selected by the user.
+    /// The file the user chose, which tells a second drop of the same file apart from a new one.
+    /// </summary>
+    public string SourcePath { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The file to read: the one the user chose, or the JPEG or PDF a TIFF was converted to.
     /// </summary>
     public string FilePath { get; set; } = string.Empty;
 

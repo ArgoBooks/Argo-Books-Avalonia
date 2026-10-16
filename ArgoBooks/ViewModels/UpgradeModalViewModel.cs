@@ -25,7 +25,6 @@ public partial class UpgradeModalViewModel : ViewModelBase
     private readonly IConnectivityService _connectivityService = new ConnectivityService();
     private static readonly string PricingApiUrl = $"{ApiConfig.BaseUrl}/api/pricing/plans.php";
 
-    private static readonly string PremiumUpgradeUrl = $"{ApiConfig.BaseUrl}/pricing/";
     private static readonly string CancelSubscriptionUrl = $"{ApiConfig.BaseUrl}/community/users/subscription.php";
 
     [ObservableProperty]
@@ -455,7 +454,7 @@ public partial class UpgradeModalViewModel : ViewModelBase
     {
         // track_referral.php accepts [A-Za-z0-9_-] and ignores a source holding anything else.
         var source = new string(OpenedFrom.Where(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_').ToArray());
-        OpenUrl($"{PremiumUpgradeUrl}?source=app-{(source.Length == 0 ? "unknown" : source)}");
+        UrlHelper.SafeOpenUrl($"{WebsiteUrls.Pricing}?source=app-{(source.Length == 0 ? "unknown" : source)}");
         Close();
     }
 
@@ -468,13 +467,8 @@ public partial class UpgradeModalViewModel : ViewModelBase
     [RelayCommand]
     private void CancelSubscription()
     {
-        OpenUrl(CancelSubscriptionUrl);
+        UrlHelper.SafeOpenUrl(CancelSubscriptionUrl);
         Close();
-    }
-
-    private static void OpenUrl(string url)
-    {
-        UrlHelper.SafeOpenUrl(url);
     }
 
     [RelayCommand]

@@ -96,9 +96,6 @@ public class RoeWorksheet
     /// <summary>Block 14. Required when <see cref="Recall"/> is <see cref="RoeRecall.ExpectedDate"/>.</summary>
     public DateTime? RecallDate { get; set; }
 
-    /// <summary>Block 6, from the pay frequency.</summary>
-    public PayFrequency PayPeriodType => PayFrequency;
-
     /// <summary>Block 3. The employer's own reference for this employee, if they use one.</summary>
     public string? PayrollReferenceNumber { get; set; }
 

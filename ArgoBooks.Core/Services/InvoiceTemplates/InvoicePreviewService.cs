@@ -8,7 +8,7 @@ namespace ArgoBooks.Core.Services.InvoiceTemplates;
 /// </summary>
 public static class InvoicePreviewService
 {
-    private static readonly string TempDirectory = Path.Combine(Path.GetTempPath(), "ArgoBooks", "InvoicePreviews");
+    private static readonly string TempDirectory = Path.Combine(AppPaths.Temp, "InvoicePreviews");
 
     /// <summary>
     /// Opens the invoice HTML in the default browser for preview.
@@ -37,7 +37,7 @@ public static class InvoicePreviewService
 
             // Open in default browser
             if (openBrowser)
-                OpenUrl(new Uri(filePath).AbsoluteUri);
+                UrlHelper.SafeOpenUrl(new Uri(filePath).AbsoluteUri);
 
             return true;
         }
@@ -46,13 +46,5 @@ public static class InvoicePreviewService
             System.Diagnostics.Debug.WriteLine(ex.Message);
             return false;
         }
-    }
-
-    /// <summary>
-    /// Opens a URL in the default browser (cross-platform).
-    /// </summary>
-    private static void OpenUrl(string url)
-    {
-        UrlHelper.SafeOpenUrl(url);
     }
 }

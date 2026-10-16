@@ -55,14 +55,20 @@
                     </StackPanel>
 
                     <Border Classes="modal-footer" Grid.Row="2">
-                        <StackPanel Classes="modal-actions">
-                            <Button Classes="secondary-button"
-                                    Content="{loc:Loc Cancel}"
-                                    Command="{Binding CancelCommand}" />
-                            <Button Classes="primary-button"
-                                    Content="{Binding ChooseButtonText}"
-                                    Command="{Binding ChooseCommand}" />
-                        </StackPanel>
+                        <Grid ColumnDefinitions="*,Auto">
+                            <CheckBox Grid.Column="0"
+                                      Content="{Binding DontShowAgainLabel}"
+                                      IsChecked="{Binding DontShowAgain}"
+                                      VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="1" Classes="modal-actions">
+                                <Button Classes="secondary-button"
+                                        Content="{loc:Loc Cancel}"
+                                        Command="{Binding CancelCommand}" />
+                                <Button Classes="primary-button"
+                                        Content="{Binding ChooseButtonText}"
+                                        Command="{Binding ChooseCommand}" />
+                            </StackPanel>
+                        </Grid>
                     </Border>
                 </Grid>
             </Border>

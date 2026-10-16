@@ -267,5 +267,4 @@ public static class T4PdfRenderer
         _ => "1 - Not eligible",
     };
 
-    private static string Money(decimal value) => $"${value:N2}";
 }

@@ -46,14 +46,14 @@
             <!-- Summary cards -->
             <controls:StatCardsRow Grid.Row="1" Margin="0,0,0,20">
                 <controls:StatCard Label="{loc:Loc 'Matched'}" Value="{Binding MatchedCount}"
-                                   Icon="{x:Static icons:Icons.Payments}" IconColor="Success" />
+                                   Icon="{x:Static icons:Icons.CircleCheck}" IconColor="Success" />
                 <controls:StatCard Label="{loc:Loc 'Difference'}" Value="{Binding MatchedDifferenceDisplay}"
                                    InfoText="{loc:Loc 'The total difference between matched bank transactions and the records they’re matched to. Exact matches add nothing. If amounts differ, the difference is added. $0.00 means everything matches your bank.'}"
-                                   Icon="{x:Static icons:Icons.Payments}" IconColor="Warning" />
+                                   Icon="{x:Static icons:Icons.Compare}" IconColor="Warning" />
                 <controls:StatCard Label="{loc:Loc 'Unmatched bank lines'}" Value="{Binding UnmatchedLineCount}"
-                                   Icon="{x:Static icons:Icons.Payments}" IconColor="Danger" />
+                                   Icon="{x:Static icons:Icons.Bank}" IconColor="Danger" />
                 <controls:StatCard Label="{loc:Loc 'Unmatched book records'}" Value="{Binding UnmatchedBookCount}"
-                                   Icon="{x:Static icons:Icons.Payments}" IconColor="Primary" />
+                                   Icon="{x:Static icons:Icons.Book}" IconColor="Primary" />
             </controls:StatCardsRow>
 
             <!-- Tabs -->

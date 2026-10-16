@@ -6,8 +6,6 @@ namespace ArgoBooks.Core.Services;
 /// </summary>
 public static class StartupFileArgs
 {
-    private const string CompanyExtension = ".argo";
-
     /// <summary>
     /// Returns the full path of the company file to open at startup, or null when the
     /// arguments contain none.
@@ -31,7 +29,7 @@ public static class StartupFileArgs
             if (candidate.Length == 0 || candidate[0] == '-')
                 continue;
 
-            if (!candidate.EndsWith(CompanyExtension, StringComparison.OrdinalIgnoreCase))
+            if (!candidate.EndsWith(Models.FileFormatConstants.CompanyFileExtension, StringComparison.OrdinalIgnoreCase))
                 continue;
 
             string fullPath;

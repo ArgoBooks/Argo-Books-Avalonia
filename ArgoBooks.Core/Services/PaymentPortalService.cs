@@ -555,7 +555,7 @@ public class PaymentPortalService : IDisposable
         quote.RespondedAt = answeredAt;
         quote.ResponseNote = responseNote;
         quote.UpdatedAt = DateTime.UtcNow;
-        quote.History.Add(new Models.Common.InvoiceHistoryEntry
+        quote.History.Add(new InvoiceHistoryEntry
         {
             Action = parsed == QuoteStatus.Accepted ? "Accepted" : "Declined",
             Details = string.IsNullOrWhiteSpace(responseNote)
@@ -710,18 +710,18 @@ public class PaymentPortalService : IDisposable
             // Map payment method
             var method = portalPayment.PaymentMethod.ToLowerInvariant() switch
             {
-                "stripe" => PaymentMethod.Stripe,
-                "paypal" => PaymentMethod.PayPal,
-                "square" => PaymentMethod.Square,
+                PaymentProviders.Stripe => PaymentMethod.Stripe,
+                PaymentProviders.PayPal => PaymentMethod.PayPal,
+                PaymentProviders.Square => PaymentMethod.Square,
                 _ => PaymentMethod.Other
             };
 
             // Map provider name for display
             var providerName = portalPayment.PaymentMethod.ToLowerInvariant() switch
             {
-                "stripe" => "Stripe",
-                "paypal" => "PayPal",
-                "square" => "Square",
+                PaymentProviders.Stripe => "Stripe",
+                PaymentProviders.PayPal => "PayPal",
+                PaymentProviders.Square => "Square",
                 _ => portalPayment.PaymentMethod
             };
 
@@ -967,7 +967,7 @@ public class PaymentPortalService : IDisposable
     {
         try
         {
-            var url = PortalSettings.ApiBaseUrl.TrimEnd('/') + "/register";
+            var url = PortalSettings.ApiBaseUrl + "/register";
             using var request = new HttpRequestMessage(HttpMethod.Post, url);
 
             var body = new { licenseKey, deviceId, companyName, ownerEmail };
@@ -1314,17 +1314,7 @@ public class PaymentPortalService : IDisposable
         {
             var fileBytes = await SharedFileReader.ReadAllBytesAsync(logoFilePath, cancellationToken);
             var fileName = Path.GetFileName(logoFilePath);
-            var extension = Path.GetExtension(logoFilePath).ToLowerInvariant();
-            var contentType = extension switch
-            {
-                ".png" => "image/png",
-                ".jpg" or ".jpeg" => "image/jpeg",
-                ".gif" => "image/gif",
-                ".webp" => "image/webp",
-                ".bmp" => "image/bmp",
-                ".svg" => "image/svg+xml",
-                _ => "application/octet-stream"
-            };
+            var contentType = MimeTypes.For(logoFilePath);
 
             using var content = new MultipartFormDataContent();
             var fileContent = new ByteArrayContent(fileBytes);
@@ -1415,7 +1405,7 @@ public class PaymentPortalService : IDisposable
 
     private static HttpRequestMessage CreateRequest(HttpMethod method, string path, bool includeLicense = false)
     {
-        var url = PortalSettings.ApiBaseUrl.TrimEnd('/') + path;
+        var url = PortalSettings.ApiBaseUrl + path;
         var request = new HttpRequestMessage(method, url);
 
         var apiKey = PortalSettings.ApiKey;

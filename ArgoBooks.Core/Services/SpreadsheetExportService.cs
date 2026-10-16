@@ -149,7 +149,7 @@ public class SpreadsheetExportService
         var (headers, rows) = GetExportData(dataItem, data, startDate, endDate);
         if (headers.Length == 0) return;
 
-        var ws = workbook.Worksheets.Add(TruncateSheetName(dataItem));
+        var ws = workbook.Worksheets.Add(ExcelSheetNames.Clean(dataItem, "Sheet1"));
 
         // Add headers
         for (int col = 0; col < headers.Length; col++)
@@ -888,11 +888,4 @@ public class SpreadsheetExportService
     private static string EscapeCsv(string value) =>
         string.IsNullOrEmpty(value) ? "" : CsvWriter.QuoteField(value);
 
-    private static string TruncateSheetName(string name)
-    {
-        // Excel worksheet names are limited to 31 characters
-        if (name.Length > 31)
-            return name[..31];
-        return name;
-    }
 }

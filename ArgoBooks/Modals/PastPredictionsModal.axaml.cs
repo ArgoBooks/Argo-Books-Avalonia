@@ -272,7 +272,7 @@ public partial class PastPredictionsModal : UserControl
             DefaultExtension = "xlsx",
             FileTypeChoices =
             [
-                new FilePickerFileType("Excel Workbook") { Patterns = ["*.xlsx"] }
+                Utilities.FilePickerTypes.XlsxSaveType
             ]
         });
 

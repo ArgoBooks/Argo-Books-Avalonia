@@ -374,7 +374,7 @@ public partial class ShellViewModel : ViewModelBase
     /// </summary>
     private Task StartScanFlowAsync(byte[] imageBytes)
     {
-        var scanner = new GeminiReceiptScannerService(MobileApiConfig.BaseUrl, _deviceApiAuth, httpClient: _scanHttpClient);
+        var scanner = new GeminiReceiptScannerService(ArgoBooks.Core.Services.ApiConfig.BaseUrl, _deviceApiAuth, httpClient: _scanHttpClient);
         var coordinator = new ReceiptScanCoordinator(scanner);
 
         ScanningViewModel? scanningViewModel = null;

@@ -23,15 +23,15 @@
             <controls:StatCardsRow Grid.Row="0" Margin="0,0,0,24">
                 <controls:StatCard Label="{loc:Loc 'Total Customers'}"
                                    Value="{Binding TotalCustomers}"
-                                   Icon="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"
+                                   Icon="{x:Static icons:Icons.Person}"
                                    IconColor="Primary" />
                 <controls:StatCard Label="{loc:Loc 'Active Customers'}"
                                    Value="{Binding ActiveCustomers}"
-                                   Icon="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"
+                                   Icon="{x:Static icons:Icons.Check}"
                                    IconColor="Success" />
                 <controls:StatCard Label="{loc:Loc 'Banned Customers'}"
                                    Value="{Binding BannedCustomers}"
-                                   Icon="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8 0-1.85.63-3.55 1.69-4.9L16.9 18.31C15.55 19.37 13.85 20 12 20zm6.31-3.1L7.1 5.69C8.45 4.63 10.15 4 12 4c4.42 0 8 3.58 8 8 0 1.85-.63 3.55-1.69 4.9z"
+                                   Icon="{x:Static icons:Icons.Block}"
                                    IconColor="Danger" />
                 <controls:StatCard Label="{loc:Loc 'New This Month'}"
                                    Value="{Binding NewThisMonth}"

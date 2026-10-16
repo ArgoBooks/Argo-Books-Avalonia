@@ -19,6 +19,9 @@ public class GlobalSettings
     public ReviewPromptSettings ReviewPrompt { get; set; } = new();
     public BackupSettings Backups { get; set; } = new();
 
+    /// <summary>Import prompts the user chose not to see again, by key; app-wide, since they explain importing rather than one company.</summary>
+    public List<string> HiddenImportPrompts { get; set; } = [];
+
     /// <summary>
     /// Send a bank statement or spreadsheet that would not import, so the reason can be
     /// found and fixed. On by default: an import that fails for nobody's benefit is the

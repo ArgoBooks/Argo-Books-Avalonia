@@ -11,7 +11,7 @@ public static class DisplayCurrency
 {
     public static string Resolve(string? companyCurrency, IEnumerable<DateTime> dates)
     {
-        if (string.IsNullOrEmpty(companyCurrency) || string.Equals(companyCurrency, "USD", StringComparison.OrdinalIgnoreCase))
+        if (UsdConversion.IsUsd(companyCurrency))
             return "USD";
 
         var rates = ExchangeRateService.Instance;
@@ -33,7 +33,7 @@ public static class DisplayCurrency
     /// </summary>
     public static decimal FromUSD(decimal amountUSD, string displayCurrency, DateTime date)
     {
-        if (string.Equals(displayCurrency, "USD", StringComparison.OrdinalIgnoreCase))
+        if (UsdConversion.IsUsd(displayCurrency))
             return amountUSD;
 
         return ExchangeRateService.Instance != null

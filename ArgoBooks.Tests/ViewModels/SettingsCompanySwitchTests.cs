@@ -40,7 +40,7 @@ public class SettingsCompanySwitchTests : IDisposable
     {
         var companyA = new CompanyData();
         companyA.Categories.Add(new Category { Id = "CAT-PUR-001", Name = "Office", Type = CategoryType.Expense });
-        companyA.BankCategoryRules.Add(new BankCategoryRule { Id = "R1", Pattern = "staples", CategoryId = "CAT-PUR-001" });
+        companyA.Settings.BankCategoryRules.Add(new BankCategoryRule { Id = "R1", Pattern = "staples", CategoryId = "CAT-PUR-001" });
         companyA.Settings.Notifications.LowStockAlert = false;
         companyA.Settings.Localization.DateFormat = "DD/MM/YYYY";
         companyA.Settings.PaymentPortal.AutoSyncIntervalMinutes = 30;
@@ -54,7 +54,7 @@ public class SettingsCompanySwitchTests : IDisposable
 
         await vm.SaveCommand.ExecuteAsync(null);
 
-        Assert.Empty(companyB.BankCategoryRules);
+        Assert.Empty(companyB.Settings.BankCategoryRules);
         Assert.True(companyB.Settings.Notifications.LowStockAlert);
         Assert.Equal("MM/DD/YYYY", companyB.Settings.Localization.DateFormat);
         Assert.Equal(5, companyB.Settings.PaymentPortal.AutoSyncIntervalMinutes);

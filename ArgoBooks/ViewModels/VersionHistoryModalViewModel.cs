@@ -113,10 +113,10 @@ public partial class VersionHistoryModalViewModel : ViewModelBase
     private string _searchQuery = string.Empty;
 
     [ObservableProperty]
-    private string? _selectedEntityTypeFilter;
+    private string? _selectedEntityTypeFilter = "All Types";
 
     [ObservableProperty]
-    private string? _selectedActionFilter;
+    private string? _selectedActionFilter = "All Actions";
 
     [ObservableProperty]
     private int _totalEventCount;
@@ -148,7 +148,7 @@ public partial class VersionHistoryModalViewModel : ViewModelBase
     /// </summary>
     public ObservableCollection<string> ActionFilters { get; } =
     [
-        "All",
+        "All Actions",
         "Added",
         "Modified",
         "Deleted"
@@ -192,8 +192,8 @@ public partial class VersionHistoryModalViewModel : ViewModelBase
     private void ClearFilters()
     {
         SearchQuery = string.Empty;
-        SelectedEntityTypeFilter = null;
-        SelectedActionFilter = null;
+        SelectedEntityTypeFilter = "All Types";
+        SelectedActionFilter = "All Actions";
     }
 
     partial void OnSearchQueryChanged(string value) => RefreshEvents();
@@ -226,7 +226,7 @@ public partial class VersionHistoryModalViewModel : ViewModelBase
             _ => null
         };
 
-        var entityTypeFilter = SelectedEntityTypeFilter is "All" or null
+        var entityTypeFilter = SelectedEntityTypeFilter is "All Types" or null
             ? null
             : SelectedEntityTypeFilter;
 
@@ -276,7 +276,7 @@ public partial class VersionHistoryModalViewModel : ViewModelBase
                 ? "Today".Translate() + ", " + group.Key.ToString("MMM d")
                 : group.Key == yesterday
                     ? "Yesterday".Translate() + ", " + group.Key.ToString("MMM d")
-                    : group.Key.ToString("MMM d, yyyy");
+                    : group.Key.ToString(Core.Data.DateFormats.Short);
 
             var historyGroup = new VersionHistoryGroup { DateLabel = dateLabel };
             foreach (var evt in group)
@@ -284,13 +284,19 @@ public partial class VersionHistoryModalViewModel : ViewModelBase
             Groups.Add(historyGroup);
         }
 
-        // Refresh entity type filters
+        // Updated in place, because clearing the list would also clear the box's selection.
         var currentTypes = _eventLogService.GetEntityTypes().ToList();
-        EntityTypeFilters.Clear();
-        EntityTypeFilters.Add("All");
-        foreach (var type in currentTypes)
+        if (EntityTypeFilters.Count == 0)
+            EntityTypeFilters.Add("All Types");
+        for (var i = EntityTypeFilters.Count - 1; i > 0; i--)
         {
-            EntityTypeFilters.Add(type);
+            if (!currentTypes.Contains(EntityTypeFilters[i]))
+                EntityTypeFilters.RemoveAt(i);
+        }
+        for (var i = 0; i < currentTypes.Count; i++)
+        {
+            if (!EntityTypeFilters.Contains(currentTypes[i]))
+                EntityTypeFilters.Insert(i + 1, currentTypes[i]);
         }
     }
 

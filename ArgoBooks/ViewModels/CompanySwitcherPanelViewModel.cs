@@ -257,9 +257,9 @@ public class CompanyItem
     {
         if (string.IsNullOrWhiteSpace(path)) return string.Empty;
 
-        var file = System.IO.Path.GetFileName(path);
-        var folder = System.IO.Path.GetFileName(System.IO.Path.GetDirectoryName(path) ?? string.Empty);
+        var file = Path.GetFileName(path);
+        var folder = Path.GetFileName(Path.GetDirectoryName(path) ?? string.Empty);
 
-        return string.IsNullOrEmpty(folder) ? file : folder + System.IO.Path.DirectorySeparatorChar + file;
+        return string.IsNullOrEmpty(folder) ? file : folder + Path.DirectorySeparatorChar + file;
     }
 }

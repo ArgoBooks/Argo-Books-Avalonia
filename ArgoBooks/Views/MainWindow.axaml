@@ -110,8 +110,8 @@
         </StackPanel>
 
 
-        <!-- Main Application Shell -->
-        <DockPanel>
+        <!-- Main Application Shell. Disabled under the welcome screen, so Tab cannot move focus to controls hidden behind it. -->
+        <DockPanel IsEnabled="{Binding !ShowWelcomeScreen}">
             <!-- Custom Title Bar (for platforms supporting client area extension) -->
             <Border DockPanel.Dock="Top"
                     Height="30"
@@ -197,138 +197,139 @@
             </Border>
 
             <!-- Main Content Area -->
-            <ContentControl x:Name="MainContent" Content="{Binding CurrentView}" />
+            <!-- Disabled under the loading screen, so Tab cannot reach the page behind it. -->
+            <ContentControl x:Name="MainContent" Content="{Binding CurrentView}" IsEnabled="{Binding !IsLoading}" />
         </DockPanel>
 
         <!-- Welcome Screen (full-screen overlay when no company is open) -->
-        <Panel IsVisible="{Binding ShowWelcomeScreen}" ZIndex="150">
+        <Panel IsVisible="{Binding ShowWelcomeScreen}" IsEnabled="{Binding !IsLoading}" ZIndex="150">
             <views:WelcomeScreen DataContext="{Binding WelcomeScreenViewModel}" />
         </Panel>
 
-        <!-- Password Prompt Modal (above WelcomeScreen so it can be shown when opening encrypted files) -->
-        <modals:PasswordPromptModal DataContext="{Binding PasswordPromptModalViewModel}"
-                                    HorizontalAlignment="Stretch"
-                                    VerticalAlignment="Stretch"
-                                    ZIndex="175" />
+        <!-- Every dialog that sits over the whole window. The layer starts below the title bar, so a backdrop never covers it and the window can still be moved and closed. -->
+        <Panel x:Name="OverlayLayer" Margin="0,30,0,0" ZIndex="175">
+            <!-- Password Prompt Modal (above WelcomeScreen so it can be shown when opening encrypted files) -->
+            <modals:PasswordPromptModal DataContext="{Binding PasswordPromptModalViewModel}"
+                                        HorizontalAlignment="Stretch"
+                                        VerticalAlignment="Stretch"
+                                        ZIndex="175" />
 
-        <!-- Update modal over the welcome screen, for a company file that needs a newer version. -->
-        <modals:CheckForUpdateModal DataContext="{Binding CheckForUpdateModalViewModel}"
-                                    IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).ShowWelcomeScreen}"
-                                    HorizontalAlignment="Stretch"
-                                    VerticalAlignment="Stretch"
-                                    ZIndex="180" />
+            <!-- Update modal over the welcome screen, for a company file that needs a newer version. -->
+            <modals:CheckForUpdateModal DataContext="{Binding CheckForUpdateModalViewModel}"
+                                        IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).ShowWelcomeScreen}"
+                                        HorizontalAlignment="Stretch"
+                                        VerticalAlignment="Stretch"
+                                        ZIndex="180" />
 
-        <!-- Create Company Wizard (full-screen overlay above everything) -->
-        <modals:CreateCompanyWizard DataContext="{Binding CreateCompanyViewModel}"
-                                    HorizontalAlignment="Stretch"
-                                    VerticalAlignment="Stretch"
-                                    ZIndex="200" />
+            <!-- Create Company Wizard (full-screen overlay above everything) -->
+            <modals:CreateCompanyWizard DataContext="{Binding CreateCompanyViewModel}"
+                                        HorizontalAlignment="Stretch"
+                                        VerticalAlignment="Stretch"
+                                        ZIndex="200" />
 
-        <!-- Tutorial Welcome Overlay (shown on first launch after company opens). Margin top = 30 (title bar height) so the backdrop doesn't cover the custom title bar / caption buttons. -->
-        <modals:TutorialWelcomeOverlay DataContext="{Binding TutorialWelcomeViewModel}"
+            <!-- Tutorial Welcome Overlay (shown on first launch after company opens) -->
+            <modals:TutorialWelcomeOverlay DataContext="{Binding TutorialWelcomeViewModel}"
+                                           HorizontalAlignment="Stretch"
+                                           VerticalAlignment="Stretch"
+                                           ZIndex="210" />
+
+            <!-- App Tour Overlay (interactive tour after welcome) -->
+            <modals:AppTourOverlay DataContext="{Binding AppTourViewModel}"
+                                   HorizontalAlignment="Stretch"
+                                   VerticalAlignment="Stretch"
+                                   ZIndex="215" />
+
+            <!-- Source Survey Overlay (post-onboarding "where did you hear about us?") -->
+            <controls:SourceSurveyOverlay HorizontalAlignment="Stretch"
+                                          VerticalAlignment="Stretch"
+                                          ZIndex="218" />
+
+            <!-- Asked once, on closing the app with nothing recorded -->
+            <controls:ExitSurveyOverlay HorizontalAlignment="Stretch"
+                                        VerticalAlignment="Stretch"
+                                        ZIndex="218" />
+
+            <!-- Categories Page Tutorial Overlay -->
+            <modals:PageTutorialOverlay DataContext="{Binding CategoriesTutorialViewModel}"
+                                        Icon="{x:Static local:Icons.Categories}"
+                                        HorizontalAlignment="Stretch"
+                                        VerticalAlignment="Stretch"
+                                        ZIndex="220" />
+
+            <!-- Products Page Tutorial Overlay -->
+            <modals:PageTutorialOverlay DataContext="{Binding ProductsTutorialViewModel}"
+                                        Icon="{x:Static local:Icons.Products}"
+                                        HorizontalAlignment="Stretch"
+                                        VerticalAlignment="Stretch"
+                                        ZIndex="220" />
+
+            <!-- Holds focus while it shows, so Tab reaches its Cancel button rather than the modal or page behind it. -->
+            <Border x:Name="LoadingOverlay"
+                    IsVisible="{Binding IsLoading}"
+                    Background="{DynamicResource OverlayBrush}"
+                    ZIndex="225"
+                    IsHitTestVisible="True"
+                    Focusable="True"
+                    KeyboardNavigation.IsTabStop="False"
+                    KeyboardNavigation.TabNavigation="Cycle">
+                <Border Background="{DynamicResource SurfaceBrush}"
+                        CornerRadius="12"
+                        Padding="40,28"
+                        MinWidth="280"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        BoxShadow="0 8 32 0 #40000000">
+                    <StackPanel Spacing="12" HorizontalAlignment="Center">
+                        <TextBlock Text="{Binding LoadingMessage}"
+                                   FontSize="{StaticResource FontSizeMd}"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   HorizontalAlignment="Center" />
+                        <ProgressBar IsIndeterminate="{Binding IsLoadingIndeterminate}"
+                                     Value="{Binding LoadingProgress}"
+                                     Minimum="0"
+                                     Maximum="100"
+                                     Width="220"
+                                     Height="4"
+                                     Foreground="{DynamicResource PrimaryBrush}" />
+                        <TextBlock Text="{Binding LoadingProgressText}"
+                                   IsVisible="{Binding LoadingProgressText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                   FontSize="{StaticResource FontSizeMd}"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   HorizontalAlignment="Center" />
+                        <TextBlock Text="{Binding LoadingDetail}"
+                                   IsVisible="{Binding LoadingDetail, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                   FontSize="{StaticResource FontSizeSm}"
+                                   Foreground="{DynamicResource TextTertiaryBrush}"
+                                   HorizontalAlignment="Center" />
+                        <Button x:Name="LoadingCancelButton"
+                                Content="{loc:Loc Cancel}"
+                                Classes="secondary"
+                                IsVisible="{Binding IsLoadingCancellable}"
+                                Command="{Binding CancelLoadingCommand}"
+                                HorizontalAlignment="Center"
+                                Margin="0,4,0,0" />
+                    </StackPanel>
+                </Border>
+            </Border>
+
+            <!-- Receipt Viewer Modal -->
+            <modals:ReceiptViewerModal DataContext="{Binding ReceiptViewerModalViewModel}"
                                        HorizontalAlignment="Stretch"
                                        VerticalAlignment="Stretch"
-                                       Margin="0,30,0,0"
-                                       ZIndex="210" />
+                                       ZIndex="200" />
 
-        <!-- App Tour Overlay (interactive tour after welcome).
-             Margin top = 30 so the backdrop clears the title bar (see above). -->
-        <modals:AppTourOverlay DataContext="{Binding AppTourViewModel}"
-                               HorizontalAlignment="Stretch"
-                               VerticalAlignment="Stretch"
-                               Margin="0,30,0,0"
-                               ZIndex="215" />
+            <!-- Confirmation Dialog: questions and notices (errors, the save-blocked prompt). High
+                 level, above the welcome screen, wizard and loading overlays, so it can appear over any modal. -->
+            <modals:ConfirmationDialog DataContext="{Binding ConfirmationDialogViewModel}"
+                                       HorizontalAlignment="Stretch"
+                                       VerticalAlignment="Stretch"
+                                       ZIndex="250" />
 
-        <!-- Source Survey Overlay (post-onboarding "where did you hear about us?") -->
-        <controls:SourceSurveyOverlay HorizontalAlignment="Stretch"
-                                      VerticalAlignment="Stretch"
-                                      ZIndex="218" />
-
-        <!-- Asked once, on closing the app with nothing recorded -->
-        <controls:ExitSurveyOverlay HorizontalAlignment="Stretch"
-                                    VerticalAlignment="Stretch"
-                                    ZIndex="218" />
-
-        <!-- Categories Page Tutorial Overlay.
-             Margin top = 30 so the backdrop clears the title bar (see above). -->
-        <modals:PageTutorialOverlay DataContext="{Binding CategoriesTutorialViewModel}"
-                                    Icon="{x:Static local:Icons.Categories}"
-                                    HorizontalAlignment="Stretch"
-                                    VerticalAlignment="Stretch"
-                                    Margin="0,30,0,0"
-                                    ZIndex="220" />
-
-        <!-- Products Page Tutorial Overlay.
-             Margin top = 30 so the backdrop clears the title bar (see above). -->
-        <modals:PageTutorialOverlay DataContext="{Binding ProductsTutorialViewModel}"
-                                    Icon="{x:Static local:Icons.Products}"
-                                    HorizontalAlignment="Stretch"
-                                    VerticalAlignment="Stretch"
-                                    Margin="0,30,0,0"
-                                    ZIndex="220" />
-
-        <!-- The backdrop stops below the title bar so the window can still be moved and closed while it is up. -->
-        <Border IsVisible="{Binding IsLoading}"
-                Background="{DynamicResource OverlayBrush}"
-                Margin="0,30,0,0"
-                ZIndex="225"
-                IsHitTestVisible="True">
-            <Border Background="{DynamicResource SurfaceBrush}"
-                    CornerRadius="12"
-                    Padding="40,28"
-                    MinWidth="280"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
-                    BoxShadow="0 8 32 0 #40000000">
-                <StackPanel Spacing="12" HorizontalAlignment="Center">
-                    <TextBlock Text="{Binding LoadingMessage}"
-                               FontSize="{StaticResource FontSizeMd}"
-                               Foreground="{DynamicResource TextPrimaryBrush}"
-                               HorizontalAlignment="Center" />
-                    <ProgressBar IsIndeterminate="{Binding IsLoadingIndeterminate}"
-                                 Value="{Binding LoadingProgress}"
-                                 Minimum="0"
-                                 Maximum="100"
-                                 Width="220"
-                                 Height="4"
-                                 Foreground="{DynamicResource PrimaryBrush}" />
-                    <TextBlock Text="{Binding LoadingProgressText}"
-                               IsVisible="{Binding LoadingProgressText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                               FontSize="{StaticResource FontSizeMd}"
-                               Foreground="{DynamicResource TextSecondaryBrush}"
-                               HorizontalAlignment="Center" />
-                    <TextBlock Text="{Binding LoadingDetail}"
-                               IsVisible="{Binding LoadingDetail, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                               FontSize="{StaticResource FontSizeSm}"
-                               Foreground="{DynamicResource TextTertiaryBrush}"
-                               HorizontalAlignment="Center" />
-                    <Button Content="{loc:Loc Cancel}"
-                            Classes="secondary"
-                            IsVisible="{Binding IsLoadingCancellable}"
-                            Command="{Binding CancelLoadingCommand}"
-                            HorizontalAlignment="Center"
-                            Margin="0,4,0,0" />
-                </StackPanel>
-            </Border>
-        </Border>
-
-        <!-- Receipt Viewer Modal -->
-        <modals:ReceiptViewerModal DataContext="{Binding ReceiptViewerModalViewModel}"
-                                   HorizontalAlignment="Stretch"
-                                   VerticalAlignment="Stretch"
-                                   ZIndex="200" />
-
-        <!-- Confirmation Dialog: questions and notices (errors, the save-blocked prompt). High
-             level, above the welcome screen, wizard and loading overlays, so it can appear over any modal. -->
-        <modals:ConfirmationDialog DataContext="{Binding ConfirmationDialogViewModel}"
-                                   HorizontalAlignment="Stretch"
-                                   VerticalAlignment="Stretch"
-                                   ZIndex="250" />
-
-        <!-- Unsaved Changes Dialog (highest level, critical for data safety) -->
-        <modals:UnsavedChangesDialog DataContext="{Binding UnsavedChangesDialogViewModel}"
-                                     HorizontalAlignment="Stretch"
-                                     VerticalAlignment="Stretch"
-                                     ZIndex="275" />
+            <!-- Unsaved Changes Dialog (highest level, critical for data safety) -->
+            <modals:UnsavedChangesDialog DataContext="{Binding UnsavedChangesDialogViewModel}"
+                                         HorizontalAlignment="Stretch"
+                                         VerticalAlignment="Stretch"
+                                         ZIndex="275" />
+        </Panel>
     </Panel>
 </Window>

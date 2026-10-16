@@ -31,6 +31,7 @@ public partial class AppShell : UserControl
         // Use tunnel strategy to catch all pointer presses on sidebar/header, even when child controls handle the event.
         AppSidebar.AddHandler(PointerPressedEvent, OnSidebarPointerPressed, RoutingStrategies.Tunnel);
         AppHeader.AddHandler(PointerPressedEvent, OnHeaderPointerPressed, RoutingStrategies.Tunnel);
+        AddHandler(GotFocusEvent, ClosePanelsLeftByTab, RoutingStrategies.Bubble, handledEventsToo: true);
 
         // Responsive page content margin
         AppContent.SizeChanged += OnContentSizeChanged;
@@ -137,6 +138,28 @@ public partial class AppShell : UserControl
         (DataContext as AppShellViewModel)?.ClosePageContextMenus();
     }
 
+    /// <summary>Closes a header panel when Tab takes focus out of it, as a click outside it already does.</summary>
+    private void ClosePanelsLeftByTab(object? sender, FocusChangedEventArgs e)
+    {
+        if (e.NavigationMethod != NavigationMethod.Tab || e.NewFocusedElement is not Visual target
+            || DataContext is not AppShellViewModel vm)
+            return;
+
+        bool Holds(Visual panel) => panel == target || panel.IsVisualAncestorOf(target);
+
+        // Quick actions drop down from the search box, so focus in the box still belongs to them.
+        if (vm.QuickActionsViewModel.IsOpen && !Holds(QuickActionsPanelControl) && !AppHeader.IsSearchBox(target))
+            vm.QuickActionsViewModel.CloseCommand.Execute(null);
+        if (vm.FileMenuPanelViewModel.IsOpen && !Holds(FileMenuPanelControl))
+            vm.FileMenuPanelViewModel.CloseCommand.Execute(null);
+        if (vm.NotificationPanelViewModel.IsOpen && !Holds(NotificationPanelControl))
+            vm.NotificationPanelViewModel.CloseCommand.Execute(null);
+        if (vm.HelpPanelViewModel.IsOpen && !Holds(HelpPanelControl))
+            vm.HelpPanelViewModel.CloseCommand.Execute(null);
+        if (vm.CompanySwitcherPanelViewModel.IsOpen && !Holds(CompanySwitcherPanelControl))
+            vm.CompanySwitcherPanelViewModel.CloseCommand.Execute(null);
+    }
+
     /// <summary>
     /// Handles the request to open a file for scanning.
     /// </summary>
@@ -153,7 +176,7 @@ public partial class AppShell : UserControl
             {
                 Title = "Select Receipt to Scan",
                 AllowMultiple = false,
-                FileTypeFilter = [FilePickerTypes.AllSupportedTypes, FilePickerTypes.ImageFileType, FilePickerTypes.PdfFileType]
+                FileTypeFilter = FilePickerTypes.ReceiptFilters
             });
 
             if (files.Count > 0)

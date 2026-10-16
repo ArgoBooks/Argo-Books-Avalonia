@@ -1,11 +1,16 @@
 using ArgoBooks.Core.Models.Dashboard;
 using ArgoBooks.Core.Services;
+using ArgoBooks.Localization;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace ArgoBooks.ViewModels.Dashboard;
 
 public abstract partial class WidgetViewModelBase : ObservableObject
 {
+    /// <summary>The customer's name for a widget row, or Unknown when it is missing or deleted.</summary>
+    protected static string GetCustomerName(Core.Data.CompanyData data, string? customerId) =>
+        (string.IsNullOrEmpty(customerId) ? null : data.GetCustomer(customerId)?.Name) ?? "Unknown".Translate();
+
     public abstract WidgetType WidgetType { get; }
 
     /// <summary>

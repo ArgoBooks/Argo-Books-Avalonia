@@ -15,8 +15,6 @@ public sealed record BackupFile(string Path, DateTime TakenAtUtc, long SizeBytes
 /// </summary>
 public sealed class BackupService(IErrorLogger? errorLogger = null)
 {
-    public const string Extension = ".argobk";
-
     /// <summary>
     /// Between the company name and the extension, so copies of one company can be picked out of a
     /// folder shared with others: <c>Acme--backup-20260930-1432.argobk</c>.
@@ -57,11 +55,11 @@ public sealed class BackupService(IErrorLogger? errorLogger = null)
         {
             var beside = string.IsNullOrEmpty(companyFilePath)
                 ? null
-                : System.IO.Path.GetDirectoryName(companyFilePath);
+                : Path.GetDirectoryName(companyFilePath);
             var root = string.IsNullOrEmpty(beside)
                 ? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
                 : beside;
-            return System.IO.Path.Combine(root, "Argo Books Backups");
+            return Path.Combine(root, "Argo Books Backups");
         }
         catch
         {
@@ -94,9 +92,9 @@ public sealed class BackupService(IErrorLogger? errorLogger = null)
 
             Directory.CreateDirectory(folder);
 
-            var path = System.IO.Path.Combine(
+            var path = Path.Combine(
                 folder,
-                $"{CompanyManager.ToCompanyFileName(companyName)}{Marker}{DateTime.Now:yyyyMMdd-HHmmss}{Extension}");
+                $"{CompanyManager.ToCompanyFileName(companyName)}{Marker}{DateTime.Now:yyyyMMdd-HHmmss}{FileFormatConstants.BackupFileExtension}");
 
             await companyManager.ExportBackupAsync(path, cancellationToken);
 
@@ -122,9 +120,9 @@ public sealed class BackupService(IErrorLogger? errorLogger = null)
             // The whole name has to match this company's, since a company named "Acme--backup-20260930-143200" would otherwise have its copies offered as Acme's.
             var prefix = CompanyManager.ToCompanyFileName(companyName) + Marker;
             return [.. new DirectoryInfo(folder)
-                .EnumerateFiles("*" + Extension)
+                .EnumerateFiles("*" + FileFormatConstants.BackupFileExtension)
                 .Where(f => f.Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
-                            && Stamp.IsMatch(System.IO.Path.GetFileNameWithoutExtension(f.Name)[prefix.Length..]))
+                            && Stamp.IsMatch(Path.GetFileNameWithoutExtension(f.Name)[prefix.Length..]))
                 .Select(f => new BackupFile(f.FullName, f.LastWriteTimeUtc, f.Length))
                 .OrderByDescending(b => b.TakenAtUtc)];
         }
@@ -141,7 +139,7 @@ public sealed class BackupService(IErrorLogger? errorLogger = null)
     /// </summary>
     public static string CompanyNameOf(string backupPath)
     {
-        var name = System.IO.Path.GetFileNameWithoutExtension(backupPath);
+        var name = Path.GetFileNameWithoutExtension(backupPath);
         var at = name.LastIndexOf(Marker, StringComparison.OrdinalIgnoreCase);
         return at > 0 && Stamp.IsMatch(name[(at + Marker.Length)..]) ? name[..at] : name;
     }

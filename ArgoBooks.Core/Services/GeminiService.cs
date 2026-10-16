@@ -13,7 +13,6 @@ namespace ArgoBooks.Core.Services;
 /// </summary>
 public class GeminiService : IGeminiService, IDisposable
 {
-    private const string DefaultModel = "gemini-2.5-flash";
     private readonly HttpClient _httpClient;
     private readonly AiProxyClient _proxy;
     private readonly IErrorLogger? _errorLogger;
@@ -43,7 +42,7 @@ public class GeminiService : IGeminiService, IDisposable
             return null;
 
         var stopwatch = Stopwatch.StartNew();
-        var model = DefaultModel;
+        var model = AiProxyClient.DefaultModel;
         var success = false;
 
         try
@@ -137,7 +136,7 @@ public class GeminiService : IGeminiService, IDisposable
         };
 
         var stopwatch = Stopwatch.StartNew();
-        var model = DefaultModel;
+        var model = AiProxyClient.DefaultModel;
         var success = false;
 
         try
@@ -199,7 +198,7 @@ public class GeminiService : IGeminiService, IDisposable
             return new AiChatResult(null, false);
 
         var stopwatch = Stopwatch.StartNew();
-        var model = DefaultModel;
+        var model = AiProxyClient.DefaultModel;
         var success = false;
 
         try
@@ -305,7 +304,7 @@ Respond with JSON only.";
             Operation = operation.ToServerTag(),
             SystemPrompt = systemPrompt,
             UserPrompt = userPrompt,
-            Model = DefaultModel,
+            Model = AiProxyClient.DefaultModel,
             MaxTokens = maxTokens,
             Temperature = temperature,
             SizeFeature = sizeFeature,
@@ -508,7 +507,7 @@ Respond with JSON only.";
 For each line:
 1. PRODUCT: prefer an existing product of the matching type and return its id in ""productId"". Otherwise set ""productId"" to null and propose a short, specific ""newProductName"" describing the spend (e.g. ""Paint Supplies"", ""Fuel"", ""Bank Fees"", ""Consulting Revenue""). NEVER use vague names like ""Purchases"", ""General"", ""Miscellaneous"", ""Expenses"", or ""Other"".
 2. CATEGORY (only when proposing a new product): prefer an existing category of the matching type and return its id in ""categoryId"". Otherwise set ""categoryId"" to null and propose a broader ""newCategoryName"" (e.g. ""Materials"", ""Utilities"", ""Sales""). Avoid vague names.
-3. COUNTERPARTY: for expense lines pick a supplier, for revenue lines pick a customer. If a good match exists return its id in ""counterpartyId"". Otherwise set ""counterpartyId"" to null and propose a clean ""newCounterpartyName"" from the description. If the description has no identifiable party (e.g. ""ATM WITHDRAWAL"", ""MONTHLY FEE"", ""INTERAC E-TRANSFER""), set both counterparty fields to null.
+3. COUNTERPARTY: for expense lines pick a supplier, for revenue lines pick a customer. If a good match exists return its id in ""counterpartyId"". Otherwise set ""counterpartyId"" to null and propose a clean ""newCounterpartyName"" from the description. A line the bank itself charges or pays, such as a monthly or service fee, an overdraft or NSF fee, or interest, has the bank as its counterparty: pick an existing supplier or customer that is a bank, otherwise propose the bank's name if the description gives it, otherwise propose ""Bank"". Only when the description has no identifiable party at all (e.g. ""ATM WITHDRAWAL"", ""INTERAC E-TRANSFER""), set both counterparty fields to null.
 
 ## Response Format (JSON array only, no markdown)
 [

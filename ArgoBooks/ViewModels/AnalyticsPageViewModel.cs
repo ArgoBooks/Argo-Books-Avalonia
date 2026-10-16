@@ -25,21 +25,14 @@ namespace ArgoBooks.ViewModels;
 /// ViewModel for the Analytics page.
 /// Handles tab selection, date range filtering, chart type toggling, and chart data loading.
 /// </summary>
-public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICleanupViewModel
+public partial class AnalyticsPageViewModel : ChartPageViewModelBase, ICleanupViewModel
 {
+    protected override void ReloadForChartSettings(bool styleChangeOnly) => ReloadCharts(styleChangeOnly);
+
     #region Services
 
-    public ChartLoaderService ChartLoaderService { get; } = new();
-    private CompanyManager? _companyManager;
-
-    /// <summary>
-    /// Gets the shared chart settings service.
-    /// </summary>
-    private ChartSettingsService ChartSettingsShared => ChartSettingsService.Instance;
 
     // Flag to prevent duplicate data loading when changing settings locally
-    private bool _isLocalSettingChange;
-
     #endregion
 
     #region Tab Selection
@@ -240,162 +233,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
 
     #region Date Range
 
-    /// <summary>
-    /// Available date range options.
-    /// </summary>
-    public ObservableCollection<string> DateRangeOptions { get; } = new(DatePresetNames.StandardDateRangeOptions);
-
-    /// <summary>
-    /// Gets or sets the selected date range (delegates to shared service).
-    /// </summary>
-    public string SelectedDateRange
-    {
-        get => ChartSettingsShared.SelectedDateRange;
-        set
-        {
-            if (ChartSettingsShared.SelectedDateRange != value)
-            {
-                var oldValue = ChartSettingsShared.SelectedDateRange;
-                _isLocalSettingChange = true;
-                try
-                {
-                    ChartSettingsShared.SelectedDateRange = value;
-                    OnPropertyChanged();
-                    OnPropertyChanged(nameof(IsCustomDateRange));
-                    OnPropertyChanged(nameof(ComparisonPeriodLabel));
-                    OnPropertyChanged(nameof(DateRangeDisplayText));
-
-                    if (value == DateRangePreset.CustomRange.GetDisplayName())
-                    {
-                        OpenCustomDateRangeModal();
-                    }
-                    else if (oldValue != value)
-                    {
-                        // Explicitly notify even if value unchanged (service may have set it first)
-                        ChartSettingsShared.HasAppliedCustomRange = false;
-                        OnPropertyChanged(nameof(HasAppliedCustomRange));
-                        OnPropertyChanged(nameof(AppliedDateRangeText));
-                        ReloadCharts();
-                    }
-                }
-                finally
-                {
-                    _isLocalSettingChange = false;
-                }
-            }
-        }
-    }
-
     // Stores the previous selection before opening custom range modal
-    private string _previousDateRange = DateRangePreset.ThisMonth.GetDisplayName();
-
-    /// <summary>
-    /// Gets or sets the start date (delegates to shared service).
-    /// </summary>
-    public DateTime StartDate
-    {
-        get => ChartSettingsShared.StartDate;
-        set
-        {
-            if (ChartSettingsShared.StartDate != value)
-            {
-                ChartSettingsShared.StartDate = value;
-                OnPropertyChanged();
-            }
-        }
-    }
-
-    /// <summary>
-    /// Gets or sets the end date (delegates to shared service).
-    /// </summary>
-    public DateTime EndDate
-    {
-        get => ChartSettingsShared.EndDate;
-        set
-        {
-            if (ChartSettingsShared.EndDate != value)
-            {
-                ChartSettingsShared.EndDate = value;
-                OnPropertyChanged();
-            }
-        }
-    }
-
-    /// <summary>
-    /// Gets or sets whether a custom date range has been applied (delegates to shared service).
-    /// </summary>
-    public bool HasAppliedCustomRange
-    {
-        get => ChartSettingsShared.HasAppliedCustomRange;
-        set
-        {
-            if (ChartSettingsShared.HasAppliedCustomRange != value)
-            {
-                ChartSettingsShared.HasAppliedCustomRange = value;
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(AppliedDateRangeText));
-            }
-        }
-    }
-
-    /// <summary>
-    /// Gets the formatted text showing the applied custom date range.
-    /// </summary>
-    public string AppliedDateRangeText => ChartSettingsShared.AppliedDateRangeText;
-
-    /// <summary>
-    /// Gets the formatted text showing the currently selected date range span.
-    /// </summary>
-    public string DateRangeDisplayText => ChartSettingsShared.DateRangeDisplayText;
-
-    /// <summary>
-    /// Gets whether the custom date range option is selected.
-    /// </summary>
-    public bool IsCustomDateRange => SelectedDateRange == DateRangePreset.CustomRange.GetDisplayName();
-
-    /// <summary>
-    /// Gets the label for comparison period based on selected date range (delegates to shared service).
-    /// </summary>
-    public string ComparisonPeriodLabel => ChartSettingsShared.ComparisonPeriodLabel;
-
-    /// <summary>
-    /// Opens the custom date range modal.
-    /// </summary>
-    private void OpenCustomDateRangeModal()
-    {
-        // Store the previous selection before opening the modal
-        // so we can restore it if the user cancels
-        if (SelectedDateRange != DateRangePreset.CustomRange.GetDisplayName())
-        {
-            _previousDateRange = SelectedDateRange;
-        }
-
-        var earliestDate = _companyManager?.CompanyData?.GetEarliestDate() ?? StartDate;
-        var modalStartDate = HasAppliedCustomRange ? StartDate : earliestDate;
-
-        App.CustomDateRangeModal?.Open(modalStartDate, EndDate,
-            onApply: (start, end) =>
-            {
-                StartDate = start.Date;
-                // Inclusive end-of-day so transactions stored later in the user's day (or with a UTC timestamp ahead of local time) aren't filtered out of stat-card aggregations.
-                EndDate = end.Date.AddDays(1).AddTicks(-1);
-                HasAppliedCustomRange = true;
-                OnPropertyChanged(nameof(AppliedDateRangeText));
-                OnPropertyChanged(nameof(DateRangeDisplayText));
-                ReloadCharts();
-            },
-            onCancel: () =>
-            {
-                // If no custom range was previously applied, revert to the previous selection
-                if (!HasAppliedCustomRange)
-                {
-                    ChartSettingsShared.SelectedDateRange = _previousDateRange;
-                    OnPropertyChanged(nameof(SelectedDateRange));
-                    OnPropertyChanged(nameof(DateRangeDisplayText));
-                }
-            });
-    }
-
     #endregion
 
     #region Dashboard Tab Statistics
@@ -673,36 +511,6 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
     #endregion
 
     #region Chart Type Toggle
-
-    /// <summary>
-    /// Available chart type options for the selector.
-    /// </summary>
-    public string[] ChartTypeOptions { get; } = ["Area", "Column", "Line", "Step Line", "Scatter"];
-
-    /// <summary>
-    /// Gets or sets the selected chart type (delegates to shared service).
-    /// </summary>
-    public string SelectedChartType
-    {
-        get => ChartSettingsShared.SelectedChartType;
-        set
-        {
-            if (ChartSettingsShared.SelectedChartType != value)
-            {
-                _isLocalSettingChange = true;
-                try
-                {
-                    ChartSettingsShared.SelectedChartType = value;
-                    OnPropertyChanged();
-                    ReloadCharts(styleChangeOnly: true);
-                }
-                finally
-                {
-                    _isLocalSettingChange = false;
-                }
-            }
-        }
-    }
 
     #endregion
 
@@ -1330,11 +1138,11 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
     public AnalyticsPageViewModel()
     {
         // Initialize the shared chart settings service
-        ChartSettingsShared.Initialize();
+        ChartSettings.Initialize();
 
         // Subscribe to chart settings changes from other pages
-        ChartSettingsShared.ChartTypeChanged += OnChartSettingsChartTypeChanged;
-        ChartSettingsShared.DateRangeChanged += OnChartSettingsDateRangeChanged;
+        ChartSettings.ChartTypeChanged += OnChartSettingsChartTypeChanged;
+        ChartSettings.DateRangeChanged += OnChartSettingsDateRangeChanged;
 
         // Subscribe to theme changes to reload charts with new colors
         ThemeService.Instance.ThemeChanged += OnThemeChanged;
@@ -1370,186 +1178,9 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         ReloadCharts();
     }
 
-    private void OnChartSettingsChartTypeChanged(object? sender, string chartType)
-    {
-        // Only reload if the change came from another page
-        if (!_isLocalSettingChange)
-        {
-            OnPropertyChanged(nameof(SelectedChartType));
-            ReloadCharts();
-        }
-    }
-
-    private void OnChartSettingsDateRangeChanged(object? sender, string dateRange)
-    {
-        // Only reload if the change came from another page
-        if (!_isLocalSettingChange)
-        {
-            OnPropertyChanged(nameof(SelectedDateRange));
-            OnPropertyChanged(nameof(StartDate));
-            OnPropertyChanged(nameof(EndDate));
-            OnPropertyChanged(nameof(HasAppliedCustomRange));
-            OnPropertyChanged(nameof(AppliedDateRangeText));
-            OnPropertyChanged(nameof(DateRangeDisplayText));
-            OnPropertyChanged(nameof(IsCustomDateRange));
-            OnPropertyChanged(nameof(ComparisonPeriodLabel));
-            ReloadCharts();
-        }
-    }
-
     #endregion
 
     #region Chart Context Menu Overrides
-
-    /// <summary>
-    /// Event raised when a chart image should be saved.
-    /// The View should subscribe to this and handle the actual save dialog.
-    /// </summary>
-    public event EventHandler<SaveChartImageEventArgs>? SaveChartImageRequested;
-
-    /// <inheritdoc />
-    protected override void OnSaveChartAsImage()
-    {
-        SaveChartImageRequested?.Invoke(this, new SaveChartImageEventArgs { ChartId = SelectedChartDataType?.GetDisplayName() ?? "" });
-    }
-
-    /// <summary>
-    /// Event raised when exporting to Google Sheets starts or completes.
-    /// </summary>
-    public event EventHandler<GoogleSheetsExportEventArgs>? GoogleSheetsExportStatusChanged;
-
-    /// <inheritdoc />
-    protected override void OnExportToGoogleSheets()
-    {
-        // Fire and forget the async operation
-        _ = ExportToGoogleSheetsAsync();
-    }
-
-    /// <summary>
-    /// Exports the chart data to Google Sheets asynchronously.
-    /// </summary>
-    private async Task ExportToGoogleSheetsAsync()
-    {
-        var exportData = ChartLoaderService.GetGoogleSheetsExportData(SelectedChartDataType);
-        if (exportData.Count == 0)
-        {
-            GoogleSheetsExportStatusChanged?.Invoke(this, new GoogleSheetsExportEventArgs
-            {
-                IsSuccess = false,
-                ErrorMessage = "No chart data to export."
-            });
-            return;
-        }
-
-        // Notify that export is starting (with cancellation support)
-        var cts = new CancellationTokenSource();
-        GoogleSheetsExportStatusChanged?.Invoke(this, new GoogleSheetsExportEventArgs
-        {
-            IsExporting = true,
-            CancellationTokenSource = cts
-        });
-
-        try
-        {
-            // Ensure Google is authorized (auto-initiates OAuth if needed)
-            var isAuthenticated = await GoogleCredentialsManager.EnsureAuthenticatedAsync(cts.Token);
-            if (!isAuthenticated)
-            {
-                GoogleSheetsExportStatusChanged?.Invoke(this, new GoogleSheetsExportEventArgs
-                {
-                    IsSuccess = false,
-                    ErrorMessage = "Google Sheets authorization was not completed. Please try again."
-                });
-                return;
-            }
-
-            var companyName = App.CompanyManager?.CurrentCompanyName ?? "Argo Books";
-            var chartExportData = ChartLoaderService.GetExportDataForChart(SelectedChartDataType);
-            var chartTitle = SelectedChartDataType?.GetDisplayName() ?? chartExportData?.ChartTitle ?? "Chart";
-
-            // Use Pie chart type for distribution charts, match chart style for time-based charts
-            GoogleSheetsService.ChartType chartType;
-            if (chartExportData?.ChartType == ChartType.Distribution)
-            {
-                chartType = GoogleSheetsService.ChartType.Pie;
-            }
-            else
-            {
-                chartType = ChartLoaderService.SelectedChartStyle switch
-                {
-                    ChartStyle.Line => GoogleSheetsService.ChartType.Line,
-                    ChartStyle.Area => GoogleSheetsService.ChartType.Area,
-                    ChartStyle.StepLine => GoogleSheetsService.ChartType.StepLine,
-                    ChartStyle.Scatter => GoogleSheetsService.ChartType.Scatter,
-                    _ => GoogleSheetsService.ChartType.Column
-                };
-            }
-
-            cts.Token.ThrowIfCancellationRequested();
-
-            var googleSheetsService = new GoogleSheetsService(App.ErrorLogger);
-            var url = await googleSheetsService.ExportFormattedDataToGoogleSheetsAsync(
-                exportData,
-                chartTitle,
-                chartType,
-                companyName,
-                cts.Token
-            );
-
-            if (!string.IsNullOrEmpty(url))
-            {
-                // Open the spreadsheet in the browser
-                var browserOpened = GoogleSheetsService.OpenInBrowser(url);
-
-                GoogleSheetsExportStatusChanged?.Invoke(this, new GoogleSheetsExportEventArgs
-                {
-                    IsSuccess = true,
-                    SpreadsheetUrl = url
-                });
-
-                if (!browserOpened)
-                {
-                    await App.ShowWarningDialogAsync(
-                        "Browser Error".Translate(),
-                        "The spreadsheet was created but could not open in your browser. You can access it at:\n\n{0}".TranslateFormat(url));
-                }
-            }
-            else
-            {
-                GoogleSheetsExportStatusChanged?.Invoke(this, new GoogleSheetsExportEventArgs
-                {
-                    IsSuccess = false,
-                    ErrorMessage = "Failed to create spreadsheet."
-                });
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            GoogleSheetsExportStatusChanged?.Invoke(this, new GoogleSheetsExportEventArgs
-            {
-                IsSuccess = false,
-                ErrorMessage = null // Cancelled by user, no error message needed
-            });
-        }
-        catch (InvalidOperationException ex)
-        {
-            App.ErrorLogger?.LogError(ex, ErrorCategory.Api, "Google Sheets export failed - invalid operation");
-            GoogleSheetsExportStatusChanged?.Invoke(this, new GoogleSheetsExportEventArgs
-            {
-                IsSuccess = false,
-                ErrorMessage = ex.Message
-            });
-        }
-        catch (Exception ex)
-        {
-            App.ErrorLogger?.LogError(ex, ErrorCategory.Api, "Google Sheets export failed");
-            GoogleSheetsExportStatusChanged?.Invoke(this, new GoogleSheetsExportEventArgs
-            {
-                IsSuccess = false,
-                ErrorMessage = $"Failed to export to Google Sheets: {ex.Message}"
-            });
-        }
-    }
 
     /// <summary>
     /// Event raised when exporting to Excel is requested.
@@ -1715,8 +1346,8 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         }
 
         // Unsubscribe from chart settings events
-        ChartSettingsShared.ChartTypeChanged -= OnChartSettingsChartTypeChanged;
-        ChartSettingsShared.DateRangeChanged -= OnChartSettingsDateRangeChanged;
+        ChartSettings.ChartTypeChanged -= OnChartSettingsChartTypeChanged;
+        ChartSettings.DateRangeChanged -= OnChartSettingsDateRangeChanged;
 
         // Unsubscribe from theme, date format, pie slices, and currency changes
         ThemeService.Instance.ThemeChanged -= OnThemeChanged;
@@ -1770,8 +1401,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         var data = _companyManager?.CompanyData;
         if (data == null) return;
 
-        // A preset's dates go stale when the app is left open past midnight (see the dashboard).
-        ChartSettingsShared.UpdateDateRangeFromSelection();
+        RefreshPresetDates();
 
         var tab = SelectedTabIndex;
         // A style-only reload redraws the cartesian charts of an already-loaded tab; a tab that

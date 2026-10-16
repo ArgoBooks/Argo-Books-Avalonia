@@ -173,8 +173,10 @@ public partial class LanguageService
     /// <summary>
     /// Saves a single language's translations to its own file.
     /// </summary>
-    private void SaveLanguageFile(string isoCode, Dictionary<string, string> translations)
+    private async Task SaveLanguageFileAsync(string isoCode, Dictionary<string, string> translations)
     {
+        var path = GetLanguageFilePath(isoCode);
+        var tempPath = AtomicFile.TempPathFor(path);
         try
         {
             var options = new JsonSerializerOptions { WriteIndented = true };
@@ -183,10 +185,15 @@ public partial class LanguageService
                 .OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.OrdinalIgnoreCase);
             var jsonContent = JsonSerializer.Serialize(sorted, options);
-            File.WriteAllText(GetLanguageFilePath(isoCode), jsonContent);
+
+            // Written aside and swapped in, since a scanner holding the cache file open makes a
+            // direct write fail, which is most likely right after an install or an update.
+            await File.WriteAllTextAsync(tempPath, jsonContent);
+            await AtomicFile.ReplaceAsync(tempPath, path);
         }
         catch (Exception ex)
         {
+            AtomicFile.TryDeleteTemp(tempPath);
             App.ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, $"Failed to save translation cache for {isoCode}");
         }
     }
@@ -345,7 +352,7 @@ public partial class LanguageService
                 _currentLoadedIsoCode = isoCode;
             }
 
-            SaveLanguageFile(isoCode, downloadedTranslations);
+            await SaveLanguageFileAsync(isoCode, downloadedTranslations);
 
             TranslationProgress?.Invoke(this, new TranslationProgressEventArgs(languageName, false, "Translations loaded"));
             App.ErrorLogger?.LogDebug($"LanguageService: Successfully downloaded {downloadedTranslations.Count} translations for {languageName}");

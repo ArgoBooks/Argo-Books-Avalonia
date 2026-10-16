@@ -2,6 +2,7 @@ using ArgoBooks.Core.Services;
 using ArgoBooks.Services;
 using ArgoBooks.ViewModels;
 using Xunit;
+using ArgoBooks.Core.Models.Common;
 
 namespace ArgoBooks.Tests.ViewModels;
 
@@ -334,9 +335,9 @@ public class ReceiptsModalsViewModelTests : ModalViewModelTestBase
         Company.Settings.Localization.Currency = "CAD";
         UseNoExchangeRates();
         var vm = ReviewScan(OneLineScan("Hotel", 1, 120m, currency: "EUR"));
-        Assert.Equal(CurrencyService.GetDisplayString("EUR"), vm.SelectedScanCurrency);
+        Assert.Equal(CurrencyInfo.GetByCode("EUR").DisplayString, vm.SelectedScanCurrency);
 
-        vm.SelectedScanCurrency = CurrencyService.GetDisplayString("USD");
+        vm.SelectedScanCurrency = CurrencyInfo.GetByCode("USD").DisplayString;
         await SaveAsExpenseAsync(vm);
 
         Assert.Equal("USD", Company.Expenses.Single().OriginalCurrency);
@@ -360,11 +361,11 @@ public class ReceiptsModalsViewModelTests : ModalViewModelTestBase
         }
 
         vm.NavigateToBulkItemByRefCommand.Execute(first);
-        vm.SelectedScanCurrency = CurrencyService.GetDisplayString("USD");
+        vm.SelectedScanCurrency = CurrencyInfo.GetByCode("USD").DisplayString;
         vm.NavigateToBulkItemByRefCommand.Execute(second);
-        Assert.Equal(CurrencyService.GetDisplayString("CAD"), vm.SelectedScanCurrency);
+        Assert.Equal(CurrencyInfo.GetByCode("CAD").DisplayString, vm.SelectedScanCurrency);
         vm.NavigateToBulkItemByRefCommand.Execute(first);
-        Assert.Equal(CurrencyService.GetDisplayString("USD"), vm.SelectedScanCurrency);
+        Assert.Equal(CurrencyInfo.GetByCode("USD").DisplayString, vm.SelectedScanCurrency);
 
         await vm.CreateAllApprovedTransactionsCommand.ExecuteAsync(null);
 

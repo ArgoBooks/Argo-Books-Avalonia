@@ -429,6 +429,6 @@ public partial class ReturnDisplayItem : ObservableObject
     private int _itemCount;
 
     // Computed properties for display
-    public string DateFormatted => ReturnDate.ToString("MMM d, yyyy");
+    public string DateFormatted => ReturnDate.ToString(Core.Data.DateFormats.Short);
     public string RefundAmountFormatted { get; init; } = string.Empty;
 }

@@ -36,8 +36,6 @@ public partial class SearchableDropdown : UserControl, INotifyPropertyChanged
     // Opened on the picked item's own text: list everything until the user types.
     private bool _showAll;
 
-    // Exact, prefix, word-start or contains, but not a fuzzy guess.
-    private const double StrongMatchScore = 0.8;
 
     // Debounce typing so the fuzzy-scoring filter over the whole source list doesn't run per keystroke.
     private const int SearchDebounceMs = 120;
@@ -384,6 +382,11 @@ public partial class SearchableDropdown : UserControl, INotifyPropertyChanged
     /// </summary>
     private int TotalFilteredCount => FilteredPriorityItems.Count + FilteredItems.Count;
 
+    /// <summary>Stands for the "create new" row in <see cref="HighlightedItem"/>, which comes after the last item when the arrow keys reach it.</summary>
+    public static readonly object AddNewEntry = new();
+
+    private bool IsAddNewHighlighted => ShowAddNew && _highlightedIndex == TotalFilteredCount;
+
     /// <summary>
     /// Gets an item by combined index (priority items first, then regular items).
     /// </summary>
@@ -609,29 +612,22 @@ public partial class SearchableDropdown : UserControl, INotifyPropertyChanged
                 break;
 
             case Key.Tab:
-                if (IsDropdownOpen && TotalFilteredCount > 0)
-                {
-                    // Tab navigates down through items (Shift+Tab navigates up)
-                    if ((e.KeyModifiers & KeyModifiers.Shift) != 0)
-                    {
-                        MoveHighlight(-1);
-                    }
-                    else
-                    {
-                        MoveHighlight(1);
-                    }
-                    e.Handled = true;
-                }
-                else
-                {
-                    // If dropdown is closed, let Tab move focus naturally
-                    IsDropdownOpen = false;
-                }
+                // Tab leaves the field as it does anywhere else, taking an item picked out with the arrow keys on the way.
+                if (IsDropdownOpen && _highlightedIndex >= 0 && GetItemByIndex(_highlightedIndex) is { } highlighted)
+                    SelectItem(highlighted);
+                IsDropdownOpen = false;
                 break;
 
             case Key.Enter:
                 if (IsDropdownOpen)
                 {
+                    if (IsAddNewHighlighted)
+                    {
+                        AddNewInternalCommand.Execute(null);
+                        e.Handled = true;
+                        break;
+                    }
+
                     var itemToSelect = _highlightedIndex >= 0 ? GetItemByIndex(_highlightedIndex)
                         : EnterSelectsBestMatch ? FindEnterMatch()
                         : null;
@@ -669,14 +665,14 @@ public partial class SearchableDropdown : UserControl, INotifyPropertyChanged
 
         var first = GetItemByIndex(0);
         return first != null
-               && LevenshteinDistance.BestScore(text, GetDisplayText(first), GetMemberText(first, SearchMemberPath)) >= StrongMatchScore
+               && LevenshteinDistance.BestScore(text, GetDisplayText(first), GetMemberText(first, SearchMemberPath)) >= LevenshteinDistance.StrongMatchScore
             ? first
             : null;
     }
 
     private void MoveHighlight(int direction)
     {
-        var totalCount = TotalFilteredCount;
+        var totalCount = TotalFilteredCount + (ShowAddNew ? 1 : 0);
         if (totalCount == 0)
             return;
 
@@ -688,13 +684,14 @@ public partial class SearchableDropdown : UserControl, INotifyPropertyChanged
         else if (_highlightedIndex >= totalCount)
             _highlightedIndex = 0;
 
-        HighlightedItem = GetItemByIndex(_highlightedIndex);
+        HighlightedItem = IsAddNewHighlighted ? AddNewEntry : GetItemByIndex(_highlightedIndex);
         ScrollToHighlightedItem();
     }
 
     private void ScrollToHighlightedItem()
     {
-        if (_itemsScrollViewer == null || HighlightedItem == null)
+        // The "create new" row is pinned below the list, so it is always in view.
+        if (_itemsScrollViewer == null || HighlightedItem == null || HighlightedItem == AddNewEntry)
             return;
 
         // Estimate item height (approximately 40px per item based on padding)

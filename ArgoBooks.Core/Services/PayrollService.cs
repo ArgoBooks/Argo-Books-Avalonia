@@ -81,7 +81,7 @@ public class PayrollService(PayrollRateService? rateService = null)
             return false;
         }
 
-        return string.Equals(province, "QC", StringComparison.OrdinalIgnoreCase)
+        return Payroll.CraFormat.IsQuebec(province)
             ? rates.Quebec != null
             : rates.Provinces.ContainsKey(province);
     }
@@ -232,7 +232,7 @@ public class PayrollService(PayrollRateService? rateService = null)
                 ytd.CppEmployee += line.CppEmployee;
                 ytd.Cpp2Employee += line.Cpp2Employee;
                 ytd.EiEmployee += line.EiEmployee;
-                if (string.Equals(line.Province.Trim(), "QC", StringComparison.OrdinalIgnoreCase))
+                if (Payroll.CraFormat.IsQuebec(line.Province))
                     ytd.EiEmployeeQuebec += line.EiEmployee;
                 ytd.QpipEmployee += line.QpipEmployee;
                 ytd.QpipEmployer += line.QpipEmployer;

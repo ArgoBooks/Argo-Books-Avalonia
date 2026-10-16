@@ -90,22 +90,10 @@ public static class GoogleCredentialsManager
                 return false;
 
             // Validate and open browser for user to authorize
-            try
-            {
-                if (!Uri.TryCreate(authUrl, UriKind.Absolute, out var uri) ||
-                    (uri.Scheme != "https" && uri.Scheme != "http"))
-                    return false;
-
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = authUrl,
-                    UseShellExecute = true
-                });
-            }
-            catch
-            {
+            if (!Uri.TryCreate(authUrl, UriKind.Absolute, out var uri) ||
+                (uri.Scheme != "https" && uri.Scheme != "http") ||
+                !Platform.UrlHelper.SafeOpenUrl(authUrl))
                 return false;
-            }
 
             // Poll for completion (up to 2 minutes, checking every 5 seconds)
             for (var i = 0; i < 24; i++)
@@ -132,12 +120,6 @@ public static class GoogleCredentialsManager
     /// <summary>
     /// Adds device ID auth header for Google API requests (free feature).
     /// </summary>
-    internal static void AddAuthHeaders(HttpRequestMessage request)
-    {
-        var deviceId = LicenseService.Instance?.GetDeviceId();
-        if (!string.IsNullOrEmpty(deviceId))
-        {
-            request.Headers.Add("X-Device-Id", deviceId);
-        }
-    }
+    internal static void AddAuthHeaders(HttpRequestMessage request) =>
+        LicenseAuthHelper.AddAuthHeaders(request, licenseKey: null, LicenseAuthHelper.GetDeviceId());
 }

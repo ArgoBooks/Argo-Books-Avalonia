@@ -181,7 +181,7 @@
                                             ClipToBounds="True"
                                             Margin="0,0,12,0">
                                         <Panel>
-                                            <PathIcon Data="{x:Static icons:Icons.GridDetailed}"
+                                            <PathIcon Data="{x:Static icons:Icons.Image}"
                                                       Width="32" Height="32"
                                                       Foreground="{DynamicResource TextTertiaryBrush}"
                                                       IsVisible="{Binding !HasLogo}" />

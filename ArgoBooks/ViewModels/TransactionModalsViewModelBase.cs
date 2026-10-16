@@ -1320,7 +1320,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     {
         var category = new Category
         {
-            Id = new Core.Data.IdGenerator(companyData).NextCategoryId(CategoryTypeFilter),
+            Id = new IdGenerator(companyData).NextCategoryId(CategoryTypeFilter),
             Name = name,
             Type = CategoryTypeFilter
         };
@@ -1335,7 +1335,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
 
     private ProductOption CreateProduct(CompanyData companyData, string name, decimal price, CategoryOption? category, List<Product> created)
     {
-        var id = new Core.Data.IdGenerator(companyData).NextProductId();
+        var id = new IdGenerator(companyData).NextProductId();
         var product = new Product
         {
             Id = id,
@@ -1717,7 +1717,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         CompanyData companyData, string filePath, string transactionId, string transactionType, string supplier)
     {
         var fileInfo = new FileInfo(filePath);
-        var fileType = GetFileType(filePath);
+        var fileType = Core.Services.MimeTypes.For(filePath);
 
         // A receipt is only worth keeping with its file in it.
         string fileData;
@@ -1755,9 +1755,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     [RelayCommand]
     protected async Task AttachReceipt()
     {
-        var topLevel = Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop
-            ? desktop.MainWindow
-            : null;
+        var topLevel = App.DesktopMainWindow;
 
         if (topLevel == null) return;
 
@@ -1772,22 +1770,23 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
             ]
         });
 
+        var attached = new List<string>();
         foreach (var file in files)
-            Attachments.Add(new TransactionAttachment(null, file.Name, file.Path.LocalPath));
-
-        if (files.Count > 0)
         {
-            ReceiptFilePath = files[0].Path.LocalPath;
-            ReceiptFileName = files[0].Name;
+            // A TIFF that cannot be read is attached as it is, as any other file the picker allows would be.
+            var path = await FilePickerTypes.ReadableReceiptPathAsync(file.Path.LocalPath) ?? file.Path.LocalPath;
+            Attachments.Add(new TransactionAttachment(null, Path.GetFileName(path), path));
+            attached.Add(path);
+        }
+
+        if (attached.Count > 0)
+        {
+            ReceiptFilePath = attached[0];
+            ReceiptFileName = Path.GetFileName(attached[0]);
             OnPropertyChanged(nameof(HasReceipt));
         }
     }
 
-    protected static string GetFileType(string filePath)
-    {
-        return FilePickerTypes.GetReceiptContentType(filePath)
-               ?? (Path.GetExtension(filePath).ToLowerInvariant() == ".gif" ? "image/gif" : "application/octet-stream");
-    }
 
     #endregion
 

@@ -53,6 +53,9 @@ public sealed record AiProxyResponse(
 /// </summary>
 public sealed class AiProxyClient(HttpClient httpClient, string baseUrl, IApiAuth? apiAuth)
 {
+    /// <summary>The AI model both the desktop app and the phone ask the proxy for.</summary>
+    public const string DefaultModel = "gemini-2.5-flash";
+
     /// <summary>Platform tag sent with each AI call for the server-side timing records.</summary>
     public static readonly string PlatformTag =
         OperatingSystem.IsAndroid() ? "android"

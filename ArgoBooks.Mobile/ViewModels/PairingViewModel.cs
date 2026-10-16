@@ -69,7 +69,7 @@ public partial class PairingViewModel : ViewModelBase
     }
 
     public PairingViewModel()
-        : this(new PairingCoordinator(new MobileSyncClient(null, MobileApiConfig.BaseUrl), new PairedCompanyStore(new MauiSecureStore())))
+        : this(new PairingCoordinator(new MobileSyncClient(null, ArgoBooks.Core.Services.ApiConfig.BaseUrl), new PairedCompanyStore(new MauiSecureStore())))
     {
     }
 

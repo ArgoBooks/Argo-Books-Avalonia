@@ -295,7 +295,7 @@
                     <Button Classes="footer-link"
                             Command="{Binding OpenWhatsNewCommand}">
                         <StackPanel Orientation="Horizontal" Spacing="6">
-                            <PathIcon Data="{x:Static icons:Icons.ChatBubble}"
+                            <PathIcon Data="{x:Static icons:Icons.Gift}"
                                       Width="16" Height="16" />
                             <TextBlock Text="{loc:Loc 'What''s New'}" />
                         </StackPanel>

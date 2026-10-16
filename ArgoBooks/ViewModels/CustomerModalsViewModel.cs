@@ -456,7 +456,7 @@ public partial class CustomerModalsViewModel : ViewModelBase
         }
         else
         {
-            newId = new Core.Data.IdGenerator(companyData).NextCustomerId();
+            newId = new IdGenerator(companyData).NextCustomerId();
         }
 
         var newCustomer = new Customer
@@ -899,7 +899,7 @@ public partial class CustomerModalsViewModel : ViewModelBase
         var addresses = App.CompanyManager?.CompanyData?.Customers.Select(c => c.Address) ?? Enumerable.Empty<Address>();
         OptionLoader.Fill(CountryOptions,
             OptionLoader.Countries(addresses)
-                .Select(Core.Data.Countries.NormalizeCountryOrKeep)
+                .Select(Countries.NormalizeCountryOrKeep)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(c => c),
             "All");
@@ -975,7 +975,7 @@ public partial class CustomerModalsViewModel : ViewModelBase
                 Type = "Invoice",
                 Description = $"Invoice #{invoice.InvoiceNumber}",
                 Amount = invoice.Total,
-                Status = Core.Services.InvoiceTotalsService.DisplayStatus(invoice).ToString()
+                Status = InvoiceTotalsService.DisplayStatus(invoice).ToString()
             });
         }
 
@@ -1001,7 +1001,7 @@ public partial class CustomerModalsViewModel : ViewModelBase
             {
                 Date = rental.StartDate,
                 Type = "Rental",
-                Description = $"Rental - {Core.Services.RentalBookings.ItemNames(companyData, rental)}",
+                Description = $"Rental - {RentalBookings.ItemNames(companyData, rental)}",
                 Amount = rental.TotalCost ?? 0,
                 Status = rental.Status.ToString()
             });

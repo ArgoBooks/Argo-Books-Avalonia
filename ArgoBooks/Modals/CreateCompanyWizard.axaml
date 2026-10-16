@@ -23,7 +23,6 @@
             <Setter Property="Padding" Value="12,10" />
             <Setter Property="FontSize" Value="14" />
             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-            <!-- PasswordChar is bound per field, not set here, so revealing can clear it. -->
         </Style>
         <Style Selector="TextBox.password-field /template/ Border#PART_BorderElement">
             <Setter Property="Background" Value="Transparent" />
@@ -236,7 +235,7 @@
                                             ClipToBounds="True"
                                             Margin="0,0,16,0">
                                         <Panel>
-                                            <PathIcon Data="{x:Static icons:Icons.GridDetailed}"
+                                            <PathIcon Data="{x:Static icons:Icons.Image}"
                                                       Width="40" Height="40"
                                                       Foreground="{DynamicResource TextTertiaryBrush}"
                                                       IsVisible="{Binding !HasLogo}" />
@@ -289,7 +288,8 @@
                                                 <Grid ColumnDefinitions="*,Auto">
                                                     <TextBox Grid.Column="0"
                                                              Text="{Binding Password, Mode=TwoWay}"
-                                                             PasswordChar="{Binding PasswordMaskChar}"
+                                                             PasswordChar="*"
+                                                             RevealPassword="{Binding IsPasswordVisible}"
                                                              Classes="password-field"
                                                              PlaceholderText="{loc:Loc 'Enter password'}"
                                                              MaxLength="128" />
@@ -341,7 +341,8 @@
                                                 <Grid ColumnDefinitions="*,Auto">
                                                     <TextBox Grid.Column="0"
                                                              Text="{Binding ConfirmPassword, Mode=TwoWay}"
-                                                             PasswordChar="{Binding ConfirmPasswordMaskChar}"
+                                                             PasswordChar="*"
+                                                             RevealPassword="{Binding IsConfirmPasswordVisible}"
                                                              Classes="password-field"
                                                              PlaceholderText="{loc:Loc 'Confirm password'}"
                                                              MaxLength="128" />

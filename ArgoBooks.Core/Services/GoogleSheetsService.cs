@@ -70,14 +70,6 @@ public class GoogleSheetsService
             cancellationToken);
     }
 
-    /// <summary>
-    /// Opens a Google Sheets URL in the default browser.
-    /// </summary>
-    public static bool OpenInBrowser(string url)
-    {
-        return UrlHelper.SafeOpenUrl(url);
-    }
-
     private async Task<string?> SendExportRequestAsync(
         string title,
         object sheets,

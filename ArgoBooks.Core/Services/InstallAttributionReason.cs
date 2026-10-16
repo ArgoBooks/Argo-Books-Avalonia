@@ -6,8 +6,6 @@ namespace ArgoBooks.Core.Services;
 /// </summary>
 public static class InstallAttributionReason
 {
-    private const string MarkerFileName = "first_run_reported.marker";
-
     /// <summary>
     /// Returns the <c>reason=</c> value from the first-run marker:
     /// <c>"token"</c>, <c>"no_token"</c>, <c>"gave_up_after_retries"</c>, or
@@ -17,10 +15,7 @@ public static class InstallAttributionReason
     {
         try
         {
-            var path = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "ArgoBooks",
-                MarkerFileName);
+            var path = Path.Combine(AppPaths.LocalData, AppPaths.FirstRunMarkerFileName);
             if (!File.Exists(path)) return null;
 
             foreach (var line in File.ReadAllLines(path))
@@ -46,10 +41,7 @@ public static class InstallAttributionReason
     {
         try
         {
-            var path = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "ArgoBooks",
-                "machine_uuid.txt");
+            var path = Path.Combine(AppPaths.LocalData, AppPaths.MachineUuidFileName);
             if (!File.Exists(path)) return null;
             var raw = File.ReadAllText(path).Trim();
             return Guid.TryParse(raw, out _) ? raw : null;

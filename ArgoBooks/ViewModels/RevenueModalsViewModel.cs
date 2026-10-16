@@ -442,7 +442,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
     protected override void SaveNewTransaction(CompanyData companyData)
     {
         var date = ModalDate?.DateTime ?? DateTime.Now;
-        var revenueId = RequestedId ?? new Core.Data.IdGenerator(companyData).NextRevenueId(date);
+        var revenueId = RequestedId ?? new IdGenerator(companyData).NextRevenueId(date);
 
         var (description, totalQuantity, averageUnitPrice) = GetLineItemSummary();
         var modelLineItems = CreateModelLineItems();
@@ -626,7 +626,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
         if (string.IsNullOrEmpty(ReceiptFilePath)) return null;
 
         var fileInfo = new FileInfo(ReceiptFilePath);
-        var fileType = GetFileType(ReceiptFilePath);
+        var fileType = Core.Services.MimeTypes.For(ReceiptFilePath);
 
         // A receipt is only worth keeping with its file in it.
         string fileData;
@@ -665,67 +665,18 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
 
     private static TransactionState CaptureTransactionState(Revenue revenue)
     {
-        return new TransactionState
-        {
-            Date = revenue.Date,
-            CounterpartyId = revenue.CustomerId,
-            Description = revenue.Description,
-            LineItems = revenue.LineItems.ToList(),
-            Quantity = revenue.Quantity,
-            UnitPrice = revenue.UnitPrice,
-            Amount = revenue.Amount,
-            Subtotal = revenue.Subtotal,
-            TaxRate = revenue.TaxRate,
-            TaxAmount = revenue.TaxAmount,
-            ShippingCost = revenue.ShippingCost,
-            Discount = revenue.Discount,
-            Fee = revenue.Fee,
-            Total = revenue.Total,
-            PaymentMethod = revenue.PaymentMethod,
-            PaymentStatus = revenue.PaymentStatus,
-            Notes = revenue.Notes,
-            ReferenceNumber = revenue.ReferenceNumber,
-            ReceiptId = revenue.ReceiptId,
-            IsPendingConversion = revenue.IsPendingConversion,
-            OriginalCurrency = revenue.OriginalCurrency,
-            TotalUSD = revenue.TotalUSD,
-            UnitPriceUSD = revenue.UnitPriceUSD,
-            ShippingCostUSD = revenue.ShippingCostUSD,
-            TaxAmountUSD = revenue.TaxAmountUSD,
-            DiscountUSD = revenue.DiscountUSD,
-            FeeUSD = revenue.FeeUSD
-        };
+        var state = TransactionState.Capture(revenue, revenue.CustomerId);
+        state.Subtotal = revenue.Subtotal;
+        state.PaymentStatus = revenue.PaymentStatus;
+        return state;
     }
 
     private static void RestoreTransactionState(Revenue revenue, TransactionState state)
     {
-        revenue.Date = state.Date;
+        state.RestoreTo(revenue);
         revenue.CustomerId = state.CounterpartyId;
-        revenue.Description = state.Description;
-        revenue.LineItems = state.LineItems;
-        revenue.Quantity = state.Quantity;
-        revenue.UnitPrice = state.UnitPrice;
-        revenue.Amount = state.Amount;
         revenue.Subtotal = state.Subtotal;
-        revenue.TaxRate = state.TaxRate;
-        revenue.TaxAmount = state.TaxAmount;
-        revenue.ShippingCost = state.ShippingCost;
-        revenue.Discount = state.Discount;
-        revenue.Fee = state.Fee;
-        revenue.Total = state.Total;
-        revenue.PaymentMethod = state.PaymentMethod;
         revenue.PaymentStatus = state.PaymentStatus;
-        revenue.Notes = state.Notes;
-        revenue.ReferenceNumber = state.ReferenceNumber;
-        revenue.ReceiptId = state.ReceiptId;
-        revenue.IsPendingConversion = state.IsPendingConversion;
-        revenue.OriginalCurrency = state.OriginalCurrency;
-        revenue.TotalUSD = state.TotalUSD;
-        revenue.UnitPriceUSD = state.UnitPriceUSD;
-        revenue.ShippingCostUSD = state.ShippingCostUSD;
-        revenue.TaxAmountUSD = state.TaxAmountUSD;
-        revenue.DiscountUSD = state.DiscountUSD;
-        revenue.FeeUSD = state.FeeUSD;
     }
 
     #endregion

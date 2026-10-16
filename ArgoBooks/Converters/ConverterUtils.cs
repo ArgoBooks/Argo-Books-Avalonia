@@ -8,8 +8,6 @@ namespace ArgoBooks.Converters;
 /// </summary>
 internal static class ConverterUtils
 {
-    public static bool AreEqual(object? value1, object? value2) => Equals(value1, value2);
-
     /// <summary>
     /// Looks up a brush resource for the current theme variant, falling back to a hex color.
     /// </summary>

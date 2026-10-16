@@ -74,7 +74,7 @@ public class ChartLoaderService
     /// <summary>
     /// Truncates a legend label to prevent pie chart legend overflow.
     /// </summary>
-    private static string TruncateLegendLabel(string? label)
+    internal static string TruncateLegendLabel(string? label)
     {
         if (string.IsNullOrEmpty(label))
             return LanguageService.Instance.Translate("Unknown");
@@ -1310,8 +1310,8 @@ public class ChartLoaderService
         }
 
         // Filter out zero-data points from daily data before storing
-        var dailyRevenue = dailySeriesData.FirstOrDefault(s => s.Name == "Revenue");
-        var dailyExpense = dailySeriesData.FirstOrDefault(s => s.Name == "Expenses");
+        var dailyRevenue = dailySeriesData.FirstOrDefault(s => s.Name == ChartSeriesData.RevenueName);
+        var dailyExpense = dailySeriesData.FirstOrDefault(s => s.Name == ChartSeriesData.ExpensesName);
 
         if (dailyRevenue == null || dailyExpense == null || dailyRevenue.DataPoints.Count == 0)
         {
@@ -1358,8 +1358,8 @@ public class ChartLoaderService
         };
 
         var bucketedSeries = StoreDailySeriesAndBucket(ChartDataType.RevenueVsExpenses, filteredDailySeries);
-        var revenueData = bucketedSeries.FirstOrDefault(s => s.Name == "Revenue");
-        var expenseData = bucketedSeries.FirstOrDefault(s => s.Name == "Expenses");
+        var revenueData = bucketedSeries.FirstOrDefault(s => s.Name == ChartSeriesData.RevenueName);
+        var expenseData = bucketedSeries.FirstOrDefault(s => s.Name == ChartSeriesData.ExpensesName);
 
         if (revenueData == null || expenseData == null)
             return (series, dates);
@@ -1534,8 +1534,8 @@ public class ChartLoaderService
             return (series, dates);
 
         // Get dates from the first series (both series have the same dates)
-        var revenueSeriesData = seriesData.FirstOrDefault(s => s.Name == "Revenue");
-        var expenseSeriesData = seriesData.FirstOrDefault(s => s.Name == "Expenses");
+        var revenueSeriesData = seriesData.FirstOrDefault(s => s.Name == ChartSeriesData.RevenueName);
+        var expenseSeriesData = seriesData.FirstOrDefault(s => s.Name == ChartSeriesData.ExpensesName);
 
         if (revenueSeriesData?.DataPoints == null || revenueSeriesData.DataPoints.Count == 0)
             return (series, dates);
@@ -1596,8 +1596,8 @@ public class ChartLoaderService
         if (seriesData.Count == 0)
             return (series, dates);
 
-        var dailyRevenue = seriesData.FirstOrDefault(s => s.Name == "Revenue");
-        var dailyExpense = seriesData.FirstOrDefault(s => s.Name == "Expenses");
+        var dailyRevenue = seriesData.FirstOrDefault(s => s.Name == ChartSeriesData.RevenueName);
+        var dailyExpense = seriesData.FirstOrDefault(s => s.Name == ChartSeriesData.ExpensesName);
 
         if (dailyRevenue?.DataPoints == null || dailyRevenue.DataPoints.Count == 0)
             return (series, dates);

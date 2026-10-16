@@ -30,6 +30,9 @@
                 VerticalAlignment="Top"
                 Margin="0,60,20,0"
                 BoxShadow="0 4 16 0 #30000000"
+                Focusable="True"
+                KeyboardNavigation.IsTabStop="False"
+                KeyDown="NotificationPanel_KeyDown"
                 Opacity="0"
                 RenderTransformOrigin="1,0">
             <Border.RenderTransform>
@@ -122,7 +125,7 @@
                                                               Foreground="{DynamicResource SuccessBrush}"
                                                               IsVisible="{Binding Type, Converter={x:Static vm:NotificationTypeConverters.IsSuccess}}" />
                                                     <!-- Warning Icon -->
-                                                    <PathIcon Data="{x:Static local:Icons.LostDamaged}"
+                                                    <PathIcon Data="{x:Static local:Icons.Warning}"
                                                               Width="18" Height="18"
                                                               Foreground="{DynamicResource WarningBrush}"
                                                               IsVisible="{Binding Type, Converter={x:Static vm:NotificationTypeConverters.IsWarning}}" />
@@ -253,13 +256,9 @@
             <Setter Property="Padding" Value="0" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Foreground" Value="{DynamicResource TextTertiaryBrush}" />
-            <Setter Property="Opacity" Value="0" />
         </Style>
         <Style Selector="Button.icon-button-small /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="Transparent" />
-        </Style>
-        <Style Selector="Button.notification-item:pointerover Button.icon-button-small">
-            <Setter Property="Opacity" Value="1" />
         </Style>
         <Style Selector="Button.icon-button-small:pointerover">
             <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />

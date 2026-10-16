@@ -104,6 +104,17 @@ public enum ExportFormat
     JPEG
 }
 
+public static class ExportFormatExtensions
+{
+    /// <summary>The file extension a report exported in this format is saved with.</summary>
+    public static string FileExtension(this ExportFormat format) => format switch
+    {
+        ExportFormat.PNG => ".png",
+        ExportFormat.JPEG => ".jpg",
+        _ => ".pdf"
+    };
+}
+
 /// <summary>
 /// Image scaling modes for display.
 /// </summary>

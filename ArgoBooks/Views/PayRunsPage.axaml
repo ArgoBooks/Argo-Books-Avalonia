@@ -32,7 +32,7 @@
                 <!-- What was owed for the year so far, employee and employer sides together, to CRA and Revenu Quebec combined. The Payroll Remittance report breaks it down by period and by agency. -->
                 <controls:StatCard Label="{loc:Loc 'Remittance this year'}"
                                    Value="{Binding YearToDateRemittance}"
-                                   Icon="{x:Static icons:Icons.BarChart}"
+                                   Icon="{x:Static icons:Icons.Bank}"
                                    IconColor="Warning" />
                 <!-- The one figure here that is an instruction rather than a total: the amount to send and the day to send it by. -->
                 <controls:StatCard Label="{Binding RemittanceDueLabel}"

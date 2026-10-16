@@ -93,6 +93,12 @@
 
     <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource TextPrimaryColor}" />
     <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource TextSecondaryColor}" />
+
+    <!-- The Fluent combobox turns its text white for keyboard focus, to sit on an accent fill the app does not use. -->
+    <SolidColorBrush x:Key="ComboBoxForegroundFocused" Color="{StaticResource TextPrimaryColor}" />
+    <SolidColorBrush x:Key="ComboBoxForegroundFocusedPressed" Color="{StaticResource TextPrimaryColor}" />
+    <SolidColorBrush x:Key="ComboBoxDropDownGlyphForegroundFocused" Color="{StaticResource TextSecondaryColor}" />
+    <SolidColorBrush x:Key="ComboBoxDropDownGlyphForegroundFocusedPressed" Color="{StaticResource TextSecondaryColor}" />
     <SolidColorBrush x:Key="TextTertiaryBrush" Color="{StaticResource TextTertiaryColor}" />
     <SolidColorBrush x:Key="TextDisabledBrush" Color="{StaticResource TextDisabledColor}" />
     <SolidColorBrush x:Key="TextInverseBrush" Color="{StaticResource TextInverseColor}" />

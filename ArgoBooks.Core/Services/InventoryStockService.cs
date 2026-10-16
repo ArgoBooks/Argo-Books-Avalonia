@@ -256,8 +256,18 @@ public static class InventoryStockService
         return changes;
     }
 
+    /// <summary>The opening units left when stock falls to <paramref name="newStock"/>, taken out in proportion, so a later sale never uses opening units no longer on hand.</summary>
+    public static decimal OpeningUnitsAfter(InventoryItem item, decimal newStock)
+    {
+        if (newStock >= item.InStock || item.InStock <= 0)
+            return item.OpeningUnits;
+
+        var removed = Math.Min(item.OpeningUnits, item.OpeningUnits * (item.InStock - newStock) / item.InStock);
+        return Math.Max(0, item.OpeningUnits - Math.Max(removed, 0));
+    }
+
     /// <summary>
-    /// Puts stock back as it was before <paramref name="changes"/>: stock, opening units, unit cost and
+    /// Takes back <paramref name="changes"/>: their effect on stock and opening units reversed, unit cost and
     /// cost price restored, adjustments removed, and stock records the change created removed. A cost
     /// that was pending then and has converted since comes back converted rather than pending again.
     /// An undo puts a sale back before this runs, and a line of it still waiting for that cost gets
@@ -271,8 +281,9 @@ public static class InventoryStockService
             var change = changes[i];
             var item = change.Item;
             var convertedRate = change.OldPendingCost?.ConvertedRate;
-            item.InStock = change.OldStock;
-            item.OpeningUnits = change.OldOpeningUnits;
+            // Only this change is taken back, so stock moved since by anything without an undo of its own stays moved.
+            item.InStock -= change.NewStock - change.OldStock;
+            item.OpeningUnits -= change.NewOpeningUnits - change.OldOpeningUnits;
             item.UnitCost = change.OldCostPending && convertedRate is { } rate
                 ? change.OldPendingCost!.Total * rate
                 : change.OldUnitCost;
@@ -364,10 +375,7 @@ public static class InventoryStockService
             DestinationOldOpeningUnits = destination.OpeningUnits
         };
 
-        var openingMoved = source.InStock > 0
-            ? Math.Min(source.OpeningUnits, source.OpeningUnits * quantity / source.InStock)
-            : 0;
-        openingMoved = Math.Max(openingMoved, 0);
+        var openingMoved = source.OpeningUnits - OpeningUnitsAfter(source, source.InStock - quantity);
 
         source.InStock -= quantity;
         source.OpeningUnits -= openingMoved;
@@ -471,7 +479,7 @@ public static class InventoryStockService
 
     private static decimal? UsdPerNative(string currency, decimal total, decimal totalUSD, bool isPending)
     {
-        if (string.Equals(currency, "USD", StringComparison.OrdinalIgnoreCase))
+        if (UsdConversion.IsUsd(currency))
             return 1m;
         if (isPending || total == 0 || totalUSD == 0)
             return null;
@@ -549,7 +557,7 @@ public static class InventoryStockService
 
     private static decimal? UnitCostUSD(decimal nativeUnitCost, string currency, DateTime date, decimal? usdPerNative)
     {
-        if (nativeUnitCost == 0 || string.Equals(currency, "USD", StringComparison.OrdinalIgnoreCase))
+        if (nativeUnitCost == 0 || UsdConversion.IsUsd(currency))
             return nativeUnitCost;
         return (usdPerNative ?? UsdConversion.CachedRate(currency, date)) is { } rate
             ? nativeUnitCost * rate
@@ -700,6 +708,7 @@ public sealed class StockChange
     public decimal OldStock { get; init; }
     public decimal NewStock { get; init; }
     public decimal OldOpeningUnits { get; init; }
+    public decimal NewOpeningUnits { get; init; }
     public decimal OldUnitCost { get; init; }
     public bool OldCostPending { get; init; }
     public PendingConversion? OldPendingCost { get; init; }
@@ -732,6 +741,7 @@ public sealed class StockChange
             OldStock = OldStock,
             NewStock = Item.InStock,
             OldOpeningUnits = _oldOpeningUnits,
+            NewOpeningUnits = Item.OpeningUnits,
             OldUnitCost = _oldUnitCost,
             OldCostPending = _oldCostPending,
             OldPendingCost = _oldPendingCost,

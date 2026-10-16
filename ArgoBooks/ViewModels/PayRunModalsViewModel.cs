@@ -4,6 +4,7 @@ using Avalonia.Threading;
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Models.Payroll;
 using ArgoBooks.Core.Services;
+using ArgoBooks.Core.Services.Payroll;
 using ArgoBooks.Services;
 using ArgoBooks.Shared.Telemetry;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -607,7 +608,7 @@ public partial class PayRunModalsViewModel : ViewModelBase
 
         foreach (PayRunLine line in _draft.Lines)
         {
-            bool quebec = string.Equals(line.Province, "QC", StringComparison.OrdinalIgnoreCase);
+            bool quebec = CraFormat.IsQuebec(line.Province);
 
             ReviewRows.Add(new PayRunReviewRow
             {
@@ -751,7 +752,7 @@ public partial class PayRunModalsViewModel : ViewModelBase
         PayrollYearToDate ytd = _payroll.YearToDateFor(data, employee.Id, _draft, includeLaterRuns: true);
 
         // Quebec runs its own plans at its own maximums, so the figure to compare against is not the federal one.
-        bool quebec = string.Equals(employee.Province, "QC", StringComparison.OrdinalIgnoreCase);
+        bool quebec = CraFormat.IsQuebec(employee.Province);
         QuebecRates? qc = quebec ? rates.Quebec : null;
 
         decimal pensionMax = qc?.Qpp.MaxContributionEmployee ?? rates.Cpp.MaxContributionEmployee;

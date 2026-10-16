@@ -398,7 +398,8 @@
                                         <Grid ColumnDefinitions="*,Auto">
                                             <TextBox Grid.Column="0"
                                                      Text="{Binding FilePassword, Mode=TwoWay}"
-                                                     PasswordChar="{Binding FilePasswordMaskChar}"
+                                                     PasswordChar="•"
+                                                     RevealPassword="{Binding IsFilePasswordVisible}"
                                                      Classes="password-field" />
                                             <Button Grid.Column="1"
                                                     Classes="eye-toggle"

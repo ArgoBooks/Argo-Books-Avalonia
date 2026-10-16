@@ -146,4 +146,30 @@ public class StockAdjustmentsModalsViewModelTests : ModalViewModelTestBase
         Assert.Equal(0, Company.Inventory.Single().InStock);
         Assert.DoesNotContain(added, Company.StockAdjustments);
     }
+
+    /// <summary>
+    /// A removal takes opening units out with the stock, so deleting it must put them back, or later sales
+    /// would be costed as bought stock that never had a purchase. Undoing the delete takes them out again.
+    /// </summary>
+    [Fact]
+    public void DeleteRemoval_OfOpeningStock_PutsTheOpeningUnitsBack()
+    {
+        var vm = NewVmWithItem(10);
+        Company.Inventory.Single().OpeningUnits = 10;
+        vm.AdjustmentType = "Remove";
+        vm.AdjustmentQuantity = "6";
+        vm.SaveAdjustmentCommand.Execute(null);
+        var removal = Assert.Single(Company.StockAdjustments);
+        Assert.Equal(4, Company.Inventory.Single().OpeningUnits);
+
+        DeleteConfirmed(removal);
+
+        Assert.Equal(10, Company.Inventory.Single().InStock);
+        Assert.Equal(10, Company.Inventory.Single().OpeningUnits);
+
+        Undo();
+
+        Assert.Equal(4, Company.Inventory.Single().InStock);
+        Assert.Equal(4, Company.Inventory.Single().OpeningUnits);
+    }
 }

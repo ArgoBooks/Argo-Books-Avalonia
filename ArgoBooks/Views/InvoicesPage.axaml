@@ -60,7 +60,7 @@
                                    IconColor="Success" />
                 <controls:StatCard Label="{loc:Loc Overdue}"
                                    Value="{Binding OverdueAmount}"
-                                   Icon="{x:Static icons:Icons.Info}"
+                                   Icon="{x:Static icons:Icons.WarningCircle}"
                                    IconColor="Danger" />
                 <controls:StatCard Label="{loc:Loc 'Due This Week'}"
                                    Value="{Binding DueThisWeekCount}"

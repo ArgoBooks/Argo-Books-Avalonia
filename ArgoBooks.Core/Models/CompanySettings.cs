@@ -228,7 +228,7 @@ public class LocalizationSettings
     [JsonPropertyName("currency")]
     public string Currency { get; set; } = "USD";
     [JsonPropertyName("dateFormat")]
-    public string DateFormat { get; set; } = "MM/DD/YYYY";
+    public string DateFormat { get; set; } = Data.DateFormats.Default;
 }
 
 public class NotificationSettings

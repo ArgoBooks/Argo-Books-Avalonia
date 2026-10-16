@@ -14,7 +14,8 @@
              x:Class="ArgoBooks.Views.AppShell"
              x:DataType="vm:AppShellViewModel"
              Background="{DynamicResource BackgroundBrush}"
-             Focusable="True">
+             Focusable="True"
+             KeyboardNavigation.IsTabStop="False">
 
     <Design.DataContext>
         <vm:AppShellViewModel />
@@ -113,18 +114,19 @@
         <!-- Panels at root level (need full window coverage for click-away backdrop) -->
 
         <!-- Quick Actions Panel -->
-        <panels:QuickActionsPanel DataContext="{Binding QuickActionsViewModel}" />
+        <panels:QuickActionsPanel x:Name="QuickActionsPanelControl" DataContext="{Binding QuickActionsViewModel}" />
 
         <!-- File Menu Panel -->
-        <panels:FileMenuPanel DataContext="{Binding FileMenuPanelViewModel}" />
+        <panels:FileMenuPanel x:Name="FileMenuPanelControl" DataContext="{Binding FileMenuPanelViewModel}" />
 
         <!-- Notification Panel -->
-        <panels:NotificationPanel DataContext="{Binding NotificationPanelViewModel}" />
+        <panels:NotificationPanel x:Name="NotificationPanelControl" DataContext="{Binding NotificationPanelViewModel}" />
 
         <!-- Notification Toast Popup -->
         <Border x:Name="NotificationToastBorder"
                 DataContext="{Binding HeaderViewModel}"
                 IsHitTestVisible="{Binding ShowNotificationToast}"
+                IsEnabled="{Binding ShowNotificationToast}"
                 Background="{DynamicResource SurfaceBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="1"
@@ -167,7 +169,7 @@
                                   Width="17" Height="17"
                                   Foreground="{Binding ToastAccentBrush}"
                                   IsVisible="{Binding ToastType, Converter={x:Static vm:NotificationTypeConverters.IsSuccess}}" />
-                        <PathIcon Data="{x:Static icons:Icons.LostDamaged}"
+                        <PathIcon Data="{x:Static icons:Icons.Warning}"
                                   Width="17" Height="17"
                                   Foreground="{Binding ToastAccentBrush}"
                                   IsVisible="{Binding ToastType, Converter={x:Static vm:NotificationTypeConverters.IsWarning}}" />
@@ -211,10 +213,10 @@
         </Border>
 
         <!-- Help Panel -->
-        <panels:HelpPanel DataContext="{Binding HelpPanelViewModel}" />
+        <panels:HelpPanel x:Name="HelpPanelControl" DataContext="{Binding HelpPanelViewModel}" />
 
         <!-- Company Switcher Panel (positioned relative to sidebar) -->
-        <panels:CompanySwitcherPanel DataContext="{Binding CompanySwitcherPanelViewModel}" />
+        <panels:CompanySwitcherPanel x:Name="CompanySwitcherPanelControl" DataContext="{Binding CompanySwitcherPanelViewModel}" />
 
         <!-- Chart Expand Overlay (full-window modal for expanded chart viewing) -->
         <controls:ChartExpandOverlay />

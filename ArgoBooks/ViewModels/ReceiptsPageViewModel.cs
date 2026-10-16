@@ -277,8 +277,8 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
         if (validPaths.Count == 0)
         {
             await App.ShowWarningDialogAsync(
-                Loc.Tr("Invalid File"),
-                Loc.Tr("Please drop {0} files.", FilePickerTypes.SupportedReceiptFormats));
+                "Invalid File".Translate(),
+                "Please drop {0} files.".TranslateFormat(FilePickerTypes.SupportedReceiptFormats));
             return;
         }
 
@@ -289,7 +289,7 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
         if (!modalsVm.IsBulkDropZoneOpen)
             modalsVm.OpenBulkDropZone();
 
-        modalsVm.AddFilesToQueue(validPaths);
+        await modalsVm.AddFilesToQueueAsync(validPaths);
     }
 
     #endregion
@@ -314,8 +314,11 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
         {
             App.ReceiptsModalsViewModel.FiltersApplied += OnFiltersApplied;
             App.ReceiptsModalsViewModel.FiltersCleared += OnFiltersCleared;
+            App.ReceiptsModalsViewModel.ScanAllowanceUsed += OnScanAllowanceUsed;
         }
     }
+
+    private void OnScanAllowanceUsed(object? sender, EventArgs e) => _ = RefreshScanUsageAsync();
 
     /// <summary>
     /// Unsubscribes from app-level and singleton events, plus the per-item PropertyChanged handlers,
@@ -329,6 +332,7 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
         {
             App.ReceiptsModalsViewModel.FiltersApplied -= OnFiltersApplied;
             App.ReceiptsModalsViewModel.FiltersCleared -= OnFiltersCleared;
+            App.ReceiptsModalsViewModel.ScanAllowanceUsed -= OnScanAllowanceUsed;
         }
         foreach (var item in Receipts)
             item.PropertyChanged -= OnReceiptItemPropertyChanged;
@@ -472,8 +476,8 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
         {
             filtered = filterFileType switch
             {
-                "Image" => filtered.Where(r => IsImageFile(r.FileType)),
-                "PDF" => filtered.Where(r => r.FileType.Contains("pdf", StringComparison.OrdinalIgnoreCase)),
+                "Image" => filtered.Where(r => FilePickerTypes.IsImageReceipt(r.FileType, r.FileName)),
+                "PDF" => filtered.Where(r => FilePickerTypes.IsPdfReceipt(r.FileType, r.FileName)),
                 _ => filtered
             };
         }
@@ -568,15 +572,6 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
         }
     }
 
-    private static bool IsImageFile(string fileType)
-    {
-        return fileType.Contains("image", StringComparison.OrdinalIgnoreCase) ||
-               fileType.EndsWith("jpg", StringComparison.OrdinalIgnoreCase) ||
-               fileType.EndsWith("jpeg", StringComparison.OrdinalIgnoreCase) ||
-               fileType.EndsWith("png", StringComparison.OrdinalIgnoreCase) ||
-               fileType.EndsWith("gif", StringComparison.OrdinalIgnoreCase) ||
-               fileType.EndsWith("webp", StringComparison.OrdinalIgnoreCase);
-    }
 
     private void UpdateSelectionState()
     {
@@ -597,8 +592,7 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
 
         try
         {
-            var isPdf = receipt.FileType?.Contains("pdf", StringComparison.OrdinalIgnoreCase) == true
-                        || receipt.FileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase);
+            var isPdf = FilePickerTypes.IsPdfReceipt(receipt.FileType, receipt.FileName);
 
             // The same cache paths the viewer uses, so each reuses what the other rendered.
             var path = isPdf
@@ -625,8 +619,7 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
             ReceiptPageRenderer.EnsureTempDir();
             var bytes = Convert.FromBase64String(receipt.FileData);
 
-            var isPdf = receipt.FileType?.Contains("pdf", StringComparison.OrdinalIgnoreCase) == true
-                        || receipt.FileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase);
+            var isPdf = FilePickerTypes.IsPdfReceipt(receipt.FileType, receipt.FileName);
 
             if (isPdf)
             {
@@ -757,9 +750,7 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
 
         try
         {
-            var mainWindow = Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
-                ? desktop.MainWindow as MainWindow
-                : null;
+            var mainWindow = App.DesktopMainWindow as MainWindow;
 
             if (mainWindow?.StorageProvider == null) return;
 
@@ -829,9 +820,7 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
             var stored = companyData?.Receipts.FirstOrDefault(r => r.Id == receipt.Id);
             if (string.IsNullOrEmpty(stored?.FileData)) return;
 
-            var topLevel = Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
-                ? desktop.MainWindow
-                : null;
+            var topLevel = App.DesktopMainWindow;
 
             if (topLevel?.StorageProvider == null) return;
 
@@ -953,7 +942,7 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
     /// Points a record at the oldest of the documents it still holds, or at nothing once the last
     /// one goes. The record names one document for everything that still reads a single one.
     /// </summary>
-    private static void RepointTransactionReceipt(Core.Data.CompanyData companyData, string transactionType, string? transactionId)
+    private static void RepointTransactionReceipt(CompanyData companyData, string transactionType, string? transactionId)
     {
         if (string.IsNullOrEmpty(transactionId)) return;
 
@@ -966,7 +955,7 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
         SetTransactionReceiptId(companyData, transactionType, transactionId, next?.Id);
     }
 
-    private static void SetTransactionReceiptId(Core.Data.CompanyData companyData, string transactionType, string? transactionId, string? receiptId)
+    private static void SetTransactionReceiptId(CompanyData companyData, string transactionType, string? transactionId, string? receiptId)
     {
         Core.Models.Transactions.Transaction? transaction = transactionType switch
         {
@@ -1145,20 +1134,15 @@ public partial class ReceiptDisplayItem : ObservableObject
     public bool IsMultiPage => PageCount > 1;
 
     // Computed properties for display
-    public string DateFormatted => Date.ToString("MMM d, yyyy");
+    public string DateFormatted => Date.ToString(Core.Data.DateFormats.Short);
     public string AmountFormatted => CurrencyService.Format(Amount);
 
     public bool IsExpense => TransactionType == "Expense";
     public bool IsRevenue => TransactionType == "Revenue";
 
-    public bool IsImage => FileType.Contains("image", StringComparison.OrdinalIgnoreCase) ||
-                           FileName.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) ||
-                           FileName.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase) ||
-                           FileName.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ||
-                           FileName.EndsWith(".webp", StringComparison.OrdinalIgnoreCase);
+    public bool IsImage => FilePickerTypes.IsImageReceipt(FileType, FileName);
 
-    public bool IsPdf => FileType.Contains("pdf", StringComparison.OrdinalIgnoreCase) ||
-                         FileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase);
+    public bool IsPdf => FilePickerTypes.IsPdfReceipt(FileType, FileName);
 
     public bool HasImage => !string.IsNullOrEmpty(ImagePath);
 }

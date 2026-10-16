@@ -34,6 +34,12 @@ public class ChartDataPoint
 /// </summary>
 public class ChartSeriesData
 {
+    /// <summary>The revenue series' name, which the chart loader also looks the series up by.</summary>
+    public const string RevenueName = "Revenue";
+
+    /// <summary>The expenses series' name, which the chart loader also looks the series up by.</summary>
+    public const string ExpensesName = "Expenses";
+
     /// <summary>
     /// The name of this series (e.g., "Revenue", "Expenses").
     /// </summary>

@@ -83,7 +83,7 @@ public static class SnapshotBuilder
     /// <summary>Serializes a snapshot to UTF-8 JSON bytes (input to the later encrypt/upload task).</summary>
     public static byte[] Serialize(MobileSnapshot snap) => JsonSerializer.SerializeToUtf8Bytes(snap);
 
-    private static string FormatDate(DateTime date) => date.ToString("MMM d, yyyy", CultureInfo.InvariantCulture);
+    private static string FormatDate(DateTime date) => date.ToString(Data.DateFormats.Short, CultureInfo.InvariantCulture);
 
     private static List<RowDto> BuildProductRows(CompanyData data) => data.Products
         .OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase)

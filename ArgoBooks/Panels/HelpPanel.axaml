@@ -30,6 +30,7 @@
                 Margin="0,60,20,0"
                 BoxShadow="0 4 20 0 #26000000"
                 Focusable="True"
+                KeyboardNavigation.IsTabStop="False"
                 KeyDown="HelpPanel_KeyDown"
                 Opacity="0"
                 RenderTransformOrigin="1,0">
@@ -79,7 +80,7 @@
                             Command="{Binding OpenCommunityCommand}">
                         <Grid ColumnDefinitions="Auto,*">
                             <PathIcon Grid.Column="0"
-                                      Data="{x:Static local:Icons.Customers}"
+                                      Data="{x:Static local:Icons.Bug}"
                                       Width="20" Height="20"
                                       Foreground="{DynamicResource TextSecondaryBrush}"
                                       Margin="0,0,12,0" />
@@ -107,7 +108,7 @@
                             Margin="0,8" />
 
                     <!-- Restart Tutorial -->
-                    <Button x:Name="MenuItem5"
+                    <Button x:Name="MenuItem4"
                             Classes="menu-item"
                             Command="{Binding RestartTutorialCommand}">
                         <Grid ColumnDefinitions="Auto,*">
@@ -126,7 +127,7 @@
                             Margin="0,8" />
 
                     <!-- Check for Updates -->
-                    <Button x:Name="MenuItem4"
+                    <Button x:Name="MenuItem5"
                             Classes="menu-item"
                             Command="{Binding CheckForUpdatesCommand}">
                         <Grid ColumnDefinitions="Auto,*,Auto">

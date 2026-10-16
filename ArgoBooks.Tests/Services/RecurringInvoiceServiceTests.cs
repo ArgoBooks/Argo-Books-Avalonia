@@ -65,7 +65,7 @@ public class RecurringInvoiceServiceTests
     public void AdvanceDate_AddsDays(Frequency freq, int days)
     {
         var start = new DateTime(2026, 3, 1);
-        Assert.Equal(start.AddDays(days), RecurringInvoiceService.AdvanceDate(start, freq));
+        Assert.Equal(start.AddDays(days), RecurrenceSchedule.AdvanceDate(start, freq));
     }
 
     [Fact]
@@ -73,7 +73,7 @@ public class RecurringInvoiceServiceTests
     {
         Assert.Equal(
             new DateTime(2026, 2, 28),
-            RecurringInvoiceService.AdvanceDate(new DateTime(2026, 1, 31), Frequency.Monthly));
+            RecurrenceSchedule.AdvanceDate(new DateTime(2026, 1, 31), Frequency.Monthly));
     }
 
     [Fact]
@@ -81,10 +81,10 @@ public class RecurringInvoiceServiceTests
     {
         Assert.Equal(
             new DateTime(2026, 4, 1),
-            RecurringInvoiceService.AdvanceDate(new DateTime(2026, 1, 1), Frequency.Quarterly));
+            RecurrenceSchedule.AdvanceDate(new DateTime(2026, 1, 1), Frequency.Quarterly));
         Assert.Equal(
             new DateTime(2027, 1, 1),
-            RecurringInvoiceService.AdvanceDate(new DateTime(2026, 1, 1), Frequency.Annually));
+            RecurrenceSchedule.AdvanceDate(new DateTime(2026, 1, 1), Frequency.Annually));
     }
 
     [Theory]
@@ -127,10 +127,10 @@ public class RecurringInvoiceServiceTests
     {
         // Anchored on the 31st: Jan 31 -> Feb 28 (clamped) must then return to Mar 31,
         // not stay stuck on the 28th for the rest of the schedule's life.
-        var feb = RecurringInvoiceService.AdvanceDate(new DateTime(2026, 1, 31), Frequency.Monthly, anchorDay: 31);
+        var feb = RecurrenceSchedule.AdvanceDate(new DateTime(2026, 1, 31), Frequency.Monthly, anchorDay: 31);
         Assert.Equal(new DateTime(2026, 2, 28), feb);
 
-        var mar = RecurringInvoiceService.AdvanceDate(feb, Frequency.Monthly, anchorDay: 31);
+        var mar = RecurrenceSchedule.AdvanceDate(feb, Frequency.Monthly, anchorDay: 31);
         Assert.Equal(new DateTime(2026, 3, 31), mar);
     }
 

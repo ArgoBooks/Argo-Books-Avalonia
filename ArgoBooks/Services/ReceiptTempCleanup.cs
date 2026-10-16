@@ -14,7 +14,7 @@ public static class ReceiptTempCleanup
     /// <summary>Files not modified within this window are considered stale and deleted.</summary>
     private static readonly TimeSpan MaxAge = TimeSpan.FromDays(7);
 
-    private static string Root => Path.Combine(Path.GetTempPath(), "ArgoBooks");
+    private static string Root => Core.Services.AppPaths.Temp;
 
     // Present while the previews may hold a protected company's files. It outlives a crash, so
     // the next launch knows to clear them.

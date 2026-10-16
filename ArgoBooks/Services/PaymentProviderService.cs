@@ -34,7 +34,7 @@ public static class PaymentProviderService
         var methods = new HashSet<string>(paymentMethods.Select(m => m.ToLowerInvariant()));
 
         // Only update the connected flags; preserve emails for providers still connected
-        if (!methods.Contains("stripe"))
+        if (!methods.Contains(Core.Services.PaymentProviders.Stripe))
         {
             settings.ConnectedAccounts.StripeConnected = false;
             settings.ConnectedAccounts.StripeEmail = null;
@@ -44,7 +44,7 @@ public static class PaymentProviderService
             settings.ConnectedAccounts.StripeConnected = true;
         }
 
-        if (!methods.Contains("paypal"))
+        if (!methods.Contains(Core.Services.PaymentProviders.PayPal))
         {
             settings.ConnectedAccounts.PaypalConnected = false;
             settings.ConnectedAccounts.PaypalEmail = null;
@@ -54,7 +54,7 @@ public static class PaymentProviderService
             settings.ConnectedAccounts.PaypalConnected = true;
         }
 
-        if (!methods.Contains("square"))
+        if (!methods.Contains(Core.Services.PaymentProviders.Square))
         {
             settings.ConnectedAccounts.SquareConnected = false;
             settings.ConnectedAccounts.SquareEmail = null;
@@ -89,11 +89,11 @@ public static class PaymentProviderService
 
         var methods = new List<string>();
         if (settings.ConnectedAccounts.StripeConnected)
-            methods.Add("stripe");
+            methods.Add(Core.Services.PaymentProviders.Stripe);
         if (settings.ConnectedAccounts.PaypalConnected)
-            methods.Add("paypal");
+            methods.Add(Core.Services.PaymentProviders.PayPal);
         if (settings.ConnectedAccounts.SquareConnected)
-            methods.Add("square");
+            methods.Add(Core.Services.PaymentProviders.Square);
         return methods;
     }
 }

@@ -126,7 +126,7 @@
                                 IsVisible="{Binding HasErrors}">
                             <StackPanel Spacing="8">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <PathIcon Data="{x:Static icons:Icons.CircleCheck}"
+                                    <PathIcon Data="{x:Static icons:Icons.WarningCircle}"
                                               Width="16" Height="16"
                                               Foreground="{DynamicResource DangerBrush}" />
                                     <TextBlock Text="{loc:Loc 'Critical Errors'}"

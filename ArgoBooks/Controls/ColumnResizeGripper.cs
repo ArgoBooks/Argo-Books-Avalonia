@@ -2,7 +2,6 @@ using ArgoBooks.Controls.ColumnWidths;
 using ArgoBooks.Converters;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Media;
 
@@ -17,10 +16,6 @@ public class ColumnResizeGripper : Border
     private Point _lastDragPoint;
     private DateTime _lastClickTime = DateTime.MinValue;
     private const int DoubleClickThresholdMs = 300;
-
-    // Avalonia nulls the pointer-over element, and so the cursor, whenever the pointer is captured but sits over something else, which happens all through a resize.
-    private OverlayLayer? _cursorOverlayLayer;
-    private Border? _cursorOverlay;
 
     public static readonly StyledProperty<string> ColumnNameProperty =
         AvaloniaProperty.Register<ColumnResizeGripper, string>(nameof(ColumnName), string.Empty);
@@ -94,37 +89,7 @@ public class ColumnResizeGripper : Border
             _isDragging = true;
             _lastDragPoint = e.GetPosition(TopLevel.GetTopLevel(this));
             Background = ConverterUtils.AccentTint(120);
-
-            // Capture a transparent full-window overlay carrying the resize cursor so the cursor stays put for the whole drag (see field comment).
-            _cursorOverlayLayer = OverlayLayer.GetOverlayLayer(this);
-            if (_cursorOverlayLayer != null)
-            {
-                // The layer has no Bounds before its first layout, so the window's ClientSize stands in and the overlay is never zero-sized.
-                var size = _cursorOverlayLayer.Bounds.Size;
-                if (size.Width <= 0 || size.Height <= 0)
-                {
-                    size = TopLevel.GetTopLevel(this)?.ClientSize ?? size;
-                }
-
-                _cursorOverlay = new Border
-                {
-                    Background = Brushes.Transparent,
-                    Cursor = Cursor,
-                    Width = size.Width,
-                    Height = size.Height
-                };
-                _cursorOverlay.PointerMoved += OnOverlayPointerMoved;
-                _cursorOverlay.PointerReleased += OnOverlayPointerReleased;
-                _cursorOverlay.PointerCaptureLost += OnOverlayPointerCaptureLost;
-                _cursorOverlayLayer.Children.Add(_cursorOverlay);
-                e.Pointer.Capture(_cursorOverlay);
-            }
-            else
-            {
-                // Fallback: no overlay layer available, drive the drag from the gripper.
-                e.Pointer.Capture(this);
-            }
-
+            e.Pointer.Capture(this);
             e.Handled = true;
         }
     }
@@ -133,8 +98,7 @@ public class ColumnResizeGripper : Border
     {
         base.OnPointerMoved(e);
 
-        // Only used in the fallback path (no overlay); normally the overlay drives the drag.
-        if (_isDragging && _cursorOverlay == null)
+        if (_isDragging)
         {
             ApplyResize(e.GetPosition(TopLevel.GetTopLevel(this)));
             e.Handled = true;
@@ -145,7 +109,7 @@ public class ColumnResizeGripper : Border
     {
         base.OnPointerReleased(e);
 
-        if (_isDragging && _cursorOverlay == null)
+        if (_isDragging)
         {
             e.Pointer.Capture(null);
             EndDrag();
@@ -156,29 +120,6 @@ public class ColumnResizeGripper : Border
     protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
     {
         base.OnPointerCaptureLost(e);
-        if (_cursorOverlay == null)
-        {
-            EndDrag();
-        }
-    }
-
-    private void OnOverlayPointerMoved(object? sender, PointerEventArgs e)
-    {
-        if (!_isDragging) return;
-        ApplyResize(e.GetPosition(TopLevel.GetTopLevel(this)));
-        e.Handled = true;
-    }
-
-    private void OnOverlayPointerReleased(object? sender, PointerReleasedEventArgs e)
-    {
-        if (!_isDragging) return;
-        e.Pointer.Capture(null);
-        EndDrag();
-        e.Handled = true;
-    }
-
-    private void OnOverlayPointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
-    {
         EndDrag();
     }
 
@@ -200,16 +141,6 @@ public class ColumnResizeGripper : Border
 
         _isDragging = false;
         Background = Brushes.Transparent;
-
-        if (_cursorOverlay != null)
-        {
-            _cursorOverlay.PointerMoved -= OnOverlayPointerMoved;
-            _cursorOverlay.PointerReleased -= OnOverlayPointerReleased;
-            _cursorOverlay.PointerCaptureLost -= OnOverlayPointerCaptureLost;
-            _cursorOverlayLayer?.Children.Remove(_cursorOverlay);
-            _cursorOverlay = null;
-            _cursorOverlayLayer = null;
-        }
     }
 
     private void AutoSizeColumn()

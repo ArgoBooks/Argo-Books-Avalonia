@@ -77,6 +77,12 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
     /// </summary>
     public event EventHandler? ReceiptScanned;
 
+    /// <summary>
+    /// Raised once a scan has counted against this month's allowance, whether or not its result is
+    /// saved, so a screen showing the allowance can read it again.
+    /// </summary>
+    public event EventHandler? ScanAllowanceUsed;
+
     #endregion
 
     #region Filter Modal State
@@ -360,7 +366,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
 
     internal static async Task<List<string>> RenderPreviewPagesAsync(byte[] data, string fileName, bool isPdf, string tempSubdir)
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), "ArgoBooks", tempSubdir);
+        var tempDir = Path.Combine(Core.Services.AppPaths.Temp, tempSubdir);
         Directory.CreateDirectory(tempDir);
         var paths = new List<string>();
 
@@ -446,7 +452,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
 
     private string ScanCurrencyCode => string.IsNullOrEmpty(SelectedScanCurrency)
         ? CurrencyService.CurrentCurrencyCode
-        : CurrencyService.ParseCurrencyCode(SelectedScanCurrency);
+        : CurrencyInfo.ParseCodeFromDisplayString(SelectedScanCurrency);
 
     [ObservableProperty]
     private string _notes = string.Empty;
@@ -767,7 +773,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         }
     }
 
-    public void AddFilesToQueue(IEnumerable<string> filePaths)
+    public async Task AddFilesToQueueAsync(IEnumerable<string> filePaths)
     {
         var added = 0;
         var skippedUnsupported = 0;
@@ -781,16 +787,23 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
                 continue;
             }
 
-            if (BulkItems.Any(i => i.FilePath.Equals(path, StringComparison.OrdinalIgnoreCase)))
+            if (BulkItems.Any(i => i.SourcePath.Equals(path, StringComparison.OrdinalIgnoreCase)))
             {
                 skippedDuplicate++;
                 continue;
             }
 
+            if (await FilePickerTypes.ReadableReceiptPathAsync(path) is not { } readable)
+            {
+                skippedUnsupported++;
+                continue;
+            }
+
             var item = new BulkScanItem
             {
-                FilePath = path,
-                FileName = Path.GetFileName(path)
+                SourcePath = path,
+                FilePath = readable,
+                FileName = Path.GetFileName(readable)
             };
             BulkItems.Add(item);
             added++;
@@ -835,7 +848,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             var fileData = await SharedFileReader.ReadAllBytesAsync(item.FilePath);
             var isPdf = item.IsPdf;
 
-            var tempDir = Path.Combine(Path.GetTempPath(), "ArgoBooks", "BulkScanPreview");
+            var tempDir = Path.Combine(Core.Services.AppPaths.Temp, "BulkScanPreview");
             Directory.CreateDirectory(tempDir);
             var thumbPath = Path.Combine(tempDir,
                 $"{Path.GetFileNameWithoutExtension(item.FileName)}_{Guid.NewGuid():N}_thumb.jpg");
@@ -988,6 +1001,9 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
 
         IsBulkScanning = false;
         IsBulkScanComplete = true;
+
+        if (BulkScansSucceeded > 0)
+            ScanAllowanceUsed?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>
@@ -1038,7 +1054,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             {
                 _ = Task.Run(async () =>
                 {
-                    var tempDir = Path.Combine(Path.GetTempPath(), "ArgoBooks", "BulkScanPreview");
+                    var tempDir = Path.Combine(Core.Services.AppPaths.Temp, "BulkScanPreview");
                     Directory.CreateDirectory(tempDir);
                     var previewPath = Path.Combine(tempDir, $"{Path.GetFileNameWithoutExtension(fileName)}_{Guid.NewGuid():N}.jpg");
 
@@ -1182,6 +1198,9 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
 
         var semaphore = new SemaphoreSlim(1);
         await ProcessAndScanItemAsync(item, semaphore, _bulkCancellationSource?.Token ?? CancellationToken.None);
+
+        if (item.Status == BulkScanStatus.Succeeded)
+            ScanAllowanceUsed?.Invoke(this, EventArgs.Empty);
     }
 
     [RelayCommand]
@@ -1283,7 +1302,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         Notes = item.Notes;
 
         if (item.CurrencyCode != null)
-            SelectedScanCurrency = CurrencyService.GetDisplayString(item.CurrencyCode);
+            SelectedScanCurrency = CurrencyInfo.GetByCode(item.CurrencyCode).DisplayString;
 
         if (item.IsRevenueOverride.HasValue)
             IsRevenue = item.IsRevenueOverride.Value;
@@ -1514,7 +1533,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
                 Id = receiptId,
                 TransactionType = isRevenue ? "Revenue" : "Expense",
                 FileName = item.ScanFileName,
-                FileType = GetMimeType(item.ScanFileName),
+                FileType = Core.Services.MimeTypes.For(item.ScanFileName),
                 FileSize = item.PreprocessedData?.Length ?? 0,
                 FileData = fileData,
                 Amount = total,
@@ -1527,7 +1546,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
 
             if (isRevenue)
             {
-                var revenueId = new Core.Data.IdGenerator(companyData).NextRevenueId(transactionDate);
+                var revenueId = new IdGenerator(companyData).NextRevenueId(transactionDate);
 
                 var revenue = new Revenue
                 {
@@ -1560,7 +1579,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             }
             else
             {
-                var expenseId = new Core.Data.IdGenerator(companyData).NextExpenseId(transactionDate);
+                var expenseId = new IdGenerator(companyData).NextExpenseId(transactionDate);
 
                 var expense = new Expense
                 {
@@ -1703,9 +1722,17 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
 
         try
         {
-            var imageData = await SharedFileReader.ReadAllBytesAsync(filePath);
-            var fileName = Path.GetFileName(filePath);
-            await OpenScanModalWithDataAsync(imageData, fileName, filePath);
+            if (await FilePickerTypes.ReadableReceiptPathAsync(filePath) is not { } readable)
+            {
+                await App.ShowErrorDialogAsync(
+                    "Error".Translate(),
+                    "This TIFF file could not be read.".Translate());
+                return;
+            }
+
+            var imageData = await SharedFileReader.ReadAllBytesAsync(readable);
+            var fileName = Path.GetFileName(readable);
+            await OpenScanModalWithDataAsync(imageData, fileName, readable);
         }
         catch (Exception ex)
         {
@@ -1875,9 +1902,9 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
                 Style = SKPaintStyle.Stroke
             };
 
-            using var headerFont = new SKFont(Core.Services.PlatformTypefaces.Resolve("Arial", SKFontStyle.Bold), 42f);
-            using var bodyFont = new SKFont(Core.Services.PlatformTypefaces.Resolve("Arial", SKFontStyle.Normal), body);
-            using var totalFont = new SKFont(Core.Services.PlatformTypefaces.Resolve("Arial", SKFontStyle.Bold), 34f);
+            using var headerFont = new SKFont(PlatformTypefaces.Resolve("Arial", SKFontStyle.Bold), 42f);
+            using var bodyFont = new SKFont(PlatformTypefaces.Resolve("Arial", SKFontStyle.Normal), body);
+            using var totalFont = new SKFont(PlatformTypefaces.Resolve("Arial", SKFontStyle.Bold), 34f);
 
             var mid = width / 2f;
             const float left = margin;
@@ -1894,7 +1921,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             canvas.DrawLine(left, y, right, y, rule);
             y += lineGap;
 
-            canvas.DrawText(data.Date.ToString("MMM d, yyyy"), left, y, SKTextAlign.Left, bodyFont, ink);
+            canvas.DrawText(data.Date.ToString(Core.Data.DateFormats.Short), left, y, SKTextAlign.Left, bodyFont, ink);
             canvas.DrawText("2:14 PM", right, y, SKTextAlign.Right, bodyFont, ink);
             y += lineGap * 0.5f;
             canvas.DrawLine(left, y, right, y, rule);
@@ -2120,6 +2147,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
                     IsNearLimit = incrementResult.MonthlyLimit > 0 && incrementResult.Remaining > 0 && incrementResult.Remaining <= incrementResult.MonthlyLimit / 10;
                 }
             }
+            ScanAllowanceUsed?.Invoke(this, EventArgs.Empty);
 
             // Populate fields with extracted data
             PopulateScanResults(result);
@@ -2160,7 +2188,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
     {
         try
         {
-            SelectedScanCurrency = CurrencyService.GetDisplayString(ReceiptCurrency(result.CurrencyCode));
+            SelectedScanCurrency = CurrencyInfo.GetByCode(ReceiptCurrency(result.CurrencyCode)).DisplayString;
             ExtractedSupplier = result.SupplierName ?? string.Empty;
             ExtractedDate = result.TransactionDate.HasValue
                 ? new DateTimeOffset(result.TransactionDate.Value)
@@ -2563,7 +2591,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
     {
         var currency = ScanCurrencyCode;
         var expenseDate = ExtractedDate?.DateTime ?? DateTime.Now;
-        var expenseId = new Core.Data.IdGenerator(companyData).NextExpenseId(expenseDate);
+        var expenseId = new IdGenerator(companyData).NextExpenseId(expenseDate);
 
         var expense = new Expense
         {
@@ -2594,7 +2622,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             TransactionId = expenseId,
             TransactionType = "Expense",
             FileName = _currentFileName ?? "receipt.jpg",
-            FileType = GetMimeType(_currentFileName ?? "receipt.jpg"),
+            FileType = Core.Services.MimeTypes.For(_currentFileName ?? "receipt.jpg"),
             FileSize = _currentImageData?.Length ?? 0,
             FileData = fileData,
             Amount = total,
@@ -2637,7 +2665,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
     {
         var currency = ScanCurrencyCode;
         var revenueDate = ExtractedDate?.DateTime ?? DateTime.Now;
-        var revenueId = new Core.Data.IdGenerator(companyData).NextRevenueId(revenueDate);
+        var revenueId = new IdGenerator(companyData).NextRevenueId(revenueDate);
 
         var revenue = new Revenue
         {
@@ -2670,7 +2698,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             TransactionId = revenueId,
             TransactionType = "Revenue",
             FileName = _currentFileName ?? "receipt.jpg",
-            FileType = GetMimeType(_currentFileName ?? "receipt.jpg"),
+            FileType = Core.Services.MimeTypes.For(_currentFileName ?? "receipt.jpg"),
             FileSize = _currentImageData?.Length ?? 0,
             FileData = fileData,
             Amount = total,
@@ -2788,7 +2816,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
 
             category = new Category
             {
-                Id = new Core.Data.IdGenerator(companyData).NextCategoryId(CategoryType.Expense),
+                Id = new IdGenerator(companyData).NextCategoryId(CategoryType.Expense),
                 Name = categoryName,
                 Type = CategoryType.Expense,
                 Description = aiCategory?.Description
@@ -2797,7 +2825,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             _createdCategoryForUndo = category;
         }
 
-        var newId = new Core.Data.IdGenerator(companyData).NextProductId();
+        var newId = new IdGenerator(companyData).NextProductId();
 
         var newProduct = new Product
         {
@@ -3281,7 +3309,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         var companyData = App.CompanyManager?.CompanyData;
         if (companyData == null) return;
 
-        var newId = new Core.Data.IdGenerator(companyData).NextSupplierId();
+        var newId = new IdGenerator(companyData).NextSupplierId();
 
         // Create supplier
         var newSupplier = new Supplier
@@ -3469,24 +3497,6 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
                 Confidence = li.Confidence
             }).ToList(),
             ExtractedItems = result.LineItems.Select(li => li.Description).ToList()
-        };
-    }
-
-    /// <summary>
-    /// The content type stored on a receipt. Accepted formats come from the shared list, so a
-    /// new one is typed correctly here without a second edit. The two below are not offered by
-    /// the picker but can still arrive on a receipt carried over from an import.
-    /// </summary>
-    private static string GetMimeType(string fileName)
-    {
-        var known = FilePickerTypes.GetReceiptContentType(fileName);
-        if (known != null) return known;
-
-        return Path.GetExtension(fileName).ToLowerInvariant() switch
-        {
-            ".bmp" => "image/bmp",
-            ".gif" => "image/gif",
-            _ => "application/octet-stream"
         };
     }
 

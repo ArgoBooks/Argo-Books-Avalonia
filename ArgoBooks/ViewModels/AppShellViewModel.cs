@@ -805,6 +805,9 @@ public partial class AppShellViewModel : ViewModelBase
             }
         };
 
+        // Picking a result clears the header searchbox
+        QuickActionsViewModel.ActionExecuted += (_, _) => HeaderViewModel.SearchQuery = null;
+
         // Wire up quick action execution for modals
         QuickActionsViewModel.ActionRequested += (_, e) =>
         {

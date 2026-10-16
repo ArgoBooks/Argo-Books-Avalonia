@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using ArgoBooks.Core.Data;
 using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Models.Inventory;
@@ -19,7 +20,7 @@ public delegate decimal? UsdRateSource(string currency, DateTime date);
 /// </summary>
 public static class UsdConversion
 {
-    public static bool IsUsd(string? currency) =>
+    public static bool IsUsd([NotNullWhen(false)] string? currency) =>
         string.IsNullOrEmpty(currency) || string.Equals(currency, "USD", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>The rate held for the exact date, without going online. 1 for USD.</summary>

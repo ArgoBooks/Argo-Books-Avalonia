@@ -191,7 +191,7 @@
                         IsVisible="{Binding ShowNewRentalItem}">
                     <StackPanel Orientation="Horizontal" Spacing="10">
                         <Border Width="32" Height="32" CornerRadius="6" Background="{DynamicResource InfoIconBgBrush}">
-                            <PathIcon Data="{x:Static local:Icons.NewRentalItem}"
+                            <PathIcon Data="{x:Static local:Icons.RentalInventory}"
                                       Width="16" Height="16" Foreground="{DynamicResource InfoBrush}" />
                         </Border>
                         <TextBlock Text="{loc:Loc 'New Rental Item'}" FontSize="12" FontWeight="Medium"
@@ -219,7 +219,7 @@
                         IsVisible="{Binding ShowNewCategory}">
                     <StackPanel Orientation="Horizontal" Spacing="10">
                         <Border Width="32" Height="32" CornerRadius="6" Background="{DynamicResource WarningIconBgBrush}">
-                            <PathIcon Data="{x:Static icons:Icons.TriangleWarning}"
+                            <PathIcon Data="{x:Static icons:Icons.Categories}"
                                       Width="16" Height="16" Foreground="{DynamicResource WarningBrush}" />
                         </Border>
                         <TextBlock Text="{loc:Loc 'New Category'}" FontSize="12" FontWeight="Medium"

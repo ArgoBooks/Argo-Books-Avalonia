@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Threading;
+using ArgoBooks.Utilities;
 using ArgoBooks.ViewModels;
 
 namespace ArgoBooks.Panels;
@@ -13,7 +14,8 @@ namespace ArgoBooks.Panels;
 public partial class HelpPanel : UserControl
 {
     private int _focusedIndex = -1;
-    private readonly int _menuItemCount = 5; // Total menu items (0-4)
+    private readonly int _menuItemCount = 6; // Total menu items (0-5)
+    private IInputElement? _opener;
     private HelpPanelViewModel? _previousVm;
     private PropertyChangedEventHandler? _propertyChangedHandler;
 
@@ -39,6 +41,7 @@ public partial class HelpPanel : UserControl
                     {
                         if (vm.IsOpen)
                         {
+                            _opener = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement();
                             Dispatcher.UIThread.Post(() =>
                             {
                                 HelpPanelBorder.Opacity = 1;
@@ -91,12 +94,15 @@ public partial class HelpPanel : UserControl
                 break;
             case Key.Enter:
             case Key.Space:
-                ActivateCurrentItem();
+                Helpers.MenuItemNavigation.Activate(this, _focusedIndex);
                 e.Handled = true;
                 break;
             case Key.Escape:
                 vm.CloseCommand.Execute(null);
                 e.Handled = true;
+                break;
+            case Key.Tab:
+                ModalHelper.LeavePanelOnTab(e, _opener, () => vm.CloseCommand.Execute(null));
                 break;
         }
     }
@@ -107,7 +113,7 @@ public partial class HelpPanel : UserControl
             _focusedIndex = _menuItemCount - 1;
         else
             _focusedIndex--;
-        FocusMenuItem(_focusedIndex);
+        Helpers.MenuItemNavigation.Focus(this, _focusedIndex);
     }
 
     private void NavigateDown()
@@ -116,21 +122,6 @@ public partial class HelpPanel : UserControl
             _focusedIndex = 0;
         else
             _focusedIndex++;
-        FocusMenuItem(_focusedIndex);
-    }
-
-    private void FocusMenuItem(int index)
-    {
-        var menuItem = this.FindControl<Button>($"MenuItem{index}");
-        menuItem?.Focus();
-    }
-
-    private void ActivateCurrentItem()
-    {
-        var menuItem = this.FindControl<Button>($"MenuItem{_focusedIndex}");
-        if (menuItem?.Command != null && menuItem.Command.CanExecute(menuItem.CommandParameter))
-        {
-            menuItem.Command.Execute(menuItem.CommandParameter);
-        }
+        Helpers.MenuItemNavigation.Focus(this, _focusedIndex);
     }
 }

@@ -409,7 +409,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
     protected override void SaveNewTransaction(CompanyData companyData)
     {
         var date = ModalDate?.DateTime ?? DateTime.Now;
-        var expenseId = RequestedId ?? new Core.Data.IdGenerator(companyData).NextExpenseId(date);
+        var expenseId = RequestedId ?? new IdGenerator(companyData).NextExpenseId(date);
 
         var (description, totalQuantity, averageUnitPrice) = GetLineItemSummary();
         var modelLineItems = CreateModelLineItems();
@@ -579,7 +579,7 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
         if (string.IsNullOrEmpty(ReceiptFilePath)) return null;
 
         var fileInfo = new FileInfo(ReceiptFilePath);
-        var fileType = GetFileType(ReceiptFilePath);
+        var fileType = Core.Services.MimeTypes.For(ReceiptFilePath);
 
         // A receipt is only worth keeping with its file in it.
         string fileData;
@@ -616,65 +616,13 @@ public partial class ExpenseModalsViewModel : TransactionModalsViewModelBase<Exp
         };
     }
 
-    private static TransactionState CaptureTransactionState(Expense expense)
-    {
-        return new TransactionState
-        {
-            Date = expense.Date,
-            CounterpartyId = expense.SupplierId,
-            Description = expense.Description,
-            LineItems = expense.LineItems.ToList(),
-            Quantity = expense.Quantity,
-            UnitPrice = expense.UnitPrice,
-            Amount = expense.Amount,
-            TaxRate = expense.TaxRate,
-            TaxAmount = expense.TaxAmount,
-            ShippingCost = expense.ShippingCost,
-            Discount = expense.Discount,
-            Fee = expense.Fee,
-            Total = expense.Total,
-            PaymentMethod = expense.PaymentMethod,
-            Notes = expense.Notes,
-            ReferenceNumber = expense.ReferenceNumber,
-            ReceiptId = expense.ReceiptId,
-            IsPendingConversion = expense.IsPendingConversion,
-            OriginalCurrency = expense.OriginalCurrency,
-            TotalUSD = expense.TotalUSD,
-            UnitPriceUSD = expense.UnitPriceUSD,
-            ShippingCostUSD = expense.ShippingCostUSD,
-            TaxAmountUSD = expense.TaxAmountUSD,
-            DiscountUSD = expense.DiscountUSD,
-            FeeUSD = expense.FeeUSD
-        };
-    }
+    private static TransactionState CaptureTransactionState(Expense expense) =>
+        TransactionState.Capture(expense, expense.SupplierId);
 
     private static void RestoreTransactionState(Expense expense, TransactionState state)
     {
-        expense.Date = state.Date;
+        state.RestoreTo(expense);
         expense.SupplierId = state.CounterpartyId;
-        expense.Description = state.Description;
-        expense.LineItems = state.LineItems;
-        expense.Quantity = state.Quantity;
-        expense.UnitPrice = state.UnitPrice;
-        expense.Amount = state.Amount;
-        expense.TaxRate = state.TaxRate;
-        expense.TaxAmount = state.TaxAmount;
-        expense.ShippingCost = state.ShippingCost;
-        expense.Discount = state.Discount;
-        expense.Fee = state.Fee;
-        expense.Total = state.Total;
-        expense.PaymentMethod = state.PaymentMethod;
-        expense.Notes = state.Notes;
-        expense.ReferenceNumber = state.ReferenceNumber;
-        expense.ReceiptId = state.ReceiptId;
-        expense.IsPendingConversion = state.IsPendingConversion;
-        expense.OriginalCurrency = state.OriginalCurrency;
-        expense.TotalUSD = state.TotalUSD;
-        expense.UnitPriceUSD = state.UnitPriceUSD;
-        expense.ShippingCostUSD = state.ShippingCostUSD;
-        expense.TaxAmountUSD = state.TaxAmountUSD;
-        expense.DiscountUSD = state.DiscountUSD;
-        expense.FeeUSD = state.FeeUSD;
     }
 
     #endregion
@@ -728,4 +676,63 @@ internal class TransactionState
     public decimal TaxAmountUSD { get; set; }
     public decimal DiscountUSD { get; set; }
     public decimal FeeUSD { get; set; }
+
+    /// <summary>The fields an edit can change that every transaction has. The caller adds anything of its own.</summary>
+    public static TransactionState Capture(Transaction transaction, string? counterpartyId) => new()
+    {
+        Date = transaction.Date,
+        CounterpartyId = counterpartyId,
+        Description = transaction.Description,
+        LineItems = transaction.LineItems.ToList(),
+        Quantity = transaction.Quantity,
+        UnitPrice = transaction.UnitPrice,
+        Amount = transaction.Amount,
+        TaxRate = transaction.TaxRate,
+        TaxAmount = transaction.TaxAmount,
+        ShippingCost = transaction.ShippingCost,
+        Discount = transaction.Discount,
+        Fee = transaction.Fee,
+        Total = transaction.Total,
+        PaymentMethod = transaction.PaymentMethod,
+        Notes = transaction.Notes,
+        ReferenceNumber = transaction.ReferenceNumber,
+        ReceiptId = transaction.ReceiptId,
+        IsPendingConversion = transaction.IsPendingConversion,
+        OriginalCurrency = transaction.OriginalCurrency,
+        TotalUSD = transaction.TotalUSD,
+        UnitPriceUSD = transaction.UnitPriceUSD,
+        ShippingCostUSD = transaction.ShippingCostUSD,
+        TaxAmountUSD = transaction.TaxAmountUSD,
+        DiscountUSD = transaction.DiscountUSD,
+        FeeUSD = transaction.FeeUSD
+    };
+
+    /// <summary>Puts the shared fields back. The caller restores its counterparty and anything of its own.</summary>
+    public void RestoreTo(Transaction transaction)
+    {
+        transaction.Date = Date;
+        transaction.Description = Description;
+        transaction.LineItems = LineItems;
+        transaction.Quantity = Quantity;
+        transaction.UnitPrice = UnitPrice;
+        transaction.Amount = Amount;
+        transaction.TaxRate = TaxRate;
+        transaction.TaxAmount = TaxAmount;
+        transaction.ShippingCost = ShippingCost;
+        transaction.Discount = Discount;
+        transaction.Fee = Fee;
+        transaction.Total = Total;
+        transaction.PaymentMethod = PaymentMethod;
+        transaction.Notes = Notes;
+        transaction.ReferenceNumber = ReferenceNumber;
+        transaction.ReceiptId = ReceiptId;
+        transaction.IsPendingConversion = IsPendingConversion;
+        transaction.OriginalCurrency = OriginalCurrency;
+        transaction.TotalUSD = TotalUSD;
+        transaction.UnitPriceUSD = UnitPriceUSD;
+        transaction.ShippingCostUSD = ShippingCostUSD;
+        transaction.TaxAmountUSD = TaxAmountUSD;
+        transaction.DiscountUSD = DiscountUSD;
+        transaction.FeeUSD = FeeUSD;
+    }
 }

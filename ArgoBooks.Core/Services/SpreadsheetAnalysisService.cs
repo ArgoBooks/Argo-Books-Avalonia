@@ -386,7 +386,7 @@ public class SpreadsheetAnalysisService(
         List<string> headers;
         List<List<string>> allRows;
 
-        if (filePath.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+        if (SpreadsheetFiles.IsDelimitedText(filePath))
         {
             allRows = CsvReader.ReadAllRows(filePath, out headers);
         }
@@ -416,7 +416,7 @@ public class SpreadsheetAnalysisService(
     {
         var result = new Dictionary<string, (List<string> Headers, List<List<string>> Rows)>();
 
-        if (filePath.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+        if (SpreadsheetFiles.IsDelimitedText(filePath))
         {
             var rows = CsvReader.ReadAllRows(filePath, out var headers);
             if (headers.Count == 0) return result;
@@ -1010,30 +1010,49 @@ IMPORTANT:
 
     #region CSV Helpers
 
-    internal static char DetectCsvDelimiter(string headerLine)
+    /// <summary>
+    /// The separator that splits the most of the first lines into the same number of fields. It is
+    /// judged over several lines because banks put account details above the header, which may hold
+    /// no separator or a different one. A tie goes to the separator giving more fields, so a decimal
+    /// comma in a semicolon file does not win.
+    /// </summary>
+    internal static char DetectCsvDelimiter(IEnumerable<string> lines)
     {
         char[] candidates = [',', '\t', ';', '|'];
-        var maxCount = 0;
+        var sample = lines.Where(l => !string.IsNullOrWhiteSpace(l)).Take(20).ToList();
         var bestDelimiter = ',';
+        (int Lines, int Separators) best = (0, 0);
 
         foreach (var delimiter in candidates)
         {
-            // Count delimiter occurrences outside quoted fields
-            var count = 0;
-            var inQuotes = false;
-            foreach (var c in headerLine)
+            var commonest = sample
+                .Select(l => CountOutsideQuotes(l, delimiter))
+                .Where(count => count > 0)
+                .GroupBy(count => count)
+                .Select(g => (Lines: g.Count(), Separators: g.Key))
+                .OrderByDescending(g => g.Lines).ThenByDescending(g => g.Separators)
+                .FirstOrDefault();
+
+            if (commonest.Lines > best.Lines || (commonest.Lines == best.Lines && commonest.Separators > best.Separators))
             {
-                if (c == '"') inQuotes = !inQuotes;
-                else if (c == delimiter && !inQuotes) count++;
-            }
-            if (count > maxCount)
-            {
-                maxCount = count;
+                best = commonest;
                 bestDelimiter = delimiter;
             }
         }
 
         return bestDelimiter;
+    }
+
+    private static int CountOutsideQuotes(string line, char delimiter)
+    {
+        var count = 0;
+        var inQuotes = false;
+        foreach (var c in line)
+        {
+            if (c == '"') inQuotes = !inQuotes;
+            else if (c == delimiter && !inQuotes) count++;
+        }
+        return count;
     }
 
     internal static List<string> ParseCsvLine(string line, char delimiter)

@@ -19,7 +19,8 @@ namespace ArgoBooks.ViewModels;
 /// Parses a bank statement file, categorizes each line (learned rules first, then a single
 /// batched AI pass that matches existing products/suppliers/customers or proposes new ones),
 /// lets the user review, then creates plain Expense/Revenue transactions. Each transaction is
-/// attached to a product, which carries its category. Entry point: <see cref="OpenAsync"/>.
+/// attached to a product, which carries its category. A line is an expense or revenue by the
+/// sign of its amount. Entry point: <see cref="OpenAsync"/>.
 /// </summary>
 public partial class BankStatementImportModalViewModel : ViewModelBase
 {
@@ -67,20 +68,9 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
     public ObservableCollection<Supplier> AvailableSuppliers { get; } = [];
     public ObservableCollection<Customer> AvailableCustomers { get; } = [];
 
-    // --- Pending-product editor, opened from a row's New chip ---
-    public ObservableCollection<Category> ProductEditorCategories { get; } = [];
-    private ImportLineRow? _editingRow;
-
-    [ObservableProperty] private bool _isProductEditorOpen;
-    [ObservableProperty] private string _productEditorName = string.Empty;
-    [ObservableProperty] private Category? _productEditorCategoryObject;
-    [ObservableProperty] private string? _productEditorCategorySearchText;
-    [ObservableProperty] private bool _productEditorNameError;
-
-    partial void OnProductEditorNameChanged(string value)
-    {
-        if (!string.IsNullOrWhiteSpace(value)) ProductEditorNameError = false;
-    }
+    /// <summary>The categories a new product can go under, kept apart because a line only takes one of its own kind.</summary>
+    public ObservableCollection<Category> ExpenseCategories { get; } = [];
+    public ObservableCollection<Category> RevenueCategories { get; } = [];
 
     // --- Entry point ---
 
@@ -99,7 +89,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
         List<BankStatementLine> lines;
         var ext = Path.GetExtension(filePath).ToLowerInvariant();
 
-        if (ext == ".pdf")
+        if (ext == ".pdf" || StatementImages.IsImage(filePath))
         {
             lines = await ImportPdfStatementAsync(filePath);
             // The PDF path shows its own messaging (usage limit, cancel, extraction failure)
@@ -109,31 +99,27 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
         }
         else
         {
-            var parser = new BankStatementImportService(App.ErrorLogger);
-            var isCsv = ext == ".csv";
+
+            // The modal only opens once the rows are read, so the overlay covers the read for a large or converted file.
+            App.MainWindowViewModel?.ShowLoading("Scanning bank statement...".Translate());
             try
             {
-                lines = isCsv
-                    ? await parser.ParseCsvAsync(filePath)
-                    : await parser.ParseExcelAsync(filePath);
+                if (await App.ReadStatementFileAsync(filePath) is not { } read) return;
+                lines = read;
             }
             catch (UnreadableStatementFileException)
             {
+                App.MainWindowViewModel?.HideLoading();
                 _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, $"bank:unreadable:{ext.TrimStart('.')}");
                 await App.ShowInfoDialogAsync(
                     "Import Bank Statement".Translate(),
                     ImportRescueMessages.UnreadableFile);
-                _ = Services.ImportDiagnosticOffer.SendAsync(filePath, $"bank:unreadable:{ext.TrimStart('.')}");
+                _ = ImportDiagnosticOffer.SendAsync(filePath, $"bank:unreadable:{ext.TrimStart('.')}");
                 return;
             }
-
-            // Local header detection only knows English column names, so a statement in any other language reaches here with nothing wrong with it.
-            if (lines.Count == 0)
+            finally
             {
-                var aiLines = await App.TryAiParseBankStatementAsync(filePath, isCsv, parser);
                 App.MainWindowViewModel?.HideLoading();
-                if (aiLines == null) return;
-                lines = aiLines;
             }
 
             // Don't fail silently when the file isn't a recognizable bank statement (e.g. the user
@@ -144,7 +130,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
                 await App.ShowInfoDialogAsync(
                     "Import Bank Statement".Translate(),
                     "No transactions were found in this file. Make sure it's a bank statement with Date, Description and Amount (or Debit/Credit) columns.".Translate());
-                _ = Services.ImportDiagnosticOffer.SendAsync(filePath, $"bank:no-rows:{ext.TrimStart('.')}");
+                _ = ImportDiagnosticOffer.SendAsync(filePath, $"bank:no-rows:{ext.TrimStart('.')}");
                 return;
             }
         }
@@ -203,7 +189,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
 
         // Every record stores a USD equivalent, so rows go in pending unless the rate for their own date is already cached, and a statement is mostly dates the cache has never seen.
         var companyCurrency = data.Settings.Localization.Currency;
-        if (!string.Equals(companyCurrency, "USD", StringComparison.OrdinalIgnoreCase)
+        if (!UsdConversion.IsUsd(companyCurrency)
             && !await App.EnsureImportRatesAsync(toImport.Select(r => r.Date.Date).Distinct().ToList(), "bank"))
         {
             return;
@@ -291,7 +277,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
             if (string.IsNullOrEmpty(categoryId)) continue;
 
             var token = MerchantNormalizer.Normalize(res.Line.Description);
-            var existing = data.BankCategoryRules.FirstOrDefault(r =>
+            var existing = data.Settings.BankCategoryRules.FirstOrDefault(r =>
                 r.Pattern == token && r.MatchType == RuleMatchType.Contains);
 
             RulePriorState? prior = existing == null ? null : new RulePriorState(
@@ -495,7 +481,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
             var cap = ruleCaptures[i];
             if (cap.Prior == null)
             {
-                data.BankCategoryRules.RemoveRecord(cap.Rule);
+                data.Settings.BankCategoryRules.RemoveRecord(cap.Rule);
             }
             else
             {
@@ -522,7 +508,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
         {
             if (cap.Prior == null)
             {
-                data.BankCategoryRules.RestoreRecord(cap.Rule);
+                data.Settings.BankCategoryRules.RestoreRecord(cap.Rule);
             }
             else
             {
@@ -547,6 +533,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
         var data = App.CompanyManager?.CompanyData;
 
         ReloadProducts();
+        ReloadCategories();
         ReloadSuppliers();
         ReloadCustomers();
 
@@ -556,8 +543,8 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
         foreach (var line in lines)
         {
             var row = new ImportLineRow(line) { Index = index++ };
-            row.OpenCreateProduct = () => OpenProductEditor(row);
             row.OpenCreateCounterparty = () => OpenCreateCounterpartyForRow(row);
+            row.CategoriesFor = isRevenue => isRevenue ? RevenueCategories : ExpenseCategories;
             row.ProductCategoryNameLookup = p => data != null ? CategoryNameFor(data, p) : null;
 
             if (data != null)
@@ -588,17 +575,22 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
     /// </summary>
     private void FlagAlreadyImported(CompanyData data)
     {
-        var existing = new HashSet<string>(StringComparer.Ordinal);
+        // Counted, not just looked up, so two identical purchases with one already in the books flag only one of them.
+        var existing = new Dictionary<string, int>(StringComparer.Ordinal);
+        void Hold(string key) => existing[key] = existing.GetValueOrDefault(key) + 1;
         foreach (var e in data.Expenses)
-            existing.Add(TxKey(isRevenue: false, e.Date, e.Total, e.Description));
+            Hold(TxKey(isRevenue: false, e.Date, e.Total, e.Description));
         foreach (var r in data.Revenues)
-            existing.Add(TxKey(isRevenue: true, r.Date, r.Total, r.Description));
+            Hold(TxKey(isRevenue: true, r.Date, r.Total, r.Description));
 
         foreach (var row in Rows)
         {
             var key = TxKey(row.CreateAsRevenue, row.Date.DateTime, row.Amount, row.Description);
-            if (existing.Contains(key))
+            if (existing.TryGetValue(key, out var count) && count > 0)
+            {
+                existing[key] = count - 1;
                 row.AlreadyImported = true;
+            }
         }
     }
 
@@ -613,13 +605,12 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
     /// <summary>Free, instant pre-fill: learned rules first, then an obvious name match against existing entities.</summary>
     private void ApplyDeterministicPrefill(CompanyData data, ImportLineRow row)
     {
-        // 1. Learned rule (remembers product + counterparty + type for this merchant).
-        var rule = CategoryRuleService.Match(data.BankCategoryRules, row.Description);
-        if (rule != null)
+        // 1. Learned rule (remembers product + counterparty for this merchant). The sign of the amount decides
+        // the kind of line, so a rule learned from the other kind, such as a purchase when this is its refund, is left out.
+        var rule = CategoryRuleService.Match(data.Settings.BankCategoryRules, row.Description);
+        var kind = row.CreateAsRevenue ? BookRecordType.Revenue : BookRecordType.Expense;
+        if (rule != null && (rule.TransactionType == null || rule.TransactionType == kind))
         {
-            if (rule.TransactionType.HasValue)
-                row.CreateAsRevenue = rule.TransactionType.Value == BookRecordType.Revenue;
-
             if (rule.ProductId != null)
             {
                 var prod = AvailableProducts.FirstOrDefault(p => p.Id == rule.ProductId);
@@ -687,86 +678,6 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
     // --- "Create one" — open standard create modals and select the new entity on the row ---
 
     /// <summary>
-    /// Opens the lightweight editor for a row's pending new product. Lets the user set the product
-    /// name and category (an existing category, or a new name created on import) without touching the
-    /// shared product modal and without creating any entity until the statement is actually imported.
-    /// </summary>
-    private void OpenProductEditor(ImportLineRow row)
-    {
-        var data = App.CompanyManager?.CompanyData;
-        if (data == null) return;
-
-        _editingRow = row;
-
-        // Offer categories matching the row's type (expense vs revenue).
-        var type = row.CreateAsRevenue ? CategoryType.Revenue : CategoryType.Expense;
-        ProductEditorCategories.Clear();
-        foreach (var c in data.Categories.Where(c => c.Type == type).OrderBy(c => c.Name))
-            ProductEditorCategories.Add(c);
-
-        ProductEditorNameError = false;
-        ProductEditorName = (row.IsNewProduct ? row.NewProductName : row.ProductSearchText) ?? string.Empty;
-
-        // Seed the category: an existing one as a real selection, otherwise the pending new name as text.
-        if (row.NewProductCategoryId != null)
-        {
-            ProductEditorCategoryObject = ProductEditorCategories.FirstOrDefault(c => c.Id == row.NewProductCategoryId);
-            ProductEditorCategorySearchText = ProductEditorCategoryObject?.Name;
-        }
-        else
-        {
-            ProductEditorCategoryObject = null;
-            ProductEditorCategorySearchText = row.NewProductCategoryName ?? row.CategoryDisplay;
-        }
-
-        IsProductEditorOpen = true;
-    }
-
-    [RelayCommand]
-    private void SaveProductEditor()
-    {
-        var row = _editingRow;
-        if (row == null) return;
-
-        var name = (ProductEditorName).Trim();
-        if (name.Length == 0)
-        {
-            ProductEditorNameError = true;
-            return;
-        }
-
-        // An explicit selection wins; otherwise treat typed text as an existing category (matched by
-        // name) or, failing that, a brand-new category to be created when the statement is imported.
-        string? categoryId = ProductEditorCategoryObject?.Id;
-        string? newCategoryName = null;
-        string? categoryDisplay = ProductEditorCategoryObject?.Name;
-
-        if (categoryId == null)
-        {
-            var typed = (ProductEditorCategorySearchText ?? string.Empty).Trim();
-            if (typed.Length > 0)
-            {
-                var match = ProductEditorCategories.FirstOrDefault(c => string.Equals(c.Name, typed, StringComparison.OrdinalIgnoreCase));
-                if (match != null) { categoryId = match.Id; categoryDisplay = match.Name; }
-                else { newCategoryName = typed; categoryDisplay = typed; }
-            }
-        }
-
-        row.SetNewProduct(name, categoryId, newCategoryName, categoryDisplay);
-
-        IsProductEditorOpen = false;
-        _editingRow = null;
-        RefreshState();
-    }
-
-    [RelayCommand]
-    private void CancelProductEditor()
-    {
-        IsProductEditorOpen = false;
-        _editingRow = null;
-    }
-
-    /// <summary>
     /// Opens the standard Supplier modal (expense rows) or Customer modal (revenue rows).
     /// When saved, reloads counterparties and selects the new entity on <paramref name="row"/>.
     /// </summary>
@@ -820,6 +731,16 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
         if (data != null)
             foreach (var p in data.Products.OrderBy(p => p.Name))
                 AvailableProducts.Add(p);
+    }
+
+    private void ReloadCategories()
+    {
+        var data = App.CompanyManager?.CompanyData;
+        ExpenseCategories.Clear();
+        RevenueCategories.Clear();
+        if (data == null) return;
+        foreach (var c in data.Categories.OrderBy(c => c.Name))
+            (c.Type == CategoryType.Revenue ? RevenueCategories : ExpenseCategories).Add(c);
     }
 
     private void ReloadSuppliers()
@@ -1013,7 +934,7 @@ public partial class ImportLineRow : ObservableObject
         _isIncluded = true;
         _date = line.Date == default ? DateTimeOffset.Now : new DateTimeOffset(line.Date);
         _amount = line.Amount;
-        _createAsRevenue = line.Amount > 0;
+        CreateAsRevenue = line.Amount > 0;
     }
 
     [ObservableProperty] private bool _isIncluded;
@@ -1025,8 +946,22 @@ public partial class ImportLineRow : ObservableObject
     [ObservableProperty] private DateTimeOffset _date;
     [ObservableProperty] private decimal _amount;
 
-    /// <summary>True = Revenue, False = Expense. Defaults from the sign of the bank line amount.</summary>
-    [ObservableProperty] private bool _createAsRevenue;
+    /// <summary>True = Revenue, False = Expense. It follows the sign of the amount, which is the only place it is set.</summary>
+    public bool CreateAsRevenue { get; private set; }
+
+    // An amount of zero is a box being retyped, so the line keeps the kind it had until a sign is given.
+    partial void OnAmountChanged(decimal value)
+    {
+        if (value == 0 || value > 0 == CreateAsRevenue)
+            return;
+
+        CreateAsRevenue = value > 0;
+        OnPropertyChanged(nameof(CreateAsRevenue));
+        OnPropertyChanged(nameof(CategoryOptions));
+        // A supplier is not a customer and an expense category is not a revenue one, so both go by what their boxes say.
+        UseTypedCounterparty();
+        UseTypedCategory();
+    }
 
     /// <summary>Transaction description (always the raw bank text).</summary>
     public string Description => SourceLine.Description;
@@ -1038,20 +973,35 @@ public partial class ImportLineRow : ObservableObject
     /// <summary>Pending new product name (AI-proposed or typed) when no existing product is selected.</summary>
     [ObservableProperty] private string? _newProductName;
 
-    /// <summary>Search text bound TwoWay to the product SearchableDropdown.</summary>
+    /// <summary>Search text bound TwoWay to the product SearchableDropdown. With nothing picked, it names a product to create.</summary>
     [ObservableProperty] private string? _productSearchText;
 
-    /// <summary>True when this row is creating a new product (its category chip is editable).</summary>
+    /// <summary>True when this row is creating a new product, which is when its category can be chosen.</summary>
     [ObservableProperty] private bool _isNewProduct;
 
-    /// <summary>Read-only category name shown as a chip, derived from the selected/new product.</summary>
-    [ObservableProperty] private string? _categoryDisplay;
+    /// <summary>The category box. For a picked product it shows that product's category and cannot be changed here.</summary>
+    [ObservableProperty] private string? _categorySearchText;
+
+    /// <summary>A picked product brings its own category, so the box is only open for a product still to be created.</summary>
+    public bool IsCategoryEditable => ResolvedProductId == null;
 
     /// <summary>Existing category id for a pending new product, when matched to an existing category.</summary>
     public string? NewProductCategoryId { get; private set; }
 
     /// <summary>New category name for a pending new product, when none matched.</summary>
     public string? NewProductCategoryName { get; private set; }
+
+    /// <summary>True when the category named in the box does not exist yet and is created on import.</summary>
+    public bool IsNewCategory => IsCategoryEditable && !string.IsNullOrWhiteSpace(NewProductCategoryName);
+
+    /// <summary>Set by the parent VM: the categories for a revenue line (true) or an expense line (false).</summary>
+    public Func<bool, IEnumerable<Category>>? CategoriesFor { get; set; }
+
+    /// <summary>The categories this line can take, which change with the sign of its amount.</summary>
+    public IEnumerable<Category> CategoryOptions => CategoriesFor?.Invoke(CreateAsRevenue) ?? [];
+
+    // True while the row is being filled in by code, when the text a box reports back is not something the user typed.
+    private bool _settingFromCode;
 
     [ObservableProperty] private bool _hasProductError;
 
@@ -1066,42 +1016,133 @@ public partial class ImportLineRow : ObservableObject
     public bool HasCounterparty => ResolvedCounterpartyId != null || !string.IsNullOrWhiteSpace(NewCounterpartyName);
     public bool IsComplete => HasProduct && HasCounterparty;
 
-    public string DateFormatted => Date.ToString("MMM d, yyyy");
-
-    [RelayCommand] private void SetExpense() => CreateAsRevenue = false;
-    [RelayCommand] private void SetRevenue() => CreateAsRevenue = true;
+    public string DateFormatted => Date.ToString(Core.Data.DateFormats.Short);
 
     // --- Apply helpers (called by the parent VM after deterministic / AI resolution) ---
 
     public void SetExistingProduct(Product product, string? categoryName)
     {
-        _resolvedProductObject = product;
+        _settingFromCode = true;
+        try
+        {
+            _resolvedProductObject = product;
+            ApplyPickedProduct(product, categoryName);
+            ProductSearchText = product.Name;
+            OnPropertyChanged(nameof(ResolvedProductObject));
+        }
+        finally
+        {
+            _settingFromCode = false;
+        }
+        RaiseProductStateChanged();
+    }
+
+    public void SetNewProduct(string name, string? categoryId, string? newCategoryName, string? categoryDisplay)
+    {
+        _settingFromCode = true;
+        try
+        {
+            // Null goes to the pickers first, because a picker empties its text when its pick is taken away.
+            _resolvedProductObject = null;
+            _resolvedCategoryObject = null;
+            OnPropertyChanged(nameof(ResolvedProductObject));
+            OnPropertyChanged(nameof(ResolvedCategoryObject));
+            ResolvedProductId = null;
+            IsNewProduct = true;
+            NewProductName = name;
+            NewProductCategoryId = categoryId;
+            NewProductCategoryName = newCategoryName;
+            HasProductError = false;
+            ProductSearchText = name;
+            CategorySearchText = categoryDisplay ?? newCategoryName;
+        }
+        finally
+        {
+            _settingFromCode = false;
+        }
+        RaiseProductStateChanged();
+    }
+
+    private void ApplyPickedProduct(Product product, string? categoryName)
+    {
         ResolvedProductId = product.Id;
         IsNewProduct = false;
         NewProductName = null;
         NewProductCategoryId = null;
         NewProductCategoryName = null;
-        CategoryDisplay = categoryName;
-        ProductSearchText = product.Name;
         HasProductError = false;
-        OnPropertyChanged(nameof(ResolvedProductObject));
-        OnPropertyChanged(nameof(HasProduct));
+        _resolvedCategoryObject = null;
+        OnPropertyChanged(nameof(ResolvedCategoryObject));
+        CategorySearchText = categoryName;
     }
 
-    public void SetNewProduct(string name, string? categoryId, string? newCategoryName, string? categoryDisplay)
+    private void RaiseProductStateChanged()
     {
-        _resolvedProductObject = null;
-        OnPropertyChanged(nameof(ResolvedProductObject)); // push null to the picker first (it clears its text)
-        ResolvedProductId = null;
-        IsNewProduct = true;
-        NewProductName = name;
-        NewProductCategoryId = categoryId;
-        NewProductCategoryName = newCategoryName;
-        CategoryDisplay = categoryDisplay;
-        HasProductError = false;
         OnPropertyChanged(nameof(HasProduct));
-        ProductSearchText = name; // set the displayed text last so it wins over the cleared selection
+        OnPropertyChanged(nameof(IsCategoryEditable));
+        OnPropertyChanged(nameof(IsNewCategory));
     }
+
+    partial void OnProductSearchTextChanged(string? value) => UseTypedProduct();
+
+    /// <summary>
+    /// With nothing picked, the name in the box stands for a product to be found or created by
+    /// that name on import, as it does for the supplier and customer boxes.
+    /// </summary>
+    private void UseTypedProduct()
+    {
+        if (_settingFromCode)
+            return;
+
+        var name = ProductSearchText?.Trim() ?? string.Empty;
+
+        // A pick counts only while the box still shows it.
+        if (_resolvedProductObject is { } picked && picked.Name?.Trim() == name)
+            return;
+
+        ResolvedProductId = null;
+        NewProductName = name.Length == 0 ? null : name;
+        IsNewProduct = name.Length > 0;
+        if (HasProduct)
+            HasProductError = false;
+        OnPropertyChanged(nameof(HasProduct));
+        OnPropertyChanged(nameof(IsCategoryEditable));
+        UseTypedCategory();
+    }
+
+    partial void OnCategorySearchTextChanged(string? value) => UseTypedCategory();
+
+    /// <summary>
+    /// Reads the category box for a product being created: a category of this line's kind by that
+    /// name if there is one, otherwise a new category to create on import.
+    /// </summary>
+    private void UseTypedCategory()
+    {
+        if (_settingFromCode)
+            return;
+
+        if (!IsCategoryEditable)
+        {
+            NewProductCategoryId = null;
+            NewProductCategoryName = null;
+        }
+        else
+        {
+            var name = CategorySearchText?.Trim() ?? string.Empty;
+            var options = CategoryOptions;
+            // The pick wins while the box still shows it, so two categories with one name stay apart.
+            var match = _resolvedCategoryObject is { } picked && NameIs(picked.Name, name) && options.Contains(picked)
+                ? picked
+                : name.Length == 0 ? null : options.FirstOrDefault(c => NameIs(c.Name, name));
+
+            NewProductCategoryId = match?.Id;
+            NewProductCategoryName = match == null && name.Length > 0 ? name : null;
+        }
+
+        OnPropertyChanged(nameof(IsNewCategory));
+    }
+
+    private static bool NameIs(string? a, string b) => string.Equals(a?.Trim(), b, StringComparison.OrdinalIgnoreCase);
 
     public void SetExistingSupplier(Supplier supplier)
     {
@@ -1141,10 +1182,6 @@ public partial class ImportLineRow : ObservableObject
 
     partial void OnCounterpartySearchTextChanged(string? value) => UseTypedCounterparty();
 
-    // A supplier picked for an expense is not a customer, and the other way round, so a row
-    // switched between the two goes by what its box says.
-    partial void OnCreateAsRevenueChanged(bool value) => UseTypedCounterparty();
-
     /// <summary>
     /// With nothing picked for the kind of row this is, the name in the box stands for a supplier
     /// or customer to be found or created by that name on import, as typing one does on the other
@@ -1176,13 +1213,7 @@ public partial class ImportLineRow : ObservableObject
 
     // --- Delegate callbacks — set by BankStatementImportModalViewModel after construction ---
 
-    public Action? OpenCreateProduct { get; set; }
     public Action? OpenCreateCounterparty { get; set; }
-
-    /// <summary>Opens the create-product modal. Used by the product dropdown's "Create one" and the
-    /// editable category chip on a new-product row.</summary>
-    [RelayCommand]
-    private void CreateNewProduct(string? typedName) => OpenCreateProduct?.Invoke();
 
     [RelayCommand]
     private void CreateNewCounterparty(string? typedName) => OpenCreateCounterparty?.Invoke();
@@ -1195,26 +1226,42 @@ public partial class ImportLineRow : ObservableObject
         get => _resolvedProductObject;
         set
         {
-            if (!SetProperty(ref _resolvedProductObject, value))
+            if (!SetProperty(ref _resolvedProductObject, value) || _settingFromCode)
                 return;
 
-            // Null is the box dropping its pick because it was typed over or emptied. Keeping
-            // the id would import the row under a product it no longer shows.
-            ResolvedProductId = value?.Id;
-            CategoryDisplay = value == null ? null : ProductCategoryNameLookup?.Invoke(value);
-            if (value != null)
+            // Null is the box dropping its pick because it was typed over or emptied, so the text takes its place.
+            if (value == null)
             {
-                IsNewProduct = false;
-                NewProductName = null;
-                NewProductCategoryId = null;
-                NewProductCategoryName = null;
+                UseTypedProduct();
+                return;
             }
-            OnPropertyChanged(nameof(HasProduct));
+
+            _settingFromCode = true;
+            try
+            {
+                ApplyPickedProduct(value, ProductCategoryNameLookup?.Invoke(value));
+            }
+            finally
+            {
+                _settingFromCode = false;
+            }
+            RaiseProductStateChanged();
         }
     }
 
-    /// <summary>Set by the parent VM so the row can resolve a product's category name for the chip.</summary>
+    /// <summary>Set by the parent VM so the row can show a picked product's category.</summary>
     public Func<Product, string?>? ProductCategoryNameLookup { get; set; }
+
+    private Category? _resolvedCategoryObject;
+    public Category? ResolvedCategoryObject
+    {
+        get => _resolvedCategoryObject;
+        set
+        {
+            if (SetProperty(ref _resolvedCategoryObject, value))
+                UseTypedCategory();
+        }
+    }
 
     private Supplier? _resolvedSupplierObject;
     public Supplier? ResolvedSupplierObject

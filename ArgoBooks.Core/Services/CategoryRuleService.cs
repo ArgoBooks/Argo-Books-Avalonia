@@ -41,7 +41,7 @@ public static class CategoryRuleService
         BookRecordType type, string? counterpartyId, string? productId = null)
     {
         var token = MerchantNormalizer.Normalize(description);
-        var existing = data.BankCategoryRules.FirstOrDefault(r =>
+        var existing = data.Settings.BankCategoryRules.FirstOrDefault(r =>
             r.Pattern == token && r.MatchType == RuleMatchType.Contains);
 
         if (existing != null)
@@ -66,7 +66,7 @@ public static class CategoryRuleService
             CounterpartyId = counterpartyId,
             Source = RuleSource.Learned
         };
-        data.BankCategoryRules.Add(rule);
+        data.Settings.BankCategoryRules.Add(rule);
         return rule;
     }
 }

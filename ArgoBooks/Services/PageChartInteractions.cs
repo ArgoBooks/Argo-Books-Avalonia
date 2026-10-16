@@ -193,7 +193,7 @@ public sealed class PageChartInteractions
                 DefaultExtension = "xlsx",
                 FileTypeChoices =
                 [
-                    new FilePickerFileType("Excel Workbook") { Patterns = ["*.xlsx"] }
+                    Utilities.FilePickerTypes.XlsxSaveType
                 ]
             });
 

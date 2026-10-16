@@ -226,7 +226,7 @@
                                         <Run Text="{loc:Loc ' scans this month'}" />
                                     </TextBlock>
                                     <!-- Warning icon when near limit -->
-                                    <PathIcon Data="{x:Static icons:Icons.LostDamaged}"
+                                    <PathIcon Data="{x:Static icons:Icons.Warning}"
                                               Width="14" Height="14"
                                               Foreground="{DynamicResource WarningDarkBrush}"
                                               IsVisible="{Binding IsNearLimit}"
@@ -1510,7 +1510,7 @@
                                             <Run Text="{Binding ScansLimit}" />
                                             <Run Text="{loc:Loc ' scans this month'}" />
                                         </TextBlock>
-                                        <PathIcon Data="{x:Static icons:Icons.LostDamaged}"
+                                        <PathIcon Data="{x:Static icons:Icons.Warning}"
                                                   Width="14" Height="14"
                                                   Foreground="{DynamicResource WarningDarkBrush}"
                                                   IsVisible="{Binding IsNearLimit}"

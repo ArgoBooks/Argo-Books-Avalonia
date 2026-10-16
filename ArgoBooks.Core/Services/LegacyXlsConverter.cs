@@ -25,9 +25,13 @@ namespace ArgoBooks.Core.Services;
 /// </summary>
 public static class LegacyXlsConverter
 {
+    private static readonly byte[] BinaryWorkbookSignature = [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1];
+    private static readonly byte[] ZipSignature = [0x50, 0x4B, 0x03, 0x04];
+
     /// <summary>
     /// Opens the given <c>.xls</c> file, copies every sheet/row/cell into a new
     /// <c>.xlsx</c> workbook, writes it to a fresh temp file and returns that path.
+    /// A file named <c>.xls</c> that is really an HTML page or an <c>.xlsx</c> is read as what it is.
     /// </summary>
     /// <param name="xlsPath">Path to the source legacy <c>.xls</c> file.</param>
     /// <returns>The path to the newly written temporary <c>.xlsx</c> file.</returns>
@@ -37,17 +41,62 @@ public static class LegacyXlsConverter
             throw new ArgumentException("Path must not be empty.", nameof(xlsPath));
 
         // FileShare.ReadWrite so a .xls still converts/imports while it's open in Excel.
-        using var inStream = new FileStream(xlsPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-        using var source = new HSSFWorkbook(inStream);
+        byte[] content;
+        using (var inStream = new FileStream(xlsPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+        using (var buffer = new MemoryStream())
+        {
+            inStream.CopyTo(buffer);
+            content = buffer.ToArray();
+        }
 
-        using var output = new XLWorkbook();
+        var tempPath = Path.Combine(
+            Path.GetTempPath(),
+            $"argo-xls-{Guid.NewGuid():N}.xlsx");
+
+        if (content.AsSpan().StartsWith(ZipSignature))
+        {
+            File.WriteAllBytes(tempPath, content);
+            return tempPath;
+        }
+
+        using var output = !content.AsSpan().StartsWith(BinaryWorkbookSignature) && HtmlTableReader.LooksLikeHtmlTable(content)
+            ? FromHtml(content)
+            : FromBinaryWorkbook(content);
+
+        output.SaveAs(tempPath);
+        return tempPath;
+    }
+
+    private static XLWorkbook FromHtml(byte[] content)
+    {
+        var output = new XLWorkbook();
+        var sheet = output.Worksheets.Add("Sheet1");
+
+        var rows = HtmlTableReader.ReadRows(content);
+        for (var r = 0; r < rows.Count; r++)
+        {
+            for (var c = 0; c < rows[r].Count; c++)
+            {
+                if (rows[r][c].Length > 0)
+                    sheet.Cell(r + 1, c + 1).Value = rows[r][c];
+            }
+        }
+
+        return output;
+    }
+
+    private static XLWorkbook FromBinaryWorkbook(byte[] content)
+    {
+        using var source = new HSSFWorkbook(new MemoryStream(content));
+
+        var output = new XLWorkbook();
 
         for (int s = 0; s < source.NumberOfSheets; s++)
         {
             var srcSheet = source.GetSheetAt(s);
 
             // ClosedXML rejects empty/duplicate names; fall back to a positional name.
-            var sheetName = SanitizeSheetName(srcSheet.SheetName, s, output);
+            var sheetName = ExcelSheetNames.CleanAndUnique(output, srcSheet.SheetName, $"Sheet{s + 1}");
             var dstSheet = output.Worksheets.Add(sheetName);
 
             // Rows can be sparse; iterate by physical index range and skip nulls.
@@ -73,12 +122,7 @@ public static class LegacyXlsConverter
             }
         }
 
-        var tempPath = Path.Combine(
-            Path.GetTempPath(),
-            $"argo-xls-{Guid.NewGuid():N}.xlsx");
-
-        output.SaveAs(tempPath);
-        return tempPath;
+        return output;
     }
 
     private static void CopyCellValue(ICell srcCell, IXLCell dstCell)
@@ -120,30 +164,5 @@ public static class LegacyXlsConverter
                 // reproduce error values; a blank is the safest neutral default.
                 break;
         }
-    }
-
-    private static string SanitizeSheetName(string? rawName, int index, XLWorkbook workbook)
-    {
-        var name = string.IsNullOrWhiteSpace(rawName) ? $"Sheet{index + 1}" : rawName.Trim();
-
-        // Excel sheet names are capped at 31 chars and forbid a set of characters.
-        foreach (var ch in new[] { '\\', '/', '*', '?', ':', '[', ']' })
-            name = name.Replace(ch, '_');
-
-        if (name.Length > 31)
-            name = name.Substring(0, 31);
-
-        // Guard against duplicates (sanitization can collide) by suffixing.
-        var candidate = name;
-        var suffix = 1;
-        while (workbook.Worksheets.Any(w => string.Equals(w.Name, candidate, StringComparison.OrdinalIgnoreCase)))
-        {
-            var tail = $"_{suffix++}";
-            candidate = name.Length + tail.Length > 31
-                ? name.Substring(0, 31 - tail.Length) + tail
-                : name + tail;
-        }
-
-        return candidate;
     }
 }

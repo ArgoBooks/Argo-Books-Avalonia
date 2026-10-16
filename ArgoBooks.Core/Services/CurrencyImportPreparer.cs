@@ -65,7 +65,7 @@ public static class CurrencyImportPreparer
     public static CurrencyScanResult ScanWorkbook(string filePath, SpreadsheetAnalysisResult analysis)
     {
         var result = new CurrencyScanResult();
-        if (filePath.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+        if (SpreadsheetFiles.IsDelimitedText(filePath))
             return result;
 
         // Aggregate ambiguous symbols across sheets (symbol -> count) so the user is asked once.

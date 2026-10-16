@@ -263,6 +263,6 @@ public partial class SetupChecklistViewModel : ViewModelBase
     [RelayCommand]
     private void OpenUpgradeUrl()
     {
-        UrlHelper.SafeOpenUrl("https://www.argorobots.com/pricing/");
+        UrlHelper.SafeOpenUrl(WebsiteUrls.Pricing);
     }
 }

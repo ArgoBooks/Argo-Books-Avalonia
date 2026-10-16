@@ -36,7 +36,7 @@ public partial class SettingsModalViewModel : ViewModelBase
     private string _originalTheme;
     private string _originalAccentColor;
     private string _originalLanguage = "English";
-    private string _originalDateFormat = "MM/DD/YYYY";
+    private string _originalDateFormat = Core.Data.DateFormats.Default;
     private TimeZoneItem _originalTimeZone = TimeZones.Utc;
     private string _originalTimeFormat = "12h";
     private int _originalMaxPieSlices = 6;
@@ -98,7 +98,7 @@ public partial class SettingsModalViewModel : ViewModelBase
     }
 
     [ObservableProperty]
-    private string _selectedDateFormat = "MM/DD/YYYY";
+    private string _selectedDateFormat = Core.Data.DateFormats.Default;
 
     [ObservableProperty]
     private TimeZoneItem _selectedTimeZone = TimeZones.Utc;
@@ -161,13 +161,7 @@ public partial class SettingsModalViewModel : ViewModelBase
     /// </summary>
     public IReadOnlyList<string> Languages => Data.Languages.All;
 
-    public ObservableCollection<string> DateFormats { get; } =
-    [
-        "MM/DD/YYYY",
-        "DD/MM/YYYY",
-        "YYYY-MM-DD",
-        "MMM D, YYYY"
-    ];
+    public IReadOnlyList<string> DateFormats => Core.Data.DateFormats.All;
 
     /// <summary>
     /// All available timezone options from the system.
@@ -379,23 +373,6 @@ public partial class SettingsModalViewModel : ViewModelBase
     public string CurrentPasswordVisibilityIcon => IsCurrentPasswordVisible ? Icons.EyeOff : Icons.Eye;
 
     /// <summary>
-    /// Mask characters for the password boxes, cleared while a password is revealed.
-    ///
-    /// Revealing is done by dropping the mask character rather than by setting
-    /// RevealPassword, because Avalonia 12.0.5 treats any box with a mask character as a
-    /// password box and silently disables Ctrl+Arrow word movement, Ctrl+Shift+Arrow
-    /// selection and Ctrl+Backspace, regardless of RevealPassword. Clearing the character
-    /// makes it an ordinary text box again, so those shortcuts work while it is revealed.
-    /// </summary>
-    public char NewPasswordMaskChar => IsNewPasswordVisible ? '\0' : '*';
-
-    /// <inheritdoc cref="NewPasswordMaskChar" />
-    public char ConfirmPasswordMaskChar => IsConfirmPasswordVisible ? '\0' : '*';
-
-    /// <inheritdoc cref="NewPasswordMaskChar" />
-    public char CurrentPasswordMaskChar => IsCurrentPasswordVisible ? '\0' : '*';
-
-    /// <summary>
     /// Width in pixels for the strength bar, scaled to fit the password modal content area.
     /// </summary>
     public double PasswordStrengthBarWidth => PasswordStrengthScore / 100.0 * 290;
@@ -438,19 +415,16 @@ public partial class SettingsModalViewModel : ViewModelBase
     partial void OnIsNewPasswordVisibleChanged(bool value)
     {
         OnPropertyChanged(nameof(NewPasswordVisibilityIcon));
-        OnPropertyChanged(nameof(NewPasswordMaskChar));
     }
 
     partial void OnIsConfirmPasswordVisibleChanged(bool value)
     {
         OnPropertyChanged(nameof(ConfirmPasswordVisibilityIcon));
-        OnPropertyChanged(nameof(ConfirmPasswordMaskChar));
     }
 
     partial void OnIsCurrentPasswordVisibleChanged(bool value)
     {
         OnPropertyChanged(nameof(CurrentPasswordVisibilityIcon));
-        OnPropertyChanged(nameof(CurrentPasswordMaskChar));
     }
 
     // Flag to prevent firing AutoLockSettingsChanged when syncing UI with company settings
@@ -1005,7 +979,7 @@ public partial class SettingsModalViewModel : ViewModelBase
     {
         if (!CanConnectProvider) return;
         if (!await EnsurePortalAuthenticatedAsync()) return;
-        await ConnectProviderAsync("stripe");
+        await ConnectProviderAsync(PaymentProviders.Stripe);
     }
 
     [RelayCommand]
@@ -1013,21 +987,21 @@ public partial class SettingsModalViewModel : ViewModelBase
     {
         if (!CanConnectProvider) return;
         if (!await EnsurePortalAuthenticatedAsync()) return;
-        await ConnectProviderAsync("square");
+        await ConnectProviderAsync(PaymentProviders.Square);
     }
 
     [RelayCommand]
     private async Task DisconnectStripeAsync()
     {
         if (!await EnsurePortalAuthenticatedAsync()) return;
-        await DisconnectProviderAsync("stripe");
+        await DisconnectProviderAsync(PaymentProviders.Stripe);
     }
 
     [RelayCommand]
     private async Task DisconnectSquareAsync()
     {
         if (!await EnsurePortalAuthenticatedAsync()) return;
-        await DisconnectProviderAsync("square");
+        await DisconnectProviderAsync(PaymentProviders.Square);
     }
 
     /// <summary>
@@ -1203,12 +1177,7 @@ public partial class SettingsModalViewModel : ViewModelBase
                 && Uri.TryCreate(response.AuthUrl, UriKind.Absolute, out var authUri)
                 && (authUri.Scheme == "https" || authUri.Scheme == "http"))
             {
-                // Open OAuth URL in default browser
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = response.AuthUrl,
-                    UseShellExecute = true
-                });
+                UrlHelper.SafeOpenUrl(response.AuthUrl);
 
                 // Poll for status updates so the UI refreshes when the user completes OAuth
                 _ = PollForProviderConnectionAsync(provider);
@@ -1332,15 +1301,15 @@ public partial class SettingsModalViewModel : ViewModelBase
                     // Fallback: clear the specific provider if response didn't include full state
                     switch (provider)
                     {
-                        case "stripe":
+                        case PaymentProviders.Stripe:
                             StripeConnected = false;
                             StripeEmail = null;
                             break;
-                        case "paypal":
+                        case PaymentProviders.PayPal:
                             PaypalConnected = false;
                             PaypalEmail = null;
                             break;
-                        case "square":
+                        case PaymentProviders.Square:
                             SquareConnected = false;
                             SquareEmail = null;
                             break;
@@ -1530,9 +1499,9 @@ public partial class SettingsModalViewModel : ViewModelBase
                 {
                     var connected = provider switch
                     {
-                        "stripe" => status.ConnectedProviders.StripeConnected,
-                        "paypal" => status.ConnectedProviders.PaypalConnected,
-                        "square" => status.ConnectedProviders.SquareConnected,
+                        PaymentProviders.Stripe => status.ConnectedProviders.StripeConnected,
+                        PaymentProviders.PayPal => status.ConnectedProviders.PaypalConnected,
+                        PaymentProviders.Square => status.ConnectedProviders.SquareConnected,
                         _ => false
                     };
 
@@ -1721,16 +1690,7 @@ public partial class SettingsModalViewModel : ViewModelBase
     [RelayCommand]
     private void OpenStripeGuide()
     {
-        try
-        {
-            Process.Start(new ProcessStartInfo
-            {
-                // The documentation page, not the marketing page. Someone who has already opened Settings has decided to connect it and wants the steps, not the pitch.
-                FileName = "https://argorobots.com/documentation/pages/integrations/stripe-integration.php",
-                UseShellExecute = true
-            });
-        }
-        catch { /* best-effort: opening the browser is non-critical */ }
+        UrlHelper.SafeOpenUrl(WebsiteUrls.StripeGuide);
     }
 
     /// <summary>Loads Stripe integration display state from company settings. Call from the settings-load path.</summary>
@@ -2211,23 +2171,7 @@ public partial class SettingsModalViewModel : ViewModelBase
     [RelayCommand]
     private void OpenArgoApiDocs()
     {
-        try
-        {
-            Process.Start(new ProcessStartInfo
-            {
-                // BaseUrl, not a hardcoded host: these pages only exist wherever
-                // the API itself has shipped. A debug build points at dev, which
-                // has them; a release build points at production, which will have
-                // them by the time one is cut. Hardcoding production would 404
-                // for as long as the API is only on dev.
-                //
-                // The path is the real served one. These pages link their assets
-                // relatively, so a shallower alias URL loads them unstyled.
-                FileName = $"{ApiConfig.BaseUrl}/documentation/pages/api/overview.php",
-                UseShellExecute = true
-            });
-        }
-        catch { /* best-effort: opening the browser is non-critical */ }
+        UrlHelper.SafeOpenUrl(WebsiteUrls.ApiDocs);
     }
 
     /// <summary>
@@ -2299,7 +2243,7 @@ public partial class SettingsModalViewModel : ViewModelBase
             AvailableBankCategories.Add(cat);
 
         // Edit detached copies so typing / add / delete only affect a draft.
-        foreach (var r in data.BankCategoryRules)
+        foreach (var r in data.Settings.BankCategoryRules)
             BankCategoryRules.Add(new BankCategoryRuleRow(CloneRule(r), AvailableBankCategories));
 
         // Baseline for the unsaved-changes check, so editing a rule triggers the discard prompt.
@@ -2523,7 +2467,7 @@ public partial class SettingsModalViewModel : ViewModelBase
             return size <= 0
                 ? string.Empty
                 : "Around {0} of disk once all {1} copies exist.".TranslateFormat(
-                    FormatBackupSize(size * SelectedCopyCount), SelectedCopyCount);
+                    Utilities.FileSizeText.Format(size * SelectedCopyCount), SelectedCopyCount);
         }
     }
 
@@ -2541,11 +2485,6 @@ public partial class SettingsModalViewModel : ViewModelBase
             return 0;
         }
     }
-
-    private static string FormatBackupSize(long bytes) =>
-        bytes >= 1024 * 1024
-            ? (bytes / 1024d / 1024d).ToString("0.#", CultureInfo.CurrentCulture) + " MB"
-            : Math.Max(1, bytes / 1024).ToString(CultureInfo.CurrentCulture) + " KB";
 
     /// <summary>Fills the tab from the stored settings. Called when the modal opens.</summary>
     private bool _loadingBackupSettings;
@@ -2617,7 +2556,7 @@ public partial class SettingsModalViewModel : ViewModelBase
         {
             Backups.Add(new BackupFileRow(
                 b.TakenAtUtc.ToLocalTime().ToString("f", CultureInfo.CurrentCulture),
-                FormatBackupSize(b.SizeBytes),
+                Utilities.FileSizeText.Format(b.SizeBytes),
                 b.Path));
         }
     }
@@ -3812,18 +3751,9 @@ public partial class SettingsModalViewModel : ViewModelBase
                 Directory.CreateDirectory(telemetryPath);
             }
 
-            // Open folder using platform-specific method
-            if (OperatingSystem.IsWindows())
+            if (!UrlHelper.SafeOpenUrl(new Uri(telemetryPath).AbsoluteUri))
             {
-                Process.Start("explorer.exe", telemetryPath);
-            }
-            else if (OperatingSystem.IsMacOS())
-            {
-                Process.Start("open", telemetryPath);
-            }
-            else if (OperatingSystem.IsLinux())
-            {
-                Process.Start("xdg-open", telemetryPath);
+                throw new InvalidOperationException("No application could open the folder.");
             }
         }
         catch (Exception ex)
