@@ -1420,7 +1420,7 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
         }
         if (template == null) return;
 
-        string currencySymbol = CurrencyService.GetSymbol(invoice.OriginalCurrency);
+        string currencySymbol = CurrencyInfo.GetSymbol(invoice.OriginalCurrency);
         string failure = string.Empty;
 
         try

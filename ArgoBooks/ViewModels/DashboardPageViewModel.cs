@@ -788,7 +788,7 @@ public partial class DashboardPageViewModel : ChartContextMenuViewModelBase, ICl
             if (!string.IsNullOrEmpty(url))
             {
                 // Open the spreadsheet in the browser
-                var browserOpened = GoogleSheetsService.OpenInBrowser(url);
+                var browserOpened = Core.Platform.UrlHelper.SafeOpenUrl(url);
 
                 GoogleSheetsExportStatusChanged?.Invoke(this, new GoogleSheetsExportEventArgs
                 {

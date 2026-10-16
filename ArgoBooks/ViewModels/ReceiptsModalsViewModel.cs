@@ -446,7 +446,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
 
     private string ScanCurrencyCode => string.IsNullOrEmpty(SelectedScanCurrency)
         ? CurrencyService.CurrentCurrencyCode
-        : CurrencyService.ParseCurrencyCode(SelectedScanCurrency);
+        : CurrencyInfo.ParseCodeFromDisplayString(SelectedScanCurrency);
 
     [ObservableProperty]
     private string _notes = string.Empty;
@@ -1283,7 +1283,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         Notes = item.Notes;
 
         if (item.CurrencyCode != null)
-            SelectedScanCurrency = CurrencyService.GetDisplayString(item.CurrencyCode);
+            SelectedScanCurrency = CurrencyInfo.GetByCode(item.CurrencyCode).DisplayString;
 
         if (item.IsRevenueOverride.HasValue)
             IsRevenue = item.IsRevenueOverride.Value;
@@ -2160,7 +2160,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
     {
         try
         {
-            SelectedScanCurrency = CurrencyService.GetDisplayString(ReceiptCurrency(result.CurrencyCode));
+            SelectedScanCurrency = CurrencyInfo.GetByCode(ReceiptCurrency(result.CurrencyCode)).DisplayString;
             ExtractedSupplier = result.SupplierName ?? string.Empty;
             ExtractedDate = result.TransactionDate.HasValue
                 ? new DateTimeOffset(result.TransactionDate.Value)

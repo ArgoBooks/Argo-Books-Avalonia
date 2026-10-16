@@ -6,6 +6,7 @@ using ArgoBooks.Shared.Telemetry;
 using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using ArgoBooks.Core.Models.Common;
 
 namespace ArgoBooks.ViewModels;
 
@@ -242,7 +243,7 @@ public partial class CreateCompanyViewModel : ViewModelBase
         // when the chosen currency doesn't match the country.
         if (CurrentStep == 1)
         {
-            var currencyCode = CurrencyService.ParseCurrencyCode(SelectedCurrency);
+            var currencyCode = CurrencyInfo.ParseCodeFromDisplayString(SelectedCurrency);
             if (!await CurrencyCountryMatcher.ConfirmIfMismatchAsync(Country, currencyCode))
                 return;
         }
@@ -286,7 +287,7 @@ public partial class CreateCompanyViewModel : ViewModelBase
             CompanyName = CompanyName!,
             Industry = Industry,
             Country = Country,
-            DefaultCurrency = CurrencyService.ParseCurrencyCode(SelectedCurrency),
+            DefaultCurrency = CurrencyInfo.ParseCodeFromDisplayString(SelectedCurrency),
             Password = EnablePassword ? Password : null,
             LogoPath = LogoPath
         };

@@ -35,7 +35,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
     /// <summary>
     /// Gets the shared chart settings service.
     /// </summary>
-    private ChartSettingsService ChartSettingsShared => ChartSettingsService.Instance;
+    private ChartSettingsService ChartSettings => ChartSettingsService.Instance;
 
     // Flag to prevent duplicate data loading when changing settings locally
     private bool _isLocalSettingChange;
@@ -250,16 +250,16 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
     /// </summary>
     public string SelectedDateRange
     {
-        get => ChartSettingsShared.SelectedDateRange;
+        get => ChartSettings.SelectedDateRange;
         set
         {
-            if (ChartSettingsShared.SelectedDateRange != value)
+            if (ChartSettings.SelectedDateRange != value)
             {
-                var oldValue = ChartSettingsShared.SelectedDateRange;
+                var oldValue = ChartSettings.SelectedDateRange;
                 _isLocalSettingChange = true;
                 try
                 {
-                    ChartSettingsShared.SelectedDateRange = value;
+                    ChartSettings.SelectedDateRange = value;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(IsCustomDateRange));
                     OnPropertyChanged(nameof(ComparisonPeriodLabel));
@@ -272,7 +272,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
                     else if (oldValue != value)
                     {
                         // Explicitly notify even if value unchanged (service may have set it first)
-                        ChartSettingsShared.HasAppliedCustomRange = false;
+                        ChartSettings.HasAppliedCustomRange = false;
                         OnPropertyChanged(nameof(HasAppliedCustomRange));
                         OnPropertyChanged(nameof(AppliedDateRangeText));
                         ReloadCharts();
@@ -294,12 +294,12 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
     /// </summary>
     public DateTime StartDate
     {
-        get => ChartSettingsShared.StartDate;
+        get => ChartSettings.StartDate;
         set
         {
-            if (ChartSettingsShared.StartDate != value)
+            if (ChartSettings.StartDate != value)
             {
-                ChartSettingsShared.StartDate = value;
+                ChartSettings.StartDate = value;
                 OnPropertyChanged();
             }
         }
@@ -310,12 +310,12 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
     /// </summary>
     public DateTime EndDate
     {
-        get => ChartSettingsShared.EndDate;
+        get => ChartSettings.EndDate;
         set
         {
-            if (ChartSettingsShared.EndDate != value)
+            if (ChartSettings.EndDate != value)
             {
-                ChartSettingsShared.EndDate = value;
+                ChartSettings.EndDate = value;
                 OnPropertyChanged();
             }
         }
@@ -326,12 +326,12 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
     /// </summary>
     public bool HasAppliedCustomRange
     {
-        get => ChartSettingsShared.HasAppliedCustomRange;
+        get => ChartSettings.HasAppliedCustomRange;
         set
         {
-            if (ChartSettingsShared.HasAppliedCustomRange != value)
+            if (ChartSettings.HasAppliedCustomRange != value)
             {
-                ChartSettingsShared.HasAppliedCustomRange = value;
+                ChartSettings.HasAppliedCustomRange = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(AppliedDateRangeText));
             }
@@ -341,12 +341,12 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
     /// <summary>
     /// Gets the formatted text showing the applied custom date range.
     /// </summary>
-    public string AppliedDateRangeText => ChartSettingsShared.AppliedDateRangeText;
+    public string AppliedDateRangeText => ChartSettings.AppliedDateRangeText;
 
     /// <summary>
     /// Gets the formatted text showing the currently selected date range span.
     /// </summary>
-    public string DateRangeDisplayText => ChartSettingsShared.DateRangeDisplayText;
+    public string DateRangeDisplayText => ChartSettings.DateRangeDisplayText;
 
     /// <summary>
     /// Gets whether the custom date range option is selected.
@@ -356,7 +356,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
     /// <summary>
     /// Gets the label for comparison period based on selected date range (delegates to shared service).
     /// </summary>
-    public string ComparisonPeriodLabel => ChartSettingsShared.ComparisonPeriodLabel;
+    public string ComparisonPeriodLabel => ChartSettings.ComparisonPeriodLabel;
 
     /// <summary>
     /// Opens the custom date range modal.
@@ -389,7 +389,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
                 // If no custom range was previously applied, revert to the previous selection
                 if (!HasAppliedCustomRange)
                 {
-                    ChartSettingsShared.SelectedDateRange = _previousDateRange;
+                    ChartSettings.SelectedDateRange = _previousDateRange;
                     OnPropertyChanged(nameof(SelectedDateRange));
                     OnPropertyChanged(nameof(DateRangeDisplayText));
                 }
@@ -684,15 +684,15 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
     /// </summary>
     public string SelectedChartType
     {
-        get => ChartSettingsShared.SelectedChartType;
+        get => ChartSettings.SelectedChartType;
         set
         {
-            if (ChartSettingsShared.SelectedChartType != value)
+            if (ChartSettings.SelectedChartType != value)
             {
                 _isLocalSettingChange = true;
                 try
                 {
-                    ChartSettingsShared.SelectedChartType = value;
+                    ChartSettings.SelectedChartType = value;
                     OnPropertyChanged();
                     ReloadCharts(styleChangeOnly: true);
                 }
@@ -1330,11 +1330,11 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
     public AnalyticsPageViewModel()
     {
         // Initialize the shared chart settings service
-        ChartSettingsShared.Initialize();
+        ChartSettings.Initialize();
 
         // Subscribe to chart settings changes from other pages
-        ChartSettingsShared.ChartTypeChanged += OnChartSettingsChartTypeChanged;
-        ChartSettingsShared.DateRangeChanged += OnChartSettingsDateRangeChanged;
+        ChartSettings.ChartTypeChanged += OnChartSettingsChartTypeChanged;
+        ChartSettings.DateRangeChanged += OnChartSettingsDateRangeChanged;
 
         // Subscribe to theme changes to reload charts with new colors
         ThemeService.Instance.ThemeChanged += OnThemeChanged;
@@ -1499,7 +1499,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
             if (!string.IsNullOrEmpty(url))
             {
                 // Open the spreadsheet in the browser
-                var browserOpened = GoogleSheetsService.OpenInBrowser(url);
+                var browserOpened = Core.Platform.UrlHelper.SafeOpenUrl(url);
 
                 GoogleSheetsExportStatusChanged?.Invoke(this, new GoogleSheetsExportEventArgs
                 {
@@ -1715,8 +1715,8 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         }
 
         // Unsubscribe from chart settings events
-        ChartSettingsShared.ChartTypeChanged -= OnChartSettingsChartTypeChanged;
-        ChartSettingsShared.DateRangeChanged -= OnChartSettingsDateRangeChanged;
+        ChartSettings.ChartTypeChanged -= OnChartSettingsChartTypeChanged;
+        ChartSettings.DateRangeChanged -= OnChartSettingsDateRangeChanged;
 
         // Unsubscribe from theme, date format, pie slices, and currency changes
         ThemeService.Instance.ThemeChanged -= OnThemeChanged;
@@ -1771,7 +1771,7 @@ public partial class AnalyticsPageViewModel : ChartContextMenuViewModelBase, ICl
         if (data == null) return;
 
         // A preset's dates go stale when the app is left open past midnight (see the dashboard).
-        ChartSettingsShared.UpdateDateRangeFromSelection();
+        ChartSettings.UpdateDateRangeFromSelection();
 
         var tab = SelectedTabIndex;
         // A style-only reload redraws the cartesian charts of an already-loaded tab; a tab that

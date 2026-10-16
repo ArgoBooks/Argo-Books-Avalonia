@@ -25,7 +25,7 @@ public class BankStatementImportUndoTests : ModalViewModelTestBase
             TransactionType = BookRecordType.Expense,
             CounterpartyId = supplier.Id
         };
-        Company.BankCategoryRules.Add(rule);
+        Company.Settings.BankCategoryRules.Add(rule);
 
         var vm = new BankStatementImportModalViewModel();
         vm.Rows.Add(RowFor("ACME", -10m, supplier));

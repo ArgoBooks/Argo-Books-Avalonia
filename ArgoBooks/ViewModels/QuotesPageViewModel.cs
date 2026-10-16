@@ -314,7 +314,7 @@ public partial class QuotesPageViewModel : SortablePageViewModelBase
                 Total = quote.Total,
                 // A quote is priced in one currency and shown in that currency: it carries no USD
                 // conversion, so there is nothing to restate it from.
-                TotalDisplay = CurrencyService.GetSymbol(quote.OriginalCurrency) +
+                TotalDisplay = CurrencyInfo.GetSymbol(quote.OriginalCurrency) +
                                quote.Total.ToString("N2", System.Globalization.CultureInfo.InvariantCulture),
                 Status = quote.Status,
                 IsExpired = quote.IsExpired,

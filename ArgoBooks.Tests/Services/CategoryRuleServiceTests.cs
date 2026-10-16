@@ -34,7 +34,7 @@ public class CategoryRuleServiceTests
 
         Assert.Equal("shell oil", rule.Pattern);
         Assert.Equal(RuleSource.Learned, rule.Source);
-        Assert.Single(data.BankCategoryRules);
+        Assert.Single(data.Settings.BankCategoryRules);
     }
 
     [Fact]
@@ -44,8 +44,8 @@ public class CategoryRuleServiceTests
         CategoryRuleService.Learn(data, "SHELL OIL 1", "CAT-PUR-002", BookRecordType.Expense, null);
         CategoryRuleService.Learn(data, "SHELL OIL 2", "CAT-PUR-009", BookRecordType.Expense, null);
 
-        Assert.Single(data.BankCategoryRules);
-        Assert.Equal("CAT-PUR-009", data.BankCategoryRules[0].CategoryId);
+        Assert.Single(data.Settings.BankCategoryRules);
+        Assert.Equal("CAT-PUR-009", data.Settings.BankCategoryRules[0].CategoryId);
     }
 
     // Exact must beat Contains for the same pattern whichever rule comes first, so this places Contains first.

@@ -237,7 +237,7 @@ public static partial class RoeXmlWriter
         Add(roe, "B3", Text(sheet.PayrollReferenceNumber, 26));
 
         roe.Add(new XElement("B5", PayrollAccount(sheet.PayrollAccountNumber)));
-        roe.Add(new XElement("B6", RoeCodes.PayPeriodType(sheet.PayPeriodType)));
+        roe.Add(new XElement("B6", RoeCodes.PayPeriodType(sheet.PayFrequency)));
         roe.Add(new XElement("B8", Digits(sheet.Sin, 9)));
         roe.Add(BuildEmployee(sheet));
         roe.Add(new XElement("B10", Date(sheet.FirstDayWorked)));

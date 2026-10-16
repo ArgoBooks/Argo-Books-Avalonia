@@ -376,7 +376,7 @@ public partial class CategoryModalsViewModel : ViewModelBase
             if (await BlockIfInUseAsync(
                     usages => "This category cannot be deleted because it is referenced by one or more: {0}.".TranslateFormat(usages),
                     (companyData.Products.Any(p => p.CategoryId == item.Id), "Product".Translate()),
-                    (companyData.BankCategoryRules.Any(r => r.CategoryId == item.Id), "Bank Rule".Translate())))
+                    (companyData.Settings.BankCategoryRules.Any(r => r.CategoryId == item.Id), "Bank Rule".Translate())))
                 return;
 
             var category = companyData.GetCategory(item.Id);
@@ -416,7 +416,7 @@ public partial class CategoryModalsViewModel : ViewModelBase
                     return;
                 }
 
-                if (deleteSubcategories && companyData.BankCategoryRules.Any(r => childIds.Contains(r.CategoryId)))
+                if (deleteSubcategories && companyData.Settings.BankCategoryRules.Any(r => childIds.Contains(r.CategoryId)))
                 {
                     await App.ShowWarningDialogAsync(
                         "Cannot Delete".Translate(),

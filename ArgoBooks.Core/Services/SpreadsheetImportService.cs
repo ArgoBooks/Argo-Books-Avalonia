@@ -13,6 +13,7 @@ using ArgoBooks.Core.Models.Telemetry;
 using ArgoBooks.Core.Models.Tracking;
 using ArgoBooks.Core.Models.Transactions;
 using ClosedXML.Excel;
+using static ArgoBooks.Core.Services.SpreadsheetRowReader;
 
 namespace ArgoBooks.Core.Services;
 
@@ -2874,22 +2875,6 @@ public class SpreadsheetImportService
 
     #region Helper Methods
 
-    // Row-reading and value-parsing helpers live in SpreadsheetRowReader (extracted so the
-    // bank statement importer can reuse them). These thin wrappers preserve existing call sites.
-    private static int FindHeaderRow(IXLWorksheet worksheet) => SpreadsheetRowReader.FindHeaderRow(worksheet);
-
-    private static List<string> GetHeaders(IXLWorksheet worksheet) => SpreadsheetRowReader.GetHeaders(worksheet);
-
-    private static List<string> GetHeaders(IXLWorksheet worksheet, int headerRow) => SpreadsheetRowReader.GetHeaders(worksheet, headerRow);
-
-    private static List<List<object?>> GetDataRows(IXLWorksheet worksheet, int columnCount) => SpreadsheetRowReader.GetDataRows(worksheet, columnCount);
-
-    private static object? GetCellValue(IXLCell cell) => SpreadsheetRowReader.GetCellValue(cell);
-
-    private static int GetColumnIndex(List<string> headers, string columnName) => SpreadsheetRowReader.GetColumnIndex(headers, columnName);
-
-    private static string GetString(List<object?> row, List<string> headers, string columnName) => SpreadsheetRowReader.GetString(row, headers, columnName);
-
     /// <summary>
     /// Tries multiple column name variants and returns the first match.
     /// Used for address fields that have country-specific labels.
@@ -2932,8 +2917,6 @@ public class SpreadsheetImportService
     private static readonly string[] InvoicePriceFields =
         ["issueDate", "subtotal", "taxAmount", "total", "amountPaid", "balance", "originalCurrency"];
     private static readonly string[] RentalLineColumns = ["Rental Item ID", "Quantity", "Rate Type", "Rate Amount", "Security Deposit"];
-
-    private static string? GetNullableString(List<object?> row, List<string> headers, string columnName) => SpreadsheetRowReader.GetNullableString(row, headers, columnName);
 
     /// <summary>
     /// Normalizes free-form payment status strings from spreadsheet imports
@@ -2988,12 +2971,6 @@ public class SpreadsheetImportService
         // Fallback: unrecognized → default to Paid
         return RevenuePaymentStatus.Paid;
     }
-
-    private static decimal GetDecimal(List<object?> row, List<string> headers, string columnName) => SpreadsheetRowReader.GetDecimal(row, headers, columnName);
-
-    private static decimal ParseDecimalString(string s) => SpreadsheetRowReader.ParseDecimalString(s);
-
-    private static int GetInt(List<object?> row, List<string> headers, string columnName) => SpreadsheetRowReader.GetInt(row, headers, columnName);
 
     private DateTime GetDateTime(List<object?> row, List<string> headers, string columnName)
         => SpreadsheetRowReader.GetDateTime(row, headers, columnName, DateOrderOf(headers, columnName));

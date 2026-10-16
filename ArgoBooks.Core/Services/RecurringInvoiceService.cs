@@ -37,10 +37,6 @@ public static class RecurringInvoiceService
     /// <summary>Clears the pending banner count once the user has reviewed or dismissed it.</summary>
     public static void ClearPendingGenerated() => PendingGeneratedCount = 0;
 
-    /// <inheritdoc cref="RecurrenceSchedule.AdvanceDate"/>
-    public static DateTime AdvanceDate(DateTime date, Frequency frequency, int? anchorDay = null)
-        => RecurrenceSchedule.AdvanceDate(date, frequency, anchorDay);
-
     /// <summary>
     /// Formats payment terms ("Due on receipt" or "Net N") from an invoice's issue and due dates,
     /// so a recurring schedule inherits the terms the user actually set instead of a fixed default.
@@ -122,7 +118,7 @@ public static class RecurringInvoiceService
                 schedule.LastGeneratedAt = DateTime.UtcNow;
                 // Anchor on the schedule's original billing day-of-month so end-of-month schedules
                 // don't drift earlier after passing a shorter month (Jan 31 -> Feb 28 -> Mar 31, ...).
-                schedule.NextInvoiceDate = AdvanceDate(
+                schedule.NextInvoiceDate = RecurrenceSchedule.AdvanceDate(
                     schedule.NextInvoiceDate, schedule.Frequency, schedule.StartDate.Day);
                 count++;
 

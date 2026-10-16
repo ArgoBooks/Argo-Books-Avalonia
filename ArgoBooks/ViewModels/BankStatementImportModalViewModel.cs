@@ -288,7 +288,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
             if (string.IsNullOrEmpty(categoryId)) continue;
 
             var token = MerchantNormalizer.Normalize(res.Line.Description);
-            var existing = data.BankCategoryRules.FirstOrDefault(r =>
+            var existing = data.Settings.BankCategoryRules.FirstOrDefault(r =>
                 r.Pattern == token && r.MatchType == RuleMatchType.Contains);
 
             RulePriorState? prior = existing == null ? null : new RulePriorState(
@@ -492,7 +492,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
             var cap = ruleCaptures[i];
             if (cap.Prior == null)
             {
-                data.BankCategoryRules.RemoveRecord(cap.Rule);
+                data.Settings.BankCategoryRules.RemoveRecord(cap.Rule);
             }
             else
             {
@@ -519,7 +519,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
         {
             if (cap.Prior == null)
             {
-                data.BankCategoryRules.RestoreRecord(cap.Rule);
+                data.Settings.BankCategoryRules.RestoreRecord(cap.Rule);
             }
             else
             {
@@ -618,7 +618,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
     {
         // 1. Learned rule (remembers product + counterparty for this merchant). The sign of the amount decides
         // the kind of line, so a rule learned from the other kind, such as a purchase when this is its refund, is left out.
-        var rule = CategoryRuleService.Match(data.BankCategoryRules, row.Description);
+        var rule = CategoryRuleService.Match(data.Settings.BankCategoryRules, row.Description);
         var kind = row.CreateAsRevenue ? BookRecordType.Revenue : BookRecordType.Expense;
         if (rule != null && (rule.TransactionType == null || rule.TransactionType == kind))
         {

@@ -852,7 +852,7 @@ public partial class QuotesModalsViewModel : PaperDocumentEditorViewModelBase<Qu
         // display currency (Calculations.md §2).
         PreviewHtml = renderer.RenderInvoice(
             quote.ToRenderableInvoice(), template, companyData,
-            CurrencyService.GetSymbol(quote.OriginalCurrency),
+            CurrencyInfo.GetSymbol(quote.OriginalCurrency),
             editable: !IsEditorPreviewing,
             DocumentLabels.ForQuote(template.HeaderText));
     }
@@ -900,7 +900,7 @@ public partial class QuotesModalsViewModel : PaperDocumentEditorViewModelBase<Qu
             var code = _editorCurrencyCode;
             return System.Text.Json.JsonSerializer.Serialize(new
             {
-                symbol = CurrencyService.GetSymbol(code),
+                symbol = CurrencyInfo.GetSymbol(code),
                 code,
                 decimals = CurrencyInfo.GetByCode(code).DecimalPlaces,
                 deposit = 0m,
@@ -959,7 +959,7 @@ public partial class QuotesModalsViewModel : PaperDocumentEditorViewModelBase<Qu
         if (template == null) return null;
 
         var renderer = new InvoiceHtmlRenderer();
-        return renderer.RenderQuote(quote, template, companyData, CurrencyService.GetSymbol(quote.OriginalCurrency));
+        return renderer.RenderQuote(quote, template, companyData, CurrencyInfo.GetSymbol(quote.OriginalCurrency));
     }
 
     #endregion
@@ -1049,7 +1049,7 @@ public partial class QuotesModalsViewModel : PaperDocumentEditorViewModelBase<Qu
             var template = ResolveTemplate(companyData, quote.TemplateId);
             var response = await portalService.PublishQuoteAsync(
                 quote, companyData, template,
-                CurrencyService.GetSymbol(quote.OriginalCurrency),
+                CurrencyInfo.GetSymbol(quote.OriginalCurrency),
                 sendEmail: true,
                 message: string.IsNullOrWhiteSpace(SendMessage) ? null : SendMessage.Trim(),
                 status: "sent",
@@ -1144,7 +1144,7 @@ public partial class QuotesModalsViewModel : PaperDocumentEditorViewModelBase<Qu
             var template = ResolveTemplate(companyData, quote.TemplateId);
             var response = await portalService.PublishQuoteAsync(
                 quote, companyData, template,
-                CurrencyService.GetSymbol(quote.OriginalCurrency),
+                CurrencyInfo.GetSymbol(quote.OriginalCurrency),
                 sendEmail: true,
                 message: null,
                 status: "sent",

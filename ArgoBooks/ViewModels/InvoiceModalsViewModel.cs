@@ -493,7 +493,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
     /// <summary>
     /// Resolved ISO code for the currently-selected currency display string.
     /// </summary>
-    public string SelectedCurrencyCode => CurrencyService.ParseCurrencyCode(SelectedCurrency);
+    public string SelectedCurrencyCode => CurrencyInfo.ParseCodeFromDisplayString(SelectedCurrency);
 
     protected override int MoneyDecimals => CurrencyInfo.GetByCode(SelectedCurrencyCode).DecimalPlaces;
 
@@ -962,7 +962,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
         var renderer = new InvoiceHtmlRenderer();
         // Customer-facing surfaces show the invoice in the currency it was
         // issued in, not the user's display currency. See Calculations.md §2.
-        var currencySymbol = CurrencyService.GetSymbol(invoice.OriginalCurrency);
+        var currencySymbol = CurrencyInfo.GetSymbol(invoice.OriginalCurrency);
         PreviewHtml = renderer.RenderInvoice(invoice, template, companyData, currencySymbol);
 
         // Open modal in view-only preview mode
@@ -1090,8 +1090,8 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
         CustomFeeIsPercent = invoice.CustomFeeIsPercent;
         DiscountAmount = invoice.DiscountAmount;
         DiscountIsPercent = invoice.DiscountIsPercent;
-        SelectedCurrency = CurrencyService.GetDisplayString(
-            string.IsNullOrEmpty(invoice.OriginalCurrency) ? "USD" : invoice.OriginalCurrency);
+        SelectedCurrency = CurrencyInfo.GetByCode(
+            string.IsNullOrEmpty(invoice.OriginalCurrency) ? "USD" : invoice.OriginalCurrency).DisplayString;
 
         // Restore the template this draft was created with, so the preview (and a re-save) keep it instead of snapping to the default.
         if (!string.IsNullOrEmpty(invoice.TemplateId))
@@ -1471,7 +1471,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
         if (companyData != null)
         {
             // Preview reflects the invoice's selected currency, not the user's display setting.
-            var currencySymbol = CurrencyService.GetSymbol(SelectedCurrencyCode);
+            var currencySymbol = CurrencyInfo.GetSymbol(SelectedCurrencyCode);
             // Preview mode renders non-editable so zero-value shipping/discount rows drop
             // out and the paper matches what the customer receives.
             PreviewHtml = renderer.RenderInvoice(
@@ -1771,7 +1771,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
                 {
                     // Portal publishes / customer-facing flow uses the
                     // invoice's issued currency, not user display currency.
-                    var currencySymbol = CurrencyService.GetSymbol(invoice.OriginalCurrency);
+                    var currencySymbol = CurrencyInfo.GetSymbol(invoice.OriginalCurrency);
                     var publishResponse = await portalService.PublishInvoiceAsync(
                         invoice, companyData, SelectedTemplate, currencySymbol);
                     if (publishResponse.Success)
@@ -2493,7 +2493,7 @@ public partial class InvoiceModalsViewModel : PaperDocumentEditorViewModelBase<L
         CustomFeeIsPercent = false;
         DiscountAmount = 0;
         DiscountIsPercent = false;
-        SelectedCurrency = CurrencyService.GetDisplayString(CurrencyService.CurrentCurrencyCode);
+        SelectedCurrency = CurrencyInfo.GetByCode(CurrencyService.CurrentCurrencyCode).DisplayString;
         IsRecurring = false;
         EditingRecurringInvoice = false;
         IsEditorPreviewing = false;

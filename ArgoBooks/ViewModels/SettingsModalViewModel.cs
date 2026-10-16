@@ -2243,7 +2243,7 @@ public partial class SettingsModalViewModel : ViewModelBase
             AvailableBankCategories.Add(cat);
 
         // Edit detached copies so typing / add / delete only affect a draft.
-        foreach (var r in data.BankCategoryRules)
+        foreach (var r in data.Settings.BankCategoryRules)
             BankCategoryRules.Add(new BankCategoryRuleRow(CloneRule(r), AvailableBankCategories));
 
         // Baseline for the unsaved-changes check, so editing a rule triggers the discard prompt.

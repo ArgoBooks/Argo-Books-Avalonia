@@ -40,12 +40,6 @@ public static class TemplateLayoutHelper
         /// Bottom margin from page edge.
         /// </summary>
         public double MarginBottom { get; }
-
-        /// <summary>
-        /// Left margin (alias for positioning calculations).
-        /// </summary>
-        public double Margin => MarginLeft;
-
         /// <summary>
         /// Height of the header area. Varies based on whether company details are shown.
         /// </summary>
@@ -176,7 +170,7 @@ public static class TemplateLayoutHelper
         {
             for (int col = 0; col < columns; col++)
             {
-                var x = context.Margin + (col * (cellWidth + context.ElementSpacing));
+                var x = context.MarginLeft + (col * (cellWidth + context.ElementSpacing));
                 var y = startY + (row * (cellHeight + context.ElementSpacing));
                 grid[row, col] = new LayoutRect(x, y, cellWidth, cellHeight);
             }
@@ -206,7 +200,7 @@ public static class TemplateLayoutHelper
         for (int i = 0; i < heightRatios.Length; i++)
         {
             var height = availableHeight * heightRatios[i];
-            stack[i] = new LayoutRect(context.Margin, currentY, context.ContentWidth, height);
+            stack[i] = new LayoutRect(context.MarginLeft, currentY, context.ContentWidth, height);
             currentY += height + context.ElementSpacing;
         }
 
@@ -221,7 +215,7 @@ public static class TemplateLayoutHelper
     public static LayoutRect GetDateRangeBounds(LayoutContext context)
     {
         const double dateRangeWidth = 200;
-        var centeredX = context.Margin + (context.ContentWidth - dateRangeWidth) / 2;
+        var centeredX = context.MarginLeft + (context.ContentWidth - dateRangeWidth) / 2;
         return new LayoutRect(centeredX, context.DateRangeTop, dateRangeWidth, context.DateRangeHeight);
     }
 

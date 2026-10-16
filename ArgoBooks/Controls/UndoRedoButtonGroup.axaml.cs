@@ -26,7 +26,6 @@ public partial class UndoRedoButtonGroup : UserControl
     private int _currentRedoHoverIndex = -1;
 
     private static IBrush HighlightBrush => ConverterUtils.AccentTint(40);
-    private static readonly IBrush TransparentBrush = Brushes.Transparent;
 
     public UndoRedoButtonGroup()
     {
@@ -180,7 +179,7 @@ public partial class UndoRedoButtonGroup : UserControl
             if (container is ContentPresenter { Child: Border border })
             {
                 // Highlight items from 0 to hoverIndex (inclusive)
-                border.Background = i <= _currentUndoHoverIndex ? HighlightBrush : TransparentBrush;
+                border.Background = i <= _currentUndoHoverIndex ? HighlightBrush : Brushes.Transparent;
             }
         }
     }
@@ -195,7 +194,7 @@ public partial class UndoRedoButtonGroup : UserControl
             if (container is ContentPresenter { Child: Border border })
             {
                 // Highlight items from 0 to hoverIndex (inclusive)
-                border.Background = i <= _currentRedoHoverIndex ? HighlightBrush : TransparentBrush;
+                border.Background = i <= _currentRedoHoverIndex ? HighlightBrush : Brushes.Transparent;
             }
         }
     }

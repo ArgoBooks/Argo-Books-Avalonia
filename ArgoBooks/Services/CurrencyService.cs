@@ -387,22 +387,4 @@ public static class CurrencyService
         // Otherwise convert from USD to the target currency
         return FormatFromUSD(amountUSD, date);
     }
-
-    /// <summary>
-    /// Gets the currency code from a display string like "USD - US Dollar ($)".
-    /// </summary>
-    public static string ParseCurrencyCode(string displayString)
-    {
-        return CurrencyInfo.ParseCodeFromDisplayString(displayString);
-    }
-
-    public static string GetDisplayString(string currencyCode)
-    {
-        return CurrencyInfo.GetByCode(currencyCode).DisplayString;
-    }
-
-    public static string GetSymbol(string currencyCode)
-    {
-        return CurrencyInfo.GetSymbol(currencyCode);
-    }
 }

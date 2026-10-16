@@ -69,15 +69,6 @@ public class CompanyData
     public List<Category> Categories { get; init; } = [];
 
     /// <summary>
-    /// Bank categorization rules for automated bank statement matching. Stored in
-    /// <see cref="CompanySettings.BankCategoryRules"/> so they save and cancel with the other
-    /// company settings; this pass-through keeps the existing data.BankCategoryRules call sites
-    /// working (read, Add, Remove all operate on the same underlying list).
-    /// </summary>
-    [JsonIgnore]
-    public List<Models.BankMatching.BankCategoryRule> BankCategoryRules => Settings.BankCategoryRules;
-
-    /// <summary>
     /// All accountants.
     /// </summary>
     [JsonPropertyName("accountants")]

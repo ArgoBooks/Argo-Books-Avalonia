@@ -403,7 +403,7 @@ public static class ReportTemplateFactory
         var dateRangeBounds = GetDateRangeBounds(context);
         config.AddElement(new DateRangeReportElement
         {
-            X = context.Margin + (context.ContentWidth - 200) / 2,
+            X = context.MarginLeft + (context.ContentWidth - 200) / 2,
             Y = dateRangeBounds.Y,
             Height = dateRangeBounds.Height
         });
@@ -456,7 +456,7 @@ public static class ReportTemplateFactory
         var dateRangeBounds = GetDateRangeBounds(context);
         config.AddElement(new DateRangeReportElement
         {
-            X = context.Margin + (context.ContentWidth - 200) / 2,
+            X = context.MarginLeft + (context.ContentWidth - 200) / 2,
             Y = dateRangeBounds.Y,
             Height = dateRangeBounds.Height
         });
@@ -508,7 +508,7 @@ public static class ReportTemplateFactory
         var dateRangeBounds = GetDateRangeBounds(context);
         config.AddElement(new DateRangeReportElement
         {
-            X = context.Margin + (context.ContentWidth - 200) / 2,
+            X = context.MarginLeft + (context.ContentWidth - 200) / 2,
             Y = dateRangeBounds.Y,
             Height = dateRangeBounds.Height
         });
@@ -561,7 +561,7 @@ public static class ReportTemplateFactory
         var dateRangeBounds = GetDateRangeBounds(context);
         config.AddElement(new DateRangeReportElement
         {
-            X = context.Margin + (context.ContentWidth - 200) / 2,
+            X = context.MarginLeft + (context.ContentWidth - 200) / 2,
             Y = dateRangeBounds.Y,
             Height = dateRangeBounds.Height
         });
@@ -614,7 +614,7 @@ public static class ReportTemplateFactory
         var dateRangeBounds = GetDateRangeBounds(context);
         config.AddElement(new DateRangeReportElement
         {
-            X = context.Margin + (context.ContentWidth - 200) / 2,
+            X = context.MarginLeft + (context.ContentWidth - 200) / 2,
             Y = dateRangeBounds.Y,
             Height = dateRangeBounds.Height
         });
@@ -661,7 +661,7 @@ public static class ReportTemplateFactory
         var dateRangeBounds = GetDateRangeBounds(context);
         config.AddElement(new DateRangeReportElement
         {
-            X = context.Margin + (context.ContentWidth - 200) / 2,
+            X = context.MarginLeft + (context.ContentWidth - 200) / 2,
             Y = dateRangeBounds.Y,
             Height = dateRangeBounds.Height
         });
@@ -714,7 +714,7 @@ public static class ReportTemplateFactory
         var dateRangeBounds = GetDateRangeBounds(context);
         config.AddElement(new DateRangeReportElement
         {
-            X = context.Margin + (context.ContentWidth - 200) / 2,
+            X = context.MarginLeft + (context.ContentWidth - 200) / 2,
             Y = dateRangeBounds.Y,
             Height = dateRangeBounds.Height
         });
@@ -767,7 +767,7 @@ public static class ReportTemplateFactory
         var dateRangeBounds = GetDateRangeBounds(context);
         config.AddElement(new DateRangeReportElement
         {
-            X = context.Margin + (context.ContentWidth - 200) / 2,
+            X = context.MarginLeft + (context.ContentWidth - 200) / 2,
             Y = dateRangeBounds.Y,
             Height = dateRangeBounds.Height
         });
@@ -798,7 +798,7 @@ public static class ReportTemplateFactory
             var dateRangeBounds = GetDateRangeBounds(context);
             config.AddElement(new DateRangeReportElement
             {
-                X = context.Margin + (context.ContentWidth - 200) / 2,
+                X = context.MarginLeft + (context.ContentWidth - 200) / 2,
                 Y = dateRangeBounds.Y,
                 Height = dateRangeBounds.Height,
                 IsAsOfDate = reportType == AccountingReportType.BalanceSheet
@@ -809,7 +809,7 @@ public static class ReportTemplateFactory
         config.AddElement(new AccountingTableReportElement
         {
             ReportType = reportType,
-            X = context.Margin,
+            X = context.MarginLeft,
             Y = context.ContentTop,
             Width = context.ContentWidth,
             Height = context.ContentHeight

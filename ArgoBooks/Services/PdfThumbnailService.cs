@@ -360,7 +360,7 @@ public sealed class PdfThumbnailService
 
     /// <summary>Takes whatever the page has queued since the last call.</summary>
     private async Task<IReadOnlyList<string>> DrainOutboxAsync() =>
-        ParseOutbox(await InvokeSafeAsync("window.__drainOutbox()"));
+        WebViewOutbox.Parse(await InvokeSafeAsync("window.__drainOutbox()"));
 
     /// <summary>
     /// Runs a script, treating a dead or missing web view as "no answer" rather than as an
@@ -381,12 +381,6 @@ public sealed class PdfThumbnailService
             return null;
         }
     }
-
-    /// <summary>
-    /// Reads the messages out of a drain. Shared with the invoice preview, which answers over
-    /// the same channel for the same reason.
-    /// </summary>
-    internal static IReadOnlyList<string> ParseOutbox(string? raw) => WebViewOutbox.Parse(raw);
 
     private void OnWebMessageReceived(object? sender, WebMessageReceivedEventArgs e) =>
         DispatchMessage(e.Body);

@@ -2683,7 +2683,7 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
             int row = i / columns;
             int col = i % columns;
 
-            chartElements[i].X = context.Margin + (col * (cellWidth + spacing));
+            chartElements[i].X = context.MarginLeft + (col * (cellWidth + spacing));
             chartElements[i].Y = context.ContentTop + (row * (cellHeight + spacing));
             chartElements[i].Width = cellWidth;
             chartElements[i].Height = cellHeight;

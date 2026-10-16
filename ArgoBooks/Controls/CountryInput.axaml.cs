@@ -18,10 +18,6 @@ public partial class CountryInput : UserControl, INotifyPropertyChanged
     private void RaisePropertyChanged([CallerMemberName] string? propertyName = null) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 
-    private static readonly IReadOnlyList<CountryDialCode> Priority = PhoneInput.PriorityDialCodes;
-
-    private static readonly IReadOnlyList<CountryDialCode> Others = PhoneInput.OtherDialCodes;
-
     public static readonly StyledProperty<string> SelectedCountryNameProperty =
         AvaloniaProperty.Register<CountryInput, string>(nameof(SelectedCountryName), string.Empty, defaultBindingMode: BindingMode.TwoWay);
 
@@ -31,9 +27,9 @@ public partial class CountryInput : UserControl, INotifyPropertyChanged
         set => SetValue(SelectedCountryNameProperty, value);
     }
 
-    public IReadOnlyList<CountryDialCode> PriorityCountries => Priority;
+    public IReadOnlyList<CountryDialCode> PriorityCountries => PhoneInput.PriorityDialCodes;
 
-    public IReadOnlyList<CountryDialCode> OtherCountries => Others;
+    public IReadOnlyList<CountryDialCode> OtherCountries => PhoneInput.OtherDialCodes;
 
     private bool _syncing;
 
@@ -107,6 +103,6 @@ public partial class CountryInput : UserControl, INotifyPropertyChanged
             return null;
 
         var trimmed = name.Trim();
-        return Priority.Concat(Others).FirstOrDefault(c => c.Name.Equals(trimmed, StringComparison.OrdinalIgnoreCase));
+        return PhoneInput.PriorityDialCodes.Concat(PhoneInput.OtherDialCodes).FirstOrDefault(c => c.Name.Equals(trimmed, StringComparison.OrdinalIgnoreCase));
     }
 }

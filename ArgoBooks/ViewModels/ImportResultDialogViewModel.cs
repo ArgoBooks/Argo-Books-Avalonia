@@ -167,17 +167,15 @@ public partial class ImportResultDialogViewModel : ViewModelBase
         sb.AppendLine("Sheet,Row,Reason,Value");
         foreach (var row in UnimportedRows)
         {
-            sb.Append(CsvQuote(row.Sheet));
+            sb.Append(CsvWriter.QuoteField(row.Sheet));
             sb.Append(',');
             sb.Append(row.RowNumber == 0 ? "" : row.RowNumber.ToString());
             sb.Append(',');
-            sb.Append(CsvQuote(row.Reason));
+            sb.Append(CsvWriter.QuoteField(row.Reason));
             sb.Append(',');
-            sb.AppendLine(CsvQuote(row.RawValue ?? ""));
+            sb.AppendLine(CsvWriter.QuoteField(row.RawValue ?? ""));
         }
         return sb.ToString();
-
-        static string CsvQuote(string field) => CsvWriter.QuoteField(field);
     }
 
     [RelayCommand]

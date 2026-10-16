@@ -1725,7 +1725,7 @@ public partial class App
                             "Auto-lock postponed",
                             "Could not auto-save before locking, so your session stays open to protect unsaved changes. Please save manually.",
                             NotificationType.Warning);
-                        _idleDetectionService.ResetIdleTimer();
+                        _idleDetectionService.RecordActivity();
                         return;
                     }
                 }
@@ -1742,7 +1742,7 @@ public partial class App
                 }
 
                 // Re-enable idle detection for next session
-                _idleDetectionService.ResetIdleTimer();
+                _idleDetectionService.RecordActivity();
             });
         };
 
