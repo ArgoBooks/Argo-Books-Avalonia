@@ -138,7 +138,7 @@ public class BankStatementImportService(IErrorLogger? errorLogger = null)
             var lines = collected.ToArray();
             if (lines.Length < 2) return [];
 
-            var delimiter = SpreadsheetAnalysisService.DetectCsvDelimiter(lines[0]);
+            var delimiter = SpreadsheetAnalysisService.DetectCsvDelimiter(lines);
             var parsed = lines
                 .Where(l => !string.IsNullOrWhiteSpace(l))
                 .Select(l => SpreadsheetAnalysisService.ParseCsvLine(l, delimiter))

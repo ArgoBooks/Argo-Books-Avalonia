@@ -6,7 +6,7 @@ namespace ArgoBooks.Core.Services;
 
 /// <summary>
 /// RFC-4180 CSV reader: handles quoted fields with embedded newlines/commas, any encoding
-/// TextFileDecoder reads, and auto-detects the delimiter from the first non-empty line.
+/// TextFileDecoder reads, and auto-detects the delimiter from the first lines.
 /// </summary>
 public static class CsvReader
 {
@@ -47,12 +47,6 @@ public static class CsvReader
            || row.All(string.IsNullOrWhiteSpace)
            || row[0].TrimStart().StartsWith('#');
 
-    private static char DetectDelimiter(string text)
-    {
-        using var reader = new StringReader(text);
-        string? first;
-        do { first = reader.ReadLine(); }
-        while (first != null && (string.IsNullOrWhiteSpace(first) || first.TrimStart().StartsWith('#')));
-        return SpreadsheetAnalysisService.DetectCsvDelimiter(first ?? "");
-    }
+    private static char DetectDelimiter(string text) =>
+        SpreadsheetAnalysisService.DetectCsvDelimiter(text.Split('\n').Where(l => !l.TrimStart().StartsWith('#')));
 }
