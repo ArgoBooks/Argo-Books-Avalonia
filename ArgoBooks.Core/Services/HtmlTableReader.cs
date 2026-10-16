@@ -93,7 +93,7 @@ public static partial class HtmlTableReader
         Whitespace().Replace(WebUtility.HtmlDecode(raw).Replace(' ', ' '), " ").Trim();
 
     /// <summary>Reads UTF-8 unless a byte order mark says otherwise, and Latin-1 for older pages that are not valid UTF-8.</summary>
-    private static string Decode(byte[] content)
+    internal static string Decode(byte[] content)
     {
         using (var reader = new StreamReader(new MemoryStream(content), new UTF8Encoding(false, throwOnInvalidBytes: true), detectEncodingFromByteOrderMarks: true))
         {

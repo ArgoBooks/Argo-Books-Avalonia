@@ -139,7 +139,7 @@ public static class FilePickerTypes
 
     public static readonly FilePickerFileType BankStatementFileType = new("Bank statements")
     {
-        Patterns = ["*.csv", "*.xlsx", "*.xls", "*.pdf"]
+        Patterns = ["*.csv", "*.xlsx", "*.xls", "*.pdf", .. Core.Services.OfxStatementReader.Extensions.Select(e => "*" + e)]
     };
 
     private static IEnumerable<string> Patterns(bool? images = null) => ReceiptFormats

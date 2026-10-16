@@ -104,7 +104,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
             App.MainWindowViewModel?.ShowLoading("Scanning bank statement...".Translate());
             try
             {
-                if (await App.ReadSpreadsheetStatementAsync(filePath) is not { } read) return;
+                if (await App.ReadStatementFileAsync(filePath) is not { } read) return;
                 lines = read;
             }
             catch (UnreadableStatementFileException)

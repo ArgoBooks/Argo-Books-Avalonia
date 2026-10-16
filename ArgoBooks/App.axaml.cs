@@ -3558,7 +3558,7 @@ public partial class App : Application
             else
             {
                 // Null: the user is out of bank imports and has just been told so.
-                if (await ReadSpreadsheetStatementAsync(filePath) is not { } read) return;
+                if (await ReadStatementFileAsync(filePath) is not { } read) return;
                 lines = read;
             }
 
@@ -3665,12 +3665,15 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// Reads a CSV or Excel statement: local column detection first, which is instant, then the AI
-    /// column mapping when the headers are not recognised, as in a statement in another language.
-    /// Null when the user is out of bank imports and has just been told so.
+    /// Reads a CSV, Excel or OFX statement. For CSV and Excel that is local column detection first,
+    /// which is instant, then the AI column mapping when the headers are not recognised, as in a
+    /// statement in another language. Null when the user is out of bank imports and has just been told so.
     /// </summary>
-    internal static async Task<List<Core.Models.BankMatching.BankStatementLine>?> ReadSpreadsheetStatementAsync(string filePath)
+    internal static async Task<List<Core.Models.BankMatching.BankStatementLine>?> ReadStatementFileAsync(string filePath)
     {
+        if (OfxStatementReader.IsOfxFile(filePath))
+            return await Task.Run(() => OfxStatementReader.Read(filePath));
+
         var parser = new BankStatementImportService(ErrorLogger);
         var isCsv = filePath.EndsWith(".csv", StringComparison.OrdinalIgnoreCase);
         var lines = isCsv
