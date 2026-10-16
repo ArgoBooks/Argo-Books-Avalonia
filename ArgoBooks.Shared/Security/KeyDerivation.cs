@@ -53,29 +53,15 @@ public static class KeyDerivation
     /// <returns>The derived key bytes (32 bytes for AES-256).</returns>
     public static byte[] DeriveKey(string password, byte[] salt)
     {
-        ArgumentException.ThrowIfNullOrEmpty(password);
-        ArgumentNullException.ThrowIfNull(salt);
-
-        var masterKey = Rfc2898DeriveBytes.Pbkdf2(
-            password,
-            salt,
-            Iterations,
-            HashAlgorithmName.SHA256,
-            MasterKeySize);
-
-        // First 32 bytes for encryption key
-        var encryptionKey = new byte[KeySize];
-        Buffer.BlockCopy(masterKey, 0, encryptionKey, 0, KeySize);
-        CryptographicOperations.ZeroMemory(masterKey);
+        DeriveKeyAndHash(password, salt, out var encryptionKey, out var verificationHash);
+        CryptographicOperations.ZeroMemory(verificationHash);
         return encryptionKey;
     }
 
     /// <summary>
     /// Derives BOTH the AES encryption key (first 32 bytes) and the password
-    /// verification hash (last 32 bytes) from a single PBKDF2 master-key pass.
-    /// Equivalent to calling <see cref="DeriveKey(string, byte[])"/> and
-    /// <see cref="ComputePasswordHash(string, byte[])"/> separately, but runs
-    /// PBKDF2 only once instead of twice.
+    /// verification hash (last 32 bytes) from a single PBKDF2 master-key pass,
+    /// for a caller that needs both and would otherwise run PBKDF2 twice.
     /// </summary>
     /// <param name="password">The password to derive from.</param>
     /// <param name="salt">The salt bytes.</param>
@@ -166,20 +152,8 @@ public static class KeyDerivation
     /// <returns>The password hash bytes (32 bytes, distinct from the encryption key).</returns>
     public static byte[] ComputePasswordHash(string password, byte[] salt)
     {
-        ArgumentException.ThrowIfNullOrEmpty(password);
-        ArgumentNullException.ThrowIfNull(salt);
-
-        var masterKey = Rfc2898DeriveBytes.Pbkdf2(
-            password,
-            salt,
-            Iterations,
-            HashAlgorithmName.SHA256,
-            MasterKeySize);
-
-        // Last 32 bytes for verification hash (first 32 are for encryption key)
-        var verificationHash = new byte[HashSize];
-        Buffer.BlockCopy(masterKey, KeySize, verificationHash, 0, HashSize);
-        CryptographicOperations.ZeroMemory(masterKey);
+        DeriveKeyAndHash(password, salt, out var encryptionKey, out var verificationHash);
+        CryptographicOperations.ZeroMemory(encryptionKey);
         return verificationHash;
     }
 
