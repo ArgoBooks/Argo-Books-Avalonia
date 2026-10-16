@@ -1281,9 +1281,7 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
         {
             var filters = new[]
             {
-                new FilePickerFileType("Image files") { Patterns = ["*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif"
-                    ]
-                },
+                new FilePickerFileType("Image files") { Patterns = ["*.png", "*.jpg", "*.jpeg", "*.webp", "*.bmp", "*.gif"] },
                 new FilePickerFileType("All files") { Patterns = ["*.*"] }
             };
 
