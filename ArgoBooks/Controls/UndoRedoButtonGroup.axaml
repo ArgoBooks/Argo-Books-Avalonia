@@ -62,7 +62,7 @@
                         ToolTip.Tip="{Binding RedoTooltip}"
                         Command="{Binding RedoCommand}"
                         IsEnabled="{Binding CanRedo}">
-                    <PathIcon Data="{x:Static icons:Icons.UndoAlt}"
+                    <PathIcon Data="{x:Static icons:Icons.Redo}"
                               Width="15" Height="15" />
                 </Button>
 
@@ -169,7 +169,7 @@
                                             Tag="{Binding Index}">
                                         <Grid ColumnDefinitions="Auto,*">
                                             <PathIcon Grid.Column="0"
-                                                      Data="{x:Static icons:Icons.UndoAlt}"
+                                                      Data="{x:Static icons:Icons.Redo}"
                                                       Width="12" Height="12"
                                                       Foreground="{DynamicResource TextTertiaryBrush}"
                                                       Margin="0,0,8,0" />

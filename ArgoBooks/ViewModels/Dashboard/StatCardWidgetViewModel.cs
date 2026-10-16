@@ -86,12 +86,12 @@ public partial class StatCardWidgetViewModel : WidgetViewModelBase
                 break;
             case StatCardKind.OutstandingInvoices:
                 Label = "Outstanding Invoices";
-                IconGeometry = Geometry.Parse(Icons.Reports);
+                IconGeometry = Geometry.Parse(Icons.Invoices);
                 IconColor = StatCardColor.Warning;
                 break;
             case StatCardKind.ActiveRentals:
                 Label = "Active Rentals";
-                IconGeometry = Geometry.Parse(Icons.Bookmark);
+                IconGeometry = Geometry.Parse(Icons.Key);
                 IconColor = StatCardColor.Info;
                 break;
             case StatCardKind.NetProfit:
@@ -116,7 +116,7 @@ public partial class StatCardWidgetViewModel : WidgetViewModelBase
                 break;
             case StatCardKind.PayrollRemittance:
                 Label = "Next Remittance Due";
-                IconGeometry = Geometry.Parse(Icons.Payments);
+                IconGeometry = Geometry.Parse(Icons.Bank);
                 IconColor = StatCardColor.Warning;
                 break;
         }

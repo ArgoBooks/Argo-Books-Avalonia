@@ -169,7 +169,7 @@
                                   Width="17" Height="17"
                                   Foreground="{Binding ToastAccentBrush}"
                                   IsVisible="{Binding ToastType, Converter={x:Static vm:NotificationTypeConverters.IsSuccess}}" />
-                        <PathIcon Data="{x:Static icons:Icons.LostDamaged}"
+                        <PathIcon Data="{x:Static icons:Icons.Warning}"
                                   Width="17" Height="17"
                                   Foreground="{Binding ToastAccentBrush}"
                                   IsVisible="{Binding ToastType, Converter={x:Static vm:NotificationTypeConverters.IsWarning}}" />

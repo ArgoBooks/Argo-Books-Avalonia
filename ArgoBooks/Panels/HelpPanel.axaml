@@ -80,7 +80,7 @@
                             Command="{Binding OpenCommunityCommand}">
                         <Grid ColumnDefinitions="Auto,*">
                             <PathIcon Grid.Column="0"
-                                      Data="{x:Static local:Icons.Customers}"
+                                      Data="{x:Static local:Icons.Bug}"
                                       Width="20" Height="20"
                                       Foreground="{DynamicResource TextSecondaryBrush}"
                                       Margin="0,0,12,0" />

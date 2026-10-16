@@ -69,7 +69,7 @@
                                         HorizontalAlignment="Center"
                                         Spacing="12"
                                         Margin="48">
-                                <PathIcon Data="{x:Static local:Icons.LostDamaged}"
+                                <PathIcon Data="{x:Static local:Icons.Warning}"
                                           Width="48" Height="48"
                                           Foreground="{DynamicResource ErrorBrush}"
                                           HorizontalAlignment="Center" />

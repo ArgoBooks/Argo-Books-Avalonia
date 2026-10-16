@@ -544,7 +544,7 @@
                             <Border Background="{DynamicResource ErrorLightBrush}" CornerRadius="8" Padding="16"
                                     IsVisible="{Binding ViewDaysOverdue, Converter={x:Static conv:IntConverters.IsPositive}}">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <PathIcon Data="{x:Static local:Icons.CircleCheck}"
+                                    <PathIcon Data="{x:Static local:Icons.WarningCircle}"
                                               Width="20" Height="20" Foreground="{DynamicResource ErrorBrush}" />
                                     <TextBlock Foreground="{DynamicResource ErrorTextBrush}">
                                         <Run Text="{loc:Loc 'This rental is '}" />

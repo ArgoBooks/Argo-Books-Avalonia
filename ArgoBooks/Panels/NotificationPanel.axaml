@@ -125,7 +125,7 @@
                                                               Foreground="{DynamicResource SuccessBrush}"
                                                               IsVisible="{Binding Type, Converter={x:Static vm:NotificationTypeConverters.IsSuccess}}" />
                                                     <!-- Warning Icon -->
-                                                    <PathIcon Data="{x:Static local:Icons.LostDamaged}"
+                                                    <PathIcon Data="{x:Static local:Icons.Warning}"
                                                               Width="18" Height="18"
                                                               Foreground="{DynamicResource WarningBrush}"
                                                               IsVisible="{Binding Type, Converter={x:Static vm:NotificationTypeConverters.IsWarning}}" />

@@ -38,7 +38,7 @@
                 <controls:StatCardsRow Grid.Row="0" Margin="0,0,0,24">
                     <controls:StatCard Label="{loc:Loc 'Total Units'}"
                                        Value="{Binding TotalItems}"
-                                       Icon="M21 16.5c0 .38-.21.71-.53.88l-7.9 4.44c-.16.12-.36.18-.57.18-.21 0-.41-.06-.57-.18l-7.9-4.44A.991.991 0 0 1 3 16.5v-9c0-.38.21-.71.53-.88l7.9-4.44c.16-.12.36-.18.57-.18.21 0 .41.06.57.18l7.9 4.44c.32.17.53.5.53.88v9zM12 4.15L6.04 7.5 12 10.85l5.96-3.35L12 4.15zM5 15.91l6 3.38v-6.71L5 9.21v6.7zm14 0v-6.7l-6 3.37v6.71l6-3.38z"
+                                       Icon="{x:Static icons:Icons.Cube}"
                                        IconColor="Primary" />
                     <controls:StatCard Label="{loc:Loc 'In stock'}"
                                        Value="{Binding InStockCount}"
@@ -46,15 +46,15 @@
                                        IconColor="Success" />
                     <controls:StatCard Label="{loc:Loc 'Low Stock'}"
                                        Value="{Binding LowStockCount}"
-                                       Icon="{x:Static icons:Icons.LostDamaged}"
+                                       Icon="{x:Static icons:Icons.Warning}"
                                        IconColor="Warning" />
                     <controls:StatCard Label="{loc:Loc 'Out of Stock'}"
                                        Value="{Binding OutOfStockCount}"
-                                       Icon="{x:Static icons:Icons.Info}"
+                                       Icon="{x:Static icons:Icons.CloseCircle}"
                                        IconColor="Danger" />
                     <controls:StatCard Label="{loc:Loc Overstock}"
                                        Value="{Binding OverstockCount}"
-                                       Icon="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9h-4v4h-2v-4H9V9h4V5h2v4h4v2z"
+                                       Icon="{x:Static icons:Icons.Warehouse}"
                                        IconColor="Info" />
                 </controls:StatCardsRow>
 

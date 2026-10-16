@@ -46,7 +46,7 @@ public static class Icons
     public const string Receipts = "M18 17H6v-2h12v2zm0-4H6v-2h12v2zm0-4H6V7h12v2zM3 22l1.5-1.5L6 22l1.5-1.5L9 22l1.5-1.5L12 22l1.5-1.5L15 22l1.5-1.5L18 22l1.5-1.5L21 22V2l-1.5 1.5L18 2l-1.5 1.5L15 2l-1.5 1.5L12 2l-1.5 1.5L9 2 7.5 3.5 6 2 4.5 3.5 3 2v20z";
 
     /// <summary>Shopping bag icon for Purchase Orders.</summary>
-    public const string PurchaseOrders = "M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14l-5-5 1.41-1.41L12 14.17l4.59-4.58L18 11l-6 6z";
+    public const string PurchaseOrders = "M18 6h-2c0-2.21-1.79-4-4-4S8 3.79 8 6H6c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-8 4c0 .55-.45 1-1 1s-1-.45-1-1V8h2v2zm2-6c1.1 0 2 .9 2 2h-4c0-1.1.9-2 2-2zm4 6c0 .55-.45 1-1 1s-1-.45-1-1V8h2v2z";
 
     /// <summary>Undo/refresh icon for Returns.</summary>
     public const string Returns = "M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z";
@@ -119,9 +119,6 @@ public static class Icons
     /// <summary>Clipboard with check icon for New Stock Adjustment.</summary>
     public const string NewStockAdjustment = "M19 3H14.82C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm2 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z";
 
-    /// <summary>Phone/device icon for New Rental Item.</summary>
-    public const string NewRentalItem = "M17 1H7c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-2-2-2zM7 4V3h10v1H7zm0 14V6h10v12H7zm0 3v-1h10v1H7z";
-
     #endregion
 
     #region Tools & Settings
@@ -187,10 +184,10 @@ public static class Icons
     /// <summary>Save/floppy disk icon.</summary>
     public const string Save = "M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z";
 
-    /// <summary>Refresh/sync icon.</summary>
-    /// <summary>Two opposing arrows, for switching a receipt between expense and revenue.</summary>
+    /// <summary>Two opposing arrows, for switching a receipt between expense and revenue, and for transactions.</summary>
     public const string SwapType = "M6.99 11L3 15l3.99 4v-3H14v-2H6.99v-3zM21 9l-3.99-4v3H10v2h7.01v3L21 9z";
 
+    /// <summary>Refresh/sync icon.</summary>
     public const string Refresh = "M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z";
 
     /// <summary>Search/magnifying glass icon.</summary>
@@ -271,9 +268,6 @@ public static class Icons
     /// <summary>Info circle icon.</summary>
     public const string Info = "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z";
 
-    /// <summary>Bookmark/rental icon.</summary>
-    public const string Bookmark = "M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z";
-
     /// <summary>Circle check icon.</summary>
     public const string CircleCheck = "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z";
 
@@ -351,9 +345,6 @@ public static class Icons
     /// <summary>Arrow up icon for upgrade actions.</summary>
     public const string Upgrade = "M12 6L6 12h4v6h4v-6h4L12 6z";
 
-    /// <summary>Chat/message bubble icon.</summary>
-    public const string ChatBubble = "M20 2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14l4 4V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z";
-
     /// <summary>Cloud with upload arrow icon.</summary>
     public const string CloudUpload = "M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z";
 
@@ -369,9 +360,6 @@ public static class Icons
     /// <summary>2x2 grid layout icon.</summary>
     public const string Grid2x2 = "M3 3v18h18V3H3zm8 16H5v-6h6v6zm0-8H5V5h6v6zm8 8h-6v-6h6v6zm0-8h-6V5h6v6z";
 
-    /// <summary>Detailed grid layout icon.</summary>
-    public const string GridDetailed = "M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H5v-4h4v4zm0-6H5V7h4v4zm6 6h-4v-4h4v4zm0-6h-4V7h4v4zm4 6h-4v-4h4v4zm0-6h-4V7h4v4z";
-
     /// <summary>Shield/security icon.</summary>
     public const string Security = "M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z";
 
@@ -381,8 +369,8 @@ public static class Icons
     /// <summary>Bold text formatting (T).</summary>
     public const string FormatBold = "M5 4v3h5.5v12h3V7H19V4z";
 
-    /// <summary>Undo/back arrow (alternate).</summary>
-    public const string UndoAlt = "M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16c1.05-3.19 4.05-5.5 7.6-5.5 1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z";
+    /// <summary>Arrow curving forward, for redo.</summary>
+    public const string Redo ="M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16c1.05-3.19 4.05-5.5 7.6-5.5 1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z";
 
     /// <summary>Selection with dashed border.</summary>
     public const string SelectionDash = "M9 7H7v2h2V7zm0 4H7v2h2v-2zm0-8c-1.11 0-2 .9-2 2h2V3zm4 12h-2v2h2v-2zm6-12v2h2c0-1.1-.9-2-2-2zm-6 0h-2v2h2V3zM9 17v-2H7c0 1.1.89 2 2 2zm10-4h2v-2h-2v2zm0-4h2V7h-2v2zm0 8c1.1 0 2-.9 2-2h-2v2zM5 7H3v12c0 1.1.89 2 2 2h12v-2H5V7zm10-2h2V3h-2v2zm0 12h2v-2h-2v2z";
@@ -393,16 +381,13 @@ public static class Icons
     /// <summary>Document with wider text lines.</summary>
     public const string DocumentList = "M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14H5v-2h7v2zm5-4H5v-2h12v2zm0-4H5V7h12v2z";
 
-    /// <summary>Triangle with exclamation (outlined).</summary>
-    public const string TriangleWarning = "M12 2l-5.5 9h11L12 2zm0 3.84L13.93 9h-3.87L12 5.84z";
-
     /// <summary>Quarter circle arc.</summary>
     public const string Arc = "M 12,1.5 A 10.5,10.5 0 0 1 22.5,12";
 
-    /// <summary>Play/triangle button.</summary>
     /// <summary>Triangle against a bar, for skipping one occurrence of a schedule.</summary>
     public const string SkipNext = "M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z";
 
+    /// <summary>Play/triangle button.</summary>
     public const string Play = "M8 5v14l11-7z";
 
     /// <summary>Pause (two vertical bars).</summary>
@@ -435,9 +420,6 @@ public static class Icons
     /// <summary>Copy/duplicate pages icon.</summary>
     public const string Copy = "M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z";
 
-    /// <summary>Plus in rounded box icon.</summary>
-    public const string AddBox = "M19 3H5c-1.11 0-2 .89-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.11-.9-2-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z";
-
     /// <summary>Bar chart in square frame.</summary>
     public const string BarChartSquare = "M21 5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z";
 
@@ -462,17 +444,17 @@ public static class Icons
     /// <summary>Small grid cells icon.</summary>
     public const string GridSmall = "M20 2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM8 20H4v-4h4v4zm0-6H4v-4h4v4zm0-6H4V4h4v4zm6 12h-4v-4h4v4zm0-6h-4v-4h4v4zm0-6h-4V4h4v4zm6 12h-4v-4h4v4zm0-6h-4v-4h4v4zm0-6h-4V4h4v4z";
 
-    /// <summary>Indent right/increase indent.</summary>
-    public const string IndentRight = "M13 8v3h10v2H13v3l-4-4 4-4zM3 4h2v16H3V4z";
+    /// <summary>Arrow pointing at a bar on the left, for aligning to the left edge.</summary>
+    public const string AlignLeft = "M13 8v3h10v2H13v3l-4-4 4-4zM3 4h2v16H3V4z";
 
-    /// <summary>Indent left/decrease indent.</summary>
-    public const string IndentLeft = "M11 8v3H1v2h10v3l4-4-4-4zM19 4h2v16h-2V4z";
+    /// <summary>Arrow pointing at a bar on the right, for aligning to the right edge.</summary>
+    public const string AlignRight = "M11 8v3H1v2h10v3l4-4-4-4zM19 4h2v16h-2V4z";
 
     /// <summary>Plus/add icon (MDI style).</summary>
     public const string AddAlt = "M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z";
 
-    /// <summary>Download to file icon.</summary>
-    public const string DownloadFile = "M16 13h-3V3h-2v10H8l4 4 4-4zM4 19v2h16v-2H4z";
+    /// <summary>Arrow pointing down at a bar, for aligning to the bottom edge.</summary>
+    public const string AlignBottom ="M16 13h-3V3h-2v10H8l4 4 4-4zM4 19v2h16v-2H4z";
 
     /// <summary>Horizontal rule lines.</summary>
     public const string HorizontalRules = "M5 18h14v2H5v-2zm0-4h14v2H5v-2zm0-4h14v2H5v-2zm0-4h14v2H5V6zm0-4h14v2H5V2z";
@@ -539,6 +521,51 @@ public static class Icons
 
     /// <summary>Line chart trending up.</summary>
     public const string LineChart = "M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z";
+
+    /// <summary>Pie chart cut into three slices.</summary>
+    public const string PieChart = "M11 2v20c-5.07-.5-9-4.79-9-10s3.93-9.5 9-10zm2.03 0v8.99H22c-.47-4.74-4.24-8.52-8.97-8.99zm0 11.01V22c4.74-.47 8.5-4.25 8.97-8.99h-8.97z";
+
+    /// <summary>Two columns side by side, for comparing one thing against another.</summary>
+    public const string Compare = "M9.5 3H4C2.9 3 2 3.9 2 5v14c0 1.1.9 2 2 2h5.5V3zm5 0v18H20c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-5.5z";
+
+    /// <summary>Three bars of different heights, for growth.</summary>
+    public const string GrowthChart = "M7.5 21H2V9h5.5v12zm7.25-18h-5.5v18h5.5V3zM22 11h-5.5v10H22V11z";
+
+    /// <summary>A single person.</summary>
+    public const string Person = "M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z";
+
+    /// <summary>Heart, for customer lifetime value.</summary>
+    public const string Heart = "M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z";
+
+    /// <summary>Shield with a tick, for insurance.</summary>
+    public const string ShieldCheck = "M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z";
+
+    /// <summary>Circle with a slash, for something blocked or banned.</summary>
+    public const string Block = "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8 0-1.85.63-3.55 1.69-4.9L16.9 18.31C15.55 19.37 13.85 20 12 20zm6.31-3.1L7.1 5.69C8.45 4.63 10.15 4 12 4c4.42 0 8 3.58 8 8 0 1.85-.63 3.55-1.69 4.9z";
+
+    /// <summary>Dollar sign struck through, for money given back.</summary>
+    public const string MoneyOff = "M12.5 6.9c1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-.53.12-1.03.3-1.48.54l1.47 1.47c.41-.17.91-.27 1.51-.27zM5.33 4.06L4.06 5.33 7.5 8.77c0 2.08 1.56 3.22 3.91 3.91l3.51 3.51c-.34.49-1.05.91-2.42.91-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c.96-.18 1.83-.55 2.46-1.12l2.22 2.22 1.27-1.27L5.33 4.06z";
+
+    /// <summary>Outlined cube, for counts of units or items.</summary>
+    public const string Cube = "M21 16.5c0 .38-.21.71-.53.88l-7.9 4.44c-.16.12-.36.18-.57.18-.21 0-.41-.06-.57-.18l-7.9-4.44A.991.991 0 0 1 3 16.5v-9c0-.38.21-.71.53-.88l7.9-4.44c.16-.12.36-.18.57-.18.21 0 .41.06.57.18l7.9 4.44c.32.17.53.5.53.88v9zM12 4.15L6.04 7.5 12 10.85l5.96-3.35L12 4.15zM5 15.91l6 3.38v-6.71L5 9.21v6.7zm14 0v-6.7l-6 3.37v6.71l6-3.38z";
+
+    /// <summary>Wrench, for maintenance.</summary>
+    public const string Wrench = "M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z";
+
+    /// <summary>Percent sign, for rates and margins.</summary>
+    public const string Percent = "M7.5 11C9.43 11 11 9.43 11 7.5S9.43 4 7.5 4 4 5.57 4 7.5 5.57 11 7.5 11zm0-5C8.33 6 9 6.67 9 7.5S8.33 9 7.5 9 6 8.33 6 7.5 6.67 6 7.5 6zM4.0025 18.5832 18.59 3.9955l1.4142 1.4142L5.4167 19.9974zM16.5 13c-1.93 0-3.5 1.57-3.5 3.5s1.57 3.5 3.5 3.5 3.5-1.57 3.5-3.5-1.57-3.5-3.5-3.5zm0 5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z";
+
+    /// <summary>Speedometer gauge, for how full something is.</summary>
+    public const string Gauge = "M20.38 8.57l-1.23 1.85a8 8 0 0 1-.22 7.58H5.07A8 8 0 0 1 15.58 6.85l1.85-1.23A10 10 0 0 0 3.35 19a2 2 0 0 0 1.72 1h13.85a2 2 0 0 0 1.74-1 10 10 0 0 0-.27-10.44zm-9.79 6.84a2 2 0 0 0 2.83 0l5.66-8.49-8.49 5.66a2 2 0 0 0 0 2.83z";
+
+    /// <summary>Picture with a crack through it, for damaged items.</summary>
+    public const string Damaged = "M21 5v6.59l-3-3.01-4 4.01-4-4-4 4-3-3.01V5c0-1.1.9-2 2-2h14c1.1 0 2 .9 2 2zm-3 6.42l3 3.01V19c0 1.1-.9 2-2 2H5c-1.1 0-2-.9-2-2v-6.58l3 2.99 4-4 4 4 4-3.99z";
+
+    /// <summary>Tray with an arrow coming in, for receiving goods.</summary>
+    public const string Inbox = "M19 3H4.99c-1.11 0-1.98.9-1.98 2L3 19c0 1.1.88 2 1.99 2H19c1.1 0 2-.9 2-2V5c0-1.11-.9-2-2-2zm0 12h-4c0 1.66-1.35 3-3 3s-3-1.34-3-3H4.99V5H19v10zm-3-5h-2V7h-4v3H8l4 4 4-4z";
+
+    /// <summary>Bug, for reporting a problem.</summary>
+    public const string Bug = "M20 8h-2.81c-.45-.78-1.07-1.45-1.82-1.96L17 4.41 15.59 3l-2.17 2.17C12.96 5.06 12.49 5 12 5c-.49 0-.96.06-1.41.17L8.41 3 7 4.41l1.62 1.63C7.88 6.55 7.26 7.22 6.81 8H4v2h2.09c-.05.33-.09.66-.09 1v1H4v2h2v1c0 .34.04.67.09 1H4v2h2.81c1.04 1.79 2.97 3 5.19 3s4.15-1.21 5.19-3H20v-2h-2.09c.05-.33.09-.66.09-1v-1h2v-2h-2v-1c0-.34-.04-.67-.09-1H20V8zm-6 8h-4v-2h4v2zm0-4h-4v-2h4v2z";
 
     #endregion
 }
