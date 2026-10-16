@@ -391,6 +391,7 @@ public partial class QuickActionsViewModel : ViewModelBase
             return;
 
         Close();
+        ActionExecuted?.Invoke(this, EventArgs.Empty);
 
         if (!string.IsNullOrEmpty(action.NavigationTarget))
         {
@@ -416,6 +417,11 @@ public partial class QuickActionsViewModel : ViewModelBase
     /// Event raised when an action needs to be executed after navigation.
     /// </summary>
     public event EventHandler<QuickActionEventArgs>? ActionRequested;
+
+    /// <summary>
+    /// Event raised when the user picks an item, before it runs.
+    /// </summary>
+    public event EventHandler? ActionExecuted;
 
     /// <summary>
     /// Moves selection up.
