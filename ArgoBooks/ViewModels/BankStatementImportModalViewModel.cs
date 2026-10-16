@@ -101,14 +101,26 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
         {
             var parser = new BankStatementImportService(App.ErrorLogger);
             var isCsv = ext == ".csv";
+
+            // The modal only opens once the rows are read, so the overlay covers the read for a large or converted file.
+            App.MainWindowViewModel?.ShowLoading("Scanning bank statement...".Translate());
             try
             {
                 lines = isCsv
                     ? await parser.ParseCsvAsync(filePath)
                     : await parser.ParseExcelAsync(filePath);
+
+                // Local header detection only knows English column names, so a statement in any other language reaches here with nothing wrong with it.
+                if (lines.Count == 0)
+                {
+                    var aiLines = await App.TryAiParseBankStatementAsync(filePath, isCsv, parser);
+                    if (aiLines == null) return;
+                    lines = aiLines;
+                }
             }
             catch (UnreadableStatementFileException)
             {
+                App.MainWindowViewModel?.HideLoading();
                 _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, $"bank:unreadable:{ext.TrimStart('.')}");
                 await App.ShowInfoDialogAsync(
                     "Import Bank Statement".Translate(),
@@ -116,14 +128,9 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
                 _ = ImportDiagnosticOffer.SendAsync(filePath, $"bank:unreadable:{ext.TrimStart('.')}");
                 return;
             }
-
-            // Local header detection only knows English column names, so a statement in any other language reaches here with nothing wrong with it.
-            if (lines.Count == 0)
+            finally
             {
-                var aiLines = await App.TryAiParseBankStatementAsync(filePath, isCsv, parser);
                 App.MainWindowViewModel?.HideLoading();
-                if (aiLines == null) return;
-                lines = aiLines;
             }
 
             // Don't fail silently when the file isn't a recognizable bank statement (e.g. the user
