@@ -39,6 +39,8 @@
 
         <!-- PDF -->
         <PackageReference Include="QuestPDF" />
+        <!-- TIFF receipts from office scanners, converted to JPEG or PDF when added -->
+        <PackageReference Include="BitMiracle.LibTiff.NET" />
         <!-- Excel -->
         <PackageReference Include="ClosedXML" />
         <PackageReference Include="EPPlus" />

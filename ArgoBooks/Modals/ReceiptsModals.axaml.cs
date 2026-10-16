@@ -256,7 +256,7 @@ public partial class ReceiptsModals : UserControl
         e.DragEffects = DragDropEffects.None;
     }
 
-    private void OnDropZoneDrop(object? sender, DragEventArgs e)
+    private async void OnDropZoneDrop(object? sender, DragEventArgs e)
     {
         var files = e.DataTransfer.TryGetFiles();
         if (files == null) return;
@@ -268,7 +268,7 @@ public partial class ReceiptsModals : UserControl
 
         if (DataContext is ReceiptsModalsViewModel vm)
         {
-            vm.AddFilesToQueue(paths!);
+            await vm.AddFilesToQueueAsync(paths!);
         }
     }
 
@@ -292,7 +292,7 @@ public partial class ReceiptsModals : UserControl
                     .Select(f => f.TryGetLocalPath())
                     .Where(p => !string.IsNullOrEmpty(p))
                     .ToList();
-                vm.AddFilesToQueue(paths!);
+                await vm.AddFilesToQueueAsync(paths!);
             }
         }
         catch (Exception ex)

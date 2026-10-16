@@ -1770,13 +1770,19 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
             ]
         });
 
+        var attached = new List<string>();
         foreach (var file in files)
-            Attachments.Add(new TransactionAttachment(null, file.Name, file.Path.LocalPath));
-
-        if (files.Count > 0)
         {
-            ReceiptFilePath = files[0].Path.LocalPath;
-            ReceiptFileName = files[0].Name;
+            // A TIFF that cannot be read is attached as it is, as any other file the picker allows would be.
+            var path = await FilePickerTypes.ReadableReceiptPathAsync(file.Path.LocalPath) ?? file.Path.LocalPath;
+            Attachments.Add(new TransactionAttachment(null, Path.GetFileName(path), path));
+            attached.Add(path);
+        }
+
+        if (attached.Count > 0)
+        {
+            ReceiptFilePath = attached[0];
+            ReceiptFileName = Path.GetFileName(attached[0]);
             OnPropertyChanged(nameof(HasReceipt));
         }
     }

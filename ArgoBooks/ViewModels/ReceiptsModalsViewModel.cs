@@ -767,7 +767,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
         }
     }
 
-    public void AddFilesToQueue(IEnumerable<string> filePaths)
+    public async Task AddFilesToQueueAsync(IEnumerable<string> filePaths)
     {
         var added = 0;
         var skippedUnsupported = 0;
@@ -781,16 +781,23 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
                 continue;
             }
 
-            if (BulkItems.Any(i => i.FilePath.Equals(path, StringComparison.OrdinalIgnoreCase)))
+            if (BulkItems.Any(i => i.SourcePath.Equals(path, StringComparison.OrdinalIgnoreCase)))
             {
                 skippedDuplicate++;
                 continue;
             }
 
+            if (await FilePickerTypes.ReadableReceiptPathAsync(path) is not { } readable)
+            {
+                skippedUnsupported++;
+                continue;
+            }
+
             var item = new BulkScanItem
             {
-                FilePath = path,
-                FileName = Path.GetFileName(path)
+                SourcePath = path,
+                FilePath = readable,
+                FileName = Path.GetFileName(readable)
             };
             BulkItems.Add(item);
             added++;
@@ -1703,9 +1710,17 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
 
         try
         {
-            var imageData = await SharedFileReader.ReadAllBytesAsync(filePath);
-            var fileName = Path.GetFileName(filePath);
-            await OpenScanModalWithDataAsync(imageData, fileName, filePath);
+            if (await FilePickerTypes.ReadableReceiptPathAsync(filePath) is not { } readable)
+            {
+                await App.ShowErrorDialogAsync(
+                    "Error".Translate(),
+                    "This TIFF file could not be read.".Translate());
+                return;
+            }
+
+            var imageData = await SharedFileReader.ReadAllBytesAsync(readable);
+            var fileName = Path.GetFileName(readable);
+            await OpenScanModalWithDataAsync(imageData, fileName, readable);
         }
         catch (Exception ex)
         {

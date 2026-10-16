@@ -43,6 +43,8 @@
     <!-- HEIC decoding, which Skia does not do on Windows or Linux and which every photo off an iPhone needs. The Runtime package bundles one library where the per-rid ones ship untrimmable aom and x265 beside it, costing 15 MB. -->
     <PackageVersion Include="LibHeifSharp" Version="3.2.0" />
     <PackageVersion Include="LibHeif.Native.Runtime" Version="1.20.2" />
+    <!-- TIFF decoding for receipts from office scanners, which Skia does not read. Fully managed, so it needs no native library on any platform. -->
+    <PackageVersion Include="BitMiracle.LibTiff.NET" Version="2.4.660" />
 
     <PackageVersion Include="QuestPDF" Version="2026.2.4" />
     <PackageVersion Include="ClosedXML" Version="0.105.1" />

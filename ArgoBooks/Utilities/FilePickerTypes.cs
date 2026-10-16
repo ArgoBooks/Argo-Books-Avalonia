@@ -34,6 +34,9 @@ public static class FilePickerTypes
         new(".heic", "image/heic", "HEIC", IsImage: true),
         new(".heif", "image/heif", "HEIC", IsImage: true),
         new(".webp", "image/webp", "WebP", IsImage: true),
+        // Converted to JPEG or PDF as it is added, by ReadableReceiptPathAsync, so this type is never sent.
+        new(".tif", "image/tiff", "TIFF", IsImage: true),
+        new(".tiff", "image/tiff", "TIFF", IsImage: true),
         new(".pdf", "application/pdf", "PDF", IsImage: false)
     ];
 
@@ -73,6 +76,26 @@ public static class FilePickerTypes
 
         var extension = Path.GetExtension(path).ToLowerInvariant();
         return Array.Find(ReceiptFormats, f => f.Extension == extension)?.ContentType;
+    }
+
+    /// <summary>
+    /// The file to read a chosen receipt from: the file itself, or for a TIFF the JPEG or PDF it is
+    /// converted to, since nothing past this point reads TIFF. Null when a TIFF cannot be read.
+    /// </summary>
+    public static async Task<string?> ReadableReceiptPathAsync(string path)
+    {
+        if (!Core.Services.TiffConverter.IsTiff(path))
+            return path;
+
+        try
+        {
+            return await Task.Run(() => Core.Services.TiffConverter.ConvertToTempFile(path));
+        }
+        catch (Exception ex)
+        {
+            App.ErrorLogger?.LogError(ex, Core.Models.Telemetry.ErrorCategory.FileSystem, "Failed to convert a TIFF receipt");
+            return null;
+        }
     }
 
     /// <summary>Whether a stored receipt is a PDF, by its content type or, failing that, its file name.</summary>

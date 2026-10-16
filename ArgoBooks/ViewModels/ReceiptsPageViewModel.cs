@@ -289,7 +289,7 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
         if (!modalsVm.IsBulkDropZoneOpen)
             modalsVm.OpenBulkDropZone();
 
-        modalsVm.AddFilesToQueue(validPaths);
+        await modalsVm.AddFilesToQueueAsync(validPaths);
     }
 
     #endregion
