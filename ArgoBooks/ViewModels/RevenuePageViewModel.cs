@@ -528,7 +528,7 @@ public RevenuePageViewModel()
             var statusDisplay = revenue.IsPendingConversion ? "Pending" : GetStatusDisplay(revenue, lostDamagedIds, returnedIds, refundedAmount);
             var isFromPortal = !string.IsNullOrEmpty(revenue.InvoiceId) &&
                 onlinePaymentInvoiceIds.Contains(revenue.InvoiceId);
-            var (productName, productMoreText) = FormatProductDescription(revenue);
+            var (productName, productMoreText) = Utilities.TransactionDisplay.ProductSummary(revenue);
 
             var hasReceipt = !string.IsNullOrEmpty(revenue.ReceiptId);
             var receipt = hasReceipt ? companyData?.GetReceipt(revenue.ReceiptId!) : null;
@@ -610,19 +610,6 @@ public RevenuePageViewModel()
         }
 
         Revenue.ReplaceAll(pagedRevenue);
-    }
-
-    private static (string name, string moreText) FormatProductDescription(Revenue revenue)
-    {
-        if (revenue.LineItems.Count <= 1)
-            return (revenue.Description, string.Empty);
-
-        var firstName = revenue.LineItems[0].Description;
-        if (string.IsNullOrEmpty(firstName))
-            firstName = revenue.Description.Split(',')[0].Trim();
-
-        var remaining = revenue.LineItems.Count - 1;
-        return (firstName, $" +{remaining} more");
     }
 
     private static string GetStatusDisplay(Revenue revenue, HashSet<string> lostDamagedIds, HashSet<string> returnedIds, decimal refundedAmount)

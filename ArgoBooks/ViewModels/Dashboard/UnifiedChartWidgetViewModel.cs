@@ -264,7 +264,7 @@ public partial class UnifiedChartWidgetViewModel : WidgetViewModelBase
             series.Add(new PieSeries<double>
             {
                 Values = [Math.Round(displayValues[i], 2)],
-                Name = TruncateLabel(point.Label),
+                Name = ChartLoaderService.TruncateLegendLabel(point.Label),
                 Fill = new SolidColorPaint(SKColor.Parse(colorHex)),
                 InnerRadius = isDonut ? 50 : 0,
                 Pushout = 0,
@@ -404,11 +404,6 @@ public partial class UnifiedChartWidgetViewModel : WidgetViewModelBase
         });
     }
 
-    private static string TruncateLabel(string? label)
-    {
-        if (string.IsNullOrEmpty(label)) return "Unknown";
-        return label.Length > 18 ? label[..17] + "\u2026" : label;
-    }
 }
 
 internal static class ChartDataTypeExportExtensions

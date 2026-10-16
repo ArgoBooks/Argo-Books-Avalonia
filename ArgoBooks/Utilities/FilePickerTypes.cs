@@ -75,6 +75,23 @@ public static class FilePickerTypes
         return Array.Find(ReceiptFormats, f => f.Extension == extension)?.ContentType;
     }
 
+    /// <summary>Whether a stored receipt is a PDF, by its content type or, failing that, its file name.</summary>
+    public static bool IsPdfReceipt(string? fileType, string? fileName) =>
+        fileType?.Contains("pdf", StringComparison.OrdinalIgnoreCase) == true
+        || fileName?.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) == true;
+
+    /// <summary>
+    /// Whether a stored receipt is an image, by its content type or, failing that, its file name.
+    /// Older receipts stored a bare extension such as "jpg" as the type, which is read the same way.
+    /// </summary>
+    public static bool IsImageReceipt(string? fileType, string? fileName) =>
+        fileType?.Contains("image", StringComparison.OrdinalIgnoreCase) == true
+        || IsImageName(fileName)
+        || IsImageName("." + fileType?.TrimStart('.'));
+
+    private static bool IsImageName(string? fileName) =>
+        Core.Services.MimeTypes.For(fileName).StartsWith("image/", StringComparison.Ordinal);
+
     public static readonly FilePickerFileType ImageFileType = new("Images")
     {
         Patterns = [.. Patterns(images: true)],

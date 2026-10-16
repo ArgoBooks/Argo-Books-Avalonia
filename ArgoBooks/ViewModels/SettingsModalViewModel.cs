@@ -2467,7 +2467,7 @@ public partial class SettingsModalViewModel : ViewModelBase
             return size <= 0
                 ? string.Empty
                 : "Around {0} of disk once all {1} copies exist.".TranslateFormat(
-                    FormatBackupSize(size * SelectedCopyCount), SelectedCopyCount);
+                    Utilities.FileSizeText.Format(size * SelectedCopyCount), SelectedCopyCount);
         }
     }
 
@@ -2485,11 +2485,6 @@ public partial class SettingsModalViewModel : ViewModelBase
             return 0;
         }
     }
-
-    private static string FormatBackupSize(long bytes) =>
-        bytes >= 1024 * 1024
-            ? (bytes / 1024d / 1024d).ToString("0.#", CultureInfo.CurrentCulture) + " MB"
-            : Math.Max(1, bytes / 1024).ToString(CultureInfo.CurrentCulture) + " KB";
 
     /// <summary>Fills the tab from the stored settings. Called when the modal opens.</summary>
     private bool _loadingBackupSettings;
@@ -2561,7 +2556,7 @@ public partial class SettingsModalViewModel : ViewModelBase
         {
             Backups.Add(new BackupFileRow(
                 b.TakenAtUtc.ToLocalTime().ToString("f", CultureInfo.CurrentCulture),
-                FormatBackupSize(b.SizeBytes),
+                Utilities.FileSizeText.Format(b.SizeBytes),
                 b.Path));
         }
     }

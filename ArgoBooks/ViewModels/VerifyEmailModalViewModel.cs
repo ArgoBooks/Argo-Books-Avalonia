@@ -12,10 +12,7 @@ namespace ArgoBooks.ViewModels;
 public partial class VerifyEmailModalViewModel : ObservableObject
 {
     private readonly RefundService _refundService;
-    private System.Timers.Timer? _resendCooldownTimer;
-
-    /// <summary>Seconds the Resend button stays disabled after a code is sent (on open and after each resend).</summary>
-    private const int ResendCooldownSecondsInitial = 60;
+    private readonly ResendCooldown _resendCooldown = new();
 
     /// <summary>Set by the coordinator so the in-modal X button can close it.</summary>
     public Action? RequestClose { get; set; }
@@ -32,11 +29,17 @@ public partial class VerifyEmailModalViewModel : ObservableObject
 
     public VerifyEmailModalViewModel(RefundService refundService, string? maskedEmail)
     {
+        _resendCooldown.PropertyChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(CanResend));
+            OnPropertyChanged(nameof(ResendButtonText));
+        };
+
         _refundService = refundService;
         MaskedEmail = maskedEmail;
 
         // A code is always sent just before this modal opens, so Resend starts on cooldown rather than being clickable at once.
-        StartResendCooldown(ResendCooldownSecondsInitial);
+        _resendCooldown.Start();
     }
 
     [ObservableProperty]
@@ -57,18 +60,12 @@ public partial class VerifyEmailModalViewModel : ObservableObject
     [ObservableProperty]
     private bool _isVerified;
 
-    [ObservableProperty]
-    private int _resendCooldownSeconds;
-
     public bool CanSubmit => !IsBusy && Code.Length == 6 && Code.All(char.IsDigit);
-    public bool CanResend => !IsBusy && ResendCooldownSeconds == 0;
-    public string ResendButtonText => ResendCooldownSeconds > 0
-        ? $"Resend code ({ResendCooldownSeconds}s)"
-        : "Resend code";
+    public bool CanResend => !IsBusy && !_resendCooldown.IsRunning;
+    public string ResendButtonText => _resendCooldown.ButtonText;
 
     partial void OnCodeChanged(string value) => OnPropertyChanged(nameof(CanSubmit));
     partial void OnIsBusyChanged(bool value) { OnPropertyChanged(nameof(CanSubmit)); OnPropertyChanged(nameof(CanResend)); }
-    partial void OnResendCooldownSecondsChanged(int value) { OnPropertyChanged(nameof(CanResend)); OnPropertyChanged(nameof(ResendButtonText)); }
 
     [RelayCommand]
     private async Task SubmitAsync()
@@ -110,34 +107,11 @@ public partial class VerifyEmailModalViewModel : ObservableObject
                 ErrorMessage = result.Message ?? result.ErrorCode ?? "Could not resend code.";
                 return;
             }
-            StartResendCooldown(ResendCooldownSecondsInitial);
+            _resendCooldown.Start();
             StatusMessage = "Code re-sent.";
         }
         finally { IsBusy = false; }
     }
 
-    private void StartResendCooldown(int seconds)
-    {
-        StopResendCooldown();
-        ResendCooldownSeconds = seconds;
-        _resendCooldownTimer = new System.Timers.Timer(1000) { AutoReset = true };
-        _resendCooldownTimer.Elapsed += (_, _) =>
-        {
-            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-            {
-                if (ResendCooldownSeconds > 0) ResendCooldownSeconds--;
-                if (ResendCooldownSeconds == 0) StopResendCooldown();
-            });
-        };
-        _resendCooldownTimer.Start();
-    }
-
-    private void StopResendCooldown()
-    {
-        _resendCooldownTimer?.Stop();
-        _resendCooldownTimer?.Dispose();
-        _resendCooldownTimer = null;
-    }
-
-    public void Dispose() => StopResendCooldown();
+    public void Dispose() => _resendCooldown.Stop();
 }

@@ -179,7 +179,7 @@ public partial class FileMenuPanel : UserControl
                 if (_isInSubmenu)
                     ActivateCurrentSubmenuItem();
                 else
-                    ActivateCurrentItem();
+                    Helpers.MenuItemNavigation.Activate(this, _focusedIndex);
                 e.Handled = true;
                 break;
             case Key.Escape:
@@ -245,7 +245,7 @@ public partial class FileMenuPanel : UserControl
     {
         _isInSubmenu = false;
         _focusedIndex = 2; // Open Recent
-        FocusMenuItem(_focusedIndex);
+        Helpers.MenuItemNavigation.Focus(this, _focusedIndex);
     }
 
     private void NavigateSubmenuUp() => ModalHelper.StepThroughButtons(RecentSubmenu, -1);
@@ -267,7 +267,7 @@ public partial class FileMenuPanel : UserControl
             _focusedIndex = _menuItemCount - 1;
         else
             _focusedIndex--;
-        FocusMenuItem(_focusedIndex);
+        Helpers.MenuItemNavigation.Focus(this, _focusedIndex);
         CheckOpenRecentSubmenu();
     }
 
@@ -277,7 +277,7 @@ public partial class FileMenuPanel : UserControl
             _focusedIndex = 0;
         else
             _focusedIndex++;
-        FocusMenuItem(_focusedIndex);
+        Helpers.MenuItemNavigation.Focus(this, _focusedIndex);
         CheckOpenRecentSubmenu();
     }
 
@@ -287,21 +287,6 @@ public partial class FileMenuPanel : UserControl
         {
             // Auto-open submenu when navigating to Open Recent (index 2)
             vm.IsRecentSubmenuOpen = _focusedIndex == 2;
-        }
-    }
-
-    private void FocusMenuItem(int index)
-    {
-        var menuItem = this.FindControl<Button>($"MenuItem{index}");
-        menuItem?.Focus();
-    }
-
-    private void ActivateCurrentItem()
-    {
-        var menuItem = this.FindControl<Button>($"MenuItem{_focusedIndex}");
-        if (menuItem?.Command != null && menuItem.Command.CanExecute(menuItem.CommandParameter))
-        {
-            menuItem.Command.Execute(menuItem.CommandParameter);
         }
     }
 }

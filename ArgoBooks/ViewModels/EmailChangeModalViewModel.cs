@@ -31,10 +31,7 @@ public partial class EmailChangeModalViewModel : ObservableObject
     private readonly Func<string, bool> _verifyFilePassword;
     private long _changeId;
 
-    private System.Timers.Timer? _resendCooldownTimer;
-
-    /// <summary>Seconds the Resend button stays disabled after a code is sent (on each code step and after each resend).</summary>
-    private const int ResendCooldownSecondsInitial = 60;
+    private readonly ResendCooldown _resendCooldown = new();
 
     /// <summary>Set by the coordinator so the in-modal X button can close it.</summary>
     public Action? RequestClose { get; set; }
@@ -59,6 +56,12 @@ public partial class EmailChangeModalViewModel : ObservableObject
         Func<string, bool> verifyFilePassword,
         bool currentEmailVerified = true)
     {
+        _resendCooldown.PropertyChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(CanResend));
+            OnPropertyChanged(nameof(ResendButtonText));
+        };
+
         _refundService = refundService;
         CurrentOwnerEmail = currentOwnerEmail;
         _fileIsEncrypted = fileIsEncrypted;
@@ -122,21 +125,10 @@ public partial class EmailChangeModalViewModel : ObservableObject
     [ObservableProperty]
     private string? _statusMessage;
 
-    [ObservableProperty]
-    private int _resendCooldownSeconds;
-
     /// <summary>Resend is allowed only when no request is in flight and the cooldown has elapsed.</summary>
-    public bool CanResend => !IsBusy && ResendCooldownSeconds == 0;
+    public bool CanResend => !IsBusy && !_resendCooldown.IsRunning;
 
-    public string ResendButtonText => ResendCooldownSeconds > 0
-        ? $"Resend code ({ResendCooldownSeconds}s)"
-        : "Resend code";
-
-    partial void OnResendCooldownSecondsChanged(int value)
-    {
-        OnPropertyChanged(nameof(CanResend));
-        OnPropertyChanged(nameof(ResendButtonText));
-    }
+    public string ResendButtonText => _resendCooldown.ButtonText;
 
     /// <summary>
     /// The shared status line is shown on every step except Success, which renders its own
@@ -271,7 +263,7 @@ public partial class EmailChangeModalViewModel : ObservableObject
                 StatusMessage = $"Code sent to {result.MaskedOldEmail}.";
             }
 
-            StartResendCooldown(ResendCooldownSecondsInitial);
+            _resendCooldown.Start();
         }
         finally { IsBusy = false; }
     }
@@ -292,7 +284,7 @@ public partial class EmailChangeModalViewModel : ObservableObject
             MaskedNewEmail = result.MaskedNewEmail;
             CurrentStep = Step.EnterNewCode;
             StatusMessage = $"Code sent to {result.MaskedNewEmail}.";
-            StartResendCooldown(ResendCooldownSecondsInitial); // a code was just sent to the new address
+            _resendCooldown.Start(); // a code was just sent to the new address
             OldCode = string.Empty;
         }
         finally { IsBusy = false; }
@@ -342,7 +334,7 @@ public partial class EmailChangeModalViewModel : ObservableObject
         {
             var result = await _refundService.ResendEmailChangeCodeAsync(_changeId, "old");
             if (!result.Ok) { ErrorMessage = result.Message ?? "Could not resend code."; return; }
-            StartResendCooldown(ResendCooldownSecondsInitial);
+            _resendCooldown.Start();
             StatusMessage = "Code re-sent.";
         }
         finally { IsBusy = false; }
@@ -357,36 +349,13 @@ public partial class EmailChangeModalViewModel : ObservableObject
         {
             var result = await _refundService.ResendEmailChangeCodeAsync(_changeId, "new");
             if (!result.Ok) { ErrorMessage = result.Message ?? "Could not resend code."; return; }
-            StartResendCooldown(ResendCooldownSecondsInitial);
+            _resendCooldown.Start();
             StatusMessage = "Code re-sent.";
         }
         finally { IsBusy = false; }
     }
 
-    private void StartResendCooldown(int seconds)
-    {
-        StopResendCooldown();
-        ResendCooldownSeconds = seconds;
-        _resendCooldownTimer = new System.Timers.Timer(1000) { AutoReset = true };
-        _resendCooldownTimer.Elapsed += (_, _) =>
-        {
-            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-            {
-                if (ResendCooldownSeconds > 0) ResendCooldownSeconds--;
-                if (ResendCooldownSeconds == 0) StopResendCooldown();
-            });
-        };
-        _resendCooldownTimer.Start();
-    }
-
-    private void StopResendCooldown()
-    {
-        _resendCooldownTimer?.Stop();
-        _resendCooldownTimer?.Dispose();
-        _resendCooldownTimer = null;
-    }
-
-    public void Dispose() => StopResendCooldown();
+    public void Dispose() => _resendCooldown.Stop();
 
     [RelayCommand]
     private async Task CancelChangeAsync()

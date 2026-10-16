@@ -32,10 +32,7 @@ public partial class RefundModalViewModel : ObservableObject
     private long _requestId;
     private CancellationTokenSource? _pollCts;
     private System.Timers.Timer? _countdownTimer;
-    private System.Timers.Timer? _resendCooldownTimer;
-
-    /// <summary>Seconds the Resend button stays disabled after a code is sent (initial send and each resend).</summary>
-    private const int ResendCooldownSecondsInitial = 60;
+    private readonly ResendCooldown _resendCooldown = new();
 
     /// <summary>
     /// Set by the coordinator (RefundModalsViewModel) so the in-modal X button
@@ -180,21 +177,10 @@ public partial class RefundModalViewModel : ObservableObject
 
     public bool CanSubmitCode => Code.Length == 6 && Code.All(char.IsDigit) && !IsBusy;
 
-    [ObservableProperty]
-    private int _resendCooldownSeconds;
-
     /// <summary>Resend is allowed only when the cooldown has elapsed and no request is in flight.</summary>
-    public bool CanResend => !IsBusy && ResendCooldownSeconds == 0;
+    public bool CanResend => !IsBusy && !_resendCooldown.IsRunning;
 
-    public string ResendButtonText => ResendCooldownSeconds > 0
-        ? $"Resend code ({ResendCooldownSeconds}s)"
-        : "Resend code";
-
-    partial void OnResendCooldownSecondsChanged(int value)
-    {
-        OnPropertyChanged(nameof(CanResend));
-        OnPropertyChanged(nameof(ResendButtonText));
-    }
+    public string ResendButtonText => _resendCooldown.ButtonText;
 
     partial void OnCodeChanged(string value) => OnPropertyChanged(nameof(CanSubmitCode));
     partial void OnIsBusyChanged(bool value)
@@ -223,6 +209,12 @@ public partial class RefundModalViewModel : ObservableObject
     public RefundModalViewModel(RefundService refundService, Invoice invoice, IEnumerable<Payment> invoicePayments, string customerName,
         decimal? depositOnly = null, string? reason = null)
     {
+        _resendCooldown.PropertyChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(CanResend));
+            OnPropertyChanged(nameof(ResendButtonText));
+        };
+
         _refundService = refundService;
         _invoice = invoice;
         CustomerDisplay = customerName;
@@ -607,7 +599,7 @@ public partial class RefundModalViewModel : ObservableObject
             CodeExpiresInSeconds = result.ExpiresInSeconds;
             CurrentStep = Step.EnterCode;
             StartCountdown();
-            StartResendCooldown(ResendCooldownSecondsInitial); // a code was just sent
+            _resendCooldown.Start(); // a code was just sent
         }
         finally
         {
@@ -735,7 +727,7 @@ public partial class RefundModalViewModel : ObservableObject
             }
             CodeExpiresInSeconds = 600;
             StartCountdown();
-            StartResendCooldown(ResendCooldownSecondsInitial);
+            _resendCooldown.Start();
             StatusMessage = "Code re-sent.";
         }
         finally
@@ -781,29 +773,6 @@ public partial class RefundModalViewModel : ObservableObject
         _countdownTimer?.Stop();
         _countdownTimer?.Dispose();
         _countdownTimer = null;
-    }
-
-    private void StartResendCooldown(int seconds)
-    {
-        StopResendCooldown();
-        ResendCooldownSeconds = seconds;
-        _resendCooldownTimer = new System.Timers.Timer(1000) { AutoReset = true };
-        _resendCooldownTimer.Elapsed += (_, _) =>
-        {
-            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-            {
-                if (ResendCooldownSeconds > 0) ResendCooldownSeconds--;
-                if (ResendCooldownSeconds == 0) StopResendCooldown();
-            });
-        };
-        _resendCooldownTimer.Start();
-    }
-
-    private void StopResendCooldown()
-    {
-        _resendCooldownTimer?.Stop();
-        _resendCooldownTimer?.Dispose();
-        _resendCooldownTimer = null;
     }
 
     private void UpdateCountdownDisplay()
@@ -863,7 +832,7 @@ public partial class RefundModalViewModel : ObservableObject
     public void Dispose()
     {
         StopCountdown();
-        StopResendCooldown();
+        _resendCooldown.Stop();
         StopPolling();
     }
 }

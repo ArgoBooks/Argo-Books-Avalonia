@@ -472,8 +472,8 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
         {
             filtered = filterFileType switch
             {
-                "Image" => filtered.Where(r => IsImageFile(r.FileType)),
-                "PDF" => filtered.Where(r => r.FileType.Contains("pdf", StringComparison.OrdinalIgnoreCase)),
+                "Image" => filtered.Where(r => FilePickerTypes.IsImageReceipt(r.FileType, r.FileName)),
+                "PDF" => filtered.Where(r => FilePickerTypes.IsPdfReceipt(r.FileType, r.FileName)),
                 _ => filtered
             };
         }
@@ -568,15 +568,6 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
         }
     }
 
-    private static bool IsImageFile(string fileType)
-    {
-        return fileType.Contains("image", StringComparison.OrdinalIgnoreCase) ||
-               fileType.EndsWith("jpg", StringComparison.OrdinalIgnoreCase) ||
-               fileType.EndsWith("jpeg", StringComparison.OrdinalIgnoreCase) ||
-               fileType.EndsWith("png", StringComparison.OrdinalIgnoreCase) ||
-               fileType.EndsWith("gif", StringComparison.OrdinalIgnoreCase) ||
-               fileType.EndsWith("webp", StringComparison.OrdinalIgnoreCase);
-    }
 
     private void UpdateSelectionState()
     {
@@ -597,8 +588,7 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
 
         try
         {
-            var isPdf = receipt.FileType?.Contains("pdf", StringComparison.OrdinalIgnoreCase) == true
-                        || receipt.FileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase);
+            var isPdf = FilePickerTypes.IsPdfReceipt(receipt.FileType, receipt.FileName);
 
             // The same cache paths the viewer uses, so each reuses what the other rendered.
             var path = isPdf
@@ -625,8 +615,7 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
             ReceiptPageRenderer.EnsureTempDir();
             var bytes = Convert.FromBase64String(receipt.FileData);
 
-            var isPdf = receipt.FileType?.Contains("pdf", StringComparison.OrdinalIgnoreCase) == true
-                        || receipt.FileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase);
+            var isPdf = FilePickerTypes.IsPdfReceipt(receipt.FileType, receipt.FileName);
 
             if (isPdf)
             {
@@ -1147,14 +1136,9 @@ public partial class ReceiptDisplayItem : ObservableObject
     public bool IsExpense => TransactionType == "Expense";
     public bool IsRevenue => TransactionType == "Revenue";
 
-    public bool IsImage => FileType.Contains("image", StringComparison.OrdinalIgnoreCase) ||
-                           FileName.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) ||
-                           FileName.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase) ||
-                           FileName.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ||
-                           FileName.EndsWith(".webp", StringComparison.OrdinalIgnoreCase);
+    public bool IsImage => FilePickerTypes.IsImageReceipt(FileType, FileName);
 
-    public bool IsPdf => FileType.Contains("pdf", StringComparison.OrdinalIgnoreCase) ||
-                         FileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase);
+    public bool IsPdf => FilePickerTypes.IsPdfReceipt(FileType, FileName);
 
     public bool HasImage => !string.IsNullOrEmpty(ImagePath);
 }

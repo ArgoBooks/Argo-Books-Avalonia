@@ -74,7 +74,7 @@ public class ChartLoaderService
     /// <summary>
     /// Truncates a legend label to prevent pie chart legend overflow.
     /// </summary>
-    private static string TruncateLegendLabel(string? label)
+    internal static string TruncateLegendLabel(string? label)
     {
         if (string.IsNullOrEmpty(label))
             return LanguageService.Instance.Translate("Unknown");

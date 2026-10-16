@@ -35,7 +35,6 @@ public partial class ToggleArrow : UserControl
     private double _targetAngle;
     private double _animationProgress;
     private const double AnimationDuration = 500.0; // milliseconds
-    private const double FrameInterval = 16.0; // ~60fps
 
     /// <summary>
     /// Defines the IsCollapsed property.
@@ -171,7 +170,7 @@ public partial class ToggleArrow : UserControl
 
         _animationTimer = new DispatcherTimer
         {
-            Interval = TimeSpan.FromMilliseconds(FrameInterval)
+            Interval = TimeSpan.FromMilliseconds(Helpers.FrameAnimation.FrameIntervalMs)
         };
         _animationTimer.Tick += OnAnimationTick;
         _animationTimer.Start();
@@ -179,13 +178,9 @@ public partial class ToggleArrow : UserControl
 
     private void OnAnimationTick(object? sender, EventArgs e)
     {
-        _animationProgress += FrameInterval;
+        _animationProgress += Helpers.FrameAnimation.FrameIntervalMs;
         var t = Math.Min(_animationProgress / AnimationDuration, 1.0);
-
-        // Cubic ease-in-out
-        var easedT = t < 0.5
-            ? 4 * t * t * t
-            : 1 - Math.Pow(-2 * t + 2, 3) / 2;
+        var easedT = Helpers.FrameAnimation.CubicInOut(t);
 
         _rotateTransform.Angle = _startAngle + (_targetAngle - _startAngle) * easedT;
 

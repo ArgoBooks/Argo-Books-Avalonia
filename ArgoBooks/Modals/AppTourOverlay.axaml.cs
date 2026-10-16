@@ -144,8 +144,8 @@ public partial class AppTourOverlay : UserControl
 
     private Rect? GetElementBoundsRelativeToOverlay(Control element, string targetArea)
     {
-        const double borderThickness = 3;
-        const double edgeOffset = 8; // Extra offset when highlight is at window edge
+        if (targetArea == "content")
+            return TutorialHighlightHelper.GetHighlightBounds(this, element);
 
         try
         {
@@ -169,32 +169,19 @@ public partial class AppTourOverlay : UserControl
             if (targetArea == "searchbar")
             {
                 // SearchBox: draw border OUTSIDE the control
-                left = topLeft.X - borderThickness;
-                top = topLeft.Y - borderThickness;
-                width = (bottomRight.X - topLeft.X) + (borderThickness * 2);
-                height = (bottomRight.Y - topLeft.Y) + (borderThickness * 2);
-            }
-            else if (targetArea == "content")
-            {
-                // Content/Dashboard: reduced margin (3px less on left, 1px less on top)
-                var leftOffset = topLeft.X <= edgeOffset ? edgeOffset - 3 : 0;
-                var topOffset = topLeft.Y <= edgeOffset ? edgeOffset - 1 : borderThickness - 1;
-                var rightOffset = bottomRight.X >= overlayWidth - edgeOffset ? edgeOffset : borderThickness;
-                var bottomOffset = bottomRight.Y >= overlayHeight - edgeOffset ? edgeOffset : borderThickness;
-
-                left = topLeft.X + leftOffset;
-                top = topLeft.Y + topOffset;
-                width = (bottomRight.X - topLeft.X) - leftOffset - rightOffset;
-                height = (bottomRight.Y - topLeft.Y) - topOffset - bottomOffset;
+                left = topLeft.X - TutorialHighlightHelper.BorderThickness;
+                top = topLeft.Y - TutorialHighlightHelper.BorderThickness;
+                width = (bottomRight.X - topLeft.X) + (TutorialHighlightHelper.BorderThickness * 2);
+                height = (bottomRight.Y - topLeft.Y) + (TutorialHighlightHelper.BorderThickness * 2);
             }
             else
             {
                 // Default: Inset the bounds by border thickness so the border draws INSIDE the element
                 // Add extra offset when at window edges to prevent overflow
-                var leftOffset = topLeft.X <= edgeOffset ? edgeOffset : borderThickness;
-                var topOffset = topLeft.Y <= edgeOffset ? edgeOffset : borderThickness;
-                var rightOffset = bottomRight.X >= overlayWidth - edgeOffset ? edgeOffset : borderThickness;
-                var bottomOffset = bottomRight.Y >= overlayHeight - edgeOffset ? edgeOffset : borderThickness;
+                var leftOffset = topLeft.X <= TutorialHighlightHelper.EdgeOffset ? TutorialHighlightHelper.EdgeOffset : TutorialHighlightHelper.BorderThickness;
+                var topOffset = topLeft.Y <= TutorialHighlightHelper.EdgeOffset ? TutorialHighlightHelper.EdgeOffset : TutorialHighlightHelper.BorderThickness;
+                var rightOffset = bottomRight.X >= overlayWidth - TutorialHighlightHelper.EdgeOffset ? TutorialHighlightHelper.EdgeOffset : TutorialHighlightHelper.BorderThickness;
+                var bottomOffset = bottomRight.Y >= overlayHeight - TutorialHighlightHelper.EdgeOffset ? TutorialHighlightHelper.EdgeOffset : TutorialHighlightHelper.BorderThickness;
 
                 left = topLeft.X + leftOffset;
                 top = topLeft.Y + topOffset;

@@ -94,7 +94,7 @@ public partial class HelpPanel : UserControl
                 break;
             case Key.Enter:
             case Key.Space:
-                ActivateCurrentItem();
+                Helpers.MenuItemNavigation.Activate(this, _focusedIndex);
                 e.Handled = true;
                 break;
             case Key.Escape:
@@ -113,7 +113,7 @@ public partial class HelpPanel : UserControl
             _focusedIndex = _menuItemCount - 1;
         else
             _focusedIndex--;
-        FocusMenuItem(_focusedIndex);
+        Helpers.MenuItemNavigation.Focus(this, _focusedIndex);
     }
 
     private void NavigateDown()
@@ -122,21 +122,6 @@ public partial class HelpPanel : UserControl
             _focusedIndex = 0;
         else
             _focusedIndex++;
-        FocusMenuItem(_focusedIndex);
-    }
-
-    private void FocusMenuItem(int index)
-    {
-        var menuItem = this.FindControl<Button>($"MenuItem{index}");
-        menuItem?.Focus();
-    }
-
-    private void ActivateCurrentItem()
-    {
-        var menuItem = this.FindControl<Button>($"MenuItem{_focusedIndex}");
-        if (menuItem?.Command != null && menuItem.Command.CanExecute(menuItem.CommandParameter))
-        {
-            menuItem.Command.Execute(menuItem.CommandParameter);
-        }
+        Helpers.MenuItemNavigation.Focus(this, _focusedIndex);
     }
 }

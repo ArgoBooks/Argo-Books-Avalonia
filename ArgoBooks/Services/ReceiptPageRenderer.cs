@@ -140,8 +140,7 @@ public static class ReceiptPageRenderer
         {
             EnsureTempDir();
             var bytes = Convert.FromBase64String(receipt.FileData);
-            var isPdf = receipt.FileType.Contains("pdf", StringComparison.OrdinalIgnoreCase)
-                        || receipt.FileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase);
+            var isPdf = Utilities.FilePickerTypes.IsPdfReceipt(receipt.FileType, receipt.FileName);
 
             if (!isPdf)
             {

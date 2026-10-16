@@ -99,24 +99,13 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
         }
         else
         {
-            var parser = new BankStatementImportService(App.ErrorLogger);
-            var isCsv = ext == ".csv";
 
             // The modal only opens once the rows are read, so the overlay covers the read for a large or converted file.
             App.MainWindowViewModel?.ShowLoading("Scanning bank statement...".Translate());
             try
             {
-                lines = isCsv
-                    ? await parser.ParseCsvAsync(filePath)
-                    : await parser.ParseExcelAsync(filePath);
-
-                // Local header detection only knows English column names, so a statement in any other language reaches here with nothing wrong with it.
-                if (lines.Count == 0)
-                {
-                    var aiLines = await App.TryAiParseBankStatementAsync(filePath, isCsv, parser);
-                    if (aiLines == null) return;
-                    lines = aiLines;
-                }
+                if (await App.ReadSpreadsheetStatementAsync(filePath) is not { } read) return;
+                lines = read;
             }
             catch (UnreadableStatementFileException)
             {

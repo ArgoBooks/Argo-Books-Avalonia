@@ -3557,21 +3557,9 @@ public partial class App : Application
             }
             else
             {
-                var parser = new BankStatementImportService(ErrorLogger);
-                var isCsv = ext == ".csv";
-
-                // Try local column detection first (instant, no AI). Fall back to AI column mapping
-                // only when the headers aren't recognized locally.
-                lines = isCsv
-                    ? await parser.ParseCsvAsync(filePath)
-                    : await parser.ParseExcelAsync(filePath);
-
-                if (lines.Count == 0)
-                {
-                    // Null: the user is out of bank imports and has just been told so.
-                    if (await TryAiParseBankStatementAsync(filePath, isCsv, parser) is not { } aiLines) return;
-                    lines = aiLines;
-                }
+                // Null: the user is out of bank imports and has just been told so.
+                if (await ReadSpreadsheetStatementAsync(filePath) is not { } read) return;
+                lines = read;
             }
 
             _mainWindowViewModel?.HideLoading();
@@ -3674,6 +3662,22 @@ public partial class App : Application
             ErrorLogger?.LogError(ex, ErrorCategory.Import, "Bank statement import failed");
             await ShowErrorDialogAsync("Import Failed".Translate(), "Failed to import bank statement:\n\n{0}".TranslateFormat(ex.Message));
         }
+    }
+
+    /// <summary>
+    /// Reads a CSV or Excel statement: local column detection first, which is instant, then the AI
+    /// column mapping when the headers are not recognised, as in a statement in another language.
+    /// Null when the user is out of bank imports and has just been told so.
+    /// </summary>
+    internal static async Task<List<Core.Models.BankMatching.BankStatementLine>?> ReadSpreadsheetStatementAsync(string filePath)
+    {
+        var parser = new BankStatementImportService(ErrorLogger);
+        var isCsv = filePath.EndsWith(".csv", StringComparison.OrdinalIgnoreCase);
+        var lines = isCsv
+            ? await parser.ParseCsvAsync(filePath)
+            : await parser.ParseExcelAsync(filePath);
+
+        return lines.Count > 0 ? lines : await TryAiParseBankStatementAsync(filePath, isCsv, parser);
     }
 
     /// <summary>

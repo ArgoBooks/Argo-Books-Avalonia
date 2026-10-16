@@ -196,14 +196,9 @@ public partial class SendToAccountantModalViewModel : ViewModelBase
         var bytes = receipts.Sum(r => AccountantPack.DecodedSize(r.Receipt.FileData!));
         SizeText = bytes > AccountantPack.MaxEmailBytes
             ? "{0} receipts, {1}. That is over the {2} an email can carry, so they go in the zip only.".TranslateFormat(
-                receipts.Count, FormatSize(bytes), FormatSize(AccountantPack.MaxEmailBytes))
-            : "{0} receipts, {1}.".TranslateFormat(receipts.Count, FormatSize(bytes));
+                receipts.Count, Utilities.FileSizeText.Format(bytes), Utilities.FileSizeText.Format(AccountantPack.MaxEmailBytes))
+            : "{0} receipts, {1}.".TranslateFormat(receipts.Count, Utilities.FileSizeText.Format(bytes));
     }
-
-    private static string FormatSize(long bytes) =>
-        bytes >= 1024 * 1024
-            ? (bytes / 1024d / 1024d).ToString("0.#", CultureInfo.CurrentCulture) + " MB"
-            : Math.Max(1, bytes / 1024).ToString(CultureInfo.CurrentCulture) + " KB";
 
     private bool TryGetRange(out (DateTime Start, DateTime End) range)
     {
@@ -319,7 +314,7 @@ public partial class SendToAccountantModalViewModel : ViewModelBase
                 if (total > AccountantPack.MaxEmailBytes)
                 {
                     ErrorMessage = "The reports and spreadsheet come to {0}, over the {1} an email can carry. Use Save as Zip instead and share it another way."
-                        .TranslateFormat(FormatSize(total), FormatSize(AccountantPack.MaxEmailBytes));
+                        .TranslateFormat(Utilities.FileSizeText.Format(total), Utilities.FileSizeText.Format(AccountantPack.MaxEmailBytes));
                     return;
                 }
 
@@ -358,7 +353,7 @@ public partial class SendToAccountantModalViewModel : ViewModelBase
                 RememberAccountant();
                 StatusMessage = receiptsOmitted
                     ? "Sent to {0}, without the receipts: they are over the {1} an email can carry. Use Save as Zip to share those."
-                        .TranslateFormat(email, FormatSize(AccountantPack.MaxEmailBytes))
+                        .TranslateFormat(email, Utilities.FileSizeText.Format(AccountantPack.MaxEmailBytes))
                     : "Sent to {0}.".TranslateFormat(email);
                 _ = App.TelemetryManager?.TrackFeatureAsync(FeatureName.AccountantPackSent, "email");
             }
