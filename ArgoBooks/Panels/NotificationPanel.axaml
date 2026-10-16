@@ -256,13 +256,9 @@
             <Setter Property="Padding" Value="0" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Foreground" Value="{DynamicResource TextTertiaryBrush}" />
-            <Setter Property="Opacity" Value="0" />
         </Style>
         <Style Selector="Button.icon-button-small /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="Transparent" />
-        </Style>
-        <Style Selector="Button.notification-item:pointerover Button.icon-button-small">
-            <Setter Property="Opacity" Value="1" />
         </Style>
         <Style Selector="Button.icon-button-small:pointerover">
             <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
