@@ -89,7 +89,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
         List<BankStatementLine> lines;
         var ext = Path.GetExtension(filePath).ToLowerInvariant();
 
-        if (ext == ".pdf")
+        if (ext == ".pdf" || StatementImages.IsImage(filePath))
         {
             lines = await ImportPdfStatementAsync(filePath);
             // The PDF path shows its own messaging (usage limit, cancel, extraction failure)

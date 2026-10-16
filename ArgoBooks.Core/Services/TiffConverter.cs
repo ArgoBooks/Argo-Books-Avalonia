@@ -1,8 +1,5 @@
 using System.Runtime.InteropServices;
 using BitMiracle.LibTiff.Classic;
-using QuestPDF.Fluent;
-using QuestPDF.Helpers;
-using QuestPDF.Infrastructure;
 using SkiaSharp;
 
 namespace ArgoBooks.Core.Services;
@@ -28,15 +25,7 @@ public static class TiffConverter
     /// <exception cref="InvalidDataException">The file is not a TIFF this can read.</exception>
     public static string ConvertToTempFile(string tiffPath)
     {
-        byte[] content;
-        using (var stream = new FileStream(tiffPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-        using (var buffer = new MemoryStream())
-        {
-            stream.CopyTo(buffer);
-            content = buffer.ToArray();
-        }
-
-        var pages = ReadPages(content);
+        var pages = ReadPages(SharedFileReader.ReadAllBytes(tiffPath));
         if (pages.Count == 0)
             throw new InvalidDataException("The TIFF has no pages that could be read.");
 
@@ -52,19 +41,19 @@ public static class TiffConverter
         }
 
         var pdfPath = Path.Combine(folder, name + ".pdf");
-        WritePdf(pages, pdfPath);
+        File.WriteAllBytes(pdfPath, ImagePdf.Create(pages));
         return pdfPath;
     }
 
-    private sealed record Page(byte[] Jpeg, float WidthPoints, float HeightPoints);
-
-    private static List<Page> ReadPages(byte[] content)
+    /// <summary>Every page of a TIFF as a JPEG at the paper's size, or none when no page could be read.</summary>
+    /// <exception cref="InvalidDataException">The file is not a TIFF.</exception>
+    internal static List<ImagePdf.Page> ReadPages(byte[] content)
     {
         Tiff.SetErrorHandler(QuietErrorHandler.Instance);
         using var tiff = Tiff.ClientOpen("receipt", "r", new MemoryStream(content), new TiffStream())
                          ?? throw new InvalidDataException("The file is not a TIFF.");
 
-        var pages = new List<Page>();
+        var pages = new List<ImagePdf.Page>();
         var count = tiff.NumberOfDirectories();
         for (short i = 0; i < count; i++)
         {
@@ -83,7 +72,7 @@ public static class TiffConverter
             using var encoded = bitmap.Encode(SKEncodedImageFormat.Jpeg, JpegQuality);
 
             var (dpiX, dpiY) = Resolution(tiff);
-            pages.Add(new Page(encoded.ToArray(), width / dpiX * 72f, height / dpiY * 72f));
+            pages.Add(new ImagePdf.Page(encoded.ToArray(), width / dpiX * 72f, height / dpiY * 72f));
         }
 
         return pages;
@@ -113,23 +102,6 @@ public static class TiffConverter
         }
 
         return (x > 0 ? x : DefaultDpi, y > 0 ? y : x > 0 ? x : DefaultDpi);
-    }
-
-    private static void WritePdf(List<Page> pages, string path)
-    {
-        QuestPDF.Settings.License = LicenseType.Community;
-        Document.Create(document =>
-        {
-            foreach (var page in pages)
-            {
-                document.Page(p =>
-                {
-                    p.Size(new PageSize(page.WidthPoints, page.HeightPoints));
-                    p.Margin(0);
-                    p.Content().Image(page.Jpeg).FitArea();
-                });
-            }
-        }).GeneratePdf(path);
     }
 
     /// <summary>

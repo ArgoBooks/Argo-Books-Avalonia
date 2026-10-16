@@ -174,7 +174,12 @@ public static class FilePickerTypes
 
     public static readonly FilePickerFileType BankStatementFileType = new("Bank statements")
     {
-        Patterns = [.. SpreadsheetFileType.Patterns!, "*.pdf", .. Core.Services.OfxStatementReader.Extensions.Select(e => "*" + e)]
+        Patterns =
+        [
+            .. SpreadsheetFileType.Patterns!, "*.pdf",
+            .. Core.Services.OfxStatementReader.Extensions.Select(e => "*" + e),
+            .. Core.Services.StatementImages.Extensions.Select(e => "*" + e)
+        ]
     };
 
     private static IEnumerable<string> Patterns(bool? images = null) => ReceiptFormats

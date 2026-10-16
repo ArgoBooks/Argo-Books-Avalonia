@@ -3543,7 +3543,7 @@ public partial class App : Application
         try
         {
             List<Core.Models.BankMatching.BankStatementLine> lines;
-            if (ext == ".pdf")
+            if (ext == ".pdf" || StatementImages.IsImage(filePath))
             {
                 _mainWindowViewModel?.HideLoading();
                 lines = await ImportPdfStatementAsync(filePath);
@@ -3762,10 +3762,11 @@ public partial class App : Application
     internal sealed record BankPdfReadProgress(Action<long> Begin, Action<bool> End, Func<bool> StillWanted);
 
     /// <summary>
-    /// The one way a PDF bank statement is read, for the Bank Matching page and the import modal:
-    /// checks the bank-import limit, sends the PDF to the AI extractor, and charges the single
-    /// bank-import credit once rows come back. Returns the rows, or an empty list when the user is
-    /// out of imports, the server is busy, or nothing could be read (each told to the user).
+    /// The one way a PDF bank statement, or a photo or scan of a paper one, is read, for the Bank
+    /// Matching page and the import modal: checks the bank-import limit, sends the PDF to the AI
+    /// extractor, and charges the single bank-import credit once rows come back. A picture goes on
+    /// a PDF page first, since the extractor reads only PDFs. Returns the rows, or an empty list when
+    /// the user is out of imports, the server is busy, or nothing could be read (each told to the user).
     /// </summary>
     internal static async Task<List<Core.Models.BankMatching.BankStatementLine>> ReadBankPdfStatementAsync(
         string filePath, BankPdfReadProgress progress)
@@ -3778,12 +3779,23 @@ public partial class App : Application
             return [];
         }
 
+        var isPicture = StatementImages.IsImage(filePath);
         progress.Begin(new FileInfo(filePath).Length);
         List<Core.Models.BankMatching.BankStatementLine> extracted;
         try
         {
-            var bytes = await SharedFileReader.ReadAllBytesAsync(filePath);
-            extracted = await PdfStatementExtractor.ExtractAsync(bytes, Path.GetFileName(filePath));
+            var bytes = isPicture
+                ? await Task.Run(() => StatementImages.ToPdf(filePath))
+                : await SharedFileReader.ReadAllBytesAsync(filePath);
+            extracted = await PdfStatementExtractor.ExtractAsync(bytes, Path.ChangeExtension(Path.GetFileName(filePath), ".pdf"));
+        }
+        catch (InvalidDataException) when (isPicture)
+        {
+            // Nothing was sent, so nothing is charged.
+            _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, "bank-photo:unreadable");
+            if (EndRead(progress, false))
+                await ShowInfoDialogAsync("Import Bank Statement".Translate(), "This picture could not be read. Try saving it as a JPEG or PNG.".Translate());
+            return [];
         }
         catch (ServerRateLimitedException ex)
         {
@@ -3820,7 +3832,9 @@ public partial class App : Application
             if (stillWanted)
                 await ShowInfoDialogAsync(
                     "Import Bank Statement".Translate(),
-                    "We couldn't read any transactions from that PDF. It may not be a recognizable bank statement, or the server couldn't process it. Try again, or import a CSV or Excel export instead.".Translate());
+                    isPicture
+                        ? "We couldn't read any transactions from that picture. Make sure the whole statement is in it and the text is sharp, then try again, or import a CSV or Excel export instead.".Translate()
+                        : "We couldn't read any transactions from that PDF. It may not be a recognizable bank statement, or the server couldn't process it. Try again, or import a CSV or Excel export instead.".Translate());
             return [];
         }
 
