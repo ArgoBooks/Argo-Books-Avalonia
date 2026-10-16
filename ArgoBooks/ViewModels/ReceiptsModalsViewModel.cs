@@ -77,6 +77,12 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
     /// </summary>
     public event EventHandler? ReceiptScanned;
 
+    /// <summary>
+    /// Raised once a scan has counted against this month's allowance, whether or not its result is
+    /// saved, so a screen showing the allowance can read it again.
+    /// </summary>
+    public event EventHandler? ScanAllowanceUsed;
+
     #endregion
 
     #region Filter Modal State
@@ -995,6 +1001,9 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
 
         IsBulkScanning = false;
         IsBulkScanComplete = true;
+
+        if (BulkScansSucceeded > 0)
+            ScanAllowanceUsed?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>
@@ -1189,6 +1198,9 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
 
         var semaphore = new SemaphoreSlim(1);
         await ProcessAndScanItemAsync(item, semaphore, _bulkCancellationSource?.Token ?? CancellationToken.None);
+
+        if (item.Status == BulkScanStatus.Succeeded)
+            ScanAllowanceUsed?.Invoke(this, EventArgs.Empty);
     }
 
     [RelayCommand]
@@ -2135,6 +2147,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
                     IsNearLimit = incrementResult.MonthlyLimit > 0 && incrementResult.Remaining > 0 && incrementResult.Remaining <= incrementResult.MonthlyLimit / 10;
                 }
             }
+            ScanAllowanceUsed?.Invoke(this, EventArgs.Empty);
 
             // Populate fields with extracted data
             PopulateScanResults(result);

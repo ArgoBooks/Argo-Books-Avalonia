@@ -314,8 +314,11 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
         {
             App.ReceiptsModalsViewModel.FiltersApplied += OnFiltersApplied;
             App.ReceiptsModalsViewModel.FiltersCleared += OnFiltersCleared;
+            App.ReceiptsModalsViewModel.ScanAllowanceUsed += OnScanAllowanceUsed;
         }
     }
+
+    private void OnScanAllowanceUsed(object? sender, EventArgs e) => _ = RefreshScanUsageAsync();
 
     /// <summary>
     /// Unsubscribes from app-level and singleton events, plus the per-item PropertyChanged handlers,
@@ -329,6 +332,7 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
         {
             App.ReceiptsModalsViewModel.FiltersApplied -= OnFiltersApplied;
             App.ReceiptsModalsViewModel.FiltersCleared -= OnFiltersCleared;
+            App.ReceiptsModalsViewModel.ScanAllowanceUsed -= OnScanAllowanceUsed;
         }
         foreach (var item in Receipts)
             item.PropertyChanged -= OnReceiptItemPropertyChanged;
