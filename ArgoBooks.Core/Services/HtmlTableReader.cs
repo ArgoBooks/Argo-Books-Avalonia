@@ -12,7 +12,7 @@ public static partial class HtmlTableReader
     /// <summary>True when the bytes are an HTML page containing at least one table.</summary>
     public static bool LooksLikeHtmlTable(byte[] content)
     {
-        var text = Decode(content);
+        var text = TextFileDecoder.Decode(content);
         var start = text.AsSpan().TrimStart();
         return start.StartsWith("<") && text.Contains("<table", StringComparison.OrdinalIgnoreCase);
     }
@@ -20,7 +20,7 @@ public static partial class HtmlTableReader
     /// <summary>Every non-empty row, with a spanned cell's text in its first column and blanks after it.</summary>
     public static List<List<string>> ReadRows(byte[] content)
     {
-        var html = StripNonContent().Replace(Decode(content), " ");
+        var html = StripNonContent().Replace(TextFileDecoder.Decode(content), " ");
 
         var rows = new List<List<string>>();
         List<string>? row = null;
@@ -91,17 +91,6 @@ public static partial class HtmlTableReader
 
     private static string Clean(string raw) =>
         Whitespace().Replace(WebUtility.HtmlDecode(raw).Replace(' ', ' '), " ").Trim();
-
-    /// <summary>Reads UTF-8 unless a byte order mark says otherwise, and Latin-1 for older pages that are not valid UTF-8.</summary>
-    internal static string Decode(byte[] content)
-    {
-        using (var reader = new StreamReader(new MemoryStream(content), new UTF8Encoding(false, throwOnInvalidBytes: true), detectEncodingFromByteOrderMarks: true))
-        {
-            try { return reader.ReadToEnd(); }
-            catch (DecoderFallbackException) { }
-        }
-        return Encoding.Latin1.GetString(content);
-    }
 
     [GeneratedRegex(@"<!--.*?-->|<(script|style|head)\b[^>]*>.*?</\1\s*>", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
     private static partial Regex StripNonContent();

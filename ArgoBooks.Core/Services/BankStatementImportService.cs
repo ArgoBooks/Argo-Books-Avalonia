@@ -127,13 +127,12 @@ public class BankStatementImportService(IErrorLogger? errorLogger = null)
     {
         try
         {
-            // FileShare.ReadWrite so a statement still imports while it's open in Excel/LibreOffice.
+            var text = await Task.Run(() => TextFileDecoder.ReadAllText(filePath), cancellationToken);
             var collected = new List<string>();
-            await using (var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-            using (var reader = new StreamReader(stream, detectEncodingFromByteOrderMarks: true))
+            using (var reader = new StringReader(text))
             {
                 string? line;
-                while ((line = await reader.ReadLineAsync(cancellationToken)) != null)
+                while ((line = reader.ReadLine()) != null)
                     collected.Add(line);
             }
             var lines = collected.ToArray();

@@ -5,14 +5,15 @@ using CsvHelper.Configuration;
 namespace ArgoBooks.Core.Services;
 
 /// <summary>
-/// RFC-4180 CSV reader: handles quoted fields with embedded newlines/commas, BOM, and
-/// auto-detects the delimiter from the first non-empty line.
+/// RFC-4180 CSV reader: handles quoted fields with embedded newlines/commas, any encoding
+/// TextFileDecoder reads, and auto-detects the delimiter from the first non-empty line.
 /// </summary>
 public static class CsvReader
 {
     public static List<List<string>> ReadAllRows(string path, out List<string> headers)
     {
-        var delimiter = DetectDelimiter(path);
+        var text = TextFileDecoder.ReadAllText(path);
+        var delimiter = DetectDelimiter(text);
         var config = new CsvConfiguration(CultureInfo.InvariantCulture)
         {
             Delimiter = delimiter.ToString(),
@@ -22,7 +23,7 @@ public static class CsvReader
             DetectColumnCountChanges = false,
         };
 
-        using var reader = OpenSharedReader(path);
+        using var reader = new StringReader(text);
         using var csv = new CsvParser(reader, config);
 
         var all = new List<string[]>();
@@ -46,22 +47,12 @@ public static class CsvReader
            || row.All(string.IsNullOrWhiteSpace)
            || row[0].TrimStart().StartsWith('#');
 
-    private static char DetectDelimiter(string path)
+    private static char DetectDelimiter(string text)
     {
-        using var reader = OpenSharedReader(path);
+        using var reader = new StringReader(text);
         string? first;
         do { first = reader.ReadLine(); }
         while (first != null && (string.IsNullOrWhiteSpace(first) || first.TrimStart().StartsWith('#')));
         return SpreadsheetAnalysisService.DetectCsvDelimiter(first ?? "");
-    }
-
-    /// <summary>
-    /// Opens the file with FileShare.ReadWrite so it can still be read while it is open in
-    /// another program (Excel, LibreOffice, etc.) instead of failing with a sharing violation.
-    /// </summary>
-    private static StreamReader OpenSharedReader(string path)
-    {
-        var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-        return new StreamReader(stream, detectEncodingFromByteOrderMarks: true);
     }
 }

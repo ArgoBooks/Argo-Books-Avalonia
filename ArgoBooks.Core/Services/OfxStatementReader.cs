@@ -18,18 +18,8 @@ public static partial class OfxStatementReader
     public static bool IsOfxFile(string? path) =>
         Extensions.Contains(Path.GetExtension(path ?? "").ToLowerInvariant());
 
-    public static List<BankStatementLine> Read(string filePath, CancellationToken cancellationToken = default)
-    {
-        byte[] content;
-        using (var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-        using (var buffer = new MemoryStream())
-        {
-            stream.CopyTo(buffer);
-            content = buffer.ToArray();
-        }
-
-        return Parse(HtmlTableReader.Decode(content), cancellationToken);
-    }
+    public static List<BankStatementLine> Read(string filePath, CancellationToken cancellationToken = default) =>
+        Parse(TextFileDecoder.ReadAllText(filePath), cancellationToken);
 
     public static List<BankStatementLine> Parse(string ofx, CancellationToken cancellationToken = default)
     {
