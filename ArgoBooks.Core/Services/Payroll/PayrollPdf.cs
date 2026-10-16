@@ -30,7 +30,7 @@ internal static class PayrollPdf
         return digits.Length == 9 ? $"{digits[..3]} {digits[3..6]} {digits[6..]}" : "not provided";
     }
 
-    public static string Money(decimal value) => $"${value:N2}";
+    public static string Money(decimal value) => MoneyFormat.Format(value, "$", 2);
 
     /// <summary>A row of small grey reference label ("Box 14", "Block 15A"), description, and right-aligned value.</summary>
     public static void LabelledRow(

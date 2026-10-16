@@ -36,7 +36,7 @@ public partial class SettingsModalViewModel : ViewModelBase
     private string _originalTheme;
     private string _originalAccentColor;
     private string _originalLanguage = "English";
-    private string _originalDateFormat = "MM/DD/YYYY";
+    private string _originalDateFormat = Core.Data.DateFormats.Default;
     private TimeZoneItem _originalTimeZone = TimeZones.Utc;
     private string _originalTimeFormat = "12h";
     private int _originalMaxPieSlices = 6;
@@ -98,7 +98,7 @@ public partial class SettingsModalViewModel : ViewModelBase
     }
 
     [ObservableProperty]
-    private string _selectedDateFormat = "MM/DD/YYYY";
+    private string _selectedDateFormat = Core.Data.DateFormats.Default;
 
     [ObservableProperty]
     private TimeZoneItem _selectedTimeZone = TimeZones.Utc;
@@ -161,13 +161,7 @@ public partial class SettingsModalViewModel : ViewModelBase
     /// </summary>
     public IReadOnlyList<string> Languages => Data.Languages.All;
 
-    public ObservableCollection<string> DateFormats { get; } =
-    [
-        "MM/DD/YYYY",
-        "DD/MM/YYYY",
-        "YYYY-MM-DD",
-        "MMM D, YYYY"
-    ];
+    public IReadOnlyList<string> DateFormats => Core.Data.DateFormats.All;
 
     /// <summary>
     /// All available timezone options from the system.

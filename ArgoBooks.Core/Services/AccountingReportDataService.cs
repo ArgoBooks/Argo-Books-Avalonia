@@ -1690,7 +1690,7 @@ public class AccountingReportDataService(CompanyData? companyData, ReportFilters
         return data;
 
         static bool IsQuebecLine(Models.Payroll.PayRunLine line) =>
-            string.Equals(line.Province, "QC", StringComparison.OrdinalIgnoreCase);
+            Payroll.CraFormat.IsQuebec(line.Province);
 
         AccountingRow Row(string label, decimal value) => new()
         {

@@ -206,7 +206,7 @@ public class SampleCompanyService
         {
             Language = "English",
             Currency = "CAD",
-            DateFormat = "MM/DD/YYYY"
+            DateFormat = DateFormats.Default
         };
 
         return companyData;

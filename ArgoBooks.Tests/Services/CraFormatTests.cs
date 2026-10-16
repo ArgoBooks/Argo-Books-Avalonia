@@ -130,4 +130,15 @@ public class CraFormatTests
     [Fact]
     public void CleaningCollapsesTheGapItLeaves() =>
         Assert.Equal("Anne Marie Roy", CraFormat.CleanName("Anne (Marie) Roy"));
+
+    /// <summary>The calculator and the slips must agree on who is in Quebec, however the code was typed.</summary>
+    [Theory]
+    [InlineData("QC", true)]
+    [InlineData("qc", true)]
+    [InlineData(" QC ", true)]
+    [InlineData("ON", false)]
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public void QuebecIsRecognisedWhateverItsCaseOrSpacing(string? province, bool expected) =>
+        Assert.Equal(expected, CraFormat.IsQuebec(province));
 }

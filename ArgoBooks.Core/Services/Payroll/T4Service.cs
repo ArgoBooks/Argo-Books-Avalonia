@@ -115,7 +115,7 @@ public class T4Service
         (string surname, string given, string initial) = SplitName(employee.Name);
 
         decimal gross = lines.Sum(l => l.GrossPay);
-        bool quebec = province == "QC";
+        bool quebec = CraFormat.IsQuebec(province);
         decimal qpip = lines.Sum(l => l.QpipEmployee);
 
         // Exempt for the WHOLE year, which is what boxes 28 and the nil earnings in 24 and 26 mean.
