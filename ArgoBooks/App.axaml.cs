@@ -3204,17 +3204,8 @@ public partial class App : Application
             _ = TelemetryManager?.TrackFeatureAsync(
                 FeatureName.DataImported, importContext, importStopwatch.ElapsedMilliseconds);
 
-            // Create snapshot for redo
-            var importedSnapshot = CreateCompanyDataSnapshot(companyData);
-
-            RecordImportUndoStep(companyData, snapshot, importedSnapshot);
+            FinishImport(companyData, snapshot);
             rollbackSnapshot = null;
-
-            CompanyManager.MarkAsChanged();
-
-            // Auto-switch date range to "All Time" so imported data is visible on dashboard/analytics
-            // (imported data may be from any time period, not necessarily the current month)
-            ChartSettingsService.Instance.SelectedDateRange = "All Time";
 
             // Combine Tier 1 and Tier 2 counts
             var totalUpdated = 0;
@@ -3916,6 +3907,23 @@ public partial class App : Application
     }
 
     /// <summary>
+    /// Ends an import that ran to completion: records its undo step, marks the company changed and
+    /// shows all dates on the charts, since imported data may be from any period. An import that
+    /// changed nothing, as when every row was skipped, does none of these, so it leaves no undo step
+    /// that would undo nothing and no unsaved change.
+    /// </summary>
+    internal static void FinishImport(CompanyData companyData, string beforeImport)
+    {
+        var afterImport = CreateCompanyDataSnapshot(companyData);
+        if (afterImport == beforeImport)
+            return;
+
+        RecordImportUndoStep(companyData, beforeImport, afterImport);
+        CompanyManager?.MarkAsChanged();
+        ChartSettingsService.Instance.SelectedDateRange = "All Time";
+    }
+
+    /// <summary>
     /// Records the undo step for an import. Undo and redo put the whole company back to how it was
     /// before or after the import, so they only run while nothing has been added since. A record
     /// added afterwards with no undo step of its own (an invoice sent, a payment synced, a receipt
@@ -3925,7 +3933,7 @@ public partial class App : Application
     /// workbook may have routed bank rows into a session) and the current page, whose charts
     /// otherwise stay stale until the user navigates away and back.
     /// </summary>
-    internal static void RecordImportUndoStep(CompanyData companyData, string beforeImport, string afterImport)
+    private static void RecordImportUndoStep(CompanyData companyData, string beforeImport, string afterImport)
     {
         bool Restore(string target, string current)
         {

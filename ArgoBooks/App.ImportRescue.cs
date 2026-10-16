@@ -88,10 +88,7 @@ public partial class App
         await Task.Yield();
         _mainWindowViewModel?.HideLoading();
 
-        RecordImportUndoStep(companyData, snapshot, CreateCompanyDataSnapshot(companyData));
-
-        CompanyManager?.MarkAsChanged();
-        ChartSettingsService.Instance.SelectedDateRange = "All Time";
+        FinishImport(companyData, snapshot);
 
         var totalImported = sheetResults.Sum(s => s.Inserted);
         var totalUpdated = sheetResults.Sum(s => s.Updated);
