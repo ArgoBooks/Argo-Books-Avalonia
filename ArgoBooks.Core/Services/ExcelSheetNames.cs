@@ -1,3 +1,5 @@
+using ClosedXML.Excel;
+
 namespace ArgoBooks.Core.Services;
 
 /// <summary>
@@ -21,5 +23,18 @@ internal static class ExcelSheetNames
             cleaned = cleaned.Replace(ch, '_');
 
         return cleaned.Length > MaxLength ? cleaned[..MaxLength] : cleaned;
+    }
+
+    /// <summary>The cleaned name, with a numbered suffix when the workbook already has a sheet by that name.</summary>
+    public static string CleanAndUnique(XLWorkbook workbook, string? name, string fallback)
+    {
+        var cleaned = Clean(name, fallback);
+        var candidate = cleaned;
+        for (var suffix = 1; workbook.Worksheets.Any(w => string.Equals(w.Name, candidate, StringComparison.OrdinalIgnoreCase)); suffix++)
+        {
+            var tail = $"_{suffix}";
+            candidate = cleaned[..Math.Min(cleaned.Length, MaxLength - tail.Length)] + tail;
+        }
+        return candidate;
     }
 }

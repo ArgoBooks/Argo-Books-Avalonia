@@ -96,7 +96,7 @@ public static class LegacyXlsConverter
             var srcSheet = source.GetSheetAt(s);
 
             // ClosedXML rejects empty/duplicate names; fall back to a positional name.
-            var sheetName = SanitizeSheetName(srcSheet.SheetName, s, output);
+            var sheetName = ExcelSheetNames.CleanAndUnique(output, srcSheet.SheetName, $"Sheet{s + 1}");
             var dstSheet = output.Worksheets.Add(sheetName);
 
             // Rows can be sparse; iterate by physical index range and skip nulls.
@@ -164,23 +164,5 @@ public static class LegacyXlsConverter
                 // reproduce error values; a blank is the safest neutral default.
                 break;
         }
-    }
-
-    private static string SanitizeSheetName(string? rawName, int index, XLWorkbook workbook)
-    {
-        var name = ExcelSheetNames.Clean(rawName, $"Sheet{index + 1}");
-
-        // Guard against duplicates (sanitization can collide) by suffixing.
-        var candidate = name;
-        var suffix = 1;
-        while (workbook.Worksheets.Any(w => string.Equals(w.Name, candidate, StringComparison.OrdinalIgnoreCase)))
-        {
-            var tail = $"_{suffix++}";
-            candidate = name.Length + tail.Length > ExcelSheetNames.MaxLength
-                ? name[..(ExcelSheetNames.MaxLength - tail.Length)] + tail
-                : name + tail;
-        }
-
-        return candidate;
     }
 }

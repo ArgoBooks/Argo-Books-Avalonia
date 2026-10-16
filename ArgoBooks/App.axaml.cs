@@ -2818,23 +2818,24 @@ public partial class App : Application
         _mainWindowViewModel?.ShowLoading("Analyzing spreadsheet structure...".Translate(), "Reading file...", 0, analysisCts, ConfirmCancelAsync);
         await Task.Yield(); // Allow UI to render the loading overlay before heavy work begins
 
-        // Legacy .xls (BIFF) is not read by the pipeline directly. Convert it to a temp .xlsx up front so the rest of the flow only ever sees .xlsx/.csv (unchanged).
-        if (!isCsv
-            && filePath.EndsWith(".xls", StringComparison.OrdinalIgnoreCase)
-            && !filePath.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
+        // A legacy .xls or an .ods is not read by the pipeline directly. It is converted to a temp .xlsx up front so the rest of the flow only ever sees .xlsx/.csv.
+        if (!isCsv && SpreadsheetFiles.NeedsConversion(filePath))
         {
+            var isOds = filePath.EndsWith(".ods", StringComparison.OrdinalIgnoreCase);
             try
             {
-                filePath = await Task.Run(() => LegacyXlsConverter.ConvertXlsToTempXlsx(filePath));
+                filePath = await Task.Run(() => SpreadsheetFiles.ConvertToTempXlsx(filePath));
             }
             catch (Exception ex)
             {
                 _mainWindowViewModel?.HideLoading();
                 _ = TelemetryManager?.TrackFeatureAsync(FeatureName.ImportFailed, "xls-convert");
-                ErrorLogger?.LogError(ex, ErrorCategory.Import, "Failed to convert legacy .xls file for import");
+                ErrorLogger?.LogError(ex, ErrorCategory.Import, "Failed to convert a .xls or .ods file for import");
                 await ShowErrorDialogAsync(
                     "Import Failed".Translate(),
-                    "This .xls file could not be read. Try re-saving it as .xlsx and importing that instead.".Translate());
+                    isOds
+                        ? "This .ods file could not be read. Try re-saving it as .xlsx and importing that instead.".Translate()
+                        : "This .xls file could not be read. Try re-saving it as .xlsx and importing that instead.".Translate());
                 return;
             }
         }
@@ -3677,7 +3678,7 @@ public partial class App : Application
             return await Task.Run(() => OfxStatementReader.Read(filePath));
 
         var parser = new BankStatementImportService(ErrorLogger);
-        var isCsv = filePath.EndsWith(".csv", StringComparison.OrdinalIgnoreCase);
+        var isCsv = SpreadsheetFiles.IsDelimitedText(filePath);
         var lines = isCsv
             ? await parser.ParseCsvAsync(filePath)
             : await parser.ParseExcelAsync(filePath);
@@ -3703,22 +3704,37 @@ public partial class App : Application
         if (usage == null) return null;
         _mainWindowViewModel?.ShowLoading("Scanning bank statement...".Translate());
 
-        var analysisService = new SpreadsheetAnalysisService(gemini, ErrorLogger, CompanyManager?.CurrentCompanySettings?.Company.Country);
-        var analysis = isCsv
-            ? await analysisService.AnalyzeCsvAsync(filePath)
-            : await analysisService.AnalyzeAsync(filePath);
+        // The analysis opens the workbook itself, so a .xls or .ods is converted for it first.
+        var converted = !isCsv && SpreadsheetFiles.NeedsConversion(filePath)
+            ? await Task.Run(() => SpreadsheetFiles.ConvertToTempXlsx(filePath))
+            : null;
+        var readPath = converted ?? filePath;
+        try
+        {
+            var analysisService = new SpreadsheetAnalysisService(gemini, ErrorLogger, CompanyManager?.CurrentCompanySettings?.Company.Country);
+            var analysis = isCsv
+                ? await analysisService.AnalyzeCsvAsync(readPath)
+                : await analysisService.AnalyzeAsync(readPath);
 
-        var sheet = analysis?.Sheets.FirstOrDefault();
-        if (sheet == null) return [];
+            var sheet = analysis?.Sheets.FirstOrDefault();
+            if (sheet == null) return [];
 
-        var lines = isCsv
-            ? await parser.ParseCsvWithAnalysisAsync(filePath, sheet)
-            : await parser.ParseExcelWithAnalysisAsync(filePath, sheet);
+            var lines = isCsv
+                ? await parser.ParseCsvWithAnalysisAsync(readPath, sheet)
+                : await parser.ParseExcelWithAnalysisAsync(readPath, sheet);
 
-        if (lines.Count > 0)
-            await usage.IncrementUsageAsync();
+            if (lines.Count > 0)
+                await usage.IncrementUsageAsync();
 
-        return lines;
+            return lines;
+        }
+        finally
+        {
+            if (converted != null)
+            {
+                try { File.Delete(converted); } catch { /* a temp file we could not remove is not worth failing an import over */ }
+            }
+        }
     }
 
     /// <summary>

@@ -1585,17 +1585,14 @@ public partial class App
                 return;
             }
 
-            // Show open file dialog: support both .xlsx and .csv
+            // Show open file dialog: every workbook and delimited text format the importer reads
             var file = await desktop.MainWindow!.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
             {
                 Title = "Import Spreadsheet".Translate(),
                 AllowMultiple = false,
                 FileTypeFilter =
                 [
-                    new FilePickerFileType("Spreadsheets")
-                    {
-                        Patterns = ["*.xlsx", "*.xls", "*.csv"]
-                    },
+                    Utilities.FilePickerTypes.SpreadsheetFileType,
                     Utilities.FilePickerTypes.ExcelFileType,
                     Utilities.FilePickerTypes.CsvFileType
                 ]
@@ -1609,7 +1606,7 @@ public partial class App
 
             var filePath = file[0].Path.LocalPath;
             var companyData = CompanyManager.CompanyData;
-            var isCsv = filePath.EndsWith(".csv", StringComparison.OrdinalIgnoreCase);
+            var isCsv = SpreadsheetFiles.IsDelimitedText(filePath);
 
             // Use AI import flow
             await PerformAiImportAsync(filePath, companyData, isCsv);
@@ -1641,9 +1638,7 @@ public partial class App
                     new FilePickerFileType("QuickBooks exports")
                     {
                         Patterns = ["*.xlsx", "*.xls", "*.csv", "*.zip"]
-                    },
-                    Utilities.FilePickerTypes.ExcelFileType,
-                    Utilities.FilePickerTypes.CsvFileType
+                    }
                 ]
             });
 
@@ -1677,7 +1672,7 @@ public partial class App
             {
                 foreach (var path in paths)
                 {
-                    var isCsv = path.EndsWith(".csv", StringComparison.OrdinalIgnoreCase);
+                    var isCsv = SpreadsheetFiles.IsDelimitedText(path);
                     await PerformAiImportAsync(path, CompanyManager.CompanyData, isCsv);
                 }
             }

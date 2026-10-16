@@ -75,15 +75,14 @@ public class BankStatementImportService(IErrorLogger? errorLogger = null)
 
     private List<BankStatementLine> ParseExcelCore(string filePath, Action<List<string>> normalize, bool requireEssentials, CancellationToken cancellationToken)
     {
-        // ClosedXML reads .xlsx only, so a legacy .xls is converted first. Done here rather
+        // ClosedXML cannot open a legacy .xls or an .ods, so they are converted first. Done here rather
         // than at the two call sites, which is why the temp file is deleted below.
         string? tempXlsx = null;
         try
         {
-            if (filePath.EndsWith(".xls", StringComparison.OrdinalIgnoreCase)
-                && !filePath.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
+            if (SpreadsheetFiles.NeedsConversion(filePath))
             {
-                tempXlsx = LegacyXlsConverter.ConvertXlsToTempXlsx(filePath);
+                tempXlsx = SpreadsheetFiles.ConvertToTempXlsx(filePath);
                 filePath = tempXlsx;
             }
 

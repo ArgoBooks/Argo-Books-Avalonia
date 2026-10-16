@@ -386,7 +386,7 @@ public class SpreadsheetAnalysisService(
         List<string> headers;
         List<List<string>> allRows;
 
-        if (filePath.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+        if (SpreadsheetFiles.IsDelimitedText(filePath))
         {
             allRows = CsvReader.ReadAllRows(filePath, out headers);
         }
@@ -416,7 +416,7 @@ public class SpreadsheetAnalysisService(
     {
         var result = new Dictionary<string, (List<string> Headers, List<List<string>> Rows)>();
 
-        if (filePath.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+        if (SpreadsheetFiles.IsDelimitedText(filePath))
         {
             var rows = CsvReader.ReadAllRows(filePath, out var headers);
             if (headers.Count == 0) return result;

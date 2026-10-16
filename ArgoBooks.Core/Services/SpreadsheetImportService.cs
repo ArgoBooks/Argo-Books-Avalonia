@@ -308,7 +308,7 @@ public class SpreadsheetImportService
         ArgumentNullException.ThrowIfNull(analysis);
 
         // Route CSV files through the RFC-4180-compliant importer
-        if (filePath.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+        if (SpreadsheetFiles.IsDelimitedText(filePath))
             return await ImportCsvWithMappingsAsync(filePath, companyData, analysis, options, cancellationToken, progress);
 
         options ??= new ImportOptions();
@@ -1007,7 +1007,7 @@ public class SpreadsheetImportService
     public List<DateTime> CollectTransactionDates(string filePath, SpreadsheetAnalysisResult analysis)
     {
         var dates = new List<DateTime>();
-        if (analysis is null || filePath.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+        if (analysis is null || SpreadsheetFiles.IsDelimitedText(filePath))
             return dates;
         try
         {

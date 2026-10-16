@@ -129,17 +129,29 @@ public static class FilePickerTypes
         Patterns = ["*" + Core.Models.FileFormatConstants.BackupFileExtension]
     };
 
-    /// <summary>A spreadsheet to import, in either Excel format.</summary>
-    public static readonly FilePickerFileType ExcelFileType = new("Excel Workbook") { Patterns = ["*.xlsx", "*.xls"] };
+    /// <summary>Every spreadsheet the importer reads, workbook or delimited text.</summary>
+    public static readonly FilePickerFileType SpreadsheetFileType = new("Spreadsheets")
+    {
+        Patterns = [.. Core.Services.SpreadsheetFiles.WorkbookExtensions.Concat(Core.Services.SpreadsheetFiles.DelimitedTextExtensions).Select(e => "*" + e)]
+    };
+
+    /// <summary>A workbook to import: any Excel format, or LibreOffice's .ods.</summary>
+    public static readonly FilePickerFileType ExcelFileType = new("Excel or LibreOffice workbook")
+    {
+        Patterns = [.. Core.Services.SpreadsheetFiles.WorkbookExtensions.Select(e => "*" + e)]
+    };
 
     /// <summary>A spreadsheet the app writes, which is always .xlsx.</summary>
     public static readonly FilePickerFileType XlsxSaveType = new("Excel Workbook") { Patterns = ["*.xlsx"] };
 
-    public static readonly FilePickerFileType CsvFileType = new("CSV File") { Patterns = ["*.csv"] };
+    public static readonly FilePickerFileType CsvFileType = new("CSV or tab-separated text")
+    {
+        Patterns = [.. Core.Services.SpreadsheetFiles.DelimitedTextExtensions.Select(e => "*" + e)]
+    };
 
     public static readonly FilePickerFileType BankStatementFileType = new("Bank statements")
     {
-        Patterns = ["*.csv", "*.xlsx", "*.xls", "*.pdf", .. Core.Services.OfxStatementReader.Extensions.Select(e => "*" + e)]
+        Patterns = [.. SpreadsheetFileType.Patterns!, "*.pdf", .. Core.Services.OfxStatementReader.Extensions.Select(e => "*" + e)]
     };
 
     private static IEnumerable<string> Patterns(bool? images = null) => ReceiptFormats
