@@ -89,7 +89,7 @@ public partial class InvoiceModals : UserControl
                 Title = "Save Invoice PDF".Translate(),
                 SuggestedFileName = vm.PdfFileName,
                 DefaultExtension = "pdf",
-                FileTypeChoices = [new FilePickerFileType("PDF") { Patterns = ["*.pdf"] }]
+                FileTypeChoices = [Utilities.FilePickerTypes.PdfFileType]
             });
             if (saved == null) return;
 

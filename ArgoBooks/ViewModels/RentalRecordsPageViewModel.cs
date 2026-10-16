@@ -604,8 +604,8 @@ public partial class RentalRecordDisplayItem : ObservableObject
 
     public bool HasInvoiceId => !string.IsNullOrEmpty(InvoiceId);
 
-    public string StartDateFormatted => StartDate.ToString("MMM d, yyyy");
-    public string DueDateFormatted => DueDate.ToString("MMM d, yyyy");
+    public string StartDateFormatted => StartDate.ToString(Core.Data.DateFormats.Short);
+    public string DueDateFormatted => DueDate.ToString(Core.Data.DateFormats.Short);
     public string RateFormatted => ItemCount > 1 ? "{0} items".TranslateFormat(ItemCount) : $"{CurrencyService.Format(RateAmount)}/{RateType}";
     public string TotalCostFormatted => CurrencyService.Format(TotalCost);
     public string DepositFormatted => CurrencyService.Format(SecurityDeposit);

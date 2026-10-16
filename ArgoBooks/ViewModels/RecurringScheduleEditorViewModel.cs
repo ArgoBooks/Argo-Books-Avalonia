@@ -550,7 +550,7 @@ public partial class RecurringScheduleEditorViewModel : ViewModelBase
         {
             Title = "Update past entries?".Translate(),
             Message = "{0} entries from {1} to {2} were generated at the old amount. Update them too? Entries matched to a bank line or changed by hand are left alone."
-                .TranslateFormat(correctable.Count, earliest.ToString("MMM d, yyyy"), latest.ToString("MMM d, yyyy")),
+                .TranslateFormat(correctable.Count, earliest.ToString(Core.Data.DateFormats.Short), latest.ToString(Core.Data.DateFormats.Short)),
             PrimaryButtonText = "Update them".Translate(),
             CancelButtonText = "Leave them".Translate()
         });

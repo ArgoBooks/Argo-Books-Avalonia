@@ -214,11 +214,6 @@ public partial class QuickActionsViewModel : ViewModelBase
         FilterActions(value);
     }
 
-    /// <summary>
-    /// Minimum score threshold for a "strong" match (prefix, word-start, or substring).
-    /// Items with title scores at or above this threshold appear in Top Results.
-    /// </summary>
-    private const double StrongMatchThreshold = 0.8;
 
     /// <summary>
     /// Filters all action lists based on query using fuzzy matching.
@@ -248,12 +243,12 @@ public partial class QuickActionsViewModel : ViewModelBase
 
                     // A strong title match wins, a weak one with a strong description match gets a small boost, and otherwise the best of the two is used.
                     double finalScore;
-                    if (titleScore >= StrongMatchThreshold)
+                    if (titleScore >= LevenshteinDistance.StrongMatchScore)
                     {
                         // Strong title match - prioritize heavily
                         finalScore = titleScore + (descScore > 0 ? descScore * 0.05 : 0);
                     }
-                    else if (descScore >= StrongMatchThreshold && titleScore < StrongMatchThreshold)
+                    else if (descScore >= LevenshteinDistance.StrongMatchScore && titleScore < LevenshteinDistance.StrongMatchScore)
                     {
                         // Strong description match but weak/no title match - reduce score
                         // This prevents "Scan Receipt" (desc contains "import") from ranking high for "export"
@@ -277,7 +272,7 @@ public partial class QuickActionsViewModel : ViewModelBase
         if (!string.IsNullOrWhiteSpace(query))
         {
             var topResultItems = new HashSet<QuickActionItem>();
-            foreach (var (item, _, _) in filteredList.Where(x => x.TitleScore >= StrongMatchThreshold).Take(4))
+            foreach (var (item, _, _) in filteredList.Where(x => x.TitleScore >= LevenshteinDistance.StrongMatchScore).Take(4))
             {
                 TopResults.Add(item);
                 topResultItems.Add(item);

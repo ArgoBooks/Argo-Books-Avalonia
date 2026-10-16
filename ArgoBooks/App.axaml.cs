@@ -129,6 +129,10 @@ public partial class App : Application
     /// </summary>
     public static IErrorLogger? ErrorLogger { get; private set; }
 
+    /// <summary>The main window, which owns file pickers and dialogs; null when not running on a desktop.</summary>
+    public static Window? DesktopMainWindow =>
+        Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop ? desktop.MainWindow : null;
+
     /// <summary>
     /// Gets the telemetry manager instance for anonymous usage tracking.
     /// </summary>
@@ -2493,11 +2497,11 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// Shows the OS image-picker, decodes the result into a Bitmap, and hands the
-    /// pair off to the caller. Centralized so customer and supplier avatar pickers
-    /// share the file-type filter and error handling.
+    /// Shows the OS image picker, decodes the result into a Bitmap, and hands the pair to the
+    /// caller. Every avatar and logo picker goes through here, so they accept the same formats
+    /// and explain an unreadable file the same way.
     /// </summary>
-    private static async Task PickAvatarAsync(string title, Action<string, Bitmap> onPicked, string errorTag)
+    private static async Task PickPictureAsync(string title, string notSupportedTitle, Action<string, Bitmap> onPicked, string errorTag)
     {
         if (Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop)
             return;
@@ -2506,7 +2510,7 @@ public partial class App : Application
         {
             Title = title,
             AllowMultiple = false,
-            FileTypeFilter = [Utilities.FilePickerTypes.ImageFileType]
+            FileTypeFilter = [Utilities.FilePickerTypes.PictureFileType]
         });
 
         if (files.Count == 0) return;
@@ -2515,9 +2519,9 @@ public partial class App : Application
         var prepared = await Task.Run(() => Helpers.ImageFileLoader.TryPrepare(path));
         if (prepared == null)
         {
-            ErrorLogger?.LogWarning($"Could not read avatar image: {path}", errorTag);
+            ErrorLogger?.LogWarning($"Could not read picked image: {path}", errorTag);
             await ShowErrorDialogAsync(
-                "Image Not Supported".Translate(),
+                notSupportedTitle,
                 "That image could not be read. Try a PNG or JPEG.".Translate());
             return;
         }
@@ -3000,7 +3004,7 @@ public partial class App : Application
                     currencyScan.Resolved.Values.SelectMany(m => m.Values)
                         .Concat(importOptions.SymbolResolution.Values)
                         .Append(companyData.Settings.Localization.Currency)
-                        .Any(c => !string.IsNullOrEmpty(c) && !string.Equals(c, "USD", StringComparison.OrdinalIgnoreCase));
+                        .Any(c => !UsdConversion.IsUsd(c));
                 if (hasNonUsd)
                 {
                     var importDates = importService.CollectTransactionDates(filePath, updatedAnalysis);
@@ -3315,10 +3319,7 @@ public partial class App : Application
             AllowMultiple = false,
             FileTypeFilter =
             [
-                new FilePickerFileType("Argo Books Backup")
-                {
-                    Patterns = ["*.argobk"]
-                }
+                Utilities.FilePickerTypes.BackupFileType
             ]
         });
 
@@ -3344,14 +3345,11 @@ public partial class App : Application
         var saveFile = await desktop.MainWindow!.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
             Title = "Save Restored Company As".Translate(),
-            SuggestedFileName = $"{suggestedName}.argo",
-            DefaultExtension = "argo",
+            SuggestedFileName = suggestedName + FileFormatConstants.CompanyFileExtension,
+            DefaultExtension = FileFormatConstants.CompanyFileExtension.TrimStart('.'),
             FileTypeChoices =
             [
-                new FilePickerFileType("Argo Books Files")
-                {
-                    Patterns = ["*.argo"]
-                }
+                Utilities.FilePickerTypes.CompanyFileType
             ]
         });
 
@@ -3492,7 +3490,7 @@ public partial class App : Application
             AllowMultiple = false,
             FileTypeFilter =
             [
-                new FilePickerFileType("Bank statements") { Patterns = ["*.csv", "*.xlsx", "*.xls", "*.pdf"] }
+                Utilities.FilePickerTypes.BankStatementFileType
             ]
         });
         if (file.Count == 0)
@@ -3543,7 +3541,7 @@ public partial class App : Application
             AllowMultiple = false,
             FileTypeFilter =
             [
-                new FilePickerFileType("Bank statements") { Patterns = ["*.csv", "*.xlsx", "*.xls", "*.pdf"] }
+                Utilities.FilePickerTypes.BankStatementFileType
             ]
         });
         if (file.Count == 0)
@@ -4073,10 +4071,7 @@ public partial class App : Application
             AllowMultiple = false,
             FileTypeFilter =
             [
-                new FilePickerFileType("Argo Books Files")
-                {
-                    Patterns = ["*.argo"]
-                },
+                Utilities.FilePickerTypes.CompanyFileType,
                 new FilePickerFileType("All Files")
                 {
                     Patterns = ["*.*"]
@@ -4602,14 +4597,11 @@ public partial class App : Application
         return await desktop.MainWindow!.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
             Title = "Save Company".Translate(),
-            SuggestedFileName = $"{CompanyManager.ToCompanyFileName(suggestedFileName)}.argo",
-            DefaultExtension = "argo",
+            SuggestedFileName = CompanyManager.ToCompanyFileName(suggestedFileName) + FileFormatConstants.CompanyFileExtension,
+            DefaultExtension = FileFormatConstants.CompanyFileExtension.TrimStart('.'),
             FileTypeChoices =
             [
-                new FilePickerFileType("Argo Books Files")
-                {
-                    Patterns = ["*.argo"]
-                }
+                Utilities.FilePickerTypes.CompanyFileType
             ]
         });
     }
@@ -4719,7 +4711,7 @@ public partial class App : Application
             {
                 var watcher = new FileSystemWatcher(directory)
                 {
-                    Filter = "*.argo",
+                    Filter = "*" + FileFormatConstants.CompanyFileExtension,
                     NotifyFilter = NotifyFilters.FileName,
                     EnableRaisingEvents = true
                 };

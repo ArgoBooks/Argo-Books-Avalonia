@@ -21,7 +21,7 @@ namespace ArgoBooks.Services;
 /// </summary>
 public static class ReceiptPageRenderer
 {
-    private static string TempDir => Path.Combine(Path.GetTempPath(), "ArgoBooks", "Receipts");
+    private static string TempDir => Path.Combine(Core.Services.AppPaths.Temp, "Receipts");
 
     // Hashing the file is the costly part of a key, so it is kept per receipt object and only
     // redone if that receipt's FileData is replaced.

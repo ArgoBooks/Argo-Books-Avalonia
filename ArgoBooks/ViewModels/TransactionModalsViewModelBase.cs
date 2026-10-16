@@ -1717,7 +1717,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         CompanyData companyData, string filePath, string transactionId, string transactionType, string supplier)
     {
         var fileInfo = new FileInfo(filePath);
-        var fileType = GetFileType(filePath);
+        var fileType = Core.Services.MimeTypes.For(filePath);
 
         // A receipt is only worth keeping with its file in it.
         string fileData;
@@ -1755,9 +1755,7 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
     [RelayCommand]
     protected async Task AttachReceipt()
     {
-        var topLevel = Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop
-            ? desktop.MainWindow
-            : null;
+        var topLevel = App.DesktopMainWindow;
 
         if (topLevel == null) return;
 
@@ -1783,11 +1781,6 @@ public abstract partial class TransactionModalsViewModelBase<TDisplayItem, TLine
         }
     }
 
-    protected static string GetFileType(string filePath)
-    {
-        return FilePickerTypes.GetReceiptContentType(filePath)
-               ?? (Path.GetExtension(filePath).ToLowerInvariant() == ".gif" ? "image/gif" : "application/octet-stream");
-    }
 
     #endregion
 

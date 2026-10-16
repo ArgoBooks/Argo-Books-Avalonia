@@ -168,14 +168,7 @@ public static class LegacyXlsConverter
 
     private static string SanitizeSheetName(string? rawName, int index, XLWorkbook workbook)
     {
-        var name = string.IsNullOrWhiteSpace(rawName) ? $"Sheet{index + 1}" : rawName.Trim();
-
-        // Excel sheet names are capped at 31 chars and forbid a set of characters.
-        foreach (var ch in new[] { '\\', '/', '*', '?', ':', '[', ']' })
-            name = name.Replace(ch, '_');
-
-        if (name.Length > 31)
-            name = name.Substring(0, 31);
+        var name = ExcelSheetNames.Clean(rawName, $"Sheet{index + 1}");
 
         // Guard against duplicates (sanitization can collide) by suffixing.
         var candidate = name;
@@ -183,8 +176,8 @@ public static class LegacyXlsConverter
         while (workbook.Worksheets.Any(w => string.Equals(w.Name, candidate, StringComparison.OrdinalIgnoreCase)))
         {
             var tail = $"_{suffix++}";
-            candidate = name.Length + tail.Length > 31
-                ? name.Substring(0, 31 - tail.Length) + tail
+            candidate = name.Length + tail.Length > ExcelSheetNames.MaxLength
+                ? name[..(ExcelSheetNames.MaxLength - tail.Length)] + tail
                 : name + tail;
         }
 

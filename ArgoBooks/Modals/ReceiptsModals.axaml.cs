@@ -543,7 +543,7 @@ public partial class ReceiptsModals : UserControl
             {
                 Title = "Select Receipts to Scan",
                 AllowMultiple = true,
-                FileTypeFilter = [FilePickerTypes.AllSupportedTypes, FilePickerTypes.ImageFileType, FilePickerTypes.PdfFileType]
+                FileTypeFilter = FilePickerTypes.ReceiptFilters
             });
 
             if (files.Count > 0 && DataContext is ReceiptsModalsViewModel vm)

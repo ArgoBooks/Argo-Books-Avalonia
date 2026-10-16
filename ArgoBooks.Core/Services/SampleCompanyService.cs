@@ -64,7 +64,7 @@ public class SampleCompanyService
         var context = new SampleCompanyValidationContext();
 
         // Create temporary directories
-        context.TempRoot = Path.Combine(Path.GetTempPath(), "ArgoBooks", "Sample", Guid.NewGuid().ToString("N"));
+        context.TempRoot = Path.Combine(AppPaths.Temp, "Sample", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(context.TempRoot);
 
         context.TempExcelPath = Path.Combine(context.TempRoot, "SampleData.xlsx");
@@ -217,10 +217,7 @@ public class SampleCompanyService
     /// </summary>
     public static string GetSampleCompanyPath()
     {
-        return Path.Combine(
-            Path.GetTempPath(),
-            "ArgoBooks",
-            $"{SampleCompanyName}.argo");
+        return Path.Combine(AppPaths.Temp, $"{SampleCompanyName}{FileFormatConstants.CompanyFileExtension}");
     }
 
     /// <summary>

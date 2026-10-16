@@ -13,7 +13,6 @@ namespace ArgoBooks.Core.Services;
 /// </summary>
 public class GeminiService : IGeminiService, IDisposable
 {
-    private const string DefaultModel = "gemini-2.5-flash";
     private readonly HttpClient _httpClient;
     private readonly AiProxyClient _proxy;
     private readonly IErrorLogger? _errorLogger;
@@ -43,7 +42,7 @@ public class GeminiService : IGeminiService, IDisposable
             return null;
 
         var stopwatch = Stopwatch.StartNew();
-        var model = DefaultModel;
+        var model = AiProxyClient.DefaultModel;
         var success = false;
 
         try
@@ -137,7 +136,7 @@ public class GeminiService : IGeminiService, IDisposable
         };
 
         var stopwatch = Stopwatch.StartNew();
-        var model = DefaultModel;
+        var model = AiProxyClient.DefaultModel;
         var success = false;
 
         try
@@ -199,7 +198,7 @@ public class GeminiService : IGeminiService, IDisposable
             return new AiChatResult(null, false);
 
         var stopwatch = Stopwatch.StartNew();
-        var model = DefaultModel;
+        var model = AiProxyClient.DefaultModel;
         var success = false;
 
         try
@@ -305,7 +304,7 @@ Respond with JSON only.";
             Operation = operation.ToServerTag(),
             SystemPrompt = systemPrompt,
             UserPrompt = userPrompt,
-            Model = DefaultModel,
+            Model = AiProxyClient.DefaultModel,
             MaxTokens = maxTokens,
             Temperature = temperature,
             SizeFeature = sizeFeature,

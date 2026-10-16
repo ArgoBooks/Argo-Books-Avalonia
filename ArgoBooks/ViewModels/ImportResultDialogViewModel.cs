@@ -185,9 +185,7 @@ public partial class ImportResultDialogViewModel : ViewModelBase
     {
         try
         {
-            var topLevel = Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
-                ? desktop.MainWindow
-                : null;
+            var topLevel = App.DesktopMainWindow;
             if (topLevel?.StorageProvider == null) return;
 
             var file = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions

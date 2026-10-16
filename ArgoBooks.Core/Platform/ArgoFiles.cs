@@ -19,7 +19,7 @@ public static class ArgoFiles
     private const uint SHCNE_ASSOCCHANGED = 0x8000000;
     private const uint SHCNF_IDLIST = 0x0;
 
-    private static readonly string[] LegacyExtensions = [".argo", ".argobk", ".argotemplate"];
+    private static readonly string[] LegacyExtensions = [Models.FileFormatConstants.CompanyFileExtension, Models.FileFormatConstants.BackupFileExtension, ".argotemplate"];
 
     /// <summary>
     /// Deletes the legacy registrations and returns true if anything was removed.

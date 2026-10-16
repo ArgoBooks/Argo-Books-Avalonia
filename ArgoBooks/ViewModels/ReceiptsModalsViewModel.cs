@@ -360,7 +360,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
 
     internal static async Task<List<string>> RenderPreviewPagesAsync(byte[] data, string fileName, bool isPdf, string tempSubdir)
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), "ArgoBooks", tempSubdir);
+        var tempDir = Path.Combine(Core.Services.AppPaths.Temp, tempSubdir);
         Directory.CreateDirectory(tempDir);
         var paths = new List<string>();
 
@@ -835,7 +835,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             var fileData = await SharedFileReader.ReadAllBytesAsync(item.FilePath);
             var isPdf = item.IsPdf;
 
-            var tempDir = Path.Combine(Path.GetTempPath(), "ArgoBooks", "BulkScanPreview");
+            var tempDir = Path.Combine(Core.Services.AppPaths.Temp, "BulkScanPreview");
             Directory.CreateDirectory(tempDir);
             var thumbPath = Path.Combine(tempDir,
                 $"{Path.GetFileNameWithoutExtension(item.FileName)}_{Guid.NewGuid():N}_thumb.jpg");
@@ -1038,7 +1038,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             {
                 _ = Task.Run(async () =>
                 {
-                    var tempDir = Path.Combine(Path.GetTempPath(), "ArgoBooks", "BulkScanPreview");
+                    var tempDir = Path.Combine(Core.Services.AppPaths.Temp, "BulkScanPreview");
                     Directory.CreateDirectory(tempDir);
                     var previewPath = Path.Combine(tempDir, $"{Path.GetFileNameWithoutExtension(fileName)}_{Guid.NewGuid():N}.jpg");
 
@@ -1514,7 +1514,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
                 Id = receiptId,
                 TransactionType = isRevenue ? "Revenue" : "Expense",
                 FileName = item.ScanFileName,
-                FileType = GetMimeType(item.ScanFileName),
+                FileType = Core.Services.MimeTypes.For(item.ScanFileName),
                 FileSize = item.PreprocessedData?.Length ?? 0,
                 FileData = fileData,
                 Amount = total,
@@ -1894,7 +1894,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             canvas.DrawLine(left, y, right, y, rule);
             y += lineGap;
 
-            canvas.DrawText(data.Date.ToString("MMM d, yyyy"), left, y, SKTextAlign.Left, bodyFont, ink);
+            canvas.DrawText(data.Date.ToString(Core.Data.DateFormats.Short), left, y, SKTextAlign.Left, bodyFont, ink);
             canvas.DrawText("2:14 PM", right, y, SKTextAlign.Right, bodyFont, ink);
             y += lineGap * 0.5f;
             canvas.DrawLine(left, y, right, y, rule);
@@ -2594,7 +2594,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             TransactionId = expenseId,
             TransactionType = "Expense",
             FileName = _currentFileName ?? "receipt.jpg",
-            FileType = GetMimeType(_currentFileName ?? "receipt.jpg"),
+            FileType = Core.Services.MimeTypes.For(_currentFileName ?? "receipt.jpg"),
             FileSize = _currentImageData?.Length ?? 0,
             FileData = fileData,
             Amount = total,
@@ -2670,7 +2670,7 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
             TransactionId = revenueId,
             TransactionType = "Revenue",
             FileName = _currentFileName ?? "receipt.jpg",
-            FileType = GetMimeType(_currentFileName ?? "receipt.jpg"),
+            FileType = Core.Services.MimeTypes.For(_currentFileName ?? "receipt.jpg"),
             FileSize = _currentImageData?.Length ?? 0,
             FileData = fileData,
             Amount = total,
@@ -3469,24 +3469,6 @@ public partial class ReceiptsModalsViewModel : ViewModelBase
                 Confidence = li.Confidence
             }).ToList(),
             ExtractedItems = result.LineItems.Select(li => li.Description).ToList()
-        };
-    }
-
-    /// <summary>
-    /// The content type stored on a receipt. Accepted formats come from the shared list, so a
-    /// new one is typed correctly here without a second edit. The two below are not offered by
-    /// the picker but can still arrive on a receipt carried over from an import.
-    /// </summary>
-    private static string GetMimeType(string fileName)
-    {
-        var known = FilePickerTypes.GetReceiptContentType(fileName);
-        if (known != null) return known;
-
-        return Path.GetExtension(fileName).ToLowerInvariant() switch
-        {
-            ".bmp" => "image/bmp",
-            ".gif" => "image/gif",
-            _ => "application/octet-stream"
         };
     }
 

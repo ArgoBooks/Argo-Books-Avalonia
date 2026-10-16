@@ -1275,9 +1275,7 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
     {
         if (SelectedElement is not ImageReportElement) return;
 
-        var topLevel = Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop
-            ? desktop.MainWindow
-            : null;
+        var topLevel = App.DesktopMainWindow;
 
         if (topLevel?.StorageProvider != null)
         {
@@ -1618,18 +1616,7 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
 
                 if (OpenAfterExport && File.Exists(ExportFilePath))
                 {
-                    try
-                    {
-                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                        {
-                            FileName = ExportFilePath,
-                            UseShellExecute = true
-                        });
-                    }
-                    catch
-                    {
-                        // Ignore if we can't open the file
-                    }
+                    Core.Platform.UrlHelper.SafeOpenUrl(new Uri(ExportFilePath).AbsoluteUri);
                 }
             }
             else
@@ -1656,13 +1643,7 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
         {
             var dir = Path.GetDirectoryName(ExportFilePath) ?? "";
             var name = Path.GetFileNameWithoutExtension(ExportFilePath);
-            var newExt = format switch
-            {
-                ExportFormat.PDF => ".pdf",
-                ExportFormat.PNG => ".png",
-                ExportFormat.JPEG => ".jpg",
-                _ => ".pdf"
-            };
+            var newExt = format.FileExtension();
             ExportFilePath = Path.Combine(dir, $"{name}{newExt}");
         }
     }
@@ -1676,9 +1657,7 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
             ? lastDir
             : Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
 
-        var topLevel = Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop
-            ? desktop.MainWindow
-            : null;
+        var topLevel = App.DesktopMainWindow;
 
         if (topLevel?.StorageProvider != null)
         {
@@ -1694,13 +1673,7 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
             {
                 var selectedDir = result[0].Path.LocalPath;
                 var fileName = string.IsNullOrWhiteSpace(ExportFileName) ? "Report" : ExportFileName;
-                var extension = SelectedExportFormat switch
-                {
-                    ExportFormat.PDF => ".pdf",
-                    ExportFormat.PNG => ".png",
-                    ExportFormat.JPEG => ".jpg",
-                    _ => ".pdf"
-                };
+                var extension = SelectedExportFormat.FileExtension();
                 ExportFilePath = Path.Combine(selectedDir, $"{fileName}{extension}");
             }
         }
@@ -2299,13 +2272,7 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
 
         // Set default export path to Desktop
         var desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
-        var extension = SelectedExportFormat switch
-        {
-            ExportFormat.PDF => ".pdf",
-            ExportFormat.PNG => ".png",
-            ExportFormat.JPEG => ".jpg",
-            _ => ".pdf"
-        };
+        var extension = SelectedExportFormat.FileExtension();
         var defaultName = string.IsNullOrWhiteSpace(ReportName) ? "Report" : ReportName;
         ExportFilePath = Path.Combine(desktopPath, $"{defaultName}{extension}");
     }

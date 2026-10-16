@@ -572,7 +572,7 @@ public partial class EditCompanyModalViewModel : ViewModelBase
     private async Task<bool> PreloadExchangeRatesForCurrencyAsync(string currencyCode, CancellationToken cancellationToken = default)
     {
         // Skip if USD (no conversion needed)
-        if (string.Equals(currencyCode, "USD", StringComparison.OrdinalIgnoreCase))
+        if (UsdConversion.IsUsd(currencyCode))
             return true;
 
         CurrencyLoadingProgress = 0;

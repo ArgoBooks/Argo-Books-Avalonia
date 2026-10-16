@@ -239,7 +239,7 @@ public partial class SendToAccountantModalViewModel : ViewModelBase
         if (!TryGetRange(out var range))
             return;
 
-        var topLevel = Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop ? desktop.MainWindow : null;
+        var topLevel = App.DesktopMainWindow;
         if (topLevel?.StorageProvider == null)
             return;
 
@@ -387,7 +387,7 @@ public partial class SendToAccountantModalViewModel : ViewModelBase
         if (manager == null || data == null)
             return null;
 
-        var staging = Path.Combine(Path.GetTempPath(), "ArgoBooks", "AccountantPack", Guid.NewGuid().ToString("N"));
+        var staging = Path.Combine(Core.Services.AppPaths.Temp, "AccountantPack", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(staging);
         var files = new List<(string EntryName, string FilePath)>();
 
@@ -500,12 +500,7 @@ public partial class SendToAccountantModalViewModel : ViewModelBase
     {
         try
         {
-            if (OperatingSystem.IsWindows())
-                System.Diagnostics.Process.Start("explorer.exe", $"/select,\"{path}\"");
-            else if (OperatingSystem.IsMacOS())
-                System.Diagnostics.Process.Start("open", $"-R \"{path}\"");
-            else if (OperatingSystem.IsLinux() && Path.GetDirectoryName(path) is { } directory)
-                System.Diagnostics.Process.Start("xdg-open", directory);
+            Core.Platform.FileManager.ShowFile(path);
         }
         catch (Exception ex)
         {

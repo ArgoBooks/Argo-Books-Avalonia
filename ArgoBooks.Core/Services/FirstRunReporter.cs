@@ -23,9 +23,7 @@ namespace ArgoBooks.Core.Services;
 /// </summary>
 public sealed class FirstRunReporter
 {
-    private const string EndpointPath = "/api/track-app-event.php";
     private const string TokenFileName = "install_token.txt";
-    private const string MarkerFileName = "first_run_reported.marker";
     private const int MaxRetryAttempts = 3;
 
     private readonly HttpClient _httpClient;
@@ -41,9 +39,7 @@ public sealed class FirstRunReporter
         _httpClient = httpClient;
         _errorLogger = errorLogger;
         _appVersion = appVersion;
-        _appDataDir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "ArgoBooks");
+        _appDataDir = AppPaths.LocalData;
     }
 
     /// <summary>
@@ -59,7 +55,7 @@ public sealed class FirstRunReporter
         try
         {
             Directory.CreateDirectory(_appDataDir);
-            var markerPath = Path.Combine(_appDataDir, MarkerFileName);
+            var markerPath = Path.Combine(_appDataDir, AppPaths.FirstRunMarkerFileName);
 
             // Idempotency guard: if we already reported, do nothing.
             if (File.Exists(markerPath))
@@ -80,7 +76,7 @@ public sealed class FirstRunReporter
 
             var token = ResolveInstallToken();
             var machineUuid = GetOrCreateMachineUuid();
-            var platform = GetPlatformKey();
+            var platform = TelemetryPlatform.Key;
 
             var payload = new FirstRunPayload
             {
@@ -91,18 +87,14 @@ public sealed class FirstRunReporter
                 MachineUuid = machineUuid,
             };
 
-            var url = $"{ApiConfig.BaseUrl}{EndpointPath}";
+            var url = $"{ApiConfig.BaseUrl}{TelemetryPlatform.AppEventEndpoint}";
             using var request = new HttpRequestMessage(HttpMethod.Post, url)
             {
                 Content = JsonContent.Create(payload),
             };
             // Telemetry is filed under this id, so the website can show which
             // referral source brought in the user behind that activity.
-            var deviceId = LicenseAuthHelper.GetDeviceId();
-            if (!string.IsNullOrEmpty(deviceId))
-            {
-                request.Headers.Add("X-Device-Id", deviceId);
-            }
+            LicenseAuthHelper.AddAuthHeaders(request, licenseKey: null, LicenseAuthHelper.GetDeviceId());
             using var response = await _httpClient.SendAsync(request, cancellationToken);
             postCompleted = true;
 
@@ -237,14 +229,6 @@ public sealed class FirstRunReporter
     private static bool IsValidToken(string token) =>
         System.Text.RegularExpressions.Regex.IsMatch(token, "^[0-9a-fA-F]{8}$");
 
-    private static string GetPlatformKey()
-    {
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return "win";
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))     return "mac";
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))   return "linux";
-        return "unknown";
-    }
-
     /// <summary>
     /// Returns a stable per-machine UUID for dedup, still cached in the app data directory so an
     /// install that already has one keeps it.
@@ -260,7 +244,7 @@ public sealed class FirstRunReporter
         var derived = DeriveMachineUuid();
         try
         {
-            var path = Path.Combine(_appDataDir, "machine_uuid.txt");
+            var path = Path.Combine(_appDataDir, AppPaths.MachineUuidFileName);
             if (File.Exists(path))
             {
                 var raw = File.ReadAllText(path).Trim();

@@ -59,7 +59,7 @@ public class InsightsService(
     /// </summary>
     private decimal SumDisplay<T>(IEnumerable<T> items, Func<T, decimal> amountUSD, Func<T, DateTime> date)
     {
-        if (string.Equals(_displayCode, "USD", StringComparison.OrdinalIgnoreCase))
+        if (UsdConversion.IsUsd(_displayCode))
             return items.Sum(amountUSD);
 
         decimal total = 0m;

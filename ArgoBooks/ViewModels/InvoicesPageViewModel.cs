@@ -966,7 +966,7 @@ public partial class InvoicesPageViewModel : SortablePageViewModelBase
                     AmountFormatted = CurrencyService.FormatWithOriginal(
                         s.Amount, currency, s.Template?.TotalUSD ?? s.Amount, s.NextInvoiceDate),
                     FrequencyDisplay = s.Frequency.ToString(),
-                    NextInvoiceFormatted = s.NextInvoiceDate.ToString("MMM d, yyyy"),
+                    NextInvoiceFormatted = s.NextInvoiceDate.ToString(Core.Data.DateFormats.Short),
                     StatusDisplay = s.Status.ToString(),
                     IsPaused = s.Status == RecurringInvoiceStatus.Paused,
                     InvoiceId = latestInvoice?.Id ?? string.Empty
@@ -1562,8 +1562,8 @@ public partial class InvoiceDisplayItem : ObservableObject
     [ObservableProperty]
     private string _originalCurrency = "USD";
 
-    public string IssueDateFormatted => IssueDate.ToString("MMM d, yyyy");
-    public string DueDateFormatted => DueDate.ToString("MMM d, yyyy");
+    public string IssueDateFormatted => IssueDate.ToString(Core.Data.DateFormats.Short);
+    public string DueDateFormatted => DueDate.ToString(Core.Data.DateFormats.Short);
     public string TotalFormatted => CurrencyService.FormatWithOriginal(
         Total + ProcessorFeesPaid,
         OriginalCurrency,

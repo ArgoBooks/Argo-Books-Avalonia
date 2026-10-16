@@ -5,6 +5,9 @@ namespace ArgoBooks.Utilities;
 /// </summary>
 public static class LevenshteinDistance
 {
+    /// <summary>The lowest score that is not a fuzzy guess: anything at or above it is an exact, prefix, word-start or contains match.</summary>
+    public const double StrongMatchScore = 0.8;
+
     /// <summary>
     /// Computes the Levenshtein distance between two strings.
     /// The Levenshtein distance is the minimum number of single-character edits
@@ -119,7 +122,7 @@ public static class LevenshteinDistance
 
         // Substring match (medium-high priority)
         if (targetLower.Contains(searchLower))
-            return 0.8;
+            return StrongMatchScore;
 
         // One or two letters are too short to be a typo of anything: "ca" would loosely match every
         // short word or code sharing a letter with it.

@@ -883,7 +883,7 @@ public partial class BankLineRow : ObservableObject
     [ObservableProperty]
     private string _matchedDisplay = string.Empty;
 
-    public string DateDisplay => Line.Date == DateTime.MinValue ? "-" : Line.Date.ToString("MMM dd, yyyy");
+    public string DateDisplay => Line.Date == DateTime.MinValue ? "-" : Line.Date.ToString(Core.Data.DateFormats.Short);
     public string Description => string.IsNullOrWhiteSpace(Line.Description) ? "-" : Line.Description;
     public string AmountDisplay => CurrencyService.Format(Line.Amount);
     public string AmountColor => Line.Amount < 0 ? AppColors.ExpenseRed : AppColors.Success;

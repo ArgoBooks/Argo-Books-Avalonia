@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using ArgoBooks.Core.Security;
 
 namespace ArgoBooks.Core.Services.Sync;
 
@@ -15,7 +16,7 @@ public static class SyncCrypto
         => Convert.ToHexString(RandomNumberGenerator.GetBytes(24)).ToLowerInvariant(); // 48 hex chars
 
     public static string GenerateSyncKey()
-        => Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+        => Convert.ToBase64String(KeyEnvelope.GenerateDataKey());
 
     public static string Encrypt(byte[] plaintext, string syncKeyBase64)
     {
@@ -34,9 +35,10 @@ public static class SyncCrypto
     public static byte[] Decrypt(string payloadBase64, string syncKeyBase64)
     {
         var combined = Convert.FromBase64String(payloadBase64);
-        var salt = Convert.ToBase64String(combined[..32]);
-        var iv = Convert.ToBase64String(combined[32..44]);
-        var cipher = combined[44..];
+        const int ivEnd = KeyDerivation.SaltSize + KeyDerivation.IvSize;
+        var salt = Convert.ToBase64String(combined[..KeyDerivation.SaltSize]);
+        var iv = Convert.ToBase64String(combined[KeyDerivation.SaltSize..ivEnd]);
+        var cipher = combined[ivEnd..];
         return Enc.Decrypt(cipher, syncKeyBase64, salt, iv);
     }
 

@@ -396,7 +396,7 @@ public partial class StockAdjustmentsPageViewModel : SortablePageViewModelBase
             {
                 Id = adjustment.Id,
                 Date = adjustment.Timestamp,
-                DateDisplay = localTime.ToString("MMM dd, yyyy"),
+                DateDisplay = localTime.ToString(Core.Data.DateFormats.Short),
                 TimeDisplay = TimeZoneService.FormatTime(localTime),
                 Reference = adjustment.ReferenceNumber ?? "-",
                 ProductId = invItem?.ProductId ?? "",

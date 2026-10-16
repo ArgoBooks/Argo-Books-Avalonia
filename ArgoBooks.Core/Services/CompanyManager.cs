@@ -2203,25 +2203,9 @@ public class CompanyManager : IDisposable
         if (string.IsNullOrEmpty(CurrentFilePath))
             return;
 
-        var directory = Path.GetDirectoryName(CurrentFilePath);
-        if (string.IsNullOrEmpty(directory))
-            return;
-
         try
         {
-            if (OperatingSystem.IsWindows())
-            {
-                Process.Start("explorer.exe", $"/select,\"{CurrentFilePath}\"");
-            }
-            else if (OperatingSystem.IsMacOS())
-            {
-                Process.Start("open", $"-R \"{CurrentFilePath}\"");
-            }
-            else if (OperatingSystem.IsLinux())
-            {
-                // Try common file managers
-                Process.Start("xdg-open", directory);
-            }
+            Platform.FileManager.ShowFile(CurrentFilePath);
         }
         catch
         {

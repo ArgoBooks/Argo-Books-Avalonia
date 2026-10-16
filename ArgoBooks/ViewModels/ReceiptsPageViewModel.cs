@@ -757,9 +757,7 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
 
         try
         {
-            var mainWindow = Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
-                ? desktop.MainWindow as MainWindow
-                : null;
+            var mainWindow = App.DesktopMainWindow as MainWindow;
 
             if (mainWindow?.StorageProvider == null) return;
 
@@ -829,9 +827,7 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
             var stored = companyData?.Receipts.FirstOrDefault(r => r.Id == receipt.Id);
             if (string.IsNullOrEmpty(stored?.FileData)) return;
 
-            var topLevel = Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
-                ? desktop.MainWindow
-                : null;
+            var topLevel = App.DesktopMainWindow;
 
             if (topLevel?.StorageProvider == null) return;
 
@@ -1145,7 +1141,7 @@ public partial class ReceiptDisplayItem : ObservableObject
     public bool IsMultiPage => PageCount > 1;
 
     // Computed properties for display
-    public string DateFormatted => Date.ToString("MMM d, yyyy");
+    public string DateFormatted => Date.ToString(Core.Data.DateFormats.Short);
     public string AmountFormatted => CurrencyService.Format(Amount);
 
     public bool IsExpense => TransactionType == "Expense";

@@ -8,7 +8,7 @@ namespace ArgoBooks.Core.Services.InvoiceTemplates;
 /// </summary>
 public static class InvoicePreviewService
 {
-    private static readonly string TempDirectory = Path.Combine(Path.GetTempPath(), "ArgoBooks", "InvoicePreviews");
+    private static readonly string TempDirectory = Path.Combine(AppPaths.Temp, "InvoicePreviews");
 
     /// <summary>
     /// Opens the invoice HTML in the default browser for preview.

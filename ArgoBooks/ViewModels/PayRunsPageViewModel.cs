@@ -272,9 +272,7 @@ public partial class PayRunsPageViewModel : SortablePageViewModelBase
             return;
         }
 
-        var topLevel = Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
-            ? desktop.MainWindow
-            : null;
+        var topLevel = App.DesktopMainWindow;
 
         if (topLevel?.StorageProvider == null)
         {

@@ -307,10 +307,10 @@ public partial class QuotesPageViewModel : SortablePageViewModelBase
                 Id = quote.Id,
                 QuoteNumber = string.IsNullOrEmpty(quote.QuoteNumber) ? quote.Id : quote.QuoteNumber,
                 IssueDate = quote.IssueDate,
-                DateDisplay = quote.IssueDate.ToString("MMM dd, yyyy"),
+                DateDisplay = quote.IssueDate.ToString(Core.Data.DateFormats.Short),
                 CustomerName = customer?.Name ?? "Unknown Customer",
                 ValidUntil = quote.ValidUntil,
-                ValidUntilDisplay = quote.ValidUntil.ToString("MMM dd, yyyy"),
+                ValidUntilDisplay = quote.ValidUntil.ToString(Core.Data.DateFormats.Short),
                 Total = quote.Total,
                 // A quote is priced in one currency and shown in that currency: it carries no USD
                 // conversion, so there is nothing to restate it from.
@@ -541,7 +541,7 @@ public partial class QuotesPageViewModel : SortablePageViewModelBase
                 : "This quote expired on {1}.";
             var confirmed = await App.ConfirmDialogAsync(
                 "Convert to invoice?".Translate(),
-                warning.TranslateFormat(item.CustomerName, quote.ValidUntil.ToString("MMM dd, yyyy"))
+                warning.TranslateFormat(item.CustomerName, quote.ValidUntil.ToString(Core.Data.DateFormats.Short))
                 + "\n\n" + "A draft invoice will still be created, for you to check before sending.".Translate(),
                 "Convert".Translate(),
                 "Cancel".Translate());

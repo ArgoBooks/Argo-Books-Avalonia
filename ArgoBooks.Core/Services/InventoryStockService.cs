@@ -479,7 +479,7 @@ public static class InventoryStockService
 
     private static decimal? UsdPerNative(string currency, decimal total, decimal totalUSD, bool isPending)
     {
-        if (string.Equals(currency, "USD", StringComparison.OrdinalIgnoreCase))
+        if (UsdConversion.IsUsd(currency))
             return 1m;
         if (isPending || total == 0 || totalUSD == 0)
             return null;
@@ -557,7 +557,7 @@ public static class InventoryStockService
 
     private static decimal? UnitCostUSD(decimal nativeUnitCost, string currency, DateTime date, decimal? usdPerNative)
     {
-        if (nativeUnitCost == 0 || string.Equals(currency, "USD", StringComparison.OrdinalIgnoreCase))
+        if (nativeUnitCost == 0 || UsdConversion.IsUsd(currency))
             return nativeUnitCost;
         return (usdPerNative ?? UsdConversion.CachedRate(currency, date)) is { } rate
             ? nativeUnitCost * rate

@@ -57,7 +57,7 @@ public static class CurrencyService
     {
         var original = CurrencyInfo.GetByCode(originalCurrency).Format(originalAmount);
         var defaultCode = CurrentCurrencyCode;
-        var dateText = date.ToString("MMM d, yyyy");
+        var dateText = date.ToString(Core.Data.DateFormats.Short);
 
         if (date.Date > DateTime.Today)
         {
@@ -300,7 +300,7 @@ public static class CurrencyService
     public static async Task<bool> TryWarmTodayRateAsync(CancellationToken cancellationToken = default)
     {
         var code = CurrentCurrencyCode;
-        if (string.Equals(code, "USD", StringComparison.OrdinalIgnoreCase))
+        if (UsdConversion.IsUsd(code))
             return false;
 
         var svc = ExchangeRateService.Instance;
@@ -323,7 +323,7 @@ public static class CurrencyService
     public static async Task WarmCompanyRatesAsync(CompanyData data)
     {
         var code = CurrentCurrencyCode;
-        if (string.Equals(code, "USD", StringComparison.OrdinalIgnoreCase) || ExchangeRateService.Instance is not { } rates)
+        if (UsdConversion.IsUsd(code) || ExchangeRateService.Instance is not { } rates)
             return;
 
         var dates = DisplayCurrency.ReportDates(data, null).ToList();
@@ -350,7 +350,7 @@ public static class CurrencyService
     /// </summary>
     public static async Task WarmRateForDateAsync(DateTime date, string code, CancellationToken cancellationToken = default)
     {
-        if (string.Equals(code, "USD", StringComparison.OrdinalIgnoreCase))
+        if (UsdConversion.IsUsd(code))
             return;
 
         var svc = ExchangeRateService.Instance;

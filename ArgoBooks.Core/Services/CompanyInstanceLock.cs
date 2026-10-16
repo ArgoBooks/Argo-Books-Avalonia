@@ -148,7 +148,7 @@ public sealed class CompanyInstanceLock : IDisposable
     private static string GetLockFilePath(string canonicalPath)
     {
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonicalPath)));
-        var dir = Path.Combine(Path.GetTempPath(), "ArgoBooks", "locks");
+        var dir = Path.Combine(AppPaths.Temp, "locks");
         return Path.Combine(dir, hash + ".lock");
     }
 }

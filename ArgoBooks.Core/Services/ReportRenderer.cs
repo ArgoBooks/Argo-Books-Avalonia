@@ -1185,7 +1185,7 @@ public class ReportRenderer : IDisposable
             return null;
 
         if (ConvertsPerTransaction(chartType)
-            && !string.Equals(_currencyCode, "USD", StringComparison.OrdinalIgnoreCase))
+            && !UsdConversion.IsUsd(_currencyCode))
         {
             return _chartDataService.GetChartData(
                 chartType, (usd, date) => (decimal)ConvertFromUSD((double)usd, date),
@@ -1227,7 +1227,7 @@ public class ReportRenderer : IDisposable
 
         // Each day's value converts at its own rate before bucketing, so a wide range does not convert a month total at the month-start date.
         if (chartType == ChartDataType.RevenueVsExpenses
-            && !string.Equals(_currencyCode, "USD", StringComparison.OrdinalIgnoreCase))
+            && !UsdConversion.IsUsd(_currencyCode))
         {
             return _chartDataService.GetRevenueVsExpensesConverted(
                 (usd, date) => (decimal)ConvertFromUSD((double)usd, date));
@@ -1236,7 +1236,7 @@ public class ReportRenderer : IDisposable
         // Other monthly monetary multi-series charts convert each transaction at its own date inside
         // the data service (same reason as above), so pass the converter and don't re-convert here.
         if (ConvertsPerTransaction(chartType)
-            && !string.Equals(_currencyCode, "USD", StringComparison.OrdinalIgnoreCase))
+            && !UsdConversion.IsUsd(_currencyCode))
         {
             return _chartDataService.GetChartData(
                 chartType, (usd, date) => (decimal)ConvertFromUSD((double)usd, date)) as List<ChartSeriesData>;
@@ -1268,7 +1268,7 @@ public class ReportRenderer : IDisposable
             return null;
 
         // Convert each country's revenue at each transaction's OWN date during aggregation (docs/Calculations.md Rule 4) instead of converting the country total at today's rate.
-        var converter = string.Equals(_currencyCode, "USD", StringComparison.OrdinalIgnoreCase)
+        var converter = UsdConversion.IsUsd(_currencyCode)
             ? (Func<decimal, DateTime, decimal>?)null
             : (usd, date) => (decimal)ConvertFromUSD((double)usd, date);
 

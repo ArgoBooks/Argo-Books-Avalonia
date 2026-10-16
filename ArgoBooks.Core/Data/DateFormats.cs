@@ -9,6 +9,9 @@ public static class DateFormats
 {
     public const string Default = "MM/DD/YYYY";
 
+    /// <summary>How list rows and messages write a date, "Mar 5, 2026", whatever the setting is.</summary>
+    public const string Short = "MMM d, yyyy";
+
     /// <summary>The setting values offered in Settings, in the order shown.</summary>
     public static readonly IReadOnlyList<string> All =
     [

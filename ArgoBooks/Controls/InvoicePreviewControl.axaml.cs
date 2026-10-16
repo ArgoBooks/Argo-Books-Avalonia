@@ -154,7 +154,9 @@ public partial class InvoicePreviewControl : UserControl
         return EditingScriptTemplate
             .Replace("__PRODUCTS_JSON__", products)
             .Replace("__CUSTOMERS_JSON__", customers)
-            .Replace("__TOTALS_CONFIG__", totalsConfig);
+            .Replace("__TOTALS_CONFIG__", totalsConfig)
+            .Replace("__FEE_PERCENT__", Core.Services.InvoiceTemplates.ProcessingFee.Percent.ToString(System.Globalization.CultureInfo.InvariantCulture))
+            .Replace("__FEE_FIXED__", Core.Services.InvoiceTemplates.ProcessingFee.Fixed.ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
 
     private const string EditingScriptTemplate = @"
@@ -529,7 +531,7 @@ window.__totalsConfig = __TOTALS_CONFIG__;
             // Less whatever has already been paid. Floored at zero so an overpayment does not
             // render a negative.
             var balance = Math.max(0, total - paid);
-            var procFee = (portal && passFee && balance > 0) ? Math.round((balance * 2.9 / 100 + 0.30) * 100) / 100 : 0;
+            var procFee = (portal && passFee && balance > 0) ? Math.round((balance * __FEE_PERCENT__ / 100 + __FEE_FIXED__) * 100) / 100 : 0;
 
             // The (x%) suffix on the tax label is server-rendered, so it has to be rewritten here or it keeps showing the rate the paper loaded with.
             setOut('taxRateLabel', taxMode === 'fixed' ? '' : ' (' + String(parseFloat(tax.toFixed(2))) + '%)');
@@ -1268,18 +1270,19 @@ window.__totalsConfig = __TOTALS_CONFIG__;
 })()";
 
             var result = await _webView.InvokeScript(captureScript);
-            if (!string.IsNullOrEmpty(result) && result.StartsWith("data:image/png;base64,"))
+            const string pngPrefix = "data:image/png;base64,";
+            if (!string.IsNullOrEmpty(result) && result.StartsWith(pngPrefix))
             {
-                return result.Substring("data:image/png;base64,".Length);
+                return result[pngPrefix.Length..];
             }
 
             // Strip surrounding quotes if the result is a JSON string
             if (result != null && result.StartsWith('"') && result.EndsWith('"'))
             {
                 result = result[1..^1].Replace("\\\"", "\"");
-                if (result.StartsWith("data:image/png;base64,"))
+                if (result.StartsWith(pngPrefix))
                 {
-                    return result.Substring("data:image/png;base64,".Length);
+                    return result[pngPrefix.Length..];
                 }
             }
 

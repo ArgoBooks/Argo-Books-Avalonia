@@ -176,7 +176,7 @@ public partial class AppShell : UserControl
             {
                 Title = "Select Receipt to Scan",
                 AllowMultiple = false,
-                FileTypeFilter = [FilePickerTypes.AllSupportedTypes, FilePickerTypes.ImageFileType, FilePickerTypes.PdfFileType]
+                FileTypeFilter = FilePickerTypes.ReceiptFilters
             });
 
             if (files.Count > 0)

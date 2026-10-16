@@ -15,8 +15,6 @@ public sealed record BackupFile(string Path, DateTime TakenAtUtc, long SizeBytes
 /// </summary>
 public sealed class BackupService(IErrorLogger? errorLogger = null)
 {
-    public const string Extension = ".argobk";
-
     /// <summary>
     /// Between the company name and the extension, so copies of one company can be picked out of a
     /// folder shared with others: <c>Acme--backup-20260930-1432.argobk</c>.
@@ -96,7 +94,7 @@ public sealed class BackupService(IErrorLogger? errorLogger = null)
 
             var path = Path.Combine(
                 folder,
-                $"{CompanyManager.ToCompanyFileName(companyName)}{Marker}{DateTime.Now:yyyyMMdd-HHmmss}{Extension}");
+                $"{CompanyManager.ToCompanyFileName(companyName)}{Marker}{DateTime.Now:yyyyMMdd-HHmmss}{FileFormatConstants.BackupFileExtension}");
 
             await companyManager.ExportBackupAsync(path, cancellationToken);
 
@@ -122,7 +120,7 @@ public sealed class BackupService(IErrorLogger? errorLogger = null)
             // The whole name has to match this company's, since a company named "Acme--backup-20260930-143200" would otherwise have its copies offered as Acme's.
             var prefix = CompanyManager.ToCompanyFileName(companyName) + Marker;
             return [.. new DirectoryInfo(folder)
-                .EnumerateFiles("*" + Extension)
+                .EnumerateFiles("*" + FileFormatConstants.BackupFileExtension)
                 .Where(f => f.Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
                             && Stamp.IsMatch(Path.GetFileNameWithoutExtension(f.Name)[prefix.Length..]))
                 .Select(f => new BackupFile(f.FullName, f.LastWriteTimeUtc, f.Length))

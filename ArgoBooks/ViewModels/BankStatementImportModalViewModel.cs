@@ -200,7 +200,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
 
         // Every record stores a USD equivalent, so rows go in pending unless the rate for their own date is already cached, and a statement is mostly dates the cache has never seen.
         var companyCurrency = data.Settings.Localization.Currency;
-        if (!string.Equals(companyCurrency, "USD", StringComparison.OrdinalIgnoreCase)
+        if (!UsdConversion.IsUsd(companyCurrency)
             && !await App.EnsureImportRatesAsync(toImport.Select(r => r.Date.Date).Distinct().ToList(), "bank"))
         {
             return;
@@ -1027,7 +1027,7 @@ public partial class ImportLineRow : ObservableObject
     public bool HasCounterparty => ResolvedCounterpartyId != null || !string.IsNullOrWhiteSpace(NewCounterpartyName);
     public bool IsComplete => HasProduct && HasCounterparty;
 
-    public string DateFormatted => Date.ToString("MMM d, yyyy");
+    public string DateFormatted => Date.ToString(Core.Data.DateFormats.Short);
 
     // --- Apply helpers (called by the parent VM after deterministic / AI resolution) ---
 

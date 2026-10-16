@@ -204,10 +204,7 @@ public static class StartupTimeline
     {
         try
         {
-            var stampPath = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "ArgoBooks",
-                "last-launch.txt");
+            var stampPath = Path.Combine(AppPaths.LocalData, "last-launch.txt");
 
             var isCold = true;
 

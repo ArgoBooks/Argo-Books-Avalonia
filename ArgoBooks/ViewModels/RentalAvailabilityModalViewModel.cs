@@ -345,7 +345,7 @@ public partial class RentalAvailabilityModalViewModel : ViewModelBase
             {
                 var stretch = MeasureStretch(rentals, d, qtyNeeded);
                 HasNextAvailable = true;
-                NextAvailableDate = d.ToString("MMM d, yyyy", CultureInfo.CurrentCulture);
+                NextAvailableDate = d.ToString(Core.Data.DateFormats.Short, CultureInfo.CurrentCulture);
                 NextAvailableDetail = stretch >= 365
                     ? Loc.Tr("{0} units free indefinitely", qtyNeeded)
                     : Loc.Tr("{0} units free for {1} days", qtyNeeded, stretch);

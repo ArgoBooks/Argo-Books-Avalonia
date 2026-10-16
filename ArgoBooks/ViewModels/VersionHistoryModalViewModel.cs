@@ -276,7 +276,7 @@ public partial class VersionHistoryModalViewModel : ViewModelBase
                 ? "Today".Translate() + ", " + group.Key.ToString("MMM d")
                 : group.Key == yesterday
                     ? "Yesterday".Translate() + ", " + group.Key.ToString("MMM d")
-                    : group.Key.ToString("MMM d, yyyy");
+                    : group.Key.ToString(Core.Data.DateFormats.Short);
 
             var historyGroup = new VersionHistoryGroup { DateLabel = dateLabel };
             foreach (var evt in group)

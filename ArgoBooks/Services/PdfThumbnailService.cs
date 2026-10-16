@@ -124,10 +124,9 @@ public sealed class PdfThumbnailService
                 pageCount = 1;
 
             var dataUrl = result[(firstColon + 1)..];
-            const string dataPrefix = "data:image/jpeg;base64,";
-            if (dataUrl.StartsWith(dataPrefix))
+            if (dataUrl.StartsWith(PdfRenderMessageParser.DataPrefix))
             {
-                return (Convert.FromBase64String(dataUrl[dataPrefix.Length..]), pageCount);
+                return (Convert.FromBase64String(dataUrl[PdfRenderMessageParser.DataPrefix.Length..]), pageCount);
             }
 
             return null;
@@ -609,7 +608,7 @@ public sealed class PdfThumbnailService
     {
         public const string PagePrefix = "render-page:";
         public const string DonePrefix = "render-done:";
-        private const string DataPrefix = "data:image/jpeg;base64,";
+        public const string DataPrefix = "data:image/jpeg;base64,";
 
         /// <summary>True if the body is the done terminator; outputs the declared count.</summary>
         public static bool TryParseDone(string body, out int count)

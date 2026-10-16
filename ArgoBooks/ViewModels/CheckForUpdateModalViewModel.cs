@@ -267,7 +267,7 @@ public partial class CheckForUpdateModalViewModel : ViewModelBase
     [RelayCommand]
     private void ViewReleaseNotes()
     {
-        var url = _updateService?.AvailableUpdate?.ReleaseNotesUrl ?? $"{ApiConfig.BaseUrl}/whats-new/";
+        var url = _updateService?.AvailableUpdate?.ReleaseNotesUrl ?? WebsiteUrls.WhatsNew;
 
         UrlHelper.SafeOpenUrl(url);
     }

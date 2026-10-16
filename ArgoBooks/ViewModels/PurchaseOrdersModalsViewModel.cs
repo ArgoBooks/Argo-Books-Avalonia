@@ -1159,9 +1159,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
 
             _sendPdfBytes ??= PurchaseOrderPdfRenderer.Render(SendingOrder, companyData);
 
-            var topLevel = Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
-                ? desktop.MainWindow
-                : null;
+            var topLevel = App.DesktopMainWindow;
 
             if (topLevel?.StorageProvider == null) return;
 
@@ -1172,7 +1170,7 @@ public partial class PurchaseOrdersModalsViewModel : ViewModelBase
                 DefaultExtension = "pdf",
                 FileTypeChoices =
                 [
-                    new FilePickerFileType("PDF") { Patterns = ["*.pdf"] }
+                    Utilities.FilePickerTypes.PdfFileType
                 ]
             });
 

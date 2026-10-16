@@ -17,12 +17,6 @@ public static class RecurringInvoiceService
     // cadence) cannot spin generating thousands of invoices in a single open.
     private const int MaxOccurrencesPerSchedulePerRun = 500;
 
-    private static readonly JsonSerializerOptions CloneOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        Converters = { new JsonStringEnumConverter() }
-    };
-
     /// <summary>Raised with the generated count after invoices are produced on company open.</summary>
     public static event Action<int>? InvoicesGenerated;
 
@@ -75,7 +69,7 @@ public static class RecurringInvoiceService
     /// </summary>
     public static Invoice BuildTemplateFrom(Invoice source)
     {
-        var template = Clone(source);
+        var template = JsonClone.Of(source);
         template.Id = string.Empty;
         template.InvoiceNumber = string.Empty;
         template.Status = InvoiceStatus.Draft;
@@ -147,7 +141,7 @@ public static class RecurringInvoiceService
     /// <summary>Clones a schedule's template into a concrete draft invoice for one occurrence.</summary>
     public static Invoice CloneInvoiceFrom(RecurringInvoice schedule, DateTime occurrenceDate, CompanyData data, IdGenerator idGenerator)
     {
-        var invoice = Clone(schedule.Template!);
+        var invoice = JsonClone.Of(schedule.Template!);
         invoice.Id = idGenerator.NextInvoiceId();
         invoice.InvoiceNumber = idGenerator.NextInvoiceNumber();
         invoice.IssueDate = occurrenceDate;
@@ -182,11 +176,5 @@ public static class RecurringInvoiceService
         // The template's USD amounts are another day's, so the copy converts at its own issue date.
         UsdConversion.Apply(data, invoice, UsdConversion.CachedRate(invoice.OriginalCurrency, invoice.IssueDate));
         return invoice;
-    }
-
-    private static Invoice Clone(Invoice source)
-    {
-        var json = JsonSerializer.Serialize(source, CloneOptions);
-        return JsonSerializer.Deserialize<Invoice>(json, CloneOptions)!;
     }
 }

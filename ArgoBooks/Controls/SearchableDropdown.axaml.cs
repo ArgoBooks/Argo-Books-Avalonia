@@ -36,8 +36,6 @@ public partial class SearchableDropdown : UserControl, INotifyPropertyChanged
     // Opened on the picked item's own text: list everything until the user types.
     private bool _showAll;
 
-    // Exact, prefix, word-start or contains, but not a fuzzy guess.
-    private const double StrongMatchScore = 0.8;
 
     // Debounce typing so the fuzzy-scoring filter over the whole source list doesn't run per keystroke.
     private const int SearchDebounceMs = 120;
@@ -667,7 +665,7 @@ public partial class SearchableDropdown : UserControl, INotifyPropertyChanged
 
         var first = GetItemByIndex(0);
         return first != null
-               && LevenshteinDistance.BestScore(text, GetDisplayText(first), GetMemberText(first, SearchMemberPath)) >= StrongMatchScore
+               && LevenshteinDistance.BestScore(text, GetDisplayText(first), GetMemberText(first, SearchMemberPath)) >= LevenshteinDistance.StrongMatchScore
             ? first
             : null;
     }

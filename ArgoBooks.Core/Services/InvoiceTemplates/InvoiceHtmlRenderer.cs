@@ -223,7 +223,7 @@ public partial class InvoiceHtmlRenderer
         sb.AppendLine($"Subtotal: {currencySymbol}{Money(NonNegative(invoice.Subtotal), decimals)}");
         if (invoice.TaxRate > 0)
         {
-            var taxLabel = GetTaxLabel(companySettings.Company.Country);
+            var taxLabel = TaxSystems.InvoiceLabel(TaxSystems.For(companySettings.Company.Country));
             // A fixed tax stores a dollar amount in TaxRate, so only a percent tax gets a "(x%)" suffix.
             var taxRateSuffix = invoice.TaxIsFixed ? "" : $" ({invoice.TaxRate}%)";
             sb.AppendLine($"{taxLabel}{taxRateSuffix}: {currencySymbol}{Money(NonNegative(invoice.TaxAmount), decimals)}");
@@ -310,7 +310,7 @@ public partial class InvoiceHtmlRenderer
         // and the fee's fixed part would turn that into a charge.
         var hasUnpaidBalance = invoice.Balance > 0 && !invoice.IsPaidInFull;
         var estimatedProcessingFee = hasUnpaidBalance && feesActive
-            ? CalculateProcessingFee(invoice.Balance)
+            ? ProcessingFee.For(invoice.Balance)
             : 0m;
         // Fees already charged AND the estimate on what is still owed.
         var displayProcessingFee = actualProcessingFee + estimatedProcessingFee;
@@ -383,7 +383,7 @@ public partial class InvoiceHtmlRenderer
             // Financial
             ["Subtotal"] = $"{currencySymbol}{Money(NonNegative(invoice.Subtotal), decimals)}",
             ["TaxRate"] = Raw(invoice.TaxRate),
-            ["TaxLabel"] = GetTaxLabel(companySettings.Company.Country),
+            ["TaxLabel"] = TaxSystems.InvoiceLabel(TaxSystems.For(companySettings.Company.Country)),
             // The "(13%)" suffix on the tax label only makes sense in percent mode.
             ["TaxRateLabel"] = invoice.TaxIsFixed ? "" : $" ({Raw(invoice.TaxRate)}%)",
             ["TaxAmount"] = $"{currencySymbol}{Money(NonNegative(invoice.TaxAmount), decimals)}",
@@ -664,50 +664,6 @@ public partial class InvoiceHtmlRenderer
     {
         var accounts = companySettings.PaymentPortal.ConnectedAccounts;
         return accounts.StripeConnected || accounts.PaypalConnected || accounts.SquareConnected;
-    }
-
-    /// <summary>
-    /// Calculate the payment processing fee (2.90% + $0.30 flat).
-    /// The $0.30 is applied in the invoice's currency here; the server-side
-    /// calculate_invoice_processing_fee() in config/pricing.php converts from CAD.
-    /// </summary>
-    private static decimal CalculateProcessingFee(decimal amount)
-    {
-        if (amount <= 0) return 0m;
-        const decimal percent = 2.90m;
-        const decimal fixedFee = 0.30m;
-        return Math.Round(amount * percent / 100m + fixedFee, 2, MidpointRounding.AwayFromZero);
-    }
-
-    /// <summary>
-    /// Returns the country-appropriate tax label (e.g., "VAT", "GST/HST", "GST", "Tax", "Sales Tax")
-    /// for use on invoices.
-    /// </summary>
-    private static string GetTaxLabel(string? country)
-    {
-        var normalized = country?.Trim().ToUpperInvariant() ?? "";
-        return normalized switch
-        {
-            "UNITED KINGDOM" or "FRANCE" or "GERMANY" or "ITALY" or "SPAIN" or "NETHERLANDS"
-            or "BELGIUM" or "AUSTRIA" or "SWEDEN" or "NORWAY" or "DENMARK" or "FINLAND"
-            or "IRELAND" or "PORTUGAL" or "GREECE" or "SWITZERLAND" or "POLAND"
-            or "CZECH REPUBLIC" or "CZECHIA" or "HUNGARY" or "ROMANIA" or "BULGARIA" or "CROATIA"
-            or "SLOVAKIA" or "SLOVENIA" or "LITHUANIA" or "LATVIA" or "ESTONIA"
-            or "LUXEMBOURG" or "MALTA" or "CYPRUS" or "SOUTH AFRICA" or "KENYA"
-            or "NIGERIA" or "GHANA" or "ZIMBABWE" or "BOTSWANA"
-            or "BANGLADESH" or "SRI LANKA" or "JAMAICA" or "TRINIDAD AND TOBAGO"
-            or "TURKEY" or "RUSSIA" or "UKRAINE" or "BRAZIL"
-            or "ARGENTINA" or "CHILE" or "COLOMBIA" or "MEXICO" or "PERU"
-            or "ISRAEL" or "UNITED ARAB EMIRATES" or "SAUDI ARABIA" or "THAILAND"
-            or "VIETNAM" or "INDONESIA" or "PHILIPPINES" or "SOUTH KOREA"
-            or "CHINA" or "TAIWAN" or "ICELAND" => "VAT",
-            "CANADA" => "GST/HST",
-            "INDIA" or "SINGAPORE" or "MALAYSIA" or "AUSTRALIA" or "NEW ZEALAND"
-            or "PAKISTAN" => "GST",
-            "JAPAN" => "Consumption Tax",
-            "UNITED STATES" or "PUERTO RICO" => "Sales Tax",
-            _ => "Tax"
-        };
     }
 
     [GeneratedRegex(@"\{\{#(\w+)\}\}([\s\S]*?)\{\{/\1\}\}", RegexOptions.Compiled)]

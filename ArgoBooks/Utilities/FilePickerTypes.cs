@@ -93,6 +93,38 @@ public static class FilePickerTypes
         MimeTypes = [.. ContentTypes()]
     };
 
+    /// <summary>The filters every receipt picker offers, in the order it offers them.</summary>
+    public static readonly IReadOnlyList<FilePickerFileType> ReceiptFilters = [AllSupportedTypes, ImageFileType, PdfFileType];
+
+    /// <summary>Logos and avatars: every format ImageFileLoader reads, which is wider than what the receipt scanner accepts.</summary>
+    public static readonly FilePickerFileType PictureFileType = new("Images")
+    {
+        Patterns = ["*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp", "*.bmp", "*.heic", "*.heif"]
+    };
+
+    public static readonly FilePickerFileType CompanyFileType = new("Argo Books Files")
+    {
+        Patterns = ["*" + Core.Models.FileFormatConstants.CompanyFileExtension]
+    };
+
+    public static readonly FilePickerFileType BackupFileType = new("Argo Books Backup")
+    {
+        Patterns = ["*" + Core.Models.FileFormatConstants.BackupFileExtension]
+    };
+
+    /// <summary>A spreadsheet to import, in either Excel format.</summary>
+    public static readonly FilePickerFileType ExcelFileType = new("Excel Workbook") { Patterns = ["*.xlsx", "*.xls"] };
+
+    /// <summary>A spreadsheet the app writes, which is always .xlsx.</summary>
+    public static readonly FilePickerFileType XlsxSaveType = new("Excel Workbook") { Patterns = ["*.xlsx"] };
+
+    public static readonly FilePickerFileType CsvFileType = new("CSV File") { Patterns = ["*.csv"] };
+
+    public static readonly FilePickerFileType BankStatementFileType = new("Bank statements")
+    {
+        Patterns = ["*.csv", "*.xlsx", "*.xls", "*.pdf"]
+    };
+
     private static IEnumerable<string> Patterns(bool? images = null) => ReceiptFormats
         .Where(f => images == null || f.IsImage == images)
         .Select(f => "*" + f.Extension);

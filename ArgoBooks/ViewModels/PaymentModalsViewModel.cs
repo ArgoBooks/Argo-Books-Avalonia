@@ -814,7 +814,7 @@ public partial class PaymentDisplayItem : ObservableObject
     [ObservableProperty]
     private bool _isFromPortal;
 
-    public string DateFormatted => Date.ToString("MMM d, yyyy");
+    public string DateFormatted => Date.ToString(Core.Data.DateFormats.Short);
 
     public string AmountFormatted => AmountUSD < 0
         ? $"-{CurrencyService.FormatWithOriginal(Math.Abs(Amount), OriginalCurrency, Math.Abs(AmountUSD), Date)}"

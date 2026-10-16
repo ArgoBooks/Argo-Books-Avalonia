@@ -979,7 +979,7 @@ public partial class SettingsModalViewModel : ViewModelBase
     {
         if (!CanConnectProvider) return;
         if (!await EnsurePortalAuthenticatedAsync()) return;
-        await ConnectProviderAsync("stripe");
+        await ConnectProviderAsync(PaymentProviders.Stripe);
     }
 
     [RelayCommand]
@@ -987,21 +987,21 @@ public partial class SettingsModalViewModel : ViewModelBase
     {
         if (!CanConnectProvider) return;
         if (!await EnsurePortalAuthenticatedAsync()) return;
-        await ConnectProviderAsync("square");
+        await ConnectProviderAsync(PaymentProviders.Square);
     }
 
     [RelayCommand]
     private async Task DisconnectStripeAsync()
     {
         if (!await EnsurePortalAuthenticatedAsync()) return;
-        await DisconnectProviderAsync("stripe");
+        await DisconnectProviderAsync(PaymentProviders.Stripe);
     }
 
     [RelayCommand]
     private async Task DisconnectSquareAsync()
     {
         if (!await EnsurePortalAuthenticatedAsync()) return;
-        await DisconnectProviderAsync("square");
+        await DisconnectProviderAsync(PaymentProviders.Square);
     }
 
     /// <summary>
@@ -1177,12 +1177,7 @@ public partial class SettingsModalViewModel : ViewModelBase
                 && Uri.TryCreate(response.AuthUrl, UriKind.Absolute, out var authUri)
                 && (authUri.Scheme == "https" || authUri.Scheme == "http"))
             {
-                // Open OAuth URL in default browser
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = response.AuthUrl,
-                    UseShellExecute = true
-                });
+                UrlHelper.SafeOpenUrl(response.AuthUrl);
 
                 // Poll for status updates so the UI refreshes when the user completes OAuth
                 _ = PollForProviderConnectionAsync(provider);
@@ -1306,15 +1301,15 @@ public partial class SettingsModalViewModel : ViewModelBase
                     // Fallback: clear the specific provider if response didn't include full state
                     switch (provider)
                     {
-                        case "stripe":
+                        case PaymentProviders.Stripe:
                             StripeConnected = false;
                             StripeEmail = null;
                             break;
-                        case "paypal":
+                        case PaymentProviders.PayPal:
                             PaypalConnected = false;
                             PaypalEmail = null;
                             break;
-                        case "square":
+                        case PaymentProviders.Square:
                             SquareConnected = false;
                             SquareEmail = null;
                             break;
@@ -1504,9 +1499,9 @@ public partial class SettingsModalViewModel : ViewModelBase
                 {
                     var connected = provider switch
                     {
-                        "stripe" => status.ConnectedProviders.StripeConnected,
-                        "paypal" => status.ConnectedProviders.PaypalConnected,
-                        "square" => status.ConnectedProviders.SquareConnected,
+                        PaymentProviders.Stripe => status.ConnectedProviders.StripeConnected,
+                        PaymentProviders.PayPal => status.ConnectedProviders.PaypalConnected,
+                        PaymentProviders.Square => status.ConnectedProviders.SquareConnected,
                         _ => false
                     };
 
@@ -1695,16 +1690,7 @@ public partial class SettingsModalViewModel : ViewModelBase
     [RelayCommand]
     private void OpenStripeGuide()
     {
-        try
-        {
-            Process.Start(new ProcessStartInfo
-            {
-                // The documentation page, not the marketing page. Someone who has already opened Settings has decided to connect it and wants the steps, not the pitch.
-                FileName = "https://argorobots.com/documentation/pages/integrations/stripe-integration.php",
-                UseShellExecute = true
-            });
-        }
-        catch { /* best-effort: opening the browser is non-critical */ }
+        UrlHelper.SafeOpenUrl(WebsiteUrls.StripeGuide);
     }
 
     /// <summary>Loads Stripe integration display state from company settings. Call from the settings-load path.</summary>
@@ -2185,23 +2171,7 @@ public partial class SettingsModalViewModel : ViewModelBase
     [RelayCommand]
     private void OpenArgoApiDocs()
     {
-        try
-        {
-            Process.Start(new ProcessStartInfo
-            {
-                // BaseUrl, not a hardcoded host: these pages only exist wherever
-                // the API itself has shipped. A debug build points at dev, which
-                // has them; a release build points at production, which will have
-                // them by the time one is cut. Hardcoding production would 404
-                // for as long as the API is only on dev.
-                //
-                // The path is the real served one. These pages link their assets
-                // relatively, so a shallower alias URL loads them unstyled.
-                FileName = $"{ApiConfig.BaseUrl}/documentation/pages/api/overview.php",
-                UseShellExecute = true
-            });
-        }
-        catch { /* best-effort: opening the browser is non-critical */ }
+        UrlHelper.SafeOpenUrl(WebsiteUrls.ApiDocs);
     }
 
     /// <summary>
@@ -3786,18 +3756,9 @@ public partial class SettingsModalViewModel : ViewModelBase
                 Directory.CreateDirectory(telemetryPath);
             }
 
-            // Open folder using platform-specific method
-            if (OperatingSystem.IsWindows())
+            if (!UrlHelper.SafeOpenUrl(new Uri(telemetryPath).AbsoluteUri))
             {
-                Process.Start("explorer.exe", telemetryPath);
-            }
-            else if (OperatingSystem.IsMacOS())
-            {
-                Process.Start("open", telemetryPath);
-            }
-            else if (OperatingSystem.IsLinux())
-            {
-                Process.Start("xdg-open", telemetryPath);
+                throw new InvalidOperationException("No application could open the folder.");
             }
         }
         catch (Exception ex)

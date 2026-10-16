@@ -626,7 +626,7 @@ public partial class RevenueModalsViewModel : TransactionModalsViewModelBase<Rev
         if (string.IsNullOrEmpty(ReceiptFilePath)) return null;
 
         var fileInfo = new FileInfo(ReceiptFilePath);
-        var fileType = GetFileType(ReceiptFilePath);
+        var fileType = Core.Services.MimeTypes.For(ReceiptFilePath);
 
         // A receipt is only worth keeping with its file in it.
         string fileData;

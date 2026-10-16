@@ -161,7 +161,7 @@ public class TelemetryManager : ITelemetryManager
         _platformService = platformService ?? PlatformServiceFactory.GetPlatformService();
 
         _appVersion = appVersion ?? AppInfo.VersionNumber;
-        _platform = GetPlatform();
+        _platform = TelemetryPlatform.Name;
         _userAgent = GetUserAgent();
 
         // Wire up error logger to report errors to telemetry
@@ -649,17 +649,6 @@ public class TelemetryManager : ITelemetryManager
         }
 
         return telemetryEvent;
-    }
-
-    private static string GetPlatform()
-    {
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            return "Windows";
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-            return "macOS";
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return "Linux";
-        return "Unknown";
     }
 
     private static string GetUserAgent()

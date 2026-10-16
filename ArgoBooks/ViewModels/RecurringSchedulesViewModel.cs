@@ -83,7 +83,7 @@ public partial class RecurringSchedulesViewModel : ViewModelBase, ICleanupViewMo
                     Description = schedule.Template?.Description ?? string.Empty,
                     FrequencyLabel = schedule.Frequency.ToString().Translate(),
                     AmountFormatted = CurrencyService.Format(schedule.Template?.Total ?? 0m),
-                    NextDateFormatted = schedule.NextDate.ToString("MMM d, yyyy"),
+                    NextDateFormatted = schedule.NextDate.ToString(Core.Data.DateFormats.Short),
                     StatusLabel = schedule.Status.ToString().Translate(),
                     IsActive = schedule.Status == RecurringTransactionStatus.Active,
                     IsPaused = paused,

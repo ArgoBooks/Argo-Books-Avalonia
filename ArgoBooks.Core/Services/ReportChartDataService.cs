@@ -227,8 +227,8 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
 
         return
         [
-            new ChartSeriesData { Name = "Expenses", Color = AppColors.ExpenseRed, DataPoints = expenseData },
-            new ChartSeriesData { Name = "Revenue", Color = AppColors.Success, DataPoints = revenueData }
+            new ChartSeriesData { Name = ChartSeriesData.ExpensesName, Color = AppColors.ExpenseRed, DataPoints = expenseData },
+            new ChartSeriesData { Name = ChartSeriesData.RevenueName, Color = AppColors.Success, DataPoints = revenueData }
         ];
     }
 
@@ -318,8 +318,8 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
 
         return
         [
-            new ChartSeriesData { Name = "Expenses", Color = AppColors.ExpenseRed, DataPoints = expenseData },
-            new ChartSeriesData { Name = "Revenue", Color = AppColors.Success, DataPoints = revenueData }
+            new ChartSeriesData { Name = ChartSeriesData.ExpensesName, Color = AppColors.ExpenseRed, DataPoints = expenseData },
+            new ChartSeriesData { Name = ChartSeriesData.RevenueName, Color = AppColors.Success, DataPoints = revenueData }
         ];
     }
 
@@ -370,8 +370,8 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
 
         return
         [
-            new ChartSeriesData { Name = "Expenses", Color = AppColors.ExpenseRed, DataPoints = expenseData },
-            new ChartSeriesData { Name = "Revenue", Color = AppColors.Success, DataPoints = revenueData }
+            new ChartSeriesData { Name = ChartSeriesData.ExpensesName, Color = AppColors.ExpenseRed, DataPoints = expenseData },
+            new ChartSeriesData { Name = ChartSeriesData.RevenueName, Color = AppColors.Success, DataPoints = revenueData }
         ];
     }
 
@@ -430,8 +430,8 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
 
         return
         [
-            new ChartSeriesData { Name = "Expenses", Color = AppColors.ExpenseRed, DataPoints = expenseData },
-            new ChartSeriesData { Name = "Revenue", Color = AppColors.Success, DataPoints = revenueData }
+            new ChartSeriesData { Name = ChartSeriesData.ExpensesName, Color = AppColors.ExpenseRed, DataPoints = expenseData },
+            new ChartSeriesData { Name = ChartSeriesData.RevenueName, Color = AppColors.Success, DataPoints = revenueData }
         ];
     }
 
@@ -485,8 +485,8 @@ public class ReportChartDataService(CompanyData? companyData, ReportFilters filt
 
         return
         [
-            new ChartSeriesData { Name = "Expenses", Color = AppColors.ExpenseRed, DataPoints = expenseData },
-            new ChartSeriesData { Name = "Revenue", Color = AppColors.Success, DataPoints = revenueData }
+            new ChartSeriesData { Name = ChartSeriesData.ExpensesName, Color = AppColors.ExpenseRed, DataPoints = expenseData },
+            new ChartSeriesData { Name = ChartSeriesData.RevenueName, Color = AppColors.Success, DataPoints = revenueData }
         ];
     }
 

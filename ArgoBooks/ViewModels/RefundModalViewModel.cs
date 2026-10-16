@@ -708,11 +708,8 @@ public partial class RefundModalViewModel : ObservableObject
 
             var body = Uri.EscapeDataString(string.Join("\n", bodyLines));
             var mailto = $"mailto:contact@argorobots.com?subject={subject}&body={body}";
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = mailto,
-                UseShellExecute = true,
-            });
+            if (!Core.Platform.UrlHelper.SafeOpenUrl(mailto))
+                throw new InvalidOperationException("No email app is set up to open it.");
         }
         catch (Exception ex)
         {
@@ -915,6 +912,6 @@ public class RefundHistoryRow
     public string Currency { get; set; } = "USD";
 
     public string AmountDisplay => CurrencyInfo.FormatAmount(Amount, Currency);
-    public string DateDisplay => Date.ToString("MMM d, yyyy");
+    public string DateDisplay => Date.ToString(Core.Data.DateFormats.Short);
     public string ReasonDisplay => string.IsNullOrWhiteSpace(Reason) ? "No reason given" : Reason!;
 }

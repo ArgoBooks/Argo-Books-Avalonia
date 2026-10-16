@@ -1,5 +1,6 @@
 using ArgoBooks.Core.Models.Common;
 using ArgoBooks.Core.Enums;
+using ArgoBooks.Core.Services;
 
 namespace ArgoBooks.Core.Models.Transactions;
 
@@ -135,7 +136,7 @@ public class Payment : IRecord
     [JsonIgnore]
     public decimal EffectiveAmountUSD =>
         IsPendingConversion ? 0m
-        : string.Equals(OriginalCurrency, "USD", StringComparison.OrdinalIgnoreCase) ? Amount : AmountUSD;
+        : UsdConversion.IsUsd(OriginalCurrency) ? Amount : AmountUSD;
 
     #endregion
 
