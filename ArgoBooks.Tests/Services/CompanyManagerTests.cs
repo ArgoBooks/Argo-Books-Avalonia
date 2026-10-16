@@ -1086,7 +1086,6 @@ public class CompanyManagerTests : IDisposable
     {
         public PlatformType Platform => PlatformType.Linux;
         public string GetAppDataPath() => Path.Combine(Path.GetTempPath(), "ArgoBooks_Test_" + Guid.NewGuid().ToString("N")[..8]);
-        public string GetTempPath() => Path.GetTempPath();
         public string GetCachePath() => Path.GetTempPath();
         public void EnsureDirectoryExists(string path) => Directory.CreateDirectory(path);
         public bool SupportsFileSystem => true;

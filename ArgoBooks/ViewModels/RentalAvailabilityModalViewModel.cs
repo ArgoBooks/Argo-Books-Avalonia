@@ -242,7 +242,7 @@ public partial class RentalAvailabilityModalViewModel : ViewModelBase
         UpdateNextAvailable(rentals, qtyNeeded);
         UpdateActiveRentalsList(data, rentals);
 
-        MeetsNeedLegendText = Loc.Tr("Meets your need (≥ {0} free)", qtyNeeded);
+        MeetsNeedLegendText = "Meets your need (≥ {0} free)".TranslateFormat(qtyNeeded);
     }
 
     private void BuildCalendar(List<RentalSpan> rentals, int qtyNeeded)
@@ -268,8 +268,8 @@ public partial class RentalAvailabilityModalViewModel : ViewModelBase
 
             string label = string.Empty;
             if (rented > 0)
-                label = hasOverdue ? Loc.Tr("⚠ {0} overdue", rented)
-                                   : Loc.Tr("{0}× rented", rented);
+                label = hasOverdue ? "⚠ {0} overdue".TranslateFormat(rented)
+                                   : "{0}× rented".TranslateFormat(rented);
 
             var isOutside = date.Month != firstOfMonth.Month;
             var isFull = TotalQty > 0 && free == 0;
@@ -295,7 +295,7 @@ public partial class RentalAvailabilityModalViewModel : ViewModelBase
                 EventLabel = label,
                 FreeLabel = TotalQty == 0
                     ? "—"
-                    : (meets ? $"{free} " + Loc.Tr("free") + " ✓" : $"{free} " + Loc.Tr("free"))
+                    : (meets ? $"{free} " + "free".Translate() + " ✓" : $"{free} " + "free".Translate())
             });
         }
     }
@@ -313,14 +313,14 @@ public partial class RentalAvailabilityModalViewModel : ViewModelBase
         {
             HasNextAvailable = false;
             NextAvailableDate = "—";
-            NextAvailableDetail = Loc.Tr("No items in fleet");
+            NextAvailableDetail = "No items in fleet".Translate();
             return;
         }
         if (qtyNeeded > TotalQty)
         {
             HasNextAvailable = false;
             NextAvailableDate = "—";
-            NextAvailableDetail = Loc.Tr("Need exceeds total fleet of {0}", TotalQty);
+            NextAvailableDetail = "Need exceeds total fleet of {0}".TranslateFormat(TotalQty);
             return;
         }
 
@@ -330,10 +330,10 @@ public partial class RentalAvailabilityModalViewModel : ViewModelBase
         {
             var stretch = MeasureStretch(rentals, today, qtyNeeded);
             HasNextAvailable = true;
-            NextAvailableDate = Loc.Tr("Now");
+            NextAvailableDate = "Now".Translate();
             NextAvailableDetail = stretch >= 365
-                ? Loc.Tr("{0} units free indefinitely", qtyNeeded)
-                : Loc.Tr("{0} units free for {1} days", qtyNeeded, stretch);
+                ? "{0} units free indefinitely".TranslateFormat(qtyNeeded)
+                : "{0} units free for {1} days".TranslateFormat(qtyNeeded, stretch);
             return;
         }
 
@@ -347,15 +347,15 @@ public partial class RentalAvailabilityModalViewModel : ViewModelBase
                 HasNextAvailable = true;
                 NextAvailableDate = d.ToString(Core.Data.DateFormats.Short, CultureInfo.CurrentCulture);
                 NextAvailableDetail = stretch >= 365
-                    ? Loc.Tr("{0} units free indefinitely", qtyNeeded)
-                    : Loc.Tr("{0} units free for {1} days", qtyNeeded, stretch);
+                    ? "{0} units free indefinitely".TranslateFormat(qtyNeeded)
+                    : "{0} units free for {1} days".TranslateFormat(qtyNeeded, stretch);
                 return;
             }
         }
 
         HasNextAvailable = false;
         NextAvailableDate = "—";
-        NextAvailableDetail = Loc.Tr("Not free in the next 12 months");
+        NextAvailableDetail = "Not free in the next 12 months".Translate();
     }
 
     private int MeasureStretch(List<RentalSpan> rentals, DateTime startDay, int qtyNeeded)
@@ -379,14 +379,14 @@ public partial class RentalAvailabilityModalViewModel : ViewModelBase
         foreach (var span in rentals.Where(s => s.IsActive || s.IsReserved).OrderBy(s => s.Start))
         {
             customersById.TryGetValue(span.CustomerId, out var customer);
-            var customerName = customer?.Name ?? Loc.Tr("Unknown customer");
+            var customerName = customer?.Name ?? "Unknown customer".Translate();
             var startLabel = span.Start.ToString("MMM d", CultureInfo.CurrentCulture);
             var endLabel = span.End.ToString("MMM d", CultureInfo.CurrentCulture);
             ActiveRentals.Add(new ActiveRentalDisplay
             {
                 Description = span.IsReserved
-                    ? Loc.Tr("{0}× reserved {1} to {2}, {3}", span.Quantity, startLabel, endLabel, customerName)
-                    : Loc.Tr("{0}× until {1}, {2}", span.Quantity, endLabel, customerName),
+                    ? "{0}× reserved {1} to {2}, {3}".TranslateFormat(span.Quantity, startLabel, endLabel, customerName)
+                    : "{0}× until {1}, {2}".TranslateFormat(span.Quantity, endLabel, customerName),
                 IsOverdue = span.IsOverdue
             });
         }

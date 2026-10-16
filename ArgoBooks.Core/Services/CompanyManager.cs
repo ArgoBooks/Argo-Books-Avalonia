@@ -1914,16 +1914,6 @@ public class CompanyManager : IDisposable
 
         return await _footerService.ReadFooterAsync(filePath, cancellationToken);
     }
-
-    /// <summary>
-    /// Extracts the company logo from a .argo file without fully opening it.
-    /// Returns null for files without a logo.
-    /// </summary>
-    public Task<byte[]?> ExtractLogoFromFileAsync(string filePath, CancellationToken cancellationToken = default)
-    {
-        return _fileService.ExtractLogoFromFileAsync(filePath, cancellationToken);
-    }
-
     /// <summary>
     /// Gets the list of recent companies with their metadata.
     /// </summary>

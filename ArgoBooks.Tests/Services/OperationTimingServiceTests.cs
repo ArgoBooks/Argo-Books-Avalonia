@@ -136,7 +136,6 @@ public class OperationTimingServiceTests : IDisposable
     {
         public PlatformType Platform => PlatformType.Linux;
         public string GetAppDataPath() => appDataPath;
-        public string GetTempPath() => Path.Combine(appDataPath, "temp");
         public string GetCachePath() => Path.Combine(appDataPath, "cache");
         public void EnsureDirectoryExists(string path)
         {

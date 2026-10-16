@@ -1740,9 +1740,8 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
         new(Enum.GetValues<PageOrientation>());
 
     // Element property enum collections - uses GetDisplayName() extension method for consistent naming
-    // Wrapped with Loc.Tr() for translation support
     public ObservableCollection<ChartDataTypeOption> ChartTypeOptions { get; } =
-        new(Enum.GetValues<ChartDataType>().Select(t => new ChartDataTypeOption(t, Loc.Tr(t.GetDisplayName()))));
+        new(Enum.GetValues<ChartDataType>().Select(t => new ChartDataTypeOption(t, t.GetDisplayName().Translate())));
 
     /// <summary>
     /// Gets or sets the selected chart data type option, syncing with SelectedChartElement.ChartType.
@@ -1767,9 +1766,9 @@ public partial class ReportsPageViewModel : ViewModelBase, ICleanupViewModel
 
     public ObservableCollection<GeoLevelOption> GeoLevelOptions { get; } =
     [
-        new(GeoLevel.Country, Loc.Tr("Country")),
-        new(GeoLevel.Region, Loc.Tr("Region")),
-        new(GeoLevel.City, Loc.Tr("City"))
+        new(GeoLevel.Country, "Country".Translate()),
+        new(GeoLevel.Region, "Region".Translate()),
+        new(GeoLevel.City, "City".Translate())
     ];
 
     public ObservableCollection<ChartStyleOption> ChartStyleOptions { get; } =

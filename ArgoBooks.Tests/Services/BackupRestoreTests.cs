@@ -164,7 +164,6 @@ public class BackupRestoreTests : IDisposable
     {
         public PlatformType Platform => PlatformType.Linux;
         public string GetAppDataPath() => root;
-        public string GetTempPath() => Path.Combine(root, "temp");
         public string GetCachePath() => Path.Combine(root, "cache");
         public void EnsureDirectoryExists(string path) => Directory.CreateDirectory(path);
         public bool SupportsFileSystem => true;

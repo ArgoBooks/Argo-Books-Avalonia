@@ -299,7 +299,6 @@ public class ExchangeRateCacheTests
 
         public PlatformType Platform => PlatformType.Linux;
         public string GetAppDataPath() => _appDataPath;
-        public string GetTempPath() => Path.GetTempPath();
         public string GetCachePath() => Path.GetTempPath();
 
         public void EnsureDirectoryExists(string path)

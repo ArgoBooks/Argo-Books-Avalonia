@@ -14,12 +14,6 @@ public abstract class BasePlatformService : IPlatformService
     public abstract string GetAppDataPath();
 
     /// <inheritdoc />
-    public virtual string GetTempPath()
-    {
-        return Services.AppPaths.Temp;
-    }
-
-    /// <inheritdoc />
     public virtual string GetCachePath()
     {
         return CombinePaths(GetAppDataPath(), "Cache");

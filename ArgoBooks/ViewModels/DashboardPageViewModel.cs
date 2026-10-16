@@ -920,48 +920,6 @@ public partial class DashboardPageViewModel : ChartContextMenuViewModelBase, ICl
     }
 
     #endregion
-
-    #region Helper Methods
-
-    /// <summary>
-    /// Checks if there is sufficient data coverage for the prior comparison period.
-    /// Returns false if the earliest transaction date is after the prior period start,
-    /// which would make the comparison misleading.
-    /// </summary>
-    internal static bool HasSufficientPriorData(CompanyData data, DateTime prevStartDate)
-    {
-        var earliestRevenue = data.Revenues.Count > 0 ? data.Revenues.Min(r => r.Date) : DateTime.MaxValue;
-        var earliestExpense = data.Expenses.Count > 0 ? data.Expenses.Min(e => e.Date) : DateTime.MaxValue;
-        var earliestDate = earliestRevenue < earliestExpense ? earliestRevenue : earliestExpense;
-
-        // If no data at all, no meaningful comparison
-        if (earliestDate == DateTime.MaxValue)
-            return false;
-
-        return earliestDate <= prevStartDate;
-    }
-
-    internal static double? CalculatePercentageChange(decimal previous, decimal current)
-    {
-        // Return null when there's no previous period data to compare against
-        if (previous == 0)
-        {
-            return null;
-        }
-        return (double)((current - previous) / previous * 100);
-    }
-
-    internal static string? FormatPercentageChange(double? change)
-    {
-        if (!change.HasValue)
-        {
-            return null;
-        }
-        // Use absolute value since the arrow indicates direction
-        return $"{Math.Abs(change.Value):F1}%";
-    }
-
-    #endregion
 }
 
 #region View Models for Lists

@@ -609,25 +609,6 @@ public class FileService(
         // Deliberately does not mark the data saved, because this only stages JSON into the temp directory and nothing is durable until the caller commits.
     }
 
-    /// <inheritdoc />
-    public async Task<byte[]?> ExtractLogoFromFileAsync(
-        string filePath,
-        CancellationToken cancellationToken = default)
-    {
-        var footer = await footerService.ReadFooterAsync(filePath, cancellationToken);
-        if (footer?.LogoThumbnail == null)
-            return null;
-
-        try
-        {
-            return Convert.FromBase64String(footer.LogoThumbnail);
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
     #region Helper Methods
 
     /// <summary>

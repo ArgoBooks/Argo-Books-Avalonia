@@ -172,7 +172,6 @@ public class TelemetryStorageServiceTests
 
         public PlatformType Platform => PlatformType.Linux;
         public string GetAppDataPath() => _appDataPath;
-        public string GetTempPath() => Path.GetTempPath();
         public string GetCachePath() => Path.GetTempPath();
         public void EnsureDirectoryExists(string path) => Directory.CreateDirectory(path);
         public bool SupportsFileSystem => true;

@@ -277,8 +277,8 @@ public partial class ReceiptsPageViewModel : SortablePageViewModelBase
         if (validPaths.Count == 0)
         {
             await App.ShowWarningDialogAsync(
-                Loc.Tr("Invalid File"),
-                Loc.Tr("Please drop {0} files.", FilePickerTypes.SupportedReceiptFormats));
+                "Invalid File".Translate(),
+                "Please drop {0} files.".TranslateFormat(FilePickerTypes.SupportedReceiptFormats));
             return;
         }
 

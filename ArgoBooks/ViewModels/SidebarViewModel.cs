@@ -22,7 +22,7 @@ public partial class SidebarViewModel : ViewModelBase
     private bool _isCollapsed;
 
     [ObservableProperty]
-    private string _collapseTooltip = Loc.Tr("Collapse sidebar");
+    private string _collapseTooltip = "Collapse sidebar".Translate();
 
     [ObservableProperty]
     private double _width = 250;
@@ -139,7 +139,7 @@ public partial class SidebarViewModel : ViewModelBase
 
     private void OnLanguageChanged(object? sender, LanguageChangedEventArgs e)
     {
-        CollapseTooltip = IsCollapsed ? Loc.Tr("Expand sidebar") : Loc.Tr("Collapse sidebar");
+        CollapseTooltip = IsCollapsed ? "Expand sidebar".Translate() : "Collapse sidebar".Translate();
     }
 
     /// <summary>
@@ -217,7 +217,7 @@ public partial class SidebarViewModel : ViewModelBase
     partial void OnIsCollapsedChanged(bool value)
     {
         Width = value ? CollapsedWidth : ExpandedWidth;
-        CollapseTooltip = value ? Loc.Tr("Expand sidebar") : Loc.Tr("Collapse sidebar");
+        CollapseTooltip = value ? "Expand sidebar".Translate() : "Collapse sidebar".Translate();
 
         UpdateItemsCollapsedState(value);
 

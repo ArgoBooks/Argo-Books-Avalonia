@@ -284,11 +284,6 @@ public partial class App : Application
     public static ReturnsModalsViewModel? ReturnsModalsViewModel => _appShellViewModel?.ReturnsModalsViewModel;
 
     /// <summary>
-    /// Gets the report modals view model for shared access.
-    /// </summary>
-    public static ReportModalsViewModel? ReportModalsViewModel => _appShellViewModel?.ReportModalsViewModel;
-
-    /// <summary>
     /// Gets the prediction info modal view model for shared access.
     /// </summary>
     public static PredictionInfoModalViewModel? PredictionInfoModalViewModel => _appShellViewModel?.PredictionInfoModalViewModel;
@@ -307,11 +302,6 @@ public partial class App : Application
     /// Gets the header view model for shared access.
     /// </summary>
     public static HeaderViewModel? HeaderViewModel => _appShellViewModel?.HeaderViewModel;
-
-    /// <summary>
-    /// Gets the version history modal view model for shared access.
-    /// </summary>
-    public static VersionHistoryModalViewModel? VersionHistoryModalViewModel => _appShellViewModel?.VersionHistoryModalViewModel;
 
     /// <summary>
     /// Gets the event log service for version history tracking.

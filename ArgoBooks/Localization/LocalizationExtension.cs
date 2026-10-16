@@ -137,21 +137,3 @@ public static class LocalizationManager
 
     }
 }
-
-/// <summary>
-/// Static helper class for quick translations in code.
-/// </summary>
-public static class Loc
-{
-    public static string Tr(string text) => LanguageService.Instance.Translate(text);
-
-    public static string Tr(string text, params object[] args)
-    {
-        var translated = LanguageService.Instance.Translate(text);
-        return string.Format(translated, args);
-    }
-
-    public static string CurrentLanguage => LanguageService.Instance.CurrentLanguage;
-    public static string CurrentIsoCode => LanguageService.Instance.CurrentIsoCode;
-    public static bool IsEnglish => LanguageService.Instance.IsEnglish;
-}
