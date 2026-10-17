@@ -27,11 +27,8 @@ public partial class TranslationGenerator
     [GeneratedRegex(@"(?m)^[\t ]*//.*$")]
     private static partial Regex LineCommentRegex();
 
-    [GeneratedRegex(@"Loc\.Tr\s*\(\s*""([^""]+)""")]
-    private static partial Regex LocTrCallRegex();
-
     // Pattern for Tr("text") calls (local helper method used in ReportRenderer, etc.)
-    [GeneratedRegex(@"(?<!Loc\.)\bTr\s*\(\s*""([^""]+)""")]
+    [GeneratedRegex(@"\bTr\s*\(\s*""([^""]+)""")]
     private static partial Regex LocalTrCallRegex();
 
     // Pattern for CreateItem("Label", ...) calls in sidebar/menu
@@ -158,7 +155,7 @@ public partial class TranslationGenerator
             CollectFromAxamlFile(file, strings);
         }
 
-        // Scan CS files for .Translate() and Loc.Tr() calls
+        // Scan CS files for .Translate() and Tr() calls
         var csFiles = Directory.GetFiles(sourceDirectory, "*.cs", SearchOption.AllDirectories);
         foreach (var file in csFiles)
         {
@@ -308,13 +305,6 @@ public partial class TranslationGenerator
             // Find .Translate("text") patterns (e.g., LanguageService.Instance.Translate("Other"))
             var translateWithArgMatches = TranslateWithArgRegex().Matches(content);
             foreach (Match match in translateWithArgMatches)
-            {
-                AddString(strings, match.Groups[1].Value);
-            }
-
-            // Find Loc.Tr("text") patterns
-            var locTrMatches = LocTrCallRegex().Matches(content);
-            foreach (Match match in locTrMatches)
             {
                 AddString(strings, match.Groups[1].Value);
             }
