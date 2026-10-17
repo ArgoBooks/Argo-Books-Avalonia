@@ -850,7 +850,7 @@ public partial class BankStatementImportModalViewModel : ViewModelBase
         var extracted = await App.ReadBankPdfStatementAsync(filePath, new App.BankPdfReadProgress(
             Begin: size =>
             {
-                LoadingMessage = "Reading PDF statement...".Translate();
+                LoadingMessage = StatementImages.IsImage(filePath) ? "Reading statement photo...".Translate() : "Reading PDF statement...".Translate();
                 CategorizeProgress = 0;
                 ShowCategorizeProgress = true;
                 IsLoading = true;

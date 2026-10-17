@@ -3877,7 +3877,7 @@ public partial class App : Application
     /// </summary>
     private static Task<List<Core.Models.BankMatching.BankStatementLine>> ImportPdfStatementAsync(string filePath) =>
         ReadBankPdfStatementAsync(filePath, new BankPdfReadProgress(
-            _ => ShowBusyOverlay("Reading PDF statement...".Translate()),
+            _ => ShowBusyOverlay(StatementImages.IsImage(filePath) ? "Reading statement photo...".Translate() : "Reading PDF statement...".Translate()),
             _ => HideBusyOverlay(),
             () => true));
 
