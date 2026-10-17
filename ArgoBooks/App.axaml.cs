@@ -2801,9 +2801,26 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// Performs the AI-powered import flow: analyze → review → validate → import.
+    /// Performs the AI-powered import flow: analyze → review → validate → import. A .xls or .ods
+    /// is read from a converted copy, which is deleted once the import has finished with it.
     /// </summary>
     private static async Task PerformAiImportAsync(string filePath, CompanyData companyData, bool isCsv)
+    {
+        var convertedFiles = new List<string>();
+        try
+        {
+            await RunAiImportAsync(filePath, companyData, isCsv, convertedFiles);
+        }
+        finally
+        {
+            foreach (var file in convertedFiles)
+            {
+                try { File.Delete(file); } catch { /* a temp file we could not remove is not worth failing an import over */ }
+            }
+        }
+    }
+
+    private static async Task RunAiImportAsync(string filePath, CompanyData companyData, bool isCsv, List<string> convertedFiles)
     {
         if (_appShellViewModel == null) return;
 
@@ -2825,6 +2842,7 @@ public partial class App : Application
             try
             {
                 filePath = await Task.Run(() => SpreadsheetFiles.ConvertToTempXlsx(filePath));
+                convertedFiles.Add(filePath);
             }
             catch (Exception ex)
             {
