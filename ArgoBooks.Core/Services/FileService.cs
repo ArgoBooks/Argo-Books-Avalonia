@@ -85,6 +85,9 @@ public class FileService(
         if (footer.FormatVersion > FileFormatConstants.FormatVersion)
             throw new CompanyFileTooNewException(footer.Version, AppInfo.VersionNumber);
 
+        if (footer.FormatVersion < FileFormatConstants.MinimumSupportedFormatVersion)
+            throw new InvalidDataException("This company file uses a format that this version of Argo Books can no longer open.");
+
         // Guard: encrypted files need a password and the encryption service.
         // This is a cheap check, no key derivation yet.
         if (footer.IsEncrypted)

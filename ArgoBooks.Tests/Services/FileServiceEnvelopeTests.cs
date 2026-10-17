@@ -311,6 +311,30 @@ public class FileServiceEnvelopeTests : IDisposable
             () => _fileService.OpenCompanyAsync(filePath, Password));
     }
 
+    [Fact]
+    public async Task Open_FileBelowTheOldestSupportedFormatVersion_IsRefused()
+    {
+        var filePath = Path.Combine(_workDirectory, "ancient.argo");
+        var footer = new FileFooter
+        {
+            Version = "0.1.0",
+            FormatVersion = FileFormatConstants.MinimumSupportedFormatVersion - 1,
+            IsEncrypted = true,
+            CompanyName = "From The Past"
+        };
+
+        await using (var stream = File.Create(filePath))
+        {
+            await stream.WriteAsync("not readable by this build"u8.ToArray());
+            await _footerService.WriteFooterAsync(stream, footer);
+        }
+
+        // Refused before the password is tried, so it never reads as a wrong password.
+        var refusal = await Assert.ThrowsAsync<InvalidDataException>(
+            () => _fileService.OpenCompanyAsync(filePath, Password));
+        Assert.Contains("can no longer open", refusal.Message);
+    }
+
     #endregion
 
     #region Helpers
