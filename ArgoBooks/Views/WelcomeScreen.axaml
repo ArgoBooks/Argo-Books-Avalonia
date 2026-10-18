@@ -29,14 +29,15 @@
                 IsHitTestVisible="True"
                 ZIndex="1" />
 
-        <!-- Main Content -->
+        <!-- Main Content. It starts below the title bar, so scrolled content never shows through it, as the loading overlay leaves the title bar uncovered. -->
         <ScrollViewer x:Name="MainScrollViewer"
+                      Margin="0,30,0,0"
                       HorizontalScrollBarVisibility="Disabled"
                       VerticalScrollBarVisibility="Auto">
             <StackPanel HorizontalAlignment="Center"
                         VerticalAlignment="Center"
                         MaxWidth="900"
-                        Margin="40,60">
+                        Margin="40,30,40,60">
 
                 <!-- Logo and Welcome -->
                 <StackPanel HorizontalAlignment="Center"
