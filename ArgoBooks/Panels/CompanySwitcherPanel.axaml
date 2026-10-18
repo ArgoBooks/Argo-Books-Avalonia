@@ -153,7 +153,7 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
 
-                    <TextBlock Text="{loc:Loc 'This is your only company. Open another file to switch between them.'}"
+                    <TextBlock Text="{loc:Loc 'Other companies you open will be listed here.'}"
                                IsVisible="{Binding !HasFilteredRecentCompanies}"
                                Margin="8,4,8,8"
                                FontSize="12"
