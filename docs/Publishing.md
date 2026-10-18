@@ -126,9 +126,7 @@ Everything here happens once all four platforms are built and sitting in `publis
 
 5. Upload with FileZilla, using the list the signing script printed in step 1. Add a `languages/` subfolder holding the JSON files from step 2 to the new `resources/downloads/<version>/` folder.
 
-   Upload before pushing. Otherwise installed copies are told about an update that isn't on the server yet.
-
-6. Commit and push the website repo to `main`. The website's download buttons switch to the new version once this deploys.
+6. Once the upload has finished, commit everything in the website repo from steps 1 and 3 together, and push to `main`. The website's download buttons switch to the new version once this deploys.
 
 7. Check the website repo's **Verify Velopack release** workflow on GitHub. The push in step 6 starts it, and it fails if any file is missing, damaged, or not signed properly.
 
