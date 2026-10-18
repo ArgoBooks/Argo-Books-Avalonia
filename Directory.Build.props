@@ -1,15 +1,10 @@
 <Project>
     <PropertyGroup>
-        <!-- Application Version, for all projects -->
+        <!-- The release version. Change it here only: the app and every build script read it from this line. -->
         <Version>2.0.21</Version>
-        <!-- Strip the +commit-hash suffix that .NET 8+ otherwise appends to
-             AssemblyInformationalVersionAttribute, so the version the app and its
-             release files report is the plain release number. -->
+        <!-- Keeps the version the app reports as just the number, such as 2.0.21, with no code added after it. -->
         <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
-        <!-- Allow restoring/evaluating the net10.0-windows target framework on
-             Linux/macOS (e.g. the GitHub Actions AppImage build). Only the
-             net10.0 flavor is actually built there; this just lets restore
-             resolve the Windows reference packs instead of failing NETSDK1100. -->
+        <!-- The app also has a Windows-only build, and this lets a Mac or Linux machine load the project without stopping on it. -->
         <EnableWindowsTargeting Condition="'$(OS)' != 'Windows_NT'">true</EnableWindowsTargeting>
     </PropertyGroup>
 </Project>
