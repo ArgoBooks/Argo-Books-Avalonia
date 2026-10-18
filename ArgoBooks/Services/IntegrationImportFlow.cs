@@ -41,6 +41,9 @@ public static class IntegrationImportFlow
 
         /// <summary>After what is waiting to be imported may have changed.</summary>
         public Func<Task>? AfterQueueChange { get; init; }
+
+        /// <summary>Shows or hides the busy spinner, which is hidden while the user is being asked rather than waited on.</summary>
+        public Action<bool>? SetBusy { get; init; }
     }
 
     public static async Task<IntegrationImportResult> RunStripeAsync(CompanyData data, HttpClient http, Host host)
@@ -55,7 +58,7 @@ public static class IntegrationImportFlow
                 return await NothingWaitingAsync(title, host);
 
             await WarmRatesAsync(data, preview.Sales.Concat(preview.Fees), host);
-            var confirmed = await ConfirmAsync(new ConfirmationDialogOptions
+            var confirmed = await ConfirmAsync(host, new ConfirmationDialogOptions
             {
                 Title = "Import from Stripe".Translate(),
                 Message = "Import your Stripe activity: {0} in revenue and {1} in fees?"
@@ -103,10 +106,12 @@ public static class IntegrationImportFlow
             await WarmRatesAsync(data, preview.RateAmounts, host);
 
             // Three answers, not two: without Discard an unwanted object is offered again on every sync, where Cancel only means not now.
-            var choice = await ConfirmAsync(new ConfirmationDialogOptions
+            var choice = await ConfirmAsync(host, new ConfirmationDialogOptions
             {
                 Title = "Import from the Argo Books API".Translate(),
-                Message = "Import {0} items sent by your connected apps: {1} in revenue and {2} in expenses?\n\nDiscard removes them for good and tells the apps that sent them. Cancel leaves them waiting."
+                Message = (preview.TotalObjects == 1
+                        ? "Import 1 item sent by your connected apps: {1} in revenue and {2} in expenses?\n\nDiscard removes it for good and tells the app that sent it. Cancel leaves it waiting."
+                        : "Import {0} items sent by your connected apps: {1} in revenue and {2} in expenses?\n\nDiscard removes them for good and tells the apps that sent them. Cancel leaves them waiting.")
                     .TranslateFormat(preview.TotalObjects, Total(preview.Sales), Total(preview.ExpenseAmounts)),
                 PrimaryButtonText = "Import".Translate(),
                 SecondaryButtonText = "Discard".Translate(),
@@ -182,9 +187,19 @@ public static class IntegrationImportFlow
     private static IProgress<int> RateProgress(Host host) =>
         new Progress<int>(pct => host.SetStatus("Fetching exchange rates... {0}%".TranslateFormat(pct)));
 
-    private static async Task<ConfirmationResult> ConfirmAsync(ConfirmationDialogOptions options) =>
+    private static async Task<ConfirmationResult> ConfirmAsync(Host host, ConfirmationDialogOptions options)
+    {
         // Never import without a review step.
-        App.ConfirmationDialog == null ? ConfirmationResult.None : await App.ConfirmationDialog.ShowAsync(options);
+        if (App.ConfirmationDialog == null)
+            return ConfirmationResult.None;
+
+        // Nothing is running while the question is open, so the status and spinner from fetching the rates go.
+        host.SetStatus(string.Empty);
+        host.SetBusy?.Invoke(false);
+        var answer = await App.ConfirmationDialog.ShowAsync(options);
+        host.SetBusy?.Invoke(true);
+        return answer;
+    }
 
     private static void Changed(Host host)
     {

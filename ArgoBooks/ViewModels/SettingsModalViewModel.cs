@@ -1719,6 +1719,7 @@ public partial class SettingsModalViewModel : ViewModelBase
             await IntegrationImportFlow.RunStripeAsync(data, App.SharedHttpClient, new IntegrationImportFlow.Host
             {
                 SetStatus = v => StripeSyncStatus = v,
+                SetBusy = busy => IsSyncingStripe = busy,
                 // A message box, not a notification: this modal sits over where notifications appear.
                 Inform = App.ShowInfoDialogAsync,
                 AfterChange = () => RefreshStripeLastSynced(stripe)
@@ -2193,6 +2194,7 @@ public partial class SettingsModalViewModel : ViewModelBase
             var result = await IntegrationImportFlow.RunArgoApiAsync(data, App.SharedHttpClient, new IntegrationImportFlow.Host
             {
                 SetStatus = v => ArgoApiSyncStatus = v,
+                SetBusy = busy => IsSyncingArgoApi = busy,
                 Inform = App.ShowInfoDialogAsync,
                 AfterChange = () => RefreshArgoApiLastSynced(api)
             });

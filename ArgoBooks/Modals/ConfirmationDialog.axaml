@@ -88,7 +88,7 @@
 
                         <!-- Secondary Button -->
                         <Button Classes.secondary-button="{Binding !IsSecondaryDestructive}"
-                                Classes.danger-button="{Binding IsSecondaryDestructive}"
+                                Classes.danger-outline-button="{Binding IsSecondaryDestructive}"
                                 Content="{Binding SecondaryButtonText}"
                                 Command="{Binding SecondaryActionCommand}"
                                 IsVisible="{Binding ShowSecondaryButton}" />

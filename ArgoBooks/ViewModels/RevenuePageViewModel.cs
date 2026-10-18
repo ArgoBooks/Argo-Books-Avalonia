@@ -806,6 +806,7 @@ public RevenuePageViewModel()
             await IntegrationImportFlow.RunStripeAsync(data, App.SharedHttpClient, new IntegrationImportFlow.Host
             {
                 SetStatus = v => StripeSyncStatus = v,
+                SetBusy = busy => IsSyncingStripe = busy,
                 Inform = Notify,
                 AfterChange = LoadRevenue,
                 AfterQueueChange = CheckStripePendingAsync
@@ -838,7 +839,9 @@ public RevenuePageViewModel()
     private int _argoApiPendingCount;
 
     public string ArgoApiBannerText =>
-        "Argo Books API: {0} items are waiting to be imported.".TranslateFormat(ArgoApiPendingCount);
+        ArgoApiPendingCount == 1
+            ? "Argo Books API: 1 item is waiting to be imported.".Translate()
+            : "Argo Books API: {0} items are waiting to be imported.".TranslateFormat(ArgoApiPendingCount);
 
     partial void OnArgoApiPendingCountChanged(int value) => OnPropertyChanged(nameof(ArgoApiBannerText));
 
@@ -917,6 +920,7 @@ public RevenuePageViewModel()
             await IntegrationImportFlow.RunArgoApiAsync(data, App.SharedHttpClient, new IntegrationImportFlow.Host
             {
                 SetStatus = v => ArgoApiSyncStatus = v,
+                SetBusy = busy => IsSyncingArgoApi = busy,
                 Inform = Notify,
                 AfterChange = LoadRevenue,
                 AfterQueueChange = RefreshArgoApiQueueAsync
