@@ -60,6 +60,7 @@ if [ -f "$ROOT_DIR/ArgoBooks.Desktop/ArgoBooks.Desktop.csproj" ] && command -v d
     # which is why this is a publish and not a build (see docs/Publishing.md).
     dotnet publish "$ROOT_DIR/ArgoBooks.Desktop" \
         -c "$CONFIGURATION" \
+        -p:Version="$VERSION" \
         -f net10.0 \
         -r "$RID" \
         --self-contained \

@@ -41,6 +41,7 @@ if [ -f "$ROOT_DIR/ArgoBooks.Desktop/ArgoBooks.Desktop.csproj" ] && command -v d
     echo "Building .NET application..."
     dotnet publish "$ROOT_DIR/ArgoBooks.Desktop" \
         -c Release \
+        -p:Version="$VERSION" \
         -f net10.0 \
         -r linux-x64 \
         --self-contained \
