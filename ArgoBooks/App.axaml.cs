@@ -2765,7 +2765,8 @@ public partial class App : Application
             settings?.Company.ProvinceState,
             settings?.Company.Email,
             CompanyManager.CompanyData!.Settings.Localization.Currency,
-            contextMessage);
+            contextMessage,
+            CompanyManager.CompanyData.Settings.OpeningBalance);
     }
 
     /// <summary>

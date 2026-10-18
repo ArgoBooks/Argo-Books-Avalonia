@@ -591,7 +591,8 @@ public partial class App
                         args.CompanyName,
                         args.Password,
                         companyInfo,
-                        args.DefaultCurrency);
+                        args.DefaultCurrency,
+                        args.OpeningBalance);
 
                     // Apply logo if one was selected
                     if (!string.IsNullOrEmpty(args.LogoPath))
@@ -820,6 +821,7 @@ public partial class App
                     var oldAddress = settings.Company.Address;
                     var oldProvinceState = settings.Company.ProvinceState;
                     var oldLogoFileName = settings.Company.LogoFileName;
+                    var oldOpeningBalance = settings.OpeningBalance;
 
                     // Save old logo bytes for potential undo restore
                     byte[]? oldLogoBytes = null;
@@ -841,6 +843,7 @@ public partial class App
                     settings.Company.City = args.City;
                     settings.Company.Address = args.Address;
                     settings.Company.ProvinceState = args.ProvinceState;
+                    settings.OpeningBalance = args.OpeningBalance;
 
                     // Handle logo update if a new one was uploaded
                     if (!string.IsNullOrEmpty(args.LogoPath))
@@ -905,6 +908,7 @@ public partial class App
                     var newCity = args.City;
                     var newAddress = args.Address;
                     var newProvinceState = args.ProvinceState;
+                    var newOpeningBalance = args.OpeningBalance;
 
                     var hasNonCurrencyChanges = oldName != newName
                         || oldBusinessType != newBusinessType
@@ -915,9 +919,30 @@ public partial class App
                         || oldCity != newCity
                         || oldAddress != newAddress
                         || oldProvinceState != newProvinceState
+                        || oldOpeningBalance != newOpeningBalance
                         || oldLogoFileName != newLogoFileName;
 
                     if (!hasNonCurrencyChanges) return;
+
+                    // The history lists each changed field, as it does for a customer or supplier edit.
+                    var changes = new Dictionary<string, FieldChange>();
+                    void Track(string field, string? oldValue, string? newValue)
+                    {
+                        if (!string.Equals(oldValue ?? "", newValue ?? "", StringComparison.Ordinal))
+                            changes[field] = new FieldChange { OldValue = oldValue ?? "", NewValue = newValue ?? "" };
+                    }
+                    Track("Name", oldName, newName);
+                    Track("Business type", oldBusinessType, newBusinessType);
+                    Track("Industry", oldIndustry, newIndustry);
+                    Track("Phone", oldPhone, newPhone);
+                    Track("Email", oldEmail, newEmail);
+                    Track("Country", oldCountry, newCountry);
+                    Track("Province / State", oldProvinceState, newProvinceState);
+                    Track("City", oldCity, newCity);
+                    Track("Address", oldAddress, newAddress);
+                    if (oldOpeningBalance != newOpeningBalance)
+                        Track("Opening bank balance", OpeningBalanceInput.Describe(oldOpeningBalance), OpeningBalanceInput.Describe(newOpeningBalance));
+                    if (changes.Count > 0) EventLogService?.SetPendingChanges(changes);
 
                     UndoRedoManager.RecordAction(new DelegateAction(
                         $"Edit company '{newName}'",
@@ -933,6 +958,7 @@ public partial class App
                             settings.Company.City = oldCity;
                             settings.Company.Address = oldAddress;
                             settings.Company.ProvinceState = oldProvinceState;
+                            settings.OpeningBalance = oldOpeningBalance;
 
                             // Clear pending rename (revert to original file name)
                             if (oldFilePath != newFilePath)
@@ -955,6 +981,7 @@ public partial class App
                             settings.Company.City = newCity;
                             settings.Company.Address = newAddress;
                             settings.Company.ProvinceState = newProvinceState;
+                            settings.OpeningBalance = newOpeningBalance;
 
                             // Re-schedule the file rename
                             if (oldFilePath != newFilePath && newFilePath != null)

@@ -664,6 +664,7 @@ public class CompanyManager : IDisposable
     /// <param name="companyName">Name of the company.</param>
     /// <param name="password">Optional password for encryption.</param>
     /// <param name="companyInfo">Optional company information.</param>
+    /// <param name="openingBalance">The bank balance the company starts from, if the user gave one.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     public async Task CreateCompanyAsync(
         string filePath,
@@ -671,6 +672,7 @@ public class CompanyManager : IDisposable
         string? password = null,
         CompanyInfo? companyInfo = null,
         string? defaultCurrency = null,
+        OpeningBalance? openingBalance = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(filePath);
@@ -716,6 +718,8 @@ public class CompanyManager : IDisposable
             // Before CompanyOpened is raised below, so its subscribers see the chosen currency.
             if (!string.IsNullOrEmpty(defaultCurrency))
                 CompanyData.Settings.Localization.Currency = defaultCurrency;
+
+            CompanyData.Settings.OpeningBalance = openingBalance;
 
             // Save all data to temp directory first (before creating receipts subdirectory,
             // otherwise GetCompanyDirectory will incorrectly find receipts/ as the company dir)

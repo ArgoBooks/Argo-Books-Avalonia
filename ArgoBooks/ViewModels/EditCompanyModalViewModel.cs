@@ -1,5 +1,7 @@
+using System.Globalization;
 using ArgoBooks.Controls;
 using ArgoBooks.Core.Enums;
+using ArgoBooks.Core.Models;
 using ArgoBooks.Core.Services;
 using ArgoBooks.Localization;
 using ArgoBooks.Services;
@@ -63,6 +65,43 @@ public partial class EditCompanyModalViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _selectedCurrency = "USD - US Dollar ($)";
+
+    /// <summary>The business bank balance at the start of today, as typed. Empty for none.</summary>
+    [ObservableProperty]
+    private string _openingBalanceText = "";
+
+    [ObservableProperty]
+    private string? _openingBalanceError;
+
+    /// <summary>
+    /// Whether the opening balance boxes are showing. They matter once, when the company starts
+    /// recording, so the modal shows a one-line summary until the person chooses to set or change it.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isEditingOpeningBalance;
+
+    /// <summary>The saved opening balance in a line, such as "$5,000.00 on Mar 1, 2026".</summary>
+    public string OpeningBalanceSummary => OpeningBalanceInput.Describe(_originalOpeningBalance);
+
+    public string OpeningBalanceActionText => _originalOpeningBalance == null ? "Set".Translate() : "Change".Translate();
+
+    [RelayCommand]
+    private void EditOpeningBalance() => IsEditingOpeningBalance = true;
+
+    /// <summary>
+    /// Whether a saved balance is being corrected. A correction keeps the balance's own day, so every
+    /// Balance Sheet since then still starts from it; a first balance is today's.
+    /// </summary>
+    private bool IsCorrectingSavedBalance => _originalOpeningBalance != null;
+
+    public string OpeningBalanceLabel => _originalOpeningBalance is { } saved
+        ? "Bank balance at the start of {0}".TranslateFormat(
+            saved.Date.ToString(Core.Data.DateFormats.Short, CultureInfo.CurrentCulture))
+        : "Bank balance today".Translate();
+
+    public string OpeningBalanceHint => IsCorrectingSavedBalance
+        ? "The Balance Sheet starts its cash from this balance. Correct it if it was entered wrongly, or clear it to remove it.".Translate()
+        : "Your business bank balance at the start of today. The Balance Sheet starts its cash from it. Leave it empty if you are not sure.".Translate();
 
     // Currency change error state
     [ObservableProperty]
@@ -133,6 +172,8 @@ public partial class EditCompanyModalViewModel : ViewModelBase
     private string _originalEmail = "";
     private string _originalCurrency = "USD - US Dollar ($)";
     private string? _pendingCurrencyCode;
+    private OpeningBalance? _originalOpeningBalance;
+    private string _originalOpeningBalanceText = "";
 
     /// <summary>
     /// Whether any changes have been made.
@@ -149,7 +190,8 @@ public partial class EditCompanyModalViewModel : ViewModelBase
         !StrEq(Address, _originalAddress) ||
         !StrEq(ProvinceState, _originalProvinceState) ||
         !StrEq(Email, _originalEmail) ||
-        !StrEq(SelectedCurrency, _originalCurrency);
+        !StrEq(SelectedCurrency, _originalCurrency) ||
+        !StrEq(OpeningBalanceText, _originalOpeningBalanceText);
 
     // Treats null and empty as equal: clearing a field that was originally empty (null) leaves a "" behind, which must NOT count as a change.
     private static bool StrEq(string? a, string? b) =>
@@ -182,9 +224,19 @@ public partial class EditCompanyModalViewModel : ViewModelBase
         string? provinceState = null,
         string? email = null,
         string? currencyCode = null,
-        string? contextMessage = null)
+        string? contextMessage = null,
+        OpeningBalance? openingBalance = null)
     {
         ContextMessage = contextMessage;
+        _originalOpeningBalance = openingBalance;
+        OpeningBalanceText = openingBalance?.Amount.ToString("0.00", CultureInfo.InvariantCulture) ?? "";
+        OpeningBalanceError = null;
+        _originalOpeningBalanceText = OpeningBalanceText;
+        IsEditingOpeningBalance = false;
+        OnPropertyChanged(nameof(OpeningBalanceSummary));
+        OnPropertyChanged(nameof(OpeningBalanceActionText));
+        OnPropertyChanged(nameof(OpeningBalanceHint));
+        OnPropertyChanged(nameof(OpeningBalanceLabel));
         _originalCompanyName = companyName;
         _originalBusinessType = businessType;
         _originalIndustry = industry;
@@ -287,6 +339,7 @@ public partial class EditCompanyModalViewModel : ViewModelBase
         _originalProvinceState = ProvinceState;
         _originalEmail = Email;
         _originalCurrency = SelectedCurrency;
+        _originalOpeningBalanceText = OpeningBalanceText;
         OnPropertyChanged(nameof(HasChanges));
     }
 
@@ -526,6 +579,9 @@ public partial class EditCompanyModalViewModel : ViewModelBase
             }
         }
 
+        if (!TryReadOpeningBalance(out var openingBalance))
+            return;
+
         // Build the full phone number with country code
         string? fullPhone = null;
         if (!string.IsNullOrWhiteSpace(PhoneNumber))
@@ -560,10 +616,28 @@ public partial class EditCompanyModalViewModel : ViewModelBase
             Country = Country,
             City = City,
             Address = Address,
-            ProvinceState = ProvinceState
+            ProvinceState = ProvinceState,
+            OpeningBalance = openingBalance
         });
 
         IsOpen = false;
+    }
+
+    /// <summary>
+    /// The opening balance to save: none when the box is empty. A typed amount corrects the saved
+    /// balance on its own day and in its own currency, or, with none saved, is today's balance.
+    /// </summary>
+    private bool TryReadOpeningBalance(out OpeningBalance? openingBalance)
+    {
+        var read = OpeningBalanceInput.TryRead(OpeningBalanceText,
+            CurrencyInfo.ParseCodeFromDisplayString(SelectedCurrency), out openingBalance, out var error);
+        OpeningBalanceError = error;
+        if (!read)
+            return false;
+
+        if (openingBalance is { } typed && _originalOpeningBalance is { } saved)
+            openingBalance = typed.Amount == saved.Amount ? saved : saved with { Amount = typed.Amount };
+        return true;
     }
 
     /// <summary>
@@ -692,6 +766,7 @@ public partial class EditCompanyModalViewModel : ViewModelBase
     }
 
     partial void OnBusinessTypeChanged(string? value) => OnPropertyChanged(nameof(HasChanges));
+    partial void OnOpeningBalanceTextChanged(string value) => OnPropertyChanged(nameof(HasChanges));
     partial void OnIndustryChanged(string? value) => OnPropertyChanged(nameof(HasChanges));
     partial void OnPhoneNumberChanged(string value) => OnPropertyChanged(nameof(HasChanges));
     partial void OnSelectedPhoneCountryChanged(CountryDialCode? value) => OnPropertyChanged(nameof(HasChanges));
@@ -735,4 +810,5 @@ public class CompanyEditedEventArgs : EventArgs
     public string? City { get; set; }
     public string? Address { get; set; }
     public string? ProvinceState { get; set; }
+    public OpeningBalance? OpeningBalance { get; set; }
 }

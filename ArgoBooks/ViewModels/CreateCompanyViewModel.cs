@@ -51,6 +51,13 @@ public partial class CreateCompanyViewModel : ViewModelBase
     [ObservableProperty]
     private string _selectedCurrency = "CAD - Canadian Dollar ($)";
 
+    /// <summary>The business bank balance at the start of today, as typed. Optional.</summary>
+    [ObservableProperty]
+    private string _openingBalanceText = "";
+
+    [ObservableProperty]
+    private string? _openingBalanceError;
+
     /// <summary>
     /// All available currencies.
     /// </summary>
@@ -157,6 +164,7 @@ public partial class CreateCompanyViewModel : ViewModelBase
         !string.IsNullOrEmpty(CompanyName) ||
         !string.IsNullOrEmpty(Industry) ||
         SelectedCurrency != "CAD - Canadian Dollar ($)" ||
+        !string.IsNullOrWhiteSpace(OpeningBalanceText) ||
         !string.IsNullOrEmpty(Country) ||
         EnablePassword ||
         !string.IsNullOrEmpty(Password) ||
@@ -244,6 +252,8 @@ public partial class CreateCompanyViewModel : ViewModelBase
         if (CurrentStep == 1)
         {
             var currencyCode = CurrencyInfo.ParseCodeFromDisplayString(SelectedCurrency);
+            if (!TryReadOpeningBalance(out _))
+                return;
             if (!await CurrencyCountryMatcher.ConfirmIfMismatchAsync(Country, currencyCode))
                 return;
         }
@@ -277,10 +287,24 @@ public partial class CreateCompanyViewModel : ViewModelBase
         HasLogo = false;
     }
 
+    private bool TryReadOpeningBalance(out Core.Models.OpeningBalance? openingBalance)
+    {
+        var read = OpeningBalanceInput.TryRead(OpeningBalanceText,
+            CurrencyInfo.ParseCodeFromDisplayString(SelectedCurrency), out openingBalance, out var error);
+        OpeningBalanceError = error;
+        return read;
+    }
+
     [RelayCommand]
     private void CreateCompany()
     {
         if (!CanCreate) return;
+        if (!TryReadOpeningBalance(out var openingBalance))
+        {
+            CurrentStep = 1;
+            UpdateStepProperties();
+            return;
+        }
 
         var args = new CompanyCreatedEventArgs
         {
@@ -289,7 +313,8 @@ public partial class CreateCompanyViewModel : ViewModelBase
             Country = Country,
             DefaultCurrency = CurrencyInfo.ParseCodeFromDisplayString(SelectedCurrency),
             Password = EnablePassword ? Password : null,
-            LogoPath = LogoPath
+            LogoPath = LogoPath,
+            OpeningBalance = openingBalance
         };
 
         CompanyCreated?.Invoke(this, args);
@@ -328,6 +353,8 @@ public partial class CreateCompanyViewModel : ViewModelBase
         CompanyName = null;
         Industry = null;
         SelectedCurrency = "CAD - Canadian Dollar ($)";
+        OpeningBalanceText = "";
+        OpeningBalanceError = null;
         Country = null;
         EnablePassword = false;
         Password = null;
@@ -433,4 +460,5 @@ public class CompanyCreatedEventArgs : EventArgs
     public string? DefaultCurrency { get; init; }
     public string? Password { get; init; }
     public string? LogoPath { get; init; }
+    public Core.Models.OpeningBalance? OpeningBalance { get; init; }
 }

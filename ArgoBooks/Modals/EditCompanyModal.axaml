@@ -8,6 +8,7 @@
              xmlns:modals="using:ArgoBooks.Modals"
              xmlns:local="using:ArgoBooks"
              xmlns:icons="using:ArgoBooks"
+             xmlns:behaviors="using:ArgoBooks.Behaviors"
              mc:Ignorable="d" d:DesignWidth="620" d:DesignHeight="500"
              x:Class="ArgoBooks.Modals.EditCompanyModal"
              x:DataType="vm:EditCompanyModalViewModel">
@@ -30,6 +31,7 @@
 
                 <!-- Body -->
                 <ScrollViewer Grid.Row="1"
+                              x:Name="BodyScrollViewer"
                               VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Spacing="16" Margin="24,16">
@@ -71,7 +73,7 @@
                         </Grid>
 
                         <!-- Two column layout for fields -->
-                        <Grid ColumnDefinitions="*,16,*" RowDefinitions="Auto,16,Auto,16,Auto,16,Auto,16,Auto">
+                        <Grid ColumnDefinitions="*,16,*" RowDefinitions="Auto,16,Auto,16,Auto,16,Auto,16,Auto,16,Auto">
                             <!-- Business Type -->
                             <StackPanel Grid.Row="0" Grid.Column="0" Spacing="6">
                                 <TextBlock Text="{loc:Loc 'Business Type'}"
@@ -211,6 +213,57 @@
                                                    Foreground="{DynamicResource TextTertiaryBrush}" />
                                     </StackPanel>
                                 </Grid>
+                            </StackPanel>
+                            <!-- Opening bank balance: one line until the person chooses to set or change it -->
+                            <StackPanel Grid.Row="10" Grid.Column="0" Grid.ColumnSpan="3" Spacing="6">
+                                <Grid ColumnDefinitions="Auto,Auto,*" IsVisible="{Binding !IsEditingOpeningBalance}">
+                                    <TextBlock Grid.Column="0"
+                                               Text="{loc:Loc 'Opening bank balance'}"
+                                               FontSize="13"
+                                               FontWeight="Medium"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextSecondaryBrush}" />
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding OpeningBalanceSummary}"
+                                               FontSize="13"
+                                               Margin="12,0"
+                                               VerticalAlignment="Center"
+                                               TextTrimming="CharacterEllipsis"
+                                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                                    <Button Grid.Column="2"
+                                            Classes="text-button"
+                                            HorizontalAlignment="Left"
+                                            Command="{Binding EditOpeningBalanceCommand}">
+                                        <TextBlock Text="{Binding OpeningBalanceActionText}" Foreground="{DynamicResource PrimaryBrush}" />
+                                    </Button>
+                                </Grid>
+
+                                <StackPanel IsVisible="{Binding IsEditingOpeningBalance}" Spacing="6">
+                                    <Grid ColumnDefinitions="*,16,*">
+                                        <StackPanel Grid.Column="0" Spacing="6">
+                                            <TextBlock Text="{Binding OpeningBalanceLabel}"
+                                                       FontSize="13"
+                                                       FontWeight="Medium"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}" />
+                                            <TextBox Classes="form-input"
+                                                     x:Name="OpeningBalanceBox"
+                                                     Text="{Binding OpeningBalanceText, Mode=TwoWay}"
+                                                     PlaceholderText="{Binding AmountPlaceholder}"
+                                                     behaviors:NumericInputBehavior.IsDecimalOnly="True"
+                                                     behaviors:NumericInputBehavior.AllowNegative="True"
+                                                     MaxLength="16" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <TextBlock Text="{Binding OpeningBalanceHint}"
+                                               FontSize="12"
+                                               TextWrapping="Wrap"
+                                               Foreground="{DynamicResource TextTertiaryBrush}" />
+                                    <TextBlock Text="{Binding OpeningBalanceError}"
+                                               FontSize="12"
+                                               TextWrapping="Wrap"
+                                               Foreground="{DynamicResource ErrorBrush}"
+                                               IsVisible="{Binding OpeningBalanceError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                </StackPanel>
                             </StackPanel>
                         </Grid>
                     </StackPanel>

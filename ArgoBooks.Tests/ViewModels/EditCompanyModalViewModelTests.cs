@@ -211,4 +211,96 @@ public class EditCompanyModalViewModelTests
     }
 
     #endregion
+
+    #region Opening balance
+
+    private static readonly Core.Models.OpeningBalance Opening =
+        new() { Amount = 5000m, Currency = "CAD", Date = new DateTime(2026, 3, 1) };
+
+    [Fact]
+    public void HasChanges_WhenOpenedWithAnOpeningBalance_ReturnsFalse()
+    {
+        _viewModel.Open("Test Company", openingBalance: Opening);
+
+        Assert.Equal("5000.00", _viewModel.OpeningBalanceText);
+        Assert.Contains("start of Mar 1, 2026", _viewModel.OpeningBalanceLabel);
+        Assert.False(_viewModel.HasChanges);
+    }
+
+    [Fact]
+    public void HasChanges_WhenTheOpeningBalanceChanges_ReturnsTrue()
+    {
+        _viewModel.Open("Test Company", openingBalance: Opening);
+        _viewModel.OpeningBalanceText = "5100";
+
+        Assert.True(_viewModel.HasChanges);
+    }
+
+    [Fact]
+    public void ASavedOpeningBalance_ShowsAsOneLine_UntilChangeIsChosen()
+    {
+        _viewModel.Open("Test Company", openingBalance: Opening);
+
+        Assert.False(_viewModel.IsEditingOpeningBalance);
+        Assert.Contains("5,000.00", _viewModel.OpeningBalanceSummary);
+        Assert.Equal("Change", _viewModel.OpeningBalanceActionText);
+
+        _viewModel.EditOpeningBalanceCommand.Execute(null);
+
+        Assert.True(_viewModel.IsEditingOpeningBalance);
+    }
+
+    [Fact]
+    public void WithoutAnOpeningBalance_TheLineSaysNotSet()
+    {
+        _viewModel.Open("Test Company");
+
+        Assert.Equal("Not set", _viewModel.OpeningBalanceSummary);
+        Assert.Equal("Set", _viewModel.OpeningBalanceActionText);
+        Assert.Equal("Bank balance today", _viewModel.OpeningBalanceLabel);
+    }
+
+    [Fact]
+    public async Task Save_KeepsAnUntouchedOpeningBalanceInItsOwnCurrency()
+    {
+        CompanyEditedEventArgs? saved = null;
+        _viewModel.CompanySaved += (_, e) => saved = e;
+        _viewModel.Open("Test Company", country: "Canada", currencyCode: "USD", openingBalance: Opening);
+        _viewModel.CompanyName = "Renamed Company";
+
+        await _viewModel.SaveCommand.ExecuteAsync(null);
+
+        Assert.Same(Opening, saved?.OpeningBalance);
+    }
+
+    [Fact]
+    public async Task Save_WithANewAmount_CorrectsTheBalanceOnItsOwnDay()
+    {
+        CompanyEditedEventArgs? saved = null;
+        _viewModel.CompanySaved += (_, e) => saved = e;
+        _viewModel.Open("Test Company", country: "Canada", currencyCode: "USD", openingBalance: Opening);
+        _viewModel.OpeningBalanceText = "6000";
+
+        await _viewModel.SaveCommand.ExecuteAsync(null);
+
+        Assert.Equal(Opening with { Amount = 6000m }, saved?.OpeningBalance);
+    }
+
+    [Fact]
+    public async Task Save_WithTheBoxCleared_RemovesTheBalance()
+    {
+        CompanyEditedEventArgs? saved = null;
+        _viewModel.CompanySaved += (_, e) => saved = e;
+        _viewModel.Open("Test Company", country: "Canada", currencyCode: "CAD", openingBalance: Opening);
+
+        _viewModel.OpeningBalanceText = "";
+        Assert.True(_viewModel.HasChanges);
+
+        await _viewModel.SaveCommand.ExecuteAsync(null);
+
+        Assert.NotNull(saved);
+        Assert.Null(saved!.OpeningBalance);
+    }
+
+    #endregion
 }

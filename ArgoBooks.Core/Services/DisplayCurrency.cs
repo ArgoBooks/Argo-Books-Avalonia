@@ -65,10 +65,12 @@ public static class DisplayCurrency
 
     /// <summary>
     /// Every date a report converts at: its revenue, expenses, payments, purchase orders, invoices,
-    /// returns and losses, plus the end date that point-in-time figures such as inventory are valued at.
+    /// returns and losses, the opening bank balance, plus the end date that point-in-time figures
+    /// such as inventory are valued at.
     /// </summary>
     public static IEnumerable<DateTime> ReportDates(CompanyData data, DateTime? endDate)
     {
+        if (data.Settings.OpeningBalance is { } opening) yield return opening.Date;
         foreach (var r in data.Revenues) yield return r.Date;
         foreach (var e in data.Expenses) yield return e.Date;
         foreach (var p in data.Payments) yield return p.Date;
