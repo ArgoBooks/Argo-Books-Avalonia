@@ -9,8 +9,8 @@ namespace ArgoBooks.Core.Services;
 /// funnel can attribute installs back to the originating ad click.
 ///
 /// Token sources, by platform:
-///   Windows: Advanced Installer writes the token to
-///            %LOCALAPPDATA%\ArgoBooks\install_token.txt during install.
+///   Windows: WindowsInstallHooks reads it from the name of the Setup file installing
+///            the app and writes it to %LOCALAPPDATA%\ArgoBooks\install_token.txt.
 ///   Mac:     no token is available. The download is a .zip the browser expands,
 ///            so "Argo Books.app" carries neither the archive's name nor any
 ///            record of where it came from: macOS no longer stores the source URL
@@ -23,7 +23,6 @@ namespace ArgoBooks.Core.Services;
 /// </summary>
 public sealed class FirstRunReporter
 {
-    private const string TokenFileName = "install_token.txt";
     private const int MaxRetryAttempts = 3;
 
     private readonly HttpClient _httpClient;
@@ -149,11 +148,11 @@ public sealed class FirstRunReporter
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                var tokenPath = Path.Combine(_appDataDir, TokenFileName);
+                var tokenPath = Path.Combine(_appDataDir, InstallToken.FileName);
                 if (File.Exists(tokenPath))
                 {
                     var raw = File.ReadAllText(tokenPath).Trim();
-                    if (IsValidToken(raw))
+                    if (InstallToken.IsValid(raw))
                     {
                         return raw.ToLowerInvariant();
                     }
@@ -175,7 +174,7 @@ public sealed class FirstRunReporter
 
             // Linux: the AppImage is itself the executable, so it still carries
             // the downloaded filename.
-            return ExtractTokenFromPath(processPath);
+            return InstallToken.FromPath(processPath);
         }
         catch (Exception ex)
         {
@@ -203,31 +202,6 @@ public sealed class FirstRunReporter
                 context: "FirstRunReporter.OpenWelcomePage");
         }
     }
-
-    private static string? ExtractTokenFromPath(string path)
-    {
-        // Walk up looking for a path segment matching foo_xxxxxxxx.ext
-        var segments = new[]
-        {
-            Path.GetFileName(path),
-            Path.GetFileName(Path.GetDirectoryName(path) ?? string.Empty),
-        };
-        foreach (var seg in segments)
-        {
-            if (string.IsNullOrEmpty(seg)) continue;
-            var match = System.Text.RegularExpressions.Regex.Match(
-                seg, @"_([0-9a-f]{8})(?:\.|$)",
-                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-            if (match.Success)
-            {
-                return match.Groups[1].Value.ToLowerInvariant();
-            }
-        }
-        return null;
-    }
-
-    private static bool IsValidToken(string token) =>
-        System.Text.RegularExpressions.Regex.IsMatch(token, "^[0-9a-fA-F]{8}$");
 
     /// <summary>
     /// Returns a stable per-machine UUID for dedup, still cached in the app data directory so an
@@ -334,7 +308,7 @@ public sealed class FirstRunReporter
     {
         try
         {
-            var path = Path.Combine(_appDataDir, TokenFileName);
+            var path = Path.Combine(_appDataDir, InstallToken.FileName);
             if (File.Exists(path)) File.Delete(path);
         }
         catch

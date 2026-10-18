@@ -54,6 +54,9 @@
         <!-- CSV parsing (RFC 4180) -->
         <PackageReference Include="CsvHelper" />
 
+        <!-- Ed25519, to check the signature on every update before it is installed -->
+        <PackageReference Include="BouncyCastle.Cryptography" />
+
         <!-- Not referenced by our code. EPPlus and NPOI both depend on
              System.Security.Cryptography.Xml at a version carrying known high-severity
              advisories, so this pins the resolved version forward to a patched one.

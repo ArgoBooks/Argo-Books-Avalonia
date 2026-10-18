@@ -36,11 +36,7 @@ public partial class App : Application
     public static IUpdateService? UpdateService { get; set; }
 
     /// <summary>
-    /// Builds the platform's update service. Set by the platform entry point, which cannot
-    /// hand over an instance without paying for it before Avalonia has started: constructing
-    /// NetSparkle loads its assemblies and signature crypto, and that landed squarely in the
-    /// window where the screen is still empty. Nothing reads UpdateService until the shell
-    /// view model is built, long after the splash is up.
+    /// Builds the platform's update service once the first window is showing, since building it at startup would delay the first paint.
     /// </summary>
     public static Func<IUpdateService?>? UpdateServiceFactory { get; set; }
 
@@ -2049,10 +2045,6 @@ public partial class App : Application
         {
             try
             {
-                // The installer restarts the app, so this is flushed with the rest of the
-                // shutdown rather than uploaded from the version being replaced.
-                _ = TelemetryManager?.TrackFeatureAsync(FeatureName.UpdateApplied, AppInfo.VersionNumber);
-
                 if (CompanyManager?.IsCompanyOpen == true)
                 {
                     // Use synchronous wait since we must complete before the process exits
@@ -2065,12 +2057,19 @@ public partial class App : Application
                     // Flag that we're updating so we can auto-reopen the company after restart
                     SettingsService.GlobalSettings.Updates.AutoOpenRecentAfterUpdate = true;
                     SettingsService.GlobalSettings.Updates.FileToOpenAfterUpdate = _fileToOpenAfterUpdate;
+                    SettingsService.GlobalSettings.Updates.PendingUpdateVersion = UpdateService?.AvailableUpdate?.Version;
+                    SettingsService.GlobalSettings.Updates.PendingUpdateFromVersion = AppInfo.VersionNumber;
                     Task.Run(async () => await SettingsService.SaveGlobalSettingsAsync())
                         .GetAwaiter().GetResult();
                 }
+
+                // Recorded only once the work is saved, since a failed save cancels the update.
+                _ = TelemetryManager?.TrackFeatureAsync(FeatureName.UpdateApplied, AppInfo.VersionNumber);
             }
             catch (Exception ex)
             {
+                if (SettingsService != null)
+                    ClearUpdateInProgress(SettingsService.GlobalSettings.Updates);
                 // The installer restarts the app, so going ahead would throw away whatever did not
                 // get written. Refuse, the same as the close, auto-lock and tutorial-restart paths.
                 applying.Cancel = true;
@@ -2081,6 +2080,10 @@ public partial class App : Application
                     NotificationType.Warning);
             }
         };
+
+        await ReportLastUpdateOutcomeAsync();
+        // Not awaited, because it waits for the user to answer the Windows permission prompt and the update check should not.
+        _ = RemoveOldWindowsInstallAsync();
 
         try
         {
@@ -2095,6 +2098,90 @@ public partial class App : Application
         catch (Exception ex)
         {
             ErrorLogger?.LogWarning($"Background update check failed: {ex.Message}", "AutoUpdate");
+        }
+    }
+
+    /// <summary>
+    /// Forgets an update that did not start, so the next launch neither reopens the company as if after an update nor reports it as failed.
+    /// </summary>
+    internal static void ClearUpdateInProgress(UpdateSettings updates)
+    {
+        updates.AutoOpenRecentAfterUpdate = false;
+        updates.FileToOpenAfterUpdate = null;
+        updates.PendingUpdateVersion = null;
+        updates.PendingUpdateFromVersion = null;
+    }
+
+    /// <summary>
+    /// On the launch after an accepted update, reports once whether it installed.
+    /// </summary>
+    private static async Task ReportLastUpdateOutcomeAsync()
+    {
+        var settings = SettingsService;
+        if (settings?.GlobalSettings.Updates is not { PendingUpdateVersion: { } target } updates)
+            return;
+
+        try
+        {
+            var installed = UpdateOutcome.IsInstalled(AppInfo.VersionNumber, target);
+            var from = updates.PendingUpdateFromVersion ?? "unknown";
+            updates.PendingUpdateVersion = null;
+            updates.PendingUpdateFromVersion = null;
+            await settings.SaveGlobalSettingsAsync();
+
+            if (installed)
+            {
+                _ = TelemetryManager?.TrackFeatureAsync(FeatureName.UpdateInstalled, UpdateOutcome.Context(from, target));
+            }
+            else
+            {
+                ErrorLogger?.LogWarning($"Update to {target} did not install.", "AutoUpdate");
+                _ = TelemetryManager?.TrackFeatureAsync(FeatureName.UpdateFailed, UpdateOutcome.Context(from, target));
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorLogger?.LogWarning($"Could not report the last update: {ex.Message}", "AutoUpdate");
+        }
+    }
+
+    /// <summary>The first launches after moving to the Velopack install try this many times to remove the old copy, so a user who keeps saying no is not asked forever.</summary>
+    private const int MaxOldInstallRemovalAttempts = 3;
+
+    /// <summary>
+    /// On Windows, removes the copy the old installer put in Program Files once the Velopack copy is running, which Windows asks the user to allow.
+    /// </summary>
+    private static async Task RemoveOldWindowsInstallAsync()
+    {
+        var settings = SettingsService;
+        if (UpdateService is not { HasOldInstallToRemove: true } updateService || settings == null)
+            return;
+
+        var updates = settings.GlobalSettings.Updates;
+        if (updates.OldInstallRemovalAttempts >= MaxOldInstallRemovalAttempts)
+            return;
+
+        try
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(() => _appShellViewModel?.AddNotification(
+                "Finishing the update".Translate(),
+                "Windows will ask for permission to remove the previous copy of Argo Books. Your companies and settings stay as they are.".Translate(),
+                NotificationType.Info));
+
+            if (await updateService.RemoveOldInstallAsync())
+            {
+                updates.OldInstallRemovalAttempts = 0;
+                _ = TelemetryManager?.TrackFeatureAsync(FeatureName.OldInstallRemoved, AppInfo.VersionNumber);
+            }
+            else
+            {
+                updates.OldInstallRemovalAttempts++;
+            }
+            await settings.SaveGlobalSettingsAsync();
+        }
+        catch (Exception ex)
+        {
+            ErrorLogger?.LogWarning($"Could not remove the old install: {ex.Message}", "AutoUpdate");
         }
     }
 

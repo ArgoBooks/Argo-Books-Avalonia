@@ -1,9 +1,7 @@
 name: Build Linux AppImage
 
 # Manual trigger only: Actions tab -> "Build Linux AppImage" -> Run workflow.
-# Builds the self-contained linux-x64 publish output and packages it as an
-# AppImage using packaging/linux/build-appimage.sh, then uploads the result
-# as a downloadable artifact.
+# Runs packaging/linux/build-appimage.sh and uploads the AppImage and update files as one artifact.
 on:
   workflow_dispatch:
 
@@ -19,14 +17,11 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      - name: Install appimagetool
+      - name: Install vpk
         run: |
-          wget -q -O /tmp/appimagetool-x86_64.AppImage https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
-          chmod +x /tmp/appimagetool-x86_64.AppImage
-          # GitHub runners don't ship FUSE, so expose appimagetool through a
-          # wrapper that runs it in self-extracting mode instead.
-          printf '#!/bin/bash\nexec /tmp/appimagetool-x86_64.AppImage --appimage-extract-and-run "$@"\n' | sudo tee /usr/local/bin/appimagetool > /dev/null
-          sudo chmod +x /usr/local/bin/appimagetool
+          # The packaging tool must match the Velopack library the app ships with.
+          VELOPACK_VERSION=$(grep -oP '<PackageVersion Include="Velopack" Version="\K[^"]+' Directory.Packages.props)
+          dotnet tool install --global vpk --version "$VELOPACK_VERSION"
 
       - name: Build and package AppImage
         run: |
@@ -39,9 +34,11 @@ jobs:
         id: version
         run: echo "version=$(grep -oP '<Version>\K[^<]+' Directory.Build.props | head -1)" >> "$GITHUB_OUTPUT"
 
-      - name: Upload AppImage artifact
+      - name: Upload AppImage and update files
         uses: actions/upload-artifact@v7
         with:
           name: ArgoBooks-${{ steps.version.outputs.version }}-linux-x64
-          path: publish/ArgoBooks-*-linux-x64.AppImage
+          path: |
+            publish/ArgoBooks-*-linux-x64.AppImage
+            publish/velopack/linux/
           if-no-files-found: error

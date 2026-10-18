@@ -5,7 +5,7 @@ This guide walks through everything you need to set up in Microsoft Azure to bui
 Argo Books uses Azure for two things:
 
 1. **Azure Translator** - used by `ArgoBooks.Translations` to translate UI strings into every supported language
-2. **Azure Artifact Signing** - used to digitally sign the Windows `.exe` installer produced by Advanced Installer
+2. **Azure Artifact Signing** - used to digitally sign the Windows installer and app files, which `packaging/windows/build-release.ps1` does through Velopack
 
 Azure is not used by Argo Books day to day. It's only used to generate translations or publish a signed Windows release.
 
@@ -154,7 +154,7 @@ Once validation is approved:
 4. **Identity validation:** select the validation you just completed
 6. Create
 
-Note this name. Advanced Installer needs it.
+Note this name. The metadata JSON in Step 13 needs it.
 
 ### Step 12: Install the client tooling
 
@@ -176,7 +176,7 @@ Then:
 az login
 ```
 
-So Advanced Installer can pick up your credentials.
+So the build script can sign with your credentials.
 
 > **If `az login` fails with "No subscriptions found":** this usually means your Microsoft account is also linked to a school or work tenant, and the CLI is trying the wrong tenants first and hitting MFA. Point it directly at your personal Azure tenant instead:
 >
@@ -206,9 +206,9 @@ Create the file at `packaging/windows/trusted-signing-metadata.json` in this rep
 
 None of these values are secrets. The real authentication happens via your `az login` token at sign time.
 
-### Step 14: Configure Advanced Installer and verify the signed build
+### Step 14: Verify the signed build
 
-The Advanced Installer signing config and the end-to-end verification live in this repo, alongside the project file at `packaging/windows/Argo Books.aip`. See [Advanced Installer project setup](AdvancedInstallerProjectSetup.md), specifically the **Digital Signature** step and the **Verify a build** step.
+Run `packaging/windows/build-release.ps1`. It passes the metadata JSON to Velopack, which signs every executable and DLL in the release that is not already signed by Microsoft, about 105 files per build, and then the installer. Check the result by right-clicking `publish/ArgoBooks-<version>-win-Setup.exe`, opening **Properties > Digital Signatures**, and confirming the signer is the name on your certificate.
 
 For the full publishing workflow (Windows, macOS, and Linux), see [Publishing.md](../Publishing.md).
 

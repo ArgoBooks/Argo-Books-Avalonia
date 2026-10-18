@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-# Package Argo Books as a signed, notarized macOS .app bundle in a .zip.
+# Package Argo Books for macOS with Velopack: a signed, notarized .app in a .zip, plus the update package.
 #
 # Usage:
 #   ./packaging/macos/build-app.sh [version]
@@ -18,7 +18,8 @@ set -euo pipefail
 #                             --apple-id you@example.com --team-id TEAMID \
 #                             --password <app-specific-password>
 #
-# Prerequisites: .NET 10 SDK (arm64) and Xcode Command Line Tools.
+# Prerequisites: .NET 10 SDK (arm64), Xcode Command Line Tools, and the vpk tool at the
+# Velopack version in Directory.Packages.props (docs/setup/OneTimeReleaseSetup.md).
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -115,19 +116,7 @@ done
 iconutil -c icns "$ICONSET" -o "$APP_BUNDLE/Contents/Resources/argo-logo.icns"
 rm -rf "$ICONSET"
 
-# --- Sign --------------------------------------------------------------------
-
-OUTPUT_FILE="$OUT_DIR/ArgoBooks-${VERSION}-${RID}.zip"
-rm -f "$OUTPUT_FILE"
-
-if [ -z "${APPLE_SIGN_IDENTITY:-}" ]; then
-    echo ""
-    echo "APPLE_SIGN_IDENTITY is not set, so the bundle is UNSIGNED."
-    echo "It will run locally, but a downloaded copy is rejected as damaged on any other Mac."
-    ditto -c -k --keepParent "$APP_BUNDLE" "$OUTPUT_FILE"
-    echo "Created (unsigned): $OUTPUT_FILE"
-    exit 0
-fi
+# --- Sign the nested code ---------------------------------------------------
 
 # Copying from a non-macOS filesystem can leave extended attributes behind, and
 # codesign fails on a bundle that has them.
@@ -136,6 +125,8 @@ xattr -cr "$APP_BUNDLE"
 # Debug symbols first: they are not code the app runs, and the .dwarf is itself Mach-O, so
 # leaving them in means codesign demanding a signature for something that should never ship.
 find "$APP_BUNDLE/Contents/MacOS" \( -name "*.pdb" -o -name "*.dwarf" \) -delete
+
+if [ -n "${APPLE_SIGN_IDENTITY:-}" ]; then
 
 # Sign inside out. `codesign --deep` is documented as unsuitable for anything but
 # the simplest bundles and silently misses nested .NET native libraries, so each
@@ -177,55 +168,56 @@ while IFS= read -r NESTED_FILE; do
     fi
 done < "$NESTED_CODE"
 
-# --deep here, despite the warning above, and only as the sealing pass. Everything that can
-# carry its own signature already got one explicitly in the loop above, which is what that
-# warning is really about. What is left is that a self-contained .NET publish drops data files
-# next to the executable in Contents/MacOS, codesign treats that directory as code, and a
-# plain seal refuses to finish on a file that cannot be signed at all:
-#     Argo Books.app: code object is not signed at all
-#     In subcomponent: .../Contents/MacOS/Argo Books.runtimeconfig.json
-# A .json cannot be signed and .NET requires it beside the executable, so the seal has to
-# tolerate it. Entitlements still apply to the bundle, which is what the hardened runtime reads.
-echo "Signing the bundle..."
-codesign --force --deep --timestamp --options runtime \
-    --entitlements "$SCRIPT_DIR/entitlements.plist" \
-    --sign "$APPLE_SIGN_IDENTITY" \
-    "$APP_BUNDLE"
-
-codesign --verify --deep --strict --verbose=2 "$APP_BUNDLE"
-
-# --- Notarize ----------------------------------------------------------------
-
-if [ -z "${APPLE_NOTARY_PROFILE:-}" ]; then
-    echo ""
-    echo "APPLE_NOTARY_PROFILE is not set, so the bundle is signed but NOT notarized."
-    echo "Gatekeeper still blocks it on a first launch from a download."
-    ditto -c -k --keepParent "$APP_BUNDLE" "$OUTPUT_FILE"
-    echo "Created (signed, un-notarized): $OUTPUT_FILE"
-    exit 0
 fi
 
-NOTARIZE_ZIP="$OUT_DIR/notarize-upload.zip"
-rm -f "$NOTARIZE_ZIP"
-ditto -c -k --keepParent "$APP_BUNDLE" "$NOTARIZE_ZIP"
+# --- Package with Velopack ---------------------------------------------------
 
-echo "Submitting to Apple for notarization (usually a few minutes)..."
-xcrun notarytool submit "$NOTARIZE_ZIP" --keychain-profile "$APPLE_NOTARY_PROFILE" --wait
-rm -f "$NOTARIZE_ZIP"
+# The downloadable zip is copied to publish/ under the name the website and Homebrew expect.
+if ! command -v vpk &> /dev/null; then
+    echo "Error: vpk is not on PATH. Install it at the Velopack version in Directory.Packages.props:"
+    echo "  dotnet tool install --global vpk --version <version>"
+    exit 1
+fi
 
-# Staple the ticket into the bundle so a first launch works without internet.
-echo "Stapling the notarization ticket..."
-xcrun stapler staple "$APP_BUNDLE"
-xcrun stapler validate "$APP_BUNDLE"
+VELOPACK_DIR="$OUT_DIR/velopack/$RID"
+rm -rf "$VELOPACK_DIR"
+PACK_ARGS=(
+    pack
+    --packId ArgoBooksApp
+    --packVersion "$VERSION"
+    --packDir "$APP_BUNDLE"
+    --mainExe "$APP_NAME"
+    --packTitle "$APP_NAME"
+    --packAuthors "Argo Books"
+    --runtime "$RID"
+    --channel "$RID"
+    # Only whole packages carry a signature the app checks, so partial updates are never built.
+    --delta None
+    # People download the zip, so the .pkg installer, which needs a Developer ID Installer certificate, is not built.
+    --noInst
+    --outputDir "$VELOPACK_DIR"
+)
+if [ -n "${APPLE_SIGN_IDENTITY:-}" ]; then
+    # Velopack wants the certificate name without the "(TEAMID)" that security find-identity prints.
+    PACK_ARGS+=(--signAppIdentity "$(echo "$APPLE_SIGN_IDENTITY" | sed 's/ *([A-Z0-9]*)$//')" --signEntitlements "$SCRIPT_DIR/entitlements.plist")
+    if [ -n "${APPLE_NOTARY_PROFILE:-}" ]; then
+        PACK_ARGS+=(--notaryProfile "$APPLE_NOTARY_PROFILE")
+    fi
+fi
 
-# Re-zip AFTER stapling. Stapling rewrites the bundle, so a zip made before this
-# point has different bytes, and the NetSparkle signature generated from it would
-# fail verification on every user's machine.
-ditto -c -k --keepParent "$APP_BUNDLE" "$OUTPUT_FILE"
+vpk "${PACK_ARGS[@]}"
+
+OUTPUT_FILE="$OUT_DIR/ArgoBooks-${VERSION}-${RID}.zip"
+cp "$VELOPACK_DIR/ArgoBooksApp-${RID}-Portable.zip" "$OUTPUT_FILE"
 
 echo ""
 echo "Created: $OUTPUT_FILE"
-echo "Size: $(du -h "$OUTPUT_FILE" | cut -f1)"
+echo "Update files: $VELOPACK_DIR"
+if [ -z "${APPLE_SIGN_IDENTITY:-}" ]; then
+    echo "UNSIGNED: it runs on this Mac, but a downloaded copy is rejected as damaged on any other."
+elif [ -z "${APPLE_NOTARY_PROFILE:-}" ]; then
+    echo "Signed but NOT notarized: Gatekeeper still blocks a first launch from a download."
+fi
 echo ""
-echo "Next: generate the NetSparkle signature for THIS file and put it on the"
-echo "sparkle:os=\"macos\" enclosure in the website repo's avalonia-update.xml."
+echo "Next: copy publish/velopack/$RID to the Windows release machine and sign it with"
+echo "packaging/sign-release.ps1 (docs/Publishing.md, \"Going Live\")."

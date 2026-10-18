@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-# Package Argo Books as a Linux AppImage.
+# Package Argo Books as a Linux AppImage with Velopack, plus the update package the app downloads.
 #
 # Usage:
 #   From the repo root (will build and package):
@@ -11,7 +11,7 @@ set -euo pipefail
 #     ./packaging/linux/build-appimage.sh <version>
 #
 # Prerequisites:
-#   - appimagetool (https://github.com/AppImage/appimagetool)
+#   - the vpk tool at the Velopack version in Directory.Packages.props
 #   - A 256x256 PNG icon at packaging/linux/com.argobooks.ArgoBooks.png
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -54,7 +54,8 @@ else
 fi
 
 # Create AppDir structure
-APPDIR="$ROOT_DIR/AppDir"
+# The folder name ends in .AppDir so Velopack packs it as built, keeping the .desktop entry and .argo file type below.
+APPDIR="$ROOT_DIR/ArgoBooks.AppDir"
 rm -rf "$APPDIR"
 mkdir -p "$APPDIR/usr/bin"
 mkdir -p "$APPDIR/usr/share/applications"
@@ -86,15 +87,35 @@ ln -sf usr/bin/"Argo Books" "$APPDIR/AppRun"
 # Make the main executable actually executable
 chmod +x "$APPDIR/usr/bin/Argo Books"
 
-# Build the AppImage
+# Build the AppImage with Velopack, which adds its updater beside the app.
+if ! command -v vpk &> /dev/null; then
+    echo "Error: vpk is not on PATH. Install it at the Velopack version in Directory.Packages.props:"
+    echo "  dotnet tool install --global vpk --version <version>"
+    exit 1
+fi
+
+VELOPACK_DIR="$ROOT_DIR/publish/velopack/linux"
+rm -rf "$VELOPACK_DIR"
+# --delta None: only whole packages carry a signature the app checks, so partial updates are never built.
+vpk pack \
+    --packId ArgoBooksApp \
+    --packVersion "$VERSION" \
+    --packDir "$APPDIR" \
+    --mainExe "Argo Books" \
+    --packTitle "Argo Books" \
+    --packAuthors "Argo Books" \
+    --runtime linux-x64 \
+    --channel linux \
+    --delta None \
+    --outputDir "$VELOPACK_DIR"
+
 OUTPUT_FILE="$ROOT_DIR/publish/ArgoBooks-${VERSION}-linux-x64.AppImage"
-mkdir -p "$ROOT_DIR/publish"
-echo "Building AppImage..."
-ARCH="$ARCH" appimagetool "$APPDIR" "$OUTPUT_FILE"
+cp "$VELOPACK_DIR/ArgoBooksApp.AppImage" "$OUTPUT_FILE"
 
 # Clean up
 rm -rf "$APPDIR"
 
 echo ""
 echo "AppImage created: $OUTPUT_FILE"
+echo "Update files: $VELOPACK_DIR"
 echo "Size: $(du -h "$OUTPUT_FILE" | cut -f1)"

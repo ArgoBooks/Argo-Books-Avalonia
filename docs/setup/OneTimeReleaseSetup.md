@@ -2,6 +2,34 @@
 
 Done once, not per release. [Publishing](../Publishing.md) assumes all of this is already in place.
 
+## Velopack's packaging tool
+
+Every build script packs its release with `vpk`. Install it on the Windows PC and the Mac:
+
+```bash
+dotnet tool install --global vpk --version 1.2.161
+```
+
+The version has to match the `Velopack` package in `Directory.Packages.props`, and the build scripts stop if it doesn't. When that package is upgraded, upgrade the tool on both machines too:
+
+```bash
+dotnet tool update --global vpk --version <new version>
+```
+
+The Linux build installs the matching version by itself in GitHub Actions.
+
+## Code signing on Windows
+
+`build-release.ps1` signs through Azure Trusted Signing, set up as in [Azure setup](AzureSetup.md), using the account details in `packaging/windows/trusted-signing-metadata.json`. It signs as whoever is signed in to the Azure CLI (installed in step 12 there), so sign in once:
+
+```powershell
+az login
+```
+
+If a build ever fails because the sign-in has expired, run it again.
+
+That account needs the **Artifact Signing Certificate Profile Signer** role, which Azure setup step 9 grants.
+
 ## Signing and notarizing on macOS
 
 Requires an **Apple Developer Program membership** ($99 USD per year). Without it macOS rejects a downloaded copy with "Argo Books is damaged and can't be opened", so this is not skippable for a public release.
@@ -30,5 +58,5 @@ Requires an **Apple Developer Program membership** ($99 USD per year). Without i
 ## Signing the release files for the updater
 
 - The signing key pair needs to be added to `C:\Users\evand\AppData\Local\netsparkle`. **Back this folder up**. If the private key is lost, shipped versions of the app can't verify future updates; if it leaks, someone who also compromised the website could forge updates. It must never be committed to a repo.
-- The matching public key is embedded in the app at `NetSparkleUpdateService.UpdatePublicKey`.
-- Intall the signing tool: `dotnet tool install --global NetSparkleUpdater.Tools.AppCastGenerator`
+- The matching public key is embedded in the app at `VelopackUpdateService.UpdatePublicKey`.
+- Install the signing tool: `dotnet tool install --global NetSparkleUpdater.Tools.AppCastGenerator`. The app no longer uses NetSparkle, but this tool still makes the Ed25519 signatures, and copies of the app already out there trust the keys it made.
