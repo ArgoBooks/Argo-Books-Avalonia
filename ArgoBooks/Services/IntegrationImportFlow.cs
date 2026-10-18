@@ -61,8 +61,9 @@ public static class IntegrationImportFlow
             var confirmed = await ConfirmAsync(host, new ConfirmationDialogOptions
             {
                 Title = "Import from Stripe".Translate(),
-                Message = "Import your Stripe activity: {0} in revenue and {1} in fees?"
-                    .TranslateFormat(Total(preview.Sales), Total(preview.Fees))
+                Message = (Amounts(preview.Sales, preview.Fees, costsAreFees: true) is { } amounts
+                        ? "Import your Stripe activity: {0}?".TranslateFormat(amounts)
+                        : "Import your Stripe activity?".Translate())
                     + (preview.LaterRefunds.Count > 0
                         ? "\n\n" + "Refunds on earlier sales to record: {0}".TranslateFormat(preview.LaterRefunds.Count)
                         : string.Empty),
@@ -81,8 +82,9 @@ public static class IntegrationImportFlow
                     () => { creation.Redo(data); Changed(host); }));
             Changed(host);
 
-            await host.Inform(title.Translate(),
-                "Imported {0} revenue and {1} expense entries from Stripe.".TranslateFormat(creation.RevenuesCreated, creation.ExpensesCreated));
+            await host.Inform(title.Translate(), Entries(creation.RevenuesCreated, creation.ExpensesCreated) is { } stripeEntries
+                ? "Imported {0} from Stripe.".TranslateFormat(stripeEntries)
+                : "Import finished.".Translate());
             if (host.AfterQueueChange != null) await host.AfterQueueChange();
             return new IntegrationImportResult(IntegrationImportOutcome.Imported);
         }
@@ -109,10 +111,7 @@ public static class IntegrationImportFlow
             var choice = await ConfirmAsync(host, new ConfirmationDialogOptions
             {
                 Title = "Import from the Argo Books API".Translate(),
-                Message = (preview.TotalObjects == 1
-                        ? "Import 1 item sent by your connected apps: {1} in revenue and {2} in expenses?\n\nDiscard removes it for good and tells the app that sent it. Cancel leaves it waiting."
-                        : "Import {0} items sent by your connected apps: {1} in revenue and {2} in expenses?\n\nDiscard removes them for good and tells the apps that sent them. Cancel leaves them waiting.")
-                    .TranslateFormat(preview.TotalObjects, Total(preview.Sales), Total(preview.ExpenseAmounts)),
+                Message = ArgoApiQuestion(preview.TotalObjects, Amounts(preview.Sales, preview.ExpenseAmounts, costsAreFees: false)),
                 PrimaryButtonText = "Import".Translate(),
                 SecondaryButtonText = "Discard".Translate(),
                 IsSecondaryDestructive = true,
@@ -156,8 +155,9 @@ public static class IntegrationImportFlow
             Changed(host);
             await SaveToMatchServerAsync();
 
-            await host.Inform(title.Translate(),
-                "Imported {0} revenue and {1} expense entries.".TranslateFormat(creation.RevenuesCreated, creation.ExpensesCreated));
+            await host.Inform(title.Translate(), Entries(creation.RevenuesCreated, creation.ExpensesCreated) is { } apiEntries
+                ? "Imported {0}.".TranslateFormat(apiEntries)
+                : "Import finished.".Translate());
             if (host.AfterQueueChange != null) await host.AfterQueueChange();
             return new IntegrationImportResult(IntegrationImportOutcome.Imported);
         }
@@ -165,6 +165,51 @@ public static class IntegrationImportFlow
         {
             return await FailedAsync(title, "Import failed: {0}".TranslateFormat(ex.Message), ex);
         }
+    }
+
+    /// <summary>
+    /// "$10.00 in revenue and $4.00 in expenses", leaving out a side with nothing on it, or null when
+    /// neither has anything, as when only customers or products were sent.
+    /// </summary>
+    internal static string? Amounts(IReadOnlyCollection<IncomingAmount> revenue, IReadOnlyCollection<IncomingAmount> costs, bool costsAreFees)
+    {
+        if (revenue.Count > 0 && costs.Count > 0)
+            return (costsAreFees ? "{0} in revenue and {1} in fees" : "{0} in revenue and {1} in expenses")
+                .TranslateFormat(Total(revenue), Total(costs));
+        if (revenue.Count > 0)
+            return "{0} in revenue".TranslateFormat(Total(revenue));
+        if (costs.Count > 0)
+            return (costsAreFees ? "{0} in fees" : "{0} in expenses").TranslateFormat(Total(costs));
+        return null;
+    }
+
+    internal static string ArgoApiQuestion(int items, string? amounts)
+    {
+        var question = (items == 1, amounts) switch
+        {
+            (true, null) => "Import 1 item sent by your connected apps?".Translate(),
+            (true, _) => "Import 1 item sent by your connected apps: {0}?".TranslateFormat(amounts),
+            (false, null) => "Import {0} items sent by your connected apps?".TranslateFormat(items),
+            (false, _) => "Import {0} items sent by your connected apps: {1}?".TranslateFormat(items, amounts)
+        };
+        var discard = items == 1
+            ? "Discard removes it for good and tells the app that sent it. Cancel leaves it waiting.".Translate()
+            : "Discard removes them for good and tells the apps that sent them. Cancel leaves them waiting.".Translate();
+        return question + "\n\n" + discard;
+    }
+
+    /// <summary>"2 revenue entries and 1 expense entry", leaving out a kind with none, or null when there are neither.</summary>
+    internal static string? Entries(int revenues, int expenses)
+    {
+        var revenuePart = revenues == 1 ? "1 revenue entry".Translate() : "{0} revenue entries".TranslateFormat(revenues);
+        var expensePart = expenses == 1 ? "1 expense entry".Translate() : "{0} expense entries".TranslateFormat(expenses);
+        return (revenues > 0, expenses > 0) switch
+        {
+            (true, true) => "{0} and {1}".TranslateFormat(revenuePart, expensePart),
+            (true, false) => revenuePart,
+            (false, true) => expensePart,
+            _ => null
+        };
     }
 
     /// <summary>
