@@ -87,11 +87,11 @@ Argo Books.app/
       argo-logo.icns
 ```
 
-It is the macOS counterpart of the AppDir the Linux script builds. `Info.plist` and `entitlements.plist` live in `packaging/macos/`; the version placeholder in `Info.plist` is substituted at build time.
+It is the macOS counterpart of the AppDir the Linux script builds. `Info.plist` and `ArgoBooks.entitlements` live in `packaging/macos/`; the version placeholder in `Info.plist` is substituted at build time.
 
 ### Gotchas
 
-- **The entitlements are load-bearing.** Notarization requires the hardened runtime, which by default blocks the JIT, unsigned executable memory, and loading the bundled native libraries. Drop any entry from `packaging/macos/entitlements.plist` and the app is killed at launch with no useful message.
+- **The entitlements are load-bearing.** Notarization requires the hardened runtime, which by default blocks the JIT, unsigned executable memory, and loading the bundled native libraries. Drop any entry from `packaging/macos/ArgoBooks.entitlements` and the app is killed at launch with no useful message.
 - **Every nested native library is signed individually.** `codesign --deep` silently misses them.
 - **The bundle name and `CFBundleExecutable` must both stay `Argo Books`.** The website, the Homebrew cask and the update package all expect that name.
 

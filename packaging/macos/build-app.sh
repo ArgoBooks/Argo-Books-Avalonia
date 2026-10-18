@@ -200,7 +200,7 @@ PACK_ARGS=(
 )
 if [ -n "${APPLE_SIGN_IDENTITY:-}" ]; then
     # Velopack wants the certificate name without the "(TEAMID)" that security find-identity prints.
-    PACK_ARGS+=(--signAppIdentity "$(echo "$APPLE_SIGN_IDENTITY" | sed 's/ *([A-Z0-9]*)$//')" --signEntitlements "$SCRIPT_DIR/entitlements.plist")
+    PACK_ARGS+=(--signAppIdentity "$(echo "$APPLE_SIGN_IDENTITY" | sed 's/ *([A-Z0-9]*)$//')" --signEntitlements "$SCRIPT_DIR/ArgoBooks.entitlements")
     if [ -n "${APPLE_NOTARY_PROFILE:-}" ]; then
         PACK_ARGS+=(--notaryProfile "$APPLE_NOTARY_PROFILE")
     fi
