@@ -2064,7 +2064,8 @@ public partial class App : Application
                 }
 
                 // Recorded only once the work is saved, since a failed save cancels the update.
-                _ = TelemetryManager?.TrackFeatureAsync(FeatureName.UpdateApplied, AppInfo.VersionNumber);
+                _ = TelemetryManager?.TrackFeatureAsync(FeatureName.UpdateApplied,
+                    UpdateOutcome.Context(AppInfo.VersionNumber, UpdateService?.AvailableUpdate?.Version ?? "unknown"));
             }
             catch (Exception ex)
             {
