@@ -160,6 +160,9 @@ public class BankStatementImportService(IErrorLogger? errorLogger = null)
         }
     }
 
+    /// <summary>How far down to look for the column names, since some banks put a dozen or more lines of account details above them.</summary>
+    private const int HeaderSearchRows = 50;
+
     /// <summary>A statement is usable only if it has a date and at least one money column.</summary>
     private static bool HasEssentialColumns(List<string> headers) =>
         headers.Contains(ColDate) && (headers.Contains(ColAmount) || headers.Contains(ColDebit) || headers.Contains(ColCredit));
@@ -170,7 +173,7 @@ public class BankStatementImportService(IErrorLogger? errorLogger = null)
     /// </summary>
     private static int FindHeaderRowIndex(List<List<string>> rows)
     {
-        var limit = Math.Min(rows.Count, 10);
+        var limit = Math.Min(rows.Count, HeaderSearchRows);
         for (int i = 0; i < limit; i++)
         {
             var copy = new List<string>(rows[i]);
@@ -188,7 +191,7 @@ public class BankStatementImportService(IErrorLogger? errorLogger = null)
     /// </summary>
     private static int FindExcelHeaderRow(IXLWorksheet worksheet, Action<List<string>> normalize)
     {
-        var lastRow = Math.Min(worksheet.LastRowUsed()?.RowNumber() ?? 1, 10);
+        var lastRow = Math.Min(worksheet.LastRowUsed()?.RowNumber() ?? 1, HeaderSearchRows);
         for (int rowNum = 1; rowNum <= lastRow; rowNum++)
         {
             var copy = new List<string>(SpreadsheetRowReader.GetHeaders(worksheet, rowNum));
