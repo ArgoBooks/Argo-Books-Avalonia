@@ -1342,7 +1342,7 @@ public partial class App : Application
         {
             _startupArgs = desktop.Args ?? [];
             WireMacFileActivation();
-            _ = InstallMacApplicationMenuAsync();
+            _ = InstallMacApplicationMenuAsync(desktop);
 
             // Initialize error logging first so it's available for all services
             var errorLogger = new ErrorLogger();
@@ -2198,27 +2198,19 @@ public partial class App : Application
 
 
     /// <summary>
-    /// Gives macOS the application menu it expects.
-    ///
-    /// Avalonia supplies a bare default with little more than Quit, which leaves the app with
-    /// no About item, no Settings under its own name where every Mac app keeps it, and no File
-    /// menu at all. The commands are the ones the in-app UI already uses, so the menu is
-    /// another way in rather than a second implementation.
-    ///
-    /// Deferred until the shell exists: the view models it binds to are built during startup,
-    /// and a menu wired to nulls would be a row of dead items.
+    /// Gives macOS the menu bar it expects: Settings in the menu under the app's name, and a File menu
+    /// beside it, using the same commands as the in-app file menu.
     /// </summary>
-    private async Task InstallMacApplicationMenuAsync()
+    private async Task InstallMacApplicationMenuAsync(IClassicDesktopStyleApplicationLifetime desktop)
     {
         if (!OperatingSystem.IsMacOS())
             return;
 
-        // Poll rather than hook a "ready" event, because the shell is assembled across several
-        // async steps and there is no single point that means "all of these exist".
-        for (var attempt = 0; attempt < 100 && _appShellViewModel == null; attempt++)
+        // The window and the view models the items call are built across several async startup steps.
+        for (var attempt = 0; attempt < 100 && (desktop.MainWindow == null || _appShellViewModel == null); attempt++)
             await Task.Delay(100);
 
-        if (_appShellViewModel is not { } shell)
+        if (desktop.MainWindow is not { } window || _appShellViewModel is not { } shell)
             return;
 
         NativeMenuItem Item(string header, string? gesture, Action action)
@@ -2230,27 +2222,30 @@ public partial class App : Application
             return item;
         }
 
-        var appMenu = new NativeMenuItem("Argo Books")
-        {
-            Menu =
-            [
-                // No About item: the app has no About screen to open, and a menu entry that
-                // opens something else would be worse than its absence.
-                Item("Settings...", "Cmd+,", () => shell.SettingsModalViewModel.OpenCommand.Execute(null)),
-            ],
-        };
+        var file = shell.FileMenuPanelViewModel;
 
-        var fileMenu = new NativeMenuItem("File".Translate())
-        {
-            Menu =
-            [
-                Item("New Company", null, () => _ = RequestCreateNewCompanyAsync()),
-                Item("Save", "Cmd+S", () => shell.HeaderViewModel.SaveCommand.Execute(null)),
-                Item("Save As...", "Cmd+Shift+S", () => shell.FileMenuPanelViewModel.SaveAsCommand.Execute(null)),
-            ],
-        };
+        // macOS lists the application's menu under the app's name, and only a window's menu as menus in the bar itself.
+        NativeMenu.SetMenu(this,
+        [
+            Item("Settings...", "Cmd+,", () => shell.SettingsModalViewModel.OpenCommand.Execute(null)),
+        ]);
 
-        NativeMenu.SetMenu(this, [appMenu, fileMenu]);
+        NativeMenu.SetMenu(window,
+        [
+            new NativeMenuItem("File".Translate())
+            {
+                Menu =
+                [
+                    Item("New Company...", null, () => file.NewCompanyCommand.Execute(null)),
+                    Item("Open Company...", "Cmd+O", () => file.OpenCompanyCommand.Execute(null)),
+                    new NativeMenuItemSeparator(),
+                    Item("Save", "Cmd+S", () => shell.HeaderViewModel.SaveCommand.Execute(null)),
+                    Item("Save As...", "Cmd+Shift+S", () => file.SaveAsCommand.Execute(null)),
+                    new NativeMenuItemSeparator(),
+                    Item("Close Company", null, () => file.CloseCompanyCommand.Execute(null)),
+                ],
+            },
+        ]);
     }
 
     /// <summary>
