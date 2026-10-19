@@ -52,6 +52,10 @@ public partial class CheckForUpdateModalViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isReadyToInstall;
 
+    /// <summary>True while the window that finishes the move from the old Windows installer is showing.</summary>
+    [ObservableProperty]
+    private bool _isFinishingUpdate;
+
     #endregion
 
     /// <summary>
@@ -139,6 +143,49 @@ public partial class CheckForUpdateModalViewModel : ViewModelBase
         if (HasUpdate)
             await DownloadUpdate();
     }
+
+    /// <summary>
+    /// Takes a copy from the old Windows installer through its move to the new one in a window that cannot be closed: check, download, install and restart.
+    /// </summary>
+    public async Task FinishUpdateAsync()
+    {
+        IsFinishingUpdate = true;
+
+        if (IsChecking || IsDownloading)
+            return;
+
+        if (!HasUpdate && !IsReadyToInstall)
+            await CheckForUpdates();
+
+        if (HasUpdate)
+            await DownloadUpdate();
+
+        if (IsReadyToInstall)
+            await ApplyUpdate();
+
+        // Still running here means nothing was installed, and only an empty update list leaves nothing to finish.
+        if (IsUpToDate)
+        {
+            IsFinishingUpdate = false;
+            return;
+        }
+
+        if (!HasError)
+        {
+            ResetStates();
+            HasError = true;
+            ErrorMessage = "The update could not be finished right now.";
+        }
+    }
+
+    [RelayCommand]
+    private Task TryFinishingAgain() => FinishUpdateAsync();
+
+    /// <summary>
+    /// Lets the user into the app when the update cannot finish, such as without internet. The next launch tries again.
+    /// </summary>
+    [RelayCommand]
+    private void ContinueForNow() => IsFinishingUpdate = false;
 
     /// <summary>
     /// Closes the modal. Any in-progress download continues in the background.

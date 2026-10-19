@@ -85,6 +85,9 @@ public sealed class VelopackUpdateService : IUpdateService
     }
 
     /// <inheritdoc />
+    public bool IsMoveToNewInstall => IsOldWindowsInstall;
+
+    /// <inheritdoc />
     public bool HasOldInstallToRemove => OperatingSystem.IsWindows() && _manager.IsInstalled && OldWindowsInstall.IsPresent();
 
     /// <inheritdoc />

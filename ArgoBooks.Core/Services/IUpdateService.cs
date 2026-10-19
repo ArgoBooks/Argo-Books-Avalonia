@@ -103,6 +103,11 @@ public interface IUpdateService
     void ApplyUpdateAndRestart();
 
     /// <summary>
+    /// True on Windows when this copy was installed by the old installer, so its update is the move to the Velopack install rather than a new version.
+    /// </summary>
+    bool IsMoveToNewInstall => false;
+
+    /// <summary>
     /// True on Windows when this copy was installed by Velopack and the copy the old installer put in Program Files is still there.
     /// </summary>
     bool HasOldInstallToRemove => false;

@@ -220,6 +220,11 @@
                                         HorizontalAlignment="Stretch"
                                         VerticalAlignment="Stretch"
                                         ZIndex="180" />
+            <modals:FinishingUpdateModal DataContext="{Binding CheckForUpdateModalViewModel}"
+                                         IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).ShowWelcomeScreen}"
+                                         HorizontalAlignment="Stretch"
+                                         VerticalAlignment="Stretch"
+                                         ZIndex="181" />
 
             <!-- Create Company Wizard (full-screen overlay above everything) -->
             <modals:CreateCompanyWizard DataContext="{Binding CreateCompanyViewModel}"

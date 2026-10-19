@@ -231,6 +231,7 @@
 
         <!-- Check for Update Modal -->
         <modals:CheckForUpdateModal DataContext="{Binding CheckForUpdateModalViewModel}" />
+        <modals:FinishingUpdateModal DataContext="{Binding CheckForUpdateModalViewModel}" ZIndex="1000" />
 
         <!-- Prediction Info Modal -->
         <modals:PredictionInfoModal DataContext="{Binding PredictionInfoModalViewModel}" />

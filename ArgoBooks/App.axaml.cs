@@ -1407,6 +1407,8 @@ public partial class App : Application
                 try
                 {
                     UpdateService = UpdateServiceFactory();
+                    if (UpdateService != null)
+                        UpdateService.ApplyingUpdate += SaveBeforeUpdate;
                 }
                 catch (Exception ex)
                 {
@@ -1711,6 +1713,13 @@ public partial class App : Application
                     }
                 };
             }
+
+            // The window covers the app as soon as it appears, so nobody is halfway through a form when the update restarts it.
+            desktop.MainWindow.Opened += (_, _) =>
+            {
+                if (UpdateService is { IsMoveToNewInstall: true } && _appShellViewModel != null)
+                    _ = _appShellViewModel.CheckForUpdateModalViewModel.FinishUpdateAsync();
+            };
 
             // Record how long this launch took, once the main window is genuinely on screen.
             desktop.MainWindow.Opened += (_, _) =>
@@ -2030,6 +2039,50 @@ public partial class App : Application
     }
 
     /// <summary>
+    /// Saves the open company and records the update just before the installer closes the app, or cancels the update if saving fails.
+    /// </summary>
+    private static void SaveBeforeUpdate(object? sender, ApplyingUpdateEventArgs applying)
+    {
+        try
+        {
+            if (CompanyManager?.IsCompanyOpen == true)
+            {
+                // Use synchronous wait since we must complete before the process exits
+                Task.Run(async () => await CompanyManager.SaveCompanyAsync(kind: "update"))
+                    .GetAwaiter().GetResult();
+            }
+
+            if (SettingsService != null)
+            {
+                // Flag that we're updating so we can auto-reopen the company after restart
+                SettingsService.GlobalSettings.Updates.AutoOpenRecentAfterUpdate = true;
+                SettingsService.GlobalSettings.Updates.FileToOpenAfterUpdate = _fileToOpenAfterUpdate;
+                SettingsService.GlobalSettings.Updates.PendingUpdateVersion = UpdateService?.AvailableUpdate?.Version;
+                SettingsService.GlobalSettings.Updates.PendingUpdateFromVersion = AppInfo.VersionNumber;
+                Task.Run(async () => await SettingsService.SaveGlobalSettingsAsync())
+                    .GetAwaiter().GetResult();
+            }
+
+            // Recorded only once the work is saved, since a failed save cancels the update.
+            _ = TelemetryManager?.TrackFeatureAsync(FeatureName.UpdateApplied,
+                UpdateOutcome.Context(AppInfo.VersionNumber, UpdateService?.AvailableUpdate?.Version ?? "unknown"));
+        }
+        catch (Exception ex)
+        {
+            if (SettingsService != null)
+                ClearUpdateInProgress(SettingsService.GlobalSettings.Updates);
+            // The installer restarts the app, so going ahead would throw away whatever did not
+            // get written. Refuse, the same as the close, auto-lock and tutorial-restart paths.
+            applying.Cancel = true;
+            ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to save data before update");
+            _appShellViewModel?.AddNotification(
+                "Update postponed".Translate(),
+                "Your changes could not be saved, so the update was not installed. Save manually, then update again.".Translate(),
+                NotificationType.Warning);
+        }
+    }
+
+    /// <summary>
     /// Performs a background check for updates on startup. If a newer version is
     /// available, shows the update banner at the top of the app shell ("A new
     /// version is available" with a Download now button) and primes the
@@ -2040,51 +2093,13 @@ public partial class App : Application
         if (UpdateService == null || _appShellViewModel == null)
             return;
 
-        // Wire the ApplyingUpdate event to save user data before the app exits
-        UpdateService.ApplyingUpdate += (_, applying) =>
-        {
-            try
-            {
-                if (CompanyManager?.IsCompanyOpen == true)
-                {
-                    // Use synchronous wait since we must complete before the process exits
-                    Task.Run(async () => await CompanyManager.SaveCompanyAsync(kind: "update"))
-                        .GetAwaiter().GetResult();
-                }
-
-                if (SettingsService != null)
-                {
-                    // Flag that we're updating so we can auto-reopen the company after restart
-                    SettingsService.GlobalSettings.Updates.AutoOpenRecentAfterUpdate = true;
-                    SettingsService.GlobalSettings.Updates.FileToOpenAfterUpdate = _fileToOpenAfterUpdate;
-                    SettingsService.GlobalSettings.Updates.PendingUpdateVersion = UpdateService?.AvailableUpdate?.Version;
-                    SettingsService.GlobalSettings.Updates.PendingUpdateFromVersion = AppInfo.VersionNumber;
-                    Task.Run(async () => await SettingsService.SaveGlobalSettingsAsync())
-                        .GetAwaiter().GetResult();
-                }
-
-                // Recorded only once the work is saved, since a failed save cancels the update.
-                _ = TelemetryManager?.TrackFeatureAsync(FeatureName.UpdateApplied,
-                    UpdateOutcome.Context(AppInfo.VersionNumber, UpdateService?.AvailableUpdate?.Version ?? "unknown"));
-            }
-            catch (Exception ex)
-            {
-                if (SettingsService != null)
-                    ClearUpdateInProgress(SettingsService.GlobalSettings.Updates);
-                // The installer restarts the app, so going ahead would throw away whatever did not
-                // get written. Refuse, the same as the close, auto-lock and tutorial-restart paths.
-                applying.Cancel = true;
-                ErrorLogger?.LogError(ex, ErrorCategory.FileSystem, "Failed to save data before update");
-                _appShellViewModel?.AddNotification(
-                    "Update postponed".Translate(),
-                    "Your changes could not be saved, so the update was not installed. Save manually, then update again.".Translate(),
-                    NotificationType.Warning);
-            }
-        };
-
         await ReportLastUpdateOutcomeAsync();
         // Not awaited, because it waits for the user to answer the Windows permission prompt and the update check should not.
         _ = RemoveOldWindowsInstallAsync();
+
+        // A copy from the old Windows installer finishes its update in the window opened when the main window appeared, so it shows no banner as well.
+        if (UpdateService.IsMoveToNewInstall)
+            return;
 
         try
         {
@@ -2164,11 +2179,6 @@ public partial class App : Application
 
         try
         {
-            Avalonia.Threading.Dispatcher.UIThread.Post(() => _appShellViewModel?.AddNotification(
-                "Finishing the update".Translate(),
-                "Windows will ask for permission to remove the previous copy of Argo Books. Your companies and settings stay as they are.".Translate(),
-                NotificationType.Info));
-
             if (await updateService.RemoveOldInstallAsync())
             {
                 updates.OldInstallRemovalAttempts = 0;

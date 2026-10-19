@@ -1,0 +1,93 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:ArgoBooks.ViewModels"
+             xmlns:loc="using:ArgoBooks.Localization"
+             xmlns:controls="using:ArgoBooks.Controls"
+             xmlns:local="using:ArgoBooks"
+             mc:Ignorable="d" d:DesignWidth="420" d:DesignHeight="380"
+             x:Class="ArgoBooks.Modals.FinishingUpdateModal"
+             x:DataType="vm:CheckForUpdateModalViewModel">
+
+    <Design.DataContext>
+        <vm:CheckForUpdateModalViewModel />
+    </Design.DataContext>
+
+    <!-- It cannot be closed while it works, because the app restarts when it finishes and anything half typed would be lost. -->
+    <controls:ModalOverlay IsOpen="{Binding IsFinishingUpdate}"
+                           CloseOnBackdropClick="False"
+                           CloseOnEscape="False">
+        <controls:ModalOverlay.ModalContent>
+            <Border Classes="modal-card" Width="420">
+                <StackPanel>
+                    <controls:ModalHeader Title="{loc:Loc 'Finishing your update'}" />
+
+                    <StackPanel Margin="24" Spacing="20">
+                        <Image Source="avares://ArgoBooks/Assets/argo-logo.png"
+                               Width="64" Height="64"
+                               HorizontalAlignment="Center" />
+
+                        <!-- Working -->
+                        <StackPanel IsVisible="{Binding !HasError}" Spacing="12">
+                            <TextBlock Text="{loc:Loc 'Argo Books is installing its new version. This only happens once.'}"
+                                       FontSize="14"
+                                       FontWeight="Medium"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       TextAlignment="Center"
+                                       TextWrapping="Wrap" />
+                            <ProgressBar Minimum="0" Maximum="100"
+                                         Value="{Binding DownloadProgress}"
+                                         IsIndeterminate="{Binding !IsDownloading}"
+                                         Height="6"
+                                         CornerRadius="3"
+                                         Width="300"
+                                         Foreground="{DynamicResource PrimaryBrush}" />
+                            <TextBlock Text="{Binding DownloadProgress, StringFormat='{}{0}%'}"
+                                       IsVisible="{Binding IsDownloading}"
+                                       FontSize="12"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       HorizontalAlignment="Center" />
+                        </StackPanel>
+
+                        <!-- Could not finish -->
+                        <StackPanel IsVisible="{Binding HasError}" Spacing="8">
+                            <TextBlock Text="{loc:Loc 'The update could not finish right now'}"
+                                       FontSize="14"
+                                       FontWeight="Medium"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       HorizontalAlignment="Center" />
+                            <SelectableTextBlock Text="{Binding ErrorMessage}"
+                                                 FontSize="12"
+                                                 Foreground="{DynamicResource TextSecondaryBrush}"
+                                                 TextAlignment="Center"
+                                                 TextWrapping="Wrap" />
+                            <TextBlock Text="{loc:Loc 'You can keep working, and Argo Books will try again the next time you open it.'}"
+                                       FontSize="12"
+                                       Foreground="{DynamicResource TextTertiaryBrush}"
+                                       TextAlignment="Center"
+                                       TextWrapping="Wrap" />
+                            <Grid ColumnDefinitions="*,8,*"
+                                  Width="320"
+                                  HorizontalAlignment="Center"
+                                  Margin="0,8,0,0">
+                                <Button Grid.Column="0"
+                                        Classes="secondary-button"
+                                        HorizontalAlignment="Stretch"
+                                        HorizontalContentAlignment="Center"
+                                        Content="{loc:Loc 'Continue for Now'}"
+                                        Command="{Binding ContinueForNowCommand}" />
+                                <Button Grid.Column="2"
+                                        Classes="primary-button"
+                                        HorizontalAlignment="Stretch"
+                                        HorizontalContentAlignment="Center"
+                                        Content="{loc:Loc 'Try Again'}"
+                                        Command="{Binding TryFinishingAgainCommand}" />
+                            </Grid>
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </controls:ModalOverlay.ModalContent>
+    </controls:ModalOverlay>
+</UserControl>
