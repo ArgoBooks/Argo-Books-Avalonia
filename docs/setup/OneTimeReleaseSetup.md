@@ -20,7 +20,7 @@ The Linux build installs the matching version by itself in GitHub Actions.
 
 ## Code signing on Windows
 
-`build-release.ps1` signs through Azure Trusted Signing, set up as in [Azure setup](AzureSetup.md), using the account details in `packaging/windows/trusted-signing-metadata.json`. It signs as whoever is signed in to the Azure CLI (installed in step 12 there), so sign in once:
+`build-release.ps1` signs through Azure Trusted Signing, set up in [Azure setup](AzureSetup.md). It signs as whoever is signed in to the Azure CLI (installed in step 12 there), so sign in once:
 
 ```powershell
 az login

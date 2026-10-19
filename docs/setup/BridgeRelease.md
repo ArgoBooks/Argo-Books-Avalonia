@@ -1,10 +1,10 @@
 # The bridge release
 
-Done once, for 2.0.21. Copies of Argo Books up to 2.0.20 update through the old updater, which cannot install releases built the new way (with Velopack). 2.0.21 is the last release the old updater sees, and once it is installed it moves each copy over to the new updater. Every release after it follows [Publishing](../Publishing.md) alone.
+Done once, for 2.0.21. Copies of Argo Books up to 2.0.20 update through the old updater. The new way is with Velopack. Once 2.0.21 is installed it moves each copy over to the new updater. Every release after it follows [Publishing](../Publishing.md) alone.
 
 ## Steps
 
-1. Build all four platforms as in [Publishing](../Publishing.md).
+1. Build all four installer files, following [Publishing](../Publishing.md).
 
 2. Also build the old-style Windows installer, straight after `build-release.ps1` and from the same build:
    1. Open `packaging\windows\Argo Books.aip` in Advanced Installer.
